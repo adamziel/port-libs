@@ -756,6 +756,71 @@ return [
         $t->same($documentXml, $package->read('/word/document.xml'));
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
+    'summarizes zip local header variable field bytes for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentExtra = pack('vva*', 0xcafe, strlen('review-meta'), 'review-meta');
+        $mediaExtra = pack('vva*', 0xbeef, strlen('media-meta'), 'media-meta');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local variable fields</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $documentExtra,
+                'centralExtra' => $documentExtra,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => 'review media bytes',
+                'method' => 0,
+                'localExtra' => $mediaExtra,
+                'centralExtra' => $mediaExtra,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $centralVariables = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $nameBytes = strlen('mimetype') + strlen('word/document.xml') + strlen('word/media/review.bin');
+        $extraBytes = strlen($documentExtra) + strlen($mediaExtra);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same($nameBytes + $extraBytes, $summary['localHeaderVariableFieldBytes']);
+        $t->same($nameBytes, $summary['localHeaderNameBytes']);
+        $t->same($extraBytes, $summary['localHeaderExtraFieldBytes']);
+        $t->same(2, $summary['localExtraFieldEntryCount']);
+        $t->same(true, $summary['hasLocalHeaderVariableFields']);
+        $t->same(true, $summary['hasLocalExtraFields']);
+        $t->same($summary, $strict['localHeaders']);
+        $t->same($summary['localHeaderVariableFieldBytes'], $centralVariables['centralDirectoryVariableFieldBytes']);
+        $t->same($summary['localHeaderExtraFieldBytes'], $centralVariables['centralDirectoryExtraFieldBytes']);
+
+        $first = $summary['entries'][0];
+        $t->same('mimetype', $first['name']);
+        $t->same($first['localHeaderOffset'] + 30, $first['localVariableFieldsOffset']);
+        $t->same(strlen('mimetype'), $first['localVariableFieldsLength']);
+        $t->same($first['localVariableFieldsOffset'], $first['localNameOffset']);
+        $t->same($first['localVariableFieldsOffset'] + strlen('mimetype'), $first['localExtraFieldOffset']);
+        $t->same(0, $first['localExtraFieldLength']);
+        $t->same($first['localHeaderOffset'] + $first['localHeaderLength'], $first['dataStart']);
+
+        $document = $summary['entries'][1];
+        $t->same('word/document.xml', $document['name']);
+        $t->same($document['localHeaderOffset'] + 30, $document['localVariableFieldsOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentExtra), $document['localVariableFieldsLength']);
+        $t->same($document['localVariableFieldsOffset'] + strlen('word/document.xml'), $document['localExtraFieldOffset']);
+        $t->same(strlen($documentExtra), $document['localExtraFieldLength']);
+
+        $media = $summary['entries'][2];
+        $t->same('word/media/review.bin', $media['name']);
+        $t->same(strlen('word/media/review.bin') + strlen($mediaExtra), $media['localVariableFieldsLength']);
+        $t->same(strlen($mediaExtra), $media['localExtraFieldLength']);
+        $t->same($summary['centralDirectoryOffset'], $media['nextOffset']);
+    },
 
     'preflights raw zip local header span gaps before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $orphanName = 'word/media/orphan.bin';

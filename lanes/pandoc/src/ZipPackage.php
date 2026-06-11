@@ -583,11 +583,21 @@ final class ZipPackage
      *     entryCount:int,
      *     firstLocalEntryName:?string,
      *     centralDirectoryOffset:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderNameBytes:int,
+     *     localHeaderExtraFieldBytes:int,
+     *     localExtraFieldEntryCount:int,
+     *     hasLocalHeaderVariableFields:bool,
+     *     hasLocalExtraFields:bool,
      *     entries:list<array{
      *         name:string,
      *         localHeaderOffset:int,
      *         localHeaderLength:int,
+     *         localVariableFieldsOffset:int,
+     *         localVariableFieldsLength:int,
+     *         localNameOffset:int,
      *         localNameLength:int,
+     *         localExtraFieldOffset:int,
      *         localExtraFieldLength:int,
      *         dataStart:int,
      *         compressedSize:int,
@@ -611,6 +621,9 @@ final class ZipPackage
     {
         $entries = [];
         $localEntries = $this->localEntries();
+        $nameBytes = 0;
+        $extraFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -632,11 +645,23 @@ final class ZipPackage
                     && $localHeader['uncompressedSize'] === 0;
             }
 
+            $localVariableFieldsOffset = $entry->localHeaderOffset + 30;
+            $localExtraFieldOffset = $localVariableFieldsOffset + $localHeader['nameLength'];
+            $nameBytes += $localHeader['nameLength'];
+            $extraFieldBytes += $localHeader['extraFieldLength'];
+            if ($localHeader['extraFieldLength'] > 0) {
+                $localExtraFieldEntryCount++;
+            }
+
             $entries[] = [
                 'name' => $entry->name,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeader['localHeaderLength'],
+                'localVariableFieldsOffset' => $localVariableFieldsOffset,
+                'localVariableFieldsLength' => $localHeader['nameLength'] + $localHeader['extraFieldLength'],
+                'localNameOffset' => $localVariableFieldsOffset,
                 'localNameLength' => $localHeader['nameLength'],
+                'localExtraFieldOffset' => $localExtraFieldOffset,
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'dataStart' => $localHeader['dataStart'],
                 'compressedSize' => $entry->compressedSize,
@@ -660,6 +685,12 @@ final class ZipPackage
             'entryCount' => count($localEntries),
             'firstLocalEntryName' => $localEntries[0]->name ?? null,
             'centralDirectoryOffset' => $this->centralDirectoryOffset,
+            'localHeaderVariableFieldBytes' => $nameBytes + $extraFieldBytes,
+            'localHeaderNameBytes' => $nameBytes,
+            'localHeaderExtraFieldBytes' => $extraFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderVariableFields' => $nameBytes + $extraFieldBytes > 0,
+            'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
             'entries' => $entries,
         ];
     }
