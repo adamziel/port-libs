@@ -128,6 +128,9 @@ return [
         $t->same('override', $customXmlRelationship['contentTypeSource']);
         $t->same(true, $remoteRelationship['external']);
         $t->same(null, $remoteRelationship['targetPart']);
+        $t->same('x=1', $remoteRelationship['targetQuery']);
+        $t->same('frag', $remoteRelationship['targetFragment']);
+        $t->same('?x=1#frag', $remoteRelationship['targetReferenceSuffix']);
         $t->same(false, $remoteRelationship['exists']);
 
         $t->same('office-document', $inventory['word/document.xml']['roles'][0]);
@@ -424,7 +427,7 @@ XML;
         );
         $parts['_rels/.rels'] = str_replace(
             '</Relationships>',
-            '  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="https://example.test/review.png" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="https://example.test/review.png?kind=thumb#cover" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['_rels/.rels']
         );
@@ -489,11 +492,17 @@ XML;
         $t->same(1, $hyperlink['externalCount']);
         $t->same(['https://example.test/source?post=42'], $hyperlink['externalTargets']);
         $t->same(null, $hyperlink['relationships'][0]['targetPart']);
+        $t->same('?post=42', $hyperlink['relationships'][0]['targetReferenceSuffix']);
+        $t->same('post=42', $hyperlink['relationships'][0]['targetQuery']);
+        $t->same(null, $hyperlink['relationships'][0]['targetFragment']);
 
         $t->same('thumbnail', $thumbnail['label']);
         $t->same(1, $thumbnail['externalCount']);
-        $t->same(['https://example.test/review.png'], $thumbnail['externalTargets']);
+        $t->same(['https://example.test/review.png?kind=thumb#cover'], $thumbnail['externalTargets']);
         $t->same(['_rels/.rels'], $thumbnail['relationshipParts']);
+        $t->same('?kind=thumb#cover', $thumbnail['relationships'][0]['targetReferenceSuffix']);
+        $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
+        $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -512,7 +521,7 @@ XML;
         $parts['word/_rels/document.xml.rels'] = str_replace(
             '</Relationships>',
             '  <Relationship Id="rMissingComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml?thread=review#c1"/>' . "\n" .
-            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx?version=2026#template" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
         );
@@ -576,7 +585,10 @@ XML;
         $t->same('rLink', $summary['externalRelationshipTargets'][0]['id']);
         $t->same('rRemoteTemplate', $summary['externalRelationshipTargets'][1]['id']);
         $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
-        $t->same('https://example.test/templates/review.dotx', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
+        $t->same('https://example.test/templates/review.dotx?version=2026#template', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
+        $t->same('?version=2026#template', $summary['externalRelationshipTargets'][1]['targetReferenceSuffix']);
+        $t->same('version=2026', $summary['externalRelationshipTargets'][1]['targetQuery']);
+        $t->same('template', $summary['externalRelationshipTargets'][1]['targetFragment']);
     },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

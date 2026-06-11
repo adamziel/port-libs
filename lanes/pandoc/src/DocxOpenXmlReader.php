@@ -2348,6 +2348,7 @@ final class DocxOpenXmlReader
                     'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
                     'defaultExtension' => is_string($relationship['defaultExtension'] ?? null) ? $relationship['defaultExtension'] : null,
                     'overridePartName' => is_string($relationship['overridePartName'] ?? null) ? $relationship['overridePartName'] : null,
+                    'targetReferenceSuffix' => is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '',
                     'targetQuery' => is_string($relationship['targetQuery'] ?? null) ? $relationship['targetQuery'] : null,
                     'targetFragment' => is_string($relationship['targetFragment'] ?? null) ? $relationship['targetFragment'] : null,
                 ];
@@ -2482,7 +2483,7 @@ final class DocxOpenXmlReader
     ): array {
         $external = $this->isExternalRelationshipTarget($relationship);
         $targetPart = $external ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
-        $suffix = $external ? ['query' => null, 'fragment' => null, 'suffix' => ''] : $this->targetReferenceSuffix($relationship['resolvedTarget']);
+        $suffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
         $contentTypeResolution = $targetPart === null
             ? $this->missingContentTypeResolution(null)
             : $this->contentTypeResolutionForPart($targetPart, $contentTypes);
