@@ -575,12 +575,14 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return list<array{0:array{t:string}, 1:array<string, mixed>}>
+     * @return list<array{0:array<string, mixed>, 1:array<string, mixed>}>
      */
     private function writeTableColumnSpecs(AstNode $node): array
     {
         $alignments = $node->attr('alignments', []);
         $widths = $node->attr('widths', []);
+        $alignmentNativePayloads = $node->attr('alignmentNativePayloads', []);
+        $columnWidthNativePayloads = $node->attr('columnWidthNativePayloads', []);
         $columnCount = max(
             is_array($alignments) ? count($alignments) : 0,
             is_array($widths) ? count($widths) : 0,
@@ -591,12 +593,78 @@ final class PandocJsonWriter
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
             $specs[] = [
-                $this->enum($this->tableAlignmentConstructor($alignment)),
-                is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault'],
+                $this->writeTableAlignmentConstructor(
+                    $alignment,
+                    is_array($alignmentNativePayloads) ? ($alignmentNativePayloads[$index] ?? null) : null
+                ),
+                $this->writeTableColumnWidthConstructor(
+                    $width,
+                    is_array($columnWidthNativePayloads) ? ($columnWidthNativePayloads[$index] ?? null) : null
+                ),
             ];
         }
 
         return $specs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeTableAlignmentConstructor(string $alignment, mixed $native): array
+    {
+        $constructor = $this->tableAlignmentConstructor($alignment);
+        if (
+            is_array($native)
+            && !array_is_list($native)
+            && ($native['t'] ?? null) === $constructor
+        ) {
+            return $native;
+        }
+
+        return $this->enum($constructor);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeTableColumnWidthConstructor(mixed $width, mixed $native): array
+    {
+        if (is_int($width) || is_float($width)) {
+            $width = (float) $width;
+            if ($this->nativeColumnWidthValue($native) === $width) {
+                return $native;
+            }
+
+            return ['t' => 'ColWidth', 'c' => $width];
+        }
+
+        if (
+            is_array($native)
+            && !array_is_list($native)
+            && ($native['t'] ?? null) === 'ColWidthDefault'
+        ) {
+            return $native;
+        }
+
+        return ['t' => 'ColWidthDefault'];
+    }
+
+    private function nativeColumnWidthValue(mixed $native): ?float
+    {
+        if (is_int($native) || is_float($native)) {
+            return (float) $native;
+        }
+
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== 'ColWidth') {
+            return null;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return is_int($content) || is_float($content) ? (float) $content : null;
     }
 
     /**

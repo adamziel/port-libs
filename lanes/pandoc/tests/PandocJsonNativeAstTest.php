@@ -1434,6 +1434,91 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'preserves table column spec native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $columnSpecs = [
+            [['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => [0.375]]],
+            [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                $columnSpecs,
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'A']]]],
+                                    ]],
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'B']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+
+            $t->same(['right', 'default'], $table->attr('alignments'), "{$source} table alignments");
+            $t->same([0.375, null], $table->attr('widths'), "{$source} table widths");
+            $t->same(['AlignRight', 'AlignDefault'], $table->attr('alignmentConstructors'), "{$source} table alignment constructors");
+            $t->same(['ColWidth', 'ColWidthDefault'], $table->attr('columnWidthConstructors'), "{$source} table width constructors");
+            $t->same([$columnSpecs[0][0], $columnSpecs[1][0]], $table->attr('alignmentNativePayloads'), "{$source} table alignment native payloads");
+            $t->same([$columnSpecs[0][1], $columnSpecs[1][1]], $table->attr('columnWidthNativePayloads'), "{$source} table width native payloads");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($columnSpecs, $jsonPacket['blocks'][0]['c'][2]);
+        $t->same($columnSpecs, $nativePacket['blocks'][0]['c'][2]);
+
+        $table = $documents['json']->children[0];
+        $editedTable = new AstNode('table', array_replace($table->attrs, [
+            'alignments' => ['center', 'default'],
+            'widths' => [0.5, null],
+        ]), $table->children);
+        $editedDocument = new AstNode('document', $documents['json']->attrs, [$editedTable]);
+        $editedJsonPacket = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([['t' => 'AlignCenter'], ['t' => 'ColWidth', 'c' => 0.5]], $editedJsonPacket['blocks'][0]['c'][2][0]);
+        $t->same([['t' => 'AlignCenter'], ['t' => 'ColWidth', 'c' => 0.5]], $editedNativePacket['blocks'][0]['c'][2][0]);
+        $t->same($columnSpecs[1], $editedJsonPacket['blocks'][0]['c'][2][1]);
+        $t->same($columnSpecs[1], $editedNativePacket['blocks'][0]['c'][2][1]);
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];
