@@ -1007,8 +1007,11 @@ return [
         $t->same($nativeFigure, $roundTrip['blocks'][0]);
         $t->same('Figure', $generated['blocks'][0]['t']);
         $t->same(['generated-figure', ['native-review'], [['data-source', 'writer']]], $generated['blocks'][0]['c'][0]);
-        $t->same('Generated', $generated['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Generated', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $generated['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $generated['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $generated['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('Image', $generated['blocks'][0]['c'][2][0]['c'][0]['t']);
         $t->same('figure', $generatedRoundTrip->children[0]->type);
         $t->same('generated-figure', $generatedRoundTrip->children[0]->attr('id'));
@@ -1497,8 +1500,11 @@ return [
 
         $t->same('Table', $native['blocks'][0]['t']);
         $t->same(['writer-table', ['native-generated'], [['data-source', 'writer']]], $native['blocks'][0]['c'][0]);
-        $t->same('Short', $native['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Generated', $native['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $native['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $native['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $native['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Short', $native['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Generated', $native['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('AlignLeft', $native['blocks'][0]['c'][2][0][0]['t']);
         $t->same('ColWidth', $native['blocks'][0]['c'][2][0][1]['t']);
         $t->same(0.3, $native['blocks'][0]['c'][2][0][1]['c']);
@@ -1567,11 +1573,14 @@ return [
 
         $t->same('Table', $tableBlock['t']);
         $t->same(['native-writer-table', ['wp-import-table'], [['data-source', 'shared-ast']]], $tableBlock['c'][0]);
-        $t->same('Review', $tableBlock['c'][1][0][0]['c']);
-        $t->same('Strong', $tableBlock['c'][1][0][2]['t']);
-        $t->same('Shared', $tableBlock['c'][1][1][0]['c'][0]['c']);
-        $t->same('Emph', $tableBlock['c'][1][1][0]['c'][2]['t']);
-        $t->same('Link', $tableBlock['c'][1][1][0]['c'][4]['t']);
+        $t->same('Caption', $tableBlock['c'][1]['t']);
+        $t->same('Just', $tableBlock['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $tableBlock['c'][1]['c'][0]['c']['t']);
+        $t->same('Review', $tableBlock['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Strong', $tableBlock['c'][1]['c'][0]['c']['c'][0][2]['t']);
+        $t->same('Shared', $tableBlock['c'][1]['c'][1][0]['c'][0]['c']);
+        $t->same('Emph', $tableBlock['c'][1]['c'][1][0]['c'][2]['t']);
+        $t->same('Link', $tableBlock['c'][1]['c'][1][0]['c'][4]['t']);
         $t->same('AlignLeft', $tableBlock['c'][2][0][0]['t']);
         $t->same('ColWidth', $tableBlock['c'][2][0][1]['t']);
         $t->same(0.33, $tableBlock['c'][2][0][1]['c']);
@@ -1633,10 +1642,13 @@ return [
         $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
         $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
-        $t->same('Queue', $native['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Space', $native['blocks'][0]['c'][1][0][1]['t']);
-        $t->same('Emph', $native['blocks'][0]['c'][1][0][2]['t']);
-        $t->same('Para', $native['blocks'][0]['c'][1][1][0]['t']);
+        $t->same('Caption', $native['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $native['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $native['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Queue', $native['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Space', $native['blocks'][0]['c'][1]['c'][0]['c']['c'][0][1]['t']);
+        $t->same('Emph', $native['blocks'][0]['c'][1]['c'][0]['c']['c'][0][2]['t']);
+        $t->same('Para', $native['blocks'][0]['c'][1]['c'][1][0]['t']);
         $t->same('Block long caption', $table->attr('caption'));
         $t->same('Queue short', $table->attr('shortCaption'));
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
