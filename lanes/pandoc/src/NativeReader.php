@@ -325,12 +325,17 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON OrderedList start number must be an integer');
         }
 
+        $listStyleConstructor = $this->constructorTag($listAttributes[1], 'Pandoc native JSON list style');
+        $listDelimiterConstructor = $this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter');
+
         return new AstNode('ordered_list', array_replace($attrs, [
             'start' => $listAttributes[0],
-            'style' => $this->listStyleFromConstructor($this->constructorTag($listAttributes[1], 'Pandoc native JSON list style')),
-            'delimiter' => $this->listDelimiterFromConstructor($this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter')),
-            'listStyleConstructor' => $this->constructorTag($listAttributes[1], 'Pandoc native JSON list style'),
-            'listDelimiterConstructor' => $this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter'),
+            'style' => $this->listStyleFromConstructor($listStyleConstructor),
+            'delimiter' => $this->listDelimiterFromConstructor($listDelimiterConstructor),
+            'listStyleConstructor' => $listStyleConstructor,
+            'listStyleNative' => $listAttributes[1],
+            'listDelimiterConstructor' => $listDelimiterConstructor,
+            'listDelimiterNative' => $listAttributes[2],
         ]), $this->listItems($tuple[1], 'Pandoc native JSON OrderedList items'));
     }
 

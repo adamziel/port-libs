@@ -418,12 +418,17 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('OrderedList start number must be an integer');
         }
 
+        $listStyleConstructor = $this->enumTag($listAttributes[1], 'list style');
+        $listDelimiterConstructor = $this->enumTag($listAttributes[2], 'list delimiter');
+
         return new AstNode('ordered_list', [
             'start' => $listAttributes[0],
-            'style' => $this->listStyleFromConstructor($this->enumTag($listAttributes[1], 'list style')),
-            'delimiter' => $this->listDelimiterFromConstructor($this->enumTag($listAttributes[2], 'list delimiter')),
-            'listStyleConstructor' => $this->enumTag($listAttributes[1], 'list style'),
-            'listDelimiterConstructor' => $this->enumTag($listAttributes[2], 'list delimiter'),
+            'style' => $this->listStyleFromConstructor($listStyleConstructor),
+            'delimiter' => $this->listDelimiterFromConstructor($listDelimiterConstructor),
+            'listStyleConstructor' => $listStyleConstructor,
+            'listStyleNative' => $listAttributes[1],
+            'listDelimiterConstructor' => $listDelimiterConstructor,
+            'listDelimiterNative' => $listAttributes[2],
         ], $this->readListItems($this->listContent($tuple[1], 'OrderedList items')));
     }
 

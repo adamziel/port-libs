@@ -1300,6 +1300,68 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
+        $styles = [
+            ['DefaultStyle', 'default'],
+            ['Decimal', 'decimal'],
+            ['Example', 'example'],
+            ['LowerRoman', 'lower_roman'],
+            ['UpperRoman', 'upper_roman'],
+            ['LowerAlpha', 'lower_alpha'],
+            ['UpperAlpha', 'upper_alpha'],
+        ];
+        $delimiters = [
+            ['DefaultDelim', 'default'],
+            ['Period', 'period'],
+            ['OneParen', 'one_paren'],
+            ['TwoParens', 'two_parens'],
+        ];
+        $blocks = [];
+        foreach ($styles as $index => [$styleConstructor, $_style]) {
+            [$delimiterConstructor] = $delimiters[$index % count($delimiters)];
+            $blocks[] = [
+                't' => 'OrderedList',
+                'c' => [
+                    [$index + 1, ['t' => $styleConstructor], ['t' => $delimiterConstructor]],
+                    [[]],
+                ],
+            ];
+        }
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            foreach ($styles as $index => [$styleConstructor, $style]) {
+                [$delimiterConstructor, $delimiter] = $delimiters[$index % count($delimiters)];
+                $list = $document->children[$index];
+
+                $t->same('ordered_list', $list->type, "{$source} ordered list type {$index}");
+                $t->same('OrderedList', $list->attr('constructor'), "{$source} ordered list constructor {$index}");
+                $t->same($blocks[$index], $list->attr('native'), "{$source} ordered list native payload {$index}");
+                $t->same($index + 1, $list->attr('start'), "{$source} ordered list start {$index}");
+                $t->same($style, $list->attr('style'), "{$source} ordered list style {$index}");
+                $t->same($styleConstructor, $list->attr('listStyleConstructor'), "{$source} ordered list style constructor {$index}");
+                $t->same(['t' => $styleConstructor], $list->attr('listStyleNative'), "{$source} ordered list style native {$index}");
+                $t->same($delimiter, $list->attr('delimiter'), "{$source} ordered list delimiter {$index}");
+                $t->same($delimiterConstructor, $list->attr('listDelimiterConstructor'), "{$source} ordered list delimiter constructor {$index}");
+                $t->same(['t' => $delimiterConstructor], $list->attr('listDelimiterNative'), "{$source} ordered list delimiter native {$index}");
+            }
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($blocks, $jsonPacket['blocks']);
+        $t->same($blocks, $nativePacket['blocks']);
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
