@@ -752,6 +752,9 @@ final class XmlHtmlDom
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
         }
+        if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
+            $summary += self::listSummary($node, $name);
+        }
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
@@ -875,6 +878,39 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function listSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'li') {
+            $valueRaw = self::attributeOrNull($element, 'value');
+
+            return [
+                'listItem' => true,
+                'valueRaw' => $valueRaw,
+                'value' => self::integerAttribute($element, 'value', null),
+            ];
+        }
+
+        if ($name === 'ol') {
+            $startRaw = self::attributeOrNull($element, 'start');
+
+            return [
+                'list' => 'ordered',
+                'reversed' => $element->hasAttribute('reversed'),
+                'startRaw' => $startRaw,
+                'start' => self::integerAttribute($element, 'start', 1),
+                'markerType' => self::attributeOrNull($element, 'type'),
+            ];
+        }
+
+        return [
+            'list' => $name === 'menu' ? 'menu' : 'unordered',
+            'markerType' => self::attributeOrNull($element, 'type'),
+        ];
     }
 
     private static function inputType(\DOMElement $input): string
@@ -1532,6 +1568,22 @@ final class XmlHtmlDom
         $number = (float) $value;
 
         return is_finite($number) ? $number : $default;
+    }
+
+    private static function integerAttribute(\DOMElement $element, string $name, ?int $default): ?int
+    {
+        if (!$element->hasAttribute($name)) {
+            return $default;
+        }
+
+        $value = trim($element->getAttribute($name));
+        if (!preg_match('/^[+-]?[0-9]+$/', $value)) {
+            return $default;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) ? $integer : $default;
     }
 
     private static function positiveNumericAttribute(\DOMElement $element, string $name, float $default): float

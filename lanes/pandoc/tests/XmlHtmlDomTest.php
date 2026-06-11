@@ -102,6 +102,58 @@ XML, 'package reader XML');
         $t->same('Two', $summary[1]['children'][1]['text']);
         $t->same('<p data-id="42">Intro<br>Next<img alt="Cover" src="cover.png?x=1&amp;y=2"></p><ul><li>One</li><li>Two</li></ul>', $html);
     },
+    'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'
+                . '<ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu>'
+                . '<ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>',
+            'list metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $steps = $summary[0];
+        $inspect = $steps['children'][0];
+        $repair = $steps['children'][1];
+        $nested = $repair['children'][1];
+        $nestedItem = $nested['children'][0];
+        $bullets = $summary[1];
+        $loose = $bullets['children'][0];
+        $menu = $summary[2];
+        $action = $menu['children'][0];
+        $invalid = $summary[3];
+        $invalidItem = $invalid['children'][0];
+
+        $t->same('ordered', $steps['list']);
+        $t->same(true, $steps['reversed']);
+        $t->same('3', $steps['startRaw']);
+        $t->same(3, $steps['start']);
+        $t->same('A', $steps['markerType']);
+        $t->same(true, $inspect['listItem']);
+        $t->same('7', $inspect['valueRaw']);
+        $t->same(7, $inspect['value']);
+        $t->same('ordered', $nested['list']);
+        $t->same(false, $nested['reversed']);
+        $t->same('-2', $nested['startRaw']);
+        $t->same(-2, $nested['start']);
+        $t->same('i', $nested['markerType']);
+        $t->same('-1', $nestedItem['valueRaw']);
+        $t->same(-1, $nestedItem['value']);
+        $t->same('unordered', $bullets['list']);
+        $t->same('square', $bullets['markerType']);
+        $t->same(true, $loose['listItem']);
+        $t->same(null, $loose['valueRaw']);
+        $t->same(null, $loose['value']);
+        $t->same('menu', $menu['list']);
+        $t->same('4', $action['valueRaw']);
+        $t->same(4, $action['value']);
+        $t->same('ordered', $invalid['list']);
+        $t->same('abc', $invalid['startRaw']);
+        $t->same(1, $invalid['start']);
+        $t->same('bad', $invalidItem['valueRaw']);
+        $t->same(null, $invalidItem['value']);
+        $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
+    },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             'Text&nbsp;<span title="A &quot;quote&quot; &amp; source">source &lt;em&gt;</span><!--review--><input checked>',
