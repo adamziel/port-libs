@@ -5596,6 +5596,7 @@ final class PdfEngineHandoff
             'packageCache' => $packageCacheValues,
             'creationTimestamp' => $creationTimestampValues,
         ]);
+        array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
         foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
@@ -5818,6 +5819,41 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    /**
+     * @param list<array{raw:string, name:string, value:string, safe:bool, issues:list<string>}> $inputVariables
+     * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
+     */
+    private function typstInputVariableOverrideOptionEntries(array $inputVariables): array
+    {
+        $valuesByName = [];
+        foreach ($inputVariables as $inputVariable) {
+            $name = $inputVariable['name'];
+            if (preg_match('/\A[A-Za-z_][A-Za-z0-9_-]*\z/', $name) !== 1) {
+                continue;
+            }
+
+            $valuesByName[$name][] = $inputVariable['value'];
+        }
+
+        ksort($valuesByName);
+        $entries = [];
+        foreach ($valuesByName as $name => $values) {
+            if (count($values) < 2) {
+                continue;
+            }
+
+            $entries[] = [
+                'option' => 'input:' . $name,
+                'count' => count($values),
+                'values' => $values,
+                'selected' => $values[count($values) - 1],
+                'issue' => 'input-variable-boundary-overridden:' . $name,
+            ];
+        }
+
+        return $entries;
     }
 
     /**

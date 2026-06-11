@@ -365,20 +365,20 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
-    'plans typst input variable override provenance without executing' => static function (TestRunner $t) use ($document): void {
+    'plans typst duplicate input boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'typst',
             'outputPath' => 'build/input-override-boundary.pdf',
-            'source' => '= Typst Input Override Boundary Packet',
+            'source' => '= Typst Duplicate Input Boundary Packet',
             'engineOptions' => [
                 '--input=audience=reviewer',
                 '--input',
-                'audience=editor',
-                '--input=draft=true',
+                'audience=public',
+                '--input=mode=draft',
             ],
         ]);
-        $pdfBytes = "%PDF-1.7\n% fake Typst input override boundary packet\n%%EOF\n";
+        $pdfBytes = "%PDF-1.7\n% fake Typst duplicate input boundary packet\n%%EOF\n";
         $expected = [
             'reviewStatus' => 'review',
             'root' => null,
@@ -387,17 +387,26 @@ return [
             'packageCache' => null,
             'inputVariables' => [
                 ['raw' => 'audience=reviewer', 'name' => 'audience', 'value' => 'reviewer', 'safe' => true, 'issues' => []],
-                ['raw' => 'audience=editor', 'name' => 'audience', 'value' => 'editor', 'safe' => true, 'issues' => []],
-                ['raw' => 'draft=true', 'name' => 'draft', 'value' => 'true', 'safe' => true, 'issues' => []],
+                ['raw' => 'audience=public', 'name' => 'audience', 'value' => 'public', 'safe' => true, 'issues' => []],
+                ['raw' => 'mode=draft', 'name' => 'mode', 'value' => 'draft', 'safe' => true, 'issues' => []],
             ],
-            'issues' => ['input-variable-boundary-overridden'],
+            'issues' => ['input-variable-boundary-overridden:audience', 'input-variable-boundary-overridden'],
             'inputVariableOverrides' => [
                 [
                     'name' => 'audience',
                     'count' => 2,
-                    'values' => ['reviewer', 'editor'],
-                    'selected' => 'editor',
+                    'values' => ['reviewer', 'public'],
+                    'selected' => 'public',
                     'issue' => 'input-variable-boundary-overridden',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'input:audience',
+                    'count' => 2,
+                    'values' => ['reviewer', 'public'],
+                    'selected' => 'public',
+                    'issue' => 'input-variable-boundary-overridden:audience',
                 ],
             ],
         ];
@@ -407,19 +416,18 @@ return [
                 'build/input-override-boundary.pdf' => $pdfBytes,
             ],
         ]);
-        $sequence = $handoff->fakeRunSequence($plan, [
-            [
-                'files' => [
-                    'build/input-override-boundary.pdf' => $pdfBytes,
-                ],
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/input-override-boundary.pdf' => $pdfBytes,
             ],
-        ]);
+        ]]);
 
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-inputs:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-input-overrides:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);

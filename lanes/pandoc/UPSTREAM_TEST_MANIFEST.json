@@ -8,10 +8,12 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3189,
-        "latestSlice": "pandoc-json-native-helper-constructors adds one mapped PandocJsonNativeAst case for helper constructor provenance. Mapped denominator is now 3189, mappedPandocJsonNativeHelperConstructorCases is 1, pandocJsonNativeHelperConstructorAssertions is 79, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
+        "mapped": 3190,
+        "latestSlice": "pandoc-pdf-typst-input-override-boundary-provenance adds one mapped PdfEngineHandoff case for duplicate Typst --input key provenance. Mapped denominator is now 3190, mappedTypstInputVariableOverrideBoundaryProvenanceCases is 1, typstInputVariableOverrideBoundaryProvenanceAssertions is 12, focused PdfEngineHandoffTest.php passed 1 test files, 1665 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 63575 assertions, 0 failures after refresh onto origin/main 117b8ebfc0123b899ea30bb154a093d2f02a6a67.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
-        "pandocJsonNativeHelperConstructorAssertions": 79
+        "pandocJsonNativeHelperConstructorAssertions": 79,
+        "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
+        "typstInputVariableOverrideBoundaryProvenanceAssertions": 12
     },
     "benchmarkDenominator": {
         "status": "ODF/OpenDocument signature reference target provenance coverage is verified in native PHP over origin/main a43f3ed88 with focused and full Pandoc lane PHP verification passing.",
