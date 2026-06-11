@@ -9024,6 +9024,10 @@ XML;
         foreach ($provenance['manifestPartReferenceSuffixItems'] as $item) {
             $suffixItems[$item['fullPath']] = $item;
         }
+        $orderItems = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $orderItems[$item['fullPath']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(3, $provenance['manifestPartReferenceSuffixCount']);
@@ -9045,6 +9049,8 @@ XML;
         $t->same(true, $content['canExposeBytes']);
         $t->same(strlen($contentXml), $provenance['parts']['content.xml']['byteLength']);
         $t->same('?role=body#content', $provenance['parts']['content.xml']['manifestPartSuffix']);
+        $t->same('role=body', $orderItems['content.xml?role=body#content']['partQuery']);
+        $t->same('content', $orderItems['content.xml?role=body#content']['partFragment']);
 
         $styles = $suffixItems['styles.xml#styledefs'];
         $t->same('styles.xml', $styles['part']);
@@ -9052,6 +9058,8 @@ XML;
         $t->same(null, $styles['partQuery']);
         $t->same('styledefs', $styles['partFragment']);
         $t->same(true, $styles['exists']);
+        $t->same(null, $orderItems['styles.xml#styledefs']['partQuery']);
+        $t->same('styledefs', $orderItems['styles.xml#styledefs']['partFragment']);
 
         $missing = $suffixItems['Pictures/missing.png?missing=true'];
         $t->same('Pictures/missing.png', $missing['part']);
@@ -9060,6 +9068,8 @@ XML;
         $t->same(null, $missing['partFragment']);
         $t->same(false, $missing['exists']);
         $t->same(false, $missing['canExposeBytes']);
+        $t->same('missing=true', $orderItems['Pictures/missing.png?missing=true']['partQuery']);
+        $t->same(null, $orderItems['Pictures/missing.png?missing=true']['partFragment']);
         $t->same(1, count($result['importReport']['manifest']['missingItems']));
         $t->same('Pictures/missing.png?missing=true', $result['importReport']['manifest']['missingItems'][0]['fullPath']);
     },

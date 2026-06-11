@@ -720,6 +720,8 @@ final class OdfReader
                 'part' => $part,
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $item['mediaType'] ?? null,
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
