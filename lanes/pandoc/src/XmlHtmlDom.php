@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if (in_array($name, ['blockquote', 'q', 'cite'], true)) {
+            $summary += self::quoteSummary($node, $name);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -893,6 +896,26 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function quoteSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'cite') {
+            return [
+                'citedWork' => 'cite',
+                'citedWorkText' => self::normalizedText($element),
+            ];
+        }
+
+        return [
+            'quote' => $name === 'blockquote' ? 'block' : 'inline',
+            'quoteTag' => $name,
+            'quoteCite' => self::attributeOrNull($element, 'cite'),
+            'quoteText' => self::normalizedText($element),
+        ];
     }
 
     /**

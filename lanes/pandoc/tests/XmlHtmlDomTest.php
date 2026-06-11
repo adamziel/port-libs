@@ -650,6 +650,44 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html quote citation provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<blockquote cite="https://example.test/source#quote"><p>Quoted <em>source</em></p></blockquote>'
+                . '<p>Inline <q cite="./inline.html">quoted <strong>claim</strong></q> and <q>uncited</q> from <cite>Packet Title</cite>.</p>',
+            'quote citation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $blockquote = $summary[0];
+        $paragraph = $summary[1];
+        $inlineQuote = $paragraph['children'][1];
+        $uncitedQuote = $paragraph['children'][3];
+        $citedWork = $paragraph['children'][5];
+
+        $t->same('blockquote', $blockquote['name']);
+        $t->same('block', $blockquote['quote']);
+        $t->same('blockquote', $blockquote['quoteTag']);
+        $t->same('https://example.test/source#quote', $blockquote['quoteCite']);
+        $t->same('Quoted source', $blockquote['quoteText']);
+        $t->same('p', $blockquote['children'][0]['name']);
+        $t->same('q', $inlineQuote['name']);
+        $t->same('inline', $inlineQuote['quote']);
+        $t->same('q', $inlineQuote['quoteTag']);
+        $t->same('./inline.html', $inlineQuote['quoteCite']);
+        $t->same('quoted claim', $inlineQuote['quoteText']);
+        $t->same('strong', $inlineQuote['children'][1]['name']);
+        $t->same('q', $uncitedQuote['name']);
+        $t->same(null, $uncitedQuote['quoteCite']);
+        $t->same('uncited', $uncitedQuote['quoteText']);
+        $t->same('cite', $citedWork['name']);
+        $t->same('cite', $citedWork['citedWork']);
+        $t->same('Packet Title', $citedWork['citedWorkText']);
+        $t->same(
+            '<blockquote cite="https://example.test/source#quote"><p>Quoted <em>source</em></p></blockquote><p>Inline <q cite="./inline.html">quoted <strong>claim</strong></q> and <q>uncited</q> from <cite>Packet Title</cite>.</p>',
+            $html
+        );
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
