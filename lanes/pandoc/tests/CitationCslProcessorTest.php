@@ -26708,6 +26708,113 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json series title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-series-camel',
+                'type' => 'book',
+                'title' => 'Direct Series Camel Packet',
+                'author' => [
+                    ['family' => 'Reed', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'seriesTitle' => 'Migration Review Series',
+                'seriesTitleShort' => 'MRS',
+                'seriesNumber' => '18',
+            ],
+            [
+                'id' => 'direct-series-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Series Hyphen Packet',
+                'author' => [
+                    ['family' => 'Sloan', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'series-title' => 'Archive Source Library',
+                'series-title-short' => 'ASL',
+                'series-number' => '4',
+            ],
+            [
+                'id' => 'direct-series-flat',
+                'type' => 'paper-conference',
+                'title' => 'Direct Series Flat Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Vic'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'seriestitle' => 'Compact Source Reports',
+                'seriestitleshort' => 'CSR',
+                'seriesnumber' => '2',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-series-camel');
+        $hyphen = $processor->item('direct-series-hyphen');
+        $flat = $processor->item('direct-series-flat');
+        $t->same('Migration Review Series', $camel['collectionTitle'] ?? null);
+        $t->same('MRS', $camel['collectionTitleShort'] ?? null);
+        $t->same('18', $camel['collectionNumber'] ?? null);
+        $t->same('Archive Source Library', $hyphen['collectionTitle'] ?? null);
+        $t->same('ASL', $hyphen['collectionTitleShort'] ?? null);
+        $t->same('4', $hyphen['collectionNumber'] ?? null);
+        $t->same('Compact Source Reports', $flat['collectionTitle'] ?? null);
+        $t->same('CSR', $flat['collectionTitleShort'] ?? null);
+        $t->same('2', $flat['collectionNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Series Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-series-alias-review</id>
+    <updated>2026-06-11T23:09:40+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="series-title"/>
+        <text variable="series-title" form="short"/>
+        <text variable="series-title-short"/>
+        <text variable="series-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="series-title"/>
+      <text variable="series-title-short"/>
+      <text variable="series-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Series Alias Review', $summary['title'] ?? null);
+        $t->same('series-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('series-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('series-number', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Reed | Migration Review Series | MRS | MRS | 18; Sloan | Archive Source Library | ASL | ASL | 4; Vale | Compact Source Reports | CSR | CSR | 2]', $styled->renderCitationCluster([
+            $citation('direct-series-camel', '[@direct-series-camel]'),
+            $citation('direct-series-hyphen', '[@direct-series-hyphen]'),
+            $citation('direct-series-flat', '[@direct-series-flat]'),
+        ]));
+        $t->same('Direct Series Camel Packet :: Migration Review Series :: MRS :: 18', $styled->renderBibliographyEntry('direct-series-camel'));
+        $t->same('Direct Series Hyphen Packet :: Archive Source Library :: ASL :: 4', $styled->renderBibliographyEntry('direct-series-hyphen'));
+        $t->same('Direct Series Flat Packet :: Compact Source Reports :: CSR :: 2', $styled->renderBibliographyEntry('direct-series-flat'));
+
+        $document = (new MarkdownReader())->read('Direct series aliases [@direct-series-camel; @direct-series-hyphen; @direct-series-flat] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct series aliases [Reed | Migration Review Series | MRS | MRS | 18; Sloan | Archive Source Library | ASL | ASL | 4; Vale | Compact Source Reports | CSR | CSR | 2] stay visible.</p>', $blocks);
+        $t->contains('<dt>Reed 2026</dt><dd>Direct Series Camel Packet :: Migration Review Series :: MRS :: 18</dd>', $blocks);
+        $t->contains('<dt>Sloan 2025</dt><dd>Direct Series Hyphen Packet :: Archive Source Library :: ASL :: 4</dd>', $blocks);
+        $t->contains('<dt>Vale 2024</dt><dd>Direct Series Flat Packet :: Compact Source Reports :: CSR :: 2</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
