@@ -3412,8 +3412,8 @@ XML;
         $containerWithRootfileProvenance = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
   <rootfiles>
-    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
-    <rootfile full-path="EPUB/preview.xhtml" media-type="application/xhtml+xml"/>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=&quot;primary-opf&quot;"/>
+    <rootfile full-path="EPUB/preview.xhtml" media-type="application/xhtml+xml; charset=UTF-8"/>
     <rootfile full-path="EPUB/missing-preview.xhtml" media-type="application/xhtml+xml"/>
   </rootfiles>
 </container>
@@ -3431,11 +3431,23 @@ XML;
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
             ['name' => 'EPUB/preview.xhtml', 'data' => $previewXhtml, 'compressionMethod' => 0],
         ]));
+        $declaredRootfiles = $epub->rootfiles();
         $rootfiles = $epub->validationReport()['rootfiles'];
         $summary = $epub->summary();
 
         $t->same(3, $rootfiles['rootfileCount']);
         $t->same('/EPUB/package.opf', $rootfiles['items'][0]['partName']);
+        $t->same('application/oebps-package+xml; profile="primary-opf"', $declaredRootfiles[0]['mediaType']);
+        $t->same('application/oebps-package+xml; profile="primary-opf"', $rootfiles['items'][0]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles['items'][0]['mediaTypeBase']);
+        $t->same(true, $rootfiles['items'][0]['mediaTypeHasParameters']);
+        $t->same(1, $rootfiles['items'][0]['mediaTypeParameterCount']);
+        $t->same([['name' => 'profile', 'value' => 'primary-opf', 'raw' => 'profile="primary-opf"']], $rootfiles['items'][0]['mediaTypeParameters']);
+        $t->same(['profile' => 'primary-opf'], $rootfiles['items'][0]['mediaTypeParameterMap']);
+        $t->same('application/oebps-package+xml; profile=primary-opf', $rootfiles['items'][0]['normalizedMediaType']);
+        $t->same(true, $rootfiles['items'][0]['mediaTypeSyntaxValid']);
+        $t->same([], $rootfiles['items'][0]['mediaTypeDiagnostics']);
+        $t->same(true, $rootfiles['items'][0]['selected']);
         $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);
         $t->same(strlen(gzdeflate($epub3OpfXml)), $rootfiles['items'][0]['compressedByteLength']);
         $t->same(8, $rootfiles['items'][0]['compressionMethod']);
@@ -3445,6 +3457,9 @@ XML;
         $t->same(true, $rootfiles['items'][0]['canExposeBytes']);
 
         $t->same('/EPUB/preview.xhtml', $rootfiles['items'][1]['partName']);
+        $t->same('application/xhtml+xml; charset=UTF-8', $rootfiles['items'][1]['mediaType']);
+        $t->same('application/xhtml+xml', $rootfiles['items'][1]['mediaTypeBase']);
+        $t->same(['charset' => 'UTF-8'], $rootfiles['items'][1]['mediaTypeParameterMap']);
         $t->same(strlen($previewXhtml), $rootfiles['items'][1]['byteLength']);
         $t->same(strlen($previewXhtml), $rootfiles['items'][1]['compressedByteLength']);
         $t->same(0, $rootfiles['items'][1]['compressionMethod']);
@@ -3459,6 +3474,17 @@ XML;
         $t->same(null, $rootfiles['items'][2]['compressionSupported']);
         $t->same(null, $rootfiles['items'][2]['crc32']);
         $t->same(false, $rootfiles['items'][2]['canExposeBytes']);
+        $t->same(2, $rootfiles['mediaTypeParameterItemCount']);
+        $t->same(2, $rootfiles['mediaTypeParameterCount']);
+        $t->same(['profile', 'charset'], $rootfiles['mediaTypeParameterNames']);
+        $t->same([0, 1], array_column($rootfiles['mediaTypeParameterItems'], 'index'));
+        $t->same(['profile'], $rootfiles['mediaTypeParameterItems'][0]['parameterNames']);
+        $t->same(['charset'], $rootfiles['mediaTypeParameterItems'][1]['parameterNames']);
+        $t->same(['profile' => 'primary-opf'], $rootfiles['mediaTypeParameterItems'][0]['parameterMap']);
+        $t->same(['charset' => 'UTF-8'], $rootfiles['mediaTypeParameterItems'][1]['parameterMap']);
+        $t->same(0, $rootfiles['mediaTypeDiagnosticCount']);
+        $t->same([], $rootfiles['mediaTypeDiagnostics']);
+        $t->same($declaredRootfiles, $summary['rootfiles']);
         $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
     },
 
