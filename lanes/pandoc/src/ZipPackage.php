@@ -4937,6 +4937,7 @@ final class ZipPackage
      *     centralDirectorySize:int,
      *     centralDirectoryOffset:int,
      *     centralDirectoryEnd:int,
+     *     eocdFixedFields:array<string, array{offset:int, length:int, value:int|string, valueHex?:string}>,
      *     packageComment:string,
      *     packageCommentLength:int,
      *     isSingleDisk:bool,
@@ -4998,6 +4999,7 @@ final class ZipPackage
             'centralDirectorySize' => $centralDirectorySize,
             'centralDirectoryOffset' => $centralDirectoryOffset,
             'centralDirectoryEnd' => $centralDirectoryOffset + $centralDirectorySize,
+            'eocdFixedFields' => self::endOfCentralDirectoryFixedFieldSummary($bytes, $eocdOffset),
             'packageComment' => substr($bytes, $eocdOffset + 22, $packageCommentLength),
             'packageCommentLength' => $packageCommentLength,
             'isSingleDisk' => $isSingleDisk,
@@ -5029,6 +5031,58 @@ final class ZipPackage
             'zip64IsSingleDisk' => $zip64['zip64IsSingleDisk'],
             'zip64CentralDirectoryEndMatchesRecordOffset' => $zip64['zip64CentralDirectoryEndMatchesRecordOffset'],
             'zip64Issues' => $zip64['zip64Issues'],
+        ];
+    }
+
+    /**
+     * @return array<string, array{offset:int, length:int, value:int|string, valueHex?:string}>
+     */
+    private static function endOfCentralDirectoryFixedFieldSummary(string $bytes, int $eocdOffset): array
+    {
+        $signature = substr($bytes, $eocdOffset, 4);
+
+        return [
+            'signature' => [
+                'offset' => $eocdOffset,
+                'length' => 4,
+                'value' => $signature,
+                'valueHex' => bin2hex($signature),
+            ],
+            'diskNumber' => [
+                'offset' => $eocdOffset + 4,
+                'length' => 2,
+                'value' => self::readUInt16($bytes, $eocdOffset + 4),
+            ],
+            'centralDirectoryDisk' => [
+                'offset' => $eocdOffset + 6,
+                'length' => 2,
+                'value' => self::readUInt16($bytes, $eocdOffset + 6),
+            ],
+            'diskEntryCount' => [
+                'offset' => $eocdOffset + 8,
+                'length' => 2,
+                'value' => self::readUInt16($bytes, $eocdOffset + 8),
+            ],
+            'totalEntryCount' => [
+                'offset' => $eocdOffset + 10,
+                'length' => 2,
+                'value' => self::readUInt16($bytes, $eocdOffset + 10),
+            ],
+            'centralDirectorySize' => [
+                'offset' => $eocdOffset + 12,
+                'length' => 4,
+                'value' => self::readUInt32($bytes, $eocdOffset + 12),
+            ],
+            'centralDirectoryOffset' => [
+                'offset' => $eocdOffset + 16,
+                'length' => 4,
+                'value' => self::readUInt32($bytes, $eocdOffset + 16),
+            ],
+            'packageCommentLength' => [
+                'offset' => $eocdOffset + 20,
+                'length' => 2,
+                'value' => self::readUInt16($bytes, $eocdOffset + 20),
+            ],
         ];
     }
 

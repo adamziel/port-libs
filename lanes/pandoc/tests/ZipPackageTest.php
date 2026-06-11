@@ -645,6 +645,47 @@ return [
         $t->same(true, $rawPreflight['strictImport']['comments']['hasPackageComment']);
     },
 
+    'preflights zip eocd fixed field byte provenance before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $comment = "PK\x05\x06" . str_repeat("\0", 18);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD fixed fields</w:p></w:document>',
+                'method' => 0,
+            ],
+        ], $comment);
+        $actualEocdOffset = strlen($zip) - 22 - strlen($comment);
+
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $fixedFields = $archive['eocdFixedFields'];
+
+        $t->same($actualEocdOffset, $fixedFields['signature']['offset']);
+        $t->same(4, $fixedFields['signature']['length']);
+        $t->same("PK\x05\x06", $fixedFields['signature']['value']);
+        $t->same('504b0506', $fixedFields['signature']['valueHex']);
+        $t->same($actualEocdOffset + 4, $fixedFields['diskNumber']['offset']);
+        $t->same(2, $fixedFields['diskNumber']['length']);
+        $t->same(0, $fixedFields['diskNumber']['value']);
+        $t->same($actualEocdOffset + 6, $fixedFields['centralDirectoryDisk']['offset']);
+        $t->same(0, $fixedFields['centralDirectoryDisk']['value']);
+        $t->same($actualEocdOffset + 8, $fixedFields['diskEntryCount']['offset']);
+        $t->same(1, $fixedFields['diskEntryCount']['value']);
+        $t->same($actualEocdOffset + 10, $fixedFields['totalEntryCount']['offset']);
+        $t->same(2, $fixedFields['totalEntryCount']['length']);
+        $t->same(1, $fixedFields['totalEntryCount']['value']);
+        $t->same($actualEocdOffset + 12, $fixedFields['centralDirectorySize']['offset']);
+        $t->same(4, $fixedFields['centralDirectorySize']['length']);
+        $t->same($archive['centralDirectorySize'], $fixedFields['centralDirectorySize']['value']);
+        $t->same($actualEocdOffset + 16, $fixedFields['centralDirectoryOffset']['offset']);
+        $t->same(4, $fixedFields['centralDirectoryOffset']['length']);
+        $t->same($archive['centralDirectoryOffset'], $fixedFields['centralDirectoryOffset']['value']);
+        $t->same($actualEocdOffset + 20, $fixedFields['packageCommentLength']['offset']);
+        $t->same(2, $fixedFields['packageCommentLength']['length']);
+        $t->same(strlen($comment), $fixedFields['packageCommentLength']['value']);
+        $t->same($fixedFields, $rawPreflight['archive']['eocdFixedFields']);
+    },
+
     'exposes zip package entries in local header order for container preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [
