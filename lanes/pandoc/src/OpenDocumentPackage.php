@@ -189,6 +189,8 @@ final class OpenDocumentPackage
      *     exposableMediaPartCount:int,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
+     *     undeclaredPackageEntryCount:int,
+     *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     manifestReview:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     styleNames:list<string>,
@@ -201,6 +203,7 @@ final class OpenDocumentPackage
         $missingMediaParts = [];
         $exposableMediaPartCount = 0;
         $encryptedParts = [];
+        $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         foreach ($this->manifestEntries as $entry) {
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
@@ -248,7 +251,9 @@ final class OpenDocumentPackage
             'exposableMediaPartCount' => $exposableMediaPartCount,
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
-            'manifestReview' => self::manifestReview($this->manifestEntries),
+            'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
+            'undeclaredPackageEntries' => $undeclaredPackageEntries,
+            'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
@@ -325,10 +330,45 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private function undeclaredPackageEntries(): array
+    {
+        $specialPackageParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        $entries = [];
+
+        foreach ($this->package->entries() as $entry) {
+            $path = $entry->name;
+            if (isset($this->manifestEntriesByPath[$path]) || isset($specialPackageParts[$path])) {
+                continue;
+            }
+
+            $entries[] = [
+                'path' => $path,
+                'isDirectory' => str_ends_with($path, '/'),
+                'storedByteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'crc32' => $entry->crc32Hex(),
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'diagnostics' => ['odf-manifest-undeclared-package-entry'],
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
      * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
      * @return array<string, mixed>
      */
-    private static function manifestReview(array $entries): array
+    private static function manifestReview(array $entries, array $undeclaredPackageEntries = []): array
     {
         $summary = [
             'count' => count($entries),
@@ -344,6 +384,8 @@ final class OpenDocumentPackage
             'storedCompressionMethodCount' => 0,
             'deflatedCompressionMethodCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
+            'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
+            'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'items' => [],
             'missingItems' => [],
             'directoryItems' => [],

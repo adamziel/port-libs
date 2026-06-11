@@ -430,6 +430,46 @@ XML;
         $t->same(12, $review['items'][5]['compressionMethod']);
         $t->same('unsupported', $review['items'][5]['compressionMethodName']);
     },
+    'reports compact ODT undeclared ZIP package entries without exposing bytes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $orphanBytes = 'ORPHANPNG';
+        $settingsBytes = '<config:config-item-set/>';
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(extraParts: [
+            ['name' => 'Pictures/orphan.png', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ['name' => 'Configurations2/status.xml', 'data' => $settingsBytes, 'compressionMethod' => 0],
+        ]));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $undeclaredByPath = [];
+        foreach ($summary['undeclaredPackageEntries'] as $entry) {
+            $undeclaredByPath[$entry['path']] = $entry;
+        }
+
+        $t->same(2, $summary['undeclaredPackageEntryCount']);
+        $t->same(2, $review['undeclaredPackageEntryCount']);
+        $t->same(['Pictures/orphan.png', 'Configurations2/status.xml'], array_column($summary['undeclaredPackageEntries'], 'path'));
+        $t->same($summary['undeclaredPackageEntries'], $review['undeclaredPackageEntries']);
+        $t->same(5, $review['count']);
+        $t->same(1, count($summary['mediaParts']));
+        $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
+
+        $t->same(false, isset($undeclaredByPath['mimetype']));
+        $t->same(false, isset($undeclaredByPath['META-INF/manifest.xml']));
+
+        $orphan = $undeclaredByPath['Pictures/orphan.png'];
+        $t->same(false, $orphan['isDirectory']);
+        $t->same(strlen($orphanBytes), $orphan['storedByteLength']);
+        $t->same(strlen($orphanBytes), $orphan['compressedByteLength']);
+        $t->same(0, $orphan['compressionMethod']);
+        $t->same('stored', $orphan['compressionMethodName']);
+        $t->same(sprintf('%08x', crc32($orphanBytes)), $orphan['crc32']);
+        $t->same(false, $orphan['canExposeBytes']);
+        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same(['odf-manifest-undeclared-package-entry'], $orphan['diagnostics']);
+
+        $settings = $undeclaredByPath['Configurations2/status.xml'];
+        $t->same(strlen($settingsBytes), $settings['storedByteLength']);
+        $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
