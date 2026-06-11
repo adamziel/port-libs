@@ -225,6 +225,84 @@ return [
         $t->same(2, $epub->navigation()['entries'][1]['depth']);
     },
 
+    'preserves NCX manifest ZIP provenance for package validation handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $opfWithNcxProvenance = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:ncx-zip-provenance</dc:identifier>
+    <dc:title>NCX ZIP provenance</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="alternate-toc" href="nav/alternate.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="toc">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+        $tocNcx = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="chapter" playOrder="1">
+      <navLabel><text>Chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+        $alternateNcx = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="alternate" playOrder="1">
+      <navLabel><text>Alternate</text></navLabel>
+      <content src="../chapter.xhtml#alternate"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNcxProvenance, 'method' => 8],
+            ['name' => 'EPUB/toc.ncx', 'data' => $tocNcx, 'method' => 0],
+            ['name' => 'EPUB/nav/alternate.ncx', 'data' => $alternateNcx, 'method' => 8],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>', 'method' => 8],
+        ]));
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $ncx = $validation['ncx'];
+        $toc = $ncx['tocItem'];
+        $alternate = $ncx['manifestNcxItems'][1];
+
+        $t->same(true, $validation['valid']);
+        $t->same(2, $ncx['manifestNcxItemCount']);
+        $t->same('spine-toc', $ncx['selectedBy']);
+        $t->same($toc, $ncx['selectedItem']);
+        $t->same('toc', $toc['id']);
+        $t->same('/EPUB/toc.ncx', $toc['partName']);
+        $t->same(strlen($tocNcx), $toc['byteLength']);
+        $t->same(strlen($tocNcx), $toc['compressedByteLength']);
+        $t->same(0, $toc['compressionMethod']);
+        $t->same('stored', $toc['compressionMethodName']);
+        $t->same(true, $toc['compressionSupported']);
+        $t->same(hash('crc32b', $tocNcx), $toc['crc32']);
+        $t->same(true, $toc['canExposeBytes']);
+        $t->same('alternate-toc', $alternate['id']);
+        $t->same('/EPUB/nav/alternate.ncx', $alternate['partName']);
+        $t->same(strlen($alternateNcx), $alternate['byteLength']);
+        $t->same(strlen(gzdeflate($alternateNcx)), $alternate['compressedByteLength']);
+        $t->same(8, $alternate['compressionMethod']);
+        $t->same('deflated', $alternate['compressionMethodName']);
+        $t->same(true, $alternate['compressionSupported']);
+        $t->same(hash('crc32b', $alternateNcx), $alternate['crc32']);
+        $t->same(true, $alternate['canExposeBytes']);
+        $t->same($ncx, $summary['wordpressImport']['packageValidation']['ncx']);
+    },
+
     'exposes OPF manifest items by id and preserves non-spine assets' => static function (TestRunner $t) use ($epub3Package): void {
         $epub = EpubPackage::fromPackage($epub3Package());
 
