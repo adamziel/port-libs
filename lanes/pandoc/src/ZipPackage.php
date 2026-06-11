@@ -583,12 +583,26 @@ final class ZipPackage
      *     entryCount:int,
      *     firstLocalEntryName:?string,
      *     centralDirectoryOffset:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderNameBytes:int,
+     *     localHeaderExtraFieldBytes:int,
+     *     localExtraFieldEntryCount:int,
+     *     hasLocalHeaderVariableFields:bool,
+     *     hasLocalExtraFields:bool,
      *     entries:list<array{
      *         name:string,
      *         localHeaderOffset:int,
+     *         fixedHeaderOffset:int,
+     *         fixedHeaderLength:int,
      *         localHeaderLength:int,
+     *         variableFieldsOffset:int,
+     *         variableFieldsLength:int,
+     *         rawNameOffset:int,
+     *         rawNameLength:int,
+     *         localExtraFieldOffset:int,
      *         localNameLength:int,
      *         localExtraFieldLength:int,
+     *         hasLocalExtraFields:bool,
      *         dataStart:int,
      *         compressedSize:int,
      *         compressedDataEnd:int,
@@ -611,9 +625,16 @@ final class ZipPackage
     {
         $entries = [];
         $localEntries = $this->localEntries();
+        $localHeaderNameBytes = 0;
+        $localHeaderExtraFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
+            $variableFieldsOffset = $entry->localHeaderOffset + 30;
+            $variableFieldsLength = $localHeader['nameLength'] + $localHeader['extraFieldLength'];
+            $rawNameOffset = $variableFieldsOffset;
+            $localExtraFieldOffset = $rawNameOffset + $localHeader['nameLength'];
             $compressedDataEnd = $localHeader['dataStart'] + $entry->compressedSize;
             $recordEnd = $compressedDataEnd;
             $nextOffset = $this->nextEntryOrCentralDirectoryOffset($entry);
@@ -632,12 +653,26 @@ final class ZipPackage
                     && $localHeader['uncompressedSize'] === 0;
             }
 
+            $localHeaderNameBytes += $localHeader['nameLength'];
+            $localHeaderExtraFieldBytes += $localHeader['extraFieldLength'];
+            if ($localHeader['extraFieldLength'] > 0) {
+                $localExtraFieldEntryCount++;
+            }
+
             $entries[] = [
                 'name' => $entry->name,
                 'localHeaderOffset' => $entry->localHeaderOffset,
+                'fixedHeaderOffset' => $entry->localHeaderOffset,
+                'fixedHeaderLength' => 30,
                 'localHeaderLength' => $localHeader['localHeaderLength'],
+                'variableFieldsOffset' => $variableFieldsOffset,
+                'variableFieldsLength' => $variableFieldsLength,
+                'rawNameOffset' => $rawNameOffset,
+                'rawNameLength' => $localHeader['nameLength'],
+                'localExtraFieldOffset' => $localExtraFieldOffset,
                 'localNameLength' => $localHeader['nameLength'],
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'hasLocalExtraFields' => $localHeader['extraFieldLength'] > 0,
                 'dataStart' => $localHeader['dataStart'],
                 'compressedSize' => $entry->compressedSize,
                 'compressedDataEnd' => $compressedDataEnd,
@@ -660,6 +695,12 @@ final class ZipPackage
             'entryCount' => count($localEntries),
             'firstLocalEntryName' => $localEntries[0]->name ?? null,
             'centralDirectoryOffset' => $this->centralDirectoryOffset,
+            'localHeaderVariableFieldBytes' => $localHeaderNameBytes + $localHeaderExtraFieldBytes,
+            'localHeaderNameBytes' => $localHeaderNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
+            'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
             'entries' => $entries,
         ];
     }
@@ -7411,6 +7452,169 @@ final class ZipPackage
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     totalEntryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryEnd:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderNameBytes:int,
+     *     localHeaderExtraFieldBytes:int,
+     *     localExtraFieldEntryCount:int,
+     *     hasLocalHeaderVariableFields:bool,
+     *     hasLocalExtraFields:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     entries:list<array{
+     *         name:string,
+     *         rawName:string,
+     *         nameEncoding:string,
+     *         centralName:string,
+     *         centralRawName:string,
+     *         centralNameEncoding:string,
+     *         centralDirectoryIndex:int,
+     *         centralDirectoryOffset:int,
+     *         localHeaderOffset:int,
+     *         fixedHeaderOffset:int,
+     *         fixedHeaderLength:int,
+     *         localHeaderLength:int,
+     *         variableFieldsOffset:int,
+     *         variableFieldsLength:int,
+     *         rawNameOffset:int,
+     *         rawNameLength:int,
+     *         localExtraFieldOffset:int,
+     *         localExtraFieldLength:int,
+     *         dataStart:int,
+     *         hasLocalExtraFields:bool
+     *     }>
+     * }
+     */
+    public static function localHeaderVariableFieldsPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before local header variable fields can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issues = [];
+        $localHeaderNameBytes = 0;
+        $localHeaderExtraFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+
+        $cursor = $archive['centralDirectoryOffset'];
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+
+            $localHeader = self::readLocalHeaderNameMetadata(
+                $bytes,
+                $localHeaderOffset,
+                $index,
+                false
+            );
+            $localVariableFieldsOffset = $localHeaderOffset + 30;
+            $localVariableFieldsLength = $localHeader['nameLength'] + $localHeader['extraFieldLength'];
+            $rawNameOffset = $localVariableFieldsOffset;
+            $localExtraFieldOffset = $rawNameOffset + $localHeader['nameLength'];
+            $dataStart = $localExtraFieldOffset + $localHeader['extraFieldLength'];
+
+            $entries[] = [
+                'name' => $localHeader['name'],
+                'rawName' => $localHeader['rawName'],
+                'nameEncoding' => $localHeader['nameEncoding'],
+                'centralName' => $decodedName['text'],
+                'centralRawName' => $rawName,
+                'centralNameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'fixedHeaderOffset' => $localHeaderOffset,
+                'fixedHeaderLength' => 30,
+                'localHeaderLength' => $localHeader['localHeaderLength'],
+                'variableFieldsOffset' => $localVariableFieldsOffset,
+                'variableFieldsLength' => $localVariableFieldsLength,
+                'rawNameOffset' => $rawNameOffset,
+                'rawNameLength' => $localHeader['nameLength'],
+                'localExtraFieldOffset' => $localExtraFieldOffset,
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'dataStart' => $dataStart,
+                'hasLocalExtraFields' => $localHeader['extraFieldLength'] > 0,
+            ];
+
+            $localHeaderNameBytes += $localHeader['nameLength'];
+            $localHeaderExtraFieldBytes += $localHeader['extraFieldLength'];
+            if ($localHeader['extraFieldLength'] > 0) {
+                $localExtraFieldEntryCount++;
+            }
+
+            $cursor += 46 + $variableLength;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature === null || $signature['endOffset'] !== $archive['centralDirectoryEnd']) {
+                self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'localHeaderVariableFieldBytes' => $localHeaderNameBytes + $localHeaderExtraFieldBytes,
+            'localHeaderNameBytes' => $localHeaderNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
+            'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
      */
     private static function centralDirectoryInventoryEntryAt(string $bytes, int $cursor, int $index): array
@@ -8614,6 +8818,7 @@ final class ZipPackage
      *     centralDirectoryVariableFields:?array<string, mixed>,
      *     centralDirectoryRepairPlan:?array<string, mixed>,
      *     localHeaderNames:?array<string, mixed>,
+     *     localHeaderVariableFields:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
      *     localHeaderSpans:?array<string, mixed>,
      *     localHeaderOrder:?array<string, mixed>,
@@ -8730,6 +8935,7 @@ final class ZipPackage
                 'centralDirectoryVariableFields' => null,
                 'centralDirectoryRepairPlan' => null,
                 'localHeaderNames' => null,
+                'localHeaderVariableFields' => null,
                 'localHeaderMetadata' => null,
                 'localHeaderSpans' => null,
                 'localHeaderOrder' => null,
@@ -8769,6 +8975,7 @@ final class ZipPackage
         $centralDirectoryVariableFields = null;
         $centralDirectoryRepairPlan = null;
         $localHeaderNames = null;
+        $localHeaderVariableFields = null;
         $localHeaderMetadata = null;
         $localHeaderSpans = null;
         $localHeaderOrder = null;
@@ -8843,6 +9050,15 @@ final class ZipPackage
             if ($localHeaderNames !== null && !$localHeaderNames['isSupportedByBoundedReader']) {
                 $addDiagnostic('local-header-name-issues');
                 $addDiagnostics($localHeaderNames['issues']);
+            }
+
+            $localHeaderVariableFields = $runPreflight(
+                'local-header-variable-fields',
+                static fn (): array => self::localHeaderVariableFieldsPreflight($bytes)
+            );
+            if ($localHeaderVariableFields !== null && !$localHeaderVariableFields['isSupportedByBoundedReader']) {
+                $addDiagnostic('local-header-variable-field-issues');
+                $addDiagnostics($localHeaderVariableFields['issues']);
             }
 
             $localHeaderMetadata = $runPreflight(
@@ -9070,6 +9286,7 @@ final class ZipPackage
             ?? $centralDirectoryInventory['entryCount']
             ?? $centralDirectoryRepairPlan['scannedEntryCount']
             ?? $localHeaderNames['entryCount']
+            ?? $localHeaderVariableFields['entryCount']
             ?? $localHeaderMetadata['entryCount']
             ?? $localHeaderSpans['entryCount']
             ?? $localHeaderOrder['entryCount']
@@ -9118,6 +9335,7 @@ final class ZipPackage
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
             'localHeaderNames' => $localHeaderNames,
+            'localHeaderVariableFields' => $localHeaderVariableFields,
             'localHeaderMetadata' => $localHeaderMetadata,
             'localHeaderSpans' => $localHeaderSpans,
             'localHeaderOrder' => $localHeaderOrder,
@@ -9175,6 +9393,7 @@ final class ZipPackage
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
+     *     localHeaderVariableFields:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
@@ -9216,6 +9435,7 @@ final class ZipPackage
         $archive = $this->archivePreflight();
         $centralDirectoryInventory = self::centralDirectoryInventoryPreflight($this->bytes);
         $centralDirectoryVariableFields = self::centralDirectoryVariableFieldsPreflight($this->bytes);
+        $localHeaderVariableFields = self::localHeaderVariableFieldsPreflight($this->bytes);
         $contentPresence = $this->contentPresencePreflight();
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
@@ -9390,6 +9610,7 @@ final class ZipPackage
             'archive' => $archive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
+            'localHeaderVariableFields' => $localHeaderVariableFields,
             'contentPresence' => $contentPresence,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
@@ -9425,6 +9646,7 @@ final class ZipPackage
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
+     *     localHeaderVariableFields:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
