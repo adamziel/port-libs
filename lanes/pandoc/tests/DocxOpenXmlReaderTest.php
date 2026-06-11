@@ -142,6 +142,43 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'summarizes docx relationship part target states for package handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png?slot=body#img"/>' . "\n" .
+            '  <Relationship Id="rRawData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source.bin"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx?version=2026#template" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/embeddings/source.bin'] = 'raw embedded bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $relationshipPart = $document->attr('docx')['packageProvenance']['relationshipParts']['word/_rels/document.xml.rels'];
+
+        $t->same('word/document.xml', $relationshipPart['sourcePart']);
+        $t->same(true, $relationshipPart['sourceExists']);
+        $t->same(5, $relationshipPart['relationshipCount']);
+        $t->same(3, $relationshipPart['internalRelationshipCount']);
+        $t->same(2, $relationshipPart['externalRelationshipCount']);
+        $t->same(2, $relationshipPart['existingTargetCount']);
+        $t->same(1, $relationshipPart['missingTargetCount']);
+        $t->same(1, $relationshipPart['missingContentTypeTargetCount']);
+        $t->same(3, $relationshipPart['targetPartCount']);
+        $t->same(['word/media/review.png', 'word/media/missing.png', 'word/embeddings/source.bin'], $relationshipPart['targetParts']);
+        $t->same(['word/media/review.png', 'word/embeddings/source.bin'], $relationshipPart['existingTargetParts']);
+        $t->same(['word/media/missing.png'], $relationshipPart['missingTargetParts']);
+        $t->same(['https://example.test/source?post=42', 'https://example.test/templates/review.dotx?version=2026#template'], $relationshipPart['externalTargets']);
+        $t->same(['image/png'], $relationshipPart['contentTypes']);
+        $t->same(['image/png'], $relationshipPart['contentTypeBases']);
+        $t->same('word/embeddings/source.bin', $relationshipPart['relationships']['rRawData']['targetPart']);
+        $t->same(true, $relationshipPart['relationships']['rRawData']['exists']);
+        $t->same('missing', $relationshipPart['relationships']['rRawData']['contentTypeSource']);
+        $t->same('bin', $relationshipPart['relationships']['rRawData']['defaultExtension']);
+        $t->same('?slot=body#img', $relationshipPart['relationships']['rMissingImage']['targetReferenceSuffix']);
+        $t->same('version=2026', $relationshipPart['relationships']['rRemoteTemplate']['targetQuery']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
