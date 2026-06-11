@@ -22871,6 +22871,85 @@ XML);
         $alphaPosition = strpos($blocks, '<dt>Adams 2025</dt>');
         $t->true(is_int($zetaPosition) && is_int($alphaPosition) && $zetaPosition < $alphaPosition, 'Source-title aliases should sort bibliography entries by normalized source metadata');
     },
+    'normalizes bounded direct csl json compact sourcetitle alias' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'compact-source-title',
+                'type' => 'report',
+                'title' => 'Compact Source Title Packet',
+                'sourcetitle' => 'Compact Import Queue',
+                'author' => [
+                    ['family' => 'Curator', 'given' => 'Cal'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'regular-source-title',
+                'type' => 'report',
+                'title' => 'Regular Source Title Packet',
+                'source' => 'Regular Import Queue',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $t->same('Compact Import Queue', $processor->item('compact-source-title')['source'] ?? null);
+        $t->same('Regular Import Queue', $processor->item('regular-source-title')['source'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Compact Source Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-compact-source-title-alias-review</id>
+    <updated>2026-06-11T17:00:25+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="sourcetitle"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <number variable="citation-number"/>
+        <names variable="author"/>
+        <text variable="source-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="sourcetitle"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <number variable="citation-number"/>
+      <text variable="title"/>
+      <text variable="sourcetitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Compact Source Title Alias Review', $summary['title'] ?? null);
+        $t->same('sourcetitle', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('source-title', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('sourcetitle', $summary['bibliographyRendering'][2]['variable'] ?? null);
+        $t->same('[1 | Curator | Compact Import Queue; 2 | Adams | Regular Import Queue]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'regular-source-title', 'text' => '[@regular-source-title]']),
+            new AstNode('citation', ['id' => 'compact-source-title', 'text' => '[@compact-source-title]']),
+        ]));
+        $t->same('1 :: Compact Source Title Packet :: Compact Import Queue', $styled->renderBibliographyEntry('compact-source-title'));
+        $t->same('2 :: Regular Source Title Packet :: Regular Import Queue', $styled->renderBibliographyEntry('regular-source-title'));
+
+        $document = (new MarkdownReader())->read('Compact source title aliases [@regular-source-title; @compact-source-title] stay sortable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact source title aliases [1 | Curator | Compact Import Queue; 2 | Adams | Regular Import Queue] stay sortable.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>1 :: Compact Source Title Packet :: Compact Import Queue</dd>', $blocks);
+        $t->contains('<dt>Adams 2025</dt><dd>2 :: Regular Source Title Packet :: Regular Import Queue</dd>', $blocks);
+    },
     'applies bounded csl date variable sort keys to citation and bibliography order' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

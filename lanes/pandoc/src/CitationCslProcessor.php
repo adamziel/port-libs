@@ -1117,7 +1117,7 @@ final class CitationCslProcessor
         return [
             'id' => $id,
             'type' => $itemType,
-            'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle']),
+            'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle', 'sourcetitle']),
             'citationAliases' => $citationAliases,
             'citationAliasSummary' => implode('; ', $citationAliases),
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
