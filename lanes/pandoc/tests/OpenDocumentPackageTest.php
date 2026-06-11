@@ -304,6 +304,33 @@ XML;
         $t->same('missing-package-part', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
     },
+    'reports compact ODT package entries missing from the manifest' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $acceleratorXml = '<accelerator/>';
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(extraParts: [
+            ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
+            ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
+        ]));
+
+        $review = $odt->summarize()['manifestReview'];
+        $undeclaredByPath = [];
+        foreach ($review['undeclaredPackageParts'] as $part) {
+            $undeclaredByPath[$part['path']] = $part;
+        }
+
+        $t->same(5, $review['count']);
+        $t->same(2, $review['undeclaredPackagePartCount']);
+        $t->same(['Pictures/orphan.png', 'Configurations2/accelerator/current.xml'], $review['undeclaredPackagePartNames']);
+        $t->same(9 + strlen($acceleratorXml), $review['undeclaredPackageByteLength']);
+        $t->same(9, $undeclaredByPath['Pictures/orphan.png']['byteLength']);
+        $t->same(sprintf('%08x', crc32('ORPHANPNG')), $undeclaredByPath['Pictures/orphan.png']['crc32']);
+        $t->same('odf-manifest-undeclared-package-entry', $undeclaredByPath['Pictures/orphan.png']['diagnostic']);
+        $t->same(8, $undeclaredByPath['Pictures/orphan.png']['compressionMethod']);
+        $t->same('deflated', $undeclaredByPath['Pictures/orphan.png']['compressionMethodName']);
+        $t->same(0, $undeclaredByPath['Configurations2/accelerator/current.xml']['compressionMethod']);
+        $t->same('stored', $undeclaredByPath['Configurations2/accelerator/current.xml']['compressionMethodName']);
+        $t->same(false, isset($undeclaredByPath['Configurations2/']));
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));

@@ -246,7 +246,7 @@ final class OpenDocumentPackage
             'exposableMediaPartCount' => $exposableMediaPartCount,
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
-            'manifestReview' => self::manifestReview($this->manifestEntries),
+            'manifestReview' => self::manifestReview($this->manifestEntries, $this->package),
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
@@ -317,8 +317,9 @@ final class OpenDocumentPackage
      * @param list<array<string, mixed>> $entries
      * @return array<string, mixed>
      */
-    private static function manifestReview(array $entries): array
+    private static function manifestReview(array $entries, ZipPackage $package): array
     {
+        $undeclaredPackageParts = self::undeclaredPackageParts($entries, $package);
         $summary = [
             'count' => count($entries),
             'existsCount' => 0,
@@ -334,6 +335,11 @@ final class OpenDocumentPackage
             'directoryItems' => [],
             'encryptedItems' => [],
             'declaredSizeMismatches' => [],
+            'undeclaredPackagePartCount' => count($undeclaredPackageParts),
+            'undeclaredPackagePartNames' => array_column($undeclaredPackageParts, 'path'),
+            'undeclaredPackageParts' => $undeclaredPackageParts,
+            'undeclaredPackageByteLength' => 0,
+            'undeclaredPackageCompressedByteLength' => 0,
         ];
 
         foreach ($entries as $entry) {
@@ -368,7 +374,51 @@ final class OpenDocumentPackage
             }
         }
 
+        foreach ($undeclaredPackageParts as $part) {
+            $summary['undeclaredPackageByteLength'] += $part['byteLength'];
+            $summary['undeclaredPackageCompressedByteLength'] += $part['compressedByteLength'];
+        }
+
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array{path:string, diagnostic:string, byteLength:int, compressedByteLength:int, compressionMethod:int, compressionMethodName:string, crc32:string}>
+     */
+    private static function undeclaredPackageParts(array $entries, ZipPackage $package): array
+    {
+        $declaredParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        foreach ($entries as $entry) {
+            $path = $entry['path'] ?? null;
+            if (!is_string($path) || $path === '/' || $path === '' || str_ends_with($path, '/')) {
+                continue;
+            }
+
+            $declaredParts[$path] = true;
+        }
+
+        $undeclared = [];
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory() || isset($declaredParts[$entry->name])) {
+                continue;
+            }
+
+            $undeclared[] = [
+                'path' => $entry->name,
+                'diagnostic' => 'odf-manifest-undeclared-package-entry',
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'crc32' => $entry->crc32Hex(),
+            ];
+        }
+
+        return $undeclared;
     }
 
     /**
@@ -391,6 +441,15 @@ final class OpenDocumentPackage
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
+    }
+
+    private static function compressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
