@@ -650,6 +650,61 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html time value metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<time datetime="2026-06-11T17:45:53-0400">Dispatch window</time>'
+                . '<time>14:30:15.250</time>'
+                . '<time datetime="2026-06">June</time>'
+                . '<time datetime="2026-W24">Week review</time>'
+                . '<time datetime="2026-13">Invalid month</time>'
+                . '<time datetime="2026-02-30">Invalid date</time>',
+            'time metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $datetime = $summary[0];
+        $textTime = $summary[1];
+        $month = $summary[2];
+        $week = $summary[3];
+        $invalidMonth = $summary[4];
+        $invalidDate = $summary[5];
+
+        $t->same('time', $datetime['name']);
+        $t->same('time', $datetime['time']);
+        $t->same('2026-06-11T17:45:53-0400', $datetime['timeDatetimeRaw']);
+        $t->same('2026-06-11T17:45:53-0400', $datetime['timeValue']);
+        $t->same('datetime', $datetime['timeValueSource']);
+        $t->same('2026-06-11T17:45:53-04:00', $datetime['timeValueNormalized']);
+        $t->same('global-datetime', $datetime['timeValueKind']);
+        $t->same(true, $datetime['timeValueValid']);
+        $t->same('Dispatch window', $datetime['timeText']);
+
+        $t->same(null, $textTime['timeDatetimeRaw']);
+        $t->same('14:30:15.250', $textTime['timeValue']);
+        $t->same('text', $textTime['timeValueSource']);
+        $t->same('14:30:15.250', $textTime['timeValueNormalized']);
+        $t->same('time', $textTime['timeValueKind']);
+        $t->same(true, $textTime['timeValueValid']);
+
+        $t->same('2026-06', $month['timeValueNormalized']);
+        $t->same('month', $month['timeValueKind']);
+        $t->same(true, $month['timeValueValid']);
+        $t->same('2026-W24', $week['timeValueNormalized']);
+        $t->same('week', $week['timeValueKind']);
+        $t->same(true, $week['timeValueValid']);
+
+        $t->same(false, $invalidMonth['timeValueValid']);
+        $t->same(null, $invalidMonth['timeValueKind']);
+        $t->same(null, $invalidMonth['timeValueNormalized']);
+        $t->same(false, $invalidDate['timeValueValid']);
+        $t->same(null, $invalidDate['timeValueKind']);
+        $t->same(null, $invalidDate['timeValueNormalized']);
+        $t->same(
+            '<time datetime="2026-06-11T17:45:53-0400">Dispatch window</time><time>14:30:15.250</time><time datetime="2026-06">June</time><time datetime="2026-W24">Week review</time><time datetime="2026-13">Invalid month</time><time datetime="2026-02-30">Invalid date</time>',
+            $html
+        );
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
