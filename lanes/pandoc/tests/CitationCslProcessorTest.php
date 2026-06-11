@@ -4092,6 +4092,99 @@ BIB;
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.</dd>', $blocks);
     },
+    'maps direct csl json access date aliases into accessed metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-access-camel',
+                'type' => 'webpage',
+                'title' => 'Direct Access Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'accessDate' => ['date-parts' => [[2026, 6, 8]]],
+            ],
+            [
+                'id' => 'direct-url-date',
+                'type' => 'webpage',
+                'title' => 'Direct URL Date Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'url-date' => ['date-parts' => [[2025, 7, 9]]],
+            ],
+            [
+                'id' => 'direct-visited',
+                'type' => 'webpage',
+                'title' => 'Direct Visited Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'visited' => ['literal' => 'review queue'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-access-camel');
+        $urlDate = $processor->item('direct-url-date');
+        $visited = $processor->item('direct-visited');
+        $t->same('2026-06-08', $camel['accessedDate']['display'] ?? null);
+        $t->same('2025-07-09', $urlDate['accessedDate']['display'] ?? null);
+        $t->same('review queue', $visited['accessedDate']['literal'] ?? null);
+        $t->same('Ames, Ari. Direct Access Camel Packet. 2026. Accessed 2026-06-08.', $processor->renderBibliographyEntry('direct-access-camel'));
+        $t->same('Bell, Bea. Direct URL Date Packet. 2025. Accessed 2025-07-09.', $processor->renderBibliographyEntry('direct-url-date'));
+        $t->same('Chen, Cy. Direct Visited Packet. 2024. Accessed review queue.', $processor->renderBibliographyEntry('direct-visited'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Access Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-access-alias-review</id>
+    <updated>2026-06-11T22:10:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="access-date"/>
+        <date variable="urldate"/>
+        <date variable="visited"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accessdate"/>
+      <date variable="url-date"/>
+      <date variable="visited"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Access Alias Review', $summary['title'] ?? null);
+        $t->same('access-date', $citationChildren[1]['variable'] ?? null);
+        $t->same('urldate', $citationChildren[2]['variable'] ?? null);
+        $t->same('visited', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | 2026-06-08 | 2026-06-08 | 2026-06-08; Bell | 2025-07-09 | 2025-07-09 | 2025-07-09; Chen | review queue | review queue | review queue]', $styled->renderCitationCluster([
+            $citation('direct-access-camel', '[@direct-access-camel]'),
+            $citation('direct-url-date', '[@direct-url-date]'),
+            $citation('direct-visited', '[@direct-visited]'),
+        ]));
+        $t->same('Direct Access Camel Packet :: 2026-06-08 :: 2026-06-08 :: 2026-06-08', $styled->renderBibliographyEntry('direct-access-camel'));
+
+        $document = (new MarkdownReader())->read('Direct access aliases [@direct-access-camel; @direct-url-date; @direct-visited] keep access metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct access aliases [Ames | 2026-06-08 | 2026-06-08 | 2026-06-08; Bell | 2025-07-09 | 2025-07-09 | 2025-07-09; Chen | review queue | review queue | review queue] keep access metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Access Camel Packet :: 2026-06-08 :: 2026-06-08 :: 2026-06-08</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Visited Packet :: review queue :: review queue :: review queue</dd>', $blocks);
+    },
     'maps bounded biblatex url description labels into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{url-description-source,

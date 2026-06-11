@@ -1030,7 +1030,21 @@ final class CitationCslProcessor
         }
         $authorityNames = self::namesOrLiteral($item['authority'] ?? [], $id, 'authority');
         $authority = self::stringOrNamesField($item, 'authority', $id, $authorityNames);
-        $accessedDate = self::dateVariable(self::firstPresentField($item, ['accessed', 'accessedDate', 'accessed-date', 'accesseddate', 'accessdate', 'lastchecked', 'lastaccessed']), $id, 'accessed');
+        $accessedDate = self::dateVariable(self::firstPresentField($item, [
+            'accessed',
+            'accessedDate',
+            'accessed-date',
+            'accesseddate',
+            'accessDate',
+            'access-date',
+            'accessdate',
+            'urlDate',
+            'url-date',
+            'urldate',
+            'lastchecked',
+            'lastaccessed',
+            'visited',
+        ]), $id, 'accessed');
         $availableDate = self::dateVariable(self::firstPresentField($item, ['available-date', 'availableDate', 'availabledate']), $id, 'available-date');
         $originalDate = self::dateVariable(self::firstPresentField($item, ['original-date', 'originalDate', 'originaldate', 'origdate']), $id, 'original-date');
         $reprintDate = self::dateVariable(self::firstPresentField($item, ['reprint-date', 'reprintDate', 'reprintdate']), $id, 'reprint-date');
@@ -5052,7 +5066,8 @@ final class CitationCslProcessor
             'editor' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['editors'] ?? [], [], $key)),
             'container-author' => $this->normalizeSortText($this->namesSortValue($item['containerAuthors'] ?? [], [], $key)),
             'issued', 'date' => $this->sortYearSortValue($item) !== '' ? $this->sortYearSortValue($item) : $this->issuedSortValue($item),
-            'accessed' => $this->dateSortValue($item, 'accessed'),
+            'accessed', 'accessed-date', 'accesseddate', 'access-date', 'accessdate',
+            'url-date', 'urldate', 'visited', 'lastchecked', 'lastaccessed' => $this->dateSortValue($item, 'accessed'),
             'available-date' => $this->dateSortValue($item, 'available-date'),
             'event-date' => $this->dateSortValue($item, 'event-date'),
             'original-date' => $this->dateSortValue($item, 'original-date'),
@@ -9346,7 +9361,8 @@ final class CitationCslProcessor
             'available-date', 'availabledate' => $this->renderDateVariable($item['availableDate'] ?? null, $scope, 'available-date'),
             'submitted', 'submitted-date', 'submitteddate' => $this->renderDateVariable($item['submittedDate'] ?? null, $scope, 'submitted'),
             'event-date', 'eventdate' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
-            'accessed', 'accessed-date', 'accesseddate' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
+            'accessed', 'accessed-date', 'accesseddate', 'access-date', 'accessdate',
+            'url-date', 'urldate', 'visited', 'lastchecked', 'lastaccessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
             'original-date', 'originaldate', 'origdate' => $this->renderDateVariable($item['originalDate'] ?? null, $scope, 'original-date'),
             'reprint-date', 'reprintdate' => $this->renderDateVariable($item['reprintDate'] ?? null, $scope, 'reprint-date'),
             'short-author' => $this->renderNamesElement(['variable' => 'short-author'], $item, $scope),
@@ -9650,7 +9666,7 @@ final class CitationCslProcessor
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
-        if (in_array($normalized, ['issued', 'issued-date', 'issueddate', 'date', 'accessed', 'accessed-date', 'accesseddate', 'available-date', 'availabledate', 'event-date', 'eventdate', 'original-date', 'originaldate', 'origdate', 'reprint-date', 'reprintdate', 'submitted', 'submitted-date', 'submitteddate'], true)) {
+        if (in_array($normalized, ['issued', 'issued-date', 'issueddate', 'date', 'accessed', 'accessed-date', 'accesseddate', 'access-date', 'accessdate', 'url-date', 'urldate', 'visited', 'lastchecked', 'lastaccessed', 'available-date', 'availabledate', 'event-date', 'eventdate', 'original-date', 'originaldate', 'origdate', 'reprint-date', 'reprintdate', 'submitted', 'submitted-date', 'submitteddate'], true)) {
             $date = $this->dateVariableForRendering($item, $normalized);
             if (!is_array($date)) {
                 return false;
@@ -10379,7 +10395,8 @@ final class CitationCslProcessor
 
         return match ($normalized) {
             'issued', 'issued-date', 'issueddate', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
-            'accessed', 'accessed-date', 'accesseddate' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
+            'accessed', 'accessed-date', 'accesseddate', 'access-date', 'accessdate',
+            'url-date', 'urldate', 'visited', 'lastchecked', 'lastaccessed' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
             'available-date', 'availabledate' => is_array($item['availableDate'] ?? null) ? $item['availableDate'] : null,
             'event-date', 'eventdate' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
             'original-date', 'originaldate', 'origdate' => is_array($item['originalDate'] ?? null) ? $item['originalDate'] : null,
