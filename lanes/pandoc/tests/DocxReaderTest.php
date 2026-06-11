@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -2470,6 +2471,8 @@ $notesSourceContentTypesXml = <<<'XML'
   <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
   <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>
+  <Override PartName="/word/commentsIds.xml" ContentType="application/vnd.ms-word.commentsIds+xml"/>
+  <Override PartName="/word/people.xml" ContentType="application/vnd.ms-word.people+xml"/>
 </Types>
 XML;
 
@@ -2479,6 +2482,8 @@ $notesSourceDocumentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
   <Relationship Id="rIdCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+  <Relationship Id="rIdCommentsIds" Type="http://schemas.microsoft.com/office/2016/09/relationships/commentsIds" Target="commentsIds.xml?roundtrip=review#ids"/>
+  <Relationship Id="rIdPeople" Type="http://schemas.microsoft.com/office/2017/10/relationships/people" Target="people.xml"/>
 </Relationships>
 XML;
 
@@ -2523,6 +2528,20 @@ $notesSourceCommentsExtendedXml = <<<'XML'
 <w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
   <w15:commentEx w15:paraId="00AABBCC" w15:done="1"/>
 </w15:commentsEx>
+XML;
+
+$notesSourceCommentsIdsXml = <<<'XML'
+<w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">
+  <w16cid:commentId w16cid:paraId="00AABBCC" w16cid:durableId="{11111111-2222-3333-4444-555555555555}"/>
+  <w16cid:commentId w16cid:paraId="00CCDDEE"/>
+</w16cid:commentsIds>
+XML;
+
+$notesSourcePeopleXml = <<<'XML'
+<w15:people xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:person w15:author="Source Reviewer" w15:providerId="presence" w15:userId="reviewer@example.test"/>
+  <w15:person w15:author="Migration Desk"/>
+</w15:people>
 XML;
 
 $missingNotesDocumentXml = <<<'XML'
@@ -5451,7 +5470,9 @@ $buildNotesSourcePackage = static function () use (
     $notesSourceFootnotesXml,
     $notesSourceEndnotesXml,
     $notesSourceCommentsXml,
-    $notesSourceCommentsExtendedXml
+    $notesSourceCommentsExtendedXml,
+    $notesSourceCommentsIdsXml,
+    $notesSourcePeopleXml
 ): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $notesSourceContentTypesXml],
@@ -5462,6 +5483,8 @@ $buildNotesSourcePackage = static function () use (
         ['name' => 'word/endnotes.xml', 'data' => $notesSourceEndnotesXml],
         ['name' => 'word/comments.xml', 'data' => $notesSourceCommentsXml],
         ['name' => 'word/commentsExtended.xml', 'data' => $notesSourceCommentsExtendedXml],
+        ['name' => 'word/commentsIds.xml', 'data' => $notesSourceCommentsIdsXml],
+        ['name' => 'word/people.xml', 'data' => $notesSourcePeopleXml],
     ]);
 };
 
@@ -9505,19 +9528,23 @@ return [
         $t->same($sources, $result['importReport']['notes']['sources']);
         $t->same('/word/document.xml', $sources['sourcePart']);
         $t->same('/word/_rels/document.xml.rels', $sources['relationshipsPart']);
-        $t->same(4, $sources['relationshipCount']);
-        $t->same(4, $sources['partCount']);
-        $t->same(4, $sources['loadedPartCount']);
+        $t->same(6, $sources['relationshipCount']);
+        $t->same(6, $sources['partCount']);
+        $t->same(6, $sources['loadedPartCount']);
         $t->same(1, $sources['footnotePartCount']);
         $t->same(1, $sources['endnotePartCount']);
         $t->same(1, $sources['commentPartCount']);
         $t->same(1, $sources['commentsExtendedPartCount']);
+        $t->same(1, $sources['commentsIdsPartCount']);
+        $t->same(1, $sources['peoplePartCount']);
         $t->same(0, $sources['issueCount']);
         $t->same([], $sources['issueCodes']);
         $t->same('/word/footnotes.xml', $sources['primaryParts']['footnotes']);
         $t->same('/word/endnotes.xml', $sources['primaryParts']['endnotes']);
         $t->same('/word/comments.xml', $sources['primaryParts']['comments']);
         $t->same('/word/commentsExtended.xml', $sources['primaryParts']['commentsExtended']);
+        $t->same('/word/commentsIds.xml', $sources['primaryParts']['commentsIds']);
+        $t->same('/word/people.xml', $sources['primaryParts']['people']);
 
         $footnoteSource = $sources['items'][0];
         $t->same('footnotes', $footnoteSource['kind']);
@@ -9555,6 +9582,14 @@ return [
         $t->same(null, $commentsExtendedSource['importableItemCount']);
         $t->same(1, $commentsExtendedSource['resolvedCommentCount']);
         $t->same(0, $commentsExtendedSource['threadedCommentCount']);
+        $t->same('commentsIds', $sources['items'][4]['kind']);
+        $t->same('/word/commentsIds.xml', $sources['items'][4]['targetPart']);
+        $t->same(2, $sources['items'][4]['itemCount']);
+        $t->same(1, $sources['items'][4]['durableIdCount']);
+        $t->same('people', $sources['items'][5]['kind']);
+        $t->same('/word/people.xml', $sources['items'][5]['targetPart']);
+        $t->same(2, $sources['items'][5]['itemCount']);
+        $t->same(2, $sources['items'][5]['personAuthorCount']);
 
         $paragraph = $document->children[0];
         $t->same('paragraph', $paragraph->type);
@@ -9597,6 +9632,77 @@ return [
         $t->same('/word/comments.xml', $reportNotes[2]['sourcePart']);
         $t->same('/word/commentsExtended.xml', $reportNotes[2]['commentsExtendedPart']);
         $t->same(true, $reportNotes[2]['commentResolved']);
+    },
+    'reports DOCX comment id and people sidecar package metadata' => static function (TestRunner $t) use ($buildNotesSourcePackage): void {
+        $package = $buildNotesSourcePackage();
+        $result = (new DocxReader())->readPackage($package);
+        $sources = $result['metadata']['docxNotes'];
+        $byKind = [];
+        foreach ($sources['items'] as $item) {
+            $byKind[$item['kind']] = $item;
+        }
+
+        $commentsIds = $byKind['commentsIds'];
+        $t->same('commentsIds', $commentsIds['kind']);
+        $t->same('commentsIds', $commentsIds['sourceType']);
+        $t->same('rIdCommentsIds', $commentsIds['relationshipId']);
+        $t->same(DocxReader::REL_TYPE_COMMENTS_IDS, $commentsIds['relationshipType']);
+        $t->same('commentsIds.xml?roundtrip=review#ids', $commentsIds['target']);
+        $t->same('/word/commentsIds.xml', $commentsIds['targetPart']);
+        $t->same('roundtrip=review', $commentsIds['targetQuery']);
+        $t->same('ids', $commentsIds['targetFragment']);
+        $t->same('application/vnd.ms-word.commentsIds+xml', $commentsIds['contentType']);
+        $t->same(DocxReader::WORDPROCESSINGML_2016_COMMENT_ID_NS, $commentsIds['rootNamespace']);
+        $t->same('commentsIds', $commentsIds['rootName']);
+        $t->same(DocxReader::WORDPROCESSINGML_2016_COMMENT_ID_NS, $commentsIds['itemNamespace']);
+        $t->same('commentId', $commentsIds['itemName']);
+        $t->same(true, $commentsIds['validRoot']);
+        $t->same(2, $commentsIds['itemCount']);
+        $t->same(null, $commentsIds['importableItemCount']);
+        $t->same(null, $commentsIds['specialItemCount']);
+        $t->same(1, $commentsIds['durableIdCount']);
+        $t->same([], $commentsIds['issues']);
+
+        $people = $byKind['people'];
+        $t->same('people', $people['kind']);
+        $t->same('rIdPeople', $people['relationshipId']);
+        $t->same(DocxReader::REL_TYPE_PEOPLE, $people['relationshipType']);
+        $t->same('/word/people.xml', $people['targetPart']);
+        $t->same('application/vnd.ms-word.people+xml', $people['contentType']);
+        $t->same(DocxReader::WORDPROCESSINGML_2012_NS, $people['rootNamespace']);
+        $t->same('people', $people['rootName']);
+        $t->same('person', $people['itemName']);
+        $t->same(true, $people['validRoot']);
+        $t->same(2, $people['itemCount']);
+        $t->same(null, $people['importableItemCount']);
+        $t->same(null, $people['specialItemCount']);
+        $t->same(2, $people['personAuthorCount']);
+        $t->same(1, $people['personProviderIdCount']);
+        $t->same(1, $people['personUserIdCount']);
+        $t->same([], $people['issues']);
+        $t->same($sources, $result['importReport']['notes']['sources']);
+
+        $roles = [];
+        foreach (OpcRelationshipGraph::fromPackage($package)->preflightWordprocessingDocumentRelationships('/word/document.xml') as $role) {
+            $roles[$role['id']] = $role;
+        }
+
+        $t->same('comments-ids', $roles['rIdCommentsIds']['role']);
+        $t->same(DocxReader::REL_TYPE_COMMENTS_IDS, $roles['rIdCommentsIds']['type']);
+        $t->same('/word/commentsIds.xml?roundtrip=review#ids', $roles['rIdCommentsIds']['target']);
+        $t->same('/word/commentsIds.xml', $roles['rIdCommentsIds']['targetPart']);
+        $t->same('application/vnd.ms-word.commentsIds+xml', $roles['rIdCommentsIds']['contentType']);
+        $t->same('application/vnd.ms-word.commentsIds+xml', $roles['rIdCommentsIds']['expectedContentType']);
+        $t->same(true, $roles['rIdCommentsIds']['valid']);
+        $t->same([], $roles['rIdCommentsIds']['issues']);
+
+        $t->same('people', $roles['rIdPeople']['role']);
+        $t->same(DocxReader::REL_TYPE_PEOPLE, $roles['rIdPeople']['type']);
+        $t->same('/word/people.xml', $roles['rIdPeople']['targetPart']);
+        $t->same('application/vnd.ms-word.people+xml', $roles['rIdPeople']['contentType']);
+        $t->same('application/vnd.ms-word.people+xml', $roles['rIdPeople']['expectedContentType']);
+        $t->same(true, $roles['rIdPeople']['valid']);
+        $t->same([], $roles['rIdPeople']['issues']);
     },
     'wraps DOCX comment ranges with reviewer metadata without replacing note references' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

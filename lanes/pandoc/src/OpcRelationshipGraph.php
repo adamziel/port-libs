@@ -30,6 +30,8 @@ final class OpcRelationshipGraph
     public const WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     public const WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     public const WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
+    public const WORDPROCESSING_COMMENTS_IDS_RELATIONSHIP_TYPE = 'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds';
+    public const WORDPROCESSING_PEOPLE_RELATIONSHIP_TYPE = 'http://schemas.microsoft.com/office/2017/10/relationships/people';
     public const WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     public const WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     public const DRAWINGML_CHART_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
@@ -80,6 +82,8 @@ final class OpcRelationshipGraph
     private const WORDPROCESSING_CUSTOM_XML_CONTENT_TYPE = 'application/xml';
     private const WORDPROCESSING_CUSTOM_XML_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml';
     private const WORDPROCESSING_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
+    private const WORDPROCESSING_COMMENTS_IDS_CONTENT_TYPE = 'application/vnd.ms-word.commentsIds+xml';
+    private const WORDPROCESSING_PEOPLE_CONTENT_TYPE = 'application/vnd.ms-word.people+xml';
     private const WORDPROCESSING_GLOSSARY_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const DRAWINGML_CHART_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
     private const DRAWINGML_DIAGRAM_DATA_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
@@ -7674,6 +7678,18 @@ final class OpcRelationshipGraph
                 'expectedSourceContentTypes' => $documentSourceContentTypes,
                 'expectedExternal' => false,
             ],
+            self::WORDPROCESSING_COMMENTS_IDS_RELATIONSHIP_TYPE => [
+                'role' => 'comments-ids',
+                'expectedContentType' => self::WORDPROCESSING_COMMENTS_IDS_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
+            self::WORDPROCESSING_PEOPLE_RELATIONSHIP_TYPE => [
+                'role' => 'people',
+                'expectedContentType' => self::WORDPROCESSING_PEOPLE_CONTENT_TYPE,
+                'expectedSourceContentTypes' => $documentSourceContentTypes,
+                'expectedExternal' => false,
+            ],
             self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => [
                 'role' => 'glossary-document',
                 'expectedContentType' => self::WORDPROCESSING_GLOSSARY_DOCUMENT_CONTENT_TYPE,
@@ -7864,6 +7880,8 @@ final class OpcRelationshipGraph
             self::WORDPROCESSING_WEB_SETTINGS_RELATIONSHIP_TYPE => 'web-settings',
             self::WORDPROCESSING_CUSTOM_XML_PROPERTIES_RELATIONSHIP_TYPE => 'custom-xml-properties',
             self::WORDPROCESSING_COMMENTS_EXTENDED_RELATIONSHIP_TYPE => 'comments-extended',
+            self::WORDPROCESSING_COMMENTS_IDS_RELATIONSHIP_TYPE => 'comments-ids',
+            self::WORDPROCESSING_PEOPLE_RELATIONSHIP_TYPE => 'people',
             self::WORDPROCESSING_GLOSSARY_DOCUMENT_RELATIONSHIP_TYPE => 'glossary-document',
         ];
     }

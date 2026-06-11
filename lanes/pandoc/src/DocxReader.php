@@ -32,6 +32,7 @@ final class DocxReader
     public const WORDPROCESSINGML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     public const WORDPROCESSINGML_2010_NS = 'http://schemas.microsoft.com/office/word/2010/wordml';
     public const WORDPROCESSINGML_2012_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
+    public const WORDPROCESSINGML_2016_COMMENT_ID_NS = 'http://schemas.microsoft.com/office/word/2016/wordml/cid';
     public const DRAWINGML_MAIN_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     public const DRAWINGML_PICTURE_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
     public const DRAWINGML_CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
@@ -57,6 +58,8 @@ final class DocxReader
     public const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     public const REL_TYPE_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     public const REL_TYPE_COMMENTS_EXTENDED = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
+    public const REL_TYPE_COMMENTS_IDS = 'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds';
+    public const REL_TYPE_PEOPLE = 'http://schemas.microsoft.com/office/2017/10/relationships/people';
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
@@ -92,6 +95,8 @@ final class DocxReader
     private const WORDPROCESSINGML_ENDNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const WORDPROCESSINGML_COMMENTS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const WORDPROCESSINGML_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
+    private const WORDPROCESSINGML_COMMENTS_IDS_CONTENT_TYPE = 'application/vnd.ms-word.commentsIds+xml';
+    private const WORDPROCESSINGML_PEOPLE_CONTENT_TYPE = 'application/vnd.ms-word.people+xml';
     private const WORDPROCESSINGML_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSINGML_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
 
@@ -14146,7 +14151,7 @@ final class DocxReader
     }
 
     /**
-     * @return list<array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string}>
+     * @return list<array{kind:string, sourceType:string, relationshipType:string, rootNamespace:string, rootName:string, itemNamespace:string, itemName:string, expectedContentType:string, label:string}>
      */
     private function notePartDefinitions(): array
     {
@@ -14155,7 +14160,9 @@ final class DocxReader
                 'kind' => 'footnotes',
                 'sourceType' => 'footnote',
                 'relationshipType' => self::REL_TYPE_FOOTNOTES,
+                'rootNamespace' => self::WORDPROCESSINGML_NS,
                 'rootName' => 'footnotes',
+                'itemNamespace' => self::WORDPROCESSINGML_NS,
                 'itemName' => 'footnote',
                 'expectedContentType' => self::WORDPROCESSINGML_FOOTNOTES_CONTENT_TYPE,
                 'label' => 'DOCX footnotes XML',
@@ -14164,7 +14171,9 @@ final class DocxReader
                 'kind' => 'endnotes',
                 'sourceType' => 'endnote',
                 'relationshipType' => self::REL_TYPE_ENDNOTES,
+                'rootNamespace' => self::WORDPROCESSINGML_NS,
                 'rootName' => 'endnotes',
+                'itemNamespace' => self::WORDPROCESSINGML_NS,
                 'itemName' => 'endnote',
                 'expectedContentType' => self::WORDPROCESSINGML_ENDNOTES_CONTENT_TYPE,
                 'label' => 'DOCX endnotes XML',
@@ -14173,7 +14182,9 @@ final class DocxReader
                 'kind' => 'comments',
                 'sourceType' => 'comment',
                 'relationshipType' => self::REL_TYPE_COMMENTS,
+                'rootNamespace' => self::WORDPROCESSINGML_NS,
                 'rootName' => 'comments',
+                'itemNamespace' => self::WORDPROCESSINGML_NS,
                 'itemName' => 'comment',
                 'expectedContentType' => self::WORDPROCESSINGML_COMMENTS_CONTENT_TYPE,
                 'label' => 'DOCX comments XML',
@@ -14182,10 +14193,34 @@ final class DocxReader
                 'kind' => 'commentsExtended',
                 'sourceType' => 'commentsExtended',
                 'relationshipType' => self::REL_TYPE_COMMENTS_EXTENDED,
+                'rootNamespace' => self::WORDPROCESSINGML_2012_NS,
                 'rootName' => 'commentsEx',
+                'itemNamespace' => self::WORDPROCESSINGML_2012_NS,
                 'itemName' => 'commentEx',
                 'expectedContentType' => self::WORDPROCESSINGML_COMMENTS_EXTENDED_CONTENT_TYPE,
                 'label' => 'DOCX commentsExtended XML',
+            ],
+            [
+                'kind' => 'commentsIds',
+                'sourceType' => 'commentsIds',
+                'relationshipType' => self::REL_TYPE_COMMENTS_IDS,
+                'rootNamespace' => self::WORDPROCESSINGML_2016_COMMENT_ID_NS,
+                'rootName' => 'commentsIds',
+                'itemNamespace' => self::WORDPROCESSINGML_2016_COMMENT_ID_NS,
+                'itemName' => 'commentId',
+                'expectedContentType' => self::WORDPROCESSINGML_COMMENTS_IDS_CONTENT_TYPE,
+                'label' => 'DOCX commentsIds XML',
+            ],
+            [
+                'kind' => 'people',
+                'sourceType' => 'people',
+                'relationshipType' => self::REL_TYPE_PEOPLE,
+                'rootNamespace' => self::WORDPROCESSINGML_2012_NS,
+                'rootName' => 'people',
+                'itemNamespace' => self::WORDPROCESSINGML_2012_NS,
+                'itemName' => 'person',
+                'expectedContentType' => self::WORDPROCESSINGML_PEOPLE_CONTENT_TYPE,
+                'label' => 'DOCX people XML',
             ],
         ];
     }
@@ -14237,6 +14272,8 @@ final class DocxReader
             'endnotePartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'endnotes')),
             'commentPartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'comments')),
             'commentsExtendedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'commentsExtended')),
+            'commentsIdsPartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'commentsIds')),
+            'peoplePartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'people')),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'primaryParts' => [
@@ -14244,6 +14281,8 @@ final class DocxReader
                 'endnotes' => $this->firstNotePartByKind($items, 'endnotes'),
                 'comments' => $this->firstNotePartByKind($items, 'comments'),
                 'commentsExtended' => $this->firstNotePartByKind($items, 'commentsExtended'),
+                'commentsIds' => $this->firstNotePartByKind($items, 'commentsIds'),
+                'people' => $this->firstNotePartByKind($items, 'people'),
             ],
             'items' => $items,
         ];
@@ -14264,7 +14303,7 @@ final class DocxReader
     }
 
     /**
-     * @param array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string} $definition
+     * @param array{kind:string, sourceType:string, relationshipType:string, rootNamespace:string, rootName:string, itemNamespace:string, itemName:string, expectedContentType:string, label:string} $definition
      * @return array<string, mixed>
      */
     private function notePartRelationshipSummary(
@@ -14289,6 +14328,10 @@ final class DocxReader
             'specialItemCount' => null,
             'resolvedCommentCount' => null,
             'threadedCommentCount' => null,
+            'durableIdCount' => null,
+            'personAuthorCount' => null,
+            'personProviderIdCount' => null,
+            'personUserIdCount' => null,
             'issues' => [],
         ];
         $issues = [];
@@ -14346,30 +14389,34 @@ final class DocxReader
             'externalTargetScheme' => is_array($externalTarget) ? $externalTarget['scheme'] : null,
             'externalTargetAllowed' => is_array($externalTarget) ? $externalTarget['allowed'] : null,
             'rootName' => $definition['rootName'],
+            'rootNamespace' => $definition['rootNamespace'],
             'itemName' => $definition['itemName'],
+            'itemNamespace' => $definition['itemNamespace'],
             'validRoot' => $inventory['validRoot'],
             'itemCount' => $inventory['itemCount'],
             'importableItemCount' => $inventory['importableItemCount'],
             'specialItemCount' => $inventory['specialItemCount'],
             'resolvedCommentCount' => $inventory['resolvedCommentCount'],
             'threadedCommentCount' => $inventory['threadedCommentCount'],
+            'durableIdCount' => $inventory['durableIdCount'],
+            'personAuthorCount' => $inventory['personAuthorCount'],
+            'personProviderIdCount' => $inventory['personProviderIdCount'],
+            'personUserIdCount' => $inventory['personUserIdCount'],
             'issues' => array_values(array_unique($issues)),
         ];
     }
 
     /**
-     * @param array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string} $definition
-     * @return array{validRoot:?bool, itemCount:?int, importableItemCount:?int, specialItemCount:?int, resolvedCommentCount:?int, threadedCommentCount:?int, issues:list<string>}
+     * @param array{kind:string, sourceType:string, relationshipType:string, rootNamespace:string, rootName:string, itemNamespace:string, itemName:string, expectedContentType:string, label:string} $definition
+     * @return array{validRoot:?bool, itemCount:?int, importableItemCount:?int, specialItemCount:?int, resolvedCommentCount:?int, threadedCommentCount:?int, durableIdCount:?int, personAuthorCount:?int, personProviderIdCount:?int, personUserIdCount:?int, issues:list<string>}
      */
     private function notePartInventory(ZipPackage $package, string $targetPart, array $definition): array
     {
         $dom = self::loadXml($package->read($targetPart), $definition['label'] . ' source inventory');
         $root = $dom->documentElement;
-        $validRoot = $root instanceof \DOMElement && (
-            $definition['kind'] === 'commentsExtended'
-                ? $root->localName === $definition['rootName']
-                : $this->isWordElement($root, $definition['rootName'])
-        );
+        $validRoot = $root instanceof \DOMElement
+            && $root->namespaceURI === $definition['rootNamespace']
+            && $root->localName === $definition['rootName'];
         if (!$validRoot || !$root instanceof \DOMElement) {
             return [
                 'validRoot' => false,
@@ -14378,6 +14425,10 @@ final class DocxReader
                 'specialItemCount' => null,
                 'resolvedCommentCount' => null,
                 'threadedCommentCount' => null,
+                'durableIdCount' => null,
+                'personAuthorCount' => null,
+                'personProviderIdCount' => null,
+                'personUserIdCount' => null,
                 'issues' => ['unexpected-root-element'],
             ];
         }
@@ -14387,13 +14438,16 @@ final class DocxReader
         $specialItemCount = 0;
         $resolvedCommentCount = 0;
         $threadedCommentCount = 0;
+        $durableIdCount = 0;
+        $personAuthorCount = 0;
+        $personProviderIdCount = 0;
+        $personUserIdCount = 0;
         foreach ($root->childNodes as $item) {
             if (!$item instanceof \DOMElement) {
                 continue;
             }
-            $matchesItem = $definition['kind'] === 'commentsExtended'
-                ? $item->localName === $definition['itemName']
-                : $this->isWordElement($item, $definition['itemName']);
+            $matchesItem = $item->namespaceURI === $definition['itemNamespace']
+                && $item->localName === $definition['itemName'];
             if (!$matchesItem) {
                 continue;
             }
@@ -14405,6 +14459,26 @@ final class DocxReader
                 }
                 if (($this->wordExtensionAttr($item, 'paraIdParent') ?? '') !== '') {
                     $threadedCommentCount++;
+                }
+                continue;
+            }
+
+            if ($definition['kind'] === 'commentsIds') {
+                if (($this->namespacedAttr($item, self::WORDPROCESSINGML_2016_COMMENT_ID_NS, 'durableId') ?? '') !== '') {
+                    $durableIdCount++;
+                }
+                continue;
+            }
+
+            if ($definition['kind'] === 'people') {
+                if (($this->namespacedAttr($item, self::WORDPROCESSINGML_2012_NS, 'author') ?? '') !== '') {
+                    $personAuthorCount++;
+                }
+                if (($this->namespacedAttr($item, self::WORDPROCESSINGML_2012_NS, 'providerId') ?? '') !== '') {
+                    $personProviderIdCount++;
+                }
+                if (($this->namespacedAttr($item, self::WORDPROCESSINGML_2012_NS, 'userId') ?? '') !== '') {
+                    $personUserIdCount++;
                 }
                 continue;
             }
@@ -14423,13 +14497,19 @@ final class DocxReader
             $importableItemCount++;
         }
 
+        $isImportableNotePart = in_array($definition['kind'], ['footnotes', 'endnotes', 'comments'], true);
+
         return [
             'validRoot' => true,
             'itemCount' => $itemCount,
-            'importableItemCount' => $definition['kind'] === 'commentsExtended' ? null : $importableItemCount,
-            'specialItemCount' => $definition['kind'] === 'commentsExtended' ? null : $specialItemCount,
+            'importableItemCount' => $isImportableNotePart ? $importableItemCount : null,
+            'specialItemCount' => $isImportableNotePart ? $specialItemCount : null,
             'resolvedCommentCount' => $definition['kind'] === 'commentsExtended' ? $resolvedCommentCount : null,
             'threadedCommentCount' => $definition['kind'] === 'commentsExtended' ? $threadedCommentCount : null,
+            'durableIdCount' => $definition['kind'] === 'commentsIds' ? $durableIdCount : null,
+            'personAuthorCount' => $definition['kind'] === 'people' ? $personAuthorCount : null,
+            'personProviderIdCount' => $definition['kind'] === 'people' ? $personProviderIdCount : null,
+            'personUserIdCount' => $definition['kind'] === 'people' ? $personUserIdCount : null,
             'issues' => [],
         ];
     }
