@@ -3688,6 +3688,22 @@ XML;
 
         $t->same(3, $rootfiles['rootfileCount']);
         $t->same('/EPUB/package.opf', $rootfiles['items'][0]['partName']);
+        $t->same($rootfiles['items'][0], $rootfiles['selectedRootfile']);
+        $t->same(['/EPUB/package.opf', '/EPUB/preview.xhtml', '/EPUB/missing-preview.xhtml'], $rootfiles['rootfileParts']);
+        $t->same(['/EPUB/package.opf'], $rootfiles['opfRootfileParts']);
+        $t->same(['/EPUB/preview.xhtml', '/EPUB/missing-preview.xhtml'], $rootfiles['alternateRootfileParts']);
+        $t->same(['/EPUB/package.opf', '/EPUB/preview.xhtml'], $rootfiles['existingRootfileParts']);
+        $t->same(['/EPUB/missing-preview.xhtml'], $rootfiles['missingRootfileParts']);
+        $t->same(['/EPUB/preview.xhtml', '/EPUB/missing-preview.xhtml'], $rootfiles['nonOpfRootfileParts']);
+        $t->same(2, $rootfiles['existingRootfileCount']);
+        $t->same([
+            'application/oebps-package+xml' => 1,
+            'application/xhtml+xml' => 2,
+        ], $rootfiles['mediaTypeCounts']);
+        $t->same([
+            'application/oebps-package+xml' => ['/EPUB/package.opf'],
+            'application/xhtml+xml' => ['/EPUB/preview.xhtml', '/EPUB/missing-preview.xhtml'],
+        ], $rootfiles['partsByMediaType']);
         $t->same('application/oebps-package+xml; profile="primary-opf"', $declaredRootfiles[0]['mediaType']);
         $t->same('application/oebps-package+xml; profile="primary-opf"', $rootfiles['items'][0]['mediaType']);
         $t->same('application/oebps-package+xml', $rootfiles['items'][0]['mediaTypeBase']);
@@ -3780,9 +3796,25 @@ XML;
         $t->same(4, $rootfiles['rootfileCount']);
         $t->same(3, $rootfiles['opfRootfileCount']);
         $t->same(3, $rootfiles['alternateRootfileCount']);
+        $t->same(3, $rootfiles['existingRootfileCount']);
         $t->same(1, $rootfiles['missingRootfileCount']);
         $t->same(1, $rootfiles['nonOpfRootfileCount']);
         $t->same(1, $rootfiles['duplicatePartCount']);
+        $t->same($rootfiles['items'][0], $rootfiles['selectedRootfile']);
+        $t->same(['/EPUB/package.opf', '/EPUB/missing-alternate.opf', '/EPUB/preview.xhtml', '/EPUB/package.opf'], $rootfiles['rootfileParts']);
+        $t->same(['/EPUB/package.opf', '/EPUB/missing-alternate.opf', '/EPUB/package.opf'], $rootfiles['opfRootfileParts']);
+        $t->same(['/EPUB/missing-alternate.opf', '/EPUB/preview.xhtml', '/EPUB/package.opf'], $rootfiles['alternateRootfileParts']);
+        $t->same(['/EPUB/package.opf', '/EPUB/preview.xhtml', '/EPUB/package.opf'], $rootfiles['existingRootfileParts']);
+        $t->same(['/EPUB/missing-alternate.opf'], $rootfiles['missingRootfileParts']);
+        $t->same(['/EPUB/preview.xhtml'], $rootfiles['nonOpfRootfileParts']);
+        $t->same([
+            'application/oebps-package+xml' => 3,
+            'application/xhtml+xml' => 1,
+        ], $rootfiles['mediaTypeCounts']);
+        $t->same([
+            'application/oebps-package+xml' => ['/EPUB/package.opf', '/EPUB/missing-alternate.opf', '/EPUB/package.opf'],
+            'application/xhtml+xml' => ['/EPUB/preview.xhtml'],
+        ], $rootfiles['partsByMediaType']);
         $t->same(true, $rootfiles['items'][0]['selected']);
         $t->same(false, $rootfiles['items'][3]['selected']);
         $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);

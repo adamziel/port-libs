@@ -699,9 +699,19 @@ final class EpubPackage
         $alternateRootfiles = [];
         $missingRootfiles = [];
         $nonOpfRootfiles = [];
+        $existingRootfiles = [];
+        $rootfileParts = [];
+        $opfRootfileParts = [];
+        $alternateRootfileParts = [];
+        $missingRootfileParts = [];
+        $nonOpfRootfileParts = [];
+        $existingRootfileParts = [];
+        $rootfileMediaTypeCounts = [];
+        $rootfilePartsByMediaType = [];
         $parts = [];
         $diagnostics = [];
         $selectedIndex = null;
+        $selectedRootfile = null;
 
         foreach ($rootfiles as $index => $rootfile) {
             $partName = (string) ($rootfile['partName'] ?? '');
@@ -750,11 +760,16 @@ final class EpubPackage
                 'canExposeBytes' => $provenance['canExposeBytes'],
             ];
             $items[] = $item;
+            $rootfileParts[] = $partName;
+            $rootfileMediaTypeCounts[$mediaType] = ($rootfileMediaTypeCounts[$mediaType] ?? 0) + 1;
+            $rootfilePartsByMediaType[$mediaType][] = $partName;
 
             if ($mediaType === self::OPF_MEDIA_TYPE) {
                 $opfRootfiles[] = $item;
+                $opfRootfileParts[] = $partName;
             } else {
                 $nonOpfRootfiles[] = $item;
+                $nonOpfRootfileParts[] = $partName;
                 $diagnostics[] = [
                     'type' => 'non-opf-container-rootfile',
                     'index' => $index,
@@ -766,10 +781,14 @@ final class EpubPackage
 
             if (!$selected) {
                 $alternateRootfiles[] = $item;
+                $alternateRootfileParts[] = $partName;
+            } else {
+                $selectedRootfile = $item;
             }
 
             if (!$exists) {
                 $missingRootfiles[] = $item;
+                $missingRootfileParts[] = $partName;
                 $diagnostics[] = [
                     'type' => 'missing-rootfile-package-part',
                     'index' => $index,
@@ -777,6 +796,9 @@ final class EpubPackage
                     'mediaType' => $mediaType,
                     'message' => 'EPUB container rootfile points at a package part that is not present in the ZIP',
                 ];
+            } else {
+                $existingRootfiles[] = $item;
+                $existingRootfileParts[] = $partName;
             }
 
             if ($partName !== '') {
@@ -860,12 +882,22 @@ final class EpubPackage
             'valid' => $diagnostics === [],
             'selectedIndex' => $selectedIndex,
             'selectedPart' => $opfPartName,
+            'selectedRootfile' => $selectedRootfile,
             'rootfileCount' => count($items),
             'opfRootfileCount' => count($opfRootfiles),
             'alternateRootfileCount' => count($alternateRootfiles),
+            'existingRootfileCount' => count($existingRootfiles),
             'missingRootfileCount' => count($missingRootfiles),
             'nonOpfRootfileCount' => count($nonOpfRootfiles),
             'duplicatePartCount' => count($duplicatePartItems),
+            'rootfileParts' => $rootfileParts,
+            'opfRootfileParts' => $opfRootfileParts,
+            'alternateRootfileParts' => $alternateRootfileParts,
+            'existingRootfileParts' => $existingRootfileParts,
+            'missingRootfileParts' => $missingRootfileParts,
+            'nonOpfRootfileParts' => $nonOpfRootfileParts,
+            'mediaTypeCounts' => $rootfileMediaTypeCounts,
+            'partsByMediaType' => $rootfilePartsByMediaType,
             'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
             'mediaTypeParameterCount' => $mediaTypeParameterCount,
             'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
@@ -873,6 +905,7 @@ final class EpubPackage
             'items' => $items,
             'opfRootfiles' => $opfRootfiles,
             'alternateRootfiles' => $alternateRootfiles,
+            'existingRootfiles' => $existingRootfiles,
             'missingRootfiles' => $missingRootfiles,
             'nonOpfRootfiles' => $nonOpfRootfiles,
             'duplicatePartItems' => $duplicatePartItems,
