@@ -82,6 +82,26 @@ $documentXml = <<<'XML'
 </w:document>
 XML;
 
+$documentBodyHandoffXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w:body>
+    <w:p><w:r><w:t>Before body handoff.</w:t></w:r></w:p>
+    <w:bookmarkStart w:id="9" w:name="SourceBookmark"/>
+    <w:tbl>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Key</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+    <w15:reviewPayload>
+      <w:p><w:r><w:t>Unsupported body payload</w:t></w:r></w:p>
+    </w15:reviewPayload>
+    <w:p><w:r><w:t>After body handoff.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
 $footnotesXml = <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="-1"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
@@ -4639,6 +4659,14 @@ $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationsh
     ]);
 };
 
+$buildDocumentBodyHandoffPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentBodyHandoffXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $documentBodyHandoffXml],
+    ]);
+};
+
 $buildPackagePropertiesPackage = static function () use (
     $packagePropertiesContentTypesXml,
     $packagePropertiesRelationshipsXml,
@@ -6049,6 +6077,47 @@ return [
         $t->same("break\ttab.", $paragraph->children[6]->attr('text'));
         $t->same('note', $paragraph->children[7]->type);
         $t->same('Footnote source audit.', $paragraph->children[7]->children[0]->children[0]->attr('text'));
+    },
+    'hands off unsupported direct DOCX body children while ingesting paragraphs and tables' => static function (TestRunner $t) use ($buildDocumentBodyHandoffPackage): void {
+        $document = (new DocxReader())->readPackage($buildDocumentBodyHandoffPackage())['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(5, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Before body handoff.', $document->children[0]->children[0]->attr('text'));
+
+        $bookmark = $document->children[1];
+        $t->same('div', $bookmark->type);
+        $t->same(['docx-body-handoff', 'docx-unsupported-body-element', 'docx-body-element-bookmarkstart'], $bookmark->attr('classes'));
+        $bookmarkAttrs = $bookmark->attr('attributes');
+        $t->same('bookmarkStart', $bookmarkAttrs['data-docx-body-element']);
+        $t->same('w:bookmarkStart', $bookmarkAttrs['data-docx-body-node-name']);
+        $t->same('unsupported-body-element', $bookmarkAttrs['data-docx-body-handoff']);
+        $t->same(DocxReader::WORDPROCESSINGML_NS, $bookmarkAttrs['data-docx-body-namespace']);
+        $t->same('DOCX body element handoff: bookmarkStart', $bookmark->children[0]->children[0]->attr('text'));
+
+        $table = $document->children[2];
+        $t->same('table', $table->type);
+        $t->same('Key', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Value', $table->children[0]->children[0]->children[1]->attr('text'));
+
+        $payload = $document->children[3];
+        $t->same('div', $payload->type);
+        $t->same(['docx-body-handoff', 'docx-unsupported-body-element', 'docx-body-element-reviewpayload'], $payload->attr('classes'));
+        $payloadAttrs = $payload->attr('attributes');
+        $t->same('reviewPayload', $payloadAttrs['data-docx-body-element']);
+        $t->same('w15:reviewPayload', $payloadAttrs['data-docx-body-node-name']);
+        $t->same('http://schemas.microsoft.com/office/word/2012/wordml', $payloadAttrs['data-docx-body-namespace']);
+        $t->same('Unsupported body payload', $payloadAttrs['data-docx-body-text-preview']);
+        $t->same('DOCX body element handoff: reviewPayload - Unsupported body payload', $payload->children[0]->children[0]->attr('text'));
+
+        $t->same('After body handoff.', $document->children[4]->children[0]->attr('text'));
+        $t->contains('DOCX body element handoff: bookmarkStart', $markdown);
+        $t->contains('DOCX body element handoff: reviewPayload - Unsupported body payload', $markdown);
+        $t->contains('class="docx-body-handoff docx-unsupported-body-element docx-body-element-reviewpayload"', $blocks);
+        $t->contains('data-docx-body-element="reviewPayload"', $blocks);
+        $t->contains('DOCX body element handoff: reviewPayload - Unsupported body payload', $blocks);
     },
     'reports DOCX extended and custom package properties for review metadata' => static function (TestRunner $t) use ($buildPackagePropertiesPackage): void {
         $reader = new DocxReader();

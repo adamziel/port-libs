@@ -2565,11 +2565,70 @@ final class DocxReader
             }
 
             $this->appendListParagraphs($blocks, $pendingListParagraphs);
+            if ($this->isWordElement($container, 'body')) {
+                $blocks[] = $this->unsupportedBodyElementBlock($child);
+            }
         }
 
         $this->appendListParagraphs($blocks, $pendingListParagraphs);
 
         return $this->captionedDrawingBlocks($blocks, $styles);
+    }
+
+    private function unsupportedBodyElementBlock(\DOMElement $element): AstNode
+    {
+        $localName = $element->localName !== '' ? $element->localName : $element->nodeName;
+        $classes = [
+            'docx-body-handoff',
+            'docx-unsupported-body-element',
+        ];
+        $suffix = $this->metadataClassSuffix($localName);
+        if ($suffix !== null) {
+            $classes[] = 'docx-body-element-' . $suffix;
+        }
+
+        $attributes = [
+            'data-docx-body-element' => $localName,
+            'data-docx-body-node-name' => $element->nodeName,
+            'data-docx-body-handoff' => 'unsupported-body-element',
+        ];
+        if (is_string($element->namespaceURI) && $element->namespaceURI !== '') {
+            $attributes['data-docx-body-namespace'] = $element->namespaceURI;
+        }
+
+        $preview = $this->unsupportedBodyElementTextPreview($element);
+        if ($preview !== '') {
+            $attributes['data-docx-body-text-preview'] = $preview;
+        }
+
+        $label = 'DOCX body element handoff: ' . $localName;
+        if ($preview !== '') {
+            $label .= ' - ' . $preview;
+        }
+
+        return new AstNode(
+            'div',
+            [
+                'classes' => $classes,
+                'attributes' => $attributes,
+            ],
+            [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => $label]),
+                ]),
+            ]
+        );
+    }
+
+    private function unsupportedBodyElementTextPreview(\DOMElement $element): string
+    {
+        $text = $this->plainDomText($element);
+        $text = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text);
+        if (strlen($text) <= 160) {
+            return $text;
+        }
+
+        return rtrim(substr($text, 0, 157)) . '...';
     }
 
     /**
