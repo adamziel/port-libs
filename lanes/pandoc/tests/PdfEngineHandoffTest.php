@@ -154,6 +154,66 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst package cache path alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cache-path.pdf',
+            'source' => '= Typst Package Cache Path Packet',
+            'engineOptions' => [
+                '--package-cache-path=cache/typst',
+                '--package-cache-path',
+                'https://cache.example.invalid/typst',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package cache path packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'inputVariables' => [],
+            'issues' => ['package-cache-external-boundary', 'package-cache-boundary-overridden'],
+            'overrides' => [
+                [
+                    'option' => 'packageCache',
+                    'count' => 2,
+                    'values' => ['cache/typst', 'https://cache.example.invalid/typst'],
+                    'selected' => 'https://cache.example.invalid/typst',
+                    'issue' => 'package-cache-boundary-overridden',
+                ],
+            ],
+            'packageCacheHistory' => [
+                ['raw' => 'cache/typst', 'path' => 'cache/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cache-path.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cache-path.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst boundary override provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
