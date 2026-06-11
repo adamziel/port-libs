@@ -695,6 +695,7 @@ final class EpubPackage
         $alternateRootfiles = [];
         $missingRootfiles = [];
         $nonOpfRootfiles = [];
+        $fullPathSuffixItems = [];
         $parts = [];
         $diagnostics = [];
         $selectedIndex = null;
@@ -725,6 +726,7 @@ final class EpubPackage
             $item = [
                 'index' => $index,
                 'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+                'target' => is_string($rootfile['target'] ?? null) ? $rootfile['target'] : $partName,
                 'partName' => $partName,
                 'mediaType' => $rawMediaType,
                 'normalizedMediaType' => is_string($rootfile['normalizedMediaType'] ?? null) ? $rootfile['normalizedMediaType'] : $mediaType,
@@ -744,8 +746,45 @@ final class EpubPackage
                 'compressionSupported' => $provenance['compressionSupported'],
                 'crc32' => $provenance['crc32'],
                 'canExposeBytes' => $provenance['canExposeBytes'],
+                'fullPathHasQuery' => ($rootfile['fullPathHasQuery'] ?? false) === true,
+                'fullPathQuery' => is_string($rootfile['fullPathQuery'] ?? null) ? $rootfile['fullPathQuery'] : null,
+                'fullPathHasFragment' => ($rootfile['fullPathHasFragment'] ?? false) === true,
+                'fullPathFragment' => is_string($rootfile['fullPathFragment'] ?? null) ? $rootfile['fullPathFragment'] : null,
             ];
             $items[] = $item;
+
+            if ($item['fullPathHasQuery'] || $item['fullPathHasFragment']) {
+                $suffixItem = [
+                    'index' => $index,
+                    'fullPath' => $item['fullPath'],
+                    'target' => $item['target'],
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                    'query' => $item['fullPathQuery'],
+                    'fragment' => $item['fullPathFragment'],
+                ];
+                $fullPathSuffixItems[] = $suffixItem;
+                if ($item['fullPathHasQuery']) {
+                    $diagnostics[] = [
+                        'type' => 'rootfile-full-path-query-component',
+                        'index' => $index,
+                        'fullPath' => $item['fullPath'],
+                        'partName' => $partName,
+                        'query' => $item['fullPathQuery'],
+                        'message' => 'EPUB container rootfile full-path includes a query component; compact package ingestion loads the package part and preserves the suffix for review',
+                    ];
+                }
+                if ($item['fullPathHasFragment']) {
+                    $diagnostics[] = [
+                        'type' => 'rootfile-full-path-fragment-component',
+                        'index' => $index,
+                        'fullPath' => $item['fullPath'],
+                        'partName' => $partName,
+                        'fragment' => $item['fullPathFragment'],
+                        'message' => 'EPUB container rootfile full-path includes a fragment component; compact package ingestion loads the package part and preserves the suffix for review',
+                    ];
+                }
+            }
 
             if ($mediaType === self::OPF_MEDIA_TYPE) {
                 $opfRootfiles[] = $item;
@@ -862,6 +901,7 @@ final class EpubPackage
             'missingRootfileCount' => count($missingRootfiles),
             'nonOpfRootfileCount' => count($nonOpfRootfiles),
             'duplicatePartCount' => count($duplicatePartItems),
+            'fullPathSuffixCount' => count($fullPathSuffixItems),
             'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
             'mediaTypeParameterCount' => $mediaTypeParameterCount,
             'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
@@ -872,6 +912,7 @@ final class EpubPackage
             'missingRootfiles' => $missingRootfiles,
             'nonOpfRootfiles' => $nonOpfRootfiles,
             'duplicatePartItems' => $duplicatePartItems,
+            'fullPathSuffixItems' => $fullPathSuffixItems,
             'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'mediaTypeDiagnostics' => $rootfileMediaTypeDiagnostics,
             'diagnosticCount' => count($diagnostics),
@@ -1870,10 +1911,17 @@ final class EpubPackage
                 throw new \InvalidArgumentException('EPUB rootfile full-path and media-type must be non-empty');
             }
 
+            $target = self::resolvePackageHref('/', $fullPath);
+            if (self::isAbsoluteUri($target)) {
+                throw new \InvalidArgumentException('EPUB rootfile full-path must identify a package part');
+            }
+
+            $fullPathSuffix = self::packageHrefSuffixReport($target);
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $rootfiles[] = [
                 'fullPath' => $fullPath,
-                'partName' => OpcPackagePath::canonicalPartName($fullPath),
+                'target' => $target,
+                'partName' => OpcPackagePath::stripQueryAndFragment($target),
                 'mediaType' => $mediaType,
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
@@ -1883,6 +1931,10 @@ final class EpubPackage
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
                 'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
+                'fullPathHasQuery' => $fullPathSuffix['hasQuery'],
+                'fullPathQuery' => $fullPathSuffix['query'],
+                'fullPathHasFragment' => $fullPathSuffix['hasFragment'],
+                'fullPathFragment' => $fullPathSuffix['fragment'],
             ];
         }
 
