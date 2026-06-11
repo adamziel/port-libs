@@ -33,6 +33,7 @@ final class DocxOpenXmlReader
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    private const GLOSSARY_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
@@ -54,6 +55,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
+    private const CT_WORD_GLOSSARY_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
     private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
@@ -134,6 +136,13 @@ final class DocxOpenXmlReader
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
+        $glossaryDocumentPart = $this->relatedDocumentPart(
+            $parts,
+            $documentRelationships,
+            $documentPart,
+            self::GLOSSARY_DOCUMENT_REL,
+            'glossary/document.xml',
+        );
         $footnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FOOTNOTES_REL, 'footnotes.xml');
         $footnoteRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($footnotesPart['partName']));
         $footnotes = $this->readNotes(
@@ -255,6 +264,7 @@ final class DocxOpenXmlReader
             $this->selectedXmlPartDefinition('webSettings', $webSettingsPart['partName'], $webSettingsPart['xml'], $webSettingsPart['exists'], $webSettingsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'webSettings', self::CT_WORD_WEB_SETTINGS),
             $this->selectedXmlPartDefinition('fontTable', $fontTablePart['partName'], $fontTablePart['xml'], $fontTablePart['exists'], $fontTablePart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'fonts', self::CT_WORD_FONT_TABLE),
             $this->selectedXmlPartDefinition('theme', $themePart['partName'], $themePart['xml'], $themePart['exists'], $themePart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_A, 'theme', self::CT_THEME),
+            $this->selectedXmlPartDefinition('glossaryDocument', $glossaryDocumentPart['partName'], $glossaryDocumentPart['xml'], $glossaryDocumentPart['exists'], $glossaryDocumentPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'glossaryDocument', self::CT_WORD_GLOSSARY_DOCUMENT),
             $this->selectedXmlPartDefinition('footnotes', $footnotesPart['partName'], $footnotesPart['xml'], $footnotesPart['exists'], $footnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'footnotes', self::CT_WORD_FOOTNOTES),
             $this->selectedXmlPartDefinition('endnotes', $endnotesPart['partName'], $endnotesPart['xml'], $endnotesPart['exists'], $endnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'endnotes', self::CT_WORD_ENDNOTES),
             $this->selectedXmlPartDefinition('comments', $commentsPart['partName'], $commentsPart['xml'], $commentsPart['exists'], $commentsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'comments', self::CT_WORD_COMMENTS),
@@ -264,6 +274,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
+        $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
+        $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
+        $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
@@ -297,6 +310,7 @@ final class DocxOpenXmlReader
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
+                'glossaryDocumentPart' => $glossaryDocumentPart['partName'],
                 'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
                 'extendedProperties' => $extendedProperties,
                 'customPropertiesPart' => $customPropertiesPart['partName'],
@@ -404,6 +418,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $themePart['partName'],
                 $themePart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($glossaryDocumentPart['relationship'] !== null) {
+            $attrs['docx']['glossaryDocumentRelationship'] = $this->relationshipSummary(
+                $glossaryDocumentPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $glossaryDocumentPart['partName'],
+                $glossaryDocumentPart['exists'],
                 $contentTypes,
             );
         }

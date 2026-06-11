@@ -1682,7 +1682,7 @@ XML;
         $summary = $document->attr('docx')['packageProvenance']['summary'];
         $byKind = $selected['byKind'];
 
-        $t->same(14, $selected['count']);
+        $t->same(15, $selected['count']);
         $t->same(6, $selected['existingCount']);
         $t->same(5, $selected['relationshipSelectedCount']);
         $t->same(1, $selected['missingRequiredOrReferencedCount']);
@@ -1691,7 +1691,7 @@ XML;
         $t->same(0, $selected['unexpectedContentTypeCount']);
         $t->same(1, $selected['issueCount']);
         $t->same(['webSettings'], $selected['issueKinds']);
-        $t->same(14, $summary['selectedXmlPartCount']);
+        $t->same(15, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
 
@@ -1733,6 +1733,112 @@ XML;
         $t->same('conventional-fallback', $byKind['comments']['selectionSource']);
         $t->same(null, $byKind['comments']['contentTypeMatchesExpected']);
         $t->same([], $byKind['comments']['issues']);
+    },
+    'tracks docx glossary document package relationship provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml?source=building-blocks#glossary"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr><w:name w:val="Review Boilerplate"/></w:docPartPr>
+      <w:docPartBody><w:p><w:r><w:t>Reusable review text</w:t></w:r></w:p></w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossarySource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-source?post=42" TargetMode="External"/>
+  <Relationship Id="rGlossaryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png"/>
+</Relationships>
+XML;
+        $parts['word/glossary/media/glossary-logo.png'] = 'GLOSSARYPNG';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $glossary = $selected['byKind']['glossaryDocument'];
+        $relationship = $docx['glossaryDocumentRelationship'];
+        $relationshipType = $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument'];
+        $inventory = $package['parts']['word/glossary/document.xml'];
+        $glossaryRelationshipsPart = $package['relationshipParts']['word/glossary/_rels/document.xml.rels'];
+        $logoInventory = $package['parts']['word/glossary/media/glossary-logo.png'];
+
+        $t->same('word/glossary/document.xml', $docx['glossaryDocumentPart']);
+        $t->same('rGlossary', $relationship['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument', $relationship['type']);
+        $t->same('word/document.xml', $relationship['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $relationship['relationshipsPart']);
+        $t->same('glossary/document.xml?source=building-blocks#glossary', $relationship['target']);
+        $t->same('word/glossary/document.xml?source=building-blocks#glossary', $relationship['resolvedTarget']);
+        $t->same('word/glossary/document.xml', $relationship['targetPart']);
+        $t->same('source=building-blocks', $relationship['targetQuery']);
+        $t->same('glossary', $relationship['targetFragment']);
+        $t->same('?source=building-blocks#glossary', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks', $relationship['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $relationship['contentTypeBase']);
+        $t->same(1, $relationship['contentTypeParameterCount']);
+        $t->same(['profile' => 'building-blocks'], $relationship['contentTypeParameterMap']);
+        $t->same('override', $relationship['contentTypeSource']);
+        $t->same('word/glossary/document.xml', $relationship['overridePartName']);
+
+        $t->same(15, $selected['count']);
+        $t->same(5, $selected['existingCount']);
+        $t->same(3, $selected['relationshipSelectedCount']);
+        $t->same(0, $selected['issueCount']);
+        $t->same(15, $package['summary']['selectedXmlPartCount']);
+        $t->same('word/glossary/document.xml', $package['summary']['glossaryDocumentPart']);
+        $t->same(true, $package['summary']['glossaryDocumentExists']);
+        $t->same('rGlossary', $package['summary']['glossaryDocumentRelationshipId']);
+
+        $t->same('relationship', $glossary['selectionSource']);
+        $t->same('word/glossary/document.xml', $glossary['partName']);
+        $t->same('rGlossary', $glossary['relationshipId']);
+        $t->same('glossary/document.xml?source=building-blocks#glossary', $glossary['relationshipTarget']);
+        $t->same('word/glossary/document.xml?source=building-blocks#glossary', $glossary['relationshipResolvedTarget']);
+        $t->same('?source=building-blocks#glossary', $glossary['targetReferenceSuffix']);
+        $t->same('glossaryDocument', $glossary['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $glossary['rootNamespace']);
+        $t->same(true, $glossary['validRoot']);
+        $t->same(true, $glossary['contentTypeMatchesExpected']);
+        $t->same(['profile' => 'building-blocks'], $glossary['contentTypeParameterMap']);
+        $t->same([], $glossary['issues']);
+
+        $t->same('glossaryDocument', $relationshipType['label']);
+        $t->same(1, $relationshipType['count']);
+        $t->same(['word/glossary/document.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks'], $relationshipType['contentTypes']);
+        $t->same('?source=building-blocks#glossary', $relationshipType['relationships'][0]['targetReferenceSuffix']);
+        $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'glossary document inventory role missing');
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $inventory['contentTypeBase']);
+        $t->same(['profile' => 'building-blocks'], $inventory['contentTypeParameterMap']);
+
+        $t->same('word/glossary/document.xml', $glossaryRelationshipsPart['sourcePart']);
+        $t->same(true, $glossaryRelationshipsPart['sourceExists']);
+        $t->same(2, $glossaryRelationshipsPart['relationshipCount']);
+        $t->same(true, $glossaryRelationshipsPart['relationships']['rGlossarySource']['external']);
+        $t->same('word/glossary/media/glossary-logo.png', $glossaryRelationshipsPart['relationships']['rGlossaryLogo']['targetPart']);
+        $t->same(true, $glossaryRelationshipsPart['relationships']['rGlossaryLogo']['exists']);
+        $t->true(in_array('relationship-target', $logoInventory['roles'], true), 'glossary local image inventory role missing');
+        $t->same(strlen('GLOSSARYPNG'), $logoInventory['bytes']);
     },
     'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
