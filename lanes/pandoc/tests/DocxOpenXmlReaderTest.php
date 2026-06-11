@@ -204,6 +204,50 @@ return [
         $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
         $t->same('image/png; profile=media-default', $image->attr('contentType'));
     },
+    'summarizes docx content type overrides for missing package parts' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/missing-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=missing-comments"/>' . "\n" .
+            '  <Override PartName="/customXml/missing-review.xml" ContentType="application/xml; profile=custom-review"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
+        $missingOverrides = $summary['contentTypeOverridesForMissingParts'];
+        $commentsOverride = $missingOverrides[0];
+        $customReviewOverride = $missingOverrides[1];
+
+        $t->same(true, $contentTypesPart['valid']);
+        $t->same(4, $summary['contentTypeOverrideCount']);
+        $t->same(2, $summary['missingContentTypeOverrideCount']);
+        $t->same(2, $summary['parameterizedMissingContentTypeOverrideCount']);
+        $t->same(['word/missing-comments.xml', 'customXml/missing-review.xml'], array_column($missingOverrides, 'partName'));
+        $t->same([false, false], array_column($missingOverrides, 'exists'));
+        $t->same(false, $contentTypesPart['overrides']['word/missing-comments.xml']['exists']);
+        $t->same(false, $contentTypesPart['overrides']['customXml/missing-review.xml']['exists']);
+        $t->same(false, in_array('word/document.xml', array_column($missingOverrides, 'partName'), true));
+        $t->same(2, $contentTypesPart['parameterizedContentTypeCount']);
+
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=missing-comments', $commentsOverride['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $commentsOverride['contentTypeBase']);
+        $t->same(true, $commentsOverride['contentTypeHasParameters']);
+        $t->same(1, $commentsOverride['contentTypeParameterCount']);
+        $t->same('profile=missing-comments', $commentsOverride['contentTypeParameters'][0]['raw']);
+        $t->same(['profile' => 'missing-comments'], $commentsOverride['contentTypeParameterMap']);
+        $t->same($contentTypesPart['overrides']['word/missing-comments.xml']['contentTypeParameterMap'], $commentsOverride['contentTypeParameterMap']);
+
+        $t->same('application/xml; profile=custom-review', $customReviewOverride['contentType']);
+        $t->same('application/xml', $customReviewOverride['contentTypeBase']);
+        $t->same(true, $customReviewOverride['contentTypeHasParameters']);
+        $t->same(1, $customReviewOverride['contentTypeParameterCount']);
+        $t->same('custom-review', $customReviewOverride['contentTypeParameters'][0]['value']);
+        $t->same(['profile' => 'custom-review'], $customReviewOverride['contentTypeParameterMap']);
+    },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -2269,6 +2269,29 @@ final class DocxOpenXmlReader
             ];
         }
 
+        $contentTypeOverridesForMissingParts = [];
+        $parameterizedMissingContentTypeOverrideCount = 0;
+        foreach (($contentTypesPart['overrides'] ?? []) as $declaredPartName => $override) {
+            if (!is_array($override) || ($override['exists'] ?? false) === true) {
+                continue;
+            }
+
+            if (($override['contentTypeHasParameters'] ?? false) === true) {
+                ++$parameterizedMissingContentTypeOverrideCount;
+            }
+
+            $contentTypeOverridesForMissingParts[] = [
+                'partName' => is_string($override['partName'] ?? null) ? $override['partName'] : (string) $declaredPartName,
+                'exists' => false,
+                'contentType' => is_string($override['contentType'] ?? null) ? $override['contentType'] : '',
+                'contentTypeBase' => is_string($override['contentTypeBase'] ?? null) ? $override['contentTypeBase'] : '',
+                'contentTypeHasParameters' => (bool) ($override['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterCount' => (int) ($override['contentTypeParameterCount'] ?? 0),
+                'contentTypeParameters' => $override['contentTypeParameters'] ?? [],
+                'contentTypeParameterMap' => $override['contentTypeParameterMap'] ?? [],
+            ];
+        }
+
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
             if (($relationshipPart['sourceExists'] ?? true) === false) {
                 ++$relationshipPartMissingSourceCount;
@@ -2342,6 +2365,8 @@ final class DocxOpenXmlReader
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
             'missingContentTypePartCount' => count($partsWithoutContentType),
+            'missingContentTypeOverrideCount' => count($contentTypeOverridesForMissingParts),
+            'parameterizedMissingContentTypeOverrideCount' => $parameterizedMissingContentTypeOverrideCount,
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
@@ -2357,6 +2382,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'partsWithoutContentType' => $partsWithoutContentType,
+            'contentTypeOverridesForMissingParts' => $contentTypeOverridesForMissingParts,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
