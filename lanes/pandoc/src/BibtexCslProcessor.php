@@ -400,7 +400,11 @@ final class BibtexCslProcessor
             $item['title'] = $title;
         }
 
-        $containerTitle = $this->composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']);
+        $containerTitle = $this->composedTitle(
+            $fields,
+            ['journaltitle', 'journal', 'booktitle', 'containertitle', 'container-title'],
+            ['journalsubtitle', 'booksubtitle', 'containersubtitle', 'container-subtitle']
+        );
         if ($containerTitle !== null && $containerTitle !== '') {
             $item['container-title'] = $containerTitle;
         }
@@ -411,9 +415,9 @@ final class BibtexCslProcessor
         }
 
         $stringFields = [
-            'short-title' => ['shorttitle'],
-            'title-addon' => ['titleaddon'],
-            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'short-title' => ['shorttitle', 'short-title'],
+            'title-addon' => ['titleaddon', 'title-addon', 'title-add-on'],
+            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon', 'containertitleaddon', 'container-title-addon', 'container-title-add-on'],
             'event' => ['eventtitle', 'event-title', 'event'],
             'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
@@ -426,8 +430,8 @@ final class BibtexCslProcessor
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
             'publisher' => ['publisher', 'institution', 'organization'],
-            'publisher-place' => ['address', 'location', 'publisher-place'],
-            'collection-title' => ['series', 'collection-title'],
+            'publisher-place' => ['address', 'location', 'publisherplace', 'publisher-place'],
+            'collection-title' => ['series', 'collectiontitle', 'collection-title'],
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short'],
             'collection-number' => ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number'],
             'version' => ['version'],
@@ -439,7 +443,7 @@ final class BibtexCslProcessor
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location'],
             'language' => ['language', 'langid', 'hyphenation'],
-            'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
+            'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon', 'original-title-add-on'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
@@ -498,12 +502,12 @@ final class BibtexCslProcessor
             $item['issued'] = ['date-parts' => [$date]];
         }
 
-        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->datePartsFromFields($fields, ['urldate', 'url-date', 'accessed', 'accessdate', 'access-date'], []);
         if ($accessed !== null) {
             $item['accessed'] = ['date-parts' => [$accessed]];
         }
 
-        $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
+        $originalDate = $this->datePartsFromFields($fields, ['origdate', 'orig-date', 'originaldate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
         }
@@ -607,7 +611,7 @@ final class BibtexCslProcessor
      */
     private function dateParts(array $fields): ?array
     {
-        return $this->datePartsFromFields($fields, ['date'], ['year', 'month', 'day']);
+        return $this->datePartsFromFields($fields, ['date', 'issued', 'issued-date', 'publicationdate', 'publication-date'], ['year', 'month', 'day']);
     }
 
     /**

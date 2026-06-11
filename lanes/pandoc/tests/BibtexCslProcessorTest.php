@@ -91,6 +91,53 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'normalizes hyphenated biblatex metadata aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{alias-packet,
+  author                   = {Alias, Ada},
+  title                    = {Canonical Packet},
+  short-title              = {Alias Packet},
+  title-add-on             = {source annotation},
+  container-title          = {Container Packet},
+  container-title-addon    = {bound supplement},
+  issued-date              = {2026-06-11},
+  url                      = {https://example.test/alias},
+  url-date                 = {2026-06-12},
+  original-title           = {Original Packet},
+  original-subtitle        = {Detached Notes},
+  original-title-add-on    = {facsimile review},
+  originaldate             = {2020-04-03},
+  original-publisher       = {Source Press},
+  original-publisher-place = {Lisbon},
+  collection-title         = {Alias Series},
+  collection-number        = {9},
+  language                 = {en-GB}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['alias-packet'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('book', $item['type']);
+        $t->same('Canonical Packet', $item['title']);
+        $t->same('Alias Packet', $item['short-title']);
+        $t->same('source annotation', $item['title-addon']);
+        $t->same('Container Packet', $item['container-title']);
+        $t->same('bound supplement', $item['container-title-addon']);
+        $t->same([2026, 6, 11], $item['issued']['date-parts'][0]);
+        $t->same([2026, 6, 12], $item['accessed']['date-parts'][0]);
+        $t->same('Original Packet: Detached Notes', $item['original-title']);
+        $t->same('facsimile review', $item['original-title-addon']);
+        $t->same([2020, 4, 3], $item['original-date']['date-parts'][0]);
+        $t->same('Source Press', $item['original-publisher']);
+        $t->same('Lisbon', $item['original-publisher-place']);
+        $t->same('Alias Series', $item['collection-title']);
+        $t->same('9', $item['collection-number']);
+        $t->same('en-GB', $item['language']);
+        $t->same('Alias Packet', $item['rawBibtex']['fields']['short-title']);
+        $t->same('source annotation', $item['rawBibtex']['fields']['title-add-on']);
+        $t->same('Ada Alias. Canonical Packet. Container Packet. 2026. https://example.test/alias.', $bibliography);
+    },
     'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @software{tool,
