@@ -1081,6 +1081,107 @@ return [
             $t->same('right', $bodyCell->attr('align'), "{$source} body cell alignment");
         }
     },
+    'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['helper-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => 0.4]],
+                    [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 2],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignCenter'],
+                                        ['t' => 'RowSpan', 'c' => 3],
+                                        ['t' => 'ColSpan', 'c' => 2],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [7, ['t' => 'UpperRoman'], ['t' => 'TwoParens']],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Item']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        ['t' => 'SingleQuote'],
+                        [['t' => 'Str', 'c' => 'quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [['t' => 'InlineMath'], 'x+1']],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [['t' => 'DisplayMath'], 'y=2']],
+                ]],
+                $tableBlock,
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $orderedList = $document->children[0];
+            $paragraph = $document->children[1];
+            $table = $document->children[2];
+            $quoted = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'quoted'
+            ))[0];
+            $mathNodes = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'math'
+            ));
+            $body = $table->children[0];
+            $cell = $body->children[0]->children[0];
+
+            $t->same('upper_roman', $orderedList->attr('style'), "{$source} ordered list style");
+            $t->same('UpperRoman', $orderedList->attr('listStyleConstructor'), "{$source} list style constructor");
+            $t->same('two_parens', $orderedList->attr('delimiter'), "{$source} ordered list delimiter");
+            $t->same('TwoParens', $orderedList->attr('listDelimiterConstructor'), "{$source} list delimiter constructor");
+            $t->same('single', $quoted->attr('kind'), "{$source} quote kind");
+            $t->same('SingleQuote', $quoted->attr('quoteTypeConstructor'), "{$source} quote type constructor");
+            $t->same(false, $mathNodes[0]->attr('display'), "{$source} inline math display flag");
+            $t->same('InlineMath', $mathNodes[0]->attr('mathTypeConstructor'), "{$source} inline math constructor");
+            $t->same(true, $mathNodes[1]->attr('display'), "{$source} display math flag");
+            $t->same('DisplayMath', $mathNodes[1]->attr('mathTypeConstructor'), "{$source} display math constructor");
+            $t->same(['right', 'default'], $table->attr('alignments'), "{$source} table alignments");
+            $t->same([0.4, null], $table->attr('widths'), "{$source} table widths");
+            $t->same(['AlignRight', 'AlignDefault'], $table->attr('alignmentConstructors'), "{$source} table alignment constructors");
+            $t->same(['ColWidth', 'ColWidthDefault'], $table->attr('columnWidthConstructors'), "{$source} table width constructors");
+            $t->same(2, $body->attr('rowHeadColumns'), "{$source} row head columns");
+            $t->same('RowHeadColumns', $body->attr('rowHeadColumnsConstructor'), "{$source} row head columns constructor");
+            $t->same('center', $cell->attr('align'), "{$source} cell alignment");
+            $t->same('AlignCenter', $cell->attr('alignmentConstructor'), "{$source} cell alignment constructor");
+            $t->same(3, $cell->attr('rowspan'), "{$source} cell row span");
+            $t->same('RowSpan', $cell->attr('rowSpanConstructor'), "{$source} cell row span constructor");
+            $t->same(2, $cell->attr('colspan'), "{$source} cell column span");
+            $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
+        }
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

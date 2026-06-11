@@ -420,8 +420,10 @@ final class PandocJsonReader
 
         return new AstNode('ordered_list', [
             'start' => $listAttributes[0],
-            'style' => $this->readListStyle($listAttributes[1]),
-            'delimiter' => $this->readListDelimiter($listAttributes[2]),
+            'style' => $this->listStyleFromConstructor($this->enumTag($listAttributes[1], 'list style')),
+            'delimiter' => $this->listDelimiterFromConstructor($this->enumTag($listAttributes[2], 'list delimiter')),
+            'listStyleConstructor' => $this->enumTag($listAttributes[1], 'list style'),
+            'listDelimiterConstructor' => $this->enumTag($listAttributes[2], 'list delimiter'),
         ], $this->readListItems($this->listContent($tuple[1], 'OrderedList items')));
     }
 
@@ -687,10 +689,16 @@ final class PandocJsonReader
     {
         $alignments = [];
         $widths = [];
+        $alignmentConstructors = [];
+        $columnWidthConstructors = [];
         foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
             $tuple = $this->tuple($colSpec, 2, 'Table column spec');
-            $alignments[] = $this->readTableAlignment($tuple[0]);
+            $alignmentConstructor = $this->enumTag($tuple[0], 'table alignment');
+            $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
+            $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);
             $widths[] = $this->readTableColumnWidth($tuple[1]);
+            $alignmentConstructors[] = $alignmentConstructor;
+            $columnWidthConstructors[] = $columnWidthConstructor;
         }
 
         if ($alignments === []) {
@@ -700,6 +708,8 @@ final class PandocJsonReader
         return [
             'alignments' => $alignments,
             'widths' => $widths,
+            'alignmentConstructors' => $alignmentConstructors,
+            'columnWidthConstructors' => $columnWidthConstructors,
         ];
     }
 
@@ -725,6 +735,7 @@ final class PandocJsonReader
         if ($rowHeadColumns > 0) {
             $attrs['rowHeadColumns'] = $rowHeadColumns;
         }
+        $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
 
         $headRows = $this->readTableRows($tuple[2]);
         if ($headRows !== []) {
@@ -803,20 +814,24 @@ final class PandocJsonReader
         $tuple = $this->tuple($content, 5, 'Table cell');
         $attrs = $this->readAttrTuple($tuple[0]);
 
-        $alignment = $this->readTableAlignment($tuple[1]);
+        $alignmentConstructor = $this->enumTag($tuple[1], 'table alignment');
+        $alignment = $this->tableAlignmentFromConstructor($alignmentConstructor);
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
+        $attrs['alignmentConstructor'] = $alignmentConstructor;
 
         $rowspan = $this->readTaggedInteger($tuple[2], 'RowSpan', 'Table cell rowspan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
+        $attrs['rowSpanConstructor'] = 'RowSpan';
 
         $colspan = $this->readTaggedInteger($tuple[3], 'ColSpan', 'Table cell colspan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
+        $attrs['colSpanConstructor'] = 'ColSpan';
 
         $blocks = $this->readBlocks($this->listContent($tuple[4], 'Table cell blocks'));
         $text = $this->plainTextFromBlocks($blocks);
@@ -910,7 +925,8 @@ final class PandocJsonReader
         $tuple = $this->tuple($content, 2, 'Quoted');
 
         return new AstNode('quoted', [
-            'kind' => $this->readQuoteType($tuple[0]),
+            'kind' => $this->quoteTypeFromConstructor($this->enumTag($tuple[0], 'quote type')),
+            'quoteTypeConstructor' => $this->enumTag($tuple[0], 'quote type'),
         ], $this->readInlines($this->listContent($tuple[1], 'Quoted inlines')));
     }
 
@@ -931,8 +947,11 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Math text must be a string');
         }
 
+        $mathTypeConstructor = $this->enumTag($tuple[0], 'Math type');
+
         return new AstNode('math', [
-            'display' => $this->enumTag($tuple[0], 'Math type') === 'DisplayMath',
+            'display' => $mathTypeConstructor === 'DisplayMath',
+            'mathTypeConstructor' => $mathTypeConstructor,
             'text' => $tuple[1],
         ]);
     }
@@ -1194,9 +1213,9 @@ final class PandocJsonReader
         return $tuple;
     }
 
-    private function readListStyle(mixed $value): string
+    private function listStyleFromConstructor(string $constructor): string
     {
-        return match ($this->enumTag($value, 'list style')) {
+        return match ($constructor) {
             'DefaultStyle' => 'default',
             'Decimal' => 'decimal',
             'Example' => 'example',
@@ -1208,9 +1227,9 @@ final class PandocJsonReader
         };
     }
 
-    private function readListDelimiter(mixed $value): string
+    private function listDelimiterFromConstructor(string $constructor): string
     {
-        return match ($this->enumTag($value, 'list delimiter')) {
+        return match ($constructor) {
             'DefaultDelim' => 'default',
             'Period' => 'period',
             'OneParen' => 'one_paren',
@@ -1219,15 +1238,24 @@ final class PandocJsonReader
         };
     }
 
-    private function readTableAlignment(mixed $value): string
+    private function tableAlignmentFromConstructor(string $constructor): string
     {
-        return match ($this->enumTag($value, 'table alignment')) {
+        return match ($constructor) {
             'AlignLeft' => 'left',
             'AlignRight' => 'right',
             'AlignCenter' => 'center',
             'AlignDefault' => 'default',
             default => throw new \InvalidArgumentException('Unsupported Pandoc table alignment'),
         };
+    }
+
+    private function tableColumnWidthConstructor(mixed $value): string
+    {
+        if (is_int($value) || is_float($value)) {
+            return 'ColWidth';
+        }
+
+        return $this->enumTag($value, 'table column width');
     }
 
     private function readTableColumnWidth(mixed $value): ?float
@@ -1293,9 +1321,9 @@ final class PandocJsonReader
         return $value['c'] ?? null;
     }
 
-    private function readQuoteType(mixed $value): string
+    private function quoteTypeFromConstructor(string $constructor): string
     {
-        return match ($this->enumTag($value, 'quote type')) {
+        return match ($constructor) {
             'SingleQuote' => 'single',
             'DoubleQuote' => 'double',
             default => throw new \InvalidArgumentException('Unsupported Pandoc quote type'),

@@ -327,8 +327,10 @@ final class NativeReader
 
         return new AstNode('ordered_list', array_replace($attrs, [
             'start' => $listAttributes[0],
-            'style' => $this->listStyle($listAttributes[1]),
-            'delimiter' => $this->listDelimiter($listAttributes[2]),
+            'style' => $this->listStyleFromConstructor($this->constructorTag($listAttributes[1], 'Pandoc native JSON list style')),
+            'delimiter' => $this->listDelimiterFromConstructor($this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter')),
+            'listStyleConstructor' => $this->constructorTag($listAttributes[1], 'Pandoc native JSON list style'),
+            'listDelimiterConstructor' => $this->constructorTag($listAttributes[2], 'Pandoc native JSON list delimiter'),
         ]), $this->listItems($tuple[1], 'Pandoc native JSON OrderedList items'));
     }
 
@@ -581,10 +583,16 @@ final class NativeReader
     {
         $alignments = [];
         $widths = [];
+        $alignmentConstructors = [];
+        $columnWidthConstructors = [];
         foreach ($this->listContent($colSpecs, 'Pandoc native JSON Table column specs') as $colSpec) {
             $tuple = $this->tuple($colSpec, 2, 'Pandoc native JSON Table column spec');
-            $alignments[] = $this->tableAlignment($tuple[0]);
+            $alignmentConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON table alignment');
+            $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
+            $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);
             $widths[] = $this->tableColumnWidth($tuple[1]);
+            $alignmentConstructors[] = $alignmentConstructor;
+            $columnWidthConstructors[] = $columnWidthConstructor;
         }
 
         if ($alignments === []) {
@@ -594,6 +602,8 @@ final class NativeReader
         return [
             'alignments' => $alignments,
             'widths' => $widths,
+            'alignmentConstructors' => $alignmentConstructors,
+            'columnWidthConstructors' => $columnWidthConstructors,
         ];
     }
 
@@ -619,6 +629,7 @@ final class NativeReader
         if ($rowHeadColumns > 0) {
             $attrs['rowHeadColumns'] = $rowHeadColumns;
         }
+        $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
 
         $headRows = $this->tableRows($tuple[2]);
         if ($headRows !== []) {
@@ -697,20 +708,24 @@ final class NativeReader
         $tuple = $this->tuple($content, 5, 'Pandoc native JSON Cell');
         $attrs = $this->attrsFromTuple($tuple[0]);
 
-        $alignment = $this->tableAlignment($tuple[1]);
+        $alignmentConstructor = $this->constructorTag($tuple[1], 'Pandoc native JSON table alignment');
+        $alignment = $this->tableAlignmentFromConstructor($alignmentConstructor);
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
+        $attrs['alignmentConstructor'] = $alignmentConstructor;
 
         $rowspan = $this->taggedInteger($tuple[2], 'RowSpan', 'Pandoc native JSON RowSpan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
+        $attrs['rowSpanConstructor'] = 'RowSpan';
 
         $colspan = $this->taggedInteger($tuple[3], 'ColSpan', 'Pandoc native JSON ColSpan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
+        $attrs['colSpanConstructor'] = 'ColSpan';
 
         $blocks = $this->blockNodes($tuple[4]);
         $text = $this->plainTextFromBlocks($blocks);
@@ -751,15 +766,24 @@ final class NativeReader
         return $nodes;
     }
 
-    private function tableAlignment(mixed $alignment): string
+    private function tableAlignmentFromConstructor(string $constructor): string
     {
-        return match ($this->constructorTag($alignment, 'Pandoc native JSON table alignment')) {
+        return match ($constructor) {
             'AlignLeft' => 'left',
             'AlignRight' => 'right',
             'AlignCenter' => 'center',
             'AlignDefault' => 'default',
             default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON table alignment'),
         };
+    }
+
+    private function tableColumnWidthConstructor(mixed $width): string
+    {
+        if (is_int($width) || is_float($width)) {
+            return 'ColWidth';
+        }
+
+        return $this->constructorTag($width, 'Pandoc native JSON table column width');
     }
 
     private function tableColumnWidth(mixed $width): ?float
@@ -900,13 +924,12 @@ final class NativeReader
     private function quotedInline(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Pandoc native JSON Quoted inline content');
-        $kind = match ($this->constructorTag($tuple[0], 'Pandoc native JSON quote type')) {
-            'SingleQuote' => 'single',
-            'DoubleQuote' => 'double',
-            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON quote type'),
-        };
+        $quoteTypeConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON quote type');
 
-        return new AstNode('quoted', array_replace($attrs, ['kind' => $kind]), $this->inlines($tuple[1]));
+        return new AstNode('quoted', array_replace($attrs, [
+            'kind' => $this->quoteTypeFromConstructor($quoteTypeConstructor),
+            'quoteTypeConstructor' => $quoteTypeConstructor,
+        ]), $this->inlines($tuple[1]));
     }
 
     /**
@@ -934,14 +957,11 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON Math inline content must contain text');
         }
 
-        $display = match ($this->constructorTag($tuple[0], 'Pandoc native JSON math type')) {
-            'DisplayMath' => true,
-            'InlineMath' => false,
-            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON math type'),
-        };
+        $mathTypeConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON math type');
 
         return new AstNode('math', array_replace($attrs, [
-            'display' => $display,
+            'display' => $this->mathDisplayFromConstructor($mathTypeConstructor),
+            'mathTypeConstructor' => $mathTypeConstructor,
             'text' => $tuple[1],
         ]));
     }
@@ -1203,9 +1223,27 @@ final class NativeReader
         return $value['c'] ?? null;
     }
 
-    private function listStyle(mixed $style): string
+    private function quoteTypeFromConstructor(string $constructor): string
     {
-        return match ($this->constructorTag($style, 'Pandoc native JSON list style')) {
+        return match ($constructor) {
+            'SingleQuote' => 'single',
+            'DoubleQuote' => 'double',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON quote type'),
+        };
+    }
+
+    private function mathDisplayFromConstructor(string $constructor): bool
+    {
+        return match ($constructor) {
+            'DisplayMath' => true,
+            'InlineMath' => false,
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON math type'),
+        };
+    }
+
+    private function listStyleFromConstructor(string $constructor): string
+    {
+        return match ($constructor) {
             'DefaultStyle' => 'default',
             'Decimal' => 'decimal',
             'Example' => 'example',
@@ -1217,9 +1255,9 @@ final class NativeReader
         };
     }
 
-    private function listDelimiter(mixed $delimiter): string
+    private function listDelimiterFromConstructor(string $constructor): string
     {
-        return match ($this->constructorTag($delimiter, 'Pandoc native JSON list delimiter')) {
+        return match ($constructor) {
             'DefaultDelim' => 'default',
             'Period' => 'period',
             'OneParen' => 'one_paren',

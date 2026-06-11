@@ -7,7 +7,11 @@
         "url": "https://github.com/jgm/pandoc",
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
-        "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates."
+        "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
+        "mapped": 3189,
+        "latestSlice": "pandoc-json-native-helper-constructors adds one mapped PandocJsonNativeAst case for helper constructor provenance. Mapped denominator is now 3189, mappedPandocJsonNativeHelperConstructorCases is 1, pandocJsonNativeHelperConstructorAssertions is 79, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
+        "mappedPandocJsonNativeHelperConstructorCases": 1,
+        "pandocJsonNativeHelperConstructorAssertions": 79
     },
     "benchmarkDenominator": {
         "status": "DOCX OpenXML comments package ingestion is verified in native PHP over origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3 with focused and full Pandoc lane PHP verification passing.",
@@ -724,9 +728,9 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "pandoc-docx-openxml-comments-handoff resolves relationship-selected comments parts into compact DOCX OpenXML review-note handoff.",
-        "latestSlice": "pandoc-docx-openxml-comments-handoff maps one bounded DocxOpenXmlReader case for relationship-selected word/comments parts: comment part relationship provenance, comments-part relationship inventory, author/initial/date metadata, comment body text, comment hyperlinks, inline w:commentReference review notes, Markdown footnote output, and WordPress footnote handoff are verified without running Pandoc, Word, LibreOffice, office suites, zip/unzip, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator is now 3188, mappedDocxOpenXmlCommentsCases is 1, docxOpenXmlCommentsAssertions is 29, focused DocxOpenXmlReaderTest.php passed 1 test files, 376 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62751 assertions, 0 failures after refresh onto origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3.",
-        "status": "DocxOpenXmlReader resolves DOCX comments relationships, parses comment metadata/body text, and maps commentReference markers into review notes; refreshed onto required base 3033ab1623f4c4ea377003c45719767fdb9153b3 and verified with focused/full PHP lane tests.",
+        "currentSlice": "pandoc-json-native-helper-constructors records helper constructor provenance for JSON/native AST readers.",
+        "latestSlice": "pandoc-json-native-helper-constructors maps one bounded PandocJsonNativeAst case for helper constructor provenance: JSON/native readers preserve list style/delimiter, quote/math type, table column alignment/width, row-head, and row/column-span helper constructor names alongside normalized shared attrs. Mapped denominator is now 3189, mappedPandocJsonNativeHelperConstructorCases is 1, pandocJsonNativeHelperConstructorAssertions is 79, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9, without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "status": "JSON/native helper constructor provenance is verified over origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
         "mappedOdfManifestMediaTypeSummaryCases": 1,
         "odfManifestMediaTypeSummaryAssertions": 41,
         "mappedTypstOutputFormatBoundaryProvenanceCases": 1,
@@ -774,14 +778,17 @@
         "mappedCitationCslDirectJsonSchemaVariableCases": 1,
         "citationCslDirectJsonSchemaVariableAssertions": 20,
         "mappedDocxOpenXmlCommentsCases": 1,
-        "docxOpenXmlCommentsAssertions": 29
+        "docxOpenXmlCommentsAssertions": 29,
+        "mappedPandocJsonNativeHelperConstructorCases": 1,
+        "pandocJsonNativeHelperConstructorAssertions": 79,
+        "latestFocusedSource": "2026-06-11 JSON/native helper constructor provenance slice inspected Pandoc helper constructors against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9."
     },
     "wordpressScenario": "DOCX comments relationships now flow into compact OpenXML review-note output so WordPress handoff preserves comment author, initials, date, body text, and comment hyperlinks without Word, LibreOffice, Pandoc, zip/unzip, or external validators.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "DOCX OpenXML comments package ingestion is verified in native PHP over origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3 with focused and full Pandoc lane PHP verification passing.",
+    "status": "JSON/native helper constructor provenance is verified in native PHP over origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9 with focused and full Pandoc lane PHP verification passing.",
     "mapping": {
-        "latestSlice": "pandoc-docx-openxml-comments-handoff maps one bounded DocxOpenXmlReader case for relationship-selected word/comments parts: comment part relationship provenance, comments-part relationship inventory, author/initial/date metadata, comment body text, comment hyperlinks, inline w:commentReference review notes, Markdown footnote output, and WordPress footnote handoff are verified without running Pandoc, Word, LibreOffice, office suites, zip/unzip, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator is now 3188, mappedDocxOpenXmlCommentsCases is 1, docxOpenXmlCommentsAssertions is 29, focused DocxOpenXmlReaderTest.php passed 1 test files, 376 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62751 assertions, 0 failures after refresh onto origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3.",
-        "status": "DOCX OpenXML comments package ingestion is verified over origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3 with focused/full PHP lane tests passing.",
+        "latestSlice": "pandoc-json-native-helper-constructors maps one bounded PandocJsonNativeAst case for helper constructor provenance: JSON/native readers preserve list style/delimiter, quote/math type, table column alignment/width, row-head, and row/column-span helper constructor names alongside normalized shared attrs. Mapped denominator is now 3189, mappedPandocJsonNativeHelperConstructorCases is 1, pandocJsonNativeHelperConstructorAssertions is 79, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9, without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "status": "JSON/native helper constructor provenance is verified over origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
         "mappedLatexWriterCommandCases": 2,
         "latexWriterCommandAssertions": 2,
         "mappedCitationLocatorSuffixDiagnosticsCases": 1,
@@ -835,7 +842,7 @@
         "nativeAstEditedPayloadConstructorAssertions": 10,
         "mappedTypstCreationTimestampBoundaryProvenanceCases": 1,
         "typstCreationTimestampBoundaryProvenanceAssertions": 14,
-        "latestFocusedSource": "2026-06-11 DOCX OpenXML package ingestion slice inspected comments part relationship selection, comment metadata/body parsing, comment relationship inventory, inline commentReference review notes, and Markdown/WordPress handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3.",
+        "latestFocusedSource": "2026-06-11 JSON/native helper constructor provenance slice inspected Pandoc helper constructors against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
         "mappedBibtexCslProcessorEventMetadataCases": 1,
         "bibtexCslProcessorEventMetadataAssertions": 12,
         "mappedOdfCompactManifestMediaExposureCases": 1,
@@ -877,10 +884,12 @@
         "mappedCitationCslDirectJsonSchemaVariableCases": 1,
         "citationCslDirectJsonSchemaVariableAssertions": 20,
         "mappedDocxOpenXmlCommentsCases": 1,
-        "docxOpenXmlCommentsAssertions": 29
+        "docxOpenXmlCommentsAssertions": 29,
+        "mappedPandocJsonNativeHelperConstructorCases": 1,
+        "pandocJsonNativeHelperConstructorAssertions": 79
     },
-    "audit": "updated 2026-06-11: DocxOpenXmlReader now resolves relationship-selected word/comments parts, parses bounded comment author/initial/date/body metadata, exposes comments relationship provenance, and maps w:commentReference markers into review note nodes while preserving comment hyperlinks through Markdown and WordPress handoff. Verified on required base 3033ab1623f4c4ea377003c45719767fdb9153b3; php -l passed for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php, focused DocxOpenXmlReaderTest.php passed 1 test files, 376 assertions, 0 failures, and full php tools/run-tests.php lanes/pandoc/tests passed 44 test files, 62751 assertions, 0 failures.",
-    "latestSlice": "pandoc-docx-openxml-comments-handoff maps one bounded DocxOpenXmlReader case for relationship-selected word/comments parts: comment part relationship provenance, comments-part relationship inventory, author/initial/date metadata, comment body text, comment hyperlinks, inline w:commentReference review notes, Markdown footnote output, and WordPress footnote handoff are verified without running Pandoc, Word, LibreOffice, office suites, zip/unzip, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator is now 3188, mappedDocxOpenXmlCommentsCases is 1, docxOpenXmlCommentsAssertions is 29, focused DocxOpenXmlReaderTest.php passed 1 test files, 376 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62751 assertions, 0 failures after refresh onto origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3.",
+    "audit": "updated 2026-06-11: PandocJsonReader and NativeReader retain Pandoc helper constructor names for ordered-list style/delimiter, quote/math type, table column alignment/width, RowHeadColumns, RowSpan, and ColSpan while preserving normalized shared AST attrs. Verified on required base ffd6e31e5578577d820a4d341abc9c46c84490d9; php -l passed for PandocJsonReader.php, NativeReader.php, and PandocJsonNativeAstTest.php, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full php tools/run-tests.php lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures.",
+    "latestSlice": "pandoc-json-native-helper-constructors maps one bounded PandocJsonNativeAst case for helper constructor provenance: JSON/native readers preserve list style/delimiter, quote/math type, table column alignment/width, row-head, and row/column-span helper constructor names alongside normalized shared attrs. Mapped denominator is now 3189, mappedPandocJsonNativeHelperConstructorCases is 1, pandocJsonNativeHelperConstructorAssertions is 79, focused PandocJsonNativeAstTest.php passed 1 test files, 570 assertions, 0 failures, focused NativeReaderTest.php passed 1 test files, 299 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62830 assertions, 0 failures after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9, without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1020,7 +1029,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-11 DOCX OpenXML package ingestion slice inspected comments part relationship selection, comment metadata/body parsing, comment relationship inventory, inline commentReference review notes, and Markdown/WordPress handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 3033ab1623f4c4ea377003c45719767fdb9153b3.",
+    "latestFocusedSource": "2026-06-11 JSON/native helper constructor provenance slice inspected Pandoc helper constructors against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main ffd6e31e5578577d820a4d341abc9c46c84490d9.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1101,5 +1110,7 @@
     "mappedCitationCslDirectJsonSchemaVariableCases": 1,
     "citationCslDirectJsonSchemaVariableAssertions": 20,
     "mappedDocxOpenXmlCommentsCases": 1,
-    "docxOpenXmlCommentsAssertions": 29
+    "docxOpenXmlCommentsAssertions": 29,
+    "mappedPandocJsonNativeHelperConstructorCases": 1,
+    "pandocJsonNativeHelperConstructorAssertions": 79
 }
