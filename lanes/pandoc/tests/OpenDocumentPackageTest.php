@@ -683,6 +683,80 @@ XML;
         $t->same('cache=1', $inventory['Pictures/hero.png']['manifestPathQuery']);
         $t->same('review', $inventory['Pictures/hero.png']['manifestPathFragment']);
     },
+    'summarizes compact ODT manifest suffix references without marking stripped parts undeclared' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml?role=body#content"/>',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml#styledefs"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+                . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/missing.png?missing=true"/>',
+            ],
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $suffixItems = [];
+        foreach ($review['manifestPartReferenceSuffixItems'] as $item) {
+            $suffixItems[$item['fullPath']] = $item;
+        }
+
+        $t->same(6, $review['manifestFileEntryCount']);
+        $t->same(3, $review['manifestPartReferenceSuffixCount']);
+        $t->same(2, $review['manifestPartReferenceQueryCount']);
+        $t->same(2, $review['manifestPartReferenceFragmentCount']);
+        $t->same([
+            '/',
+            'content.xml?role=body#content',
+            'styles.xml#styledefs',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/missing.png?missing=true',
+        ], array_column($review['manifestFileEntryOrder'], 'fullPath'));
+
+        $content = $suffixItems['content.xml?role=body#content'];
+        $t->same(1, $content['manifestIndex']);
+        $t->same('content.xml', $content['part']);
+        $t->same('content.xml', $content['partReference']);
+        $t->same('?role=body#content', $content['partSuffix']);
+        $t->same('role=body', $content['partQuery']);
+        $t->same('content', $content['partFragment']);
+        $t->same(true, $content['exists']);
+        $t->same(true, $content['canExposeBytes']);
+        $t->same(strlen($contentXml), $review['items'][1]['byteLength']);
+
+        $styles = $suffixItems['styles.xml#styledefs'];
+        $t->same(2, $styles['manifestIndex']);
+        $t->same('styles.xml', $styles['part']);
+        $t->same('#styledefs', $styles['partSuffix']);
+        $t->same(null, $styles['partQuery']);
+        $t->same('styledefs', $styles['partFragment']);
+        $t->same(true, $styles['exists']);
+
+        $missing = $suffixItems['Pictures/missing.png?missing=true'];
+        $t->same(5, $missing['manifestIndex']);
+        $t->same('Pictures/missing.png', $missing['part']);
+        $t->same('?missing=true', $missing['partSuffix']);
+        $t->same('missing=true', $missing['partQuery']);
+        $t->same(null, $missing['partFragment']);
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same('Pictures/missing.png?missing=true', $review['missingItems'][0]['fullPath']);
+
+        $t->same(0, $inventory['undeclaredEntryCount']);
+        $t->same(0, $summary['undeclaredPackageEntryCount']);
+        $t->same(['odf-content', 'manifest-declared'], $inventory['parts']['content.xml']['roles']);
+        $t->same(1, $inventory['parts']['content.xml']['manifestIndex']);
+        $t->same('content.xml?role=body#content', $inventory['parts']['content.xml']['manifestPath']);
+        $t->same('?role=body#content', $inventory['parts']['content.xml']['manifestPathSuffix']);
+        $t->same('content', $inventory['parts']['content.xml']['manifestPathFragment']);
+    },
     'reports compact ODT ZIP inventory and undeclared package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',

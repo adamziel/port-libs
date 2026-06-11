@@ -327,7 +327,15 @@ final class OpenDocumentPackage
                 continue;
             }
 
-            $declaredPackagePaths[$path] = true;
+            $packagePath = $entry['packagePath'] ?? null;
+            $pathReference = $entry['pathReference'] ?? null;
+            if (is_string($packagePath) && $packagePath !== '') {
+                $declaredPackagePaths[$packagePath] = true;
+            } elseif (is_string($pathReference) && $pathReference !== '') {
+                $declaredPackagePaths[$pathReference] = true;
+            } else {
+                $declaredPackagePaths[$path] = true;
+            }
             ++$manifestDeclaredPartCount;
         }
 
@@ -368,6 +376,7 @@ final class OpenDocumentPackage
                 'crc32' => $entry->crc32Hex(),
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestEntry),
+                'manifestIndex' => is_array($manifestEntry) ? $manifestEntry['manifestIndex'] : null,
                 'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
                 'manifestPathReference' => is_array($manifestEntry) ? $manifestEntry['pathReference'] : null,
                 'manifestPathSuffix' => is_array($manifestEntry) ? $manifestEntry['pathSuffix'] : null,
@@ -576,6 +585,12 @@ final class OpenDocumentPackage
             'storedCompressionMethodCount' => 0,
             'deflatedCompressionMethodCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
+            'manifestFileEntryCount' => count($entries),
+            'manifestFileEntryOrder' => [],
+            'manifestPartReferenceSuffixCount' => 0,
+            'manifestPartReferenceQueryCount' => 0,
+            'manifestPartReferenceFragmentCount' => 0,
+            'manifestPartReferenceSuffixItems' => [],
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'items' => [],
@@ -588,6 +603,16 @@ final class OpenDocumentPackage
         foreach ($entries as $entry) {
             $item = self::manifestReviewItem($entry);
             $summary['items'][] = $item;
+            $summary['manifestFileEntryOrder'][] = self::manifestFileEntryOrderItem($entry);
+            if (is_string($entry['pathSuffix'] ?? null)) {
+                $summary['manifestPartReferenceSuffixItems'][] = self::manifestPartReferenceSuffixItem($entry);
+            }
+            if (is_string($entry['pathQuery'] ?? null)) {
+                ++$summary['manifestPartReferenceQueryCount'];
+            }
+            if (is_string($entry['pathFragment'] ?? null)) {
+                ++$summary['manifestPartReferenceFragmentCount'];
+            }
             if (($entry['exists'] ?? false) === true) {
                 ++$summary['existsCount'];
             } else {
@@ -626,6 +651,7 @@ final class OpenDocumentPackage
                 ++$summary['unsupportedCompressionMethodCount'];
             }
         }
+        $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
 
         return $summary;
     }
@@ -637,7 +663,14 @@ final class OpenDocumentPackage
     private static function manifestReviewItem(array $entry): array
     {
         return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $entry['path'],
             'path' => $entry['path'],
+            'part' => $entry['packagePath'] ?? null,
+            'partReference' => $entry['pathReference'] ?? null,
+            'partSuffix' => $entry['pathSuffix'] ?? null,
+            'partQuery' => $entry['pathQuery'] ?? null,
+            'partFragment' => $entry['pathFragment'] ?? null,
             'packagePath' => $entry['packagePath'] ?? null,
             'pathReference' => $entry['pathReference'] ?? null,
             'pathSuffix' => $entry['pathSuffix'] ?? null,
@@ -670,6 +703,53 @@ final class OpenDocumentPackage
         ];
     }
 
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function manifestFileEntryOrderItem(array $entry): array
+    {
+        return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $entry['path'],
+            'path' => $entry['path'],
+            'part' => $entry['packagePath'] ?? null,
+            'partReference' => $entry['pathReference'] ?? null,
+            'partSuffix' => $entry['pathSuffix'] ?? null,
+            'partQuery' => $entry['pathQuery'] ?? null,
+            'partFragment' => $entry['pathFragment'] ?? null,
+            'mediaType' => $entry['mediaType'],
+            'exists' => ($entry['exists'] ?? false) === true,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function manifestPartReferenceSuffixItem(array $entry): array
+    {
+        return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $entry['path'],
+            'path' => $entry['path'],
+            'part' => $entry['packagePath'] ?? null,
+            'partReference' => $entry['pathReference'] ?? null,
+            'partSuffix' => $entry['pathSuffix'] ?? null,
+            'partQuery' => $entry['pathQuery'] ?? null,
+            'partFragment' => $entry['pathFragment'] ?? null,
+            'mediaType' => $entry['mediaType'],
+            'exists' => ($entry['exists'] ?? false) === true,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+        ];
+    }
+
     private static function compressionMethodName(int $method): string
     {
         return match ($method) {
@@ -699,7 +779,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
-     *     entries:list<array{path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -711,6 +791,7 @@ final class OpenDocumentPackage
         }
 
         $entries = [];
+        $manifestIndex = 0;
         $manifestVersion = self::optionalString(self::namespacedAttribute($root, self::MANIFEST_NAMESPACE, 'version'));
         foreach ($root->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
@@ -736,6 +817,7 @@ final class OpenDocumentPackage
             );
             $encryption = self::manifestEncryption($child);
             $entries[] = [
+                'manifestIndex' => $manifestIndex,
                 'path' => $path,
                 'packagePath' => $packagePath,
                 'pathReference' => $pathReference,
@@ -754,6 +836,7 @@ final class OpenDocumentPackage
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
             ];
+            ++$manifestIndex;
         }
 
         return [
