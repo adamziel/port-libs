@@ -7624,6 +7624,66 @@ XML);
         $t->contains('<dt>Series Editor Packet 2026</dt><dd>Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified</dd>', $blocks);
         $t->contains('<dt>Hyphen Series Editor Packet 2025</dt><dd>Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified</dd>', $blocks);
     },
+    'maps bounded biblatex hyphenated original author aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{original-author-hyphen,
+  author             = {Curator, Vera},
+  title              = {Original Author Alias Packet},
+  date               = {2026},
+  original-author    = {Legacy, Lina and {{Archive Desk}}},
+  original-author+an = {1=hyphen original author verified; 2=literal original author verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Legacy', $items[0]['original-author'][0]['family'] ?? null);
+        $t->same('Lina', $items[0]['original-author'][0]['given'] ?? null);
+        $t->same('Archive Desk', $items[0]['original-author'][1]['literal'] ?? null);
+        $t->same('hyphen original author verified', $items[0]['original-author'][0]['annotations'][0]['value'] ?? null);
+        $t->same('literal original author verified', $items[0]['original-author'][1]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['original-author']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('original-author-hyphen');
+        $t->same('Legacy', $item['originalAuthors'][0]['family'] ?? null);
+        $t->same('Archive Desk', $item['originalAuthors'][1]['literal'] ?? null);
+        $t->same('hyphen original author verified', $item['originalAuthors'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="original-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="original-author"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('(Curator | Legacy and Archive Desk)', $styled->renderCitationCluster([
+            $citation('original-author-hyphen', '[@original-author-hyphen]'),
+        ]));
+        $t->same(
+            'Original Author Alias Packet :: Legacy, Lina; Archive Desk :: Original author 1: hyphen original author verified; Original author 2: literal original author verified',
+            $styled->renderBibliographyEntry('original-author-hyphen')
+        );
+
+        $document = (new MarkdownReader())->read('Original author alias [@original-author-hyphen] keeps source creator provenance attached.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original author alias (Curator | Legacy and Archive Desk) keeps source creator provenance attached.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Original Author Alias Packet :: Legacy, Lina; Archive Desk :: Original author 1: hyphen original author verified; Original author 2: literal original author verified</dd>', $blocks);
+    },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{direct-extended-roles,

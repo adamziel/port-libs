@@ -42,6 +42,7 @@ final class BibtexCslParser
         'organizer',
         'organization',
         'origauthor',
+        'original-author',
         'originalauthor',
         'performer',
         'producer',
@@ -1019,7 +1020,7 @@ final class BibtexCslParser
             $item['narrator'] = $narrator;
         }
 
-        $originalAuthor = self::namesFromFirstBibtexField($fields, ['origauthor', 'originalauthor']);
+        $originalAuthor = self::namesFromFirstBibtexField($fields, ['origauthor', 'originalauthor', 'original-author']);
         if ($originalAuthor !== []) {
             $item['original-author'] = $originalAuthor;
         }
