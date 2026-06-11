@@ -31,6 +31,10 @@ final class DocxOpenXmlReader
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+    private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+    private const HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+    private const FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
 
     public function readFile(string $path): AstNode
     {
@@ -144,6 +148,16 @@ final class DocxOpenXmlReader
             'endnote' => $endnotes['nodes'],
             'comment' => $comments['nodes'],
         ];
+        $sections = $this->readSections(
+            $parts[$documentPart],
+            $documentPart,
+            $parts,
+            $documentRelationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes
+        );
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -176,6 +190,7 @@ final class DocxOpenXmlReader
                 'endnotes' => $endnotes['summary'],
                 'commentsPart' => $commentsPart['partName'],
                 'comments' => $comments['summary'],
+                'sections' => $sections,
                 'media' => $media,
             ],
         ];
@@ -1937,65 +1952,17 @@ final class DocxOpenXmlReader
         array $styles,
         array $numbering
     ): array {
-        $blocks = [];
-        $currentList = null;
         $emptyReferencedNotes = ['footnote' => [], 'endnote' => [], 'comment' => []];
-        foreach ($note->childNodes as $child) {
-            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W) {
-                continue;
-            }
 
-            if ($child->localName === 'p') {
-                $paragraph = $this->readParagraph($child, $xpath, $relationships, $contentTypes, $styles, $emptyReferencedNotes);
-                if ($paragraph === null) {
-                    $this->flushCurrentList($currentList, $blocks);
-                    continue;
-                }
-
-                $list = $this->paragraphListAttrs($child, $numbering);
-                if ($list !== null && $paragraph->type === 'paragraph') {
-                    $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'];
-                    if (!is_array($currentList) || $currentList['key'] !== $key) {
-                        $this->flushCurrentList($currentList, $blocks);
-                        $attrs = [
-                            'docxNumId' => $list['numId'],
-                            'docxLevel' => $list['level'],
-                        ];
-                        if ($list['type'] === 'ordered_list') {
-                            $attrs['start'] = $list['start'];
-                            $attrs['style'] = $list['style'];
-                            $attrs['delimiter'] = $list['delimiter'];
-                        } else {
-                            $attrs['bulletChar'] = $list['text'];
-                        }
-                        $currentList = [
-                            'key' => $key,
-                            'type' => $list['type'],
-                            'attrs' => $attrs,
-                            'items' => [],
-                        ];
-                    }
-
-                    $currentList['items'][] = new AstNode('list_item', [], [$paragraph]);
-                    continue;
-                }
-
-                $this->flushCurrentList($currentList, $blocks);
-                $blocks[] = $paragraph;
-                continue;
-            }
-
-            if ($child->localName === 'tbl') {
-                $this->flushCurrentList($currentList, $blocks);
-                $table = $this->readTable($child, $xpath, $relationships, $contentTypes, $styles, $emptyReferencedNotes);
-                if ($table !== null) {
-                    $blocks[] = $table;
-                }
-            }
-        }
-        $this->flushCurrentList($currentList, $blocks);
-
-        return $blocks;
+        return $this->readBlockContainerChildren(
+            $note,
+            $xpath,
+            $relationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $emptyReferencedNotes
+        );
     }
 
     /**
@@ -2023,6 +1990,334 @@ final class DocxOpenXmlReader
         }
 
         return new AstNode('note', ['missing' => true] + $attrs);
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array{count:int, items:list<array<string, mixed>>}
+     */
+    private function readSections(
+        string $xml,
+        string $documentPart,
+        array $parts,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $dom = $this->loadXml($xml, $documentPart);
+        $xpath = $this->xpath($dom);
+        $sections = [];
+
+        foreach ($this->elements($xpath, '/w:document/w:body/*') as $bodyChild) {
+            $sectionProperties = null;
+            $source = '';
+            if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'p') {
+                $paragraphProperties = $this->childElement($bodyChild, 'pPr');
+                $sectionProperties = $this->childElement($paragraphProperties, 'sectPr');
+                $source = 'paragraph';
+            } elseif ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'sectPr') {
+                $sectionProperties = $bodyChild;
+                $source = 'body';
+            }
+
+            if (!$sectionProperties instanceof \DOMElement) {
+                continue;
+            }
+
+            $sections[] = $this->sectionSummary(
+                $sectionProperties,
+                $source,
+                count($sections),
+                $documentPart,
+                $parts,
+                $relationships,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes
+            );
+        }
+
+        return [
+            'count' => count($sections),
+            'items' => $sections,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array<string, mixed>
+     */
+    private function sectionSummary(
+        \DOMElement $sectionProperties,
+        string $source,
+        int $index,
+        string $documentPart,
+        array $parts,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $summary = [
+            'source' => $source,
+            'index' => $index,
+        ];
+
+        $headers = $this->sectionReferences(
+            $sectionProperties,
+            'headerReference',
+            $documentPart,
+            $parts,
+            $relationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes,
+            'hdr',
+            self::HEADER_REL,
+            self::HEADER_CONTENT_TYPE
+        );
+        if ($headers !== []) {
+            $summary['headers'] = $headers;
+        }
+
+        $footers = $this->sectionReferences(
+            $sectionProperties,
+            'footerReference',
+            $documentPart,
+            $parts,
+            $relationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes,
+            'ftr',
+            self::FOOTER_REL,
+            self::FOOTER_CONTENT_TYPE
+        );
+        if ($footers !== []) {
+            $summary['footers'] = $footers;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return list<array<string, mixed>>
+     */
+    private function sectionReferences(
+        \DOMElement $sectionProperties,
+        string $localName,
+        string $documentPart,
+        array $parts,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes,
+        string $rootName,
+        string $expectedRelationshipType,
+        string $expectedContentType
+    ): array {
+        $references = [];
+        foreach ($sectionProperties->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W || $child->localName !== $localName) {
+                continue;
+            }
+
+            $relationshipId = $child->getAttributeNS(self::NS_R, 'id');
+            if ($relationshipId === '') {
+                continue;
+            }
+
+            $reference = [
+                'id' => $relationshipId,
+                'type' => $child->getAttributeNS(self::NS_W, 'type') ?: 'default',
+                'sourcePart' => $documentPart,
+                'sourceRelationshipsPart' => $this->relationshipsPartFor($documentPart),
+                'target' => null,
+                'targetMode' => null,
+                'external' => null,
+                'resolvedTarget' => null,
+                'targetPart' => null,
+                'targetQuery' => null,
+                'targetFragment' => null,
+                'targetReferenceSuffix' => '',
+                'exists' => null,
+                'contentType' => null,
+                'contentTypeSource' => null,
+                'defaultExtension' => null,
+                'overridePartName' => null,
+                'relationshipType' => null,
+                'expectedRelationshipType' => $expectedRelationshipType,
+                'expectedContentType' => $expectedContentType,
+                'issues' => [],
+            ];
+
+            $relationship = $relationships[$relationshipId] ?? null;
+            if (!is_array($relationship)) {
+                $reference['issues'][] = 'missing-relationship';
+                $references[] = $reference;
+                continue;
+            }
+
+            $external = $this->isExternalRelationshipTarget($relationship);
+            $reference['relationshipType'] = $relationship['type'];
+            $reference['target'] = $relationship['target'];
+            $reference['targetMode'] = $relationship['targetMode'];
+            $reference['external'] = $external;
+            $reference['resolvedTarget'] = $relationship['resolvedTarget'];
+            if ($relationship['type'] !== $expectedRelationshipType) {
+                $reference['issues'][] = 'unexpected-relationship-type';
+            }
+
+            if ($external) {
+                $reference['issues'][] = 'external-section-reference';
+                $references[] = $reference;
+                continue;
+            }
+
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $suffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
+            $contentTypeResolution = $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+            $reference['targetPart'] = $targetPart;
+            $reference['targetQuery'] = $suffix['query'];
+            $reference['targetFragment'] = $suffix['fragment'];
+            $reference['targetReferenceSuffix'] = $suffix['suffix'];
+            $reference['exists'] = isset($parts[$targetPart]);
+            $reference['contentType'] = $contentTypeResolution['contentType'];
+            $reference['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
+            $reference['defaultExtension'] = $contentTypeResolution['defaultExtension'];
+            $reference['overridePartName'] = $contentTypeResolution['overridePartName'];
+
+            if ($reference['exists'] !== true) {
+                $reference['issues'][] = 'missing-package-part';
+            }
+            if ($reference['contentType'] !== $expectedContentType) {
+                $reference['issues'][] = 'unexpected-content-type';
+            }
+
+            $reference['issues'] = array_values(array_unique($reference['issues']));
+            if ($reference['issues'] !== []) {
+                $references[] = $reference;
+                continue;
+            }
+
+            $localRelationshipsPart = $this->relationshipsPartFor($targetPart);
+            if (isset($parts[$localRelationshipsPart])) {
+                $localRelationships = $this->readRelationshipsPart($parts, $localRelationshipsPart);
+                $reference['relationshipsPart'] = $localRelationshipsPart;
+                $reference['relationshipCount'] = count($localRelationships);
+                $reference['relationships'] = $this->relationshipInventorySummaries(
+                    $parts,
+                    $targetPart,
+                    $localRelationshipsPart,
+                    $localRelationships,
+                    $contentTypes
+                );
+            } else {
+                $localRelationships = [];
+            }
+
+            $blocks = $this->readHeaderFooterBlocks(
+                $parts[$targetPart],
+                $targetPart,
+                $rootName,
+                $localRelationships,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes
+            );
+            $reference['blocks'] = $blocks;
+            $reference['blockCount'] = count($blocks);
+            $reference['text'] = $this->plainBlockText($blocks);
+            $references[] = $reference;
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, array<string, mixed>>
+     */
+    private function relationshipInventorySummaries(
+        array $parts,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $summaries = [];
+        foreach ($relationships as $id => $relationship) {
+            $summaries[$id] = $this->relationshipInventorySummary(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes
+            );
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function readHeaderFooterBlocks(
+        string $xml,
+        string $partName,
+        string $rootName,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== $rootName) {
+            return [];
+        }
+
+        return $this->readBlockContainerChildren(
+            $root,
+            $this->xpath($dom),
+            $relationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes
+        );
     }
 
     /**
@@ -2060,10 +2355,47 @@ final class DocxOpenXmlReader
     {
         $dom = $this->loadXml($xml, 'word/document.xml');
         $xpath = $this->xpath($dom);
+        $body = $this->firstElement($xpath, '/w:document/w:body', $dom);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->readBlockContainerChildren(
+            $body,
+            $xpath,
+            $relationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes
+        );
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function readBlockContainerChildren(
+        \DOMElement $container,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
         $blocks = [];
         $currentList = null;
 
-        foreach ($this->elements($xpath, '/w:document/w:body/*') as $bodyChild) {
+        foreach ($container->childNodes as $bodyChild) {
+            if (!$bodyChild instanceof \DOMElement) {
+                continue;
+            }
+
             if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'p') {
                 $paragraph = $this->readParagraph($bodyChild, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                 if ($paragraph === null) {

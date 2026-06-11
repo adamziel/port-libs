@@ -876,6 +876,151 @@ XML;
         $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p>', $blocks);
     },
+    'imports docx section header and footer package parts from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/missing-header.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/header-wrong-type.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/header-wrong-content.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/footers/footer-special.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '  <Relationship Id="rHeaderMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="missing-header.xml"/>' . "\n" .
+            '  <Relationship Id="rHeaderExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="https://example.test/header.docx" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rHeaderWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="header-wrong-type.xml"/>' . "\n" .
+            '  <Relationship Id="rHeaderWrongContent" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-wrong-content.xml"/>' . "\n" .
+            '  <Relationship Id="rFooterFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footers/footer-special.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderDefault"/>' . "\n" .
+            '      <w:headerReference w:type="even" r:id="rHeaderMissing"/>' . "\n" .
+            '      <w:headerReference w:type="first" r:id="rHeaderExternal"/>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderWrongType"/>' . "\n" .
+            '      <w:headerReference w:type="even" r:id="rHeaderWrongContent"/>' . "\n" .
+            '      <w:footerReference w:type="first" r:id="rFooterFirst"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:p>
+    <w:r><w:t xml:space="preserve">Packet header </w:t></w:r>
+    <w:hyperlink r:id="rHeaderLink"><w:r><w:t>source</w:t></w:r></w:hyperlink>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-source" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/header-wrong-type.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Wrong relationship type.</w:t></w:r></w:p></w:hdr>';
+        $parts['word/header-wrong-content.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Wrong content type.</w:t></w:r></w:p></w:hdr>';
+        $parts['word/footers/footer-special.xml'] = '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Footer review note</w:t></w:r></w:p></w:ftr>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $sections = $docx['sections'];
+        $section = $sections['items'][0];
+        $headers = $section['headers'];
+        $footer = $section['footers'][0];
+        $header = $headers[0];
+        $missing = $headers[1];
+        $external = $headers[2];
+        $wrongType = $headers[3];
+        $wrongContent = $headers[4];
+        $inventory = $docx['packageProvenance']['parts'];
+
+        $t->same(1, $sections['count']);
+        $t->same('body', $section['source']);
+        $t->same(0, $section['index']);
+        $t->same(5, count($headers));
+        $t->same(1, count($section['footers']));
+
+        $t->same('rHeaderDefault', $header['id']);
+        $t->same('default', $header['type']);
+        $t->same('word/document.xml', $header['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $header['sourceRelationshipsPart']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $header['relationshipType']);
+        $t->same('header1.xml?slot=default#hdr', $header['target']);
+        $t->same('word/header1.xml?slot=default#hdr', $header['resolvedTarget']);
+        $t->same('word/header1.xml', $header['targetPart']);
+        $t->same('slot=default', $header['targetQuery']);
+        $t->same('hdr', $header['targetFragment']);
+        $t->same('?slot=default#hdr', $header['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $header['contentType']);
+        $t->same('override', $header['contentTypeSource']);
+        $t->same(true, $header['exists']);
+        $t->same([], $header['issues']);
+        $t->same('word/_rels/header1.xml.rels', $header['relationshipsPart']);
+        $t->same(1, $header['relationshipCount']);
+        $t->same(true, $header['relationships']['rHeaderLink']['external']);
+        $t->same('https://example.test/header-source', $header['relationships']['rHeaderLink']['target']);
+        $t->same('Packet header source', $header['text']);
+        $t->same(1, $header['blockCount']);
+        $t->same('paragraph', $header['blocks'][0]->type);
+        $t->same('Packet header ', $header['blocks'][0]->children[0]->attr('text'));
+        $t->same('link', $header['blocks'][0]->children[1]->type);
+        $t->same('https://example.test/header-source', $header['blocks'][0]->children[1]->attr('url'));
+
+        $t->same('rHeaderMissing', $missing['id']);
+        $t->same('word/missing-header.xml', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-package-part'], $missing['issues']);
+        $t->true(!isset($missing['blocks']), 'Missing header target must not import blocks');
+
+        $t->same('rHeaderExternal', $external['id']);
+        $t->same('https://example.test/header.docx', $external['target']);
+        $t->same(true, $external['external']);
+        $t->same(['external-section-reference'], $external['issues']);
+        $t->true(!isset($external['blocks']), 'External header target must not import blocks');
+
+        $t->same('rHeaderWrongType', $wrongType['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrongType['relationshipType']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $wrongType['expectedRelationshipType']);
+        $t->same(true, $wrongType['exists']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->true(!isset($wrongType['blocks']), 'Wrong relationship type must not import blocks');
+
+        $t->same('rHeaderWrongContent', $wrongContent['id']);
+        $t->same('application/xml', $wrongContent['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $wrongContent['expectedContentType']);
+        $t->same(['unexpected-content-type'], $wrongContent['issues']);
+        $t->true(!isset($wrongContent['blocks']), 'Wrong content type must not import blocks');
+
+        $t->same('rFooterFirst', $footer['id']);
+        $t->same('first', $footer['type']);
+        $t->same('footers/footer-special.xml', $footer['target']);
+        $t->same('word/footers/footer-special.xml', $footer['resolvedTarget']);
+        $t->same('word/footers/footer-special.xml', $footer['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml', $footer['contentType']);
+        $t->same(true, $footer['exists']);
+        $t->same([], $footer['issues']);
+        $t->same('Footer review note', $footer['text']);
+        $t->same('Footer review note', $footer['blocks'][0]->children[0]->attr('text'));
+
+        $t->true(in_array('document-relationship-target', $inventory['word/header1.xml']['roles'], true), 'header part document relationship role missing');
+        $t->true(in_array('document-relationship-target', $inventory['word/footers/footer-special.xml']['roles'], true), 'footer part document relationship role missing');
+        $t->same('word/header1.xml', $inventory['word/_rels/header1.xml.rels']['relationshipSourcePart']);
+
+        $headerBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], $header['blocks']));
+        $footerMarkdown = (new MarkdownWriter())->write(new AstNode('document', [], $footer['blocks']));
+        $t->contains('<p>Packet header <a href="https://example.test/header-source">source</a></p>', $headerBlocks);
+        $t->contains('Footer review note', $footerMarkdown);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
