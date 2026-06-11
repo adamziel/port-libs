@@ -63,6 +63,70 @@ return [
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
     },
+    'exposes normalized native metadata constructor values without mutating raw metadata' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => [
+                    't' => 'MetaInlines',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Native'],
+                        ['t' => 'Space'],
+                        ['t' => 'Emph', 'c' => [
+                            ['t' => 'Str', 'c' => 'metadata'],
+                        ]],
+                    ],
+                ],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'source' => ['t' => 'MetaString', 'c' => 'native-json'],
+                'review' => [
+                    't' => 'MetaMap',
+                    'c' => [
+                        'tags' => [
+                            't' => 'MetaList',
+                            'c' => [
+                                ['t' => 'MetaString', 'c' => 'json'],
+                                ['t' => 'MetaBool', 'c' => true],
+                            ],
+                        ],
+                        'body' => [
+                            't' => 'MetaBlocks',
+                            'c' => [
+                                ['t' => 'Plain', 'c' => [
+                                    ['t' => 'Str', 'c' => 'Reviewed'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => 'body'],
+                                ]],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'blocks' => [],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $values = $document->attr('nativeMetaValues');
+        $title = $values['title'];
+        $review = $values['review']['items'];
+
+        $t->same($native['meta'], $document->attr('meta'));
+        $t->same($native['meta'], $roundTrip['meta']);
+        $t->same(false, array_key_exists('nativeMetaValues', $roundTrip['meta']));
+        $t->same('inlines', $title['type']);
+        $t->same('Native ', $title['children'][0]->attr('text'));
+        $t->same('emph', $title['children'][1]->type);
+        $t->same('metadata', $title['children'][1]->children[0]->attr('text'));
+        $t->same(false, $values['draft']);
+        $t->same('native-json', $values['source']);
+        $t->same('map', $values['review']['type']);
+        $t->same('list', $review['tags']['type']);
+        $t->same(['json', true], $review['tags']['items']);
+        $t->same('blocks', $review['body']['type']);
+        $t->same('plain', $review['body']['children'][0]->type);
+        $t->same('Reviewed body', $review['body']['children'][0]->attr('text'));
+    },
     'writes shared metadata values as pandoc native meta constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class NativeReader
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     public function read(string $nativeJson): AstNode
     {
         $native = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
@@ -13,11 +22,15 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON must decode to an object');
         }
         $native = $this->normalizeDocument($native);
+        $metadata = $this->metadata($native['meta'] ?? []);
 
         $attrs = [
-            'meta' => $this->metadata($native['meta'] ?? []),
+            'meta' => $metadata,
             'nativeFormat' => 'pandoc-json',
         ];
+        if ($metadata !== []) {
+            $attrs['nativeMetaValues'] = $this->nativeMetaValues($metadata);
+        }
 
         if (isset($native['pandoc-api-version'])) {
             $attrs['pandocApiVersion'] = $this->apiVersion($native['pandoc-api-version']);
@@ -137,6 +150,66 @@ final class NativeReader
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function nativeMetaValues(array $metadata): array
+    {
+        $values = [];
+        foreach ($metadata as $key => $value) {
+            $values[$key] = $this->nativeMetaValue($value);
+        }
+
+        return $values;
+    }
+
+    private function nativeMetaValue(mixed $value): mixed
+    {
+        if (!is_array($value) || !is_string($value['t'] ?? null)) {
+            throw new \InvalidArgumentException('Pandoc native JSON meta values must be tagged constructors');
+        }
+
+        $tag = $value['t'];
+        if (!in_array($tag, self::META_CONSTRUCTORS, true)) {
+            return [
+                'type' => 'native_constructor',
+                'constructor' => $tag,
+                'native' => $value,
+            ];
+        }
+
+        $content = $value['c'] ?? null;
+
+        return match ($tag) {
+            'MetaString' => is_string($content)
+                ? $content
+                : throw new \InvalidArgumentException('Pandoc native JSON MetaString content must be a string'),
+            'MetaBool' => is_bool($content)
+                ? $content
+                : throw new \InvalidArgumentException('Pandoc native JSON MetaBool content must be a boolean'),
+            'MetaInlines' => [
+                'type' => 'inlines',
+                'children' => $this->inlines($this->listContent($content, 'Pandoc native JSON MetaInlines')),
+            ],
+            'MetaBlocks' => [
+                'type' => 'blocks',
+                'children' => $this->blockNodes($this->listContent($content, 'Pandoc native JSON MetaBlocks')),
+            ],
+            'MetaList' => [
+                'type' => 'list',
+                'items' => array_map(
+                    fn (mixed $item): mixed => $this->nativeMetaValue($item),
+                    $this->listContent($content, 'Pandoc native JSON MetaList')
+                ),
+            ],
+            'MetaMap' => [
+                'type' => 'map',
+                'items' => $this->nativeMetaValues($this->metaMapContent($content)),
+            ],
+        };
     }
 
     /**
