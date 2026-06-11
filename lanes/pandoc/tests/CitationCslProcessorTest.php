@@ -5319,6 +5319,128 @@ XML);
         $t->contains('<p>Eprint source [Doe | arXiv:2401.01234 [cs.DL]] and archive [Repository Desk | HAL:hal-041234] keep repository IDs visible.</p>', $blocks);
         $t->contains('<dt>Doe 2026</dt><dd>Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]</dd>', $blocks);
     },
+    'maps bounded direct csl compact archive aliases into review metadata' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'compact-eprint',
+                'type' => 'article',
+                'title' => 'Compact Direct Eprint Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'eprinttype' => 'arXiv',
+                'eprintclass' => 'cs.AI',
+                'eprint' => '2601.00001',
+            ],
+            [
+                'id' => 'camel-eprint',
+                'type' => 'article',
+                'title' => 'Camel Direct Eprint Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'eprintType' => 'Zenodo',
+                'eprintClass' => 'dataset',
+                'eprint' => '10.5281/zenodo.2601',
+            ],
+            [
+                'id' => 'compact-archive',
+                'type' => 'manuscript',
+                'title' => 'Compact Direct Archive Packet',
+                'author' => [
+                    ['literal' => 'Repository Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'archiveprefix' => 'City Archive',
+                'archivecollection' => 'Migration Papers',
+                'archiveplace' => 'Portland',
+                'archivelocation' => 'Box 9',
+            ],
+            [
+                'id' => 'compact-summary',
+                'type' => 'document',
+                'title' => 'Compact Summary Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'eprintsummary' => 'Repository:compact-id',
+            ],
+        ]);
+
+        $eprint = $processor->item('compact-eprint');
+        $camel = $processor->item('camel-eprint');
+        $archive = $processor->item('compact-archive');
+        $summary = $processor->item('compact-summary');
+        $t->same('arXiv', $eprint['archive'] ?? null);
+        $t->same('cs.AI', $eprint['archivePlace'] ?? null);
+        $t->same('2601.00001', $eprint['archiveLocation'] ?? null);
+        $t->same('arXiv:2601.00001 [cs.AI]', $eprint['archiveSummary'] ?? null);
+        $t->same('Zenodo', $camel['archive'] ?? null);
+        $t->same('dataset', $camel['archivePlace'] ?? null);
+        $t->same('10.5281/zenodo.2601', $camel['archiveLocation'] ?? null);
+        $t->same('Zenodo:10.5281/zenodo.2601 [dataset]', $camel['archiveSummary'] ?? null);
+        $t->same('City Archive', $archive['archive'] ?? null);
+        $t->same('Migration Papers', $archive['archiveCollection'] ?? null);
+        $t->same('Portland', $archive['archivePlace'] ?? null);
+        $t->same('Box 9', $archive['archiveLocation'] ?? null);
+        $t->same('City Archive:Migration Papers:Box 9 [Portland]', $archive['archiveSummary'] ?? null);
+        $t->same('Repository:compact-id', $summary['archiveSummary'] ?? null);
+        $t->same(
+            'Ng, Nia. Compact Direct Eprint Packet. 2026. Archive: arXiv cs.AI 2601.00001.',
+            $processor->renderBibliographyEntry('compact-eprint')
+        );
+        $t->same(
+            'Repository Desk. Compact Direct Archive Packet. 2025. Archive: City Archive Migration Papers Portland Box 9.',
+            $processor->renderBibliographyEntry('compact-archive')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct Archive Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-archive-alias-review</id>
+    <updated>2026-06-11T19:29:53+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="archive"/>
+        <text variable="archivecollection"/>
+        <text variable="archiveplace"/>
+        <text variable="archivelocation"/>
+        <text variable="archivesummary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $styleSummary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct Archive Alias Review', $styleSummary['title'] ?? null);
+        $t->same('[Ng | arXiv | cs.AI | 2601.00001 | arXiv:2601.00001 [cs.AI]; Ames | Zenodo | dataset | 10.5281/zenodo.2601 | Zenodo:10.5281/zenodo.2601 [dataset]; Repository Desk | City Archive | Migration Papers | Portland | Box 9 | City Archive:Migration Papers:Box 9 [Portland]]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-eprint', 'text' => '[@compact-eprint]']),
+            new AstNode('citation', ['id' => 'camel-eprint', 'text' => '[@camel-eprint]']),
+            new AstNode('citation', ['id' => 'compact-archive', 'text' => '[@compact-archive]']),
+        ]));
+        $t->same('Compact Direct Eprint Packet :: arXiv:2601.00001 [cs.AI]', $styled->renderBibliographyEntry('compact-eprint'));
+        $t->same('Compact Direct Archive Packet :: City Archive:Migration Papers:Box 9 [Portland]', $styled->renderBibliographyEntry('compact-archive'));
+
+        $document = (new MarkdownReader())->read('Compact archives [@compact-eprint; @camel-eprint; @compact-archive] keep direct aliases visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact archives [Ng | arXiv | cs.AI | 2601.00001 | arXiv:2601.00001 [cs.AI]; Ames | Zenodo | dataset | 10.5281/zenodo.2601 | Zenodo:10.5281/zenodo.2601 [dataset]; Repository Desk | City Archive | Migration Papers | Portland | Box 9 | City Archive:Migration Papers:Box 9 [Portland]] keep direct aliases visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Compact Direct Eprint Packet :: arXiv:2601.00001 [cs.AI]</dd>', $blocks);
+        $t->contains('<dt>Repository Desk 2025</dt><dd>Compact Direct Archive Packet :: City Archive:Migration Papers:Box 9 [Portland]</dd>', $blocks);
+    },
     'maps bounded biblatex pubmed identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{pubmed-article,
