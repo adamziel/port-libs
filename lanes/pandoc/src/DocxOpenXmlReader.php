@@ -9,6 +9,8 @@ final class DocxOpenXmlReader
     private const NS_CT = 'http://schemas.openxmlformats.org/package/2006/content-types';
     private const NS_REL = 'http://schemas.openxmlformats.org/package/2006/relationships';
     private const NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    private const NS_W14 = 'http://schemas.microsoft.com/office/word/2010/wordml';
+    private const NS_W15 = 'http://schemas.microsoft.com/office/word/2012/wordml';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
@@ -33,6 +35,7 @@ final class DocxOpenXmlReader
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    private const COMMENTS_EXTENDED_REL = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
@@ -53,6 +56,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
     private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+    private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
 
     public function readFile(string $path): AstNode
@@ -147,6 +151,8 @@ final class DocxOpenXmlReader
         );
         $commentsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_REL, 'comments.xml');
         $commentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($commentsPart['partName']));
+        $commentsExtendedPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_EXTENDED_REL, 'commentsExtended.xml');
+        $commentsExtended = $this->readCommentsExtended($commentsExtendedPart['xml'], $commentsExtendedPart['partName']);
         $comments = $this->readComments(
             $commentsPart['xml'],
             $commentsPart['partName'],
@@ -154,6 +160,7 @@ final class DocxOpenXmlReader
             $contentTypes,
             $styles,
             $numbering,
+            $commentsExtended['byParaId'],
         );
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
@@ -240,6 +247,7 @@ final class DocxOpenXmlReader
             $this->selectedXmlPartDefinition('footnotes', $footnotesPart['partName'], $footnotesPart['xml'], $footnotesPart['exists'], $footnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'footnotes', self::CT_WORD_FOOTNOTES),
             $this->selectedXmlPartDefinition('endnotes', $endnotesPart['partName'], $endnotesPart['xml'], $endnotesPart['exists'], $endnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'endnotes', self::CT_WORD_ENDNOTES),
             $this->selectedXmlPartDefinition('comments', $commentsPart['partName'], $commentsPart['xml'], $commentsPart['exists'], $commentsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'comments', self::CT_WORD_COMMENTS),
+            $this->selectedXmlPartDefinition('commentsExtended', $commentsExtendedPart['partName'], $commentsExtendedPart['xml'], $commentsExtendedPart['exists'], $commentsExtendedPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W15, 'commentsEx', self::CT_WORD_COMMENTS_EXTENDED),
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
@@ -280,6 +288,8 @@ final class DocxOpenXmlReader
                 'endnotes' => $endnotes['summary'],
                 'commentsPart' => $commentsPart['partName'],
                 'comments' => $comments['summary'],
+                'commentsExtendedPart' => $commentsExtendedPart['partName'],
+                'commentsExtended' => $commentsExtended['summary'],
                 'headers' => $headers,
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
@@ -405,6 +415,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $commentsPart['partName'],
                 $commentsPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($commentsExtendedPart['relationship'] !== null) {
+            $attrs['docx']['commentsExtendedRelationship'] = $this->relationshipSummary(
+                $commentsExtendedPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $commentsExtendedPart['partName'],
+                $commentsExtendedPart['exists'],
                 $contentTypes,
             );
         }
@@ -3608,11 +3628,73 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{summary:array{count:int, resolvedCount:int, threadedCount:int, paraIds:list<string>, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>, items:list<array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}
+     */
+    private function readCommentsExtended(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [
+                'summary' => ['count' => 0, 'resolvedCount' => 0, 'threadedCount' => 0, 'paraIds' => [], 'byParaId' => [], 'items' => []],
+                'byParaId' => [],
+            ];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W15 || $root->localName !== 'commentsEx') {
+            return [
+                'summary' => ['count' => 0, 'resolvedCount' => 0, 'threadedCount' => 0, 'paraIds' => [], 'byParaId' => [], 'items' => []],
+                'byParaId' => [],
+            ];
+        }
+
+        $items = [];
+        $byParaId = [];
+        foreach ($root->childNodes as $comment) {
+            if (!$comment instanceof \DOMElement || $comment->namespaceURI !== self::NS_W15 || $comment->localName !== 'commentEx') {
+                continue;
+            }
+
+            $paraId = $this->wordExtensionAttr($comment, 'paraId');
+            if ($paraId === null || $paraId === '') {
+                continue;
+            }
+
+            $parentParaId = $this->wordExtensionAttr($comment, 'paraIdParent');
+            if ($parentParaId === '') {
+                $parentParaId = null;
+            }
+            $resolved = $this->onOffStringValue($this->wordExtensionAttr($comment, 'done'));
+            $item = [
+                'paraId' => $paraId,
+                'parentParaId' => $parentParaId,
+                'resolved' => $resolved,
+                'partName' => $partName,
+            ];
+            $items[] = $item;
+            $byParaId[$paraId] = $item;
+        }
+
+        return [
+            'summary' => [
+                'count' => count($items),
+                'resolvedCount' => count(array_filter($items, static fn (array $item): bool => $item['resolved'] === true)),
+                'threadedCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['parentParaId']) && $item['parentParaId'] !== '')),
+                'paraIds' => array_column($items, 'paraId'),
+                'byParaId' => $byParaId,
+                'items' => $items,
+            ],
+            'byParaId' => $byParaId,
+        ];
+    }
+
+    /**
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
-     * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}, nodes:array<string, AstNode>}
+     * @param array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}> $commentsExtended
+     * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>}, nodes:array<string, AstNode>}
      */
     private function readComments(
         string $xml,
@@ -3620,7 +3702,8 @@ final class DocxOpenXmlReader
         array $relationships,
         array $contentTypes,
         array $styles,
-        array $numbering
+        array $numbering,
+        array $commentsExtended = []
     ): array {
         if ($xml === '') {
             return [
@@ -3669,6 +3752,9 @@ final class DocxOpenXmlReader
             if ($date !== null) {
                 $attrs['date'] = $date;
             }
+            foreach ($this->commentExtendedAttrs($comment, $commentsExtended) as $key => $value) {
+                $attrs[$key] = $value;
+            }
 
             $item = [
                 'id' => $id,
@@ -3679,6 +3765,10 @@ final class DocxOpenXmlReader
                 'author' => $author,
                 'initials' => $initials,
                 'date' => $date,
+                'commentParaId' => $attrs['commentParaId'] ?? null,
+                'commentParentParaId' => $attrs['commentParentParaId'] ?? null,
+                'commentResolved' => $attrs['commentResolved'] ?? null,
+                'commentsExtendedPart' => $attrs['commentsExtendedPart'] ?? null,
             ];
             $items[] = $item;
             $byId[$id] = $item;
@@ -4529,6 +4619,78 @@ final class DocxOpenXmlReader
         $elements = $this->elements($xpath, $query, $context);
 
         return $elements[0] ?? null;
+    }
+
+    /**
+     * @param array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}> $commentsExtended
+     * @return array<string, mixed>
+     */
+    private function commentExtendedAttrs(\DOMElement $comment, array $commentsExtended): array
+    {
+        $paraId = $this->commentParagraphId($comment);
+        if ($paraId === null) {
+            return [];
+        }
+
+        $attrs = [
+            'commentParaId' => $paraId,
+        ];
+        $extended = $commentsExtended[$paraId] ?? null;
+        if (!is_array($extended)) {
+            return $attrs;
+        }
+
+        $attrs['commentsExtendedPart'] = $extended['partName'];
+        if (is_string($extended['parentParaId']) && $extended['parentParaId'] !== '') {
+            $attrs['commentParentParaId'] = $extended['parentParaId'];
+        }
+        if (is_bool($extended['resolved'])) {
+            $attrs['commentResolved'] = $extended['resolved'];
+        }
+
+        return $attrs;
+    }
+
+    private function commentParagraphId(\DOMElement $comment): ?string
+    {
+        foreach ($comment->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W || $child->localName !== 'p') {
+                continue;
+            }
+
+            return $this->wordExtensionAttr($child, 'paraId');
+        }
+
+        return null;
+    }
+
+    private function wordExtensionAttr(\DOMElement $element, string $localName): ?string
+    {
+        foreach ([self::NS_W15, self::NS_W14] as $namespace) {
+            $value = $element->getAttributeNS($namespace, $localName);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function onOffStringValue(?string $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim($value));
+        if (in_array($value, ['1', 'true', 'on'], true)) {
+            return true;
+        }
+        if (in_array($value, ['0', 'false', 'off'], true)) {
+            return false;
+        }
+
+        return null;
     }
 
     private function childElement(?\DOMElement $parent, string $localName): ?\DOMElement

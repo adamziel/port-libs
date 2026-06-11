@@ -1298,7 +1298,7 @@ XML;
         $summary = $document->attr('docx')['packageProvenance']['summary'];
         $byKind = $selected['byKind'];
 
-        $t->same(13, $selected['count']);
+        $t->same(14, $selected['count']);
         $t->same(6, $selected['existingCount']);
         $t->same(5, $selected['relationshipSelectedCount']);
         $t->same(1, $selected['missingRequiredOrReferencedCount']);
@@ -1307,7 +1307,7 @@ XML;
         $t->same(0, $selected['unexpectedContentTypeCount']);
         $t->same(1, $selected['issueCount']);
         $t->same(['webSettings'], $selected['issueKinds']);
-        $t->same(13, $summary['selectedXmlPartCount']);
+        $t->same(14, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
 
@@ -1673,6 +1673,107 @@ XML;
         $t->contains('with reviewer commentcommented text[^1]', $markdown);
         $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p>', $blocks);
+    },
+    'preserves docx commentsExtended package metadata from relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments-extended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="comments/review-comments-extended.xml?thread=1#commentsEx"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with resolved review </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> and threaded reply </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="13"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="12" w:author="Review Lead" w:initials="RL" w:date="2026-06-11T18:20:00Z">
+    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Resolved comment package context.</w:t></w:r></w:p>
+  </w:comment>
+  <w:comment w:id="13" w:author="Review Reply" w:initials="RR" w:date="2026-06-11T18:25:00Z">
+    <w:p w14:paraId="00FEDCBA"><w:r><w:t>Threaded reply package context.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/review-comments-extended.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+  <w15:commentEx w15:paraId="00FEDCBA" w15:paraIdParent="00ABCDEF" w15:done="0"/>
+</w15:commentsEx>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $commentsExtended = $docx['commentsExtended'];
+        $relationship = $docx['commentsExtendedRelationship'];
+        $selected = $docx['packageProvenance']['selectedXmlParts']['byKind']['commentsExtended'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $relationshipType = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $resolvedNote = $notes[0];
+        $replyNote = $notes[1];
+
+        $t->same('word/comments/review-comments-extended.xml', $docx['commentsExtendedPart']);
+        $t->same('rCommentsExtended', $relationship['id']);
+        $t->same('comments/review-comments-extended.xml?thread=1#commentsEx', $relationship['target']);
+        $t->same('word/comments/review-comments-extended.xml?thread=1#commentsEx', $relationship['resolvedTarget']);
+        $t->same('word/comments/review-comments-extended.xml', $relationship['targetPart']);
+        $t->same('thread=1', $relationship['targetQuery']);
+        $t->same('commentsEx', $relationship['targetFragment']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $relationship['contentType']);
+        $t->same(2, $commentsExtended['count']);
+        $t->same(1, $commentsExtended['resolvedCount']);
+        $t->same(1, $commentsExtended['threadedCount']);
+        $t->same(['00ABCDEF', '00FEDCBA'], $commentsExtended['paraIds']);
+        $t->same(true, $commentsExtended['byParaId']['00ABCDEF']['resolved']);
+        $t->same('00ABCDEF', $commentsExtended['byParaId']['00FEDCBA']['parentParaId']);
+        $t->same(false, $commentsExtended['byParaId']['00FEDCBA']['resolved']);
+
+        $t->same('relationship', $selected['selectionSource']);
+        $t->same('commentsEx', $selected['rootLocalName']);
+        $t->same('http://schemas.microsoft.com/office/word/2012/wordml', $selected['rootNamespace']);
+        $t->same(true, $selected['validRoot']);
+        $t->same(true, $selected['contentTypeMatchesExpected']);
+        $t->same('thread=1', $selected['targetQuery']);
+        $t->same('commentsEx', $selected['targetFragment']);
+
+        $t->same('commentsExtended', $relationshipTypes[$relationshipType]['label']);
+        $t->same(1, $relationshipTypes[$relationshipType]['count']);
+        $t->same(['word/comments/review-comments-extended.xml'], $relationshipTypes[$relationshipType]['existingTargetParts']);
+
+        $t->same('00ABCDEF', $docx['comments']['byId']['12']['commentParaId']);
+        $t->same(true, $docx['comments']['byId']['12']['commentResolved']);
+        $t->same('word/comments/review-comments-extended.xml', $docx['comments']['byId']['12']['commentsExtendedPart']);
+        $t->same('00FEDCBA', $docx['comments']['byId']['13']['commentParaId']);
+        $t->same('00ABCDEF', $docx['comments']['byId']['13']['commentParentParaId']);
+        $t->same(false, $docx['comments']['byId']['13']['commentResolved']);
+
+        $t->same('12', $resolvedNote->attr('id'));
+        $t->same('00ABCDEF', $resolvedNote->attr('commentParaId'));
+        $t->same(true, $resolvedNote->attr('commentResolved'));
+        $t->same('word/comments/review-comments-extended.xml', $resolvedNote->attr('commentsExtendedPart'));
+        $t->same('13', $replyNote->attr('id'));
+        $t->same('00FEDCBA', $replyNote->attr('commentParaId'));
+        $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
+        $t->same(false, $replyNote->attr('commentResolved'));
     },
     'summarizes docx alternative format import chunks from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
