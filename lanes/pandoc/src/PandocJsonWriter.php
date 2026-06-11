@@ -845,7 +845,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     * @return array<string, mixed>
      */
     private function writeCitationRecord(AstNode $citation): array
     {
@@ -858,7 +858,7 @@ final class PandocJsonWriter
             throw new \InvalidArgumentException('Citation node must contain an id for Pandoc JSON');
         }
 
-        return [
+        $record = [
             'citationId' => $id,
             'citationPrefix' => $this->writeInlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->writeInlines($this->citationSuffixInlines($citation)),
@@ -866,6 +866,46 @@ final class PandocJsonWriter
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
+
+        return $this->reusableCitationRecordNative($citation, $record) ?? $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>|null
+     */
+    private function reusableCitationRecordNative(AstNode $citation, array $record): ?array
+    {
+        $native = $citation->attr('citationNative');
+        if (!is_array($native) || array_is_list($native)) {
+            return null;
+        }
+
+        foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationNoteNum', 'citationHash'] as $key) {
+            if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
+                return null;
+            }
+        }
+
+        return $this->citationModeNativeMatches($native['citationMode'] ?? null, $record['citationMode'] ?? null)
+            ? $native
+            : null;
+    }
+
+    private function citationModeNativeMatches(mixed $nativeMode, mixed $recordMode): bool
+    {
+        if (!is_array($recordMode) || array_is_list($recordMode) || !is_string($recordMode['t'] ?? null)) {
+            return false;
+        }
+
+        if (is_string($nativeMode)) {
+            return $nativeMode === $recordMode['t'];
+        }
+
+        return is_array($nativeMode)
+            && !array_is_list($nativeMode)
+            && is_string($nativeMode['t'] ?? null)
+            && $nativeMode['t'] === $recordMode['t'];
     }
 
     /**

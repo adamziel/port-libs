@@ -1330,6 +1330,77 @@ return [
         $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $jsonPacket['blocks'][0]['c'][0]['c'][0]), 'json writer citation mode constructors');
         $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $nativePacket['blocks'][0]['c'][0]['c'][0]), 'native writer citation mode constructors');
     },
+    'preserves pandoc citation record native payloads through json and native writers' => static function (TestRunner $t): void {
+        $record = [
+            'citationId' => 'legacy-source',
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '12'],
+            ],
+            'citationMode' => 'SuppressAuthor',
+            'citationNoteNum' => 5,
+            'citationHash' => 909,
+            'citationReview' => ['queue' => 'native-payload'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$record],
+                        [
+                            ['t' => 'Str', 'c' => '[see'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '-@legacy-source,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'p.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '12]'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $citation = $document->children[0]->children[0];
+
+            $t->same('citation', $citation->type, "{$source} citation node");
+            $t->same($record, $citation->attr('citationNative'), "{$source} citation native payload");
+            $t->same('SuppressAuthor', $citation->attr('citationModeConstructor'), "{$source} citation mode constructor");
+            $t->same('SuppressAuthor', $citation->attr('citationModeNative'), "{$source} citation mode native value");
+            $t->same('suppress_author', $citation->attr('mode'), "{$source} normalized citation mode");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+        $jsonRecord = $jsonPacket['blocks'][0]['c'][0]['c'][0][0];
+        $nativeRecord = $nativePacket['blocks'][0]['c'][0]['c'][0][0];
+
+        $t->same($record, $jsonRecord);
+        $t->same($record, $nativeRecord);
+
+        $citation = $documents['json']->children[0]->children[0];
+        $editedCitation = new AstNode('citation', array_replace($citation->attrs, ['mode' => 'normal']), $citation->children);
+        $editedDocument = new AstNode('document', $documents['json']->attrs, [
+            new AstNode('paragraph', $documents['json']->children[0]->attrs, [$editedCitation]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedRecord = $editedJson['blocks'][0]['c'][0]['c'][0][0];
+
+        $t->same(['t' => 'NormalCitation'], $editedRecord['citationMode']);
+        $t->same(false, array_key_exists('citationReview', $editedRecord));
+    },
     'records pandoc meta constructor provenance on json and native ast documents' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
