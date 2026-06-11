@@ -670,35 +670,39 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>}
+     * @return array<int, mixed>|array{t:string, c:array<int, mixed>}
      */
     private function writeTableSection(AstNode $section): array
     {
-        return [
+        $tuple = [
             $this->attrTuple($section),
             $this->writeTableRows($section->children),
         ];
+
+        return $this->nativeConstructorEnvelope($section, $section->type === 'table_foot' ? 'TableFoot' : 'TableHead', $tuple);
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array<int, mixed>|array{t:string, c:array<int, mixed>}
      */
     private function writeTableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
 
-        return [
+        $tuple = [
             $this->attrTuple($body),
             $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
                 ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
+
+        return $this->nativeConstructorEnvelope($body, 'TableBody', $tuple);
     }
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     * @return list<array<int, mixed>|array{t:string, c:array<int, mixed>}>
      */
     private function writeTableRows(array $rows): array
     {
@@ -708,10 +712,11 @@ final class PandocJsonWriter
                 continue;
             }
 
-            $encoded[] = [
+            $tuple = [
                 $this->attrTuple($row),
                 $this->writeTableCells($row->children),
             ];
+            $encoded[] = $this->nativeConstructorEnvelope($row, 'Row', $tuple);
         }
 
         return $encoded;
@@ -719,7 +724,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array<int, mixed>|array{t:string, c:array<int, mixed>}>
      */
     private function writeTableCells(array $cells): array
     {
@@ -732,16 +737,31 @@ final class PandocJsonWriter
             $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
             $rowspan = max(1, (int) $cell->attr('rowspan', 1));
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $encoded[] = [
+            $tuple = [
                 $this->attrTuple($cell),
                 $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? $this->enum($alignmentConstructor),
                 $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
                 $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->childrenAsBlocks($cell),
             ];
+            $encoded[] = $this->nativeConstructorEnvelope($cell, 'Cell', $tuple);
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param array<int, mixed> $content
+     * @return array<int, mixed>|array{t:string, c:array<int, mixed>}
+     */
+    private function nativeConstructorEnvelope(AstNode $node, string $constructor, array $content): array
+    {
+        $native = $this->nativePayload($node);
+        if ($native !== null && ($native['t'] ?? null) === $constructor) {
+            return ['t' => $constructor, 'c' => $content];
+        }
+
+        return $content;
     }
 
     /**
