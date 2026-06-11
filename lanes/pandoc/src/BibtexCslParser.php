@@ -711,7 +711,7 @@ final class BibtexCslParser
             'id' => $key,
             'type' => self::cslTypeForEntry($type, $fields),
             'source' => self::firstField($fields, ['source', 'sourcetitle', 'source-title']),
-            'citation-aliases' => self::biblatexKeyList($fields['ids'] ?? ''),
+            'citation-aliases' => self::citationAliasList($fields),
             'citation-label' => self::firstField($fields, ['shorthand', 'label']),
             'label' => self::firstField($fields, ['label']),
             'shorthand' => self::firstField($fields, ['shorthand']),
@@ -1539,6 +1539,24 @@ final class BibtexCslParser
         $separator = preg_match('/[.?!:]\z/u', $title) === 1 ? ' ' : ': ';
 
         return $title . $separator . $subtitle;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private static function citationAliasList(array $fields): array
+    {
+        $aliases = [];
+        foreach (['ids', 'citation-aliases', 'citation_aliases', 'citationaliases', 'citation-alias', 'citation_alias', 'citationalias'] as $field) {
+            foreach (self::biblatexKeyList($fields[$field] ?? '') as $alias) {
+                if (!in_array($alias, $aliases, true)) {
+                    $aliases[] = $alias;
+                }
+            }
+        }
+
+        return $aliases;
     }
 
     /**

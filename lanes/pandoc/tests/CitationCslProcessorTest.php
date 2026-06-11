@@ -9574,6 +9574,59 @@ XML);
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={b}} @book{b,title={B}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{a,title={A},ids={alias}} @book{b,title={B},ids={alias}}'));
     },
+    'maps bounded csl citation alias field spellings into canonical citations' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{csl-alias-manual,
+  author           = {Ng, Nia},
+  title            = {CSL Alias Manual},
+  date             = {2024},
+  citation-aliases = {legacy-csl-manual, source-csl-manual},
+  citation-alias   = {single-csl-manual}
+}
+
+@book{compact-csl-alias-manual,
+  author             = {Roe, Pat},
+  title              = {Compact CSL Alias Manual},
+  date               = {2023},
+  citation_aliases   = {underscore-csl-manual},
+  citationalias      = {compact-csl-manual}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['legacy-csl-manual', 'source-csl-manual', 'single-csl-manual'], $items[0]['citation-aliases']);
+        $t->same('legacy-csl-manual, source-csl-manual', $items[0]['rawBibtex']['fields']['citation-aliases'] ?? null);
+        $t->same('single-csl-manual', $items[0]['rawBibtex']['fields']['citation-alias'] ?? null);
+        $t->same(['underscore-csl-manual', 'compact-csl-manual'], $items[1]['citation-aliases']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $cslAlias = $processor->item('source-csl-manual');
+        $compactAlias = $processor->item('compact-csl-manual');
+        $t->same('csl-alias-manual', $cslAlias['id'] ?? null);
+        $t->same('source-csl-manual', $cslAlias['citationAlias'] ?? null);
+        $t->same(['legacy-csl-manual', 'source-csl-manual', 'single-csl-manual'], $cslAlias['citationAliases'] ?? null);
+        $t->same('compact-csl-alias-manual', $compactAlias['id'] ?? null);
+        $t->same('compact-csl-manual', $compactAlias['citationAlias'] ?? null);
+        $t->same('(Ng 2024; Roe 2023)', $processor->renderCitationCluster([
+            $citation('single-csl-manual', '[@single-csl-manual]'),
+            $citation('underscore-csl-manual', '[@underscore-csl-manual]'),
+        ]));
+
+        $manualSingular = CitationCslProcessor::fromItems([[
+            'id' => 'manual-singular-primary',
+            'title' => 'Manual Singular Alias Source',
+            'citation-alias' => 'manual-singular-alias',
+        ]])->item('manual-singular-alias');
+        $t->same('manual-singular-primary', $manualSingular['id'] ?? null);
+        $t->same('manual-singular-alias', $manualSingular['citationAlias'] ?? null);
+
+        $document = (new MarkdownReader())->read('CSL aliases @single-csl-manual and [@compact-csl-manual] resolve through canonical entries.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>CSL aliases Ng (2024) and (Roe 2023) resolve through canonical entries.</p>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>Ng, Nia. CSL Alias Manual. 2024. Citation aliases: legacy-csl-manual; source-csl-manual; single-csl-manual.</dd>', $blocks);
+        $t->contains('<dt>Roe 2023</dt><dd>Roe, Pat. Compact CSL Alias Manual. 2023. Citation aliases: underscore-csl-manual; compact-csl-manual.</dd>', $blocks);
+    },
     'renders bounded biblatex citation alias provenance for wordpress review' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{canonical-alias-review,

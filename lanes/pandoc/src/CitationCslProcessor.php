@@ -1091,7 +1091,7 @@ final class CitationCslProcessor
         $biblatexFieldAnnotations = self::biblatexFieldAnnotations($item, $id);
         $biblatexRefsection = self::firstStringField($item, ['biblatexRefsection', 'biblatex-refsection', 'refsection', 'ref-section']);
         $biblatexRefsegment = self::firstStringField($item, ['biblatexRefsegment', 'biblatex-refsegment', 'refsegment', 'ref-segment']);
-        $citationAliases = self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']);
+        $citationAliases = self::stringListFromFirstField($item, ['citation-aliases', 'citation_aliases', 'citationAliases', 'citationaliases', 'citation-alias', 'citation_alias', 'citationAlias', 'citationalias', 'ids']);
         $xdataKeys = self::stringListFromFirstField($item, ['xdataKeys', 'xdata-keys', 'xdata']);
         $xdataItems = self::relatedItemSummaries($item['xdataItems'] ?? $item['xdata-items'] ?? [], $id, 'xdataItems');
         $missingXdataKeys = self::stringListFromFirstField($item, ['missingXdataKeys', 'missing-xdata-keys']);
