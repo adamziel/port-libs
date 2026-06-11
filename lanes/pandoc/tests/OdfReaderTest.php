@@ -10198,10 +10198,10 @@ XML;
         $manifestWithReorderedEntries = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
   <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
-  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml" manifest:version="1.2"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:preferred-view-mode="presentation-slide-show" manifest:size="99"/>
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png" manifest:size="100"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
 </manifest:manifest>
 XML;
@@ -10220,6 +10220,11 @@ XML;
         $t->same([0, 1, 2, 3, 4, 5], array_column($result['manifest'], 'manifestIndex'));
         $t->same(['/', 'styles.xml', 'Pictures/hero.png', 'content.xml', 'Pictures/missing.png', 'meta.xml'], array_column($manifestOrder, 'fullPath'));
         $t->same([0, 1, 2, 3, 4, 5], array_column($manifestOrder, 'manifestIndex'));
+        $t->same('edit', $manifestOrder[0]['preferredViewMode']);
+        $t->same('1.2', $manifestOrder[1]['version']);
+        $t->same('presentation-slide-show', $manifestOrder[2]['preferredViewMode']);
+        $t->same(99, $manifestOrder[2]['declaredSize']);
+        $t->same(true, $manifestOrder[2]['declaredSizeMismatch']);
 
         $t->same(1, $manifestByPath['styles.xml']['manifestIndex']);
         $t->same(2, $manifestByPath['Pictures/hero.png']['manifestIndex']);
@@ -10231,8 +10236,14 @@ XML;
         $t->same(1, $inventory['styles.xml']['manifestIndex']);
         $t->same(2, $inventory['Pictures/hero.png']['manifestIndex']);
         $t->same(5, $inventory['meta.xml']['manifestIndex']);
+        $t->same('1.2', $inventory['styles.xml']['manifestVersion']);
+        $t->same('presentation-slide-show', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same(99, $inventory['Pictures/hero.png']['manifestDeclaredSize']);
+        $t->same(true, $inventory['Pictures/hero.png']['manifestDeclaredSizeMismatch']);
         $t->same(false, $manifestOrder[4]['exists']);
+        $t->same(100, $manifestOrder[4]['declaredSize']);
         $t->same(false, $manifestOrder[4]['canExposeBytes']);
+        $t->same(1, $result['importReport']['manifest']['declaredSizeMismatchCount']);
         $t->same(['Pictures/missing.png'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(4, $result['importReport']['manifest']['missingItems'][0]['manifestIndex']);
         $t->same(2, count($result['media']), 'missing manifest media remains metadata-only in declared media handoff');
