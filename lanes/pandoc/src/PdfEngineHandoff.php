@@ -295,6 +295,9 @@ final class PdfEngineHandoff
                 if (is_array($embeddedFonts) && is_int($embeddedFonts['flagCount'] ?? null) && $embeddedFonts['flagCount'] > 0) {
                     $diagnostics[] = 'typst-ignore-embedded-fonts:' . $embeddedFonts['flagCount'];
                 }
+                if (is_array($embeddedFonts) && ($embeddedFonts['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-embedded-font-issues:' . count($embeddedFonts['issues']);
+                }
             }
             if (($typstBoundaryProvenance['openOutput'] ?? []) !== []) {
                 $openOutput = $typstBoundaryProvenance['openOutput'];
@@ -5920,6 +5923,10 @@ final class PdfEngineHandoff
         if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
         }
+        $embeddedFontIssues = [];
+        if ($ignoreEmbeddedFontCount > 0 && $this->typstPdfStandardRequestsPdfA($pdfStandard)) {
+            $embeddedFontIssues[] = 'embedded-fonts-disabled-for-pdfa';
+        }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
         foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
@@ -5931,6 +5938,9 @@ final class PdfEngineHandoff
             }
         }
         foreach ($pdfTagIssues as $issue) {
+            $issues[] = $issue;
+        }
+        foreach ($embeddedFontIssues as $issue) {
             $issues[] = $issue;
         }
         foreach ($openOutputIssues as $issue) {
@@ -6028,7 +6038,7 @@ final class PdfEngineHandoff
                 'ignoreEmbeddedFonts' => true,
                 'embeddedFontAccess' => 'disabled',
                 'flagCount' => $ignoreEmbeddedFontCount,
-                'issues' => [],
+                'issues' => $embeddedFontIssues,
             ];
         }
         if ($openOutputCount > 0) {
@@ -6749,6 +6759,24 @@ final class PdfEngineHandoff
 
         foreach ($pdfStandard['standards'] as $standard) {
             if ($standard === 'ua-1') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{standards?:list<string>}|null $pdfStandard
+     */
+    private function typstPdfStandardRequestsPdfA(?array $pdfStandard): bool
+    {
+        if ($pdfStandard === null || !isset($pdfStandard['standards']) || !is_array($pdfStandard['standards'])) {
+            return false;
+        }
+
+        foreach ($pdfStandard['standards'] as $standard) {
+            if (str_starts_with($standard, 'a-')) {
                 return true;
             }
         }
