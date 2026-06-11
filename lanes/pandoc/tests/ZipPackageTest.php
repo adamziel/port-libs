@@ -9314,6 +9314,72 @@ return [
         $t->same(2, $safeSummary['readableEntryCount']);
     },
 
+    'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
+        $imageBytes = "review image bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'secondary-main-document'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 256);
+
+        $t->same(3, $summary['requestedEntryCount']);
+        $t->same(1, $summary['requiredEntryCount']);
+        $t->same(2, $summary['optionalEntryCount']);
+        $t->same(2, $summary['presentEntryCount']);
+        $t->same(2, $summary['duplicateRequestedEntryCount']);
+        $t->same(1, $summary['duplicateRequestedEntryGroupCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(3, $summary['readableEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same([
+            [
+                'name' => 'word/document.xml',
+                'count' => 2,
+                'requestIndexes' => [0, 1],
+                'requestedNames' => ['/word/document.xml', 'word/document.xml'],
+                'requiredCount' => 1,
+                'optionalCount' => 1,
+            ],
+        ], $summary['duplicateRequestedEntryGroups']);
+
+        $firstDuplicate = $summary['entries'][0];
+        $secondDuplicate = $summary['entries'][1];
+        $safeAttachment = $summary['entries'][2];
+        $t->same(true, $firstDuplicate['isDuplicateRequest']);
+        $t->same(true, $secondDuplicate['isDuplicateRequest']);
+        $t->same('ready', $firstDuplicate['status']);
+        $t->same('ready', $secondDuplicate['status']);
+        $t->same([], $firstDuplicate['issues']);
+        $t->same([], $secondDuplicate['issues']);
+        $t->same(true, $firstDuplicate['isReadable']);
+        $t->same(true, $secondDuplicate['isReadable']);
+        $t->same(strlen($documentXml), $firstDuplicate['bytesRead']);
+        $t->same(strlen($documentXml), $secondDuplicate['bytesRead']);
+        $t->same(hash('sha256', $documentXml), $firstDuplicate['contentSha256']);
+        $t->same(hash('sha256', $documentXml), $secondDuplicate['contentSha256']);
+        $t->same(false, $safeAttachment['isDuplicateRequest']);
+        $t->same('ready', $safeAttachment['status']);
+        $t->same(hash('sha256', $imageBytes), $safeAttachment['contentSha256']);
+        $t->same([], $summary['failedEntries']);
+        $t->same([$firstDuplicate, $secondDuplicate, $safeAttachment], $summary['handoffEntries']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);

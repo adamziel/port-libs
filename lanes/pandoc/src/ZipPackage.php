@@ -4725,9 +4725,12 @@ final class ZipPackage
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
      *     unreadableEntryCount:int,
+     *     duplicateRequestedEntryCount:int,
+     *     duplicateRequestedEntryGroupCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4751,6 +4754,8 @@ final class ZipPackage
         $directoryMismatchEntryCount = 0;
         $oversizedEntryCount = 0;
         $unreadableEntryCount = 0;
+        $normalizedRequests = [];
+        $requestGroups = [];
 
         foreach ($requests as $requestIndex => $request) {
             if (is_string($request)) {
@@ -4786,6 +4791,57 @@ final class ZipPackage
             $required ? $requiredEntryCount++ : $optionalEntryCount++;
 
             $name = $this->normalizeLookupPartName($requestedName);
+            $normalizedRequest = [
+                'requestIndex' => $requestIndex,
+                'requestedName' => $requestedName,
+                'name' => $name,
+                'required' => $required,
+                'expectedKind' => $expectedKind,
+                'role' => $role,
+                'maxUncompressedBytes' => $entryMaxUncompressedBytes,
+            ];
+            $normalizedRequests[] = $normalizedRequest;
+            $requestGroups[$name][] = $normalizedRequest;
+        }
+
+        $duplicateRequestedEntryGroups = [];
+        $duplicateRequestIndexes = [];
+        foreach ($requestGroups as $name => $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+
+            $requestIndexes = [];
+            $requestedNames = [];
+            $requiredCount = 0;
+            foreach ($group as $entry) {
+                $requestIndexes[] = $entry['requestIndex'];
+                $requestedNames[] = $entry['requestedName'];
+                if ($entry['required']) {
+                    $requiredCount++;
+                }
+                $duplicateRequestIndexes[$entry['requestIndex']] = true;
+            }
+
+            $duplicateRequestedEntryGroups[] = [
+                'name' => $name,
+                'count' => count($group),
+                'requestIndexes' => $requestIndexes,
+                'requestedNames' => $requestedNames,
+                'requiredCount' => $requiredCount,
+                'optionalCount' => count($group) - $requiredCount,
+            ];
+        }
+        $duplicateRequestedEntryCount = count($duplicateRequestIndexes);
+
+        foreach ($normalizedRequests as $normalizedRequest) {
+            $requestIndex = $normalizedRequest['requestIndex'];
+            $requestedName = $normalizedRequest['requestedName'];
+            $name = $normalizedRequest['name'];
+            $required = $normalizedRequest['required'];
+            $expectedKind = $normalizedRequest['expectedKind'];
+            $role = $normalizedRequest['role'];
+            $entryMaxUncompressedBytes = $normalizedRequest['maxUncompressedBytes'];
             $entry = $this->entriesByName[$name] ?? null;
             $entryIssues = [];
             $error = null;
@@ -4794,6 +4850,7 @@ final class ZipPackage
             $isReadable = false;
             $status = 'ready';
             $isDirectory = null;
+            $isDuplicateRequest = isset($duplicateRequestIndexes[$requestIndex]);
 
             $summary = [
                 'requestIndex' => $requestIndex,
@@ -4815,6 +4872,7 @@ final class ZipPackage
                 'contentSha256' => null,
                 'status' => 'ready',
                 'error' => null,
+                'isDuplicateRequest' => $isDuplicateRequest,
                 'issues' => [],
             ];
 
@@ -4912,9 +4970,12 @@ final class ZipPackage
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
             'unreadableEntryCount' => $unreadableEntryCount,
+            'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
+            'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
