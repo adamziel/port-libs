@@ -25475,6 +25475,111 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
         $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
     },
+    'normalizes bounded direct csl json abstract note aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-abstract-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct Abstract Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'abstractNote' => 'Camel abstract packet',
+                'annotationText' => 'Camel annotation packet',
+                'noteText' => 'Camel note packet',
+            ],
+            [
+                'id' => 'direct-abstract-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Abstract Hyphen Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'abstract-note' => 'Hyphen abstract packet',
+                'annotation-text' => 'Hyphen annotation packet',
+                'note-text' => 'Hyphen note packet',
+            ],
+            [
+                'id' => 'direct-abstract-flat',
+                'type' => 'webpage',
+                'title' => 'Direct Abstract Flat Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'abstractnote' => 'Flat abstract packet',
+                'annote' => 'Flat annotation packet',
+                'notes' => 'Flat note packet',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-abstract-camel');
+        $hyphen = $processor->item('direct-abstract-hyphen');
+        $flat = $processor->item('direct-abstract-flat');
+        $t->same('Camel abstract packet', $camel['abstract'] ?? null);
+        $t->same('Camel annotation packet', $camel['annotation'] ?? null);
+        $t->same('Camel note packet', $camel['note'] ?? null);
+        $t->same('Hyphen abstract packet', $hyphen['abstract'] ?? null);
+        $t->same('Hyphen annotation packet', $hyphen['annotation'] ?? null);
+        $t->same('Hyphen note packet', $hyphen['note'] ?? null);
+        $t->same('Flat abstract packet', $flat['abstract'] ?? null);
+        $t->same('Flat annotation packet', $flat['annotation'] ?? null);
+        $t->same('Flat note packet', $flat['note'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Abstract Note Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-abstract-note-alias-review</id>
+    <updated>2026-06-11T18:28:11+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="abstract"/>
+        <text variable="annotation"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="abstract"/>
+      <text variable="annotation"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Abstract Note Alias Review', $summary['title'] ?? null);
+        $t->same('abstract', $citationChildren[1]['variable'] ?? null);
+        $t->same('annotation', $citationChildren[2]['variable'] ?? null);
+        $t->same('note', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | Camel abstract packet | Camel annotation packet | Camel note packet; Bell | Hyphen abstract packet | Hyphen annotation packet | Hyphen note packet; Chen | Flat abstract packet | Flat annotation packet | Flat note packet]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-abstract-camel', 'text' => '[@direct-abstract-camel]']),
+            new AstNode('citation', ['id' => 'direct-abstract-hyphen', 'text' => '[@direct-abstract-hyphen]']),
+            new AstNode('citation', ['id' => 'direct-abstract-flat', 'text' => '[@direct-abstract-flat]']),
+        ]));
+        $t->same('Direct Abstract Camel Packet :: Camel abstract packet :: Camel annotation packet :: Camel note packet', $styled->renderBibliographyEntry('direct-abstract-camel'));
+        $t->same('Direct Abstract Hyphen Packet :: Hyphen abstract packet :: Hyphen annotation packet :: Hyphen note packet', $styled->renderBibliographyEntry('direct-abstract-hyphen'));
+        $t->same('Direct Abstract Flat Packet :: Flat abstract packet :: Flat annotation packet :: Flat note packet', $styled->renderBibliographyEntry('direct-abstract-flat'));
+
+        $document = (new MarkdownReader())->read('Direct abstract aliases [@direct-abstract-camel; @direct-abstract-hyphen; @direct-abstract-flat] keep note metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct abstract aliases [Ames | Camel abstract packet | Camel annotation packet | Camel note packet; Bell | Hyphen abstract packet | Hyphen annotation packet | Hyphen note packet; Chen | Flat abstract packet | Flat annotation packet | Flat note packet] keep note metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Abstract Camel Packet :: Camel abstract packet :: Camel annotation packet :: Camel note packet</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Abstract Hyphen Packet :: Hyphen abstract packet :: Hyphen annotation packet :: Hyphen note packet</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Abstract Flat Packet :: Flat abstract packet :: Flat annotation packet :: Flat note packet</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,
