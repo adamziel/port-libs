@@ -17257,7 +17257,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, issues:list<string>}
+     * @return array{id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, contentType:?string, external:bool, exists:?bool, issues:list<string>}
      */
     private function internalSupportPartRelationshipSummary(
         OpcRelationship $relationship,
@@ -17269,6 +17269,8 @@ final class DocxReader
             'type' => $relationship->type,
             'target' => $relationship->target,
             'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
             'contentType' => null,
             'external' => $relationship->isExternal(),
             'exists' => null,
@@ -17276,6 +17278,9 @@ final class DocxReader
         ];
 
         if ($relationship->isExternal()) {
+            $suffix = self::relationshipTargetQueryAndFragment($relationship->target);
+            $summary['targetQuery'] = $suffix['query'];
+            $summary['targetFragment'] = $suffix['fragment'];
             $summary['issues'][] = 'external-support-part';
 
             return $summary;
@@ -17290,8 +17295,11 @@ final class DocxReader
         }
 
         $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $suffix = self::relationshipTargetQueryAndFragment($target);
         $summary['target'] = $target;
         $summary['targetPart'] = $targetPart;
+        $summary['targetQuery'] = $suffix['query'];
+        $summary['targetFragment'] = $suffix['fragment'];
         $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
         $summary['exists'] = $package->has($targetPart);
 
@@ -17692,7 +17700,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{id:?string, sourcePart:string, relationshipsPart:?string, relationshipType:?string, target:?string, targetPart:?string, contentType:?string, external:?bool, exists:?bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, issues:list<string>}|null
+     * @return array{id:?string, sourcePart:string, relationshipsPart:?string, relationshipType:?string, target:?string, targetPart:?string, targetQuery:?string, targetFragment:?string, contentType:?string, external:?bool, exists:?bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, issues:list<string>}|null
      */
     private function settingsRelationshipChildSummary(
         \DOMElement $owner,
@@ -17714,6 +17722,8 @@ final class DocxReader
             'relationshipType' => null,
             'target' => null,
             'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
             'contentType' => null,
             'external' => null,
             'exists' => null,
@@ -17747,7 +17757,10 @@ final class DocxReader
         $summary['relationshipType'] = $relationship->type;
         if ($relationship->isExternal()) {
             $externalTarget = $relationship->externalTargetPreflight();
+            $suffix = self::relationshipTargetQueryAndFragment($relationship->target);
             $summary['target'] = $relationship->target;
+            $summary['targetQuery'] = $suffix['query'];
+            $summary['targetFragment'] = $suffix['fragment'];
             $summary['external'] = true;
             $summary['externalTargetKind'] = $externalTarget['kind'];
             $summary['externalTargetScheme'] = $externalTarget['scheme'];
@@ -17767,8 +17780,11 @@ final class DocxReader
         }
 
         $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $suffix = self::relationshipTargetQueryAndFragment($target);
         $summary['target'] = $target;
         $summary['targetPart'] = $targetPart;
+        $summary['targetQuery'] = $suffix['query'];
+        $summary['targetFragment'] = $suffix['fragment'];
         $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
         $summary['external'] = false;
         $summary['exists'] = $package->has($targetPart);
@@ -17890,6 +17906,8 @@ final class DocxReader
             'relationshipType' => null,
             'target' => null,
             'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
             'contentType' => null,
             'external' => null,
             'exists' => null,
@@ -17928,7 +17946,10 @@ final class DocxReader
         if ($relationship->isExternal()) {
             $target = $relationship->target;
             $externalTarget = $relationship->externalTargetPreflight();
+            $suffix = self::relationshipTargetQueryAndFragment($target);
             $summary['target'] = $target;
+            $summary['targetQuery'] = $suffix['query'];
+            $summary['targetFragment'] = $suffix['fragment'];
             $summary['external'] = true;
             $summary['externalTargetKind'] = $externalTarget['kind'];
             $summary['externalTargetScheme'] = $externalTarget['scheme'];
@@ -17948,8 +17969,11 @@ final class DocxReader
         }
 
         $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $suffix = self::relationshipTargetQueryAndFragment($target);
         $summary['target'] = $target;
         $summary['targetPart'] = $targetPart;
+        $summary['targetQuery'] = $suffix['query'];
+        $summary['targetFragment'] = $suffix['fragment'];
         $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
         $summary['external'] = false;
         $summary['exists'] = $package->has($targetPart);

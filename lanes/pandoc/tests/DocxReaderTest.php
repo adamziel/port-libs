@@ -4639,7 +4639,7 @@ XML;
 
 $settingsDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?policy=review#settings"/>
   <Relationship Id="rIdWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="webSettings.xml?profile=browser#web"/>
 </Relationships>
 XML;
@@ -4648,7 +4648,7 @@ $settingsRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/source-templates/review.dotx" TargetMode="External"/>
   <Relationship Id="rIdMergeSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="file:///C:/source-data/review.xlsx" TargetMode="External"/>
-  <Relationship Id="rIdMergeHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="../mailmerge/header-source.xml"/>
+  <Relationship Id="rIdMergeHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="../mailmerge/header-source.xml?sheet=review#header"/>
 </Relationships>
 XML;
 
@@ -13420,7 +13420,10 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $settings['contentType']);
         $t->same('rIdSettings', $settings['relationship']['id']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', $settings['relationship']['type']);
-        $t->same('/word/settings.xml', $settings['relationship']['target']);
+        $t->same('/word/settings.xml?policy=review#settings', $settings['relationship']['target']);
+        $t->same('/word/settings.xml', $settings['relationship']['targetPart']);
+        $t->same('policy=review', $settings['relationship']['targetQuery']);
+        $t->same('settings', $settings['relationship']['targetFragment']);
         $t->same(false, $settings['relationship']['external']);
         $t->same(true, $settings['relationship']['exists']);
         $t->same(true, $settings['trackRevisions']);
@@ -13472,6 +13475,8 @@ XML;
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings', $webSettings['relationship']['type']);
         $t->same('/word/webSettings.xml?profile=browser#web', $webSettings['relationship']['target']);
         $t->same('/word/webSettings.xml', $webSettings['relationship']['targetPart']);
+        $t->same('profile=browser', $webSettings['relationship']['targetQuery']);
+        $t->same('web', $webSettings['relationship']['targetFragment']);
         $t->same(false, $webSettings['relationship']['external']);
         $t->same(true, $webSettings['relationship']['exists']);
         $t->same([], $webSettings['relationship']['issues']);
@@ -13553,8 +13558,10 @@ XML;
         $headerSource = $mailMerge['headerSource'];
         $t->same('rIdMergeHeader', $headerSource['id']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource', $headerSource['relationshipType']);
-        $t->same('/mailmerge/header-source.xml', $headerSource['target']);
+        $t->same('/mailmerge/header-source.xml?sheet=review#header', $headerSource['target']);
         $t->same('/mailmerge/header-source.xml', $headerSource['targetPart']);
+        $t->same('sheet=review', $headerSource['targetQuery']);
+        $t->same('header', $headerSource['targetFragment']);
         $t->same('application/xml', $headerSource['contentType']);
         $t->same(false, $headerSource['external']);
         $t->same(true, $headerSource['exists']);
