@@ -8827,6 +8827,13 @@ final class ZipPackage
                 'central-directory-variable-fields',
                 static fn (): array => self::centralDirectoryVariableFieldsPreflight($bytes)
             );
+            if (
+                $centralDirectoryVariableFields !== null
+                && !$centralDirectoryVariableFields['isSupportedByBoundedReader']
+            ) {
+                $addDiagnostic('central-directory-variable-field-issues');
+                $addDiagnostics($centralDirectoryVariableFields['issues']);
+            }
 
             $centralDirectoryRepairPlan = $runPreflight(
                 'central-directory-repair-plan',

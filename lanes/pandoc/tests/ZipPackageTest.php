@@ -4659,6 +4659,46 @@ return [
         $t->same($summary, $strict['centralDirectoryVariableFields']);
     },
 
+    'preflights zip central directory variable field issues before raw strict import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central variable field split marker</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => "central variable field split media\n",
+                'method' => 0,
+            ],
+        ]);
+        $base = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $splitZip = $rewriteEndOfCentralDirectory($zip, [
+            'diskNumber' => 1,
+            'centralDirectoryDisk' => 1,
+            'diskEntryCount' => 1,
+        ]);
+        $summary = ZipPackage::centralDirectoryVariableFieldsPreflight($splitZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($splitZip, 4096, 100.0, 4096);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same($base['centralDirectoryEnd'], $summary['centralDirectoryEnd']);
+        $t->same($base['centralDirectoryEnd'], $summary['scanStoppedOffset']);
+        $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(null, $summary['unexpectedRecordOffset']);
+        $t->same(null, $summary['unexpectedRecordSignatureHex']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['split-archive-eocd'], $summary['issues']);
+        $t->same($summary, $rawStrict['centralDirectoryVariableFields']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(true, in_array('central-directory-variable-field-issues', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('split-archive-eocd', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('zip-package-instantiation-failed', $rawStrict['diagnostics'], true));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($splitZip));
+    },
+
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [
