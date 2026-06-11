@@ -304,9 +304,20 @@ BIB;
   howpublished      = {print-on-demand packet},
   date              = {2026}
 }
+
+@book{status-taxonomy-alias,
+  author             = {Ames, Ari},
+  title              = {Status Taxonomy Alias},
+  publication-status = {in review},
+  keyword-list       = {legacy; csl alias},
+  category-list      = {handoff, taxonomy},
+  date               = {2025}
+}
 BIB;
 
-        $item = (new BibtexCslProcessor())->cslItems($source)['translated-manual'];
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $item = $items['translated-manual'];
+        $alias = $items['status-taxonomy-alias'];
         $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
 
         $t->same('book', $item['type']);
@@ -324,6 +335,9 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
+        $t->same('in review', $alias['status']);
+        $t->same(['legacy', 'csl alias'], $alias['keyword']);
+        $t->same(['handoff', 'taxonomy'], $alias['categories']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
     'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {

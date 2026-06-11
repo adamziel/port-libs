@@ -788,7 +788,7 @@ final class BibtexCslParser
             'gender' => self::firstField($fields, ['gender']),
             'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
             'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
-            'status' => self::firstField($fields, ['status', 'pubstate']),
+            'status' => self::firstField($fields, ['status', 'publication-status', 'publicationstatus', 'pubstate']),
             'version' => self::firstField($fields, ['version']),
             'rights' => self::firstField($fields, ['rights', 'copyright', 'license', 'licence']),
             'DOI' => self::firstField($fields, ['doi']),
@@ -916,12 +916,12 @@ final class BibtexCslParser
             $item['biblatex-refsegment'] = $refsegment;
         }
 
-        $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
+        $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
         }
 
-        $categories = self::keywordList(self::firstField($fields, ['categories', 'category']));
+        $categories = self::keywordList(self::firstField($fields, ['categories', 'category', 'category-list', 'categorylist']));
         if ($categories !== []) {
             $item['categories'] = $categories;
         }
