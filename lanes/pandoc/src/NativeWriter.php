@@ -285,14 +285,7 @@ final class NativeWriter
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->blocks($node->children)],
-            'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [
-                    (int) $node->attr('start', 1),
-                    ['t' => $this->listStyleConstructor((string) $node->attr('style', 'default'))],
-                    ['t' => $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))],
-                ],
-                $this->listItems($node->children),
-            ]],
+            'ordered_list' => $this->orderedListBlock($node),
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->listItems($node->children)],
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->definitionItems($node->children)],
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(
@@ -306,6 +299,24 @@ final class NativeWriter
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function orderedListBlock(AstNode $node): array
+    {
+        $styleConstructor = $this->listStyleConstructor((string) $node->attr('style', 'default'));
+        $delimiterConstructor = $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'));
+
+        return ['t' => 'OrderedList', 'c' => [
+            [
+                (int) $node->attr('start', 1),
+                $this->enumNative($node->attr('listStyleNative'), $styleConstructor),
+                $this->enumNative($node->attr('listDelimiterNative'), $delimiterConstructor),
+            ],
+            $this->listItems($node->children),
+        ]];
     }
 
     /**
@@ -1226,6 +1237,19 @@ final class NativeWriter
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    private function enumNative(mixed $native, string $constructor): mixed
+    {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return ['t' => $constructor];
     }
 
     private function listStyleConstructor(string $style): string

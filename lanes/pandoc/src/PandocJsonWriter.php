@@ -300,10 +300,7 @@ final class PandocJsonWriter
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
-            'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [(int) $node->attr('start', 1), $this->enum($this->listStyleConstructor((string) $node->attr('style', 'default'))), $this->enum($this->listDelimiterConstructor((string) $node->attr('delimiter', 'default')))],
-                $this->writeListItems($node->children),
-            ]],
+            'ordered_list' => $this->writeOrderedListBlock($node),
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItems($node->children)],
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
@@ -315,6 +312,24 @@ final class PandocJsonWriter
             'native_block' => $this->nativeTaggedConstructor($node, 'block'),
             default => throw new \InvalidArgumentException("Unsupported AST block node for Pandoc JSON: {$node->type}"),
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeOrderedListBlock(AstNode $node): array
+    {
+        $styleConstructor = $this->listStyleConstructor((string) $node->attr('style', 'default'));
+        $delimiterConstructor = $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'));
+
+        return ['t' => 'OrderedList', 'c' => [
+            [
+                (int) $node->attr('start', 1),
+                $this->enumNative($node->attr('listStyleNative'), $styleConstructor),
+                $this->enumNative($node->attr('listDelimiterNative'), $delimiterConstructor),
+            ],
+            $this->writeListItems($node->children),
+        ]];
     }
 
     /**
@@ -1087,6 +1102,19 @@ final class PandocJsonWriter
     private function enum(string $constructor): array
     {
         return ['t' => $constructor];
+    }
+
+    private function enumNative(mixed $native, string $constructor): mixed
+    {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return $this->enum($constructor);
     }
 
     private function listStyleConstructor(string $style): string

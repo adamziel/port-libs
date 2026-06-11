@@ -1870,6 +1870,50 @@ return [
         $t->same($blocks, $jsonPacket['blocks']);
         $t->same($blocks, $nativePacket['blocks']);
     },
+    'preserves ordered list string enum payloads through json and native writers' => static function (TestRunner $t): void {
+        $blocks = [
+            ['t' => 'OrderedList', 'c' => [
+                [4, 'Example', 'Period'],
+                [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Example']]]]],
+            ]],
+            ['t' => 'OrderedList', 'c' => [
+                [5, ['t' => 'LowerAlpha'], 'OneParen'],
+                [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Alpha']]]]],
+            ]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $first = $document->children[0];
+            $second = $document->children[1];
+
+            $t->same('ordered_list', $first->type, "{$source} first ordered list type");
+            $t->same('example', $first->attr('style'), "{$source} first ordered list style");
+            $t->same('Example', $first->attr('listStyleConstructor'), "{$source} first style constructor");
+            $t->same('Example', $first->attr('listStyleNative'), "{$source} first style native");
+            $t->same('period', $first->attr('delimiter'), "{$source} first delimiter");
+            $t->same('Period', $first->attr('listDelimiterNative'), "{$source} first delimiter native");
+            $t->same('lower_alpha', $second->attr('style'), "{$source} second ordered list style");
+            $t->same(['t' => 'LowerAlpha'], $second->attr('listStyleNative'), "{$source} second style native");
+            $t->same('one_paren', $second->attr('delimiter'), "{$source} second delimiter");
+            $t->same('OneParen', $second->attr('listDelimiterNative'), "{$source} second delimiter native");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($blocks, $jsonPacket['blocks']);
+        $t->same($blocks, $nativePacket['blocks']);
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
