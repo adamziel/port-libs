@@ -2405,6 +2405,9 @@ final class DocxOpenXmlReader
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
+            'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
+            'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
+            'contentTypeMissingOverrides' => $contentTypesPart['missingOverrides'] ?? [],
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2844,6 +2847,14 @@ final class DocxOpenXmlReader
                 'exists' => isset($parts[$partName]),
             ] + $this->contentTypeReport($contentType);
         }
+        $missingOverrides = [];
+        foreach ($overrides as $partName => $override) {
+            if (($override['exists'] ?? false) === true) {
+                continue;
+            }
+
+            $missingOverrides[] = $override;
+        }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
 
         return [
@@ -2856,6 +2867,9 @@ final class DocxOpenXmlReader
             'overrides' => $overrides,
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),
             'parameterizedContentTypes' => $parameterizedContentTypes,
+            'missingOverrideCount' => count($missingOverrides),
+            'missingOverrideParts' => array_column($missingOverrides, 'partName'),
+            'missingOverrides' => $missingOverrides,
             'preflight' => $preflight,
             'valid' => $preflight === null ? false : $preflight['valid'],
             'issues' => $preflight === null ? ['missing-content-types-part'] : $preflight['issues'],
