@@ -1244,6 +1244,78 @@ XML;
         $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
     },
 
+    'summarizes OPF subject refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithSubjectMetadata = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:subject id="subject-keyword" scheme="review-taxonomy" xml:lang="en" dir="ltr">Data Liberation</dc:subject>
+    <dc:subject id="subject-secondary">WordPress import</dc:subject>
+    <dc:language>en-US</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithSubjectMetadata = str_replace(
+            '</metadata>',
+            '    <meta refines="#subject-keyword" property="authority">Migration Taxonomy</meta>
+    <meta refines="#subject-keyword" property="term">data-liberation</meta>
+    <meta refines="#subject-keyword" property="display-seq">1</meta>
+    <meta refines="#subject-secondary" property="term">wordpress-import</meta>
+    <meta refines="#subject-secondary" property="alternate-script" xml:lang="es">Importacion de WordPress</meta>
+  </metadata>',
+            $opfWithSubjectMetadata
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSubjectMetadata],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $subjectDetails = $metadata['subjectDetails'];
+        $subjectSummary = $metadata['subjectSummary'];
+
+        $t->same(['Data Liberation', 'WordPress import'], $metadata['subjects']);
+        $t->same(2, count($subjectDetails));
+        $t->same('subject-keyword', $subjectDetails[0]['id']);
+        $t->same('review-taxonomy', $subjectDetails[0]['scheme']);
+        $t->same('en', $subjectDetails[0]['language']);
+        $t->same('ltr', $subjectDetails[0]['direction']);
+        $t->same('Migration Taxonomy', $subjectDetails[0]['authority']);
+        $t->same('data-liberation', $subjectDetails[0]['term']);
+        $t->same('1', $subjectDetails[0]['displaySeq']);
+        $t->same(1, $subjectDetails[0]['displaySeqNumber']);
+        $t->same('subject-secondary', $subjectDetails[1]['id']);
+        $t->same('wordpress-import', $subjectDetails[1]['term']);
+        $t->same('Importacion de WordPress', $subjectDetails[1]['alternateScripts'][0]['text']);
+        $t->same('es', $subjectDetails[1]['alternateScripts'][0]['language']);
+        $t->same($subjectDetails[0], $metadata['subjectsByTerm']['data-liberation'][0]);
+        $t->same($subjectDetails[1], $metadata['subjectsByTerm']['wordpress-import'][0]);
+        $t->same($subjectDetails[0], $metadata['subjectsByAuthority']['Migration Taxonomy'][0]);
+        $t->same([
+            'present' => true,
+            'count' => 2,
+            'schemeCount' => 1,
+            'authorityCount' => 1,
+            'termCount' => 2,
+            'displaySeqCount' => 1,
+            'alternateScriptCount' => 1,
+            'schemes' => ['review-taxonomy'],
+            'authorities' => ['Migration Taxonomy'],
+            'terms' => ['data-liberation', 'wordpress-import'],
+            'diagnostics' => [],
+        ], $subjectSummary);
+
+        $t->same($subjectDetails, $summary['wordpressImport']['metadataDetails']['subjectDetails']);
+        $t->same($metadata['subjectsByTerm'], $summary['wordpressImport']['metadataDetails']['subjectsByTerm']);
+        $t->same($metadata['subjectsByAuthority'], $summary['wordpressImport']['metadataDetails']['subjectsByAuthority']);
+        $t->same($subjectSummary, $summary['wordpressImport']['metadataDetails']['subjectSummary']);
+    },
+
     'summarizes OPF bibliographic Dublin Core metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithBibliographicMetadata = str_replace(
             '<dc:language>en-US</dc:language>',

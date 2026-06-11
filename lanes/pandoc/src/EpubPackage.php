@@ -539,6 +539,10 @@ final class EpubPackage
                     'sourcesByType' => $this->metadata['sourcesByType'] ?? [],
                     'sourceSummary' => $this->metadata['sourceSummary'] ?? [],
                     'subjects' => $this->metadata['subjects'] ?? [],
+                    'subjectDetails' => $this->metadata['subjectDetails'] ?? [],
+                    'subjectsByTerm' => $this->metadata['subjectsByTerm'] ?? [],
+                    'subjectsByAuthority' => $this->metadata['subjectsByAuthority'] ?? [],
+                    'subjectSummary' => $this->metadata['subjectSummary'] ?? [],
                     'description' => $this->metadata['description'] ?? null,
                     'publisher' => $this->metadata['publisher'] ?? null,
                     'bibliographicDetails' => $this->metadata['bibliographicDetails'] ?? [],
@@ -2390,6 +2394,7 @@ final class EpubPackage
         $languageDetails = self::metadataLanguageDetails($dc['language'] ?? []);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
+        $subjectDetails = self::metadataSubjectDetails($dc['subject'] ?? []);
         $bibliographicDetails = self::metadataBibliographicDetails($dc);
         $renditionLayout = self::metadataRenditionLayoutReport($metaProperties);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
@@ -2452,6 +2457,10 @@ final class EpubPackage
             'sourcesByType' => self::metadataSourcesByType($sourceDetails),
             'sourceSummary' => self::metadataSourceSummary($sourceDetails),
             'subjects' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['subject'] ?? []),
+            'subjectDetails' => $subjectDetails,
+            'subjectsByTerm' => self::metadataDetailsByField($subjectDetails, 'term'),
+            'subjectsByAuthority' => self::metadataDetailsByField($subjectDetails, 'authority'),
+            'subjectSummary' => self::metadataSubjectSummary($subjectDetails),
             'description' => $dc['description'][0]['text'] ?? null,
             'publisher' => $dc['publisher'][0]['text'] ?? null,
             'bibliographicDetails' => $bibliographicDetails,
@@ -3529,6 +3538,95 @@ final class EpubPackage
             'sourceOfValues' => array_values($sourceOfValues),
             'identifierTypes' => array_values($identifierTypes),
             'schemes' => array_values($schemes),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataSubjectDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $authorityEntries = self::metadataRefinementEntries($refinements, 'authority');
+            $termEntries = self::metadataRefinementEntries($refinements, 'term');
+            $alternateScripts = self::metadataRefinementEntries($refinements, 'alternate-script');
+            $displaySeq = self::firstMetadataRefinementValue($refinements, 'display-seq');
+
+            $details[] = [
+                'kind' => 'subject',
+                'index' => $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'authority' => is_array($authorityEntries[0] ?? null) ? (string) $authorityEntries[0]['value'] : null,
+                'authorityEntries' => $authorityEntries,
+                'term' => is_array($termEntries[0] ?? null) ? (string) $termEntries[0]['value'] : null,
+                'termEntries' => $termEntries,
+                'displaySeq' => $displaySeq,
+                'displaySeqNumber' => self::metadataDisplaySeqNumber($displaySeq),
+                'alternateScripts' => $alternateScripts,
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $subjectDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataSubjectSummary(array $subjectDetails): array
+    {
+        $schemes = [];
+        $authorities = [];
+        $terms = [];
+        $displaySeqCount = 0;
+        $alternateScriptCount = 0;
+
+        foreach ($subjectDetails as $detail) {
+            $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
+            if ($scheme !== '') {
+                $schemes[$scheme] = $scheme;
+            }
+
+            $authority = is_string($detail['authority'] ?? null) ? trim($detail['authority']) : '';
+            if ($authority !== '') {
+                $authorities[$authority] = $authority;
+            }
+
+            $term = is_string($detail['term'] ?? null) ? trim($detail['term']) : '';
+            if ($term !== '') {
+                $terms[$term] = $term;
+            }
+
+            if (is_string($detail['displaySeq'] ?? null) && $detail['displaySeq'] !== '') {
+                ++$displaySeqCount;
+            }
+
+            $alternateScripts = is_array($detail['alternateScripts'] ?? null) ? $detail['alternateScripts'] : [];
+            $alternateScriptCount += count($alternateScripts);
+        }
+
+        return [
+            'present' => $subjectDetails !== [],
+            'count' => count($subjectDetails),
+            'schemeCount' => count($schemes),
+            'authorityCount' => count($authorities),
+            'termCount' => count($terms),
+            'displaySeqCount' => $displaySeqCount,
+            'alternateScriptCount' => $alternateScriptCount,
+            'schemes' => array_values($schemes),
+            'authorities' => array_values($authorities),
+            'terms' => array_values($terms),
+            'diagnostics' => [],
         ];
     }
 
