@@ -190,6 +190,9 @@ final class OpenDocumentPackage
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
+     *     documentRoots:array<string, array<string, mixed>>,
+     *     embeddedObjectCount:int,
+     *     embeddedObjects:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     styleNames:list<string>,
      *     contentBlocks:int
@@ -233,6 +236,7 @@ final class OpenDocumentPackage
                 $encryptedParts[] = $entry['path'];
             }
         }
+        $embeddedObjects = $this->embeddedObjectInventory();
 
         return [
             'mimetype' => self::TEXT_MIMETYPE,
@@ -247,9 +251,184 @@ final class OpenDocumentPackage
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'manifestReview' => self::manifestReview($this->manifestEntries),
+            'documentRoots' => $this->documentRootsReport(),
+            'embeddedObjectCount' => $embeddedObjects['count'],
+            'embeddedObjects' => $embeddedObjects,
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function documentRootsReport(): array
+    {
+        return [
+            'contentXml' => $this->documentRootReport('content.xml', ['document-content', 'document']),
+            'stylesXml' => $this->documentRootReport('styles.xml', ['document-styles', 'document']),
+        ];
+    }
+
+    /**
+     * @param list<string> $validLocalNames
+     * @return array<string, mixed>
+     */
+    private function documentRootReport(string $path, array $validLocalNames): array
+    {
+        $manifestEntry = $this->manifestEntriesByPath[$path] ?? null;
+        $exists = $this->package->has($path);
+        $root = null;
+        if ($exists) {
+            $root = self::loadXml($this->package->read($path), 'ODT ' . $path)->documentElement;
+        }
+
+        $validOfficeRoot = $root instanceof \DOMElement
+            && $root->namespaceURI === self::OFFICE_NAMESPACE
+            && in_array($root->localName, $validLocalNames, true);
+        $diagnostics = [];
+        if (!is_array($manifestEntry)) {
+            $diagnostics[] = 'odf-document-root-not-manifest-declared';
+        }
+        if (!$exists) {
+            $diagnostics[] = 'odf-document-root-package-part-missing';
+        }
+        if ($root instanceof \DOMElement && !$validOfficeRoot) {
+            $diagnostics[] = 'odf-document-root-invalid';
+        }
+
+        return [
+            'path' => $path,
+            'declared' => is_array($manifestEntry),
+            'exists' => $exists,
+            'mediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
+            'rootName' => $root instanceof \DOMElement ? $root->tagName : null,
+            'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
+            'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
+            'officeVersion' => $root instanceof \DOMElement ? self::namespacedAttribute($root, self::OFFICE_NAMESPACE, 'version') : null,
+            'validOfficeRoot' => $validOfficeRoot,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     count:int,
+     *     missingCount:int,
+     *     objectTypes:array<string, int>,
+     *     items:list<array<string, mixed>>
+     * }
+     */
+    private function embeddedObjectInventory(): array
+    {
+        $roots = [];
+        foreach ($this->manifestEntries as $entry) {
+            $root = self::embeddedObjectRootForManifestEntry($entry);
+            if ($root !== null) {
+                $roots[$root] = true;
+            }
+        }
+        foreach ($this->package->names() as $name) {
+            $root = self::embeddedObjectRootForPackagePath($name);
+            if ($root !== null) {
+                $roots[$root] = true;
+            }
+        }
+
+        $rootPaths = array_keys($roots);
+        sort($rootPaths, SORT_STRING);
+
+        $items = [];
+        $missingCount = 0;
+        $objectTypes = [];
+        foreach ($rootPaths as $rootPath) {
+            $item = $this->embeddedObjectInventoryItem($rootPath);
+            $items[] = $item;
+            if (!$item['exists']) {
+                ++$missingCount;
+            }
+            $type = (string) $item['objectType'];
+            $objectTypes[$type] = ($objectTypes[$type] ?? 0) + 1;
+        }
+        ksort($objectTypes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'missingCount' => $missingCount,
+            'objectTypes' => $objectTypes,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function embeddedObjectInventoryItem(string $rootPath): array
+    {
+        $objectPath = rtrim($rootPath, '/');
+        $rootEntry = $this->manifestEntriesByPath[$rootPath] ?? $this->manifestEntriesByPath[$objectPath] ?? null;
+        $manifestEntries = [];
+        foreach ($this->manifestEntries as $entry) {
+            if ($entry['path'] === $rootPath || $entry['path'] === $objectPath || str_starts_with($entry['path'], $rootPath)) {
+                $manifestEntries[] = $entry;
+            }
+        }
+
+        $packageParts = [];
+        foreach ($this->package->names() as $name) {
+            if (($name === $objectPath || str_starts_with($name, $rootPath)) && !str_ends_with($name, '/')) {
+                $packageParts[] = $name;
+            }
+        }
+        sort($packageParts, SORT_STRING);
+
+        $mediaType = self::embeddedObjectMediaType($rootEntry, $manifestEntries);
+        $objectType = self::objectTypeForMediaType($mediaType);
+        $encrypted = is_array($rootEntry) && ($rootEntry['encrypted'] ?? false) === true;
+        foreach ($manifestEntries as $entry) {
+            $encrypted = $encrypted || ($entry['encrypted'] ?? false) === true;
+        }
+
+        $storedByteLength = 0;
+        foreach ($packageParts as $part) {
+            $storedByteLength += $this->package->entry($part)->uncompressedSize;
+        }
+
+        $replacementPath = 'ObjectReplacements/' . $objectPath;
+        $replacementExists = $this->package->has($replacementPath) || isset($this->manifestEntriesByPath[$replacementPath]);
+        $exists = $packageParts !== [];
+        $diagnostics = [];
+        if (!is_array($rootEntry)) {
+            $diagnostics[] = 'odf-embedded-object-root-manifest-entry-missing';
+        }
+        if (!$exists) {
+            $diagnostics[] = 'odf-embedded-object-package-parts-missing';
+        }
+        if ($encrypted) {
+            $diagnostics[] = 'odf-embedded-object-encrypted';
+        }
+
+        return [
+            'rootPath' => $rootPath,
+            'objectPath' => $objectPath,
+            'mediaType' => $mediaType === '' ? null : $mediaType,
+            'objectType' => $objectType,
+            'exists' => $exists,
+            'manifestDeclared' => is_array($rootEntry),
+            'manifestEntryCount' => count($manifestEntries),
+            'manifestPaths' => array_values(array_map(static fn (array $entry): string => $entry['path'], $manifestEntries)),
+            'packagePartCount' => count($packageParts),
+            'packageParts' => $packageParts,
+            'contentXml' => in_array($rootPath . 'content.xml', $packageParts, true) || isset($this->manifestEntriesByPath[$rootPath . 'content.xml']),
+            'stylesXml' => in_array($rootPath . 'styles.xml', $packageParts, true) || isset($this->manifestEntriesByPath[$rootPath . 'styles.xml']),
+            'manifestXml' => in_array($rootPath . 'META-INF/manifest.xml', $packageParts, true) || isset($this->manifestEntriesByPath[$rootPath . 'META-INF/manifest.xml']),
+            'replacementPath' => $replacementExists ? $replacementPath : null,
+            'storedByteLength' => $packageParts === [] ? null : $storedByteLength,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -391,6 +570,103 @@ final class OpenDocumentPackage
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function embeddedObjectRootForManifestEntry(array $entry): ?string
+    {
+        $path = (string) ($entry['path'] ?? '');
+        if ($path === '/' || $path === '' || str_starts_with($path, 'ObjectReplacements/')) {
+            return null;
+        }
+
+        $root = self::embeddedObjectRootForPackagePath($path);
+        if ($root !== null) {
+            return $root;
+        }
+
+        if (!self::isOpenDocumentObjectMediaType((string) ($entry['mediaType'] ?? ''))) {
+            return null;
+        }
+
+        if (str_ends_with($path, '/')) {
+            return $path;
+        }
+
+        $slash = strpos($path, '/');
+        if ($slash === false) {
+            return $path . '/';
+        }
+
+        return substr($path, 0, $slash + 1);
+    }
+
+    private static function embeddedObjectRootForPackagePath(string $path): ?string
+    {
+        $path = ltrim($path, '/');
+        if ($path === '' || str_starts_with($path, 'ObjectReplacements/')) {
+            return null;
+        }
+
+        $first = explode('/', $path, 2)[0];
+        if ($first === 'ObjectReplacements' || preg_match('/^Object(?:$|[ ._-]|\d)/', $first) !== 1) {
+            return null;
+        }
+
+        return $first . '/';
+    }
+
+    /**
+     * @param array<string, mixed>|null $rootEntry
+     * @param list<array<string, mixed>> $manifestEntries
+     */
+    private static function embeddedObjectMediaType(?array $rootEntry, array $manifestEntries): string
+    {
+        $mediaType = is_array($rootEntry) ? self::mediaTypeBase((string) ($rootEntry['mediaType'] ?? '')) : '';
+        if (self::isOpenDocumentObjectMediaType($mediaType)) {
+            return $mediaType;
+        }
+
+        foreach ($manifestEntries as $entry) {
+            $candidate = self::mediaTypeBase((string) ($entry['mediaType'] ?? ''));
+            if (self::isOpenDocumentObjectMediaType($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $mediaType;
+    }
+
+    private static function objectTypeForMediaType(string $mediaType): string
+    {
+        return match (self::mediaTypeBase($mediaType)) {
+            'application/vnd.oasis.opendocument.chart' => 'chart',
+            'application/vnd.oasis.opendocument.formula' => 'formula',
+            'application/vnd.oasis.opendocument.graphics' => 'graphics',
+            'application/vnd.oasis.opendocument.presentation' => 'presentation',
+            'application/vnd.oasis.opendocument.spreadsheet' => 'spreadsheet',
+            'application/vnd.oasis.opendocument.text' => 'text',
+            default => 'object',
+        };
+    }
+
+    private static function isOpenDocumentObjectMediaType(string $mediaType): bool
+    {
+        return in_array(self::mediaTypeBase($mediaType), [
+            'application/vnd.oasis.opendocument.chart',
+            'application/vnd.oasis.opendocument.formula',
+            'application/vnd.oasis.opendocument.graphics',
+            'application/vnd.oasis.opendocument.presentation',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'application/vnd.oasis.opendocument.text',
+        ], true);
+    }
+
+    private static function mediaTypeBase(string $mediaType): string
+    {
+        return strtolower(trim(explode(';', $mediaType, 2)[0]));
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
@@ -895,23 +1171,33 @@ final class OpenDocumentPackage
             return '/';
         }
 
-        if (str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+        if (
+            str_contains($path, '\\')
+            || str_contains($path, "\0")
+            || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1
+        ) {
             throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
         }
 
-        $segments = explode('/', $path);
-        foreach ($segments as $index => $segment) {
-            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
-            if ($isTrailingDirectorySegment) {
+        $isDirectory = str_ends_with($path, '/');
+        $path = ltrim($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
                 continue;
             }
 
-            if ($segment === '' || $segment === '.' || $segment === '..') {
+            if ($segment === '..') {
                 throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
             }
+            $segments[] = $segment;
         }
 
-        return $path;
+        if ($segments === []) {
+            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+        }
+
+        return implode('/', $segments) . ($isDirectory ? '/' : '');
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

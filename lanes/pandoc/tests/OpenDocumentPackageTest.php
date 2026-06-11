@@ -128,7 +128,100 @@ return [
         $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(0, $summary['encryptedCount']);
         $t->same([], $summary['encryptedParts']);
+        $t->same('document-content', $summary['documentRoots']['contentXml']['rootLocalName']);
+        $t->same('document-styles', $summary['documentRoots']['stylesXml']['rootLocalName']);
+        $t->same(true, $summary['documentRoots']['contentXml']['validOfficeRoot']);
+        $t->same(true, $summary['documentRoots']['stylesXml']['validOfficeRoot']);
+        $t->same(0, $summary['embeddedObjectCount']);
+        $t->same([], $summary['embeddedObjects']['items']);
         $t->same(3, $summary['contentBlocks']);
+    },
+    'normalizes ODT manifest paths and reports content and styles roots' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                'manifest:full-path="content.xml"',
+                'manifest:full-path="styles.xml"',
+                'manifest:full-path="Pictures/hero.png"',
+            ],
+            [
+                'manifest:full-path="/content.xml"',
+                'manifest:full-path="./styles.xml"',
+                'manifest:full-path="Pictures//./hero.png"',
+            ],
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+
+        $t->same('content.xml', $odt->manifestEntry('/content.xml')['path']);
+        $t->same('text/xml', $odt->mediaTypeForPath('./styles.xml'));
+        $t->same('image/png', $odt->mediaTypeForPath('Pictures//hero.png'));
+        $t->same('Pictures/hero.png', $odt->manifestEntry('Pictures/./hero.png')['path']);
+        $t->same('content.xml', $summary['documentRoots']['contentXml']['path']);
+        $t->same('text/xml', $summary['documentRoots']['contentXml']['mediaType']);
+        $t->same('office:document-content', $summary['documentRoots']['contentXml']['rootName']);
+        $t->same(OpenDocumentPackage::OFFICE_NAMESPACE, $summary['documentRoots']['contentXml']['rootNamespace']);
+        $t->same('1.3', $summary['documentRoots']['contentXml']['officeVersion']);
+        $t->same([], $summary['documentRoots']['contentXml']['diagnostics']);
+        $t->same('styles.xml', $summary['documentRoots']['stylesXml']['path']);
+        $t->same('office:document-styles', $summary['documentRoots']['stylesXml']['rootName']);
+        $t->same(OpenDocumentPackage::OFFICE_NAMESPACE, $summary['documentRoots']['stylesXml']['rootNamespace']);
+        $t->same([], $summary['documentRoots']['stylesXml']['diagnostics']);
+    },
+    'indexes ODT embedded object packages from manifest and package roots' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $objectContent = <<<'XML'
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>
+XML;
+        $objectStyles = <<<'XML'
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>
+XML;
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            <<<'XML'
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object 1/"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 1/content.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 1/styles.xml"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/Object 1"/>
+</manifest:manifest>
+XML,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Object 1/content.xml', 'data' => $objectContent],
+                ['name' => 'Object 1/styles.xml', 'data' => $objectStyles],
+                ['name' => 'ObjectReplacements/Object 1', 'data' => 'REPLACE'],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $inventory = $summary['embeddedObjects'];
+        $object = $inventory['items'][0];
+
+        $t->same(1, $summary['embeddedObjectCount']);
+        $t->same(1, $inventory['count']);
+        $t->same(0, $inventory['missingCount']);
+        $t->same(['chart' => 1], $inventory['objectTypes']);
+        $t->same('Object 1/', $object['rootPath']);
+        $t->same('Object 1', $object['objectPath']);
+        $t->same('application/vnd.oasis.opendocument.chart', $object['mediaType']);
+        $t->same('chart', $object['objectType']);
+        $t->same(true, $object['exists']);
+        $t->same(true, $object['manifestDeclared']);
+        $t->same(3, $object['manifestEntryCount']);
+        $t->same(['Object 1/', 'Object 1/content.xml', 'Object 1/styles.xml'], $object['manifestPaths']);
+        $t->same(2, $object['packagePartCount']);
+        $t->same(['Object 1/content.xml', 'Object 1/styles.xml'], $object['packageParts']);
+        $t->same(true, $object['contentXml']);
+        $t->same(true, $object['stylesXml']);
+        $t->same(false, $object['manifestXml']);
+        $t->same('ObjectReplacements/Object 1', $object['replacementPath']);
+        $t->same(strlen($objectContent) + strlen($objectStyles), $object['storedByteLength']);
+        $t->same(false, $object['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $object['byteExposurePolicy']);
+        $t->same([], $object['diagnostics']);
     },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
