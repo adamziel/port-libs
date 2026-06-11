@@ -431,8 +431,8 @@ final class OdfReader
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
             $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
             $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
-            $encryptionElement = self::firstChildElement($entryElement, 'encryption-data', self::MANIFEST_NS);
-            $encrypted = $encryptionElement instanceof \DOMElement;
+            $encryptionElements = self::childElements($entryElement, 'encryption-data', self::MANIFEST_NS);
+            $encrypted = $encryptionElements !== [];
             $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath);
             $part = $packageReference['part'];
             if (is_string($part) && $part !== '') {
@@ -492,7 +492,7 @@ final class OdfReader
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => $canExposeBytes,
-                'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
+                'encryption' => $encrypted ? $this->encryptionRecords($encryptionElements) : null,
             ];
             ++$manifestIndex;
         }
@@ -511,6 +511,31 @@ final class OdfReader
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @return array<string, mixed>
+     */
+    private function encryptionRecords(array $elements): array
+    {
+        $records = array_map(
+            fn (\DOMElement $element): array => $this->encryptionData($element),
+            $elements
+        );
+        $data = $records[0] ?? [];
+        $data['records'] = $records;
+        $data['recordCount'] = count($records);
+
+        if (count($records) > 1) {
+            $issueCodes = is_array($data['issueCodes'] ?? null) ? $data['issueCodes'] : [];
+            $issueCodes[] = 'odf-manifest-encryption-multiple-encryption-data';
+            $issueCodes = array_values(array_unique($issueCodes));
+            $data['issueCodes'] = $issueCodes;
+            $data['issueCount'] = count($issueCodes);
+        }
+
+        return self::withoutEmpty($data);
     }
 
     /**

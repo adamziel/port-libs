@@ -9602,6 +9602,81 @@ XML;
         $t->same($encryption['algorithms'], $compactEncryption['algorithms']);
         $t->same($encryption['unknownChildren'], $compactEncryption['unknownChildren']);
     },
+    'preserves ODT repeated manifest encryption data record provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="4096">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="first-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="first-iv"/>
+    </manifest:encryption-data>
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="second-checksum">
+      <manifest:algorithm manifest:algorithm-name="AES256" manifest:initialization-vector="second-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="2048" manifest:salt="second-salt"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithRepeatedEncryptionData = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithRepeatedEncryptionData));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $hero = $manifestByPath['Pictures/hero.png'];
+        $encryption = $hero['encryption'];
+        $t->same(true, $hero['encrypted']);
+        $t->same(false, $hero['canExposeBytes']);
+        $t->same('SHA1/1K', $encryption['checksumType']);
+        $t->same('first-checksum', $encryption['checksum']);
+        $t->same('Blowfish CFB', $encryption['algorithm']['name']);
+        $t->same('first-iv', $encryption['algorithm']['initialisationVector']);
+        $t->same(2, $encryption['recordCount']);
+        $t->same('SHA1/1K', $encryption['records'][0]['checksumType']);
+        $t->same('SHA256/1K', $encryption['records'][1]['checksumType']);
+        $t->same('second-checksum', $encryption['records'][1]['checksum']);
+        $t->same('AES256', $encryption['records'][1]['algorithm']['name']);
+        $t->same('second-iv', $encryption['records'][1]['algorithm']['initialisationVector']);
+        $t->same('PBKDF2', $encryption['records'][1]['keyDerivation']['name']);
+        $t->same(2048, $encryption['records'][1]['keyDerivation']['iterationCount']);
+        $t->same('second-salt', $encryption['records'][1]['keyDerivation']['salt']);
+        $t->same(1, $encryption['issueCount']);
+        $t->same(['odf-manifest-encryption-multiple-encryption-data'], $encryption['issueCodes']);
+
+        $mediaEncryption = $result['media'][0]['encryption'];
+        $imageEncryption = $result['document']->children[5]->children[0]->attr('encryption');
+        $reportEncryption = $result['importReport']['manifest']['encryptedItems'][0]['encryption'];
+        $t->same($encryption, $mediaEncryption);
+        $t->same($encryption, $reportEncryption);
+        $t->same($encryption['records'], $imageEncryption['records']);
+        $t->same(false, $result['media'][0]['canExposeBytes']);
+        $t->same(1, $result['importReport']['encryption']['count']);
+        $t->same(['Pictures/hero.png'], $result['importReport']['encryption']['encryptedParts']);
+
+        $compactPackage = OpenDocumentPackage::fromPackage($buildOdtPackage(null, $manifestWithRepeatedEncryptionData));
+        $compactEncryption = $compactPackage->manifestEntry('Pictures/hero.png')['encryption'];
+        $compactSummary = $compactPackage->summarize();
+        $compactReviewByPath = [];
+        foreach ($compactSummary['manifestReview']['items'] as $item) {
+            $compactReviewByPath[$item['path']] = $item;
+        }
+
+        $t->same(2, $compactEncryption['recordCount']);
+        $t->same($encryption['issueCodes'], $compactEncryption['issueCodes']);
+        $t->same($encryption['records'], $compactEncryption['records']);
+        $t->same(false, $compactPackage->manifestEntry('Pictures/hero.png')['canExposeBytes']);
+        $t->same(2, $compactSummary['mediaParts'][0]['encryptionRecordCount']);
+        $t->same($encryption['issueCodes'], $compactSummary['mediaParts'][0]['encryptionIssueCodes']);
+        $t->same($compactEncryption, $compactSummary['mediaParts'][0]['encryption']);
+        $t->same(2, $compactReviewByPath['Pictures/hero.png']['encryptionRecordCount']);
+        $t->same($encryption['issueCodes'], $compactReviewByPath['Pictures/hero.png']['encryptionIssueCodes']);
+        $t->same($compactEncryption, $compactReviewByPath['Pictures/hero.png']['encryption']);
+        $t->same(2, $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionRecordCount']);
+        $t->same($encryption['issueCodes'], $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionIssueCodes']);
+    },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',

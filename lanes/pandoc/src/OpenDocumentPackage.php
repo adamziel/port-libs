@@ -265,6 +265,9 @@ final class OpenDocumentPackage
                     'declaredSize' => $entry['size'],
                     'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
                     'encrypted' => $entry['encrypted'],
+                    'encryption' => $entry['encryption'],
+                    'encryptionRecordCount' => is_array($entry['encryption']) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
+                    'encryptionIssueCodes' => is_array($entry['encryption']) ? ($entry['encryption']['issueCodes'] ?? []) : [],
                     'canExposeBytes' => $entry['canExposeBytes'],
                     'byteExposurePolicy' => $entry['byteExposurePolicy'],
                     'diagnostics' => $entry['diagnostics'],
@@ -378,6 +381,13 @@ final class OpenDocumentPackage
                 'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestEntry) ? $manifestEntry['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestEntry) ? $manifestEntry['preferredViewMode'] : null,
+                'manifestEncryption' => is_array($manifestEntry) ? $manifestEntry['encryption'] : null,
+                'manifestEncryptionRecordCount' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
+                    ? ($manifestEntry['encryption']['recordCount'] ?? 0)
+                    : 0,
+                'manifestEncryptionIssueCodes' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
+                    ? ($manifestEntry['encryption']['issueCodes'] ?? [])
+                    : [],
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -644,6 +654,9 @@ final class OpenDocumentPackage
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'encryption' => $entry['encryption'] ?? null,
+            'encryptionRecordCount' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
+            'encryptionIssueCodes' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['issueCodes'] ?? []) : [],
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -754,11 +767,35 @@ final class OpenDocumentPackage
      */
     private static function manifestEncryption(\DOMElement $entry): ?array
     {
-        $encryption = self::firstDirectChildElement($entry, self::MANIFEST_NAMESPACE, 'encryption-data');
-        if (!$encryption instanceof \DOMElement) {
+        $encryptionElements = self::childElements($entry, self::MANIFEST_NAMESPACE, 'encryption-data');
+        if ($encryptionElements === []) {
             return null;
         }
 
+        $records = array_map(
+            static fn (\DOMElement $encryption): array => self::manifestEncryptionData($encryption),
+            $encryptionElements
+        );
+        $data = $records[0] ?? [];
+        $data['records'] = $records;
+        $data['recordCount'] = count($records);
+
+        if (count($records) > 1) {
+            $issueCodes = is_array($data['issueCodes'] ?? null) ? $data['issueCodes'] : [];
+            $issueCodes[] = 'odf-manifest-encryption-multiple-encryption-data';
+            $issueCodes = array_values(array_unique($issueCodes));
+            $data['issueCodes'] = $issueCodes;
+            $data['issueCount'] = count($issueCodes);
+        }
+
+        return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function manifestEncryptionData(\DOMElement $encryption): array
+    {
         $data = self::withoutNulls([
             'checksumType' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum-type')),
             'checksum' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum')),
