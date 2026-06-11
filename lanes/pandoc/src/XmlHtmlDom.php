@@ -1445,6 +1445,38 @@ final class XmlHtmlDom
             $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
         }
 
+        if (array_key_exists('inert', $attributes)) {
+            $summary['inertRaw'] = $attributes['inert'];
+            $summary['inert'] = true;
+        }
+
+        if (array_key_exists('popover', $attributes)) {
+            $popover = strtolower(trim($attributes['popover']));
+            $summary['popoverRaw'] = $attributes['popover'];
+            $summary['popoverState'] = match ($popover) {
+                '', 'auto' => 'auto',
+                'manual' => 'manual',
+                'hint' => 'hint',
+                default => null,
+            };
+        }
+
+        if (array_key_exists('popovertarget', $attributes)) {
+            $summary['popoverTargetRaw'] = $attributes['popovertarget'];
+            $summary['popoverTarget'] = trim($attributes['popovertarget']);
+        }
+
+        if (array_key_exists('popovertargetaction', $attributes)) {
+            $action = strtolower(trim($attributes['popovertargetaction']));
+            $summary['popoverTargetActionRaw'] = $attributes['popovertargetaction'];
+            $summary['popoverTargetAction'] = match ($action) {
+                '', 'toggle' => 'toggle',
+                'show' => 'show',
+                'hide' => 'hide',
+                default => null,
+            };
+        }
+
         if (array_key_exists('translate', $attributes)) {
             $translate = strtolower(trim($attributes['translate']));
             $summary['translateRaw'] = $attributes['translate'];

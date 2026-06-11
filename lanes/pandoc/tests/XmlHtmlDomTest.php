@@ -261,6 +261,60 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html popover command attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<div id="review-popover" popover="manual" inert data-review-panel="commands">Panel</div>'
+                . '<button id="show-popover" popovertarget="review-popover" popovertargetaction="show">Show</button>'
+                . '<button id="toggle-popover" popovertarget="review-popover" popovertargetaction="">Toggle</button>'
+                . '<aside id="auto-popover" popover>Auto panel</aside>'
+                . '<button id="bad-popover" popovertarget="missing-popover" popovertargetaction="launch">Bad</button>',
+            'popover command review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/popover-command-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $popover = $summary[0];
+        $show = $summary[1];
+        $toggle = $summary[2];
+        $auto = $summary[3];
+        $bad = $summary[4];
+
+        $t->same('review-popover', $popover['elementId']);
+        $t->same('manual', $popover['popoverRaw']);
+        $t->same('manual', $popover['popoverState']);
+        $t->same('', $popover['inertRaw']);
+        $t->same(true, $popover['inert']);
+        $t->same(['reviewPanel' => 'commands'], $popover['dataset']);
+
+        $t->same('show-popover', $show['elementId']);
+        $t->same('review-popover', $show['popoverTargetRaw']);
+        $t->same('review-popover', $show['popoverTarget']);
+        $t->same('show', $show['popoverTargetActionRaw']);
+        $t->same('show', $show['popoverTargetAction']);
+
+        $t->same('toggle-popover', $toggle['elementId']);
+        $t->same('review-popover', $toggle['popoverTarget']);
+        $t->same('', $toggle['popoverTargetActionRaw']);
+        $t->same('toggle', $toggle['popoverTargetAction']);
+
+        $t->same('auto-popover', $auto['elementId']);
+        $t->same('', $auto['popoverRaw']);
+        $t->same('auto', $auto['popoverState']);
+
+        $t->same('bad-popover', $bad['elementId']);
+        $t->same('missing-popover', $bad['popoverTarget']);
+        $t->same('launch', $bad['popoverTargetActionRaw']);
+        $t->same(null, $bad['popoverTargetAction']);
+
+        $t->same('<div data-review-panel="commands" id="review-popover" inert popover="manual">Panel</div><button id="show-popover" popovertarget="review-popover" popovertargetaction="show">Show</button><button id="toggle-popover" popovertarget="review-popover" popovertargetaction="">Toggle</button><aside id="auto-popover" popover="">Auto panel</aside><button id="bad-popover" popovertarget="missing-popover" popovertargetaction="launch">Bad</button>', $html);
+        $t->contains('<div data-review-panel="commands" id="review-popover" inert popover="manual">Panel</div>', $blocks);
+        $t->contains('<button id="bad-popover" popovertarget="missing-popover" popovertargetaction="launch">Bad</button>', $blocks);
+        $t->same('/migration/popover-command-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'
