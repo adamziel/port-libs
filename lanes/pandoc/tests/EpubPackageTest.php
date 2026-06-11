@@ -1552,6 +1552,84 @@ XML;
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'preserves EPUB package link href suffix provenance for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-suffix" rel="record" href="EPUB/meta/container-record.json?profile=ocf#record" media-type="application/ld+json"/>
+</metadata>
+XML;
+        $opfWithSuffixedLinks = str_replace(
+            '</metadata>',
+            '    <link id="package-suffix" rel="record" href="meta/package-record.json?edition=review#package" media-type="application/ld+json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithSuffixedLinks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="container-record" href="meta/container-record.json" media-type="application/ld+json"/>
+    <item id="package-record" href="meta/package-record.json" media-type="application/ld+json"/>',
+            $opfWithSuffixedLinks
+        );
+        $opfWithSuffixedLinks = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="review-links" role="review">
+    <link id="collection-suffix" rel="first" href="text/chapter1.xhtml?view=review#install" media-type="application/xhtml+xml"/>
+  </collection>',
+            $opfWithSuffixedLinks
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSuffixedLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/container-record.json', 'data' => '{"name":"container"}'],
+            ['name' => 'EPUB/meta/package-record.json', 'data' => '{"name":"package"}'],
+        ]));
+        $summary = $epub->summary();
+        $containerLink = $epub->containerLinks()[0];
+        $packageLink = $epub->packageLinks()[0];
+        $collectionLink = $epub->collections()[0]['links'][0];
+
+        $t->same('/EPUB/meta/container-record.json?profile=ocf#record', $containerLink['target']);
+        $t->same('/EPUB/meta/container-record.json', $containerLink['partName']);
+        $t->same('container-record', $containerLink['manifestId']);
+        $t->same(true, $containerLink['hrefHasQuery']);
+        $t->same('profile=ocf', $containerLink['hrefQuery']);
+        $t->same(true, $containerLink['hrefHasFragment']);
+        $t->same('record', $containerLink['hrefFragment']);
+
+        $t->same('/EPUB/meta/package-record.json?edition=review#package', $packageLink['target']);
+        $t->same('/EPUB/meta/package-record.json', $packageLink['partName']);
+        $t->same('package-record', $packageLink['manifestId']);
+        $t->same(true, $packageLink['hrefHasQuery']);
+        $t->same('edition=review', $packageLink['hrefQuery']);
+        $t->same(true, $packageLink['hrefHasFragment']);
+        $t->same('package', $packageLink['hrefFragment']);
+
+        $t->same('/EPUB/text/chapter1.xhtml?view=review#install', $collectionLink['target']);
+        $t->same('/EPUB/text/chapter1.xhtml', $collectionLink['partName']);
+        $t->same('chapter1', $collectionLink['manifestId']);
+        $t->same(true, $collectionLink['hrefHasQuery']);
+        $t->same('view=review', $collectionLink['hrefQuery']);
+        $t->same(true, $collectionLink['hrefHasFragment']);
+        $t->same('install', $collectionLink['hrefFragment']);
+
+        $t->same($containerLink, $summary['containerLinks'][0]);
+        $t->same($packageLink, $summary['packageLinks'][0]);
+        $t->same($collectionLink, $summary['collections'][0]['links'][0]);
+        $t->same(['/EPUB/meta/container-record.json?profile=ocf#record'], $summary['wordpressImport']['containerLinkTargets']);
+        $t->same(['/EPUB/meta/package-record.json?edition=review#package'], $summary['wordpressImport']['packageLinkTargets']);
+        $t->same(['/EPUB/text/chapter1.xhtml?view=review#install'], $summary['wordpressImport']['collectionLinkTargets']);
+    },
+
     'summarizes OPF accessibility metadata for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $a11yRecord = '{"@context":"https://schema.org","accessibilitySummary":"Compact package accessibility record"}';
         $opfWithAccessibility = str_replace(

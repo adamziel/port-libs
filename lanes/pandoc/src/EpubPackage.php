@@ -1644,6 +1644,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $hrefSuffix = [
+            'hasQuery' => false,
+            'query' => null,
+            'hasFragment' => false,
+            'fragment' => null,
+        ];
         $diagnostics = [];
 
         if ($rel === []) {
@@ -1661,6 +1667,7 @@ final class EpubPackage
         } else {
             try {
                 $target = self::resolvePackageHref('/', $href);
+                $hrefSuffix = self::packageHrefSuffixReport($target);
                 $external = self::isAbsoluteUri($target);
                 if ($external) {
                     $diagnostics[] = [
@@ -1708,6 +1715,10 @@ final class EpubPackage
             'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
             'language' => self::metadataElementLanguage($linkElement),
             'direction' => self::metadataElementDirection($linkElement),
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'diagnostics' => $diagnostics,
@@ -4398,6 +4409,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $hrefSuffix = [
+            'hasQuery' => false,
+            'query' => null,
+            'hasFragment' => false,
+            'fragment' => null,
+        ];
         $diagnostics = [];
 
         if ($rel === []) {
@@ -4415,6 +4432,7 @@ final class EpubPackage
         } else {
             try {
                 $target = self::resolvePackageHref($opfPartName, $href);
+                $hrefSuffix = self::packageHrefSuffixReport($target);
                 $external = self::isAbsoluteUri($target);
                 if ($external) {
                     $diagnostics[] = [
@@ -4472,6 +4490,10 @@ final class EpubPackage
             'direction' => self::metadataElementDirection($linkElement),
             'refines' => $refines,
             'subjectId' => self::metadataRefinementSubject($refines),
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
         ] + $provenance;
     }
@@ -4568,6 +4590,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $hrefSuffix = [
+            'hasQuery' => false,
+            'query' => null,
+            'hasFragment' => false,
+            'fragment' => null,
+        ];
         $diagnostics = [];
 
         if ($href === null) {
@@ -4578,6 +4606,7 @@ final class EpubPackage
         } else {
             try {
                 $target = self::resolvePackageHref($opfPartName, $href);
+                $hrefSuffix = self::packageHrefSuffixReport($target);
                 $external = self::isAbsoluteUri($target);
                 if ($external) {
                     $diagnostics[] = [
@@ -4628,6 +4657,10 @@ final class EpubPackage
             'properties' => self::splitTokens($linkElement->getAttribute('properties')),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
         ] + $provenance;
     }
