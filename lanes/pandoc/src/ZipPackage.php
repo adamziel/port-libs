@@ -2375,6 +2375,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     centralExtraFieldRecordBytes:int,
+     *     localExtraFieldRecordBytes:int,
+     *     extraFieldRecordBytes:int,
+     *     centralExtraFieldDataBytes:int,
+     *     localExtraFieldDataBytes:int,
+     *     extraFieldDataBytes:int,
      *     extraFieldIdUsage:list<array<string, mixed>>,
      *     duplicateEntries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
@@ -2396,7 +2402,11 @@ final class ZipPackage
 
         foreach ($this->entries as $entry) {
             $centralExtraFields = $entry->centralExtraFields();
-            $localExtraFields = $this->localExtraFields($entry->name);
+            $localHeader = $this->readLocalHeader($entry);
+            $localExtraFields = ZipPackageEntry::extraFieldsFromData(
+                $localHeader['extraFieldData'],
+                "local extra fields for {$entry->name}"
+            );
             $centralExtraFieldIds = array_map(
                 static fn (array $field): int => $field['id'],
                 $centralExtraFields
@@ -2405,6 +2415,8 @@ final class ZipPackage
                 static fn (array $field): int => $field['id'],
                 $localExtraFields
             );
+            $centralExtraFieldRecords = self::extraFieldRecordSummaries($centralExtraFields);
+            $localExtraFieldRecords = self::extraFieldRecordSummaries($localExtraFields);
             $duplicateCentralExtraFieldIds = self::duplicateIntegerValues($centralExtraFieldIds);
             $duplicateLocalExtraFieldIds = self::duplicateIntegerValues($localExtraFieldIds);
             $centralOnlyExtraFieldIds = self::integerValuesOnlyIn($centralExtraFieldIds, $localExtraFieldIds);
@@ -2438,8 +2450,16 @@ final class ZipPackage
 
             $summary = [
                 'name' => $entry->name,
+                'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'centralExtraFieldRecords' => $centralExtraFieldRecords,
+                'localExtraFieldRecords' => $localExtraFieldRecords,
+                'centralExtraFieldRecordBytes' => self::sumExtraFieldRecordBytes($centralExtraFieldRecords, 'recordLength'),
+                'localExtraFieldRecordBytes' => self::sumExtraFieldRecordBytes($localExtraFieldRecords, 'recordLength'),
+                'centralExtraFieldDataBytes' => self::sumExtraFieldRecordBytes($centralExtraFieldRecords, 'dataLength'),
+                'localExtraFieldDataBytes' => self::sumExtraFieldRecordBytes($localExtraFieldRecords, 'dataLength'),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
@@ -2478,6 +2498,12 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'centralExtraFieldRecordBytes' => $idUsage['centralExtraFieldRecordBytes'],
+            'localExtraFieldRecordBytes' => $idUsage['localExtraFieldRecordBytes'],
+            'extraFieldRecordBytes' => $idUsage['extraFieldRecordBytes'],
+            'centralExtraFieldDataBytes' => $idUsage['centralExtraFieldDataBytes'],
+            'localExtraFieldDataBytes' => $idUsage['localExtraFieldDataBytes'],
+            'extraFieldDataBytes' => $idUsage['extraFieldDataBytes'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'duplicateEntries' => $duplicateEntries,
             'mismatchedEntries' => $mismatchedEntries,
@@ -3662,6 +3688,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     centralExtraFieldRecordBytes:int,
+     *     localExtraFieldRecordBytes:int,
+     *     extraFieldRecordBytes:int,
+     *     centralExtraFieldDataBytes:int,
+     *     localExtraFieldDataBytes:int,
+     *     extraFieldDataBytes:int,
      *     extraFieldIdUsage:list<array<string, mixed>>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
@@ -3740,6 +3772,8 @@ final class ZipPackage
                 : [];
             $centralExtraFieldIds = array_map(static fn (array $field): int => $field['id'], $centralFields);
             $localExtraFieldIds = array_map(static fn (array $field): int => $field['id'], $localFields);
+            $centralExtraFieldRecords = self::extraFieldRecordSummaries($centralFields);
+            $localExtraFieldRecords = self::extraFieldRecordSummaries($localFields);
             $duplicateCentralExtraFieldIds = self::duplicateIntegerValues($centralExtraFieldIds);
             $duplicateLocalExtraFieldIds = self::duplicateIntegerValues($localExtraFieldIds);
             $centralOnlyExtraFieldIds = $localHeader['available']
@@ -3793,6 +3827,12 @@ final class ZipPackage
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'centralExtraFieldRecords' => $centralExtraFieldRecords,
+                'localExtraFieldRecords' => $localExtraFieldRecords,
+                'centralExtraFieldRecordBytes' => self::sumExtraFieldRecordBytes($centralExtraFieldRecords, 'recordLength'),
+                'localExtraFieldRecordBytes' => self::sumExtraFieldRecordBytes($localExtraFieldRecords, 'recordLength'),
+                'centralExtraFieldDataBytes' => self::sumExtraFieldRecordBytes($centralExtraFieldRecords, 'dataLength'),
+                'localExtraFieldDataBytes' => self::sumExtraFieldRecordBytes($localExtraFieldRecords, 'dataLength'),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
@@ -3861,6 +3901,12 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'centralExtraFieldRecordBytes' => $idUsage['centralExtraFieldRecordBytes'],
+            'localExtraFieldRecordBytes' => $idUsage['localExtraFieldRecordBytes'],
+            'extraFieldRecordBytes' => $idUsage['extraFieldRecordBytes'],
+            'centralExtraFieldDataBytes' => $idUsage['centralExtraFieldDataBytes'],
+            'localExtraFieldDataBytes' => $idUsage['localExtraFieldDataBytes'],
+            'extraFieldDataBytes' => $idUsage['extraFieldDataBytes'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
@@ -12495,7 +12541,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>}> $entries
+     * @param list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, centralExtraFieldRecords?:list<array{id:int, idHex:string, dataLength:int, recordLength:int}>, localExtraFieldRecords?:list<array{id:int, idHex:string, dataLength:int, recordLength:int}>}> $entries
      *
      * @return array{
      *     extraFieldIdCount:int,
@@ -12504,6 +12550,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     centralExtraFieldRecordBytes:int,
+     *     localExtraFieldRecordBytes:int,
+     *     extraFieldRecordBytes:int,
+     *     centralExtraFieldDataBytes:int,
+     *     localExtraFieldDataBytes:int,
+     *     extraFieldDataBytes:int,
      *     extraFieldIdUsage:list<array<string, mixed>>
      * }
      */
@@ -12513,13 +12565,29 @@ final class ZipPackage
         foreach ($entries as $entry) {
             $name = $entry['name'];
             $centralSeen = [];
-            foreach ($entry['centralExtraFieldIds'] as $id) {
-                self::addExtraFieldIdUsage($usage, $id, $name, 'central', $centralSeen);
+            foreach (self::extraFieldRecordsForUsage($entry, 'central') as $record) {
+                self::addExtraFieldIdUsage(
+                    $usage,
+                    $record['id'],
+                    $name,
+                    'central',
+                    $centralSeen,
+                    $record['recordLength'],
+                    $record['dataLength']
+                );
             }
 
             $localSeen = [];
-            foreach ($entry['localExtraFieldIds'] as $id) {
-                self::addExtraFieldIdUsage($usage, $id, $name, 'local', $localSeen);
+            foreach (self::extraFieldRecordsForUsage($entry, 'local') as $record) {
+                self::addExtraFieldIdUsage(
+                    $usage,
+                    $record['id'],
+                    $name,
+                    'local',
+                    $localSeen,
+                    $record['recordLength'],
+                    $record['dataLength']
+                );
             }
         }
 
@@ -12530,10 +12598,18 @@ final class ZipPackage
         $sharedIdCount = 0;
         $centralOnlyIdCount = 0;
         $localOnlyIdCount = 0;
+        $centralRecordBytes = 0;
+        $localRecordBytes = 0;
+        $centralDataBytes = 0;
+        $localDataBytes = 0;
         $rows = [];
         foreach ($usage as $id => $row) {
             $appearsInCentral = $row['centralRecordCount'] > 0;
             $appearsInLocal = $row['localRecordCount'] > 0;
+            $centralRecordBytes += $row['centralRecordBytes'];
+            $localRecordBytes += $row['localRecordBytes'];
+            $centralDataBytes += $row['centralDataBytes'];
+            $localDataBytes += $row['localDataBytes'];
             if ($appearsInCentral) {
                 $centralIdCount++;
             }
@@ -12553,6 +12629,12 @@ final class ZipPackage
                 'idHex' => sprintf('0x%04x', $id),
                 'centralRecordCount' => $row['centralRecordCount'],
                 'localRecordCount' => $row['localRecordCount'],
+                'centralRecordBytes' => $row['centralRecordBytes'],
+                'localRecordBytes' => $row['localRecordBytes'],
+                'recordBytes' => $row['centralRecordBytes'] + $row['localRecordBytes'],
+                'centralDataBytes' => $row['centralDataBytes'],
+                'localDataBytes' => $row['localDataBytes'],
+                'dataBytes' => $row['centralDataBytes'] + $row['localDataBytes'],
                 'centralEntryCount' => count($row['centralEntryNames']),
                 'localEntryCount' => count($row['localEntryNames']),
                 'appearsInCentral' => $appearsInCentral,
@@ -12572,28 +12654,117 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $sharedIdCount,
             'centralOnlyExtraFieldIdCount' => $centralOnlyIdCount,
             'localOnlyExtraFieldIdCount' => $localOnlyIdCount,
+            'centralExtraFieldRecordBytes' => $centralRecordBytes,
+            'localExtraFieldRecordBytes' => $localRecordBytes,
+            'extraFieldRecordBytes' => $centralRecordBytes + $localRecordBytes,
+            'centralExtraFieldDataBytes' => $centralDataBytes,
+            'localExtraFieldDataBytes' => $localDataBytes,
+            'extraFieldDataBytes' => $centralDataBytes + $localDataBytes,
             'extraFieldIdUsage' => $rows,
         ];
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     *
+     * @return list<array{id:int, idHex:string, dataLength:int, recordLength:int}>
+     */
+    private static function extraFieldRecordSummaries(array $fields): array
+    {
+        return array_map(
+            static function (array $field): array {
+                $dataLength = strlen($field['data']);
+
+                return [
+                    'id' => $field['id'],
+                    'idHex' => sprintf('0x%04x', $field['id']),
+                    'dataLength' => $dataLength,
+                    'recordLength' => $dataLength + 4,
+                ];
+            },
+            $fields
+        );
+    }
+
+    /**
+     * @param list<array{id:int, idHex:string, dataLength:int, recordLength:int}> $records
+     */
+    private static function sumExtraFieldRecordBytes(array $records, string $field): int
+    {
+        $total = 0;
+        foreach ($records as $record) {
+            $value = $record[$field] ?? 0;
+            if (is_int($value)) {
+                $total += $value;
+            }
+        }
+
+        return $total;
+    }
+
+    /**
+     * @param array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, centralExtraFieldRecords?:list<array{id:int, idHex:string, dataLength:int, recordLength:int}>, localExtraFieldRecords?:list<array{id:int, idHex:string, dataLength:int, recordLength:int}>} $entry
+     *
+     * @return list<array{id:int, idHex:string, dataLength:int, recordLength:int}>
+     */
+    private static function extraFieldRecordsForUsage(array $entry, string $header): array
+    {
+        $recordsKey = $header . 'ExtraFieldRecords';
+        if (isset($entry[$recordsKey]) && is_array($entry[$recordsKey])) {
+            return $entry[$recordsKey];
+        }
+
+        $idsKey = $header . 'ExtraFieldIds';
+        $records = [];
+        foreach ($entry[$idsKey] ?? [] as $id) {
+            if (!is_int($id)) {
+                continue;
+            }
+
+            $records[] = [
+                'id' => $id,
+                'idHex' => sprintf('0x%04x', $id),
+                'dataLength' => 0,
+                'recordLength' => 0,
+            ];
+        }
+
+        return $records;
     }
 
     /**
      * @param array<int, array<string, mixed>> $usage
      * @param array<int, true> $seenForEntry
      */
-    private static function addExtraFieldIdUsage(array &$usage, int $id, string $entryName, string $header, array &$seenForEntry): void
-    {
+    private static function addExtraFieldIdUsage(
+        array &$usage,
+        int $id,
+        string $entryName,
+        string $header,
+        array &$seenForEntry,
+        int $recordLength,
+        int $dataLength
+    ): void {
         if (!isset($usage[$id])) {
             $usage[$id] = [
                 'centralRecordCount' => 0,
                 'localRecordCount' => 0,
+                'centralRecordBytes' => 0,
+                'localRecordBytes' => 0,
+                'centralDataBytes' => 0,
+                'localDataBytes' => 0,
                 'centralEntryNames' => [],
                 'localEntryNames' => [],
             ];
         }
 
         $recordCountKey = $header . 'RecordCount';
+        $recordBytesKey = $header . 'RecordBytes';
+        $dataBytesKey = $header . 'DataBytes';
         $entryNamesKey = $header . 'EntryNames';
         $usage[$id][$recordCountKey]++;
+        $usage[$id][$recordBytesKey] += $recordLength;
+        $usage[$id][$dataBytesKey] += $dataLength;
         if (!isset($seenForEntry[$id])) {
             $usage[$id][$entryNamesKey][] = $entryName;
             $seenForEntry[$id] = true;

@@ -6563,6 +6563,72 @@ return [
         $t->same('central and local-only extra-field ids', $package->read('word/media/reviewer-note.txt'));
     },
 
+    'summarizes zip extra field byte footprint across central and local headers' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $centralOnlyExtra = pack('vva*', 0x1111, strlen('central-only'), 'central-only');
+        $localOnlyExtra = pack('vva*', 0x2222, strlen('local-only'), 'local-only');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>extra field byte footprint</w:p></w:document>',
+                'method' => 8,
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'metadata byte accounting',
+                'method' => 0,
+                'centralExtra' => $centralOnlyExtra,
+                'localExtra' => $localOnlyExtra,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->extraFieldPreflight();
+        $rawSummary = ZipPackage::extraFieldPolicyPreflight($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $usageById = [];
+        foreach ($summary['extraFieldIdUsage'] as $row) {
+            $usageById[$row['id']] = $row;
+        }
+
+        $centralBytes = strlen($timestampExtra) + strlen($centralReviewExtra) + strlen($centralOnlyExtra);
+        $localBytes = strlen($timestampExtra) + strlen($localReviewExtra) + strlen($localOnlyExtra);
+        $centralDataBytes = 5 + strlen('central-review') + strlen('central-only');
+        $localDataBytes = 5 + strlen('local-review') + strlen('local-only');
+
+        $t->same($centralBytes, $summary['centralExtraFieldRecordBytes']);
+        $t->same($localBytes, $summary['localExtraFieldRecordBytes']);
+        $t->same($centralBytes + $localBytes, $summary['extraFieldRecordBytes']);
+        $t->same($centralDataBytes, $summary['centralExtraFieldDataBytes']);
+        $t->same($localDataBytes, $summary['localExtraFieldDataBytes']);
+        $t->same($centralDataBytes + $localDataBytes, $summary['extraFieldDataBytes']);
+        $t->same($summary['extraFieldIdUsage'], $rawSummary['extraFieldIdUsage']);
+        $t->same($summary['extraFieldIdUsage'], $strict['extraFields']['extraFieldIdUsage']);
+        $t->same($summary['extraFieldIdUsage'], $rawStrict['extraFields']['extraFieldIdUsage']);
+        $t->same($centralBytes, $rawStrict['extraFields']['centralExtraFieldRecordBytes']);
+        $t->same($localBytes, $rawStrict['extraFields']['localExtraFieldRecordBytes']);
+
+        $t->same(strlen($timestampExtra), $usageById[0x5455]['centralRecordBytes']);
+        $t->same(strlen($timestampExtra), $usageById[0x5455]['localRecordBytes']);
+        $t->same(10, $usageById[0x5455]['dataBytes']);
+        $t->same(strlen($centralReviewExtra), $usageById[0xcafe]['centralRecordBytes']);
+        $t->same(strlen($localReviewExtra), $usageById[0xcafe]['localRecordBytes']);
+        $t->same(strlen('central-review') + strlen('local-review'), $usageById[0xcafe]['dataBytes']);
+        $t->same(strlen($centralOnlyExtra), $usageById[0x1111]['centralRecordBytes']);
+        $t->same(0, $usageById[0x1111]['localRecordBytes']);
+        $t->same(strlen($localOnlyExtra), $usageById[0x2222]['localRecordBytes']);
+        $t->same(0, $usageById[0x2222]['centralRecordBytes']);
+        $t->same(strlen($timestampExtra) + strlen($centralReviewExtra), $summary['entries'][0]['centralExtraFieldRecordBytes']);
+        $t->same(strlen($timestampExtra) + strlen($localReviewExtra), $summary['entries'][0]['localExtraFieldRecordBytes']);
+        $t->same($summary['entries'][0]['centralExtraFieldRecords'], $rawSummary['entries'][0]['centralExtraFieldRecords']);
+        $t->same('metadata byte accounting', $package->read('word/media/reviewer-note.txt'));
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;
