@@ -4586,6 +4586,8 @@ return [
         $t->same($eocdOffset, $tailRecord['offset']);
         $t->same($eocdOffset + 8, $tailRecord['dataOffset']);
         $t->same(strlen($archiveExtraData), $tailRecord['dataLength']);
+        $t->same(16, $tailRecord['dataPreviewByteCount']);
+        $t->same(bin2hex(substr($archiveExtraData, 0, 16)), $tailRecord['dataPreviewHex']);
         $t->same($eocdOffset + strlen($archiveExtraRecord), $tailRecord['endOffset']);
         $t->same('between-central-directory-and-eocd', $tailRecord['location']);
         $t->same(['archive-extra-data-record'], $tailRecord['issues']);
@@ -4604,6 +4606,8 @@ return [
         $t->same(1, $prefixSummary['archiveExtraDataRecordCount']);
         $t->same(false, $prefixSummary['isSupportedByBoundedReader']);
         $t->same($centralDirectoryOffset, $prefixRecord['offset']);
+        $t->same(16, $prefixRecord['dataPreviewByteCount']);
+        $t->same(bin2hex(substr($archiveExtraData, 0, 16)), $prefixRecord['dataPreviewHex']);
         $t->same('central-directory-prefix', $prefixRecord['location']);
         $t->same(['archive-extra-data-record'], $prefixRecord['issues']);
         $t->same('word/document.xml', $prefixSummary['entries'][0]['name']);
@@ -8537,6 +8541,8 @@ return [
         $t->same(1, $archiveExtraRaw['entryCount']);
         $t->same(true, $archiveExtraRaw['archiveExtraDataRecords']['hasArchiveExtraDataRecord']);
         $t->same('between-central-directory-and-eocd', $archiveExtraRaw['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['location']);
+        $t->same(16, $archiveExtraRaw['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['dataPreviewByteCount']);
+        $t->same(bin2hex(substr($archiveExtraData, 0, 16)), $archiveExtraRaw['archiveExtraDataRecords']['archiveExtraDataRecords'][0]['dataPreviewHex']);
         $t->contains('archive-extra-data-records', implode(',', $archiveExtraRaw['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $archiveExtraRaw['diagnostics']));
 

@@ -8789,7 +8789,7 @@ final class ZipPackage
      *     archiveExtraDataRecordCount:int,
      *     hasArchiveExtraDataRecord:bool,
      *     isSupportedByBoundedReader:bool,
-     *     archiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
+     *     archiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, dataPreviewHex:string, dataPreviewByteCount:int, endOffset:int, location:string, issues:list<string>}>,
      *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, offset:int}>
      * }
      */
@@ -12434,7 +12434,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int}|null
+     * @return array{offset:int, dataOffset:int, dataLength:int, dataPreviewHex:string, dataPreviewByteCount:int, endOffset:int}|null
      */
     private static function archiveExtraDataRecordAt(string $bytes, int $offset): ?array
     {
@@ -12446,18 +12446,21 @@ final class ZipPackage
         $dataLength = self::readUInt32($bytes, $offset + 4);
         $dataOffset = $offset + 8;
         self::assertRange($bytes, $dataOffset, $dataLength, 'ZIP archive extra data');
+        $previewByteCount = min($dataLength, 16);
 
         return [
             'offset' => $offset,
             'dataOffset' => $dataOffset,
             'dataLength' => $dataLength,
+            'dataPreviewHex' => bin2hex(substr($bytes, $dataOffset, $previewByteCount)),
+            'dataPreviewByteCount' => $previewByteCount,
             'endOffset' => $dataOffset + $dataLength,
         ];
     }
 
     /**
-     * @param array{offset:int, dataOffset:int, dataLength:int, endOffset:int} $record
-     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}
+     * @param array{offset:int, dataOffset:int, dataLength:int, dataPreviewHex:string, dataPreviewByteCount:int, endOffset:int} $record
+     * @return array{offset:int, dataOffset:int, dataLength:int, dataPreviewHex:string, dataPreviewByteCount:int, endOffset:int, location:string, issues:list<string>}
      */
     private static function archiveExtraDataRecordSummary(array $record, string $location, int $eocdOffset, int $centralDirectoryEnd): array
     {
@@ -12473,6 +12476,8 @@ final class ZipPackage
             'offset' => $record['offset'],
             'dataOffset' => $record['dataOffset'],
             'dataLength' => $record['dataLength'],
+            'dataPreviewHex' => $record['dataPreviewHex'],
+            'dataPreviewByteCount' => $record['dataPreviewByteCount'],
             'endOffset' => $record['endOffset'],
             'location' => $location,
             'issues' => $issues,
