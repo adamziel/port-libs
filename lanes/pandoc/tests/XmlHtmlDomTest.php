@@ -491,6 +491,67 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog and popover state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="closed-dialog" aria-label="Migration notice"><p>Closed <a href="./closed.html">packet</a></p></dialog>'
+                . '<dialog id="open-dialog" open><h2>Open review</h2><p>Visible overlay content</p></dialog>'
+                . '<button id="show-popover" popovertarget="review-pop" popovertargetaction="show">Open note</button>'
+                . '<aside id="review-pop" popover><p>Auto note</p></aside>'
+                . '<section id="manual-pop" popover="manual"><p>Manual note</p></section>'
+                . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
+                . '<a href="./control.html" popovertarget="manual-pop" popovertargetaction="hide">Hide note</a>'
+                . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>',
+            'dialog popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $closed = $summary[0];
+        $open = $summary[1];
+        $button = $summary[2];
+        $auto = $summary[3];
+        $manual = $summary[4];
+        $hint = $summary[5];
+        $link = $summary[6];
+        $invalid = $summary[7];
+
+        $t->same('dialog', $closed['dialog']);
+        $t->same('closed', $closed['dialogState']);
+        $t->same(false, $closed['open']);
+        $t->same('Migration notice', $closed['label']);
+        $t->same('dialog', $open['dialog']);
+        $t->same('open', $open['dialogState']);
+        $t->same(true, $open['open']);
+        $t->same('Open reviewVisible overlay content', $open['label']);
+        $t->same('popovertarget', $button['popoverControl']);
+        $t->same('review-pop', $button['popoverTarget']);
+        $t->same('show', $button['popoverTargetActionRaw']);
+        $t->same('show', $button['popoverTargetAction']);
+        $t->same('popover', $auto['popover']);
+        $t->same('', $auto['popoverRaw']);
+        $t->same('auto', $auto['popoverState']);
+        $t->same('manual', $manual['popoverRaw']);
+        $t->same('manual', $manual['popoverState']);
+        $t->same('hint', $hint['popoverRaw']);
+        $t->same('hint', $hint['popoverState']);
+        $t->same('popovertarget', $link['popoverControl']);
+        $t->same('manual-pop', $link['popoverTarget']);
+        $t->same('hide', $link['popoverTargetActionRaw']);
+        $t->same('hide', $link['popoverTargetAction']);
+        $t->same('bad state', $invalid['popoverRaw']);
+        $t->same('manual', $invalid['popoverState']);
+        $t->same(
+            '<dialog aria-label="Migration notice" id="closed-dialog"><p>Closed <a href="./closed.html">packet</a></p></dialog>'
+                . '<dialog id="open-dialog" open><h2>Open review</h2><p>Visible overlay content</p></dialog>'
+                . '<button id="show-popover" popovertarget="review-pop" popovertargetaction="show">Open note</button>'
+                . '<aside id="review-pop" popover=""><p>Auto note</p></aside>'
+                . '<section id="manual-pop" popover="manual"><p>Manual note</p></section>'
+                . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
+                . '<a href="./control.html" popovertarget="manual-pop" popovertargetaction="hide">Hide note</a>'
+                . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>',
+            $html
+        );
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

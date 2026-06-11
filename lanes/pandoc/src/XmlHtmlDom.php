@@ -830,6 +830,25 @@ final class XmlHtmlDom
             $summary['summaryText'] = $summaryElements === [] ? null : self::normalizedText($summaryElements[0]);
             $summary['summaryElementCount'] = count($summaryElements);
         }
+        if ($name === 'dialog') {
+            $summary['dialog'] = 'dialog';
+            $summary['dialogState'] = $node->hasAttribute('open') ? 'open' : 'closed';
+            $summary['open'] = $node->hasAttribute('open');
+            $summary['label'] = self::attributeOrNull($node, 'aria-label') ?? self::normalizedText($node);
+        }
+        if ($node->hasAttribute('popover')) {
+            $popoverRaw = $node->getAttribute('popover');
+            $summary['popover'] = 'popover';
+            $summary['popoverRaw'] = $popoverRaw;
+            $summary['popoverState'] = self::popoverState($popoverRaw);
+        }
+        if ($node->hasAttribute('popovertarget')) {
+            $actionRaw = self::attributeOrNull($node, 'popovertargetaction');
+            $summary['popoverControl'] = 'popovertarget';
+            $summary['popoverTarget'] = $node->getAttribute('popovertarget');
+            $summary['popoverTargetActionRaw'] = $actionRaw;
+            $summary['popoverTargetAction'] = self::popoverTargetAction($actionRaw);
+        }
         if ($name === 'summary') {
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
@@ -975,6 +994,27 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    private static function popoverState(string $value): string
+    {
+        $state = strtolower(trim($value));
+        if ($state === '') {
+            return 'auto';
+        }
+
+        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : 'manual';
+    }
+
+    private static function popoverTargetAction(?string $value): string
+    {
+        if ($value === null) {
+            return 'toggle';
+        }
+
+        $action = strtolower(trim($value));
+
+        return in_array($action, ['hide', 'show', 'toggle'], true) ? $action : 'toggle';
     }
 
     /**
