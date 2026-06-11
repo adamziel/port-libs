@@ -950,13 +950,17 @@ return [
         $t->same(3, $summary['mismatchedEntryCount']);
         $t->same('content.xml', $entries[0]['name']);
         $t->same(0, $entries[0]['centralDirectoryIndex']);
+        $t->same($summary['centralDirectoryOffset'], $entries[0]['centralDirectoryRecordOffset']);
+        $t->true($entries[0]['centralDirectoryRecordOffset'] < $entries[0]['centralDirectoryRecordEnd']);
         $t->same(1, $entries[0]['localHeaderOrder']);
         $t->same('mimetype', $entries[0]['localHeaderNameAtCentralDirectoryIndex']);
         $t->same('styles.xml', $entries[0]['centralDirectoryNameAtLocalHeaderOrder']);
         $t->same(false, $entries[0]['matchesCentralDirectoryOrder']);
         $t->same('styles.xml', $entries[1]['name']);
+        $t->same($entries[0]['centralDirectoryRecordEnd'], $entries[1]['centralDirectoryRecordOffset']);
         $t->same(2, $entries[1]['localHeaderOrder']);
         $t->same('mimetype', $entries[2]['name']);
+        $t->same($entries[1]['centralDirectoryRecordEnd'], $entries[2]['centralDirectoryRecordOffset']);
         $t->same(0, $entries[2]['localHeaderOrder']);
         $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
         $t->same($summary, $rawSummary);
@@ -988,6 +992,7 @@ return [
         $t->same(false, $matchingSummary['hasCentralDirectoryOrderMismatch']);
         $t->same(0, $matchingSummary['mismatchedEntryCount']);
         $t->same(true, $matchingSummary['entries'][0]['matchesCentralDirectoryOrder']);
+        $t->same($matchingSummary['centralDirectoryOffset'], $matchingSummary['entries'][0]['centralDirectoryRecordOffset']);
         $t->same(0, $matchingSummary['entries'][0]['localHeaderOrder']);
         $t->same($matchingSummary, $matchingPackage->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
         $t->same($matchingSummary, ZipPackage::centralDirectoryLocalHeaderOrderPreflight($matchingPackage->bytes()));

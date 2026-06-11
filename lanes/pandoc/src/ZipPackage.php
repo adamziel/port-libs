@@ -286,7 +286,9 @@ final class ZipPackage
                 $rawComment,
                 $decodedName['encoding'],
                 $decodedComment['encoding'],
-                $versionNeededToExtract
+                $versionNeededToExtract,
+                $cursor,
+                $cursor + 46 + $variableLength
             );
             self::assertDirectoryEntryMetadata($entry);
             self::assertDirectoryAttributeConsistency($entry);
@@ -673,6 +675,8 @@ final class ZipPackage
      *     mismatchedEntries:list<array{
      *         name:string,
      *         centralDirectoryIndex:int,
+     *         centralDirectoryRecordOffset:?int,
+     *         centralDirectoryRecordEnd:?int,
      *         localHeaderOrder:int,
      *         localHeaderOffset:int,
      *         localHeaderNameAtCentralDirectoryIndex:?string,
@@ -682,6 +686,8 @@ final class ZipPackage
      *     entries:list<array{
      *         name:string,
      *         centralDirectoryIndex:int,
+     *         centralDirectoryRecordOffset:?int,
+     *         centralDirectoryRecordEnd:?int,
      *         localHeaderOrder:int,
      *         localHeaderOffset:int,
      *         localHeaderNameAtCentralDirectoryIndex:?string,
@@ -708,6 +714,8 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
+                'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
+                'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'localHeaderOrder' => $localHeaderOrder,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderNameAtCentralDirectoryIndex' => $localHeaderOrderNames[$centralDirectoryIndex] ?? null,
@@ -747,6 +755,8 @@ final class ZipPackage
      *     mismatchedEntries:list<array{
      *         name:string,
      *         centralDirectoryIndex:int,
+     *         centralDirectoryRecordOffset:int,
+     *         centralDirectoryRecordEnd:int,
      *         localHeaderOrder:int,
      *         localHeaderOffset:int,
      *         localHeaderNameAtCentralDirectoryIndex:?string,
@@ -756,6 +766,8 @@ final class ZipPackage
      *     entries:list<array{
      *         name:string,
      *         centralDirectoryIndex:int,
+     *         centralDirectoryRecordOffset:int,
+     *         centralDirectoryRecordEnd:int,
      *         localHeaderOrder:int,
      *         localHeaderOffset:int,
      *         localHeaderNameAtCentralDirectoryIndex:?string,
@@ -796,6 +808,8 @@ final class ZipPackage
             $summary = [
                 'name' => $entry['name'],
                 'centralDirectoryIndex' => $centralDirectoryIndex,
+                'centralDirectoryRecordOffset' => $entry['offset'],
+                'centralDirectoryRecordEnd' => $entry['recordEnd'],
                 'localHeaderOrder' => $localHeaderOrder,
                 'localHeaderOffset' => $entry['localHeaderOffset'],
                 'localHeaderNameAtCentralDirectoryIndex' => $localHeaderOrderNames[$centralDirectoryIndex] ?? null,

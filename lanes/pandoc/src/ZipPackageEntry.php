@@ -49,6 +49,8 @@ final class ZipPackageEntry
         public readonly string $nameEncoding = 'utf-8',
         public readonly string $commentEncoding = 'utf-8',
         public readonly int $versionNeededToExtract = 20,
+        public readonly ?int $centralDirectoryRecordOffset = null,
+        public readonly ?int $centralDirectoryRecordEnd = null,
     ) {
         $this->rawName = $rawName ?? $this->name;
         $this->rawComment = $rawComment ?? $this->comment;
