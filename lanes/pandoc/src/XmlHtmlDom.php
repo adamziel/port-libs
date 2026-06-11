@@ -55,6 +55,18 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const HTML5_ARIA_ID_REFERENCE_ATTRIBUTES = [
+        'aria-activedescendant' => true,
+        'aria-controls' => true,
+        'aria-describedby' => true,
+        'aria-details' => true,
+        'aria-errormessage' => true,
+        'aria-flowto' => true,
+        'aria-labelledby' => true,
+        'aria-owns' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML5_RAW_TEXT_ELEMENTS = [
         'script' => true,
         'style' => true,
@@ -1493,6 +1505,10 @@ final class XmlHtmlDom
         $ariaAttributes = self::ariaAttributeSummary($attributes);
         if ($ariaAttributes !== []) {
             $summary['ariaAttributes'] = $ariaAttributes;
+            $ariaReferences = self::ariaReferenceSummary($element, $ariaAttributes);
+            if ($ariaReferences !== []) {
+                $summary['ariaReferences'] = $ariaReferences;
+            }
         }
 
         if (array_key_exists('role', $attributes)) {
@@ -1697,6 +1713,93 @@ final class XmlHtmlDom
         }
 
         return $aria;
+    }
+
+    /**
+     * @param array<string, string> $ariaAttributes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function ariaReferenceSummary(\DOMElement $element, array $ariaAttributes): array
+    {
+        $references = [];
+        foreach ($ariaAttributes as $name => $rawValue) {
+            if (!isset(self::HTML5_ARIA_ID_REFERENCE_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $ids = self::spaceSeparatedTokens($rawValue);
+            $targets = [];
+            $resolvedIds = [];
+            $missingIds = [];
+            $duplicateTargetIds = [];
+            $resolvedTexts = [];
+
+            foreach ($ids as $id) {
+                $targetElements = self::htmlElementsById($element->ownerDocument, $id);
+                $targetCount = count($targetElements);
+                $targetNames = [];
+                $targetTexts = [];
+                foreach ($targetElements as $targetElement) {
+                    $targetNames[] = self::htmlElementName($targetElement);
+                    $targetText = self::normalizedText($targetElement);
+                    $targetTexts[] = $targetText;
+                    if ($targetText !== '') {
+                        $resolvedTexts[] = $targetText;
+                    }
+                }
+
+                if ($targetCount === 0) {
+                    $missingIds[] = $id;
+                } else {
+                    $resolvedIds[] = $id;
+                    if ($targetCount > 1) {
+                        $duplicateTargetIds[] = $id;
+                    }
+                }
+
+                $targets[] = [
+                    'id' => $id,
+                    'exists' => $targetCount > 0,
+                    'targetCount' => $targetCount,
+                    'targetNames' => $targetNames,
+                    'targetTexts' => $targetTexts,
+                ];
+            }
+
+            $references[$name] = [
+                'raw' => $rawValue,
+                'ids' => $ids,
+                'resolvedIds' => array_values(array_unique($resolvedIds)),
+                'missingIds' => array_values(array_unique($missingIds)),
+                'duplicateTargetIds' => array_values(array_unique($duplicateTargetIds)),
+                'resolvedText' => implode(' ', $resolvedTexts),
+                'targets' => $targets,
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlElementsById(?\DOMDocument $document, string $id): array
+    {
+        if (!$document instanceof \DOMDocument || $id === '') {
+            return [];
+        }
+
+        $elements = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || $candidate->hasAttribute(self::FRAGMENT_ROOT_ATTRIBUTE)) {
+                continue;
+            }
+            if ($candidate->hasAttribute('id') && $candidate->getAttribute('id') === $id) {
+                $elements[] = $candidate;
+            }
+        }
+
+        return $elements;
     }
 
     private static function inputType(\DOMElement $input): string

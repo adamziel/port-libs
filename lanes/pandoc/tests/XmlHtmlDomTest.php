@@ -261,6 +261,62 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html aria id reference provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="review-card" aria-labelledby="title subtitle missing title" aria-describedby="desc duplicate" aria-controls="panel missing-panel" aria-errormessage="error">'
+                . '<h2 id="title">Primary <em>Label</em></h2><p id="subtitle">Subtitle</p><p id="desc">Description <span>one</span></p>'
+                . '<p id="duplicate">First duplicate</p><p id="duplicate">Second duplicate</p><div id="panel">Panel</div><p id="error">Error text</p></section>',
+            'aria reference review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/aria-reference-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $section = $summary[0];
+        $references = $section['ariaReferences'];
+        $labelledBy = $references['aria-labelledby'];
+        $describedBy = $references['aria-describedby'];
+        $controls = $references['aria-controls'];
+        $errorMessage = $references['aria-errormessage'];
+
+        $t->same([
+            'aria-controls' => 'panel missing-panel',
+            'aria-describedby' => 'desc duplicate',
+            'aria-errormessage' => 'error',
+            'aria-labelledby' => 'title subtitle missing title',
+        ], $section['ariaAttributes']);
+        $t->same('title subtitle missing title', $labelledBy['raw']);
+        $t->same(['title', 'subtitle', 'missing', 'title'], $labelledBy['ids']);
+        $t->same(['title', 'subtitle'], $labelledBy['resolvedIds']);
+        $t->same(['missing'], $labelledBy['missingIds']);
+        $t->same([], $labelledBy['duplicateTargetIds']);
+        $t->same('Primary Label Subtitle Primary Label', $labelledBy['resolvedText']);
+        $t->same(['h2'], $labelledBy['targets'][0]['targetNames']);
+        $t->same(['Primary Label'], $labelledBy['targets'][0]['targetTexts']);
+        $t->same(false, $labelledBy['targets'][2]['exists']);
+        $t->same(0, $labelledBy['targets'][2]['targetCount']);
+
+        $t->same(['desc', 'duplicate'], $describedBy['ids']);
+        $t->same(['desc', 'duplicate'], $describedBy['resolvedIds']);
+        $t->same(['duplicate'], $describedBy['duplicateTargetIds']);
+        $t->same(2, $describedBy['targets'][1]['targetCount']);
+        $t->same(['p', 'p'], $describedBy['targets'][1]['targetNames']);
+        $t->same(['First duplicate', 'Second duplicate'], $describedBy['targets'][1]['targetTexts']);
+        $t->same('Description one First duplicate Second duplicate', $describedBy['resolvedText']);
+
+        $t->same(['panel', 'missing-panel'], $controls['ids']);
+        $t->same(['panel'], $controls['resolvedIds']);
+        $t->same(['missing-panel'], $controls['missingIds']);
+        $t->same(['Panel'], $controls['targets'][0]['targetTexts']);
+        $t->same(['error'], $errorMessage['resolvedIds']);
+        $t->same('Error text', $errorMessage['resolvedText']);
+        $t->same('<section aria-controls="panel missing-panel" aria-describedby="desc duplicate" aria-errormessage="error" aria-labelledby="title subtitle missing title" id="review-card"><h2 id="title">Primary <em>Label</em></h2><p id="subtitle">Subtitle</p><p id="desc">Description <span>one</span></p><p id="duplicate">First duplicate</p><p id="duplicate">Second duplicate</p><div id="panel">Panel</div><p id="error">Error text</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/aria-reference-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'
