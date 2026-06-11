@@ -745,6 +745,76 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html table structure spans and header references for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<table id="review"><caption>Quarterly <strong>review</strong></caption><colgroup span="2"><col span="3"><col span="0"></colgroup><thead><tr><th id="h1" scope="col" abbr="Q1">Quarter</th><th id="h2" scope="bad" colspan="2">Status</th></tr></thead><tbody><tr><th id="r1" scope="row">Batch A</th><td headers="h1 r1" rowspan="0" colspan="3">Ready</td><td colspan="2000" rowspan="-1">Overflow</td></tr></tbody></table>',
+            'table structure review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $table = $summary[0];
+        $caption = $table['children'][0];
+        $colgroup = $table['children'][1];
+        $firstColumn = $colgroup['children'][0];
+        $invalidColumn = $colgroup['children'][1];
+        $thead = $table['children'][2];
+        $headRow = $thead['children'][0];
+        $quarterHeader = $headRow['children'][0];
+        $statusHeader = $headRow['children'][1];
+        $tbody = $table['children'][3];
+        $bodyRow = $tbody['children'][0];
+        $rowHeader = $bodyRow['children'][0];
+        $readyCell = $bodyRow['children'][1];
+        $overflowCell = $bodyRow['children'][2];
+
+        $t->same('table', $table['tablePart']);
+        $t->same('Quarterly review', $table['captionText']);
+        $t->same(1, $table['captionCount']);
+        $t->same('caption', $caption['tablePart']);
+        $t->same('Quarterly review', $caption['captionText']);
+        $t->same('column-group', $colgroup['tablePart']);
+        $t->same('2', $colgroup['spanRaw']);
+        $t->same(2, $colgroup['span']);
+        $t->same('column', $firstColumn['tablePart']);
+        $t->same('3', $firstColumn['spanRaw']);
+        $t->same(3, $firstColumn['span']);
+        $t->same('0', $invalidColumn['spanRaw']);
+        $t->same(1, $invalidColumn['span']);
+
+        $t->same('header-group', $thead['tablePart']);
+        $t->same('body-group', $tbody['tablePart']);
+        $t->same('row', $headRow['tablePart']);
+        $t->same('row', $bodyRow['tablePart']);
+
+        $t->same('cell', $quarterHeader['tablePart']);
+        $t->same('header', $quarterHeader['tableCell']);
+        $t->same(1, $quarterHeader['colSpan']);
+        $t->same(1, $quarterHeader['rowSpan']);
+        $t->same('col', $quarterHeader['scopeRaw']);
+        $t->same('col', $quarterHeader['scope']);
+        $t->same('Q1', $quarterHeader['abbr']);
+        $t->same([], $quarterHeader['headers']);
+        $t->same('bad', $statusHeader['scopeRaw']);
+        $t->same(null, $statusHeader['scope']);
+        $t->same('2', $statusHeader['colSpanRaw']);
+        $t->same(2, $statusHeader['colSpan']);
+
+        $t->same('header', $rowHeader['tableCell']);
+        $t->same('row', $rowHeader['scope']);
+        $t->same('data', $readyCell['tableCell']);
+        $t->same('h1 r1', $readyCell['headersRaw']);
+        $t->same(['h1', 'r1'], $readyCell['headers']);
+        $t->same('3', $readyCell['colSpanRaw']);
+        $t->same(3, $readyCell['colSpan']);
+        $t->same('0', $readyCell['rowSpanRaw']);
+        $t->same(0, $readyCell['rowSpan']);
+        $t->same('2000', $overflowCell['colSpanRaw']);
+        $t->same(1000, $overflowCell['colSpan']);
+        $t->same('-1', $overflowCell['rowSpanRaw']);
+        $t->same(1, $overflowCell['rowSpan']);
+        $t->same('<table id="review"><caption>Quarterly <strong>review</strong></caption><colgroup span="2"><col span="3"><col span="0"></colgroup><thead><tr><th abbr="Q1" id="h1" scope="col">Quarter</th><th colspan="2" id="h2" scope="bad">Status</th></tr></thead><tbody><tr><th id="r1" scope="row">Batch A</th><td colspan="3" headers="h1 r1" rowspan="0">Ready</td><td colspan="2000" rowspan="-1">Overflow</td></tr></tbody></table>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

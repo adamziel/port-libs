@@ -763,6 +763,9 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
+            $summary += self::tableElementSummary($node, $name);
+        }
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
@@ -886,6 +889,83 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tableElementSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'table') {
+            $captions = self::childHtmlElements($element, 'caption');
+
+            return [
+                'tablePart' => 'table',
+                'captionText' => isset($captions[0]) ? self::normalizedText($captions[0]) : null,
+                'captionCount' => count($captions),
+            ];
+        }
+
+        if ($name === 'caption') {
+            return [
+                'tablePart' => 'caption',
+                'captionText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'colgroup') {
+            return [
+                'tablePart' => 'column-group',
+                'spanRaw' => self::attributeOrNull($element, 'span'),
+                'span' => self::positiveIntegerAttribute($element, 'span', 1, 1000),
+            ];
+        }
+
+        if ($name === 'col') {
+            return [
+                'tablePart' => 'column',
+                'spanRaw' => self::attributeOrNull($element, 'span'),
+                'span' => self::positiveIntegerAttribute($element, 'span', 1, 1000),
+            ];
+        }
+
+        if (in_array($name, ['thead', 'tbody', 'tfoot'], true)) {
+            return [
+                'tablePart' => match ($name) {
+                    'thead' => 'header-group',
+                    'tfoot' => 'footer-group',
+                    default => 'body-group',
+                },
+            ];
+        }
+
+        if ($name === 'tr') {
+            return ['tablePart' => 'row'];
+        }
+
+        if ($name === 'td' || $name === 'th') {
+            $headersRaw = self::attributeOrNull($element, 'headers');
+            $summary = [
+                'tablePart' => 'cell',
+                'tableCell' => $name === 'th' ? 'header' : 'data',
+                'colSpanRaw' => self::attributeOrNull($element, 'colspan'),
+                'colSpan' => self::positiveIntegerAttribute($element, 'colspan', 1, 1000),
+                'rowSpanRaw' => self::attributeOrNull($element, 'rowspan'),
+                'rowSpan' => self::nonNegativeIntegerAttribute($element, 'rowspan', 1, 65534),
+                'headersRaw' => $headersRaw,
+                'headers' => $headersRaw === null ? [] : self::spaceSeparatedTokens($headersRaw),
+            ];
+
+            if ($name === 'th') {
+                $summary['scopeRaw'] = self::attributeOrNull($element, 'scope');
+                $summary['scope'] = self::tableHeaderScope($element);
+                $summary['abbr'] = self::attributeOrNull($element, 'abbr');
+            }
+
+            return $summary;
+        }
+
+        return [];
     }
 
     /**
@@ -1601,6 +1681,26 @@ final class XmlHtmlDom
         return $value > 0.0 ? $value : $default;
     }
 
+    private static function positiveIntegerAttribute(\DOMElement $element, string $name, int $default, int $max): int
+    {
+        $value = self::integerAttribute($element, $name, null);
+        if ($value === null || $value < 1) {
+            return $default;
+        }
+
+        return min($value, $max);
+    }
+
+    private static function nonNegativeIntegerAttribute(\DOMElement $element, string $name, int $default, int $max): int
+    {
+        $value = self::integerAttribute($element, $name, null);
+        if ($value === null || $value < 0) {
+            return $default;
+        }
+
+        return min($value, $max);
+    }
+
     private static function boundedNumber(float $value, float $min, float $max): float
     {
         return max($min, min($max, $value));
@@ -1666,13 +1766,26 @@ final class XmlHtmlDom
 
     private static function firstChildHtmlElement(\DOMElement $element, string $name): ?\DOMElement
     {
-        foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === $name) {
-                return $child;
-            }
+        foreach (self::childHtmlElements($element, $name) as $child) {
+            return $child;
         }
 
         return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function childHtmlElements(\DOMElement $element, string $name): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === $name) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
     }
 
     private static function firstDescendantHtmlElement(\DOMElement $element, string $name): ?\DOMElement
@@ -1752,6 +1865,13 @@ final class XmlHtmlDom
         }
 
         return $options;
+    }
+
+    private static function tableHeaderScope(\DOMElement $header): ?string
+    {
+        $scope = strtolower(trim($header->getAttribute('scope')));
+
+        return in_array($scope, ['row', 'col', 'rowgroup', 'colgroup'], true) ? $scope : null;
     }
 
     private static function serializeNode(\DOMNode $node): string
@@ -1863,13 +1983,16 @@ final class XmlHtmlDom
     {
         [$fostered, $children] = self::summarizeTableChildren($element, $context);
 
-        return [$fostered, [
+        $summary = [
             'type' => 'element',
             'name' => self::htmlElementName($element),
             'attributes' => self::htmlAttributes($element),
             'text' => self::summaryText($children),
             'children' => $children,
-        ]];
+        ];
+        $summary += self::tableElementSummary($element, self::htmlElementName($element));
+
+        return [$fostered, $summary];
     }
 
     /**
