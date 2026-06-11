@@ -34,7 +34,7 @@ final class PandocJsonWriter
         return [
             'pandoc-api-version' => $this->apiVersion($document),
             'meta' => $this->writeMetaMap($this->meta($document)),
-            'blocks' => array_map(fn (AstNode $block): array => $this->writeBlock($block), $document->children),
+            'blocks' => $this->writeBlocks($document->children),
         ];
     }
 
@@ -327,7 +327,18 @@ final class PandocJsonWriter
      */
     private function writeBlocks(array $blocks): array
     {
-        return array_map(fn (AstNode $block): array => $this->writeBlock($block), $blocks);
+        $encoded = [];
+        foreach ($blocks as $block) {
+            $native = $this->nativePayload($block);
+            if ($native !== null && ($block->type === 'native_block' || $this->canReuseCurrentNativeBlockPayload($block, $native))) {
+                $encoded[] = $native;
+                continue;
+            }
+
+            $encoded[] = $this->writeBlock($block);
+        }
+
+        return $encoded;
     }
 
     /**
@@ -773,6 +784,12 @@ final class PandocJsonWriter
                 continue;
             }
 
+            $native = $this->nativePayload($node);
+            if ($native !== null && ($node->type === 'native_inline' || $this->canReuseCurrentNativeInlinePayload($node, $native))) {
+                $inlines[] = $native;
+                continue;
+            }
+
             $inlines[] = $this->writeInline($node);
         }
 
@@ -822,12 +839,201 @@ final class PandocJsonWriter
      */
     private function nativeTaggedConstructor(AstNode $node, string $context): array
     {
-        $native = $node->attr('native');
-        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null) || $native['t'] === '') {
+        $native = $this->nativePayload($node);
+        if ($native === null) {
             throw new \InvalidArgumentException("Pandoc JSON {$context} native fallback node must carry a tagged native constructor");
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function nativePayload(AstNode $node): ?array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null) || $native['t'] === '') {
+            return null;
+        }
+
+        return $native;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function canReuseCurrentNativeBlockPayload(AstNode $node, array $native): bool
+    {
+        if (!$this->isCurrentNativeBlockPayload($native)) {
+            return false;
+        }
+
+        foreach ($this->blockPayloadReaders($native) as $freshNode) {
+            if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function canReuseCurrentNativeInlinePayload(AstNode $node, array $native): bool
+    {
+        if (!$this->isCurrentNativeInlinePayload($native)) {
+            return false;
+        }
+
+        foreach ($this->inlinePayloadReaders($native) as $freshNode) {
+            if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function blockPayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => self::DEFAULT_API_VERSION,
+            'meta' => [],
+            'blocks' => [$native],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function inlinePayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => self::DEFAULT_API_VERSION,
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$native]],
+            ],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isCurrentNativeBlockPayload(array $native): bool
+    {
+        $tag = $native['t'];
+        return in_array($tag, [
+            'CodeBlock',
+            'RawBlock',
+            'HorizontalRule',
+            'Null',
+        ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isCurrentNativeInlinePayload(array $native): bool
+    {
+        $tag = $native['t'];
+        if ($tag === 'Link' || $tag === 'Image') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && count($content) === 3;
+        }
+
+        return in_array($tag, [
+            'Str',
+            'Space',
+            'SoftBreak',
+            'LineBreak',
+            'Code',
+            'Math',
+            'RawInline',
+        ], true);
+    }
+
+    private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
+    {
+        return $this->comparisonNode($left) === $this->comparisonNode($right);
+    }
+
+    /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function comparisonNode(AstNode $node): array
+    {
+        $attrs = [];
+        foreach ($node->attrs as $key => $value) {
+            if (in_array($key, ['native', 'constructor', 'attrConstructor', 'attrNative'], true)) {
+                continue;
+            }
+            $attrs[$key] = $this->comparisonValue($value);
+        }
+        ksort($attrs);
+
+        return [
+            'type' => $node->type,
+            'attrs' => $attrs,
+            'children' => array_map(fn (AstNode $child): array => $this->comparisonNode($child), $node->children),
+        ];
+    }
+
+    private function comparisonValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->comparisonNode($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->comparisonValue($item), $value);
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = $this->comparisonValue($item);
+        }
+        ksort($normalized);
+
+        return $normalized;
     }
 
     /**

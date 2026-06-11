@@ -2064,6 +2064,74 @@ return [
 
         $t->same(['t' => 'Decimal'], $editedPacket['blocks'][0]['c'][0][1], 'json writer regenerates stale list style helper payloads');
     },
+    'preserves current native constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $blockCodeAttr = [
+            'review-code-block',
+            ['source-order'],
+            [
+                ['data-review', 'first'],
+                ['data-origin', 'json-filter'],
+                ['data-review', 'second'],
+            ],
+        ];
+        $codeAttr = [
+            'ticket-code',
+            ['review-code'],
+            [
+                ['data-ticket', 'first'],
+                ['data-ticket', 'second'],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'CodeBlock', 'c' => [$blockCodeAttr, "echo source\n"]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Code', 'c' => [$codeAttr, 'ticket-42']],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same($packet['blocks'], $encoded['blocks'], "{$source} unchanged current constructor payloads");
+        }
+
+        $jsonDocument = $documents['json'];
+        $code = $jsonDocument->children[1]->children[0];
+        $inlineOnlyPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [$code]),
+        ]));
+
+        $t->same($packet['blocks'][1]['c'][0], $inlineOnlyPacket['blocks'][0]['c'][0], 'standalone current inline native payload is reusable');
+
+        $editedCodeBlock = new AstNode('code_block', array_replace($jsonDocument->children[0]->attrs, [
+            'text' => "echo edited\n",
+        ]));
+        $editedBlockPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [$editedCodeBlock]));
+
+        $t->same("echo edited\n", $editedBlockPacket['blocks'][0]['c'][1], 'edited code block text regenerates the block constructor');
+        $t->same($blockCodeAttr, $editedBlockPacket['blocks'][0]['c'][0], 'edited code block may still preserve compatible attr tuple payloads');
+        $t->same("echo source\n", $packet['blocks'][0]['c'][1], 'source code block payload remains distinct from edited output');
+
+        $editedCode = new AstNode('code', array_replace($code->attrs, [
+            'text' => 'ticket-43',
+        ]));
+        $editedInlinePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [$editedCode]),
+        ]));
+
+        $t->same('ticket-43', $editedInlinePacket['blocks'][0]['c'][0]['c'][1], 'edited code text regenerates the inline constructor');
+        $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
+        $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];
