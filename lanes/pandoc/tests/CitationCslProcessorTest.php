@@ -3875,6 +3875,65 @@ XML);
         $t->true(strpos($blocks, 'Submitted Split BibTeX Packet') < strpos($blocks, 'Literal Available BibTeX Packet'), 'submitteddate sort key orders circa year before submitted month');
         $t->true(strpos($blocks, 'Literal Available BibTeX Packet') < strpos($blocks, 'Available BibTeX Packet'), 'submitted split date sort key orders newer source last');
     },
+    'maps bounded biblatex hyphenated available and submitted date aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{hyphen-availability,
+  author         = {Alias, Ada},
+  title          = {Hyphen Availability Packet},
+  date           = {2026},
+  url            = {https://example.test/hyphen-availability},
+  available-date = {2026-08-09?},
+  submitted-date = {2026-07-01/2026-07-03}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same(['date-parts' => [[2026, 8, 9]], 'uncertain' => true, 'raw' => '2026-08-09?'], $items[0]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2026, 7, 1], [2026, 7, 3]]], $items[0]['submitted'] ?? null);
+        $t->same('2026-08-09?', $items[0]['rawBibtex']['fields']['available-date'] ?? null);
+        $t->same('2026-07-01/2026-07-03', $items[0]['rawBibtex']['fields']['submitted-date'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <text variable="available-date-status"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <text variable="available-date-status"/>
+      <date variable="submitted"/>
+      <text variable="date-marker-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $item = $processor->item('hyphen-availability');
+        $t->same('2026-08-09', $item['availableDate']['display'] ?? null);
+        $t->same(true, $item['availableDate']['uncertain'] ?? null);
+        $t->same('2026-07-01/2026-07-03', $item['submittedDate']['display'] ?? null);
+        $t->same('Date markers: available-date uncertain (2026-08-09?)', $item['dateMarkerSummary'] ?? null);
+        $t->same('(Alias | 2026-08-09 | uncertain | 2026-07-01/2026-07-03)', $processor->renderCitationCluster([
+            $citation('hyphen-availability', '[@hyphen-availability]'),
+        ]));
+        $t->same('Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)', $processor->renderBibliographyEntry('hyphen-availability'));
+
+        $document = (new MarkdownReader())->read('Availability alias [@hyphen-availability] remains visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
+        $t->contains('<p>Availability alias (Alias | 2026-08-09 | uncertain | 2026-07-01/2026-07-03) remains visible.</p>', $blocks);
+        $t->contains('<dt>Alias 2026</dt><dd>Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)</dd>', $blocks);
+    },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{split-url-date,
