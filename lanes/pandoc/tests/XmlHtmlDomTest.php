@@ -261,6 +261,58 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html input assistance global attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<input id="email-field" inputmode="EMAIL" enterkeyhint="Send" autocapitalize="none" value="editor@example.test">'
+                . '<textarea id="headline" inputmode="text" enterkeyhint="next" autocapitalize="words">Review Title</textarea>'
+                . '<p id="invalid-input-assist" inputmode="pager" enterkeyhint="launch" autocapitalize="maybe">Fallback</p>',
+            'input assistance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/input-assistance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $email = $summary[0];
+        $headline = $summary[1];
+        $invalid = $summary[2];
+
+        $t->same('input', $email['name']);
+        $t->same('input', $email['formControl']);
+        $t->same('email-field', $email['elementId']);
+        $t->same('EMAIL', $email['inputModeRaw']);
+        $t->same('email', $email['inputMode']);
+        $t->same(true, $email['inputModeValid']);
+        $t->same('Send', $email['enterKeyHintRaw']);
+        $t->same('send', $email['enterKeyHint']);
+        $t->same(true, $email['enterKeyHintValid']);
+        $t->same('none', $email['autoCapitalizeRaw']);
+        $t->same('off', $email['autoCapitalize']);
+        $t->same(true, $email['autoCapitalizeValid']);
+
+        $t->same('textarea', $headline['name']);
+        $t->same('textarea', $headline['formControl']);
+        $t->same('text', $headline['inputMode']);
+        $t->same('next', $headline['enterKeyHint']);
+        $t->same('words', $headline['autoCapitalize']);
+
+        $t->same('invalid-input-assist', $invalid['elementId']);
+        $t->same('pager', $invalid['inputModeRaw']);
+        $t->same(null, $invalid['inputMode']);
+        $t->same(false, $invalid['inputModeValid']);
+        $t->same('launch', $invalid['enterKeyHintRaw']);
+        $t->same(null, $invalid['enterKeyHint']);
+        $t->same(false, $invalid['enterKeyHintValid']);
+        $t->same('maybe', $invalid['autoCapitalizeRaw']);
+        $t->same(null, $invalid['autoCapitalize']);
+        $t->same(false, $invalid['autoCapitalizeValid']);
+
+        $t->same('<input autocapitalize="none" enterkeyhint="Send" id="email-field" inputmode="EMAIL" value="editor@example.test"><textarea autocapitalize="words" enterkeyhint="next" id="headline" inputmode="text">Review Title</textarea><p autocapitalize="maybe" enterkeyhint="launch" id="invalid-input-assist" inputmode="pager">Fallback</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/input-assistance-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'

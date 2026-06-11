@@ -1506,7 +1506,58 @@ final class XmlHtmlDom
             $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
         }
 
+        if (array_key_exists('inputmode', $attributes)) {
+            $inputMode = self::htmlInputMode($attributes['inputmode']);
+            $summary['inputModeRaw'] = $attributes['inputmode'];
+            $summary['inputMode'] = $inputMode;
+            $summary['inputModeValid'] = $inputMode !== null;
+        }
+
+        if (array_key_exists('enterkeyhint', $attributes)) {
+            $enterKeyHint = self::htmlEnterKeyHint($attributes['enterkeyhint']);
+            $summary['enterKeyHintRaw'] = $attributes['enterkeyhint'];
+            $summary['enterKeyHint'] = $enterKeyHint;
+            $summary['enterKeyHintValid'] = $enterKeyHint !== null;
+        }
+
+        if (array_key_exists('autocapitalize', $attributes)) {
+            $autoCapitalize = self::htmlAutoCapitalize($attributes['autocapitalize']);
+            $summary['autoCapitalizeRaw'] = $attributes['autocapitalize'];
+            $summary['autoCapitalize'] = $autoCapitalize;
+            $summary['autoCapitalizeValid'] = $autoCapitalize !== null;
+        }
+
         return $summary;
+    }
+
+    private static function htmlInputMode(string $value): ?string
+    {
+        $mode = strtolower(trim($value));
+
+        return in_array($mode, ['none', 'text', 'tel', 'url', 'email', 'numeric', 'decimal', 'search'], true)
+            ? $mode
+            : null;
+    }
+
+    private static function htmlEnterKeyHint(string $value): ?string
+    {
+        $hint = strtolower(trim($value));
+
+        return in_array($hint, ['enter', 'done', 'go', 'next', 'previous', 'search', 'send'], true)
+            ? $hint
+            : null;
+    }
+
+    private static function htmlAutoCapitalize(string $value): ?string
+    {
+        $autoCapitalize = strtolower(trim($value));
+        if ($autoCapitalize === 'none') {
+            return 'off';
+        }
+
+        return in_array($autoCapitalize, ['off', 'on', 'sentences', 'words', 'characters'], true)
+            ? $autoCapitalize
+            : null;
     }
 
     /**
