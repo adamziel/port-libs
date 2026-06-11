@@ -723,6 +723,82 @@ return [
         $t->same(['json-filter', 'legacy-packet'], $meta['review']['items']['aliases']['items']);
         $t->same('paragraph', $meta['review']['items']['body']['children'][0]->type);
     },
+    'indexes pandoc metadata constructors for json and native review provenance' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Constructor'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'aliases' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'json-filter'],
+                        ['t' => 'MetaBool', 'c' => true],
+                    ]],
+                    'body' => ['t' => 'MetaBlocks', 'c' => [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Reviewer'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'note'],
+                        ]],
+                    ]],
+                    'inline' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Code', 'c' => [['meta-code', ['php'], [['data-review', 'meta']]], 'wp_insert_post']],
+                    ]],
+                ]],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'provenance'],
+                ]],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $provenance = $document->attr('metaConstructorProvenance');
+
+            $t->same('MetaInlines', $provenance['/title']['constructor'], "{$source} title constructor");
+            $t->same($packet['meta']['title'], $provenance['/title']['native'], "{$source} title native payload");
+            $t->same('MetaBool', $provenance['/draft']['constructor'], "{$source} draft constructor");
+            $t->same(false, $provenance['/draft']['native']['c'], "{$source} draft native boolean");
+            $t->same('MetaMap', $provenance['/review']['constructor'], "{$source} review map constructor");
+            $t->same('MetaList', $provenance['/review/aliases']['constructor'], "{$source} aliases list constructor");
+            $t->same('MetaString', $provenance['/review/aliases/0']['constructor'], "{$source} alias string constructor");
+            $t->same('json-filter', $provenance['/review/aliases/0']['native']['c'], "{$source} alias string native value");
+            $t->same('MetaBool', $provenance['/review/aliases/1']['constructor'], "{$source} alias bool constructor");
+            $t->same(true, $provenance['/review/aliases/1']['native']['c'], "{$source} alias bool native value");
+            $t->same('MetaBlocks', $provenance['/review/body']['constructor'], "{$source} body blocks constructor");
+            $t->same('Plain', $provenance['/review/body']['native']['c'][0]['t'], "{$source} body block native payload");
+            $t->same('MetaInlines', $provenance['/review/inline']['constructor'], "{$source} inline metadata constructor");
+            $t->same('Code', $provenance['/review/inline']['native']['c'][0]['t'], "{$source} inline native payload");
+        }
+
+        $jsonMeta = $documents['json']->attr('meta');
+        $nativeMeta = $documents['native']->attr('meta');
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('inlines', $jsonMeta['title']['type']);
+        $t->same(false, $jsonMeta['draft']);
+        $t->same('list', $jsonMeta['review']['items']['aliases']['type']);
+        $t->same('blocks', $jsonMeta['review']['items']['body']['type']);
+        $t->same('inlines', $jsonMeta['review']['items']['inline']['type']);
+        $t->same('MetaInlines', $nativeMeta['title']['t']);
+        $t->same('MetaMap', $nativeMeta['review']['t']);
+        $t->same('MetaBlocks', $jsonPacket['meta']['review']['c']['body']['t']);
+        $t->same('MetaBlocks', $nativePacket['meta']['review']['c']['body']['t']);
+        $t->same('Code', $jsonPacket['meta']['review']['c']['inline']['c'][0]['t']);
+        $t->same('Code', $nativePacket['meta']['review']['c']['inline']['c'][0]['t']);
+    },
     'round trips core inline constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
