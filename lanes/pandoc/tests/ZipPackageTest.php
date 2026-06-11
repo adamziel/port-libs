@@ -683,6 +683,7 @@ return [
         $mimetype = 'application/epub+zip';
         $documentXml = '<w:document><w:p>local header span inventory</w:p></w:document>';
         $commentsXml = '<w:comments><w:comment>descriptor span</w:comment></w:comments>';
+        $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
         $zip = $buildZipPackage([
             [
                 'name' => 'mimetype',
@@ -694,6 +695,8 @@ return [
                 'name' => 'word/document.xml',
                 'data' => $documentXml,
                 'method' => 8,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
                 'centralIndex' => 0,
             ],
             [
@@ -716,7 +719,13 @@ return [
         $t->same('word/comments.xml', $entries[2]['name']);
         $t->same(0, $entries[0]['localHeaderOffset']);
         $t->same(30 + strlen('mimetype'), $entries[0]['localHeaderLength']);
+        $t->same(0, $entries[0]['localFixedHeaderOffset']);
+        $t->same(30, $entries[0]['localFixedHeaderLength']);
+        $t->same(30, $entries[0]['localVariableFieldsOffset']);
+        $t->same(strlen('mimetype'), $entries[0]['localVariableFieldsLength']);
+        $t->same(30, $entries[0]['localNameOffset']);
         $t->same(strlen('mimetype'), $entries[0]['localNameLength']);
+        $t->same(30 + strlen('mimetype'), $entries[0]['localExtraFieldOffset']);
         $t->same(0, $entries[0]['localExtraFieldLength']);
         $t->same($entries[0]['localHeaderLength'], $entries[0]['dataStart']);
         $t->same(strlen($mimetype), $entries[0]['compressedSize']);
@@ -730,9 +739,20 @@ return [
         $t->same(0, $entries[0]['compressionMethod']);
         $t->same(0x0800, $entries[0]['generalPurposeFlags']);
         $t->same(null, $entries[0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same(false, $entries[0]['hasLocalExtraFields']);
 
         $t->same(8, $entries[1]['compressionMethod']);
         $t->same(0x0800, $entries[1]['generalPurposeFlags']);
+        $t->same($entries[1]['localHeaderOffset'], $entries[1]['localFixedHeaderOffset']);
+        $t->same(30, $entries[1]['localFixedHeaderLength']);
+        $t->same($entries[1]['localHeaderOffset'] + 30, $entries[1]['localVariableFieldsOffset']);
+        $t->same(strlen('word/document.xml') + strlen($localExtra), $entries[1]['localVariableFieldsLength']);
+        $t->same($entries[1]['localVariableFieldsOffset'], $entries[1]['localNameOffset']);
+        $t->same(strlen('word/document.xml'), $entries[1]['localNameLength']);
+        $t->same($entries[1]['localNameOffset'] + strlen('word/document.xml'), $entries[1]['localExtraFieldOffset']);
+        $t->same(strlen($localExtra), $entries[1]['localExtraFieldLength']);
+        $t->same($entries[1]['localExtraFieldOffset'] + strlen($localExtra), $entries[1]['dataStart']);
+        $t->same(true, $entries[1]['hasLocalExtraFields']);
         $t->same(strlen(gzdeflate($documentXml)), $entries[1]['compressedSize']);
         $t->same(false, $entries[1]['usesDataDescriptor']);
         $t->same($entries[2]['localHeaderOffset'], $entries[1]['nextOffset']);
@@ -744,6 +764,11 @@ return [
         $t->same(0, $entries[2]['localHeaderCrc32']);
         $t->same(0, $entries[2]['localHeaderCompressedSize']);
         $t->same(0, $entries[2]['localHeaderUncompressedSize']);
+        $t->same($entries[2]['localHeaderOffset'] + 30, $entries[2]['localVariableFieldsOffset']);
+        $t->same(strlen('word/comments.xml'), $entries[2]['localVariableFieldsLength']);
+        $t->same($entries[2]['localVariableFieldsOffset'] + strlen('word/comments.xml'), $entries[2]['localExtraFieldOffset']);
+        $t->same(0, $entries[2]['localExtraFieldLength']);
+        $t->same(false, $entries[2]['hasLocalExtraFields']);
         $t->same(true, $entries[2]['usesDataDescriptor']);
         $t->same(true, $entries[2]['hasZeroLocalHeaderPlaceholders']);
         $t->same($entries[2]['compressedDataEnd'], $entries[2]['descriptorOffset']);
@@ -751,7 +776,14 @@ return [
         $t->same($entries[2]['compressedDataEnd'] + 16, $entries[2]['recordEnd']);
         $t->same($summary['centralDirectoryOffset'], $entries[2]['nextOffset']);
         $t->same(true, $entries[2]['isContiguousWithNext']);
+        $t->same(3 * 30, $summary['localFixedHeaderBytes']);
+        $t->same(strlen('mimetype') + strlen('word/document.xml') + strlen('word/comments.xml'), $summary['localNameBytes']);
+        $t->same(strlen($localExtra), $summary['localExtraFieldBytes']);
+        $t->same($summary['localNameBytes'] + strlen($localExtra), $summary['localVariableFieldBytes']);
+        $t->same($summary['localFixedHeaderBytes'] + $summary['localVariableFieldBytes'], $summary['localHeaderBytes']);
+        $t->same(1, $summary['localExtraFieldEntryCount']);
         $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaders']);
+        $t->same($summary, ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048)['strictImport']['localHeaders']);
         $t->same($mimetype, $package->read('/mimetype'));
         $t->same($documentXml, $package->read('/word/document.xml'));
         $t->same($commentsXml, $package->read('/word/comments.xml'));
