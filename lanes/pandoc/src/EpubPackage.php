@@ -63,7 +63,7 @@ final class EpubPackage
     ];
 
     /**
-     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     * @param list<array{fullPath:string, fullPathHasQuery:bool, fullPathQuery:?string, fullPathHasFragment:bool, fullPathFragment:?string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $containerLinks
      * @param list<array<string, mixed>> $packageLinks
@@ -167,7 +167,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{fullPath:string, partName:string, mediaType:string}>
+     * @return list<array{fullPath:string, fullPathHasQuery:bool, fullPathQuery:?string, fullPathHasFragment:bool, fullPathFragment:?string, partName:string, mediaType:string}>
      */
     public function rootfiles(): array
     {
@@ -568,7 +568,7 @@ final class EpubPackage
     }
 
     /**
-     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     * @param list<array{fullPath:string, fullPathHasQuery:bool, fullPathQuery:?string, fullPathHasFragment:bool, fullPathFragment:?string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $manifestItems
      * @param list<array<string, mixed>> $spine
@@ -627,7 +627,7 @@ final class EpubPackage
     }
 
     /**
-     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     * @param list<array{fullPath:string, fullPathHasQuery:bool, fullPathQuery:?string, fullPathHasFragment:bool, fullPathFragment:?string, partName:string, mediaType:string}> $rootfiles
      *
      * @return array<string, mixed>
      */
@@ -638,6 +638,7 @@ final class EpubPackage
         $alternateRootfiles = [];
         $missingRootfiles = [];
         $nonOpfRootfiles = [];
+        $suffixRootfiles = [];
         $parts = [];
         $diagnostics = [];
         $selectedIndex = null;
@@ -654,12 +655,41 @@ final class EpubPackage
             $item = [
                 'index' => $index,
                 'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+                'fullPathHasQuery' => ($rootfile['fullPathHasQuery'] ?? false) === true,
+                'fullPathQuery' => is_string($rootfile['fullPathQuery'] ?? null) ? $rootfile['fullPathQuery'] : null,
+                'fullPathHasFragment' => ($rootfile['fullPathHasFragment'] ?? false) === true,
+                'fullPathFragment' => is_string($rootfile['fullPathFragment'] ?? null) ? $rootfile['fullPathFragment'] : null,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
                 'exists' => $exists,
                 'selected' => $selected,
             ];
             $items[] = $item;
+
+            if ($item['fullPathHasQuery'] || $item['fullPathHasFragment']) {
+                $suffixRootfiles[] = $item;
+                if ($item['fullPathHasQuery']) {
+                    $diagnostics[] = [
+                        'type' => 'rootfile-full-path-query-component',
+                        'index' => $index,
+                        'fullPath' => $item['fullPath'],
+                        'partName' => $partName,
+                        'query' => $item['fullPathQuery'],
+                        'message' => 'EPUB container rootfile full-path includes a query component; package selection used the stripped part path',
+                    ];
+                }
+
+                if ($item['fullPathHasFragment']) {
+                    $diagnostics[] = [
+                        'type' => 'rootfile-full-path-fragment-component',
+                        'index' => $index,
+                        'fullPath' => $item['fullPath'],
+                        'partName' => $partName,
+                        'fragment' => $item['fullPathFragment'],
+                        'message' => 'EPUB container rootfile full-path includes a fragment component; package selection used the stripped part path',
+                    ];
+                }
+            }
 
             if ($mediaType === self::OPF_MEDIA_TYPE) {
                 $opfRootfiles[] = $item;
@@ -724,12 +754,14 @@ final class EpubPackage
             'missingRootfileCount' => count($missingRootfiles),
             'nonOpfRootfileCount' => count($nonOpfRootfiles),
             'duplicatePartCount' => count($duplicatePartItems),
+            'fullPathSuffixCount' => count($suffixRootfiles),
             'items' => $items,
             'opfRootfiles' => $opfRootfiles,
             'alternateRootfiles' => $alternateRootfiles,
             'missingRootfiles' => $missingRootfiles,
             'nonOpfRootfiles' => $nonOpfRootfiles,
             'duplicatePartItems' => $duplicatePartItems,
+            'fullPathSuffixItems' => $suffixRootfiles,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -1563,7 +1595,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{fullPath:string, partName:string, mediaType:string}>
+     * @return list<array{fullPath:string, fullPathHasQuery:bool, fullPathQuery:?string, fullPathHasFragment:bool, fullPathFragment:?string, partName:string, mediaType:string}>
      */
     private static function parseContainerXml(string $xml): array
     {
@@ -1585,9 +1617,15 @@ final class EpubPackage
                 throw new \InvalidArgumentException('EPUB rootfile full-path and media-type must be non-empty');
             }
 
+            $suffix = self::packageHrefSuffixReport($fullPath);
+            $partPath = substr($fullPath, 0, strcspn($fullPath, '?#'));
             $rootfiles[] = [
                 'fullPath' => $fullPath,
-                'partName' => OpcPackagePath::canonicalPartName($fullPath),
+                'fullPathHasQuery' => $suffix['hasQuery'],
+                'fullPathQuery' => $suffix['query'],
+                'fullPathHasFragment' => $suffix['hasFragment'],
+                'fullPathFragment' => $suffix['fragment'],
+                'partName' => OpcPackagePath::canonicalPartName($partPath),
                 'mediaType' => $mediaType,
             ];
         }
