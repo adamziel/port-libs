@@ -648,6 +648,7 @@ final class DocxOpenXmlReader
         string $documentRelationshipsPart,
         array $documentRelationships,
     ): array {
+        $contentTypesPart = $this->contentTypesPartProvenance($parts, $contentTypes);
         $relationshipParts = $this->packageRelationshipPartsProvenance(
             $parts,
             $contentTypes,
@@ -656,21 +657,137 @@ final class DocxOpenXmlReader
             $rootRelationships,
             $documentRelationships,
         );
+        $partInventory = $this->packagePartInventory(
+            $parts,
+            $contentTypes,
+            $rootRelationships,
+            $documentPart,
+            $documentRelationshipsPart,
+            $documentRelationships,
+        );
 
         return [
-            'contentTypesPart' => $this->contentTypesPartProvenance($parts, $contentTypes),
+            'contentTypesPart' => $contentTypesPart,
             'relationshipParts' => $relationshipParts,
             'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts),
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
-            'parts' => $this->packagePartInventory(
-                $parts,
-                $contentTypes,
-                $rootRelationships,
-                $documentPart,
-                $documentRelationshipsPart,
-                $documentRelationships,
-            ),
+            'parts' => $partInventory,
+            'summary' => $this->packageProvenanceSummary($contentTypesPart, $relationshipParts, $partInventory),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypesPart
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packageProvenanceSummary(array $contentTypesPart, array $relationshipParts, array $partInventory): array
+    {
+        $roleCounts = [];
+        $contentTypeSourceCounts = [];
+        $packageByteLength = 0;
+        $relationshipPartCount = 0;
+        foreach ($partInventory as $part) {
+            $packageByteLength += (int) ($part['bytes'] ?? 0);
+            $source = (string) ($part['contentTypeSource'] ?? 'missing');
+            $contentTypeSourceCounts[$source] = ($contentTypeSourceCounts[$source] ?? 0) + 1;
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$relationshipPartCount;
+            }
+        }
+
+        ksort($roleCounts);
+        ksort($contentTypeSourceCounts);
+
+        $relationshipCount = 0;
+        $internalRelationshipCount = 0;
+        $externalRelationshipCount = 0;
+        $existingRelationshipTargetCount = 0;
+        $missingRelationshipTargetCount = 0;
+        $relationshipTypeCounts = [];
+        $missingRelationshipTargets = [];
+        $externalRelationshipTargets = [];
+        $relationshipPartsWithMissingTargets = [];
+        $targetParts = [];
+
+        foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+                ++$relationshipCount;
+                $type = (string) ($relationship['type'] ?? '');
+                if ($type !== '') {
+                    $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
+                }
+
+                if (($relationship['external'] ?? false) === true) {
+                    ++$externalRelationshipCount;
+                    $externalRelationshipTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    continue;
+                }
+
+                ++$internalRelationshipCount;
+                $targetPart = $relationship['targetPart'] ?? null;
+                if (is_string($targetPart) && $targetPart !== '') {
+                    $targetParts[$targetPart] = true;
+                }
+
+                if (($relationship['exists'] ?? false) === true) {
+                    ++$existingRelationshipTargetCount;
+                    continue;
+                }
+
+                ++$missingRelationshipTargetCount;
+                $relationshipPartsWithMissingTargets[(string) $relationshipsPart] = true;
+                $missingRelationshipTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
+            }
+        }
+
+        ksort($relationshipTypeCounts);
+
+        return [
+            'partCount' => count($partInventory),
+            'packageByteLength' => $packageByteLength,
+            'relationshipPartCount' => $relationshipPartCount,
+            'relationshipCount' => $relationshipCount,
+            'internalRelationshipCount' => $internalRelationshipCount,
+            'externalRelationshipCount' => $externalRelationshipCount,
+            'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
+            'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
+            'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
+            'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'roleCounts' => $roleCounts,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
+            'missingRelationshipTargets' => $missingRelationshipTargets,
+            'externalRelationshipTargets' => $externalRelationshipTargets,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $relationship
+     * @return array<string, mixed>
+     */
+    private function relationshipProvenanceSummaryItem(array $relationship): array
+    {
+        return [
+            'id' => $relationship['id'] ?? '',
+            'type' => $relationship['type'] ?? '',
+            'sourcePart' => $relationship['sourcePart'] ?? '',
+            'relationshipsPart' => $relationship['relationshipsPart'] ?? '',
+            'target' => $relationship['target'] ?? '',
+            'targetMode' => $relationship['targetMode'] ?? '',
+            'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
+            'targetPart' => $relationship['targetPart'] ?? null,
+            'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
+            'contentType' => $relationship['contentType'] ?? null,
+            'contentTypeSource' => $relationship['contentTypeSource'] ?? 'missing',
         ];
     }
 

@@ -317,6 +317,66 @@ XML;
         $t->same(['https://example.test/review.png'], $thumbnail['externalTargets']);
         $t->same(['_rels/.rels'], $thumbnail['relationshipParts']);
     },
+    'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml?thread=review#c1"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-header.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+
+        $t->same(10, $summary['partCount']);
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(7, $summary['relationshipCount']);
+        $t->same(5, $summary['internalRelationshipCount']);
+        $t->same(2, $summary['externalRelationshipCount']);
+        $t->same(3, $summary['existingRelationshipTargetCount']);
+        $t->same(2, $summary['missingRelationshipTargetCount']);
+        $t->same(5, $summary['uniqueRelationshipTargetPartCount']);
+        $t->same(3, $summary['contentTypeDefaultCount']);
+        $t->same(3, $summary['contentTypeOverrideCount']);
+        $t->same(2, $summary['contentTypeSourceCounts']['override']);
+        $t->same(8, $summary['contentTypeSourceCounts']['default']);
+        $t->same(1, $summary['roleCounts']['office-document']);
+        $t->same(3, $summary['roleCounts']['relationship-part']);
+        $t->same(2, $summary['roleCounts']['root-relationship-target']);
+        $t->same(3, $summary['roleCounts']['package-part']);
+        $t->same(1, $summary['relationshipTypeCounts']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments']);
+        $t->same(2, $summary['relationshipTypeCounts']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $summary['relationshipPartsWithMissingTargets']);
+        $t->same('rMissingComments', $summary['missingRelationshipTargets'][0]['id']);
+        $t->same('word/comments.xml', $summary['missingRelationshipTargets'][0]['targetPart']);
+        $t->same('?thread=review#c1', $summary['missingRelationshipTargets'][0]['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $summary['missingRelationshipTargets'][0]['contentType']);
+        $t->same('override', $summary['missingRelationshipTargets'][0]['contentTypeSource']);
+        $t->same('rMissingHeaderImage', $summary['missingRelationshipTargets'][1]['id']);
+        $t->same('word/media/missing-header.png', $summary['missingRelationshipTargets'][1]['targetPart']);
+        $t->same('image/png', $summary['missingRelationshipTargets'][1]['contentType']);
+        $t->same('default', $summary['missingRelationshipTargets'][1]['contentTypeSource']);
+        $t->same('rLink', $summary['externalRelationshipTargets'][0]['id']);
+        $t->same('rRemoteTemplate', $summary['externalRelationshipTargets'][1]['id']);
+        $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
+        $t->same('https://example.test/templates/review.dotx', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
