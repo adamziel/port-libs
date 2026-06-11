@@ -545,6 +545,60 @@ XML;
         $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
         $t->same('https://example.test/templates/review.dotx', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
     },
+    'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rUntypedMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source.bin?audit=1#raw"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/source.bin'] = 'binary review media';
+        $parts['customXml/untyped-payload.bin'] = 'opaque custom payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $untypedMedia = $package['parts']['word/media/source.bin'];
+        $untypedPayload = $package['parts']['customXml/untyped-payload.bin'];
+        $relationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rUntypedMedia'];
+        $relationshipType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $t->same(2, $summary['missingContentTypePartCount']);
+        $t->same(1, $summary['relationshipTargetMissingContentTypeCount']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithMissingContentTypes']);
+        $t->same(['word/media/source.bin', 'customXml/untyped-payload.bin'], array_column($summary['partsWithoutContentType'], 'partName'));
+        $t->same('word/media/source.bin', $summary['partsWithoutContentType'][0]['partName']);
+        $t->same(strlen('binary review media'), $summary['partsWithoutContentType'][0]['bytes']);
+        $t->same('bin', $summary['partsWithoutContentType'][0]['defaultExtension']);
+        $t->same(['document-relationship-target'], $summary['partsWithoutContentType'][0]['roles']);
+        $t->same('customXml/untyped-payload.bin', $summary['partsWithoutContentType'][1]['partName']);
+        $t->same(['package-part'], $summary['partsWithoutContentType'][1]['roles']);
+
+        $t->same('rUntypedMedia', $summary['relationshipTargetsWithoutContentType'][0]['id']);
+        $t->same('word/document.xml', $summary['relationshipTargetsWithoutContentType'][0]['sourcePart']);
+        $t->same('word/media/source.bin', $summary['relationshipTargetsWithoutContentType'][0]['targetPart']);
+        $t->same('?audit=1#raw', $summary['relationshipTargetsWithoutContentType'][0]['targetReferenceSuffix']);
+        $t->same('missing', $summary['relationshipTargetsWithoutContentType'][0]['contentTypeSource']);
+        $t->same(2, $summary['contentTypeSourceCounts']['missing']);
+        $t->same(2, $summary['relationshipTypeCounts'][$relationshipType]);
+
+        $t->same('missing', $untypedMedia['contentTypeSource']);
+        $t->same('bin', $untypedMedia['defaultExtension']);
+        $t->same('', $untypedMedia['contentType']);
+        $t->same(['document-relationship-target'], $untypedMedia['roles']);
+        $t->same('missing', $untypedPayload['contentTypeSource']);
+        $t->same('bin', $untypedPayload['defaultExtension']);
+        $t->same(['package-part'], $untypedPayload['roles']);
+
+        $t->same('word/media/source.bin?audit=1#raw', $relationship['resolvedTarget']);
+        $t->same('word/media/source.bin', $relationship['targetPart']);
+        $t->same('audit=1', $relationship['targetQuery']);
+        $t->same('raw', $relationship['targetFragment']);
+        $t->same(true, $relationship['exists']);
+        $t->same('missing', $relationship['contentTypeSource']);
+        $t->same('bin', $relationship['defaultExtension']);
+    },
     'summarizes docx embedded object package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';

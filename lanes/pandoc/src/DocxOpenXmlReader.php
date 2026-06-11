@@ -1890,7 +1890,24 @@ final class DocxOpenXmlReader
         $missingRelationshipTargets = [];
         $externalRelationshipTargets = [];
         $relationshipPartsWithMissingTargets = [];
+        $relationshipPartsWithMissingContentTypes = [];
+        $relationshipTargetsWithoutContentType = [];
         $targetParts = [];
+        $partsWithoutContentType = [];
+
+        foreach ($partInventory as $part) {
+            if (($part['contentTypeSource'] ?? '') !== 'missing') {
+                continue;
+            }
+
+            $partsWithoutContentType[] = [
+                'partName' => (string) ($part['partName'] ?? ''),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'defaultExtension' => $part['defaultExtension'] ?? null,
+                'roles' => $part['roles'] ?? [],
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+            ];
+        }
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
@@ -1914,12 +1931,16 @@ final class DocxOpenXmlReader
 
                 if (($relationship['exists'] ?? false) === true) {
                     ++$existingRelationshipTargetCount;
-                    continue;
+                } else {
+                    ++$missingRelationshipTargetCount;
+                    $relationshipPartsWithMissingTargets[(string) $relationshipsPart] = true;
+                    $missingRelationshipTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
                 }
 
-                ++$missingRelationshipTargetCount;
-                $relationshipPartsWithMissingTargets[(string) $relationshipsPart] = true;
-                $missingRelationshipTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
+                if (($relationship['contentTypeSource'] ?? '') === 'missing') {
+                    $relationshipPartsWithMissingContentTypes[(string) $relationshipsPart] = true;
+                    $relationshipTargetsWithoutContentType[] = $this->relationshipProvenanceSummaryItem($relationship);
+                }
             }
         }
 
@@ -1935,13 +1956,18 @@ final class DocxOpenXmlReader
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'missingContentTypePartCount' => count($partsWithoutContentType),
+            'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
+            'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
+            'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
+            'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
     }
