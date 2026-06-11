@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class XmlHtmlDom
 {
     private const FRAGMENT_ROOT_ATTRIBUTE = 'data-port-libs-pandoc-fragment-root';
+    private const PROVENANCE_ATTRIBUTE_LIMIT = 16;
+    private const PROVENANCE_TEXT_SAMPLE_LIMIT = 120;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -452,6 +454,37 @@ final class XmlHtmlDom
         return $element->hasAttribute($localName) ? $element->getAttribute($localName) : null;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function xmlNodeProvenance(\DOMNode $node, string $label = 'XML document'): array
+    {
+        return self::nodeProvenance($node, $label, self::documentBoundaryForNode($node), true, false);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function htmlFragmentNodeProvenance(\DOMNode $node, string $label = 'HTML fragment'): array
+    {
+        if ($node instanceof \DOMDocument) {
+            return [
+                'source' => $label,
+                'format' => 'html',
+                'type' => 'document',
+                'path' => '/',
+                'depth' => 0,
+            ];
+        }
+
+        $document = $node->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            throw new \InvalidArgumentException('HTML fragment node must belong to a DOMDocument');
+        }
+
+        return self::nodeProvenance($node, $label, self::requireFragmentRoot($document), false, true);
+    }
+
     public static function fragmentRoot(\DOMDocument $dom): ?\DOMElement
     {
         foreach ($dom->getElementsByTagName('div') as $element) {
@@ -682,6 +715,224 @@ final class XmlHtmlDom
         $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $node->textContent) ?? $node->textContent;
 
         return trim($text);
+    }
+
+    private static function documentBoundaryForNode(\DOMNode $node): \DOMNode
+    {
+        if ($node instanceof \DOMDocument) {
+            return $node;
+        }
+
+        $document = $node->ownerDocument;
+        if ($document instanceof \DOMDocument && $document->documentElement instanceof \DOMElement) {
+            return $document->documentElement;
+        }
+
+        $boundary = $node;
+        while ($boundary->parentNode instanceof \DOMNode && !$boundary->parentNode instanceof \DOMDocument) {
+            $boundary = $boundary->parentNode;
+        }
+
+        return $boundary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function nodeProvenance(
+        \DOMNode $node,
+        string $label,
+        \DOMNode $boundary,
+        bool $includeBoundary,
+        bool $html
+    ): array {
+        if ($node instanceof \DOMDocument) {
+            return [
+                'source' => $label,
+                'format' => $html ? 'html' : 'xml',
+                'type' => 'document',
+                'path' => '/',
+                'depth' => 0,
+            ];
+        }
+
+        $segments = self::provenancePathSegments($node, $boundary, $includeBoundary, $html);
+        $provenance = [
+            'source' => $label,
+            'format' => $html ? 'html' : 'xml',
+            'type' => self::provenanceNodeType($node),
+            'path' => $segments === [] ? '/' : '/' . implode('/', $segments),
+            'depth' => count($segments),
+        ];
+
+        if ($node instanceof \DOMElement) {
+            $attributes = $html ? self::htmlAttributes($node) : self::xmlAttributes($node);
+            $attributeCount = count($attributes);
+            $provenance += [
+                'name' => $html ? self::htmlElementName($node) : $node->nodeName,
+                'localName' => $node->localName,
+                'namespace' => $node->namespaceURI,
+                'attributes' => array_slice($attributes, 0, self::PROVENANCE_ATTRIBUTE_LIMIT, true),
+                'attributeCount' => $attributeCount,
+                'childElementCount' => self::childElementCount($node),
+                'textSample' => self::provenanceTextSample($node->textContent),
+            ];
+            if ($attributeCount > self::PROVENANCE_ATTRIBUTE_LIMIT) {
+                $provenance['attributeOverflow'] = $attributeCount - self::PROVENANCE_ATTRIBUTE_LIMIT;
+            }
+
+            return $provenance;
+        }
+
+        if ($node instanceof \DOMCharacterData) {
+            $text = $node->data;
+            $provenance['textLength'] = strlen($text);
+            $provenance['textSample'] = self::provenanceTextSample($text);
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function provenancePathSegments(
+        \DOMNode $node,
+        \DOMNode $boundary,
+        bool $includeBoundary,
+        bool $html
+    ): array {
+        $segments = [];
+        $current = $node;
+
+        while ($current instanceof \DOMNode) {
+            if ($current->isSameNode($boundary)) {
+                if ($includeBoundary) {
+                    array_unshift($segments, self::provenancePathSegment($current, $html));
+                }
+
+                return $segments;
+            }
+
+            array_unshift($segments, self::provenancePathSegment($current, $html));
+            $current = $current->parentNode;
+        }
+
+        throw new \InvalidArgumentException('DOM node is outside the requested provenance boundary');
+    }
+
+    private static function provenancePathSegment(\DOMNode $node, bool $html): string
+    {
+        return self::provenanceNodeName($node, $html) . '[' . self::provenanceSiblingOrdinal($node, $html) . ']';
+    }
+
+    private static function provenanceSiblingOrdinal(\DOMNode $node, bool $html): int
+    {
+        $parent = $node->parentNode;
+        if (!$parent instanceof \DOMNode) {
+            return 1;
+        }
+
+        $name = self::provenanceNodeName($node, $html);
+        $ordinal = 0;
+        foreach ($parent->childNodes as $sibling) {
+            if (self::provenanceNodeName($sibling, $html) === $name) {
+                ++$ordinal;
+            }
+            if ($sibling->isSameNode($node)) {
+                return $ordinal;
+            }
+        }
+
+        return 1;
+    }
+
+    private static function provenanceNodeName(\DOMNode $node, bool $html): string
+    {
+        if ($node instanceof \DOMElement) {
+            return $html ? self::htmlElementName($node) : $node->nodeName;
+        }
+
+        if ($node instanceof \DOMCdataSection) {
+            return '#cdata-section';
+        }
+
+        if ($node instanceof \DOMText) {
+            return '#text';
+        }
+
+        if ($node instanceof \DOMComment) {
+            return '#comment';
+        }
+
+        if ($node instanceof \DOMDocument) {
+            return '#document';
+        }
+
+        return '#node-' . $node->nodeType;
+    }
+
+    private static function provenanceNodeType(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMElement) {
+            return 'element';
+        }
+
+        if ($node instanceof \DOMCdataSection) {
+            return 'cdata';
+        }
+
+        if ($node instanceof \DOMText) {
+            return 'text';
+        }
+
+        if ($node instanceof \DOMComment) {
+            return 'comment';
+        }
+
+        if ($node instanceof \DOMDocument) {
+            return 'document';
+        }
+
+        return 'node';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function xmlAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        foreach ($element->attributes ?? [] as $attribute) {
+            if ($attribute instanceof \DOMAttr) {
+                $attributes[$attribute->nodeName] = $attribute->value;
+            }
+        }
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    private static function childElementCount(\DOMElement $element): int
+    {
+        $count = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    private static function provenanceTextSample(string $text): string
+    {
+        $sample = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text);
+        if (strlen($sample) <= self::PROVENANCE_TEXT_SAMPLE_LIMIT) {
+            return $sample;
+        }
+
+        return substr($sample, 0, self::PROVENANCE_TEXT_SAMPLE_LIMIT) . '...';
     }
 
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement

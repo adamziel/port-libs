@@ -877,6 +877,81 @@ XML, 'package reader XML');
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment("<p>bad\0html</p>", 'unsafe HTML fragment'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<!DOCTYPE html><p>bad</p>', 'unsafe HTML fragment'));
     },
+    'reports namespace-aware xml node provenance paths for package readers' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(
+            '<w:document xmlns:w="urn:word"><w:body><w:p w:rsidR="001"><w:r><w:t>First</w:t></w:r></w:p><w:p w:rsidR="002"><w:r><w:t>Second reviewer note</w:t></w:r></w:p></w:body></w:document>',
+            'DOCX body XML',
+            preserveWhiteSpace: false
+        );
+        $paragraph = $dom->getElementsByTagNameNS('urn:word', 'p')->item(1);
+        $text = $paragraph instanceof DOMElement
+            ? $paragraph->getElementsByTagNameNS('urn:word', 't')->item(0)?->firstChild
+            : null;
+
+        $t->true($paragraph instanceof DOMElement);
+        $t->true($text instanceof DOMText);
+
+        $paragraphProvenance = XmlHtmlDom::xmlNodeProvenance($paragraph, 'word/document.xml');
+        $textProvenance = $text instanceof DOMText ? XmlHtmlDom::xmlNodeProvenance($text, 'word/document.xml') : [];
+
+        $t->same('word/document.xml', $paragraphProvenance['source']);
+        $t->same('xml', $paragraphProvenance['format']);
+        $t->same('element', $paragraphProvenance['type']);
+        $t->same('/w:document[1]/w:body[1]/w:p[2]', $paragraphProvenance['path']);
+        $t->same('w:p', $paragraphProvenance['name']);
+        $t->same('p', $paragraphProvenance['localName']);
+        $t->same('urn:word', $paragraphProvenance['namespace']);
+        $t->same(['w:rsidR' => '002'], $paragraphProvenance['attributes']);
+        $t->same(1, $paragraphProvenance['attributeCount']);
+        $t->same(1, $paragraphProvenance['childElementCount']);
+        $t->same('Second reviewer note', $paragraphProvenance['textSample']);
+        $t->same('/w:document[1]/w:body[1]/w:p[2]/w:r[1]/w:t[1]/#text[1]', $textProvenance['path']);
+        $t->same('text', $textProvenance['type']);
+        $t->same(20, $textProvenance['textLength']);
+        $t->same('Second reviewer note', $textProvenance['textSample']);
+    },
+    'reports html fragment node provenance paths without wrapper leakage' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section data-source="packet"><p>Intro <span data-review="42">Span text</span><!--boundary marker--></p><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></section>',
+            'reader HTML fragment'
+        );
+        $span = $dom->getElementsByTagName('span')->item(0);
+        $paragraph = $dom->getElementsByTagName('p')->item(0);
+        $comment = null;
+        if ($paragraph instanceof DOMElement) {
+            foreach ($paragraph->childNodes as $child) {
+                if ($child instanceof DOMComment) {
+                    $comment = $child;
+                    break;
+                }
+            }
+        }
+        $gradient = $dom->getElementsByTagName('lineargradient')->item(0)
+            ?? $dom->getElementsByTagName('linearGradient')->item(0);
+
+        $t->true($span instanceof DOMElement);
+        $t->true($comment instanceof DOMComment);
+        $t->true($gradient instanceof DOMElement);
+
+        $spanProvenance = $span instanceof DOMElement ? XmlHtmlDom::htmlFragmentNodeProvenance($span, 'reader.html') : [];
+        $commentProvenance = $comment instanceof DOMComment ? XmlHtmlDom::htmlFragmentNodeProvenance($comment, 'reader.html') : [];
+        $gradientProvenance = $gradient instanceof DOMElement ? XmlHtmlDom::htmlFragmentNodeProvenance($gradient, 'reader.html') : [];
+
+        $t->same('reader.html', $spanProvenance['source']);
+        $t->same('html', $spanProvenance['format']);
+        $t->same('element', $spanProvenance['type']);
+        $t->same('/section[1]/p[1]/span[1]', $spanProvenance['path']);
+        $t->same('span', $spanProvenance['name']);
+        $t->same(['data-review' => '42'], $spanProvenance['attributes']);
+        $t->same('Span text', $spanProvenance['textSample']);
+        $t->same('/section[1]/p[1]/#comment[1]', $commentProvenance['path']);
+        $t->same('comment', $commentProvenance['type']);
+        $t->same('boundary marker', $commentProvenance['textSample']);
+        $t->same('/section[1]/svg[1]/linearGradient[1]', $gradientProvenance['path']);
+        $t->same('linearGradient', $gradientProvenance['name']);
+        $t->same(['id' => 'g'], $gradientProvenance['attributes']);
+        $t->true(!str_contains($spanProvenance['path'], 'data-port-libs-pandoc-fragment-root'));
+    },
     'rejects unsafe HTML fragment declarations before serialization handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment('<p data-review="ok">Safe</p>', 'safe HTML fragment');
 
