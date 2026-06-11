@@ -403,6 +403,48 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
+                . '<del cite="https://example.test/revision#old" datetime="2026-06-10T09:15:30-0500">Removed</del>'
+                . '<ins datetime="2026-02-30">Invalid date</ins></p>',
+            'revision review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $paragraph = $summary[0];
+        $inserted = $paragraph['children'][0];
+        $deleted = $paragraph['children'][1];
+        $invalid = $paragraph['children'][2];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('ins', $inserted['name']);
+        $t->same('insertion', $inserted['revision']);
+        $t->same('ins', $inserted['revisionTag']);
+        $t->same('./changes/insert.html', $inserted['revisionCite']);
+        $t->same('2026-06-11 12:30Z', $inserted['revisionDatetimeRaw']);
+        $t->same('2026-06-11T12:30Z', $inserted['revisionDatetime']);
+        $t->same('global-datetime', $inserted['revisionDatetimeKind']);
+        $t->same(true, $inserted['revisionDatetimeValid']);
+        $t->same('Inserted text', $inserted['text']);
+        $t->same('em', $inserted['children'][1]['name']);
+        $t->same('del', $deleted['name']);
+        $t->same('deletion', $deleted['revision']);
+        $t->same('https://example.test/revision#old', $deleted['revisionCite']);
+        $t->same('2026-06-10T09:15:30-05:00', $deleted['revisionDatetime']);
+        $t->same('global-datetime', $deleted['revisionDatetimeKind']);
+        $t->same(true, $deleted['revisionDatetimeValid']);
+        $t->same('ins', $invalid['name']);
+        $t->same('2026-02-30', $invalid['revisionDatetimeRaw']);
+        $t->same(null, $invalid['revisionDatetime']);
+        $t->same('invalid', $invalid['revisionDatetimeKind']);
+        $t->same(false, $invalid['revisionDatetimeValid']);
+        $t->same(
+            '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins><del cite="https://example.test/revision#old" datetime="2026-06-10T09:15:30-0500">Removed</del><ins datetime="2026-02-30">Invalid date</ins></p>',
+            $html
+        );
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'

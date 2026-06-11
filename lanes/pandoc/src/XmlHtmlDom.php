@@ -816,6 +816,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'ins' || $name === 'del') {
+            $summary += self::revisionSummary($node, $name);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -880,6 +883,110 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function revisionSummary(\DOMElement $element, string $name): array
+    {
+        $summary = [
+            'revision' => $name === 'ins' ? 'insertion' : 'deletion',
+            'revisionTag' => $name,
+            'revisionCite' => self::attributeOrNull($element, 'cite'),
+            'revisionDatetimeRaw' => self::attributeOrNull($element, 'datetime'),
+            'revisionDatetime' => null,
+            'revisionDatetimeKind' => null,
+            'revisionDatetimeValid' => false,
+        ];
+
+        if ($summary['revisionDatetimeRaw'] === null) {
+            return $summary;
+        }
+
+        $datetime = self::revisionDatetimeSummary($summary['revisionDatetimeRaw']);
+        if ($datetime === null) {
+            $summary['revisionDatetimeKind'] = 'invalid';
+
+            return $summary;
+        }
+
+        $summary['revisionDatetime'] = $datetime['value'];
+        $summary['revisionDatetimeKind'] = $datetime['kind'];
+        $summary['revisionDatetimeValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array{kind:string, value:string}|null
+     */
+    private static function revisionDatetimeSummary(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        $datePattern = '([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])';
+        $timePattern = '((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)';
+        $timezonePattern = '([Zz]|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])';
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'global-datetime',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3]
+                    . 'T' . (string) $matches[4]
+                    . self::normalizeTimezone((string) $matches[5]),
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'local-datetime',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3]
+                    . 'T' . (string) $matches[4],
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'date',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3],
+            ];
+        }
+
+        return null;
+    }
+
+    private static function isValidDateParts(string $year, string $month, string $day): bool
+    {
+        return checkdate((int) $month, (int) $day, (int) $year);
+    }
+
+    private static function normalizeTimezone(string $timezone): string
+    {
+        if (strtoupper($timezone) === 'Z') {
+            return 'Z';
+        }
+
+        if (preg_match('/^([+-])([0-9]{2}):?([0-9]{2})$/', $timezone, $matches) === 1) {
+            return (string) $matches[1] . (string) $matches[2] . ':' . (string) $matches[3];
+        }
+
+        return $timezone;
     }
 
     /**
