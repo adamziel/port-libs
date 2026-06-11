@@ -443,6 +443,9 @@ final class OpenDocumentPackage
         if ($entry->name === 'meta.xml') {
             $roles[] = 'odf-meta';
         }
+        if ($entry->name === 'settings.xml') {
+            $roles[] = 'odf-settings';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
