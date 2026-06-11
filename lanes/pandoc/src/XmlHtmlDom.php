@@ -846,7 +846,7 @@ final class XmlHtmlDom
                 }
             }
         }
-        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track'], true)) {
+        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
 
@@ -893,6 +893,10 @@ final class XmlHtmlDom
             'audio', 'video' => self::mediaElementSummary($element, $name),
             'source' => ['embeddedResource' => 'source'] + self::sourceElementSummary($element),
             'track' => ['embeddedResource' => 'track'] + self::trackElementSummary($element),
+            'iframe' => self::iframeSummary($element),
+            'embed' => self::embedSummary($element),
+            'object' => self::objectSummary($element),
+            'param' => self::paramElementSummary($element),
             default => [],
         };
     }
@@ -996,6 +1000,103 @@ final class XmlHtmlDom
             'label' => self::attributeOrNull($track, 'label'),
             'default' => $track->hasAttribute('default'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeSummary(\DOMElement $iframe): array
+    {
+        $summary = [
+            'embeddedResource' => 'iframe',
+            'src' => self::attributeOrNull($iframe, 'src'),
+            'srcdoc' => self::attributeOrNull($iframe, 'srcdoc'),
+            'nameAttribute' => self::attributeOrNull($iframe, 'name'),
+            'width' => self::attributeOrNull($iframe, 'width'),
+            'height' => self::attributeOrNull($iframe, 'height'),
+            'loading' => self::attributeOrNull($iframe, 'loading'),
+            'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
+            'allow' => self::attributeOrNull($iframe, 'allow'),
+            'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
+            'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
+        ];
+
+        $fallbackText = self::normalizedText($iframe);
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function embedSummary(\DOMElement $embed): array
+    {
+        return [
+            'embeddedResource' => 'embed',
+            'src' => self::attributeOrNull($embed, 'src'),
+            'mimeType' => self::attributeOrNull($embed, 'type'),
+            'width' => self::attributeOrNull($embed, 'width'),
+            'height' => self::attributeOrNull($embed, 'height'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function objectSummary(\DOMElement $object): array
+    {
+        $fallbackText = self::normalizedText($object);
+        $summary = [
+            'embeddedResource' => 'object',
+            'data' => self::attributeOrNull($object, 'data'),
+            'mimeType' => self::attributeOrNull($object, 'type'),
+            'nameAttribute' => self::attributeOrNull($object, 'name'),
+            'width' => self::attributeOrNull($object, 'width'),
+            'height' => self::attributeOrNull($object, 'height'),
+            'params' => self::objectParamSummaries($object),
+        ];
+
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{embeddedResource:string, paramName:?string, value:?string, valueType:?string, mimeType:?string}
+     */
+    private static function paramElementSummary(\DOMElement $param): array
+    {
+        return [
+            'embeddedResource' => 'param',
+            'paramName' => self::attributeOrNull($param, 'name'),
+            'value' => self::attributeOrNull($param, 'value'),
+            'valueType' => self::attributeOrNull($param, 'valuetype'),
+            'mimeType' => self::attributeOrNull($param, 'type'),
+        ];
+    }
+
+    /**
+     * @return list<array{paramName:?string, value:?string, valueType:?string, mimeType:?string}>
+     */
+    private static function objectParamSummaries(\DOMElement $object): array
+    {
+        $params = [];
+        foreach ($object->childNodes as $child) {
+            if (!$child instanceof \DOMElement || strtolower(self::htmlElementName($child)) !== 'param') {
+                continue;
+            }
+
+            $summary = self::paramElementSummary($child);
+            unset($summary['embeddedResource']);
+            $params[] = $summary;
+        }
+
+        return $params;
     }
 
     /**

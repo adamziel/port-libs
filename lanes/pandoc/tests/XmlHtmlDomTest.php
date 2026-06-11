@@ -450,7 +450,10 @@ XML, 'package reader XML');
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<picture><source media="(min-width: 60em)" type="image/avif" srcset="hero.avif 1x, hero@2x.avif 2x"><source type="image/webp" srcset="hero.webp 800w"><img src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w" sizes="100vw" alt="Hero &amp; Source" loading="lazy" decoding="async"></picture>'
                 . '<video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source src="clip.mp4" type="video/mp4" media="screen"><track kind="captions" srclang="en" label="English" src="captions.vtt" default></video>'
-                . '<audio src="chapter.mp3" controls><source src="chapter.ogg" type="audio/ogg"></audio>',
+                . '<audio src="chapter.mp3" controls><source src="chapter.ogg" type="audio/ogg"></audio>'
+                . '<iframe src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" sandbox="allow-scripts allow-forms" allowfullscreen loading="lazy" referrerpolicy="no-referrer" width="640" height="360">Legacy frame fallback</iframe>'
+                . '<embed src="plugin.swf" type="application/x-shockwave-flash" width="320" height="32"></embed>'
+                . '<object data="diagram.svg" type="image/svg+xml" name="diagram" width="640" height="480"><param name="quality" value="high"><param name="review-url" value="packet.html" valuetype="ref" type="text/html">Object fallback</object>',
             'embedded media review fragment'
         );
         $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
@@ -460,6 +463,9 @@ XML, 'package reader XML');
         $image = $picture['image'];
         $video = $summary[1];
         $audio = $summary[2];
+        $iframe = $summary[3];
+        $embed = $summary[4];
+        $object = $summary[5];
 
         $t->same('picture', $picture['embeddedResource']);
         $t->same(2, count($picture['pictureSources']));
@@ -494,7 +500,31 @@ XML, 'package reader XML');
         $t->same(true, $audio['controls']);
         $t->same('chapter.ogg', $audio['mediaSources'][0]['src']);
         $t->same('audio/ogg', $audio['mediaSources'][0]['type']);
-        $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio>', $html);
+
+        $t->same('iframe', $iframe['embeddedResource']);
+        $t->same('frame.html', $iframe['src']);
+        $t->same('<p>Preview</p>', $iframe['srcdoc']);
+        $t->same(['allow-scripts', 'allow-forms'], $iframe['sandboxTokens']);
+        $t->same(true, $iframe['allowFullscreen']);
+        $t->same('Legacy frame fallback', $iframe['fallbackText']);
+
+        $t->same('embed', $embed['embeddedResource']);
+        $t->same('plugin.swf', $embed['src']);
+        $t->same('application/x-shockwave-flash', $embed['mimeType']);
+        $t->same('320', $embed['width']);
+
+        $t->same('object', $object['embeddedResource']);
+        $t->same('diagram.svg', $object['data']);
+        $t->same('image/svg+xml', $object['mimeType']);
+        $t->same('diagram', $object['nameAttribute']);
+        $t->same([
+            ['paramName' => 'quality', 'value' => 'high', 'valueType' => null, 'mimeType' => null],
+            ['paramName' => 'review-url', 'value' => 'packet.html', 'valueType' => 'ref', 'mimeType' => 'text/html'],
+        ], $object['params']);
+        $t->same('param', $object['children'][0]['embeddedResource']);
+        $t->same('quality', $object['children'][0]['paramName']);
+        $t->same('Object fallback', $object['fallbackText']);
+        $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
