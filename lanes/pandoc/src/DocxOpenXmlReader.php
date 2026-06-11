@@ -248,6 +248,8 @@ final class DocxOpenXmlReader
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
+        $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
+        $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -1322,7 +1324,6 @@ final class DocxOpenXmlReader
         $byRelationshipId = [];
         $relationshipIds = [];
         $partNames = [];
-        $issueCount = 0;
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
 
         foreach ($relationships as $relationship) {
@@ -1340,6 +1341,16 @@ final class DocxOpenXmlReader
                 count($items),
             );
             $items[] = $item;
+        }
+
+        $storeItemSummary = $this->annotateCustomXmlDuplicateStoreItemIds($items);
+        $issueCount = 0;
+
+        foreach ($items as $item) {
+            $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+            if ($relationshipId === '') {
+                continue;
+            }
             $byRelationshipId[$relationshipId] = $item;
             $relationshipIds[] = $relationshipId;
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
@@ -1376,11 +1387,101 @@ final class DocxOpenXmlReader
             'existingPropertiesPartCount' => $existingPropertiesPartCount,
             'missingPropertiesPartCount' => $missingPropertiesPartCount,
             'invalidPropertiesXmlCount' => $invalidPropertiesXmlCount,
+            'storeItemIds' => $storeItemSummary['storeItemIds'],
+            'duplicateStoreItemIdCount' => count($storeItemSummary['duplicateStoreItemIds']),
+            'duplicateStoreItemIds' => $storeItemSummary['duplicateStoreItemIds'],
+            'duplicateStoreItemIdReferences' => $storeItemSummary['duplicateStoreItemIdReferences'],
             'issueCount' => $issueCount,
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{storeItemIds:list<string>, duplicateStoreItemIds:list<string>, duplicateStoreItemIdReferences:array<string, list<array<string, mixed>>>}
+     */
+    private function annotateCustomXmlDuplicateStoreItemIds(array &$items): array
+    {
+        $references = [];
+        foreach ($items as $itemIndex => $item) {
+            $propertiesItems = $item['propertiesParts']['items'] ?? [];
+            if (!is_array($propertiesItems)) {
+                continue;
+            }
+
+            foreach ($propertiesItems as $propertiesIndex => $propertiesItem) {
+                if (!is_array($propertiesItem)) {
+                    continue;
+                }
+
+                $itemId = is_string($propertiesItem['itemId'] ?? null) ? trim($propertiesItem['itemId']) : '';
+                if ($itemId === '') {
+                    continue;
+                }
+
+                $references[$itemId][] = [
+                    'customXmlIndex' => (int) ($item['index'] ?? $itemIndex),
+                    'customXmlRelationshipId' => is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '',
+                    'customXmlPartName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                    'propertiesIndex' => (int) ($propertiesItem['index'] ?? $propertiesIndex),
+                    'propertiesRelationshipId' => is_string($propertiesItem['relationshipId'] ?? null) ? $propertiesItem['relationshipId'] : '',
+                    'propertiesPartName' => is_string($propertiesItem['partName'] ?? null) ? $propertiesItem['partName'] : null,
+                ];
+            }
+        }
+
+        ksort($references);
+        $duplicateStoreItemIds = [];
+        $duplicateStoreItemIdReferences = [];
+        foreach ($references as $itemId => $itemReferences) {
+            if (count($itemReferences) < 2) {
+                continue;
+            }
+
+            $duplicateStoreItemIds[] = $itemId;
+            $duplicateStoreItemIdReferences[$itemId] = $itemReferences;
+        }
+
+        if ($duplicateStoreItemIds !== []) {
+            $duplicates = array_fill_keys($duplicateStoreItemIds, true);
+            foreach ($items as $itemIndex => $item) {
+                $propertiesItems = $item['propertiesParts']['items'] ?? [];
+                if (!is_array($propertiesItems)) {
+                    continue;
+                }
+
+                $itemHasDuplicate = false;
+                foreach ($propertiesItems as $propertiesIndex => $propertiesItem) {
+                    if (!is_array($propertiesItem)) {
+                        continue;
+                    }
+
+                    $itemId = is_string($propertiesItem['itemId'] ?? null) ? trim($propertiesItem['itemId']) : '';
+                    if ($itemId === '' || !isset($duplicates[$itemId])) {
+                        continue;
+                    }
+
+                    $itemHasDuplicate = true;
+                    $this->appendUniqueString($items[$itemIndex]['propertiesParts']['items'][$propertiesIndex]['issues'], 'duplicate-store-item-id');
+                    $propertiesRelationshipId = is_string($propertiesItem['relationshipId'] ?? null) ? $propertiesItem['relationshipId'] : '';
+                    if ($propertiesRelationshipId !== '' && isset($items[$itemIndex]['propertiesParts']['byRelationshipId'][$propertiesRelationshipId])) {
+                        $this->appendUniqueString($items[$itemIndex]['propertiesParts']['byRelationshipId'][$propertiesRelationshipId]['issues'], 'duplicate-store-item-id');
+                    }
+                }
+
+                if ($itemHasDuplicate) {
+                    $this->appendUniqueString($items[$itemIndex]['issues'], 'duplicate-store-item-id');
+                }
+            }
+        }
+
+        return [
+            'storeItemIds' => array_keys($references),
+            'duplicateStoreItemIds' => $duplicateStoreItemIds,
+            'duplicateStoreItemIdReferences' => $duplicateStoreItemIdReferences,
         ];
     }
 
