@@ -771,6 +771,51 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="confirm" open><form method="dialog"><p>Overwrite <strong>file</strong>?</p><button value="cancel">Cancel</button><button value="ok">OK</button></form></dialog>'
+                . '<dialog id="closed"><p>Closed</p></dialog>',
+            'dialog review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dialog-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $open = $summary[0];
+        $form = $open['children'][0];
+        $prompt = $form['children'][0];
+        $cancel = $form['children'][1];
+        $ok = $form['children'][2];
+        $closed = $summary[1];
+
+        $t->same('dialog', $open['name']);
+        $t->same('confirm', $open['elementId']);
+        $t->same('dialog', $open['dialog']);
+        $t->same(true, $open['open']);
+        $t->same('open', $open['dialogState']);
+        $t->same('Overwrite file?CancelOK', $open['dialogText']);
+        $t->same('form', $form['formSubmission']);
+        $t->same('dialog', $form['method']);
+        $t->same('p', $prompt['name']);
+        $t->same('Overwrite file?', $prompt['text']);
+        $t->same('button', $cancel['formControl']);
+        $t->same('submit', $cancel['buttonType']);
+        $t->same('cancel', $cancel['value']);
+        $t->same('Cancel', $cancel['label']);
+        $t->same('button', $ok['formControl']);
+        $t->same('ok', $ok['value']);
+        $t->same('closed', $closed['elementId']);
+        $t->same('dialog', $closed['dialog']);
+        $t->same(false, $closed['open']);
+        $t->same('closed', $closed['dialogState']);
+        $t->same('Closed', $closed['dialogText']);
+        $t->same('<dialog id="confirm" open><form method="dialog"><p>Overwrite <strong>file</strong>?</p><button value="cancel">Cancel</button><button value="ok">OK</button></form></dialog><dialog id="closed"><p>Closed</p></dialog>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/dialog-state-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

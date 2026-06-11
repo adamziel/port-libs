@@ -852,6 +852,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary += self::dialogSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -1492,6 +1495,21 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array{dialog:string, open:bool, dialogState:string, dialogText:string}
+     */
+    private static function dialogSummary(\DOMElement $dialog): array
+    {
+        $open = $dialog->hasAttribute('open');
+
+        return [
+            'dialog' => 'dialog',
+            'open' => $open,
+            'dialogState' => $open ? 'open' : 'closed',
+            'dialogText' => self::normalizedText($dialog),
+        ];
     }
 
     /**
