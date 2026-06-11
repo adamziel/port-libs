@@ -2800,6 +2800,90 @@ XML;
         $t->same(true, $custom['items'][4]['duplicate']);
         $t->same('approved-for-staging', $custom['items'][4]['value']);
     },
+    'preserves docx custom property vector and array values from package properties' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomVectors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/custom.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ReviewTags">
+    <vt:vector size="3" baseType="lpwstr">
+      <vt:lpwstr>needs-media-review</vt:lpwstr>
+      <vt:lpwstr>legal</vt:lpwstr>
+      <vt:lpwstr>priority</vt:lpwstr>
+    </vt:vector>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="MixedReview">
+    <vt:vector size="4" baseType="variant">
+      <vt:variant><vt:lpwstr>stage</vt:lpwstr></vt:variant>
+      <vt:variant><vt:i4>7</vt:i4></vt:variant>
+      <vt:variant><vt:bool>true</vt:bool></vt:variant>
+      <vt:variant><vt:filetime>2026-06-11T20:03:56Z</vt:filetime></vt:variant>
+    </vt:vector>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="ReviewerIds">
+    <vt:array lBound="0" size="2" baseType="i4">
+      <vt:i4>42</vt:i4>
+      <vt:i4>84</vt:i4>
+    </vt:array>
+  </property>
+</Properties>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $meta = $document->attr('meta');
+        $custom = $docx['customProperties'];
+        $tags = $custom['items'][0];
+        $mixed = $custom['items'][1];
+        $reviewerIds = $custom['items'][2];
+
+        $t->same('docProps/custom.xml', $docx['customPropertiesPart']);
+        $t->same('rCustomVectors', $docx['customPropertiesRelationship']['id']);
+        $t->same(3, $custom['count']);
+        $t->same(0, $custom['duplicateNameCount']);
+        $t->same(['needs-media-review', 'legal', 'priority'], $custom['byName']['ReviewTags']);
+        $t->same(['stage', 7, true, '2026-06-11T20:03:56Z'], $custom['byName']['MixedReview']);
+        $t->same([42, 84], $custom['byName']['ReviewerIds']);
+
+        $t->same('ReviewTags', $tags['name']);
+        $t->same('vector', $tags['valueType']);
+        $t->same('lpwstr', $tags['valueBaseType']);
+        $t->same(3, $tags['declaredValueCount']);
+        $t->same(3, $tags['valueCount']);
+        $t->same(['lpwstr', 'lpwstr', 'lpwstr'], $tags['valueItemTypes']);
+        $t->same(['needs-media-review', 'legal', 'priority'], $tags['value']);
+
+        $t->same('MixedReview', $mixed['name']);
+        $t->same('variant', $mixed['valueBaseType']);
+        $t->same(4, $mixed['declaredValueCount']);
+        $t->same(['lpwstr', 'i4', 'bool', 'filetime'], $mixed['valueItemTypes']);
+        $t->same(['stage', 7, true, '2026-06-11T20:03:56Z'], $mixed['value']);
+
+        $t->same('ReviewerIds', $reviewerIds['name']);
+        $t->same('array', $reviewerIds['valueType']);
+        $t->same('i4', $reviewerIds['valueBaseType']);
+        $t->same(0, $reviewerIds['lowerBound']);
+        $t->same(2, $reviewerIds['declaredValueCount']);
+        $t->same(2, $reviewerIds['valueCount']);
+        $t->same(['i4', 'i4'], $reviewerIds['valueItemTypes']);
+        $t->same([42, 84], $reviewerIds['value']);
+
+        $t->same($custom['byName'], $meta['customProperties']);
+        $t->same($custom, $meta['docxCustomProperties']);
+    },
     'resolves docx settings and font table from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
