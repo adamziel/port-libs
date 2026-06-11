@@ -710,6 +710,99 @@ return [
         $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
     },
 
+    'fake runner builds typst dependency graph handoff model' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Graph Packet\n\n#image(\"figures/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/graph.pdf',
+            'source' => $source,
+            'engineOptions' => ['--root=project', '--deps=build/graph.d', '--creation-timestamp=1700000000'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency graph packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/graph.pdf: project/main.typ project/figures/chart.svg @preview/cetz:0.3.2/src/lib.typ',
+            'build/graph.pdf: project/data/series.csv',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/graph.d' => $depfile,
+                'build/graph.pdf' => $pdfBytes,
+                'project/figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'project/data/series.csv' => "series,value\nA,12\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/graph.d' => $depfile,
+                'build/graph.pdf' => $pdfBytes,
+                'project/figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'project/data/series.csv' => "series,value\nA,12\n",
+            ],
+        ]]);
+        $expectedPackage = [[
+            'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+            'namespace' => 'preview',
+            'package' => 'cetz',
+            'version' => '0.3.2',
+            'subpath' => 'src/lib.typ',
+        ]];
+        $expectedEdges = [
+            ['from' => 'file:project/data/series.csv', 'to' => 'output:build/graph.pdf', 'kind' => 'input', 'artifact' => 'build/graph.d'],
+            ['from' => 'file:project/figures/chart.svg', 'to' => 'output:build/graph.pdf', 'kind' => 'input', 'artifact' => 'build/graph.d'],
+            ['from' => 'file:project/main.typ', 'to' => 'output:build/graph.pdf', 'kind' => 'input', 'artifact' => 'build/graph.d'],
+            ['from' => 'package:@preview/cetz:0.3.2/src/lib.typ', 'to' => 'output:build/graph.pdf', 'kind' => 'external-input', 'artifact' => 'build/graph.d'],
+        ];
+
+        $graph = $result['typstDependencyGraph'];
+
+        $t->same(true, $result['ok']);
+        $t->same('ok', $graph['reviewStatus']);
+        $t->same([
+            'path' => 'project/main.typ',
+            'sha256' => hash('sha256', $source),
+            'stagedFromPlan' => true,
+            'insideRoot' => true,
+        ], $graph['source']);
+        $t->same(1700000000, $graph['creationTimestamp']['timestamp']);
+        $t->same('2023-11-14T22:13:20Z', $graph['creationTimestamp']['iso8601']);
+        $t->same([
+            'declaredRoot' => 'project',
+            'engineBoundaryRoot' => 'project',
+            'insideRootFiles' => ['project/data/series.csv', 'project/figures/chart.svg', 'project/main.typ'],
+            'outsideRootFiles' => [],
+        ], $graph['inputRoots']);
+        $t->same([['path' => 'build/graph.d', 'sha256' => hash('sha256', $depfile)]], $graph['dependencyArtifacts']);
+        $t->same($expectedPackage, $graph['packageDependencies']);
+        $t->same($expectedEdges, $graph['edges']);
+        $t->same([
+            'nodeCount' => 5,
+            'edgeCount' => 4,
+            'dependencyArtifactCount' => 1,
+            'localInputCount' => 3,
+            'externalInputCount' => 1,
+            'packageDependencyCount' => 1,
+            'outputCount' => 1,
+            'outsideRootInputCount' => 0,
+            'boundaryViolationCount' => 0,
+            'missingInputCount' => 0,
+        ], $graph['summary']);
+        $t->same([], $graph['issues']);
+        $t->same('file:project/main.typ', $graph['nodes'][2]['id']);
+        $t->same('source', $graph['nodes'][2]['kind']);
+        $t->same('package:@preview/cetz:0.3.2/src/lib.typ', $graph['nodes'][4]['id']);
+        $t->same($graph, $result['artifactProvenanceReview']['typstDependencyGraph']);
+        $t->same($graph, $sequence['finalTypstDependencyGraph']);
+        $t->contains('typst-dependency-graph:ok', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-graph-nodes:5', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-graph-edges:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-graph-packages:1', implode(',', $result['diagnostics']));
+    },
+
     'fake runner reviews typst root read boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
