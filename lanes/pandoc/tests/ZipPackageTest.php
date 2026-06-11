@@ -4880,6 +4880,71 @@ return [
         $t->same($summary, $strict['centralDirectoryVariableFields']);
     },
 
+    'preflights zip local header variable field byte provenance before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local variable fields</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => "local variable field media\n",
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::localHeaderVariableFieldsPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $package = ZipPackage::fromString($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $localHeaders = $package->localHeaderPreflight();
+        $first = $summary['entries'][0];
+        $second = $summary['entries'][1];
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same($package->centralDirectoryOffset(), $summary['centralDirectoryOffset']);
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.bin'), $summary['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $summary['localHeaderExtraFieldBytes']);
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.bin') + strlen($localExtra), $summary['localHeaderVariableFieldBytes']);
+        $t->same(1, $summary['localExtraFieldEntryCount']);
+        $t->same(true, $summary['hasLocalHeaderVariableFields']);
+        $t->same(true, $summary['hasLocalExtraFields']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $t->same('word/document.xml', $first['name']);
+        $t->same('word/document.xml', $first['centralName']);
+        $t->same(0, $first['localHeaderOffset']);
+        $t->same($first['localHeaderOffset'], $first['fixedHeaderOffset']);
+        $t->same(30, $first['fixedHeaderLength']);
+        $t->same($first['localHeaderOffset'] + 30, $first['variableFieldsOffset']);
+        $t->same(strlen('word/document.xml') + strlen($localExtra), $first['variableFieldsLength']);
+        $t->same($first['variableFieldsOffset'], $first['rawNameOffset']);
+        $t->same(strlen('word/document.xml'), $first['rawNameLength']);
+        $t->same($first['rawNameOffset'] + $first['rawNameLength'], $first['localExtraFieldOffset']);
+        $t->same(strlen($localExtra), $first['localExtraFieldLength']);
+        $t->same($first['localExtraFieldOffset'] + $first['localExtraFieldLength'], $first['dataStart']);
+        $t->same(true, $first['hasLocalExtraFields']);
+
+        $t->same('word/media/review.bin', $second['name']);
+        $t->same('word/media/review.bin', $second['centralName']);
+        $t->same(0, $second['localExtraFieldLength']);
+        $t->same(false, $second['hasLocalExtraFields']);
+        $t->same($second['localHeaderOffset'] + 30, $second['variableFieldsOffset']);
+        $t->same(strlen('word/media/review.bin'), $second['variableFieldsLength']);
+        $t->same($second['variableFieldsOffset'] + $second['variableFieldsLength'], $second['dataStart']);
+
+        $t->same($summary, $rawStrict['localHeaderVariableFields']);
+        $t->same($summary, $strict['localHeaderVariableFields']);
+        $t->same($summary['localHeaderVariableFieldBytes'], $localHeaders['localHeaderVariableFieldBytes']);
+        $t->same($first['dataStart'], $localHeaders['entries'][0]['dataStart']);
+    },
+
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [
