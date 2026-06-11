@@ -10088,6 +10088,9 @@ final class ZipPackage
                 'local-header-order',
                 static fn (): array => self::centralDirectoryLocalHeaderOrderPreflight($bytes)
             );
+            if ($localHeaderOrder !== null && $localHeaderOrder['hasCentralDirectoryOrderMismatch']) {
+                $addDiagnostic('central-directory-local-header-order-mismatch');
+            }
 
             $packagePrefix = $runPreflight(
                 'package-prefix',
@@ -10615,6 +10618,10 @@ final class ZipPackage
 
         if ($unixOwners['ownerMetadataEntryCount'] > 0) {
             $diagnostics[] = 'unix-owner-extra-fields';
+        }
+
+        if ($localHeaderOrder['hasCentralDirectoryOrderMismatch']) {
+            $diagnostics[] = 'central-directory-local-header-order-mismatch';
         }
 
         if (
