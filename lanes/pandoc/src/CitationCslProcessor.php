@@ -1073,6 +1073,7 @@ final class CitationCslProcessor
             'event-date' => $eventDate,
         ]);
         $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords']);
+        $categories = self::stringListFromFirstField($item, ['categories', 'category']);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
         $biblatexSkipBibliography = self::biblatexSkipBibliography($biblatexOptions);
         $biblatexLanguageOptions = self::stringListFromFirstField($item, [
@@ -1145,6 +1146,7 @@ final class CitationCslProcessor
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
             'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'reviewedTitle' => self::firstStringField($item, ['reviewed-title', 'reviewedTitle', 'reviewtitle']),
+            'reviewedGenre' => self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre']),
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::firstStringField($item, ['container-title', 'containerTitle', 'containertitle']),
             'containerTitleShort' => $containerTitleShort,
@@ -1153,6 +1155,7 @@ final class CitationCslProcessor
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
             'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),
+            'volumeTitleShort' => self::firstStringField($item, ['volume-title-short', 'volumeTitleShort', 'volumetitleshort']),
             'partTitle' => self::firstStringField($item, ['part-title', 'partTitle', 'parttitle']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
@@ -1184,9 +1187,10 @@ final class CitationCslProcessor
             'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes']),
             'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages']),
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber']),
+            'division' => self::stringField($item, 'division'),
             'section' => self::stringField($item, 'section'),
             'part' => self::stringField($item, 'part'),
-            'printingNumber' => self::firstStringField($item, ['printing-number', 'printingNumber', 'printingnumber']),
+            'printingNumber' => self::firstStringField($item, ['printing-number', 'printingNumber', 'printingnumber', 'printing']),
             'supplement' => self::stringField($item, 'supplement'),
             'supplementNumber' => self::firstStringField($item, ['supplement-number', 'supplementNumber', 'supplementnumber']) ?: self::stringField($item, 'supplement'),
             'genre' => $genre,
@@ -1254,6 +1258,8 @@ final class CitationCslProcessor
                 'bookauthortype',
             ]),
             'dateAddon' => self::firstStringField($item, ['date-addon', 'dateAddon', 'dateaddendum', 'date-addendum']),
+            'categories' => $categories,
+            'categorySummary' => implode('; ', $categories),
             'keywords' => $keywords,
             'keywordSummary' => implode('; ', $keywords),
             'sourceFiles' => $sourceFilePolicy['files'],
@@ -1317,6 +1323,7 @@ final class CitationCslProcessor
             'biblatexRefsegment' => $biblatexRefsegment,
             'biblatexReferenceContextSummary' => self::biblatexReferenceContextSummary($biblatexRefsection, $biblatexRefsegment),
             'issuedYear' => $issuedDate['year'],
+            'yearSuffix' => self::firstStringField($item, ['year-suffix', 'yearSuffix', 'yearsuffix']),
             'authors' => self::namesFromFirstItemField($item, $id, 'author', ['author', 'authors']),
             'editors' => self::namesFromFirstItemField($item, $id, 'editor', ['editor', 'editors']),
             'shortAuthors' => self::namesFromFirstItemField($item, $id, 'short-author', ['short-author', 'shortAuthor', 'short-authors', 'shortAuthors']),
@@ -1327,6 +1334,7 @@ final class CitationCslProcessor
             'chairs' => self::namesFromFirstItemField($item, $id, 'chair', ['chair', 'chairs']),
             'containerAuthors' => self::namesFromFirstItemField($item, $id, 'container-author', ['container-author', 'containerAuthor', 'container-authors', 'containerAuthors']),
             'collectionEditors' => self::namesFromFirstItemField($item, $id, 'collection-editor', ['collection-editor', 'collectionEditor', 'collection-editors', 'collectionEditors']),
+            'seriesCreators' => self::namesFromFirstItemField($item, $id, 'series-creator', ['series-creator', 'seriesCreator', 'series-creators', 'seriesCreators']),
             'composers' => self::namesFromFirstItemField($item, $id, 'composer', ['composer', 'composers']),
             'contributors' => self::namesFromFirstItemField($item, $id, 'contributor', ['contributor', 'contributors']),
             'editorTranslators' => self::namesFromFirstItemField($item, $id, 'editor-translator', ['editor-translator', 'editorTranslator', 'editor-translators', 'editorTranslators']),
@@ -4622,7 +4630,7 @@ final class CitationCslProcessor
      */
     private function yearSuffixDisambiguationKey(array $item, int $nameCount = 0, string $givenNameMode = ''): string
     {
-        $withoutSuffix = $this->itemWithYearSuffix($item, '');
+        $withoutSuffix = $this->itemWithYearSuffix($item, '', false);
         $renderedKey = $this->renderedCitationDisambiguationKey($withoutSuffix, $nameCount, $givenNameMode);
         if ($renderedKey !== '') {
             return $renderedKey;
@@ -4688,11 +4696,11 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return array<string, mixed>
      */
-    private function itemWithYearSuffix(array $item, string $suffix): array
+    private function itemWithYearSuffix(array $item, string $suffix, bool $preserveExisting = true): array
     {
         return [
             ...$item,
-            'yearSuffix' => $suffix,
+            'yearSuffix' => $suffix !== '' ? $suffix : ($preserveExisting ? (string) ($item['yearSuffix'] ?? '') : ''),
         ];
     }
 
@@ -4735,7 +4743,7 @@ final class CitationCslProcessor
         }
 
         if (array_key_exists('cslYearSuffix', $citation->attrs)) {
-            $item = $this->itemWithYearSuffix($item, (string) $citation->attr('cslYearSuffix', ''));
+            $item = $this->itemWithYearSuffix($item, (string) $citation->attr('cslYearSuffix', ''), false);
         }
 
         if (array_key_exists('cslCitationNumber', $citation->attrs)) {
@@ -5688,7 +5696,7 @@ final class CitationCslProcessor
         }
 
         $item = $this->itemWithCitationContext($item, $citation);
-        $withoutSuffix = $this->itemWithYearSuffix($item, '');
+        $withoutSuffix = $this->itemWithYearSuffix($item, '', false);
 
         return [
             'citation' => $citation,
@@ -6543,6 +6551,7 @@ final class CitationCslProcessor
             ['commentators', 'Commentary by', 'commentator'],
             ['annotators', 'Annotated by', 'annotator'],
             ['containerAuthors', 'Container author:', 'container-author'],
+            ['seriesCreators', 'Series created by', 'series-creator'],
             ['introductionAuthors', 'Introduction by', 'introduction'],
             ['forewordAuthors', 'Foreword by', 'foreword'],
             ['afterwordAuthors', 'Afterword by', 'afterword'],
@@ -6804,6 +6813,11 @@ final class CitationCslProcessor
             $parts[] = 'Volume title: ' . rtrim($volumeTitle, '.') . '.';
         }
 
+        $volumeTitleShort = (string) ($item['volumeTitleShort'] ?? '');
+        if ($volumeTitleShort !== '') {
+            $parts[] = 'Volume title abbreviation: ' . rtrim($volumeTitleShort, '.') . '.';
+        }
+
         $partTitle = (string) ($item['partTitle'] ?? '');
         if ($partTitle !== '') {
             $parts[] = 'Part title: ' . rtrim($partTitle, '.') . '.';
@@ -7000,8 +7014,10 @@ final class CitationCslProcessor
         $parts = [];
         foreach ([
             ['reviewedTitle', 'Reviewed title'],
+            ['reviewedGenre', 'Reviewed genre'],
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
+            ['categorySummary', 'Categories'],
             ['citationAliasSummary', 'Citation aliases'],
             ['sortShorthand', 'Sort shorthand'],
             ['presort', 'Presort'],
@@ -7017,6 +7033,7 @@ final class CitationCslProcessor
             ['sortInitialHash', 'Sort initial hash'],
             ['references', 'References'],
             ['dimensions', 'Dimensions'],
+            ['division', 'Division'],
             ['scale', 'Scale'],
             ['version', 'Version'],
             ['rights', 'Rights'],
@@ -7420,6 +7437,7 @@ final class CitationCslProcessor
             ['chairs', 'Chair'],
             ['containerAuthors', 'Container author'],
             ['collectionEditors', 'Collection editor'],
+            ['seriesCreators', 'Series creator'],
             ['composers', 'Composer'],
             ['contributors', 'Contributor'],
             ['editorTranslators', 'Editor-translator'],
@@ -9099,6 +9117,7 @@ final class CitationCslProcessor
             'title-addon' => (string) $item['titleAddon'],
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
+            'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
@@ -9109,6 +9128,7 @@ final class CitationCslProcessor
             'container-title-addon' => (string) $item['containerTitleAddon'],
             'main-title' => (string) $item['mainTitle'],
             'main-title-addon' => (string) $item['mainTitleAddon'],
+            'volume-title-short', 'volumetitleshort' => (string) ($item['volumeTitleShort'] ?? ''),
             'event', 'event-title', 'eventtitle' => (string) $item['eventTitle'],
             'event-title-addon', 'eventtitleaddon' => (string) $item['eventTitleAddon'],
             'event-place', 'eventplace', 'event-location', 'eventlocation', 'event-venue', 'eventvenue', 'venue' => (string) $item['eventPlace'],
@@ -9140,10 +9160,11 @@ final class CitationCslProcessor
             'number-of-volumes' => (string) $item['numberOfVolumes'],
             'number-of-pages' => (string) $item['numberOfPages'],
             'chapter-number' => (string) $item['chapterNumber'],
+            'division' => (string) ($item['division'] ?? ''),
             'section' => (string) $item['section'],
             'part-title', 'parttitle' => (string) ($item['partTitle'] ?? ''),
             'part', 'part-number' => (string) $item['part'],
-            'printing-number' => (string) ($item['printingNumber'] ?? ''),
+            'printing', 'printing-number' => (string) ($item['printingNumber'] ?? ''),
             'supplement' => (string) ($item['supplement'] ?? ''),
             'supplement-number' => (string) ($item['supplementNumber'] ?? ''),
             'genre' => (string) $item['genre'],
@@ -9198,6 +9219,8 @@ final class CitationCslProcessor
             'author-type', 'authortype' => (string) ($item['authorType'] ?? ''),
             'container-author-type', 'bookauthor-type', 'bookauthortype' => (string) ($item['containerAuthorType'] ?? ''),
             'date-addon', 'dateaddendum', 'date-addendum' => (string) ($item['dateAddon'] ?? ''),
+            'category', 'categories' => implode(', ', is_array($item['categories'] ?? null) ? $item['categories'] : []),
+            'category-summary', 'categories-summary' => (string) ($item['categorySummary'] ?? ''),
             'original-date-addon', 'origdateaddon', 'orig-date-addon', 'originaldateaddon' => (string) ($item['originalDateAddon'] ?? ''),
             'reprint-date-addon', 'reprintdateaddon', 'reprintdateaddendum', 'reprint-date-addendum' => (string) ($item['reprintDateAddon'] ?? ''),
             'event-date-addon', 'eventdateaddon' => (string) ($item['eventDateAddon'] ?? ''),
@@ -9327,6 +9350,7 @@ final class CitationCslProcessor
             'illustrator' => $this->renderNamesElement(['variable' => 'illustrator'], $item, $scope),
             'interviewer' => $this->renderNamesElement(['variable' => 'interviewer'], $item, $scope),
             'reviewed-author' => $this->renderNamesElement(['variable' => 'reviewed-author'], $item, $scope),
+            'series-creator' => $this->renderNamesElement(['variable' => 'series-creator'], $item, $scope),
             'redactor' => $this->renderNamesElement(['variable' => 'redactor'], $item, $scope),
             'founder' => $this->renderNamesElement(['variable' => 'founder'], $item, $scope),
             'continuator' => $this->renderNamesElement(['variable' => 'continuator'], $item, $scope),
@@ -9458,6 +9482,7 @@ final class CitationCslProcessor
             'title' => (string) ($item['shortTitle'] ?? ''),
             'container-title' => (string) ($item['containerTitleShort'] ?? ''),
             'collection-title' => (string) ($item['collectionTitleShort'] ?? ''),
+            'volume-title' => (string) ($item['volumeTitleShort'] ?? ''),
             default => '',
         };
         if ($directShort !== '') {
@@ -9593,7 +9618,7 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
-        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'authority', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'executive-producer', 'event-organizer', 'organizer', 'guest', 'host', 'narrator', 'original-author', 'performer', 'producer', 'recipient', 'script-writer', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'founder', 'continuator', 'reviser', 'collaborator', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword', 'namea', 'nameb', 'namec'], true)) {
+        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'authority', 'translator', 'chair', 'container-author', 'collection-editor', 'series-creator', 'composer', 'contributor', 'editor-translator', 'executive-producer', 'event-organizer', 'organizer', 'guest', 'host', 'narrator', 'original-author', 'performer', 'producer', 'recipient', 'script-writer', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'founder', 'continuator', 'reviser', 'collaborator', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword', 'namea', 'nameb', 'namec'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -10203,6 +10228,7 @@ final class CitationCslProcessor
             'chair' => $item['chairs'] ?? [],
             'container-author' => $item['containerAuthors'] ?? [],
             'collection-editor' => $item['collectionEditors'] ?? [],
+            'series-creator' => $item['seriesCreators'] ?? [],
             'composer' => $item['composers'] ?? [],
             'contributor' => $item['contributors'] ?? [],
             'editor-translator' => $item['editorTranslators'] ?? [],

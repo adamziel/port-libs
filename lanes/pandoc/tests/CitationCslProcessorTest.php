@@ -24621,6 +24621,103 @@ XML);
         $t->contains('<dt>Diaz 2026</dt><dd>Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french</dd>', $blocks);
     },
+    'normalizes bounded direct csl json schema citation variables' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-schema-fields',
+                'type' => 'book',
+                'title' => 'Direct Schema Field Packet',
+                'author' => [
+                    ['family' => 'Schema', 'given' => 'Sam'],
+                ],
+                'series-creator' => [
+                    ['literal' => 'Series Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'year-suffix' => 'c',
+                'categories' => ['migration', 'review'],
+                'division' => 'Archive Division',
+                'reviewed-genre' => 'source review',
+                'volume-title' => 'Review Volume',
+                'volume-title-short' => 'Vol. Rev.',
+                'printing' => 3,
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-schema-fields');
+        $t->same(['migration', 'review'], $item['categories'] ?? null);
+        $t->same('migration; review', $item['categorySummary'] ?? null);
+        $t->same('Archive Division', $item['division'] ?? null);
+        $t->same('source review', $item['reviewedGenre'] ?? null);
+        $t->same('Vol. Rev.', $item['volumeTitleShort'] ?? null);
+        $t->same('3', $item['printingNumber'] ?? null);
+        $t->same('c', $item['yearSuffix'] ?? null);
+        $t->same('Series Desk', $item['seriesCreators'][0]['literal'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Schema Variable Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-schema-variable-review</id>
+    <updated>2026-06-11T11:14:26+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="series-creator"/>
+        <text variable="division"/>
+        <text variable="reviewed-genre"/>
+        <text variable="volume-title" form="short"/>
+        <number variable="printing-number" form="ordinal"/>
+        <group delimiter="">
+          <date variable="issued"/>
+          <text variable="year-suffix"/>
+        </group>
+        <text variable="categories"/>
+        <text variable="category-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="series-creator"/>
+      <text variable="division"/>
+      <text variable="reviewed-genre"/>
+      <text variable="volume-title" form="short"/>
+      <number variable="printing-number" form="ordinal"/>
+      <group delimiter="">
+        <date variable="issued"/>
+        <text variable="year-suffix"/>
+      </group>
+      <text variable="categories"/>
+      <text variable="category-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Schema Variable Review', $summary['title'] ?? null);
+        $t->same('series-creator', $citationChildren[1]['variable'] ?? null);
+        $t->same('division', $citationChildren[2]['variable'] ?? null);
+        $t->same('reviewed-genre', $citationChildren[3]['variable'] ?? null);
+        $t->same('short', $citationChildren[4]['form'] ?? null);
+        $t->same('printing-number', $citationChildren[5]['variable'] ?? null);
+        $t->same('year-suffix', $citationChildren[6]['children'][1]['variable'] ?? null);
+        $t->same('categories', $citationChildren[7]['variable'] ?? null);
+        $t->same('category-summary', $citationChildren[8]['variable'] ?? null);
+        $t->same('series-creator', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Schema | Series Desk | Archive Division | source review | Vol. Rev. | 3rd | 2026c | migration, review | migration; review]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-schema-fields', 'text' => '[@direct-schema-fields]']),
+        ]));
+        $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
+    },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
