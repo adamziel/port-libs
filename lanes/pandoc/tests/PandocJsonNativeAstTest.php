@@ -1808,6 +1808,68 @@ return [
             $t->same(['t' => 'DisplayMath'], $displayMath->attr('mathTypeNative'), "{$source} display math native payload");
         }
     },
+    'preserves string quote type helper payloads after quote edits' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        'SingleQuote',
+                        [['t' => 'Str', 'c' => 'single source']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Quoted', 'c' => [
+                        'DoubleQuote',
+                        [['t' => 'Str', 'c' => 'double source']],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $single = $paragraph->children[0];
+            $double = $paragraph->children[2];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', $paragraph->attrs, [
+                    new AstNode('quoted', $single->attrs, [
+                        new AstNode('text', ['text' => 'edited-single']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('quoted', $double->attrs, [
+                        new AstNode('text', ['text' => 'edited-double']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('quoted', [
+                        'kind' => 'single',
+                        'quoteTypeNative' => 'DoubleQuote',
+                    ], [
+                        new AstNode('text', ['text' => 'safe fallback']),
+                    ]),
+                ]),
+            ]);
+            $jsonPacket = (new PandocJsonWriter())->toArray($edited);
+            $nativePacket = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('SingleQuote', $single->attr('quoteTypeNative'), "{$source} single quote native payload");
+            $t->same('DoubleQuote', $double->attr('quoteTypeNative'), "{$source} double quote native payload");
+            foreach (['json-writer' => $jsonPacket, 'native-writer' => $nativePacket] as $writer => $encoded) {
+                $inlines = $encoded['blocks'][0]['c'];
+
+                $t->same('SingleQuote', $inlines[0]['c'][0], "{$source} {$writer} single quote helper");
+                $t->same('edited-single', $inlines[0]['c'][1][0]['c'], "{$source} {$writer} single quote edited text");
+                $t->same('DoubleQuote', $inlines[2]['c'][0], "{$source} {$writer} double quote helper");
+                $t->same('edited-double', $inlines[2]['c'][1][0]['c'], "{$source} {$writer} double quote edited text");
+                $t->same(['t' => 'SingleQuote'], $inlines[4]['c'][0], "{$source} {$writer} mismatched quote helper fallback");
+            }
+        }
+    },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
         $styles = [
             ['DefaultStyle', 'default'],

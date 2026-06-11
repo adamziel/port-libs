@@ -784,7 +784,7 @@ final class PandocJsonWriter
             'superscript' => ['t' => 'Superscript', 'c' => $this->writeInlines($node->children)],
             'subscript' => ['t' => 'Subscript', 'c' => $this->writeInlines($node->children)],
             'small_caps' => ['t' => 'SmallCaps', 'c' => $this->writeInlines($node->children)],
-            'quoted' => ['t' => 'Quoted', 'c' => [$this->enum($node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'), $this->writeInlines($node->children)]],
+            'quoted' => ['t' => 'Quoted', 'c' => [$this->quoteTypeNative($node), $this->writeInlines($node->children)]],
             'code' => ['t' => 'Code', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'math' => ['t' => 'Math', 'c' => [$this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath'), (string) $node->attr('text', '')]],
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
@@ -1087,6 +1087,21 @@ final class PandocJsonWriter
     private function enum(string $constructor): array
     {
         return ['t' => $constructor];
+    }
+
+    private function quoteTypeNative(AstNode $node): mixed
+    {
+        $constructor = $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote';
+        $native = $node->attr('quoteTypeNative');
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return $this->enum($constructor);
     }
 
     private function listStyleConstructor(string $style): string

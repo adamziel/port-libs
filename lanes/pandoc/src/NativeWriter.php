@@ -778,7 +778,7 @@ final class NativeWriter
             'quoted' => [[
                 't' => 'Quoted',
                 'c' => [
-                    ['t' => $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'],
+                    $this->quoteTypeNative($node),
                     $this->inlines($node->children),
                 ],
             ]],
@@ -1226,6 +1226,21 @@ final class NativeWriter
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    private function quoteTypeNative(AstNode $node): mixed
+    {
+        $constructor = $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote';
+        $native = $node->attr('quoteTypeNative');
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return ['t' => $constructor];
     }
 
     private function listStyleConstructor(string $style): string
