@@ -25069,6 +25069,107 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json compact title family aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-compact-title-family',
+                'type' => 'book',
+                'title' => 'Compact Title Family Packet',
+                'author' => [
+                    ['family' => 'Alias', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'shorttitle' => 'Compact Packet',
+                'containertitle' => 'Import Handbook',
+                'containertitleaddon' => 'review insert',
+                'maintitle' => 'Migration Source Set',
+                'maintitleaddon' => 'archive packet',
+                'volumetitle' => 'Review Volume',
+                'volumetitleshort' => 'Rev. Vol.',
+                'parttitle' => 'Archive Part',
+                'collectiontitle' => 'Reviewer Series',
+                'collectiontitleshort' => 'Rev. Ser.',
+                'collectionnumber' => '12',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-compact-title-family');
+        $t->same('Compact Packet', $item['shortTitle'] ?? null);
+        $t->same('Import Handbook', $item['containerTitle'] ?? null);
+        $t->same('review insert', $item['containerTitleAddon'] ?? null);
+        $t->same('Migration Source Set', $item['mainTitle'] ?? null);
+        $t->same('archive packet', $item['mainTitleAddon'] ?? null);
+        $t->same('Review Volume', $item['volumeTitle'] ?? null);
+        $t->same('Rev. Vol.', $item['volumeTitleShort'] ?? null);
+        $t->same('Archive Part', $item['partTitle'] ?? null);
+        $t->same('Reviewer Series', $item['collectionTitle'] ?? null);
+        $t->same('Rev. Ser.', $item['collectionTitleShort'] ?? null);
+        $t->same('12', $item['collectionNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Compact Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-compact-title-alias-review</id>
+    <updated>2026-06-11T16:04:43+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="shorttitle"/>
+        <text variable="containertitle"/>
+        <text variable="containertitleaddon"/>
+        <text variable="maintitle"/>
+        <text variable="maintitleaddon"/>
+        <text variable="volumetitle"/>
+        <text variable="volumetitle" form="short"/>
+        <text variable="parttitle"/>
+        <text variable="collectiontitle"/>
+        <text variable="collectiontitleshort"/>
+        <text variable="collectionnumber"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="shorttitle"/>
+      <text variable="containertitle"/>
+      <text variable="containertitleaddon"/>
+      <text variable="maintitle"/>
+      <text variable="maintitleaddon"/>
+      <text variable="volumetitle"/>
+      <text variable="volumetitle" form="short"/>
+      <text variable="parttitle"/>
+      <text variable="collectiontitle"/>
+      <text variable="collectiontitleshort"/>
+      <text variable="collectionnumber"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Compact Title Alias Review', $summary['title'] ?? null);
+        $t->same('shorttitle', $citationChildren[1]['variable'] ?? null);
+        $t->same('maintitle', $citationChildren[4]['variable'] ?? null);
+        $t->same('maintitleaddon', $citationChildren[5]['variable'] ?? null);
+        $t->same('short', $citationChildren[7]['form'] ?? null);
+        $t->same('collectiontitle', $citationChildren[9]['variable'] ?? null);
+        $t->same('[Alias | Compact Packet | Import Handbook | review insert | Migration Source Set | archive packet | Review Volume | Rev. Vol. | Archive Part | Reviewer Series | Rev. Ser. | 12]', $styled->renderCitationCluster([
+            $citation('direct-compact-title-family', '[@direct-compact-title-family]'),
+        ]));
+        $t->same('Compact Title Family Packet :: Compact Packet :: Import Handbook :: review insert :: Migration Source Set :: archive packet :: Review Volume :: Rev. Vol. :: Archive Part :: Reviewer Series :: Rev. Ser. :: 12', $styled->renderBibliographyEntry('direct-compact-title-family'));
+
+        $document = (new MarkdownReader())->read('Direct compact title family [@direct-compact-title-family] keeps source title metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct compact title family [Alias | Compact Packet | Import Handbook | review insert | Migration Source Set | archive packet | Review Volume | Rev. Vol. | Archive Part | Reviewer Series | Rev. Ser. | 12] keeps source title metadata visible.</p>', $blocks);
+        $t->contains('<dt>Alias 2026</dt><dd>Compact Title Family Packet :: Compact Packet :: Import Handbook :: review insert :: Migration Source Set :: archive packet :: Review Volume :: Rev. Vol. :: Archive Part :: Reviewer Series :: Rev. Ser. :: 12</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,
