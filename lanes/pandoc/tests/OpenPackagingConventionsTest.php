@@ -12188,13 +12188,20 @@ XML;
     },
     'normalizes OPC package paths without allowing traversal or URI components' => static function (TestRunner $t): void {
         $t->same('/word/document.xml', OpcPackagePath::canonicalPartName('word/./document.xml'));
+        $t->same('/', OpcPackagePath::canonicalPartName('/.', true));
+        $t->same('/', OpcPackagePath::canonicalPartName('/word/..', true));
         $t->same('/word/styles.xml#section', OpcPackagePath::resolveInternalTarget('/word/document.xml', './styles.xml#section'));
         $t->same('/media/image.png?variant=review', OpcPackagePath::resolveInternalTarget('/word/document.xml', '../media/image.png?variant=review'));
         $t->same('/word/styles.xml?review=%20ready#note%20one', OpcPackagePath::resolveInternalTarget('/word/document.xml', 'styles.xml?review=%20ready#note%20one'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/.'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/..'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('word/..'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromUri('/word/..'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/document.xml#frag'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/trailing./document.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', ''));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', '..'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', '../../evil.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'file:///tmp/evil.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'media/trailing./image.png'));

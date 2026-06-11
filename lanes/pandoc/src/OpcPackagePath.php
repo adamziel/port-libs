@@ -62,6 +62,14 @@ final class OpcPackagePath
             $segments[] = $segment;
         }
 
+        if ($segments === []) {
+            if ($allowRoot) {
+                return '/';
+            }
+
+            throw new \InvalidArgumentException('OPC part name must identify a package part');
+        }
+
         return '/' . implode('/', $segments);
     }
 
