@@ -888,8 +888,11 @@ final class XmlHtmlDom
                 }
             }
         }
-        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
+        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param', 'canvas'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
+        }
+        if ($name === 'map') {
+            $summary += self::imageMapSummary($node);
         }
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
@@ -1817,6 +1820,7 @@ final class XmlHtmlDom
             'embed' => self::embedSummary($element),
             'object' => self::objectSummary($element),
             'param' => self::paramElementSummary($element),
+            'canvas' => self::canvasSummary($element),
             default => [],
         };
     }
@@ -1854,7 +1858,57 @@ final class XmlHtmlDom
             'sizes' => self::attributeOrNull($image, 'sizes'),
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
+            'useMap' => self::attributeOrNull($image, 'usemap'),
+            'isMap' => $image->hasAttribute('ismap'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageMapSummary(\DOMElement $map): array
+    {
+        $areas = array_map(
+            static fn (\DOMElement $area): array => self::imageMapAreaSummary($area),
+            self::descendantHtmlElements($map, 'area')
+        );
+
+        return [
+            'imageMap' => 'map',
+            'mapName' => self::attributeOrNull($map, 'name'),
+            'areas' => $areas,
+            'areaCount' => count($areas),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageMapAreaSummary(\DOMElement $area): array
+    {
+        return self::hyperlinkSummary($area, 'area');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function canvasSummary(\DOMElement $canvas): array
+    {
+        $summary = [
+            'embeddedResource' => 'canvas',
+            'canvas' => true,
+            'widthRaw' => self::attributeOrNull($canvas, 'width'),
+            'heightRaw' => self::attributeOrNull($canvas, 'height'),
+            'width' => self::nonNegativeIntegerAttribute($canvas, 'width', 300, PHP_INT_MAX),
+            'height' => self::nonNegativeIntegerAttribute($canvas, 'height', 150, PHP_INT_MAX),
+        ];
+
+        $fallbackText = self::normalizedText($canvas);
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
     }
 
     /**

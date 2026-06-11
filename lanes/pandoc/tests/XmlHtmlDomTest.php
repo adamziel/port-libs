@@ -1054,6 +1054,49 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html image map and canvas fallback metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<img id="diagram" src="diagram.png" alt="Diagram" usemap="#fig-map" ismap>'
+                . '<map name="fig-map"><area shape="rect" coords="0,0,80,40" href="/hotspot/a" alt="Alpha" rel="help"><area shape="circle" coords="25,25,10" href="/hotspot/b" alt="Beta" target="_blank"></map>'
+                . '<canvas id="chart" width="640" height="360">Chart <strong>fallback</strong></canvas>'
+                . '<canvas id="default-size" width="bad" height="-1"></canvas>',
+            'image map and canvas review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $image = $summary[0];
+        $map = $summary[1];
+        $chart = $summary[2];
+        $defaultSize = $summary[3];
+
+        $t->same('image', $image['embeddedResource']);
+        $t->same('#fig-map', $image['useMap']);
+        $t->same(true, $image['isMap']);
+        $t->same('map', $map['imageMap']);
+        $t->same('fig-map', $map['mapName']);
+        $t->same(2, $map['areaCount']);
+        $t->same('/hotspot/a', $map['areas'][0]['href']);
+        $t->same('Alpha', $map['areas'][0]['label']);
+        $t->same('rect', $map['areas'][0]['shape']);
+        $t->same('0,0,80,40', $map['areas'][0]['coords']);
+        $t->same(['help'], $map['areas'][0]['relTokens']);
+        $t->same('/hotspot/b', $map['areas'][1]['href']);
+        $t->same('_blank', $map['areas'][1]['target']);
+        $t->same('canvas', $chart['embeddedResource']);
+        $t->same(true, $chart['canvas']);
+        $t->same('640', $chart['widthRaw']);
+        $t->same('360', $chart['heightRaw']);
+        $t->same(640, $chart['width']);
+        $t->same(360, $chart['height']);
+        $t->same('Chart fallback', $chart['fallbackText']);
+        $t->same('bad', $defaultSize['widthRaw']);
+        $t->same('-1', $defaultSize['heightRaw']);
+        $t->same(300, $defaultSize['width']);
+        $t->same(150, $defaultSize['height']);
+        $t->same(false, array_key_exists('fallbackText', $defaultSize));
+        $t->same('<img alt="Diagram" id="diagram" ismap src="diagram.png" usemap="#fig-map"><map name="fig-map"><area alt="Alpha" coords="0,0,80,40" href="/hotspot/a" rel="help" shape="rect"><area alt="Beta" coords="25,25,10" href="/hotspot/b" shape="circle" target="_blank"></map><canvas height="360" id="chart" width="640">Chart <strong>fallback</strong></canvas><canvas height="-1" id="default-size" width="bad"></canvas>', $html);
+    },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<base href="https://example.test/docs/" target="_blank">'
