@@ -615,10 +615,13 @@ final class DocxOpenXmlReader
     /**
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
-     * @return array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:string, exists:bool, contentType:string}
+     * @return array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:string, targetQuery:?string, targetFragment:?string, targetReferenceSuffix:string, exists:bool, contentType:string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string}
      */
     private function relationshipSummary(array $relationship, string $sourcePart, string $relationshipsPart, string $targetPart, bool $exists, array $contentTypes): array
     {
+        $targetReferenceSuffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
+        $contentTypeResolution = $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+
         return [
             'id' => $relationship['id'],
             'type' => $relationship['type'],
@@ -628,8 +631,14 @@ final class DocxOpenXmlReader
             'targetMode' => $relationship['targetMode'],
             'resolvedTarget' => $relationship['resolvedTarget'],
             'targetPart' => $targetPart,
+            'targetQuery' => $targetReferenceSuffix['query'],
+            'targetFragment' => $targetReferenceSuffix['fragment'],
+            'targetReferenceSuffix' => $targetReferenceSuffix['suffix'],
             'exists' => $exists,
-            'contentType' => $this->contentTypeFor($targetPart, $contentTypes),
+            'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+            'defaultExtension' => $contentTypeResolution['defaultExtension'],
+            'overridePartName' => $contentTypeResolution['overridePartName'],
         ];
     }
 

@@ -724,6 +724,60 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'preserves docx selected relationship target suffix provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml?profile=team#settings"/>' . "\n" .
+            '  <Relationship Id="rFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/default-fonts.xml#fontTable"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/fonts/default-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Review Sans"/>
+</w:fonts>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+
+        $t->same('docSettings/review-settings.xml', $docx['settingsPart']);
+        $t->same(true, $docx['settings']['updateFields']);
+        $t->same('../docSettings/review-settings.xml?profile=team#settings', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/review-settings.xml?profile=team#settings', $docx['settingsRelationship']['resolvedTarget']);
+        $t->same('profile=team', $docx['settingsRelationship']['targetQuery']);
+        $t->same('settings', $docx['settingsRelationship']['targetFragment']);
+        $t->same('?profile=team#settings', $docx['settingsRelationship']['targetReferenceSuffix']);
+        $t->same('override', $docx['settingsRelationship']['contentTypeSource']);
+        $t->same(null, $docx['settingsRelationship']['defaultExtension']);
+        $t->same('docSettings/review-settings.xml', $docx['settingsRelationship']['overridePartName']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $docx['settingsRelationship']['contentType']);
+        $t->same('word/fonts/default-fonts.xml', $docx['fontTablePart']);
+        $t->same(['Review Sans'], $docx['fontTable']['declaredNames']);
+        $t->same('fonts/default-fonts.xml#fontTable', $docx['fontTableRelationship']['target']);
+        $t->same('word/fonts/default-fonts.xml#fontTable', $docx['fontTableRelationship']['resolvedTarget']);
+        $t->same(null, $docx['fontTableRelationship']['targetQuery']);
+        $t->same('fontTable', $docx['fontTableRelationship']['targetFragment']);
+        $t->same('#fontTable', $docx['fontTableRelationship']['targetReferenceSuffix']);
+        $t->same('default', $docx['fontTableRelationship']['contentTypeSource']);
+        $t->same('xml', $docx['fontTableRelationship']['defaultExtension']);
+        $t->same(null, $docx['fontTableRelationship']['overridePartName']);
+        $t->same('application/xml', $docx['fontTableRelationship']['contentType']);
+    },
     'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
