@@ -8542,6 +8542,125 @@ XML;
         ], $documentSource['issues']);
         $t->same(false, $documentSource['valid']);
     },
+    'summarizes package-wide OPC relationship target provenance for import review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png?slot=cover#preview"/>
+  <Relationship Id="rIdMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdRelPart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../_rels/.rels"/>
+  <Relationship Id="rIdTypes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="/[Content_Types].xml"/>
+  <Relationship Id="rIdReserved" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="_rels/orphan.xml"/>
+  <Relationship Id="rIdFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/source.docx" TargetMode="External"/>
+  <Relationship Id="rIdSelf" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="document.xml#self"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+        ]));
+
+        $summary = $graph->relationshipTargetSummary();
+        $targets = [];
+        foreach ($summary['targets'] as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $t->same(null, $summary['relationshipType']);
+        $t->same(false, $summary['valid']);
+        $t->same(8, $summary['relationshipCount']);
+        $t->same(3, $summary['validTargetCount']);
+        $t->same(5, $summary['invalidTargetCount']);
+        $t->same(7, $summary['internalTargetCount']);
+        $t->same(1, $summary['externalTargetCount']);
+        $t->same(5, $summary['existingInternalTargetCount']);
+        $t->same(2, $summary['missingInternalTargetCount']);
+        $t->same(1, $summary['queryTargetCount']);
+        $t->same(2, $summary['fragmentTargetCount']);
+        $t->same(1, $summary['sameSourceReferenceCount']);
+        $t->same(1, $summary['relationshipPartTargetCount']);
+        $t->same(1, $summary['contentTypesItemTargetCount']);
+        $t->same(1, $summary['reservedRelationshipDirectoryTargetCount']);
+        $t->same(1, $summary['unsafeExternalTargetCount']);
+        $t->same(0, $summary['relativeExternalTargetCount']);
+        $t->same(0, $summary['rewriteRequiredExternalTargetCount']);
+        $t->same(6, $summary['targetPartCount']);
+        $t->same([
+            '/[Content_Types].xml',
+            '/_rels/.rels',
+            '/word/_rels/orphan.xml',
+            '/word/comments.xml',
+            '/word/document.xml',
+            '/word/media/hero.png',
+        ], $summary['targetParts']);
+        $t->same(['/word/_rels/orphan.xml', '/word/comments.xml'], $summary['missingTargetParts']);
+        $t->same(['file:///tmp/source.docx'], $summary['externalTargets']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-package.relationships+xml',
+            'application/xml',
+            'image/png',
+        ], $summary['contentTypes']);
+        $t->same(['default' => 5, 'override' => 2], $summary['contentTypeSourceCounts']);
+        $t->same([
+            'external-target-unsafe-scheme' => 1,
+            'missing-in-package' => 2,
+            'targets-content-types-item' => 1,
+            'targets-relationship-part' => 1,
+            'targets-reserved-relationship-directory-part' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-in-package',
+            'targets-content-types-item',
+            'targets-relationship-part',
+            'targets-reserved-relationship-directory-part',
+        ], $summary['issues']);
+
+        $t->same('/word/media/hero.png', $targets['rIdImage']['targetPart']);
+        $t->same('slot=cover', $targets['rIdImage']['targetQuery']);
+        $t->same('preview', $targets['rIdImage']['targetFragment']);
+        $t->same('default', $targets['rIdImage']['contentTypeSource']);
+        $t->same(true, $targets['rIdImage']['valid']);
+
+        $t->same('/word/document.xml', $targets['rIdSelf']['targetPart']);
+        $t->same(true, $targets['rIdSelf']['sameSourceReference']);
+        $t->same('self', $targets['rIdSelf']['targetFragment']);
+
+        $t->same('/_rels/.rels', $targets['rIdRelPart']['targetPart']);
+        $t->same(true, $targets['rIdRelPart']['relationshipPartTarget']);
+        $t->same(['targets-relationship-part'], $targets['rIdRelPart']['issues']);
+        $t->same('/[Content_Types].xml', $targets['rIdTypes']['targetPart']);
+        $t->same(['targets-content-types-item'], $targets['rIdTypes']['issues']);
+        $t->same('/word/_rels/orphan.xml', $targets['rIdReserved']['targetPart']);
+        $t->same(['missing-in-package', 'targets-reserved-relationship-directory-part'], $targets['rIdReserved']['issues']);
+        $t->same(false, $targets['rIdFile']['externalTargetAllowed']);
+        $t->same('file', $targets['rIdFile']['externalTargetScheme']);
+
+        $imageSummary = $graph->relationshipTargetSummary(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE, $imageSummary['relationshipType']);
+        $t->same(true, $imageSummary['valid']);
+        $t->same(1, $imageSummary['relationshipCount']);
+        $t->same(['/word/media/hero.png'], $imageSummary['targetParts']);
+    },
     'summarizes package-wide OPC content type inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
