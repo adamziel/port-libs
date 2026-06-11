@@ -25894,6 +25894,94 @@ XML);
         $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact title family aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-compact-title-family',
+                'type' => 'chapter',
+                'title' => 'Compact Title Family Packet',
+                'author' => [
+                    ['family' => 'Lopez', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'maintitle' => 'Migration Source Compendium',
+                'maintitleaddon' => 'review packet',
+                'collectiontitle' => 'Archive Review Series',
+                'collectiontitleshort' => 'ARS',
+                'collectionnumber' => '12',
+                'numberofvolumes' => '4',
+                'numberofpages' => '320',
+                'chapternumber' => '7',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-compact-title-family');
+        $t->same('Migration Source Compendium', $item['mainTitle'] ?? null);
+        $t->same('review packet', $item['mainTitleAddon'] ?? null);
+        $t->same('Archive Review Series', $item['collectionTitle'] ?? null);
+        $t->same('ARS', $item['collectionTitleShort'] ?? null);
+        $t->same('12', $item['collectionNumber'] ?? null);
+        $t->same('4', $item['numberOfVolumes'] ?? null);
+        $t->same('320', $item['numberOfPages'] ?? null);
+        $t->same('7', $item['chapterNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Compact Title Family Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-compact-title-family-alias-review</id>
+    <updated>2026-06-11T19:13:32+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-number"/>
+        <text variable="number-of-volumes"/>
+        <text variable="number-of-pages"/>
+        <text variable="chapter-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title-short"/>
+      <text variable="collection-number"/>
+      <text variable="number-of-volumes"/>
+      <text variable="number-of-pages"/>
+      <text variable="chapter-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Compact Title Family Alias Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('main-title-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('short', $citationChildren[3]['form'] ?? null);
+        $t->same('collection-number', $citationChildren[4]['variable'] ?? null);
+        $t->same('number-of-pages', $citationChildren[6]['variable'] ?? null);
+        $t->same('[Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7]', $styled->renderCitationCluster([
+            $citation('direct-compact-title-family', '[@direct-compact-title-family]'),
+        ]));
+        $t->same('Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7', $styled->renderBibliographyEntry('direct-compact-title-family'));
+
+        $document = (new MarkdownReader())->read('Compact title family aliases [@direct-compact-title-family] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
+        $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
