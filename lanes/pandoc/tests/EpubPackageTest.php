@@ -1424,6 +1424,79 @@ XML;
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'summarizes OPF accessibility metadata for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $a11yRecord = '{"@context":"https://schema.org","accessibilitySummary":"Compact package accessibility record"}';
+        $opfWithAccessibility = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta property="schema:accessMode">textual</meta>
+    <meta property="schema:accessMode">visual</meta>
+    <meta property="schema:accessModeSufficient" xml:lang="en" dir="ltr">textual visual</meta>
+    <meta property="schema:accessibilityFeature">alternativeText</meta>
+    <meta property="schema:accessibilityFeature">MathML</meta>
+    <meta name="schema:accessibilityHazard" content="noFlashingHazard"/>
+    <meta property="schema:accessibilitySummary">Images and MathML are preserved for compact review.</meta>
+    <meta property="a11y:certifiedBy">Migration Desk</meta>
+    <meta property="a11y:certifierCredential">WAS reviewer</meta>
+    <meta property="a11y:certifierReport">https://example.invalid/a11y/report</meta>
+    <meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.1 AA</meta>',
+            $epub3OpfXml
+        );
+        $opfWithAccessibility = str_replace(
+            '</metadata>',
+            '    <link id="a11y-record" rel="record accessibility-summary" href="meta/accessibility.json" media-type="application/ld+json" properties="accessibility-metadata schema-org" hreflang="en"/>
+  </metadata>',
+            $opfWithAccessibility
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithAccessibility],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/accessibility.json', 'data' => $a11yRecord],
+        ]));
+
+        $accessibility = $epub->metadata()['accessibility'];
+        $summary = $epub->summary();
+
+        $t->same(true, $accessibility['present']);
+        $t->same(['textual', 'visual'], $accessibility['accessModes']);
+        $t->same(['textual', 'visual'], $accessibility['accessModeSufficient'][0]['modes']);
+        $t->same('en', $accessibility['accessModeSufficient'][0]['language']);
+        $t->same('ltr', $accessibility['accessModeSufficient'][0]['direction']);
+        $t->same(['alternativeText', 'MathML'], $accessibility['accessibilityFeatures']);
+        $t->same(['noFlashingHazard'], $accessibility['accessibilityHazards']);
+        $t->same('Images and MathML are preserved for compact review.', $accessibility['accessibilitySummary']);
+        $t->same('Migration Desk', $accessibility['certification']['certifiedBy']);
+        $t->same('WAS reviewer', $accessibility['certification']['certifierCredential']);
+        $t->same('https://example.invalid/a11y/report', $accessibility['certification']['certifierReport']);
+        $t->same(['EPUB Accessibility 1.1 - WCAG 2.1 AA'], $accessibility['certification']['conformsTo']);
+        $t->same('schema:accessMode', $accessibility['entriesByProperty']['accessMode'][0]['rawProperty']);
+        $t->same('property', $accessibility['entriesByProperty']['accessMode'][0]['source']);
+        $t->same('schema:accessibilityHazard', $accessibility['entriesByProperty']['accessibilityHazard'][0]['rawName']);
+        $t->same('name', $accessibility['entriesByProperty']['accessibilityHazard'][0]['source']);
+
+        $record = $accessibility['linkedRecords'][0];
+        $t->same('a11y-record', $record['id']);
+        $t->same(['record', 'accessibility-summary'], $record['rel']);
+        $t->same('/EPUB/meta/accessibility.json', $record['target']);
+        $t->same('/EPUB/meta/accessibility.json', $record['partName']);
+        $t->same(true, $record['exists']);
+        $t->same(strlen($a11yRecord), $record['byteLength']);
+        $t->same(hash('crc32b', $a11yRecord), $record['crc32']);
+        $t->same(true, $record['canExposeBytes']);
+        $t->same('application/ld+json', $record['mediaType']);
+        $t->same(['accessibility-metadata', 'schema-org'], $record['properties']);
+        $t->same([], $accessibility['diagnostics']);
+        $t->same($accessibility, $summary['accessibility']);
+        $t->same($accessibility, $summary['wordpressImport']['accessibility']);
+    },
+
     'summarizes OPF metadata link vocabulary tokens for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithPrefix = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
