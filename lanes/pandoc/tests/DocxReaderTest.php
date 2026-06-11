@@ -13259,6 +13259,44 @@ XML;
         $t->same(null, $embeddedObjects['items'][2]['bytes']);
         $t->same(['missing-in-package'], $embeddedObjects['items'][2]['issues']);
     },
+    'reports DOCX embedded object package inventory in metadata' => static function (TestRunner $t) use ($buildEmbeddedObjectPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildEmbeddedObjectPackage());
+
+        $metadataInventory = $result['metadata']['docxEmbeddedObjects'];
+        $reportInventory = $result['importReport']['embeddedObjects'];
+        $t->same($reportInventory, $metadataInventory);
+        $t->same(3, $metadataInventory['count']);
+        $t->same(1, $metadataInventory['oleObjectCount']);
+        $t->same(2, $metadataInventory['packageCount']);
+        $t->same(2, $metadataInventory['embeddedCount']);
+        $t->same(1, $metadataInventory['missingCount']);
+
+        $ole = $metadataInventory['items'][0];
+        $t->same('rIdOleWorkbook', $ole['id']);
+        $t->same('ole-object', $ole['kind']);
+        $t->same('/word/embeddings/oleObject1.bin', $ole['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $ole['contentType']);
+        $t->same(11, $ole['bytes']);
+        $t->same(1, $ole['usedCount']);
+        $t->same(['DOCX embedded OLE object: Migration workbook'], $ole['descriptions']);
+
+        $sourcePackage = $metadataInventory['items'][1];
+        $t->same('rIdSourcePackage', $sourcePackage['id']);
+        $t->same('package', $sourcePackage['kind']);
+        $t->same('/word/embeddings/source-audit.xlsx', $sourcePackage['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $sourcePackage['contentType']);
+        $t->same(11, $sourcePackage['bytes']);
+        $t->same(['DOCX embedded package: Source audit package'], $sourcePackage['descriptions']);
+
+        $missingPackage = $metadataInventory['items'][2];
+        $t->same('rIdMissingPackage', $missingPackage['id']);
+        $t->same('package', $missingPackage['kind']);
+        $t->same('/word/embeddings/missing-source.docx', $missingPackage['targetPart']);
+        $t->same(false, $missingPackage['exists']);
+        $t->same(null, $missingPackage['bytes']);
+        $t->same(['missing-in-package'], $missingPackage['issues']);
+    },
     'preserves DOCX subdocument relationships as review placeholders' => static function (TestRunner $t) use ($buildSubdocumentPackage): void {
         $reader = new DocxReader();
         $result = $reader->readPackage($buildSubdocumentPackage());

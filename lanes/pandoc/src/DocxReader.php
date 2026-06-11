@@ -251,6 +251,7 @@ final class DocxReader
             $styles,
             $numbering,
         );
+        $embeddedObjects = $this->embeddedObjectImportReport($package, $reachableRelationships, $document);
         $glossary = $this->readGlossaryDocument($package, $graph, $documentPart, $referencedNotes, $styles, $numbering);
         $metadata = $this->readCoreProperties($package, $graph);
         $documentBackground = $document->attr('docxBackground', []);
@@ -295,6 +296,9 @@ final class DocxReader
         if ($packageThumbnails['count'] > 0) {
             $metadata['docxPackageThumbnails'] = $packageThumbnails;
         }
+        if ($embeddedObjects['count'] > 0) {
+            $metadata['docxEmbeddedObjects'] = $embeddedObjects;
+        }
         if ($customXmlStore['count'] > 0) {
             $metadata['docxCustomXmlStore'] = [
                 'count' => $customXmlStore['count'],
@@ -328,6 +332,7 @@ final class DocxReader
                 $document,
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
+                $embeddedObjects,
                 $notesPartSummary,
                 $specialNotes,
                 $docProperties,
@@ -369,6 +374,7 @@ final class DocxReader
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
+     * @param array<string, mixed> $embeddedObjects
      * @param array<string, mixed> $notesPartSummary
      * @param array<string, mixed> $specialNotes
      * @param array<string, mixed> $docProperties
@@ -393,6 +399,7 @@ final class DocxReader
         AstNode $document,
         array $revisions,
         array $alternativeFormats,
+        array $embeddedObjects,
         array $notesPartSummary,
         array $specialNotes,
         array $docProperties,
@@ -437,7 +444,7 @@ final class DocxReader
             'reachableRelationshipCount' => count($reachableRelationships),
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
-            'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
+            'embeddedObjects' => $embeddedObjects,
             'subdocuments' => $this->subdocumentImportReport($document),
             'alternativeFormats' => $alternativeFormats,
             'notes' => $notes,
