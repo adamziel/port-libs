@@ -592,6 +592,58 @@ XML;
         $t->same($spine[0]['refinements'], $summary['readingOrder'][0]['refinements']);
     },
 
+    'reports invalid OPF spine itemref linear values for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithInvalidLinear = str_replace(
+            '<itemref idref="chapter1"/>',
+            '<itemref idref="chapter1" linear="maybe"/>',
+            $epub3OpfXml
+        );
+        $opfWithInvalidLinear = str_replace(
+            '<itemref idref="chapter2" linear="no" properties="page-spread-right"/>',
+            '<itemref idref="chapter2" linear="YES" properties="page-spread-right"/>',
+            $opfWithInvalidLinear
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithInvalidLinear],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $spine = $epub->spine();
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+
+        $t->same(true, $spine[0]['linear']);
+        $t->same('maybe', $spine[0]['linearRaw']);
+        $t->same(true, $spine[0]['linearSpecified']);
+        $t->same(false, $spine[0]['linearValid']);
+        $t->same('invalid-spine-linear-value', $spine[0]['spineItemDiagnostics'][0]['type']);
+        $t->same('maybe', $spine[0]['spineItemDiagnostics'][0]['value']);
+        $t->same('chapter1', $spine[0]['spineItemProperties']['linear']['idref']);
+        $t->same(false, $spine[0]['spineItemProperties']['linear']['valid']);
+
+        $t->same(true, $spine[1]['linear']);
+        $t->same('YES', $spine[1]['linearRaw']);
+        $t->same(true, $spine[1]['linearSpecified']);
+        $t->same(true, $spine[1]['linearValid']);
+        $t->same([], $spine[1]['spineItemDiagnostics']);
+
+        $t->same(false, $validation['spine']['valid']);
+        $t->same(1, $validation['spine']['itemDiagnosticCount']);
+        $t->same('invalid-spine-linear-value', $validation['spine']['itemDiagnostics'][0]['type']);
+        $t->same(0, $validation['spine']['itemDiagnostics'][0]['index']);
+        $t->same('chapter1', $validation['spine']['itemDiagnostics'][0]['idref']);
+        $t->same('maybe', $validation['spine']['itemDiagnostics'][0]['value']);
+        $t->same($validation['spine']['itemDiagnostics'], $summary['wordpressImport']['spineItemDiagnostics']);
+        $t->same('invalid-spine-linear-value', $summary['wordpressImport']['packageValidationDiagnostics'][0]['type']);
+        $t->same(false, $summary['readingOrder'][0]['linearValid']);
+    },
+
     'summarizes OPF spine page progression metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSpineProgression = str_replace(
             '<spine>',
