@@ -29,6 +29,7 @@ final class DocxOpenXmlReader
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
@@ -117,6 +118,16 @@ final class DocxOpenXmlReader
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
         $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
+        $settingsRelationshipsPart = $this->relationshipsPartFor($settingsPart['partName']);
+        $settingsRelationships = $this->readRelationshipsPart($parts, $settingsRelationshipsPart);
+        $attachedTemplates = $this->readAttachedTemplates(
+            $parts,
+            $settingsPart['xml'],
+            $settingsPart['partName'],
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
         $webSettingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::WEB_SETTINGS_REL, 'webSettings.xml');
         $webSettings = $this->readWebSettings($webSettingsPart['xml'], $webSettingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
@@ -256,6 +267,9 @@ final class DocxOpenXmlReader
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
+        $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
+        $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
+        $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -272,6 +286,9 @@ final class DocxOpenXmlReader
                 'numbering' => $numbering,
                 'settingsPart' => $settingsPart['partName'],
                 'settings' => $settings,
+                'settingsRelationshipsPart' => $settingsRelationshipsPart,
+                'settingsRelationships' => $settingsRelationships,
+                'attachedTemplates' => $attachedTemplates,
                 'webSettingsPart' => $webSettingsPart['partName'],
                 'webSettings' => $webSettings,
                 'fontTablePart' => $fontTablePart['partName'],
@@ -1324,6 +1341,220 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $settingsRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readAttachedTemplates(
+        array $parts,
+        string $settingsXml,
+        string $settingsPart,
+        string $settingsRelationshipsPart,
+        array $settingsRelationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedAttachedTemplateRelationshipIds = [];
+
+        if ($settingsXml !== '') {
+            $dom = $this->loadXml($settingsXml, $settingsPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '/w:settings/w:attachedTemplate') as $template) {
+                $relationshipId = $template->getAttributeNS(self::NS_R, 'id');
+                $item = $this->attachedTemplateItem(
+                    $parts,
+                    $settingsRelationships[$relationshipId] ?? null,
+                    $settingsPart,
+                    $settingsRelationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($item['relationshipType'] === self::ATTACHED_TEMPLATE_REL) {
+                    $this->appendUniqueString($referencedAttachedTemplateRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($settingsRelationships as $relationship) {
+            if ($relationship['type'] !== self::ATTACHED_TEMPLATE_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedAttachedTemplateRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->attachedTemplateItem(
+                $parts,
+                $relationship,
+                $settingsPart,
+                $settingsRelationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        $issueCount = 0;
+        foreach ($items as $item) {
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $issueCount += count($item['issues']);
+        }
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($settingsRelationships, static fn (array $relationship): bool => $relationship['type'] === self::ATTACHED_TEMPLATE_REL)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === false)),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function attachedTemplateItem(
+        array $parts,
+        ?array $relationship,
+        string $settingsPart,
+        string $settingsRelationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'bytes' => 0,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'settingsPart' => $settingsPart,
+            'settingsRelationshipsPart' => $settingsRelationshipsPart,
+            'relationship' => null,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $settingsPart, $settingsRelationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::ATTACHED_TEMPLATE_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-in-package';
+        }
+
+        if ($item['contentTypeSource'] === 'missing') {
+            $item['issues'][] = 'missing-content-type';
+        }
+
+        return $item;
     }
 
     /**

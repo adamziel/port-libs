@@ -115,5 +115,7 @@
     "mappedZipCentralDirectoryFixedHeaderCases": 1,
     "zipCentralDirectoryFixedHeaderAssertions": 66,
     "mappedDirectCslPageExtentAliasCases": 1,
-    "directCslPageExtentAliasAssertions": 22
+    "directCslPageExtentAliasAssertions": 22,
+    "mappedDocxOpenXmlAttachedTemplateCases": 1,
+    "docxOpenXmlAttachedTemplateAssertions": 70
 }

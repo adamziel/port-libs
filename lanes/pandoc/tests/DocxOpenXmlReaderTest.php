@@ -1251,6 +1251,126 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'summarizes docx attached template relationships from settings part' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/templates/review-template.dotx" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml; profile=attached-template"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:updateFields w:val="true"/>
+  <w:attachedTemplate r:id="rTemplate"/>
+  <w:attachedTemplate r:id="rUnknown"/>
+</w:settings>
+XML;
+        $parts['docSettings/_rels/review-settings.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="templates/review-template.dotx?rev=7#template"/>
+  <Relationship Id="rExternalTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/Templates/team.dotx" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['docSettings/templates/review-template.dotx'] = 'template package bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $attached = $docx['attachedTemplates'];
+        $template = $attached['byRelationshipId']['rTemplate'];
+        $unknown = $attached['byRelationshipId']['rUnknown'];
+        $external = $attached['byRelationshipId']['rExternalTemplate'];
+        $package = $docx['packageProvenance'];
+        $settingsRelationshipsPart = $package['relationshipParts']['docSettings/_rels/review-settings.xml.rels'];
+        $templateRelationshipType = $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate'];
+        $templateInventory = $package['parts']['docSettings/templates/review-template.dotx'];
+
+        $t->same('docSettings/review-settings.xml', $docx['settingsPart']);
+        $t->same('docSettings/_rels/review-settings.xml.rels', $docx['settingsRelationshipsPart']);
+        $t->same('templates/review-template.dotx?rev=7#template', $docx['settingsRelationships']['rTemplate']['target']);
+        $t->same('docSettings/templates/review-template.dotx?rev=7#template', $docx['settingsRelationships']['rTemplate']['resolvedTarget']);
+        $t->same(true, $docx['settings']['updateFields']);
+
+        $t->same(3, $attached['count']);
+        $t->same(2, $attached['relationshipCount']);
+        $t->same(2, $attached['referencedCount']);
+        $t->same(1, $attached['unreferencedRelationshipCount']);
+        $t->same(1, $attached['internalCount']);
+        $t->same(1, $attached['externalCount']);
+        $t->same(1, $attached['existingCount']);
+        $t->same(0, $attached['missingCount']);
+        $t->same(1, $attached['unresolvedCount']);
+        $t->same(0, $attached['unexpectedRelationshipTypeCount']);
+        $t->same(0, $attached['missingContentTypeCount']);
+        $t->same(1, $attached['issueCount']);
+        $t->same(['rTemplate', 'rUnknown', 'rExternalTemplate'], $attached['relationshipIds']);
+        $t->same(['rTemplate', 'rUnknown'], $attached['referencedRelationshipIds']);
+        $t->same(['rExternalTemplate'], $attached['unreferencedRelationshipIds']);
+        $t->same(['docSettings/templates/review-template.dotx'], $attached['partNames']);
+
+        $t->same(0, $template['index']);
+        $t->same(true, $template['referenced']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate', $template['relationshipType']);
+        $t->same('templates/review-template.dotx?rev=7#template', $template['target']);
+        $t->same('docSettings/templates/review-template.dotx?rev=7#template', $template['resolvedTarget']);
+        $t->same('docSettings/templates/review-template.dotx', $template['targetPart']);
+        $t->same('rev=7', $template['targetQuery']);
+        $t->same('template', $template['targetFragment']);
+        $t->same('?rev=7#template', $template['targetReferenceSuffix']);
+        $t->same(true, $template['exists']);
+        $t->same(strlen('template package bytes'), $template['bytes']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml; profile=attached-template', $template['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', $template['contentTypeBase']);
+        $t->same(['profile' => 'attached-template'], $template['contentTypeParameterMap']);
+        $t->same('override', $template['contentTypeSource']);
+        $t->same('docSettings/review-settings.xml', $template['settingsPart']);
+        $t->same('docSettings/_rels/review-settings.xml.rels', $template['settingsRelationshipsPart']);
+        $t->same([], $template['issues']);
+
+        $t->same(1, $unknown['index']);
+        $t->same(true, $unknown['referenced']);
+        $t->same(null, $unknown['relationshipType']);
+        $t->same(false, $unknown['exists']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+
+        $t->same(2, $external['index']);
+        $t->same(false, $external['referenced']);
+        $t->same(true, $external['external']);
+        $t->same('file:///C:/Templates/team.dotx', $external['target']);
+        $t->same('External', $external['targetMode']);
+        $t->same(null, $external['targetPart']);
+        $t->same(false, $external['exists']);
+        $t->same('', $external['contentType']);
+        $t->same([], $external['issues']);
+
+        $t->same('docSettings/review-settings.xml', $settingsRelationshipsPart['sourcePart']);
+        $t->same(true, $settingsRelationshipsPart['sourceExists']);
+        $t->same(true, $settingsRelationshipsPart['exists']);
+        $t->same(2, $settingsRelationshipsPart['relationshipCount']);
+        $t->same('docSettings/templates/review-template.dotx', $settingsRelationshipsPart['relationships']['rTemplate']['targetPart']);
+        $t->same(true, $settingsRelationshipsPart['relationships']['rTemplate']['exists']);
+        $t->same(true, $settingsRelationshipsPart['relationships']['rExternalTemplate']['external']);
+
+        $t->same(2, $templateRelationshipType['count']);
+        $t->same(1, $templateRelationshipType['internalCount']);
+        $t->same(1, $templateRelationshipType['externalCount']);
+        $t->same(['docSettings/templates/review-template.dotx'], $templateRelationshipType['targetParts']);
+        $t->same(['file:///C:/Templates/team.dotx'], $templateRelationshipType['externalTargets']);
+        $t->true(in_array('relationship-target', $templateInventory['roles'], true), 'attached template inventory role missing');
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', $templateInventory['contentTypeBase']);
+        $t->same(3, $package['summary']['attachedTemplateCount']);
+        $t->same(1, $package['summary']['attachedTemplateExternalCount']);
+        $t->same(1, $package['summary']['attachedTemplateIssueCount']);
+    },
     'preserves docx selected relationship target suffix provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
