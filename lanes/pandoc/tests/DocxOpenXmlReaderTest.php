@@ -1270,6 +1270,120 @@ XML;
         $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p>', $blocks);
     },
+    'summarizes docx alternative format import chunks from document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="html" ContentType="text/html"/>' . "\n" .
+            '  <Default Extension="txt" ContentType="text/plain"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/chunks/review.html" ContentType="text/html; charset=utf-8"/>' . "\n" .
+            '  <Override PartName="/word/chunks/unreferenced.html" ContentType="text/html"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rAltHtml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html?slot=body#chunk"/>' . "\n" .
+            '  <Relationship Id="rAltText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.txt"/>' . "\n" .
+            '  <Relationship Id="rAltMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/missing.html"/>' . "\n" .
+            '  <Relationship Id="rAltRemote" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="https://example.test/review.html" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rAltUnreferenced" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/unreferenced.html"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:altChunk r:id="rAltHtml"/>' . "\n" .
+            '    <w:altChunk r:id="rAltText"/>' . "\n" .
+            '    <w:altChunk r:id="rAltMissing"/>' . "\n" .
+            '    <w:altChunk r:id="rAltRemote"/>' . "\n" .
+            '    <w:altChunk r:id="rAltUnknown"/>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/chunks/review.html'] = '<section><h2>Embedded review HTML</h2></section>';
+        $parts['word/chunks/review.txt'] = 'Plain text chunk';
+        $parts['word/chunks/unreferenced.html'] = '<p>Unreferenced chunk</p>';
+        $parts['word/chunks/_rels/review.html.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rChunkImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/chunk.png"/>
+</Relationships>
+XML;
+        $parts['word/media/chunk.png'] = 'chunk png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $alternativeFormats = $docx['alternativeFormats'];
+        $html = $alternativeFormats['byRelationshipId']['rAltHtml'];
+        $text = $alternativeFormats['byRelationshipId']['rAltText'];
+        $missing = $alternativeFormats['byRelationshipId']['rAltMissing'];
+        $external = $alternativeFormats['byRelationshipId']['rAltRemote'];
+        $unknown = $alternativeFormats['byRelationshipId']['rAltUnknown'];
+        $unreferenced = $alternativeFormats['byRelationshipId']['rAltUnreferenced'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $altChunkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+
+        $t->same(6, $alternativeFormats['count']);
+        $t->same(5, $alternativeFormats['relationshipCount']);
+        $t->same(5, $alternativeFormats['referencedCount']);
+        $t->same(1, $alternativeFormats['unreferencedRelationshipCount']);
+        $t->same(3, $alternativeFormats['existingCount']);
+        $t->same(1, $alternativeFormats['missingCount']);
+        $t->same(1, $alternativeFormats['externalCount']);
+        $t->same(1, $alternativeFormats['unresolvedCount']);
+        $t->same(0, $alternativeFormats['missingContentTypeCount']);
+        $t->same(['rAltHtml', 'rAltText', 'rAltMissing', 'rAltRemote', 'rAltUnknown', 'rAltUnreferenced'], $alternativeFormats['relationshipIds']);
+        $t->same(['rAltHtml', 'rAltText', 'rAltMissing', 'rAltRemote', 'rAltUnknown'], $alternativeFormats['referencedRelationshipIds']);
+        $t->same(['rAltUnreferenced'], $alternativeFormats['unreferencedRelationshipIds']);
+        $t->same(['word/chunks/review.html', 'word/chunks/review.txt', 'word/chunks/missing.html', 'word/chunks/unreferenced.html'], $alternativeFormats['partNames']);
+
+        $t->same(true, $html['referenced']);
+        $t->same('word/chunks/review.html', $html['partName']);
+        $t->same('chunks/review.html?slot=body#chunk', $html['target']);
+        $t->same('word/chunks/review.html?slot=body#chunk', $html['resolvedTarget']);
+        $t->same('slot=body', $html['targetQuery']);
+        $t->same('chunk', $html['targetFragment']);
+        $t->same('?slot=body#chunk', $html['targetReferenceSuffix']);
+        $t->same(true, $html['exists']);
+        $t->same(strlen($parts['word/chunks/review.html']), $html['bytes']);
+        $t->same('text/html; charset=utf-8', $html['contentType']);
+        $t->same('override', $html['contentTypeSource']);
+        $t->same('word/chunks/_rels/review.html.rels', $html['relationshipsPart']);
+        $t->same(1, $html['relationshipCount']);
+        $t->same('word/document.xml', $html['relationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $html['relationship']['relationshipsPart']);
+        $t->same('word/chunks/review.html', $html['relationship']['targetPart']);
+        $t->same([], $html['issues']);
+
+        $t->same('text/plain', $text['contentType']);
+        $t->same('default', $text['contentTypeSource']);
+        $t->same(true, $text['exists']);
+        $t->same([], $text['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/chunks/missing.html', $missing['partName']);
+        $t->same('text/html', $missing['contentType']);
+        $t->same(['missing-in-package'], $missing['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['partName']);
+        $t->same(['external-altchunk'], $external['issues']);
+        $t->same(null, $unknown['relationship']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same('text/html', $unreferenced['contentType']);
+
+        $t->same('aFChunk', $relationshipTypes[$altChunkType]['label']);
+        $t->same(5, $relationshipTypes[$altChunkType]['count']);
+        $t->same(4, $relationshipTypes[$altChunkType]['internalCount']);
+        $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
+        $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

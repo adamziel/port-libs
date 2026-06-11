@@ -33,6 +33,7 @@ final class DocxOpenXmlReader
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+    private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
 
     public function readFile(string $path): AstNode
     {
@@ -173,6 +174,13 @@ final class DocxOpenXmlReader
             $numbering,
             $referencedNotes,
         );
+        $alternativeFormats = $this->readAlternativeFormatImports(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -207,6 +215,7 @@ final class DocxOpenXmlReader
                 'comments' => $comments['summary'],
                 'headers' => $headers,
                 'footers' => $footers,
+                'alternativeFormats' => $alternativeFormats,
                 'media' => $media,
             ],
         ];
@@ -759,6 +768,213 @@ final class DocxOpenXmlReader
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readAlternativeFormatImports(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedAltChunkRelationshipIds = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        if ($xml !== '') {
+            $dom = $this->loadXml($xml, $documentPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '//w:altChunk') as $chunk) {
+                $relationshipId = $chunk->getAttributeNS(self::NS_R, 'id');
+                $item = $this->alternativeFormatImportItem(
+                    $parts,
+                    $relationships[$relationshipId] ?? null,
+                    $documentPart,
+                    $relationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($item['relationshipType'] === self::ALT_CHUNK_REL) {
+                    $this->appendUniqueString($referencedAltChunkRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::ALT_CHUNK_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedAltChunkRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->alternativeFormatImportItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        foreach ($items as $item) {
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $this->appendUniqueString($partNames, $partName);
+        }
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::ALT_CHUNK_REL)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function alternativeFormatImportItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'bytes' => 0,
+            'contentType' => '',
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'relationshipsPart' => null,
+            'relationshipCount' => 0,
+            'relationship' => null,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $partRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $partRelationships = $partRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $partRelationshipsPart);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationshipsPart'] = $partRelationshipsPart;
+        $item['relationshipCount'] = count($partRelationships);
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::ALT_CHUNK_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-altchunk';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-in-package';
+            return $item;
+        }
+
+        if ($item['contentTypeSource'] === 'missing') {
+            $item['issues'][] = 'missing-content-type';
+        }
+
+        return $item;
     }
 
     /**
