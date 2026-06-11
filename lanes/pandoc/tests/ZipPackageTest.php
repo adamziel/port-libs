@@ -756,6 +756,55 @@ return [
         $t->same($documentXml, $package->read('/word/document.xml'));
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
+    'preflights zip local header variable field byte provenance before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $localExtra = pack('vva*', 0xf00d, strlen('local-review'), 'local-review');
+        $documentXml = '<w:document><w:p>local variable field packet</w:p></w:document>';
+        $commentsXml = '<w:comments><w:comment>streamed local descriptor</w:comment></w:comments>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $localHeaders = $package->localHeaderPreflight();
+        $localHeaderSpans = ZipPackage::localHeaderSpanPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $expectedNameBytes = strlen('word/document.xml') + strlen('word/comments.xml');
+
+        $t->same(2, $localHeaders['entryCount']);
+        $t->same($expectedNameBytes, $localHeaders['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $localHeaders['localHeaderExtraFieldBytes']);
+        $t->same($expectedNameBytes + strlen($localExtra), $localHeaders['localHeaderVariableFieldBytes']);
+        $t->same(1, $localHeaders['localExtraFieldEntryCount']);
+        $t->same(true, $localHeaders['hasLocalHeaderVariableFields']);
+        $t->same(true, $localHeaders['hasLocalExtraFields']);
+        $t->same(1, $localHeaders['dataDescriptorEntryCount']);
+        $t->same(16, $localHeaders['dataDescriptorBytes']);
+        $t->same(strlen($localExtra), $localHeaders['entries'][0]['localExtraFieldLength']);
+        $t->same(true, $localHeaders['entries'][1]['usesDataDescriptor']);
+
+        $t->same($expectedNameBytes, $localHeaderSpans['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $localHeaderSpans['localHeaderExtraFieldBytes']);
+        $t->same($expectedNameBytes + strlen($localExtra), $localHeaderSpans['localHeaderVariableFieldBytes']);
+        $t->same(1, $localHeaderSpans['localExtraFieldEntryCount']);
+        $t->same(true, $localHeaderSpans['hasLocalExtraFields']);
+        $t->same(1, $localHeaderSpans['dataDescriptorEntryCount']);
+        $t->same(16, $localHeaderSpans['dataDescriptorBytes']);
+        $t->same($localHeaderSpans, $rawStrict['localHeaderSpans']);
+        $t->same($localHeaders, $strict['localHeaders']);
+    },
 
     'preflights raw zip local header span gaps before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $orphanName = 'word/media/orphan.bin';
