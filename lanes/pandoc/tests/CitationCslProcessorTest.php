@@ -26529,6 +26529,111 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact original title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-orig-compact',
+                'type' => 'book',
+                'title' => 'Translated Manual',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+                'origtitle' => 'Manual fuente',
+                'origsubtitle' => 'Archive Appendix',
+                'origtitle-addon' => 'review leaf',
+                'origdate' => ['date-parts' => [[1999, 3]]],
+                'originalpublisher' => 'Archive Press',
+                'originalpublisherplace' => 'Madrid',
+                'originallanguage' => 'spanish',
+            ],
+            [
+                'id' => 'direct-original-compact',
+                'type' => 'book',
+                'title' => 'Reprint Handbook',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'originaltitle' => 'Legacy Handbook',
+                'originalsubtitle' => 'Source Leaf',
+                'original-titleaddon' => 'source appendix',
+                'originaldate' => ['date-parts' => [[2001]]],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-orig-compact');
+        $original = $processor->item('direct-original-compact');
+        $t->same('Manual fuente: Archive Appendix', $compact['originalTitle'] ?? null);
+        $t->same('review leaf', $compact['originalTitleAddon'] ?? null);
+        $t->same('1999-03', $compact['originalDate']['display'] ?? null);
+        $t->same('Archive Press', $compact['originalPublisher'] ?? null);
+        $t->same('Madrid', $compact['originalPublisherPlace'] ?? null);
+        $t->same('spanish', $compact['originalLanguage'] ?? null);
+        $t->same('Legacy Handbook: Source Leaf', $original['originalTitle'] ?? null);
+        $t->same('source appendix', $original['originalTitleAddon'] ?? null);
+        $t->same('2001', $original['originalDate']['display'] ?? null);
+        $t->same('(Ames 2026; Bell 2025)', $processor->renderCitationCluster([
+            $citation('direct-orig-compact', '[@direct-orig-compact]'),
+            $citation('direct-original-compact', '[@direct-original-compact]'),
+        ]));
+        $t->same(
+            'Ames, Ari. Translated Manual. Review Press, 2026. Original title: Manual fuente: Archive Appendix. Original title addendum: review leaf. Original work published 1999-03. Original publisher: Archive Press, Madrid. Original language: spanish.',
+            $processor->renderBibliographyEntry('direct-orig-compact')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Compact Original Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-compact-original-title-alias-review</id>
+    <updated>2026-06-11T22:24:11+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-title"/>
+        <text variable="original-title-addon"/>
+        <text variable="original-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <text variable="original-title-addon"/>
+      <text variable="original-date"/>
+      <text variable="original-publisher"/>
+      <text variable="original-publisher-place"/>
+      <text variable="original-language"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Compact Original Title Alias Review', $summary['title'] ?? null);
+        $t->same('original-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('original-title-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('original-date', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | Manual fuente: Archive Appendix | review leaf | 1999-03; Bell | Legacy Handbook: Source Leaf | source appendix | 2001]', $styled->renderCitationCluster([
+            $citation('direct-orig-compact', '[@direct-orig-compact]'),
+            $citation('direct-original-compact', '[@direct-original-compact]'),
+        ]));
+        $t->same('Translated Manual :: Manual fuente: Archive Appendix :: review leaf :: 1999-03 :: Archive Press :: Madrid :: spanish', $styled->renderBibliographyEntry('direct-orig-compact'));
+
+        $document = (new MarkdownReader())->read('Compact original aliases [@direct-orig-compact; @direct-original-compact] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact original aliases [Ames | Manual fuente: Archive Appendix | review leaf | 1999-03; Bell | Legacy Handbook: Source Leaf | source appendix | 2001] remain visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Translated Manual :: Manual fuente: Archive Appendix :: review leaf :: 1999-03 :: Archive Press :: Madrid :: spanish</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Reprint Handbook :: Legacy Handbook: Source Leaf :: source appendix :: 2001</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',

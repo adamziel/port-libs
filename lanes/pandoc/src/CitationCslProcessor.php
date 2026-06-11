@@ -1304,8 +1304,12 @@ final class CitationCslProcessor
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
             'availableDate' => $availableDate,
-            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'originaltitle', 'origtitle']),
-            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'origtitleaddon']),
+            'originalTitle' => self::composedStringField(
+                $item,
+                ['original-title', 'originalTitle', 'originaltitle', 'origtitle'],
+                ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle']
+            ),
+            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'original-titleaddon', 'origtitleaddon', 'origtitle-addon']),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
