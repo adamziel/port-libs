@@ -882,7 +882,9 @@ final class PandocJsonReader
         $alignments = [];
         $widths = [];
         $alignmentConstructors = [];
+        $alignmentNatives = [];
         $columnWidthConstructors = [];
+        $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
             $tuple = $this->tuple($colSpec, 2, 'Table column spec');
             $alignmentConstructor = $this->enumTag($tuple[0], 'table alignment');
@@ -890,7 +892,9 @@ final class PandocJsonReader
             $alignments[] = $this->tableAlignmentFromConstructor($alignmentConstructor);
             $widths[] = $this->readTableColumnWidth($tuple[1]);
             $alignmentConstructors[] = $alignmentConstructor;
+            $alignmentNatives[] = $tuple[0];
             $columnWidthConstructors[] = $columnWidthConstructor;
+            $columnWidthNatives[] = $tuple[1];
         }
 
         if ($alignments === []) {
@@ -901,7 +905,9 @@ final class PandocJsonReader
             'alignments' => $alignments,
             'widths' => $widths,
             'alignmentConstructors' => $alignmentConstructors,
+            'alignmentNatives' => $alignmentNatives,
             'columnWidthConstructors' => $columnWidthConstructors,
+            'columnWidthNatives' => $columnWidthNatives,
         ];
     }
 
@@ -928,6 +934,7 @@ final class PandocJsonReader
             $attrs['rowHeadColumns'] = $rowHeadColumns;
         }
         $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
+        $attrs['rowHeadColumnsNative'] = $tuple[1];
 
         $headRows = $this->readTableRows($tuple[2]);
         if ($headRows !== []) {
@@ -1012,18 +1019,21 @@ final class PandocJsonReader
             $attrs['align'] = $alignment;
         }
         $attrs['alignmentConstructor'] = $alignmentConstructor;
+        $attrs['alignmentNative'] = $tuple[1];
 
         $rowspan = $this->readTaggedInteger($tuple[2], 'RowSpan', 'Table cell rowspan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
         $attrs['rowSpanConstructor'] = 'RowSpan';
+        $attrs['rowSpanNative'] = $tuple[2];
 
         $colspan = $this->readTaggedInteger($tuple[3], 'ColSpan', 'Table cell colspan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
         $attrs['colSpanConstructor'] = 'ColSpan';
+        $attrs['colSpanNative'] = $tuple[3];
 
         $blocks = $this->readBlocks($this->listContent($tuple[4], 'Table cell blocks'));
         $text = $this->plainTextFromBlocks($blocks);

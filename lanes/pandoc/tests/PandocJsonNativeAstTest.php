@@ -1436,6 +1436,92 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'records pandoc table helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['helper-payload-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => 0.4]],
+                    [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [
+                    ['', [], []],
+                    [
+                        ['t' => 'Row', 'c' => [
+                            ['', [], []],
+                            [
+                                ['t' => 'Cell', 'c' => [
+                                    ['', [], []],
+                                    ['t' => 'AlignCenter'],
+                                    ['t' => 'RowSpan', 'c' => 2],
+                                    ['t' => 'ColSpan', 'c' => 2],
+                                    [],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignLeft'],
+                                        1,
+                                        ['t' => 'ColSpan', 'c' => 2],
+                                        [],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $headCell = $head->children[0]->children[0];
+            $bodyCell = $body->children[0]->children[0];
+
+            $t->same([['t' => 'AlignRight'], ['t' => 'AlignDefault']], $table->attr('alignmentNatives'), "{$source} table alignment native payloads");
+            $t->same([['t' => 'ColWidth', 'c' => 0.4], ['t' => 'ColWidthDefault']], $table->attr('columnWidthNatives'), "{$source} table width native payloads");
+            $t->same(['t' => 'RowHeadColumns', 'c' => 1], $body->attr('rowHeadColumnsNative'), "{$source} row-head native payload");
+            $t->same(['t' => 'AlignCenter'], $headCell->attr('alignmentNative'), "{$source} head cell alignment native payload");
+            $t->same(['t' => 'RowSpan', 'c' => 2], $headCell->attr('rowSpanNative'), "{$source} head cell rowspan native payload");
+            $t->same(['t' => 'ColSpan', 'c' => 2], $headCell->attr('colSpanNative'), "{$source} head cell colspan native payload");
+            $t->same(['t' => 'AlignLeft'], $bodyCell->attr('alignmentNative'), "{$source} body cell alignment native payload");
+            $t->same(1, $bodyCell->attr('rowSpanNative'), "{$source} body cell legacy rowspan payload");
+            $t->same(['t' => 'ColSpan', 'c' => 2], $bodyCell->attr('colSpanNative'), "{$source} body cell colspan native payload");
+        }
+
+        $nativeFromJson = json_decode((new NativeWriter())->write($documents['json']), true, 512, JSON_THROW_ON_ERROR);
+        $nativeFromNative = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($tableBlock, $nativeFromJson['blocks'][0]);
+        $t->same($tableBlock, $nativeFromNative['blocks'][0]);
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];
