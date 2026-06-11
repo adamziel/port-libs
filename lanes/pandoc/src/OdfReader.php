@@ -415,6 +415,7 @@ final class OdfReader
         $seenParts = [];
         $rootMediaType = null;
         $hasContentXml = false;
+        $manifestIndex = 0;
         foreach (self::childElements($root, 'file-entry', self::MANIFEST_NS) as $entryElement) {
             $fullPath = self::attr($entryElement, self::MANIFEST_NS, 'full-path');
             if ($fullPath === '') {
@@ -463,6 +464,7 @@ final class OdfReader
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
             $items[] = [
+                'manifestIndex' => $manifestIndex,
                 'fullPath' => $fullPath,
                 'part' => $part,
                 'partReference' => $packageReference['partReference'],
@@ -492,6 +494,7 @@ final class OdfReader
                 'canExposeBytes' => $canExposeBytes,
                 'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
             ];
+            ++$manifestIndex;
         }
 
         if ($items === []) {
@@ -580,9 +583,23 @@ final class OdfReader
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
+        $manifestFileEntryOrder = [];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
+            $manifestIndex = $item['manifestIndex'] ?? count($manifestFileEntryOrder);
+            $manifestFileEntryOrder[] = [
+                'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder),
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'mediaType' => $item['mediaType'] ?? null,
+                'exists' => ($item['exists'] ?? false) === true,
+                'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+            ];
             if (is_string($part) && $part !== '') {
                 $manifestByPart[$part] = $item;
             }
@@ -646,6 +663,7 @@ final class OdfReader
                 'crc32' => $entry->crc32Hex(),
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestItem),
+                'manifestIndex' => is_array($manifestItem) ? $manifestItem['manifestIndex'] : null,
                 'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
                 'manifestPartReference' => is_array($manifestItem) ? $manifestItem['partReference'] : null,
                 'manifestPartSuffix' => is_array($manifestItem) ? $manifestItem['partSuffix'] : null,
@@ -667,6 +685,8 @@ final class OdfReader
             'mimetypeEntry' => $mimetypeEntry,
             'entryCount' => count($parts),
             'manifestDeclaredPartCount' => count($manifestByPart),
+            'manifestFileEntryCount' => count($manifestFileEntryOrder),
+            'manifestFileEntryOrder' => $manifestFileEntryOrder,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,

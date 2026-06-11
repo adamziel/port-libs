@@ -9953,6 +9953,51 @@ XML;
         $t->same(true, $missing['targetDeclaredInManifest']);
         $t->same(['odf-signature-reference-missing-package-part'], $missing['diagnostics']);
     },
+    'preserves ODT manifest file-entry order provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithReorderedEntries = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithReorderedEntries));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $manifestOrder = $provenance['manifestFileEntryOrder'];
+        $inventory = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(6, $provenance['manifestFileEntryCount']);
+        $t->same([0, 1, 2, 3, 4, 5], array_column($result['manifest'], 'manifestIndex'));
+        $t->same(['/', 'styles.xml', 'Pictures/hero.png', 'content.xml', 'Pictures/missing.png', 'meta.xml'], array_column($manifestOrder, 'fullPath'));
+        $t->same([0, 1, 2, 3, 4, 5], array_column($manifestOrder, 'manifestIndex'));
+
+        $t->same(1, $manifestByPath['styles.xml']['manifestIndex']);
+        $t->same(2, $manifestByPath['Pictures/hero.png']['manifestIndex']);
+        $t->same(3, $manifestByPath['content.xml']['manifestIndex']);
+        $t->same(4, $manifestByPath['Pictures/missing.png']['manifestIndex']);
+        $t->same(5, $manifestByPath['meta.xml']['manifestIndex']);
+
+        $t->same(3, $inventory['content.xml']['manifestIndex']);
+        $t->same(1, $inventory['styles.xml']['manifestIndex']);
+        $t->same(2, $inventory['Pictures/hero.png']['manifestIndex']);
+        $t->same(5, $inventory['meta.xml']['manifestIndex']);
+        $t->same(false, $manifestOrder[4]['exists']);
+        $t->same(false, $manifestOrder[4]['canExposeBytes']);
+        $t->same(['Pictures/missing.png'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
+        $t->same(4, $result['importReport']['manifest']['missingItems'][0]['manifestIndex']);
+        $t->same(2, count($result['media']), 'missing manifest media remains metadata-only in declared media handoff');
+        $t->same(false, $result['media'][1]['exists']);
+        $t->same(null, $result['media'][1]['byteLength']);
+    },
     'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
