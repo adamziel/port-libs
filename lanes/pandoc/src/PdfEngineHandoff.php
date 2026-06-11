@@ -287,6 +287,12 @@ final class PdfEngineHandoff
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
             }
+            if (($typstBoundaryProvenance['openViewer'] ?? null) !== null) {
+                $openViewer = $typstBoundaryProvenance['openViewer'];
+                if (is_array($openViewer) && is_string($openViewer['viewer'] ?? null)) {
+                    $diagnostics[] = 'typst-open-viewer:' . $openViewer['viewer'];
+                }
+            }
             if (($typstBoundaryProvenance['overrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-overrides:' . count($typstBoundaryProvenance['overrides']);
             }
@@ -5540,6 +5546,7 @@ final class PdfEngineHandoff
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'openViewer' => 'open-viewer-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5576,8 +5583,9 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $openViewerValues = $this->engineOptionValues($engineOptions, ['--open'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $openViewerValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5614,16 +5622,22 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $openViewerHistory = array_map(
+            fn (string $value): array => $this->typstOpenViewerEntry($value),
+            $openViewerValues
+        );
+        $openViewer = $openViewerHistory === [] ? null : $openViewerHistory[count($openViewerHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
             'creationTimestamp' => $creationTimestampValues,
+            'openViewer' => $openViewerValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables, $openViewerHistory)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5654,6 +5668,9 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if ($openViewer !== null) {
+            $provenance['openViewer'] = $openViewer;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -5680,6 +5697,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($openViewerHistory)) {
+            $provenance['openViewerHistory'] = $openViewerHistory;
         }
 
         return $provenance;
@@ -5951,6 +5971,90 @@ final class PdfEngineHandoff
             'iso8601' => $iso8601,
             'deterministic' => $issues === [],
             'safe' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{raw:string, viewer:string, kind:string, safe:bool, issues:list<string>}
+     */
+    private function typstOpenViewerEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $issues = ['open-viewer-side-effect-boundary'];
+        if ($value === '') {
+            return [
+                'raw' => $raw,
+                'viewer' => 'default',
+                'kind' => 'default',
+                'safe' => false,
+                'issues' => $issues,
+            ];
+        }
+
+        $normalizedPath = str_replace('\\', '/', $value);
+        if (str_contains($value, "\0")) {
+            $issues[] = 'open-viewer-invalid-boundary';
+
+            return [
+                'raw' => $raw,
+                'viewer' => $value,
+                'kind' => 'invalid',
+                'safe' => false,
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+        if ($this->isUriResourceReference($value)) {
+            $issues[] = 'open-viewer-external-boundary';
+
+            return [
+                'raw' => $raw,
+                'viewer' => $value,
+                'kind' => 'uri',
+                'safe' => false,
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+        if (str_starts_with($normalizedPath, '/') || preg_match('/\A[A-Za-z]:\//', $normalizedPath) === 1) {
+            $issues[] = 'open-viewer-external-boundary';
+
+            return [
+                'raw' => $raw,
+                'viewer' => $normalizedPath,
+                'kind' => 'absolute',
+                'safe' => false,
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+        if (str_contains($normalizedPath, '/')) {
+            try {
+                $normalizedPath = $this->normalizeRelativePath($normalizedPath, 'Typst open viewer path');
+            } catch (\InvalidArgumentException) {
+                $issues[] = 'open-viewer-invalid-boundary';
+
+                return [
+                    'raw' => $raw,
+                    'viewer' => $value,
+                    'kind' => 'invalid',
+                    'safe' => false,
+                    'issues' => array_values(array_unique($issues)),
+                ];
+            }
+
+            return [
+                'raw' => $raw,
+                'viewer' => $normalizedPath,
+                'kind' => 'relative',
+                'safe' => false,
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+
+        return [
+            'raw' => $raw,
+            'viewer' => $value,
+            'kind' => 'program',
+            'safe' => false,
             'issues' => $issues,
         ];
     }

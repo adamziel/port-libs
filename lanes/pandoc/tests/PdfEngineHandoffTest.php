@@ -370,6 +370,90 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst open viewer boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/build/open-viewer.typ',
+            'outputPath' => 'build/open-viewer.pdf',
+            'source' => '= Typst Open Viewer Boundary Packet',
+            'engineOptions' => [
+                '--root=workspace',
+                '--open',
+                '--open=preview-viewer',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst open viewer boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'open-viewer-side-effect-boundary',
+                'open-viewer-boundary-overridden',
+            ],
+            'openViewer' => [
+                'raw' => 'preview-viewer',
+                'viewer' => 'preview-viewer',
+                'kind' => 'program',
+                'safe' => false,
+                'issues' => ['open-viewer-side-effect-boundary'],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'openViewer',
+                    'count' => 2,
+                    'values' => ['', 'preview-viewer'],
+                    'selected' => 'preview-viewer',
+                    'issue' => 'open-viewer-boundary-overridden',
+                ],
+            ],
+            'openViewerHistory' => [
+                [
+                    'raw' => '',
+                    'viewer' => 'default',
+                    'kind' => 'default',
+                    'safe' => false,
+                    'issues' => ['open-viewer-side-effect-boundary'],
+                ],
+                [
+                    'raw' => 'preview-viewer',
+                    'viewer' => 'preview-viewer',
+                    'kind' => 'program',
+                    'safe' => false,
+                    'issues' => ['open-viewer-side-effect-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/open-viewer.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/open-viewer.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-viewer:preview-viewer', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
