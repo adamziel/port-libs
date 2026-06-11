@@ -564,6 +564,203 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst pdf export boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-export-boundary.pdf',
+            'source' => '= Typst PDF Export Boundary Packet',
+            'engineOptions' => [
+                '--pages=1,3-4,8-',
+                '--pdf-standard=a-2b,ua-1',
+                '--no-pdf-tags',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF export boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['pdf-tags-disabled-for-pdfua'],
+            'pdfStandard' => [
+                'raw' => 'a-2b,ua-1',
+                'value' => 'a-2b,ua-1',
+                'standards' => ['a-2b', 'ua-1'],
+                'standardCount' => 2,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '1,3-4,8-',
+                    'value' => '1,3-4,8-',
+                    'segments' => [
+                        ['raw' => '1', 'kind' => 'page', 'start' => 1, 'end' => 1, 'issues' => []],
+                        ['raw' => '3-4', 'kind' => 'range', 'start' => 3, 'end' => 4, 'issues' => []],
+                        ['raw' => '8-', 'kind' => 'range-from', 'start' => 8, 'end' => null, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => ['pdf-tags-disabled-for-pdfua'],
+                'tags' => [
+                    'disabled' => true,
+                    'flagCount' => 1,
+                    'issues' => ['pdf-tags-disabled-for-pdfua'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-export-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-export-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:1,3-4,8-', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standards:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-tags:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans invalid typst pdf export boundary histories without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-export-invalid.pdf',
+            'source' => '= Typst PDF Export Invalid Packet',
+            'engineOptions' => [
+                '--pages',
+                '1-3',
+                '--pages=0,5-2,',
+                '--pdf-standard=1.7',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst invalid PDF export packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'pages-invalid-segment-boundary:0',
+                'pages-descending-range-boundary:5-2',
+                'pages-empty-segment-boundary',
+                'pages-boundary-overridden',
+            ],
+            'pdfStandard' => [
+                'raw' => '1.7',
+                'value' => '1.7',
+                'standards' => ['1.7'],
+                'standardCount' => 1,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '0,5-2,',
+                    'value' => '0,5-2,',
+                    'segments' => [
+                        ['raw' => '0', 'kind' => 'invalid', 'start' => null, 'end' => null, 'issues' => ['pages-invalid-segment-boundary:0']],
+                        ['raw' => '5-2', 'kind' => 'range', 'start' => 5, 'end' => 2, 'issues' => ['pages-descending-range-boundary:5-2']],
+                        ['raw' => '', 'kind' => 'invalid', 'start' => null, 'end' => null, 'issues' => ['pages-empty-segment-boundary']],
+                    ],
+                    'safe' => false,
+                    'issues' => [
+                        'pages-invalid-segment-boundary:0',
+                        'pages-descending-range-boundary:5-2',
+                        'pages-empty-segment-boundary',
+                    ],
+                ],
+                'issues' => [
+                    'pages-invalid-segment-boundary:0',
+                    'pages-descending-range-boundary:5-2',
+                    'pages-empty-segment-boundary',
+                    'pages-boundary-overridden',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'pages',
+                    'count' => 2,
+                    'values' => ['1-3', '0,5-2,'],
+                    'selected' => '0,5-2,',
+                    'issue' => 'pages-boundary-overridden',
+                ],
+            ],
+            'pageSelectionHistory' => [
+                [
+                    'raw' => '1-3',
+                    'value' => '1-3',
+                    'segments' => [
+                        ['raw' => '1-3', 'kind' => 'range', 'start' => 1, 'end' => 3, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => '0,5-2,',
+                    'value' => '0,5-2,',
+                    'segments' => [
+                        ['raw' => '0', 'kind' => 'invalid', 'start' => null, 'end' => null, 'issues' => ['pages-invalid-segment-boundary:0']],
+                        ['raw' => '5-2', 'kind' => 'range', 'start' => 5, 'end' => 2, 'issues' => ['pages-descending-range-boundary:5-2']],
+                        ['raw' => '', 'kind' => 'invalid', 'start' => null, 'end' => null, 'issues' => ['pages-empty-segment-boundary']],
+                    ],
+                    'safe' => false,
+                    'issues' => [
+                        'pages-invalid-segment-boundary:0',
+                        'pages-descending-range-boundary:5-2',
+                        'pages-empty-segment-boundary',
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-export-invalid.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-export-invalid.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:0,5-2,', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standards:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

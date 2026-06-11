@@ -292,6 +292,30 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-ignore-embedded-fonts:' . $embeddedFonts['flagCount'];
                 }
             }
+            if (($typstBoundaryProvenance['pdfExport'] ?? []) !== []) {
+                $pdfExport = $typstBoundaryProvenance['pdfExport'];
+                if (is_array($pdfExport) && is_array($pdfExport['pageSelection'] ?? null)) {
+                    $pageSelection = $pdfExport['pageSelection'];
+                    if (is_string($pageSelection['value'] ?? null)) {
+                        $diagnostics[] = 'typst-pdf-pages:' . ($pageSelection['value'] === '' ? 'invalid' : $pageSelection['value']);
+                    }
+                }
+                if (is_array($pdfExport) && is_array($pdfExport['pdfStandard'] ?? null)) {
+                    $pdfStandard = $pdfExport['pdfStandard'];
+                    if (isset($pdfStandard['standards']) && is_array($pdfStandard['standards'])) {
+                        $diagnostics[] = 'typst-pdf-standards:' . count($pdfStandard['standards']);
+                    }
+                }
+                if (is_array($pdfExport) && is_array($pdfExport['tags'] ?? null)) {
+                    $tags = $pdfExport['tags'];
+                    if (($tags['disabled'] ?? false) === true) {
+                        $diagnostics[] = 'typst-pdf-tags:disabled';
+                    }
+                }
+                if (is_array($pdfExport) && ($pdfExport['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-pdf-export-issues:' . count($pdfExport['issues']);
+                }
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5554,8 +5578,9 @@ final class PdfEngineHandoff
             'root' => 'root-boundary-overridden',
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
-            'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'pages' => 'pages-boundary-overridden',
             'pdfStandard' => 'pdf-standard-boundary-overridden',
+            'creationTimestamp' => 'creation-timestamp-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5592,10 +5617,12 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pdfStandardValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0) {
+        $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0) {
             return [];
         }
 
@@ -5632,6 +5659,11 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $pageSelectionHistory = array_map(
+            fn (string $value): array => $this->typstPageSelectionEntry($value),
+            $pageSelectionValues
+        );
+        $pageSelection = $pageSelectionHistory === [] ? null : $pageSelectionHistory[count($pageSelectionHistory) - 1];
         $pdfStandardHistory = array_map(
             fn (string $value): array => $this->typstPdfStandardEntry($value),
             $pdfStandardValues
@@ -5642,18 +5674,26 @@ final class PdfEngineHandoff
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
-            'creationTimestamp' => $creationTimestampValues,
+            'pages' => $pageSelectionValues,
             'pdfStandard' => $pdfStandardValues,
+            'creationTimestamp' => $creationTimestampValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
+        $pdfTagIssues = [];
+        if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
+            $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
+        }
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pdfStandardHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
             foreach ($entry['issues'] as $issue) {
                 $issues[] = $issue;
             }
+        }
+        foreach ($pdfTagIssues as $issue) {
+            $issues[] = $issue;
         }
         foreach ($overrides as $override) {
             $issues[] = $override['issue'];
@@ -5701,6 +5741,31 @@ final class PdfEngineHandoff
                 'issues' => [],
             ];
         }
+        if ($pageSelection !== null || $noPdfTagsCount > 0) {
+            $pdfExportIssues = $pdfTagIssues;
+            foreach ($pageSelectionHistory as $entry) {
+                foreach ($entry['issues'] as $issue) {
+                    $pdfExportIssues[] = $issue;
+                }
+            }
+            foreach ($overrides as $override) {
+                if ($override['option'] === 'pages') {
+                    $pdfExportIssues[] = $override['issue'];
+                }
+            }
+            $pdfExport = [
+                'pageSelection' => $pageSelection,
+                'issues' => array_values(array_unique($pdfExportIssues)),
+            ];
+            if ($noPdfTagsCount > 0) {
+                $pdfExport['tags'] = [
+                    'disabled' => true,
+                    'flagCount' => $noPdfTagsCount,
+                    'issues' => $pdfTagIssues,
+                ];
+            }
+            $provenance['pdfExport'] = $pdfExport;
+        }
         if ($overrides !== []) {
             $provenance['overrides'] = $overrides;
         }
@@ -5715,6 +5780,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($pageSelectionHistory)) {
+            $provenance['pageSelectionHistory'] = $pageSelectionHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
@@ -6035,6 +6103,83 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, segments:list<array{raw:string, kind:string, start:int|null, end:int|null, issues:list<string>}>, safe:bool, issues:list<string>}
+     */
+    private function typstPageSelectionEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $issues = [];
+        $segments = [];
+        if ($value === '') {
+            $issues[] = 'pages-empty-boundary';
+        } else {
+            foreach (explode(',', $value) as $segment) {
+                $segment = trim($segment);
+                $segmentIssues = [];
+                $kind = 'invalid';
+                $start = null;
+                $end = null;
+                if ($segment === '') {
+                    $segmentIssues[] = 'pages-empty-segment-boundary';
+                } elseif (preg_match('/\A[1-9][0-9]*\z/', $segment) === 1) {
+                    $kind = 'page';
+                    $start = (int) $segment;
+                    $end = $start;
+                } elseif (preg_match('/\A([1-9][0-9]*)-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+                    $kind = 'range';
+                    $start = (int) $matches[1];
+                    $end = (int) $matches[2];
+                    if ($start > $end) {
+                        $segmentIssues[] = 'pages-descending-range-boundary:' . $segment;
+                    }
+                } elseif (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
+                    $kind = 'range-from';
+                    $start = (int) $matches[1];
+                } else {
+                    $segmentIssues[] = 'pages-invalid-segment-boundary:' . $segment;
+                }
+
+                foreach ($segmentIssues as $issue) {
+                    $issues[] = $issue;
+                }
+                $segments[] = [
+                    'raw' => $segment,
+                    'kind' => $kind,
+                    'start' => $start,
+                    'end' => $end,
+                    'issues' => $segmentIssues,
+                ];
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'segments' => $segments,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array{standards?:list<string>}|null $pdfStandard
+     */
+    private function typstPdfStandardRequestsPdfUa(?array $pdfStandard): bool
+    {
+        if ($pdfStandard === null || !isset($pdfStandard['standards']) || !is_array($pdfStandard['standards'])) {
+            return false;
+        }
+
+        foreach ($pdfStandard['standards'] as $standard) {
+            if ($standard === 'ua-1') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decimalStringLessThanOrEqual(string $value, string $maximum): bool
