@@ -1940,6 +1940,69 @@ final class ZipPackage
     }
 
     /**
+     * Summarize central-directory digital signature provenance before package
+     * construction, so review queues can see unverified signature metadata even
+     * when another raw ZIP policy blocks instantiation first.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     present:bool,
+     *     offset:?int,
+     *     dataOffset:?int,
+     *     endOffset:?int,
+     *     location:?string,
+     *     signatureData:?string,
+     *     signatureLength:int,
+     *     signaturePreviewHex:string,
+     *     cryptographicVerification:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public static function centralDirectorySignaturePolicyPreflight(string $bytes): array
+    {
+        $inventory = self::centralDirectoryInventoryPreflight($bytes);
+        $signature = $inventory['centralDirectorySignature'];
+        $signatureData = null;
+        $signatureLength = 0;
+        $dataOffset = null;
+        $signaturePreviewHex = '';
+        $issues = [];
+
+        if ($signature !== null) {
+            $signatureLength = $signature['dataLength'];
+            $dataOffset = $signature['offset'] + 6;
+            self::assertRange($bytes, $dataOffset, $signatureLength, 'central-directory digital signature data');
+            $signatureData = substr($bytes, $dataOffset, $signatureLength);
+            $signaturePreviewHex = bin2hex(substr($signatureData, 0, min(16, $signatureLength)));
+            $issues[] = 'central-directory-signature-unverified';
+        }
+
+        return [
+            'entryCount' => $inventory['entryCount'],
+            'centralDirectoryOffset' => $inventory['centralDirectoryOffset'],
+            'centralDirectoryEnd' => $inventory['centralDirectoryEnd'],
+            'eocdOffset' => $inventory['eocdOffset'],
+            'present' => $signature !== null,
+            'offset' => $signature['offset'] ?? null,
+            'dataOffset' => $dataOffset,
+            'endOffset' => $signature['endOffset'] ?? null,
+            'location' => $signature['location'] ?? null,
+            'signatureData' => $signatureData,
+            'signatureLength' => $signatureLength,
+            'signaturePreviewHex' => $signaturePreviewHex,
+            'cryptographicVerification' => $signature === null
+                ? 'not-present'
+                : 'not-performed-native-bounded-reader',
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @return array{
      *     packageComment:string,
      *     rawPackageComment:string,
@@ -8911,6 +8974,7 @@ final class ZipPackage
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
+     *     centralDirectorySignature:?array<string, mixed>,
      *     centralDirectorySize:?array<string, mixed>,
      *     centralDirectoryVariableFields:?array<string, mixed>,
      *     centralDirectoryRepairPlan:?array<string, mixed>,
@@ -9028,6 +9092,7 @@ final class ZipPackage
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
+                'centralDirectorySignature' => null,
                 'centralDirectorySize' => null,
                 'centralDirectoryVariableFields' => null,
                 'centralDirectoryRepairPlan' => null,
@@ -9068,6 +9133,7 @@ final class ZipPackage
 
         $splitArchive = null;
         $centralDirectoryInventory = null;
+        $centralDirectorySignature = null;
         $centralDirectorySize = null;
         $centralDirectoryVariableFields = null;
         $centralDirectoryRepairPlan = null;
@@ -9113,6 +9179,14 @@ final class ZipPackage
             if ($centralDirectoryInventory !== null && !$centralDirectoryInventory['isSupportedByBoundedReader']) {
                 $addDiagnostic('central-directory-inventory-issues');
                 $addDiagnostics($centralDirectoryInventory['issues']);
+            }
+
+            $centralDirectorySignature = $runPreflight(
+                'central-directory-signature-policy',
+                static fn (): array => self::centralDirectorySignaturePolicyPreflight($bytes)
+            );
+            if ($centralDirectorySignature !== null && !$centralDirectorySignature['isSupportedByBoundedReader']) {
+                $addDiagnostics($centralDirectorySignature['issues']);
             }
 
             $centralDirectorySize = $runPreflight(
@@ -9390,6 +9464,7 @@ final class ZipPackage
             ?? $localHeaderOrder['entryCount']
             ?? $packagePrefix['entryCount']
             ?? $splitArchive['entryCount']
+            ?? $centralDirectorySignature['entryCount']
             ?? $encryption['entryCount']
             ?? $generalPurposeFlags['entryCount']
             ?? $compressionMethods['entryCount']
@@ -9430,6 +9505,7 @@ final class ZipPackage
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'centralDirectorySignature' => $centralDirectorySignature,
             'centralDirectorySize' => $centralDirectorySize,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,

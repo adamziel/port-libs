@@ -4359,6 +4359,39 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
     },
 
+    'preflights raw central directory digital signature provenance before package instantiation' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $signedZip = $buildCentralDirectorySignaturePackage();
+        $centralName = 'word/document.xml';
+        $spoofedLocalName = 'word/reviewer.xml';
+        $spoofedSignedZip = substr($signedZip, 0, 30)
+            . $spoofedLocalName
+            . substr($signedZip, 30 + strlen($centralName));
+
+        $signature = ZipPackage::centralDirectorySignaturePolicyPreflight($spoofedSignedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($spoofedSignedZip, 2048, 100.0, 2048);
+
+        $t->same(false, $raw['isValid']);
+        $t->same(false, $raw['canInstantiate']);
+        $t->contains('central-directory-signature-unverified', implode(',', $raw['diagnostics']));
+        $t->contains('local-header-name-issues', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
+        $t->same($signature, $raw['centralDirectorySignature']);
+        $t->same(true, $signature['present']);
+        $t->same(1, $signature['entryCount']);
+        $t->same($raw['centralDirectoryInventory']['centralDirectoryEnd'], $signature['offset']);
+        $t->same($signature['offset'] + 6, $signature['dataOffset']);
+        $t->same($raw['archive']['eocdOffset'], $signature['endOffset']);
+        $t->same('between-central-directory-and-eocd', $signature['location']);
+        $t->same('central-signature', $signature['signatureData']);
+        $t->same(strlen('central-signature'), $signature['signatureLength']);
+        $t->same(bin2hex(substr('central-signature', 0, 16)), $signature['signaturePreviewHex']);
+        $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same(false, $signature['isSupportedByBoundedReader']);
+        $t->same(['central-directory-signature-unverified'], $signature['issues']);
+        $t->same('word/document.xml', $raw['localHeaderNames']['mismatchedEntries'][0]['centralName']);
+        $t->same($spoofedLocalName, $raw['localHeaderNames']['mismatchedEntries'][0]['localName']);
+    },
+
     'rejects malformed zip central directory digital signature records' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString(
             $buildCentralDirectorySignaturePackage(false, 5)
