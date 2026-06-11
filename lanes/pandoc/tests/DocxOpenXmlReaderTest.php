@@ -418,7 +418,7 @@ XML;
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
             '  <Default Extension="png" ContentType="image/png"/>',
-            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="png" ContentType="image/png; profile=relationship-type-summary"/>' . "\n" .
             '  <Default Extension="mp3" ContentType="audio/mpeg"/>',
             $parts['[Content_Types].xml']
         );
@@ -430,7 +430,7 @@ XML;
         );
         $parts['word/_rels/document.xml.rels'] = str_replace(
             '</Relationships>',
-            '  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>' . "\n" .
+            '  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png?review=missing#img"/>' . "\n" .
             '  <Relationship Id="rNarration" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio" Target="media/narration.mp3"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
@@ -468,7 +468,17 @@ XML;
         $t->same(['word/media/missing.png'], $image['missingTargetParts']);
         $t->same('rMissingImage', $image['relationships'][1]['id']);
         $t->same(false, $image['relationships'][1]['exists']);
-        $t->same('image/png', $image['relationships'][1]['contentType']);
+        $t->same('media/missing.png?review=missing#img', $image['relationships'][1]['target']);
+        $t->same('review=missing', $image['relationships'][1]['targetQuery']);
+        $t->same('img', $image['relationships'][1]['targetFragment']);
+        $t->same('image/png; profile=relationship-type-summary', $image['relationships'][1]['contentType']);
+        $t->same('image/png', $image['relationships'][1]['contentTypeBase']);
+        $t->same(true, $image['relationships'][1]['contentTypeHasParameters']);
+        $t->same(1, $image['relationships'][1]['contentTypeParameterCount']);
+        $t->same(['profile' => 'relationship-type-summary'], $image['relationships'][1]['contentTypeParameterMap']);
+        $t->same('default', $image['relationships'][1]['contentTypeSource']);
+        $t->same('png', $image['relationships'][1]['defaultExtension']);
+        $t->same(null, $image['relationships'][1]['overridePartName']);
 
         $t->same('audio', $audio['label']);
         $t->same(1, $audio['missingTargetCount']);
@@ -488,9 +498,15 @@ XML;
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
-            '</Types>',
-            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
-            '</Types>',
+            [
+                '  <Default Extension="png" ContentType="image/png"/>',
+                '</Types>',
+            ],
+            [
+                '  <Default Extension="png" ContentType="image/png; profile=missing-summary"/>',
+                '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=summary-comments"/>' . "\n" .
+                '</Types>',
+            ],
             $parts['[Content_Types].xml']
         );
         $parts['word/_rels/document.xml.rels'] = str_replace(
@@ -504,7 +520,7 @@ XML;
         $parts['word/_rels/header1.xml.rels'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rMissingHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-header.png"/>
+  <Relationship Id="rMissingHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-header.png?slot=header#logo"/>
 </Relationships>
 XML;
 
@@ -534,12 +550,29 @@ XML;
         $t->same('rMissingComments', $summary['missingRelationshipTargets'][0]['id']);
         $t->same('word/comments.xml', $summary['missingRelationshipTargets'][0]['targetPart']);
         $t->same('?thread=review#c1', $summary['missingRelationshipTargets'][0]['targetReferenceSuffix']);
-        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $summary['missingRelationshipTargets'][0]['contentType']);
+        $t->same('thread=review', $summary['missingRelationshipTargets'][0]['targetQuery']);
+        $t->same('c1', $summary['missingRelationshipTargets'][0]['targetFragment']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=summary-comments', $summary['missingRelationshipTargets'][0]['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $summary['missingRelationshipTargets'][0]['contentTypeBase']);
+        $t->same(true, $summary['missingRelationshipTargets'][0]['contentTypeHasParameters']);
+        $t->same(1, $summary['missingRelationshipTargets'][0]['contentTypeParameterCount']);
+        $t->same(['profile' => 'summary-comments'], $summary['missingRelationshipTargets'][0]['contentTypeParameterMap']);
         $t->same('override', $summary['missingRelationshipTargets'][0]['contentTypeSource']);
+        $t->same(null, $summary['missingRelationshipTargets'][0]['defaultExtension']);
+        $t->same('word/comments.xml', $summary['missingRelationshipTargets'][0]['overridePartName']);
         $t->same('rMissingHeaderImage', $summary['missingRelationshipTargets'][1]['id']);
         $t->same('word/media/missing-header.png', $summary['missingRelationshipTargets'][1]['targetPart']);
-        $t->same('image/png', $summary['missingRelationshipTargets'][1]['contentType']);
+        $t->same('?slot=header#logo', $summary['missingRelationshipTargets'][1]['targetReferenceSuffix']);
+        $t->same('slot=header', $summary['missingRelationshipTargets'][1]['targetQuery']);
+        $t->same('logo', $summary['missingRelationshipTargets'][1]['targetFragment']);
+        $t->same('image/png; profile=missing-summary', $summary['missingRelationshipTargets'][1]['contentType']);
+        $t->same('image/png', $summary['missingRelationshipTargets'][1]['contentTypeBase']);
+        $t->same(true, $summary['missingRelationshipTargets'][1]['contentTypeHasParameters']);
+        $t->same(1, $summary['missingRelationshipTargets'][1]['contentTypeParameterCount']);
+        $t->same(['profile' => 'missing-summary'], $summary['missingRelationshipTargets'][1]['contentTypeParameterMap']);
         $t->same('default', $summary['missingRelationshipTargets'][1]['contentTypeSource']);
+        $t->same('png', $summary['missingRelationshipTargets'][1]['defaultExtension']);
+        $t->same(null, $summary['missingRelationshipTargets'][1]['overridePartName']);
         $t->same('rLink', $summary['externalRelationshipTargets'][0]['id']);
         $t->same('rRemoteTemplate', $summary['externalRelationshipTargets'][1]['id']);
         $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
@@ -579,7 +612,16 @@ XML;
         $t->same('word/document.xml', $summary['relationshipTargetsWithoutContentType'][0]['sourcePart']);
         $t->same('word/media/source.bin', $summary['relationshipTargetsWithoutContentType'][0]['targetPart']);
         $t->same('?audit=1#raw', $summary['relationshipTargetsWithoutContentType'][0]['targetReferenceSuffix']);
+        $t->same('audit=1', $summary['relationshipTargetsWithoutContentType'][0]['targetQuery']);
+        $t->same('raw', $summary['relationshipTargetsWithoutContentType'][0]['targetFragment']);
+        $t->same('', $summary['relationshipTargetsWithoutContentType'][0]['contentType']);
+        $t->same('', $summary['relationshipTargetsWithoutContentType'][0]['contentTypeBase']);
+        $t->same(false, $summary['relationshipTargetsWithoutContentType'][0]['contentTypeHasParameters']);
+        $t->same(0, $summary['relationshipTargetsWithoutContentType'][0]['contentTypeParameterCount']);
+        $t->same([], $summary['relationshipTargetsWithoutContentType'][0]['contentTypeParameterMap']);
         $t->same('missing', $summary['relationshipTargetsWithoutContentType'][0]['contentTypeSource']);
+        $t->same('bin', $summary['relationshipTargetsWithoutContentType'][0]['defaultExtension']);
+        $t->same(null, $summary['relationshipTargetsWithoutContentType'][0]['overridePartName']);
         $t->same(2, $summary['contentTypeSourceCounts']['missing']);
         $t->same(2, $summary['relationshipTypeCounts'][$relationshipType]);
 

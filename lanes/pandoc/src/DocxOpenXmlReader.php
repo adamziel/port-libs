@@ -2181,8 +2181,17 @@ final class DocxOpenXmlReader
             'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
             'targetPart' => $relationship['targetPart'] ?? null,
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
+            'targetQuery' => $relationship['targetQuery'] ?? null,
+            'targetFragment' => $relationship['targetFragment'] ?? null,
             'contentType' => $relationship['contentType'] ?? null,
+            'contentTypeBase' => $relationship['contentTypeBase'] ?? null,
+            'contentTypeHasParameters' => (bool) ($relationship['contentTypeHasParameters'] ?? false),
+            'contentTypeParameterCount' => (int) ($relationship['contentTypeParameterCount'] ?? 0),
+            'contentTypeParameters' => $relationship['contentTypeParameters'] ?? [],
+            'contentTypeParameterMap' => $relationship['contentTypeParameterMap'] ?? [],
             'contentTypeSource' => $relationship['contentTypeSource'] ?? 'missing',
+            'defaultExtension' => $relationship['defaultExtension'] ?? null,
+            'overridePartName' => $relationship['overridePartName'] ?? null,
         ];
     }
 
@@ -2276,6 +2285,11 @@ final class DocxOpenXmlReader
                 $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
                 $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
                 $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+                $contentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null) ? $relationship['contentTypeParameters'] : [];
+                $contentTypeParameterMap = is_array($relationship['contentTypeParameterMap'] ?? null) ? $relationship['contentTypeParameterMap'] : [];
+                $contentTypeParameterCount = is_int($relationship['contentTypeParameterCount'] ?? null)
+                    ? $relationship['contentTypeParameterCount']
+                    : count($contentTypeParameters);
 
                 $types[$typeKey]['count']++;
                 if ($external) {
@@ -2306,7 +2320,16 @@ final class DocxOpenXmlReader
                     'targetPart' => $targetPart,
                     'exists' => $exists,
                     'contentType' => $contentType,
+                    'contentTypeBase' => is_string($relationship['contentTypeBase'] ?? null) ? $relationship['contentTypeBase'] : '',
+                    'contentTypeHasParameters' => (bool) ($relationship['contentTypeHasParameters'] ?? false),
+                    'contentTypeParameterCount' => $contentTypeParameterCount,
+                    'contentTypeParameters' => $contentTypeParameters,
+                    'contentTypeParameterMap' => $contentTypeParameterMap,
                     'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
+                    'defaultExtension' => is_string($relationship['defaultExtension'] ?? null) ? $relationship['defaultExtension'] : null,
+                    'overridePartName' => is_string($relationship['overridePartName'] ?? null) ? $relationship['overridePartName'] : null,
+                    'targetQuery' => is_string($relationship['targetQuery'] ?? null) ? $relationship['targetQuery'] : null,
+                    'targetFragment' => is_string($relationship['targetFragment'] ?? null) ? $relationship['targetFragment'] : null,
                 ];
             }
         }
