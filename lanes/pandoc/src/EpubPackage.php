@@ -534,6 +534,10 @@ final class EpubPackage
                     'bibliographicSummary' => $this->metadata['bibliographicSummary'] ?? [],
                     'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
+                    'packagePrefix' => $this->metadata['prefix'] ?? '',
+                    'packagePrefixDeclarations' => $this->metadata['prefixDeclarations'] ?? [],
+                    'packagePrefixBindings' => $this->metadata['prefixBindings'] ?? [],
+                    'packagePrefixDiagnostics' => $this->metadata['prefixDiagnostics'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
                 'spineMetadata' => $spineMetadata,
@@ -874,6 +878,24 @@ final class EpubPackage
             || (is_array($metadata['identifiers'] ?? null) && $metadata['identifiers'] !== []);
         $languagePresent = trim((string) ($metadata['language'] ?? '')) !== '';
         $modifiedPresent = trim((string) ($metadata['modified'] ?? '')) !== '';
+        $prefix = is_string($metadata['prefix'] ?? null) ? (string) $metadata['prefix'] : '';
+        $prefixDeclarations = is_array($metadata['prefixDeclarations'] ?? null)
+            ? array_values(array_filter(
+                $metadata['prefixDeclarations'],
+                static fn (mixed $declaration): bool => is_array($declaration),
+            ))
+            : [];
+        $prefixBindings = is_array($metadata['prefixBindings'] ?? null) ? $metadata['prefixBindings'] : [];
+        $prefixDiagnostics = is_array($metadata['prefixDiagnostics'] ?? null)
+            ? array_values(array_filter(
+                $metadata['prefixDiagnostics'],
+                static fn (mixed $diagnostic): bool => is_array($diagnostic),
+            ))
+            : [];
+        $prefixDeclarationPrefixes = array_values(array_map(
+            static fn (array $declaration): string => (string) ($declaration['prefix'] ?? ''),
+            $prefixDeclarations,
+        ));
         $diagnostics = [];
 
         if (!$titlePresent) {
@@ -904,12 +926,26 @@ final class EpubPackage
             ];
         }
 
+        foreach ($prefixDiagnostics as $prefixDiagnostic) {
+            $diagnostics[] = $prefixDiagnostic;
+        }
+
         return [
             'valid' => $diagnostics === [],
             'titlePresent' => $titlePresent,
             'identifierPresent' => $identifierPresent,
             'languagePresent' => $languagePresent,
             'modifiedPresent' => $modifiedPresent,
+            'prefix' => $prefix,
+            'prefixValid' => $prefixDiagnostics === [],
+            'prefixSpecified' => $prefix !== '',
+            'prefixDeclarationCount' => count($prefixDeclarations),
+            'prefixDeclarationPrefixes' => $prefixDeclarationPrefixes,
+            'prefixVocabularyBindingCount' => count($prefixBindings),
+            'prefixDeclarations' => $prefixDeclarations,
+            'prefixBindings' => $prefixBindings,
+            'prefixDiagnosticCount' => count($prefixDiagnostics),
+            'prefixDiagnostics' => $prefixDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
