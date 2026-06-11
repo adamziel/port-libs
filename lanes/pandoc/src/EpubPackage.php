@@ -1426,8 +1426,16 @@ final class EpubPackage
     private static function packageNavigationValidationReport(ZipPackage $package, ?array $navigation, array $navigationSections): array
     {
         $source = is_array($navigation) && is_string($navigation['type'] ?? null) ? $navigation['type'] : null;
+        $sourceDiagnostics = [];
+        if (is_array($navigation) && is_array($navigation['diagnostics'] ?? null)) {
+            foreach ($navigation['diagnostics'] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $sourceDiagnostics[] = $diagnostic;
+                }
+            }
+        }
         $sections = $navigationSections;
-        if ($sections === [] && is_array($navigation) && is_array($navigation['entries'] ?? null)) {
+        if ($sections === [] && $sourceDiagnostics === [] && is_array($navigation) && is_array($navigation['entries'] ?? null)) {
             $sections = [[
                 'type' => $source,
                 'types' => $source === null ? [] : [$source],
@@ -1456,9 +1464,13 @@ final class EpubPackage
         $documentDiagnostics = self::navDocumentDiagnosticReport(
             $documentSections,
             $documentPart,
-            $source === 'nav'
+            $source === 'nav',
+            $source === 'nav' ? $sourceDiagnostics : []
         );
         array_push($diagnostics, ...$documentDiagnostics['diagnostics']);
+        if ($source !== 'nav') {
+            array_push($diagnostics, ...$sourceDiagnostics);
+        }
 
         foreach ($sections as $sectionIndex => $section) {
             $entries = is_array($section['entries'] ?? null) ? array_values($section['entries']) : [];
@@ -1519,7 +1531,12 @@ final class EpubPackage
      *
      * @return array<string, mixed>
      */
-    private static function navDocumentDiagnosticReport(array $sections, ?string $part, bool $documentPresent): array
+    private static function navDocumentDiagnosticReport(
+        array $sections,
+        ?string $part,
+        bool $documentPresent,
+        array $documentParseDiagnostics = []
+    ): array
     {
         $primaryTypes = [
             'toc' => true,
@@ -1544,7 +1561,13 @@ final class EpubPackage
         $missingItemHrefCount = 0;
         $itemDiagnosticCount = 0;
 
-        if ($documentPresent && $sections === []) {
+        $documentParseDiagnostics = array_values(array_filter(
+            $documentParseDiagnostics,
+            static fn (mixed $diagnostic): bool => is_array($diagnostic),
+        ));
+        array_push($diagnostics, ...$documentParseDiagnostics);
+
+        if ($documentPresent && $sections === [] && $documentParseDiagnostics === []) {
             $diagnostics[] = [
                 'type' => 'missing-nav-document-section',
                 'part' => $part,
@@ -1750,7 +1773,7 @@ final class EpubPackage
         }
 
         return [
-            'present' => $documentPresent && $sections !== [],
+            'present' => $documentPresent && ($sections !== [] || $documentParseDiagnostics !== []),
             'part' => $part,
             'sectionCount' => count($sections),
             'primarySectionCount' => count($typeSections['toc']) + count($typeSections['landmarks']) + count($typeSections['page-list']),
@@ -1769,6 +1792,8 @@ final class EpubPackage
             'emptyItemLabelCount' => $emptyItemLabelCount,
             'missingItemHrefCount' => $missingItemHrefCount,
             'itemDiagnosticCount' => $itemDiagnosticCount,
+            'documentParseDiagnosticCount' => count($documentParseDiagnostics),
+            'documentParseDiagnostics' => $documentParseDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -4359,7 +4384,28 @@ final class EpubPackage
                     continue;
                 }
 
-                $report = self::parseNavDocument($package->read($item['partName']), $item['partName']);
+                try {
+                    $report = self::parseNavDocument($package->read($item['partName']), $item['partName']);
+                } catch (\RuntimeException | \InvalidArgumentException $exception) {
+                    $diagnostic = [
+                        'type' => 'invalid-nav-document',
+                        'part' => $item['partName'],
+                        'partName' => $item['partName'],
+                        'error' => $exception->getMessage(),
+                        'message' => 'EPUB navigation document could not be parsed for bounded package review',
+                    ];
+
+                    return [
+                        'navigation' => [
+                            'type' => 'nav',
+                            'partName' => $item['partName'],
+                            'entries' => [],
+                            'valid' => false,
+                            'diagnostics' => [$diagnostic],
+                        ],
+                        'sections' => [],
+                    ];
+                }
 
                 return [
                     'navigation' => [

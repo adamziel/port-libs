@@ -2905,6 +2905,65 @@ XML;
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'reports malformed EPUB3 nav documents without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithMalformedNav = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:malformed-nav-document</dc:identifier>
+    <dc:title>Malformed navigation package</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-11T20:11:10Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+        $malformedNav = '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><h1>Contents</h1>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMalformedNav],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $malformedNav],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+        ]));
+        $navigation = $epub->navigation();
+        $validation = $epub->validationReport();
+        $documentDiagnostics = $validation['navigation']['documentDiagnostics'];
+        $summary = $epub->summary();
+
+        $t->same('nav', $navigation['type']);
+        $t->same('/EPUB/nav.xhtml', $navigation['partName']);
+        $t->same(false, $navigation['valid']);
+        $t->same([], $navigation['entries']);
+        $t->same(['invalid-nav-document'], array_column($navigation['diagnostics'], 'type'));
+        $t->contains('Unable to parse EPUB navigation document', $navigation['diagnostics'][0]['error']);
+
+        $t->same(false, $validation['valid']);
+        $t->same(1, $validation['diagnosticCount']);
+        $t->same(['invalid-nav-document'], array_column($validation['diagnostics'], 'type'));
+        $t->same('nav', $validation['navigation']['source']);
+        $t->same(0, $validation['navigation']['sectionCount']);
+        $t->same(0, $validation['navigation']['entryCount']);
+        $t->same(1, $validation['navigation']['diagnosticCount']);
+        $t->same(1, $validation['navigation']['documentDiagnosticCount']);
+        $t->same(true, $documentDiagnostics['present']);
+        $t->same('/EPUB/nav.xhtml', $documentDiagnostics['part']);
+        $t->same(0, $documentDiagnostics['sectionCount']);
+        $t->same(1, $documentDiagnostics['documentParseDiagnosticCount']);
+        $t->same(['invalid-nav-document'], array_column($documentDiagnostics['documentParseDiagnostics'], 'type'));
+        $t->same(['invalid-nav-document'], array_column($documentDiagnostics['diagnostics'], 'type'));
+
+        $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'reports compact EPUB nav document diagnostics for validation handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithNavDocumentDiagnostics = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
