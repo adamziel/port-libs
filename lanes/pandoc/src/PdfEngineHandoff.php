@@ -283,6 +283,15 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-ignore-system-fonts:' . $systemFonts['flagCount'];
                 }
             }
+            if (($typstBoundaryProvenance['embeddedFonts'] ?? []) !== []) {
+                $embeddedFonts = $typstBoundaryProvenance['embeddedFonts'];
+                if (is_array($embeddedFonts) && is_string($embeddedFonts['embeddedFontAccess'] ?? null)) {
+                    $diagnostics[] = 'typst-embedded-font-access:' . $embeddedFonts['embeddedFontAccess'];
+                }
+                if (is_array($embeddedFonts) && is_int($embeddedFonts['flagCount'] ?? null) && $embeddedFonts['flagCount'] > 0) {
+                    $diagnostics[] = 'typst-ignore-embedded-fonts:' . $embeddedFonts['flagCount'];
+                }
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5577,7 +5586,8 @@ final class PdfEngineHandoff
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0) {
             return [];
         }
 
@@ -5663,6 +5673,14 @@ final class PdfEngineHandoff
                 'systemFontAccess' => 'disabled',
                 'flagCount' => $ignoreSystemFontCount,
                 'fontPathCount' => count($fontPaths),
+                'issues' => [],
+            ];
+        }
+        if ($ignoreEmbeddedFontCount > 0) {
+            $provenance['embeddedFonts'] = [
+                'ignoreEmbeddedFonts' => true,
+                'embeddedFontAccess' => 'disabled',
+                'flagCount' => $ignoreEmbeddedFontCount,
                 'issues' => [],
             ];
         }
