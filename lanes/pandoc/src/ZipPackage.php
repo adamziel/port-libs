@@ -7286,6 +7286,14 @@ final class ZipPackage
      *     centralDirectoryEnd:int,
      *     eocdOffset:int,
      *     centralDirectoryFixedHeaderBytes:int,
+     *     fixedHeaderSignatureBytes:int,
+     *     fixedHeaderVersionBytes:int,
+     *     fixedHeaderFlagAndMethodBytes:int,
+     *     fixedHeaderTimestampBytes:int,
+     *     fixedHeaderCrcAndSizeBytes:int,
+     *     fixedHeaderLengthFieldBytes:int,
+     *     fixedHeaderDiskAndAttributeBytes:int,
+     *     fixedHeaderLocalHeaderOffsetBytes:int,
      *     fixedHeaderLength:int,
      *     scanStoppedOffset:int,
      *     hasUnexpectedCentralDirectoryTail:bool,
@@ -7455,14 +7463,24 @@ final class ZipPackage
 
         $issues = array_values(array_unique($issues));
 
+        $entryCount = count($entries);
+
         return [
-            'entryCount' => count($entries),
+            'entryCount' => $entryCount,
             'declaredEntryCount' => $archive['totalEntryCount'],
             'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
             'centralDirectorySize' => $archive['centralDirectorySize'],
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
             'eocdOffset' => $archive['eocdOffset'],
-            'centralDirectoryFixedHeaderBytes' => count($entries) * 46,
+            'centralDirectoryFixedHeaderBytes' => $entryCount * 46,
+            'fixedHeaderSignatureBytes' => $entryCount * 4,
+            'fixedHeaderVersionBytes' => $entryCount * 4,
+            'fixedHeaderFlagAndMethodBytes' => $entryCount * 4,
+            'fixedHeaderTimestampBytes' => $entryCount * 4,
+            'fixedHeaderCrcAndSizeBytes' => $entryCount * 12,
+            'fixedHeaderLengthFieldBytes' => $entryCount * 6,
+            'fixedHeaderDiskAndAttributeBytes' => $entryCount * 8,
+            'fixedHeaderLocalHeaderOffsetBytes' => $entryCount * 4,
             'fixedHeaderLength' => 46,
             'scanStoppedOffset' => $cursor,
             'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,

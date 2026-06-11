@@ -8437,6 +8437,56 @@ return [
         $t->same(true, $strict['isValid']);
     },
 
+    'summarizes central directory fixed header byte buckets before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>fixed header byte buckets</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => 'fixed header bucket media',
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = ZipPackage::centralDirectoryFixedHeaderPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3 * 46, $summary['centralDirectoryFixedHeaderBytes']);
+        $t->same(3 * 4, $summary['fixedHeaderSignatureBytes']);
+        $t->same(3 * 4, $summary['fixedHeaderVersionBytes']);
+        $t->same(3 * 4, $summary['fixedHeaderFlagAndMethodBytes']);
+        $t->same(3 * 4, $summary['fixedHeaderTimestampBytes']);
+        $t->same(3 * 12, $summary['fixedHeaderCrcAndSizeBytes']);
+        $t->same(3 * 6, $summary['fixedHeaderLengthFieldBytes']);
+        $t->same(3 * 8, $summary['fixedHeaderDiskAndAttributeBytes']);
+        $t->same(3 * 4, $summary['fixedHeaderLocalHeaderOffsetBytes']);
+        $t->same(
+            $summary['fixedHeaderSignatureBytes']
+                + $summary['fixedHeaderVersionBytes']
+                + $summary['fixedHeaderFlagAndMethodBytes']
+                + $summary['fixedHeaderTimestampBytes']
+                + $summary['fixedHeaderCrcAndSizeBytes']
+                + $summary['fixedHeaderLengthFieldBytes']
+                + $summary['fixedHeaderDiskAndAttributeBytes']
+                + $summary['fixedHeaderLocalHeaderOffsetBytes'],
+            $summary['centralDirectoryFixedHeaderBytes']
+        );
+        $t->same($summary, $rawStrict['centralDirectoryFixedHeaders']);
+        $t->same($summary, $strict['centralDirectoryFixedHeaders']);
+        $t->same(true, $rawStrict['isValid']);
+        $t->same(true, $strict['isValid']);
+    },
+
     'preflights central directory variable fields before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $extra = pack('vva*', 0xcafe, strlen('field'), 'field');
         $entryComment = 'content types review';
