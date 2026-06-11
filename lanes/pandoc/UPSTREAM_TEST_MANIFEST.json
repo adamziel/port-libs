@@ -770,10 +770,10 @@
     },
     "wordpressScenario": "DOCX OpenXML note/comment handoff now exposes relationship-selected footnote, endnote, comments, and commentsExtended source provenance in metadata, import reports, and native note attrs while preserving landed DOCX package-ingestion provenance, ODF/ZIP compression, DOCX body handoff, JSON/native constructor, EPUB, XML/HTML5, Typst, and CSL/BibTeX slices without running Pandoc, Word, LibreOffice, office suites, zip/unzip, Cabal/Haskell runners, TeX/PDF engines, browser renderers, Node tooling, Jupyter, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "DOCX note/comment source provenance is verified in native PHP over origin/main 48eb1ae26784e73aa7aeb76f07f5f46a8f036758 with focused and full Pandoc lane PHP verification passing.",
+    "status": "EPUB3 XHTML spine item ingestion is verified in native PHP over origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a with focused and full Pandoc lane PHP verification passing.",
     "mapping": {
-        "latestSlice": "pandoc-docx-openxml-note-source-provenance adds one mapped DocxReader case for note/comment source part provenance. Mapped denominator is now 3184, mappedDocxOpenXmlNoteSourceProvenanceCases is 1, docxOpenXmlNoteSourceProvenanceAssertions is 77, focused DocxReaderTest.php passed 1 test files, 4970 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62378 assertions, 0 failures after refresh onto origin/main 48eb1ae26784e73aa7aeb76f07f5f46a8f036758.",
-        "status": "DOCX note/comment source provenance is verified over origin/main 48eb1ae26784e73aa7aeb76f07f5f46a8f036758.",
+        "latestSlice": "pandoc-epub-spine-xhtml-ingestion adds one mapped EpubReader case for ordered OPF spine itemref resolution, XHTML document metadata summaries, and raw_html AST handoff state. Mapped denominator is now 3185, mappedEpubSpineXhtmlIngestionCases is 1, epubSpineXhtmlIngestionAssertions is 16, focused EpubReaderTest.php passed 1 test files, 3993 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62437 assertions, 0 failures after refresh onto origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a.",
+        "status": "EPUB3 XHTML spine item ingestion is verified over origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a.",
         "mappedLatexWriterCommandCases": 2,
         "latexWriterCommandAssertions": 2,
         "mappedCitationLocatorSuffixDiagnosticsCases": 1,
@@ -827,7 +827,7 @@
         "nativeAstEditedPayloadConstructorAssertions": 10,
         "mappedTypstCreationTimestampBoundaryProvenanceCases": 1,
         "typstCreationTimestampBoundaryProvenanceAssertions": 14,
-        "latestFocusedSource": "2026-06-11 DOCX OpenXML note source provenance slice inspected document relationship discovery for footnotes, endnotes, comments, commentsExtended parts, relationship target suffixes, metadata/import-report sources, and AST note source attrs against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 48eb1ae26784e73aa7aeb76f07f5f46a8f036758.",
+        "latestFocusedSource": "2026-06-11 EPUB3 XHTML spine item ingestion inspected ordered OPF itemref resolution and native XML-parsed XHTML handoff summaries against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a.",
         "mappedBibtexCslProcessorEventMetadataCases": 1,
         "bibtexCslProcessorEventMetadataAssertions": 12,
         "mappedOdfCompactManifestMediaExposureCases": 1,
@@ -865,10 +865,12 @@
         "mappedDocxOpenXmlPackageIngestionCases": 1,
         "docxOpenXmlPackageIngestionAssertions": 36,
         "mappedDocxOpenXmlNoteSourceProvenanceCases": 1,
-        "docxOpenXmlNoteSourceProvenanceAssertions": 77
+        "docxOpenXmlNoteSourceProvenanceAssertions": 77,
+        "mappedEpubSpineXhtmlIngestionCases": 1,
+        "epubSpineXhtmlIngestionAssertions": 16
     },
-    "audit": "updated 2026-06-11: DocxReader reports relationship-derived source provenance for DOCX footnotes, endnotes, comments, and commentsExtended parts in metadata, import reports, and note AST attrs, including target query/fragment suffix provenance. Verified on required base 48eb1ae26784e73aa7aeb76f07f5f46a8f036758; php -l passed for DocxReader.php and DocxReaderTest.php, focused DocxReaderTest.php passed 1 test files, 4970 assertions, 0 failures, and full php tools/run-tests.php lanes/pandoc/tests passed 44 test files, 62378 assertions, 0 failures.",
-    "latestSlice": "pandoc-docx-openxml-note-source-provenance maps one bounded DocxReader case for relationship-selected footnotes, endnotes, comments, and commentsExtended package parts: metadata.docxNotes and importReport.notes.sources now report relationship-derived source part provenance, while imported note AST nodes retain source part, relationship id/type/target, relationships part, and content type attrs. php -l passed for DocxReader.php and DocxReaderTest.php, focused DocxReaderTest.php passed 1 test files, 4970 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62378 assertions, 0 failures after refresh onto 48eb1ae26784e73aa7aeb76f07f5f46a8f036758, without running Pandoc, Word, LibreOffice, office suites, zip/unzip, Cabal/Haskell runners, TeX/PDF engines, browser renderers, Node tooling, Jupyter, external validators, online services, live provider tests, or live-service provider tests.",
+    "audit": "updated 2026-06-11: EPUB3 XHTML spine item ingestion exposes ordered spineDocuments summaries from resolved OPF itemrefs and native XML-parsed XHTML metadata, attaches the matching summary to each raw_html AST handoff node, and preserves current main CSL/BibLaTeX metadata alias accounting. Focused EpubReaderTest.php passed 1 test files, 3993 assertions, 0 failures and full lanes/pandoc/tests passed 44 test files, 62437 assertions, 0 failures on origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a.",
+    "latestSlice": "EPUB3 XHTML spine item ingestion current-base slice maps one native EpubReader case for ordered OPF spine itemref resolution, native XML-parsed XHTML metadata summaries, and raw_html AST handoff state. Mapped denominator is now 3185, mappedEpubSpineXhtmlIngestionCases is 1, epubSpineXhtmlIngestionAssertions is 16, focused EpubReaderTest.php passed 1 test files, 3993 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 62437 assertions, 0 failures after refresh onto origin/main 592488d646306dddcb4f4ddb49e196583fdbab7a without running Pandoc, EPUBCheck, zip/unzip, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1085,5 +1087,7 @@
     "mappedDocxOpenXmlPackageIngestionCases": 1,
     "docxOpenXmlPackageIngestionAssertions": 36,
     "mappedDocxOpenXmlNoteSourceProvenanceCases": 1,
-    "docxOpenXmlNoteSourceProvenanceAssertions": 77
+    "docxOpenXmlNoteSourceProvenanceAssertions": 77,
+    "mappedEpubSpineXhtmlIngestionCases": 1,
+    "epubSpineXhtmlIngestionAssertions": 16
 }

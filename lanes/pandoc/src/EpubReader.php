@@ -86,6 +86,7 @@ final class EpubReader
      *     manifest:list<array<string, mixed>>,
      *     spine:list<array<string, mixed>>,
      *     spineProperties:array<string, mixed>,
+     *     spineDocuments:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     navigation:array<string, mixed>,
@@ -125,6 +126,7 @@ final class EpubReader
             $opfPart,
             $opf['spine'],
             $opf['spineProperties'],
+            $opf['spineDocuments'],
             $opf['xhtmlAssets'],
             $opf['guide'],
             $opf['collections'],
@@ -155,6 +157,7 @@ final class EpubReader
             'manifest' => $opf['manifest'],
             'spine' => $opf['spine'],
             'spineProperties' => $opf['spineProperties'],
+            'spineDocuments' => $opf['spineDocuments'],
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
             'navigation' => $opf['navigation'],
@@ -186,7 +189,9 @@ final class EpubReader
                     'count' => count($opf['spine']),
                     'items' => $opf['spine'],
                     'properties' => $opf['spineProperties'],
+                    'documents' => $opf['spineDocuments'],
                 ],
+                'spineDocuments' => $opf['spineDocuments'],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
                 'navigation' => $opf['navigation'],
@@ -488,6 +493,7 @@ final class EpubReader
      *     manifest:list<array<string, mixed>>,
      *     spine:list<array<string, mixed>>,
      *     spineProperties:array<string, mixed>,
+     *     spineDocuments:array<string, mixed>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     navigation:array<string, mixed>,
@@ -599,6 +605,7 @@ final class EpubReader
         $navigationOutline = self::navigationOutlineReport($nav, $ncx, $navigation);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
+        $spineDocuments = self::spineDocumentReport($spine, $xhtmlResourceReport);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine, $xhtmlResourceReport);
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
         $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport, $cssResourceReport);
@@ -624,6 +631,7 @@ final class EpubReader
             'manifest' => $manifest,
             'spine' => $spine,
             'spineProperties' => $spineProperties,
+            'spineDocuments' => $spineDocuments,
             'nav' => $nav,
             'ncx' => $ncx,
             'navigation' => $navigation,
@@ -16546,6 +16554,135 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $xhtmlResourceReport
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineDocumentReport(array $spine, array $xhtmlResourceReport): array
+    {
+        $xhtmlByPart = is_array($xhtmlResourceReport['itemsByPart'] ?? null)
+            ? $xhtmlResourceReport['itemsByPart']
+            : [];
+        $items = [];
+        $itemsByPart = [];
+        $diagnostics = [];
+        $parsedItemCount = 0;
+        $linearItemCount = 0;
+        $linearParsedItemCount = 0;
+        $fallbackItemCount = 0;
+        $missingItemCount = 0;
+
+        foreach ($spine as $spineItem) {
+            $index = is_int($spineItem['index'] ?? null) ? $spineItem['index'] : count($items);
+            $linear = (bool) ($spineItem['linear'] ?? true);
+            if ($linear) {
+                ++$linearItemCount;
+            }
+
+            $contentPart = is_string($spineItem['contentPart'] ?? null)
+                ? $spineItem['contentPart']
+                : (is_string($spineItem['part'] ?? null) ? $spineItem['part'] : '');
+            $contentMediaType = is_string($spineItem['contentMediaType'] ?? null)
+                ? $spineItem['contentMediaType']
+                : (is_string($spineItem['mediaType'] ?? null) ? $spineItem['mediaType'] : '');
+            $contentIsFallback = (bool) ($spineItem['contentIsFallback'] ?? false);
+            if ($contentIsFallback) {
+                ++$fallbackItemCount;
+            }
+
+            $xhtml = $contentPart !== '' && is_array($xhtmlByPart[$contentPart] ?? null)
+                ? $xhtmlByPart[$contentPart]
+                : null;
+            $resolvedToXhtml = self::mediaTypeBaseEquals($contentMediaType, self::XHTML_MEDIA_TYPE);
+            $metadata = is_array($xhtml['metadata'] ?? null) ? $xhtml['metadata'] : [];
+            $parsed = $resolvedToXhtml && $xhtml !== null && ($metadata['present'] ?? false) === true;
+            $itemDiagnostics = [];
+            if (!$resolvedToXhtml) {
+                $itemDiagnostics[] = [
+                    'type' => 'non-xhtml-spine-document-content',
+                    'index' => $index,
+                    'idref' => (string) ($spineItem['idref'] ?? ''),
+                    'contentMediaType' => $contentMediaType,
+                    'message' => 'EPUB spine item does not resolve to an XHTML content document for AST handoff',
+                ];
+            } elseif ($xhtml === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-xhtml-spine-document-report',
+                    'index' => $index,
+                    'idref' => (string) ($spineItem['idref'] ?? ''),
+                    'contentPart' => $contentPart === '' ? null : $contentPart,
+                    'message' => 'EPUB spine item resolves to XHTML but no parsed XHTML resource report was available',
+                ];
+                ++$missingItemCount;
+            }
+
+            foreach (is_array($xhtml['diagnostics'] ?? null) ? $xhtml['diagnostics'] : [] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $itemDiagnostics[] = $diagnostic;
+                }
+            }
+
+            if ($parsed) {
+                ++$parsedItemCount;
+                if ($linear) {
+                    ++$linearParsedItemCount;
+                }
+            }
+
+            $item = [
+                'index' => $index,
+                'idref' => (string) ($spineItem['idref'] ?? ''),
+                'spineItemId' => is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
+                'linear' => $linear,
+                'href' => is_string($spineItem['href'] ?? null) ? $spineItem['href'] : '',
+                'target' => is_string($spineItem['target'] ?? null) ? $spineItem['target'] : '',
+                'part' => is_string($spineItem['part'] ?? null) ? $spineItem['part'] : '',
+                'mediaType' => is_string($spineItem['mediaType'] ?? null) ? $spineItem['mediaType'] : '',
+                'contentId' => is_string($spineItem['contentId'] ?? null) ? $spineItem['contentId'] : null,
+                'contentHref' => is_string($spineItem['contentHref'] ?? null) ? $spineItem['contentHref'] : null,
+                'contentTarget' => is_string($spineItem['contentTarget'] ?? null) ? $spineItem['contentTarget'] : null,
+                'contentPart' => $contentPart === '' ? null : $contentPart,
+                'contentMediaType' => $contentMediaType,
+                'contentIsFallback' => $contentIsFallback,
+                'resolvedToXhtml' => $resolvedToXhtml,
+                'parsed' => $parsed,
+                'handoffNodeType' => $parsed ? 'raw_html' : null,
+                'title' => is_string($xhtml['title'] ?? null) ? $xhtml['title'] : null,
+                'language' => is_string($xhtml['language'] ?? null) ? $xhtml['language'] : null,
+                'direction' => is_string($xhtml['direction'] ?? null) ? $xhtml['direction'] : null,
+                'bodyPresent' => (bool) ($metadata['bodyPresent'] ?? false),
+                'bodyId' => is_string($metadata['bodyId'] ?? null) ? $metadata['bodyId'] : null,
+                'bodyEpubTypes' => is_array($metadata['bodyEpubTypes'] ?? null) ? array_values($metadata['bodyEpubTypes']) : [],
+                'referenceCount' => is_int($xhtml['referenceCount'] ?? null) ? $xhtml['referenceCount'] : 0,
+                'embeddedResourceCount' => is_int($xhtml['embeddedResourceCount'] ?? null) ? $xhtml['embeddedResourceCount'] : 0,
+                'diagnostics' => $itemDiagnostics,
+                'diagnosticCount' => count($itemDiagnostics),
+            ];
+
+            $items[] = $item;
+            if ($contentPart !== '') {
+                $itemsByPart[$contentPart] = $item;
+            }
+            array_push($diagnostics, ...$itemDiagnostics);
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'parsedItemCount' => $parsedItemCount,
+            'linearItemCount' => $linearItemCount,
+            'linearParsedItemCount' => $linearParsedItemCount,
+            'fallbackItemCount' => $fallbackItemCount,
+            'missingItemCount' => $missingItemCount,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $manifestByPart
      *
      * @return array<string, mixed>
@@ -19854,6 +19991,7 @@ final class EpubReader
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $spineProperties
+     * @param array<string, mixed> $spineDocuments
      * @param list<array<string, mixed>> $xhtmlAssets
      * @param array<string, mixed> $guide
      * @param list<array<string, mixed>> $collections
@@ -19878,6 +20016,7 @@ final class EpubReader
         string $opfPart,
         array $spine,
         array $spineProperties,
+        array $spineDocuments,
         array $xhtmlAssets,
         array $guide,
         array $collections,
@@ -19901,6 +20040,9 @@ final class EpubReader
         foreach ($xhtmlAssets as $asset) {
             $assetsByPart[(string) $asset['part']] = $asset;
         }
+        $spineDocumentsByPart = is_array($spineDocuments['itemsByPart'] ?? null)
+            ? $spineDocuments['itemsByPart']
+            : [];
 
         $children = [];
         foreach ($spine as $item) {
@@ -19914,6 +20056,9 @@ final class EpubReader
             if (!is_array($asset)) {
                 continue;
             }
+            $spineDocument = is_array($spineDocumentsByPart[$contentPart] ?? null)
+                ? $spineDocumentsByPart[$contentPart]
+                : null;
 
             $isFallback = (bool) ($item['contentIsFallback'] ?? false);
             $attributes = [
@@ -19984,6 +20129,7 @@ final class EpubReader
                 'contentSemanticTypes' => $asset['contentSemanticTypes'] ?? [],
                 'contentSemanticDiagnostics' => $asset['contentSemanticDiagnostics'] ?? [],
                 'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
+                'spineDocument' => $spineDocument,
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
 
@@ -20010,6 +20156,7 @@ final class EpubReader
             'bindings' => $bindings,
             'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
+            'spineDocuments' => $spineDocuments,
             'resourceProperties' => $resourceProperties,
             'mediaTypes' => $mediaTypes,
             'remoteResources' => $remoteResources,
