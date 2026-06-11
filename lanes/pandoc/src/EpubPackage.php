@@ -61,11 +61,24 @@ final class EpubPackage
         'scripted' => 'scripted',
         'switch' => 'switch',
     ];
+    private const OCF_PACKAGE_SIDECARS = [
+        'rights' => [
+            'partName' => '/META-INF/rights.xml',
+            'expectedRootName' => 'rights',
+            'reviewPolicy' => 'ocf-rights-sidecar-review',
+        ],
+        'signatures' => [
+            'partName' => '/META-INF/signatures.xml',
+            'expectedRootName' => 'signatures',
+            'reviewPolicy' => 'ocf-signatures-sidecar-review',
+        ],
+    ];
 
     /**
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $containerLinks
+     * @param array<string, mixed> $ocfSidecars
      * @param list<array<string, mixed>> $packageLinks
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
@@ -85,6 +98,7 @@ final class EpubPackage
         private readonly ZipPackage $package,
         private readonly array $rootfiles,
         private readonly array $containerLinks,
+        private readonly array $ocfSidecars,
         private readonly string $opfPartName,
         private readonly array $metadata,
         private readonly array $packageLinks,
@@ -136,12 +150,14 @@ final class EpubPackage
 
         $opf = self::parseOpfXml($package->read($opfPartName), $opfPartName, $package);
         $containerLinks = self::parseContainerLinks($package, self::manifestByPart($opf['manifestById']));
+        $ocfSidecars = self::summarizeOcfSidecars($package);
         $navigation = self::loadNavigation($package, $opfPartName, $opf['manifestById'], $opf['spineTocId']);
 
         return new self(
             $package,
             $rootfiles,
             $containerLinks,
+            $ocfSidecars,
             $opfPartName,
             $opf['metadata'],
             $opf['packageLinks'],
@@ -180,6 +196,14 @@ final class EpubPackage
     public function containerLinks(): array
     {
         return $this->containerLinks;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function ocfSidecars(): array
+    {
+        return $this->ocfSidecars;
     }
 
     public function opfPartName(): string
@@ -432,6 +456,7 @@ final class EpubPackage
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
         $guideReport = $this->guideReport();
+        $ocfSidecars = $this->ocfSidecars();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -440,6 +465,8 @@ final class EpubPackage
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
             'containerLinkRelCounts' => $containerLinkReport['relCounts'],
             'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+            'ocfSidecars' => $ocfSidecars,
+            'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
             'packageLinks' => $this->packageLinks,
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
@@ -525,6 +552,9 @@ final class EpubPackage
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
                 'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+                'ocfSidecars' => $ocfSidecars,
+                'ocfSidecarItems' => $ocfSidecars['items'],
+                'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
                 'collectionTitles' => self::collectionTitles($this->collections),
                 'collectionLinkTargets' => self::collectionLinkTargets($this->collections),
                 'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
@@ -1710,6 +1740,70 @@ final class EpubPackage
         }
 
         return $rootfiles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function summarizeOcfSidecars(ZipPackage $package): array
+    {
+        $items = [];
+        $itemsByKind = [];
+        $diagnostics = [];
+
+        foreach (self::OCF_PACKAGE_SIDECARS as $kind => $definition) {
+            $partName = (string) $definition['partName'];
+            if (!$package->has($partName)) {
+                continue;
+            }
+
+            $entry = $package->entry($partName);
+            $provenance = self::zipEntryProvenance($entry);
+            $itemDiagnostics = [];
+
+            if (($provenance['compressionSupported'] ?? false) !== true) {
+                $itemDiagnostics[] = [
+                    'type' => 'ocf-sidecar-unsupported-compression-method',
+                    'kind' => $kind,
+                    'partName' => $partName,
+                    'compressionMethod' => $provenance['compressionMethod'],
+                    'compressionMethodName' => $provenance['compressionMethodName'],
+                    'message' => 'EPUB OCF sidecar uses a ZIP compression method that native package ingestion cannot expose as bytes',
+                ];
+            }
+
+            $item = [
+                'kind' => $kind,
+                'part' => $partName,
+                'partName' => $partName,
+                'packagePath' => ltrim($partName, '/'),
+                'exists' => true,
+                'expectedRootName' => (string) $definition['expectedRootName'],
+                'expectedRootNamespace' => self::OCF_CONTAINER_NAMESPACE,
+                'reviewPolicy' => (string) $definition['reviewPolicy'],
+                'byteExposurePolicy' => 'ocf-sidecar-metadata-only',
+                'canExposeBytes' => false,
+                'diagnosticCount' => count($itemDiagnostics),
+                'diagnostics' => $itemDiagnostics,
+            ] + $provenance;
+
+            $items[] = $item;
+            $itemsByKind[$kind] = $item;
+            array_push($diagnostics, ...$itemDiagnostics);
+        }
+
+        return [
+            'present' => $items !== [],
+            'sidecarCount' => count($items),
+            'count' => count($items),
+            'rightsPresent' => isset($itemsByKind['rights']),
+            'signaturesPresent' => isset($itemsByKind['signatures']),
+            'kinds' => array_keys($itemsByKind),
+            'items' => $items,
+            'itemsByKind' => $itemsByKind,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

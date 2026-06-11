@@ -1665,6 +1665,78 @@ XML;
         $t->same($policy, $summary['wordpressImport']['remoteResourcePolicy']);
     },
 
+    'summarizes OCF rights and signatures sidecar ZIP provenance for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $rightsXml = '<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><license href="../EPUB/meta/license.xml">Review license</license></rights>';
+        $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/></signatures>';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/rights.xml', 'data' => $rightsXml, 'method' => 0],
+            ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml, 'method' => 12],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $sidecars = $epub->ocfSidecars();
+        $summary = $epub->summary();
+        $rights = $sidecars['itemsByKind']['rights'];
+        $signatures = $sidecars['itemsByKind']['signatures'];
+
+        $t->same(true, $sidecars['present']);
+        $t->same(2, $sidecars['sidecarCount']);
+        $t->same(2, $sidecars['count']);
+        $t->same(true, $sidecars['rightsPresent']);
+        $t->same(true, $sidecars['signaturesPresent']);
+        $t->same(['rights', 'signatures'], $sidecars['kinds']);
+
+        $t->same('rights', $rights['kind']);
+        $t->same('/META-INF/rights.xml', $rights['part']);
+        $t->same('/META-INF/rights.xml', $rights['partName']);
+        $t->same('META-INF/rights.xml', $rights['packagePath']);
+        $t->same('rights', $rights['expectedRootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $rights['expectedRootNamespace']);
+        $t->same('ocf-rights-sidecar-review', $rights['reviewPolicy']);
+        $t->same('ocf-sidecar-metadata-only', $rights['byteExposurePolicy']);
+        $t->same(false, $rights['canExposeBytes']);
+        $t->same(strlen($rightsXml), $rights['byteLength']);
+        $t->same(strlen($rightsXml), $rights['compressedByteLength']);
+        $t->same(0, $rights['compressionMethod']);
+        $t->same('stored', $rights['compressionMethodName']);
+        $t->same(true, $rights['compressionSupported']);
+        $t->same(hash('crc32b', $rightsXml), $rights['crc32']);
+        $t->same(0, $rights['diagnosticCount']);
+        $t->same([], $rights['diagnostics']);
+
+        $t->same('signatures', $signatures['kind']);
+        $t->same('/META-INF/signatures.xml', $signatures['partName']);
+        $t->same('signatures', $signatures['expectedRootName']);
+        $t->same('ocf-signatures-sidecar-review', $signatures['reviewPolicy']);
+        $t->same('ocf-sidecar-metadata-only', $signatures['byteExposurePolicy']);
+        $t->same(false, $signatures['canExposeBytes']);
+        $t->same(strlen($signaturesXml), $signatures['byteLength']);
+        $t->same(strlen($signaturesXml), $signatures['compressedByteLength']);
+        $t->same(12, $signatures['compressionMethod']);
+        $t->same('unsupported', $signatures['compressionMethodName']);
+        $t->same(false, $signatures['compressionSupported']);
+        $t->same(hash('crc32b', $signaturesXml), $signatures['crc32']);
+        $t->same(1, $signatures['diagnosticCount']);
+        $t->same('ocf-sidecar-unsupported-compression-method', $signatures['diagnostics'][0]['type']);
+        $t->same(12, $signatures['diagnostics'][0]['compressionMethod']);
+
+        $t->same(1, $sidecars['diagnosticCount']);
+        $t->same(['ocf-sidecar-unsupported-compression-method'], array_column($sidecars['diagnostics'], 'type'));
+        $t->same($sidecars, $summary['ocfSidecars']);
+        $t->same($sidecars['diagnostics'], $summary['ocfSidecarDiagnostics']);
+        $t->same($sidecars, $summary['wordpressImport']['ocfSidecars']);
+        $t->same($sidecars['items'], $summary['wordpressImport']['ocfSidecarItems']);
+        $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
+    },
+
     'preserves OPF metadata link records for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithLinks = str_replace(
             '</metadata>',
