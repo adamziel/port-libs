@@ -1156,6 +1156,103 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'fake runner reviews typst page selection boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $okPlan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pages-ok.pdf',
+            'source' => '= Typst Pages OK Packet',
+            'engineOptions' => ['--pages=2,3,7-9,11-'],
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pages-boundary.pdf',
+            'source' => '= Typst Pages Boundary Packet',
+            'engineOptions' => [
+                '--pages=all',
+                '--pages',
+                '2,4-5,7-',
+                '--pages=7-3',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst page selection boundary packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'selected' => '7-3',
+            'selections' => [
+                [
+                    'raw' => 'all',
+                    'value' => 'all',
+                    'segments' => [
+                        ['raw' => 'all', 'kind' => 'keyword', 'start' => null, 'end' => null],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => '2,4-5,7-',
+                    'value' => '2,4-5,7-',
+                    'segments' => [
+                        ['raw' => '2', 'kind' => 'page', 'start' => 2, 'end' => 2],
+                        ['raw' => '4-5', 'kind' => 'range', 'start' => 4, 'end' => 5],
+                        ['raw' => '7-', 'kind' => 'open-end-range', 'start' => 7, 'end' => null],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => '7-3',
+                    'value' => '7-3',
+                    'segments' => [
+                        ['raw' => '7-3', 'kind' => 'descending-range', 'start' => 7, 'end' => 3],
+                    ],
+                    'safe' => false,
+                    'issues' => ['pages-descending-range-boundary'],
+                ],
+            ],
+            'issues' => ['pages-descending-range-boundary', 'pages-boundary-overridden'],
+            'overrides' => [
+                [
+                    'option' => 'pages',
+                    'count' => 3,
+                    'values' => ['all', '2,4-5,7-', '7-3'],
+                    'selected' => '7-3',
+                    'issue' => 'pages-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pages-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/pages-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same('ok', $okPlan['typstPageSelectionPolicy']['reviewStatus']);
+        $t->same('2,3,7-9,11-', $okPlan['typstPageSelectionPolicy']['selected']);
+        $t->same('open-end-range', $okPlan['typstPageSelectionPolicy']['selections'][0]['segments'][3]['kind']);
+        $t->same([], $okPlan['typstPageSelectionPolicy']['issues']);
+        $t->same($expectedPolicy, $plan['typstPageSelectionPolicy']);
+        $t->contains('typst-page-selection-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-page-selection:7-3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-page-selection-options:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-page-selection-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-page-selection-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstPageSelectionPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPageSelectionPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-page-selection-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstPageSelectionPolicy']);
+    },
+
     'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

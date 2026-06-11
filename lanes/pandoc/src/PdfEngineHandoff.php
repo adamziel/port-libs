@@ -123,6 +123,8 @@ final class PdfEngineHandoff
      *     outputFile: string,
      *     argv: list<string>,
      *     engineOptions: list<string>,
+     *     typstOutputFormatPolicy: array<string, mixed>,
+     *     typstPageSelectionPolicy: array<string, mixed>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
      *     templateFile: string|null,
@@ -167,6 +169,7 @@ final class PdfEngineHandoff
             : $this->deriveSourcePath($outputFile, $profile['extension']);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
         $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
+        $typstPageSelectionPolicy = $this->typstPageSelectionPolicyFor($engine, $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
             : $this->renderIntermediateSource($document, $profile['intermediate']);
@@ -240,6 +243,21 @@ final class PdfEngineHandoff
             }
             if ($typstOutputFormatPolicy['issues'] !== []) {
                 $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
+            }
+        }
+        if ($typstPageSelectionPolicy !== []) {
+            $diagnostics[] = 'typst-page-selection-policy:' . $typstPageSelectionPolicy['reviewStatus'];
+            if ($typstPageSelectionPolicy['selected'] !== null) {
+                $diagnostics[] = 'typst-page-selection:' . $typstPageSelectionPolicy['selected'];
+            }
+            if ($typstPageSelectionPolicy['selections'] !== []) {
+                $diagnostics[] = 'typst-page-selection-options:' . count($typstPageSelectionPolicy['selections']);
+            }
+            if (($typstPageSelectionPolicy['overrides'] ?? []) !== []) {
+                $diagnostics[] = 'typst-page-selection-overrides:' . count($typstPageSelectionPolicy['overrides']);
+            }
+            if ($typstPageSelectionPolicy['issues'] !== []) {
+                $diagnostics[] = 'typst-page-selection-issues:' . count($typstPageSelectionPolicy['issues']);
             }
         }
         if ($engineLogFile !== null) {
@@ -320,6 +338,7 @@ final class PdfEngineHandoff
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstPageSelectionPolicy' => $typstPageSelectionPolicy,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
             'templateFile' => $templateFile,
@@ -370,6 +389,7 @@ final class PdfEngineHandoff
      *     engineOutputFiles: list<string>,
      *     typstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
      *     typstBoundaryProvenance: array<string, mixed>,
+     *     typstPageSelectionPolicy: array<string, mixed>,
      *     engineBoundaryRoot: string|null,
      *     engineBoundaryViolations: list<string>,
      *     typstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
@@ -394,7 +414,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPageSelectionPolicy:array<string, mixed>, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -553,6 +573,9 @@ final class PdfEngineHandoff
         $typstOutputFormatPolicy = is_array($plan['typstOutputFormatPolicy'] ?? null)
             ? $plan['typstOutputFormatPolicy']
             : $this->typstOutputFormatPolicyFor($engine, $outputFile, $this->normalizeStringList($plan['engineOptions'] ?? []));
+        $typstPageSelectionPolicy = is_array($plan['typstPageSelectionPolicy'] ?? null)
+            ? $plan['typstPageSelectionPolicy']
+            : $this->typstPageSelectionPolicyFor($engine, $this->normalizeStringList($plan['engineOptions'] ?? []));
         $engineBoundaryRoot = isset($plan['engineBoundaryRoot']) && is_string($plan['engineBoundaryRoot']) && $plan['engineBoundaryRoot'] !== ''
             ? $this->normalizeRelativeDirectory($plan['engineBoundaryRoot'], 'PDF engine boundary root')
             : null;
@@ -4106,6 +4129,9 @@ final class PdfEngineHandoff
         if (($typstOutputFormatPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
         }
+        if (($typstPageSelectionPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-page-selection-policy:' . $typstPageSelectionPolicy['reviewStatus'];
+        }
         if ($engineBoundaryViolations !== []) {
             $artifactProvenanceIssues[] = 'engine-boundary-violations:' . count($engineBoundaryViolations);
         }
@@ -4149,6 +4175,7 @@ final class PdfEngineHandoff
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstPageSelectionPolicy' => $typstPageSelectionPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'issues' => $artifactProvenanceIssues,
@@ -4181,6 +4208,7 @@ final class PdfEngineHandoff
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstPageSelectionPolicy' => $typstPageSelectionPolicy,
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
@@ -4517,6 +4545,7 @@ final class PdfEngineHandoff
      *     finalEngineBoundaryRoot: string|null,
      *     finalEngineBoundaryViolations: list<string>,
      *     finalTypstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
+     *     finalTypstPageSelectionPolicy: array<string, mixed>,
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
@@ -4829,6 +4858,7 @@ final class PdfEngineHandoff
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
+            'finalTypstPageSelectionPolicy' => is_array($finalRun) && is_array($finalRun['typstPageSelectionPolicy'] ?? null) ? $finalRun['typstPageSelectionPolicy'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
@@ -5466,6 +5496,135 @@ final class PdfEngineHandoff
         }
 
         return $values;
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return array{reviewStatus:string, selected:string|null, selections:list<array{raw:string, value:string, segments:list<array{raw:string, kind:string, start:int|null, end:int|null}>, safe:bool, issues:list<string>}>, issues:list<string>, overrides?:list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>}|array{}
+     */
+    private function typstPageSelectionPolicyFor(string $engine, array $engineOptions): array
+    {
+        if ($engine !== 'typst') {
+            return [];
+        }
+
+        $pageValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
+        if ($pageValues === []) {
+            return [];
+        }
+
+        $selections = array_map(
+            fn (string $value): array => $this->typstPageSelectionEntry($value),
+            $pageValues
+        );
+        $issues = [];
+        foreach ($selections as $selection) {
+            foreach ($selection['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $overrides = [];
+        $selected = $selections[count($selections) - 1]['value'];
+        if (count($pageValues) > 1) {
+            $overrides[] = [
+                'option' => 'pages',
+                'count' => count($pageValues),
+                'values' => array_values($pageValues),
+                'selected' => $selected,
+                'issue' => 'pages-boundary-overridden',
+            ];
+            $issues[] = 'pages-boundary-overridden';
+        }
+
+        $policy = [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'selected' => $selected,
+            'selections' => $selections,
+            'issues' => array_values(array_unique($issues)),
+        ];
+        if ($overrides !== []) {
+            $policy['overrides'] = $overrides;
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @return array{raw:string, value:string, segments:list<array{raw:string, kind:string, start:int|null, end:int|null}>, safe:bool, issues:list<string>}
+     */
+    private function typstPageSelectionEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $segments = [];
+        $issues = [];
+
+        if ($value === '') {
+            $issues[] = 'pages-empty-boundary';
+        } elseif (str_contains($value, "\0")) {
+            $issues[] = 'pages-invalid-boundary';
+        } else {
+            foreach (explode(',', $value) as $part) {
+                $segment = $this->typstPageSelectionSegment(trim($part));
+                $segments[] = $segment;
+                if ($segment['kind'] === 'invalid') {
+                    $issues[] = 'pages-invalid-boundary';
+                } elseif ($segment['kind'] === 'descending-range') {
+                    $issues[] = 'pages-descending-range-boundary';
+                }
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'segments' => $segments,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{raw:string, kind:string, start:int|null, end:int|null}
+     */
+    private function typstPageSelectionSegment(string $segment): array
+    {
+        if ($segment === '') {
+            return ['raw' => $segment, 'kind' => 'invalid', 'start' => null, 'end' => null];
+        }
+
+        $lower = strtolower($segment);
+        if (in_array($lower, ['all', 'current'], true)) {
+            return ['raw' => $segment, 'kind' => 'keyword', 'start' => null, 'end' => null];
+        }
+
+        if (preg_match('/\A[1-9][0-9]*\z/', $segment) === 1) {
+            $page = (int) $segment;
+
+            return ['raw' => $segment, 'kind' => 'page', 'start' => $page, 'end' => $page];
+        }
+
+        if (preg_match('/\A([1-9][0-9]*)-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+            $start = (int) $matches[1];
+            $end = (int) $matches[2];
+
+            return [
+                'raw' => $segment,
+                'kind' => $end < $start ? 'descending-range' : 'range',
+                'start' => $start,
+                'end' => $end,
+            ];
+        }
+
+        if (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
+            return ['raw' => $segment, 'kind' => 'open-end-range', 'start' => (int) $matches[1], 'end' => null];
+        }
+
+        if (preg_match('/\A-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+            return ['raw' => $segment, 'kind' => 'open-start-range', 'start' => null, 'end' => (int) $matches[1]];
+        }
+
+        return ['raw' => $segment, 'kind' => 'invalid', 'start' => null, 'end' => null];
     }
 
     /**
