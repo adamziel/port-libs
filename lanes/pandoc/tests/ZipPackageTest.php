@@ -8431,6 +8431,69 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
     },
 
+    'preflights central directory byte accounting before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>' . str_repeat('central size accounting ', 32) . '</w:p></w:body></w:document>';
+        $mediaBytes = "stored media bytes for review\n";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/spoofed-document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $totalCompressed = $documentCompressed + strlen($mediaBytes);
+        $totalUncompressed = strlen($documentXml) + strlen($mediaBytes);
+
+        $summary = ZipPackage::centralDirectorySizePreflight($zip, 128, 2.0);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 128, 2.0, 4096);
+
+        $t->same(3, $summary['declaredEntryCount']);
+        $t->same(3, $summary['scannedEntryCount']);
+        $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(2, $summary['fileCount']);
+        $t->same(1, $summary['directoryCount']);
+        $t->same(2, $summary['storedEntryCount']);
+        $t->same(1, $summary['deflatedEntryCount']);
+        $t->same(0, $summary['unsupportedCompressionMethodCount']);
+        $t->same($totalCompressed, $summary['compressedBytes']);
+        $t->same($totalUncompressed, $summary['uncompressedBytes']);
+        $t->same(true, $summary['totalsAreExact']);
+        $t->same(false, $summary['hasUnknownByteCounts']);
+        $t->same(0, $summary['zip64SizeSentinelEntryCount']);
+        $t->same($totalUncompressed / $totalCompressed, $summary['expansionRatio']);
+        $t->same('word/document.xml', $summary['largestEntry']['name']);
+        $t->same($documentCompressed, $summary['largestEntry']['compressedSize']);
+        $t->same(strlen($documentXml), $summary['largestEntry']['uncompressedSize']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['total-uncompressed-size-exceeds-limit', 'expansion-ratio-exceeds-limit'], $summary['issues']);
+        $t->same('word/media/review.txt', $summary['entries'][1]['name']);
+        $t->same('stored', $summary['entries'][1]['compressionMethodName']);
+        $t->same(strlen($mediaBytes), $summary['entries'][1]['compressedSize']);
+        $t->same(strlen($mediaBytes), $summary['entries'][1]['uncompressedSize']);
+
+        $t->same($summary, $rawStrict['centralDirectorySize']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->contains('total-uncompressed-size-exceeds-limit', implode(',', $rawStrict['diagnostics']));
+        $t->contains('expansion-ratio-exceeds-limit', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights readable zip entry payloads before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage, $corruptZipEntryPayload, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>integrity preflight</w:p></w:body></w:document>';
         $mediaBytes = "review media payload bytes\n";

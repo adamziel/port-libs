@@ -6909,6 +6909,258 @@ final class ZipPackage
     }
 
     /**
+     * Summarize central-directory byte counts without reading local headers or
+     * entry payloads, so size policy remains visible even when another raw ZIP
+     * gate blocks package construction first.
+     *
+     * @return array{
+     *     declaredEntryCount:int,
+     *     scannedEntryCount:int,
+     *     entryCount:int,
+     *     hasEntryCountMismatch:bool,
+     *     entryCountDelta:int,
+     *     entryCountMismatchKind:?string,
+     *     fileCount:int,
+     *     directoryCount:int,
+     *     compressedBytes:int,
+     *     uncompressedBytes:int,
+     *     totalsAreExact:bool,
+     *     hasUnknownByteCounts:bool,
+     *     zip64SizeSentinelEntryCount:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     expansionRatio:?float,
+     *     maxTotalUncompressedBytes:?int,
+     *     maxExpansionRatio:?float,
+     *     largestEntry:?array<string, mixed>,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     unknownByteCountEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function centralDirectorySizePreflight(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null
+    ): array {
+        if ($maxTotalUncompressedBytes !== null && $maxTotalUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum total uncompressed size must be non-negative');
+        }
+
+        if ($maxExpansionRatio !== null && $maxExpansionRatio < 0.0) {
+            throw new \InvalidArgumentException('ZIP package maximum expansion ratio must be non-negative');
+        }
+
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before central directory size accounting can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $unknownByteCountEntries = [];
+        $fileCount = 0;
+        $directoryCount = 0;
+        $compressedBytes = 0;
+        $uncompressedBytes = 0;
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $largestEntry = null;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                break;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            $name = $decodedName['text'];
+            self::assertSafePartName($name);
+
+            $isDirectory = str_ends_with($name, '/');
+            if ($isDirectory) {
+                ++$directoryCount;
+            } else {
+                ++$fileCount;
+            }
+
+            if ($method === 0) {
+                ++$storedEntryCount;
+            } elseif ($method === 8) {
+                ++$deflatedEntryCount;
+            } else {
+                ++$unsupportedCompressionMethodCount;
+            }
+
+            $hasZip64SizeSentinel = $compressedSize === 0xffffffff || $uncompressedSize === 0xffffffff;
+            $entryIssues = $hasZip64SizeSentinel ? ['zip64-size-or-offset-sentinel'] : [];
+            $entryExpansionRatio = $hasZip64SizeSentinel
+                ? null
+                : self::expansionRatio($uncompressedSize, $compressedSize);
+
+            $entry = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'recordEnd' => $cursor + 46 + $variableLength,
+                'localHeaderOffset' => $localHeaderOffset,
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'isDirectory' => $isDirectory,
+                'compressedSize' => $compressedSize,
+                'uncompressedSize' => $uncompressedSize,
+                'hasZip64SizeSentinel' => $hasZip64SizeSentinel,
+                'expansionRatio' => $entryExpansionRatio,
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+
+            if ($hasZip64SizeSentinel) {
+                $unknownByteCountEntries[] = $entry;
+            } else {
+                $compressedBytes += $compressedSize;
+                $uncompressedBytes += $uncompressedSize;
+                if ($largestEntry === null || $uncompressedSize > $largestEntry['uncompressedSize']) {
+                    $largestEntry = $entry;
+                }
+            }
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $declaredEntryCount = $archive['totalEntryCount'];
+        $scannedEntryCount = count($entries);
+        $entryCountDelta = $scannedEntryCount - $declaredEntryCount;
+        $entryCountMismatchKind = null;
+        if ($entryCountDelta > 0) {
+            $entryCountMismatchKind = 'declared-too-low';
+        } elseif ($entryCountDelta < 0) {
+            $entryCountMismatchKind = 'declared-too-high';
+        }
+
+        $hasUnknownByteCounts = $unknownByteCountEntries !== [];
+        $expansionRatio = $hasUnknownByteCounts ? null : self::expansionRatio($uncompressedBytes, $compressedBytes);
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($entryCountDelta !== 0) {
+            $issues[] = 'central-directory-entry-count-mismatch';
+        }
+        if ($hasUnknownByteCounts) {
+            $issues[] = 'central-directory-size-unknown';
+        }
+        if (
+            !$hasUnknownByteCounts
+            && $maxTotalUncompressedBytes !== null
+            && $uncompressedBytes > $maxTotalUncompressedBytes
+        ) {
+            $issues[] = 'total-uncompressed-size-exceeds-limit';
+        }
+        if (!$hasUnknownByteCounts && $maxExpansionRatio !== null) {
+            if ($expansionRatio === null && $uncompressedBytes > 0) {
+                $issues[] = 'expansion-ratio-unknown';
+            } elseif ($expansionRatio !== null && $expansionRatio > $maxExpansionRatio) {
+                $issues[] = 'expansion-ratio-exceeds-limit';
+            }
+        }
+
+        return [
+            'declaredEntryCount' => $declaredEntryCount,
+            'scannedEntryCount' => $scannedEntryCount,
+            'entryCount' => $scannedEntryCount,
+            'hasEntryCountMismatch' => $entryCountDelta !== 0,
+            'entryCountDelta' => $entryCountDelta,
+            'entryCountMismatchKind' => $entryCountMismatchKind,
+            'fileCount' => $fileCount,
+            'directoryCount' => $directoryCount,
+            'compressedBytes' => $compressedBytes,
+            'uncompressedBytes' => $uncompressedBytes,
+            'totalsAreExact' => !$hasUnknownByteCounts,
+            'hasUnknownByteCounts' => $hasUnknownByteCounts,
+            'zip64SizeSentinelEntryCount' => count($unknownByteCountEntries),
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'expansionRatio' => $expansionRatio,
+            'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
+            'maxExpansionRatio' => $maxExpansionRatio,
+            'largestEntry' => $largestEntry,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'unknownByteCountEntries' => $unknownByteCountEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
      */
     private static function centralDirectoryInventoryEntryAt(string $bytes, int $cursor, int $index): array
@@ -8108,6 +8360,7 @@ final class ZipPackage
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
+     *     centralDirectorySize:?array<string, mixed>,
      *     centralDirectoryRepairPlan:?array<string, mixed>,
      *     localHeaderNames:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
@@ -8222,6 +8475,7 @@ final class ZipPackage
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
+                'centralDirectorySize' => null,
                 'centralDirectoryRepairPlan' => null,
                 'localHeaderNames' => null,
                 'localHeaderMetadata' => null,
@@ -8259,6 +8513,7 @@ final class ZipPackage
 
         $splitArchive = null;
         $centralDirectoryInventory = null;
+        $centralDirectorySize = null;
         $centralDirectoryRepairPlan = null;
         $localHeaderNames = null;
         $localHeaderMetadata = null;
@@ -8301,6 +8556,18 @@ final class ZipPackage
             if ($centralDirectoryInventory !== null && !$centralDirectoryInventory['isSupportedByBoundedReader']) {
                 $addDiagnostic('central-directory-inventory-issues');
                 $addDiagnostics($centralDirectoryInventory['issues']);
+            }
+
+            $centralDirectorySize = $runPreflight(
+                'central-directory-size',
+                static fn (): array => self::centralDirectorySizePreflight(
+                    $bytes,
+                    $maxTotalUncompressedBytes,
+                    $maxExpansionRatio
+                )
+            );
+            if ($centralDirectorySize !== null && !$centralDirectorySize['isSupportedByBoundedReader']) {
+                $addDiagnostics($centralDirectorySize['issues']);
             }
 
             $centralDirectoryRepairPlan = $runPreflight(
@@ -8588,6 +8855,7 @@ final class ZipPackage
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'centralDirectorySize' => $centralDirectorySize,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
             'localHeaderNames' => $localHeaderNames,
             'localHeaderMetadata' => $localHeaderMetadata,
