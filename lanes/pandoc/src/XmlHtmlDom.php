@@ -876,6 +876,9 @@ final class XmlHtmlDom
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
+        if (in_array($name, ['base', 'meta', 'link'], true)) {
+            $summary += self::documentMetadataSummary($node, $name);
+        }
 
         return [$summary];
     }
@@ -1129,6 +1132,111 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function documentMetadataSummary(\DOMElement $element, string $name): array
+    {
+        return match ($name) {
+            'base' => self::baseElementSummary($element),
+            'meta' => self::metaElementSummary($element),
+            'link' => self::linkElementSummary($element),
+            default => [],
+        };
+    }
+
+    /**
+     * @return array{documentMetadata:string, href:?string, target:?string}
+     */
+    private static function baseElementSummary(\DOMElement $base): array
+    {
+        return [
+            'documentMetadata' => 'base',
+            'href' => self::attributeOrNull($base, 'href'),
+            'target' => self::attributeOrNull($base, 'target'),
+        ];
+    }
+
+    /**
+     * @return array{documentMetadata:string, metadataKind:string, nameAttribute:?string, property:?string, httpEquiv:?string, itemprop:?string, charset:?string, content:?string}
+     */
+    private static function metaElementSummary(\DOMElement $meta): array
+    {
+        $name = self::attributeOrNull($meta, 'name');
+        $property = self::attributeOrNull($meta, 'property');
+        $httpEquiv = self::attributeOrNull($meta, 'http-equiv');
+        $itemprop = self::attributeOrNull($meta, 'itemprop');
+        $charset = self::attributeOrNull($meta, 'charset');
+
+        return [
+            'documentMetadata' => 'meta',
+            'metadataKind' => self::metaElementKind($name, $property, $httpEquiv, $itemprop, $charset),
+            'nameAttribute' => $name,
+            'property' => $property,
+            'httpEquiv' => $httpEquiv,
+            'itemprop' => $itemprop,
+            'charset' => $charset,
+            'content' => self::attributeOrNull($meta, 'content'),
+        ];
+    }
+
+    private static function metaElementKind(
+        ?string $name,
+        ?string $property,
+        ?string $httpEquiv,
+        ?string $itemprop,
+        ?string $charset
+    ): string {
+        if ($charset !== null) {
+            return 'charset';
+        }
+        if ($httpEquiv !== null) {
+            return 'http-equiv';
+        }
+        if ($name !== null) {
+            return 'name';
+        }
+        if ($property !== null) {
+            return 'property';
+        }
+        if ($itemprop !== null) {
+            return 'itemprop';
+        }
+
+        return 'generic';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function linkElementSummary(\DOMElement $link): array
+    {
+        $relRaw = self::attributeOrNull($link, 'rel');
+        $blockingRaw = self::attributeOrNull($link, 'blocking');
+
+        return [
+            'documentMetadata' => 'link',
+            'href' => self::attributeOrNull($link, 'href'),
+            'relRaw' => $relRaw,
+            'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+            'as' => self::attributeOrNull($link, 'as'),
+            'media' => self::attributeOrNull($link, 'media'),
+            'hreflang' => self::attributeOrNull($link, 'hreflang'),
+            'mimeType' => self::attributeOrNull($link, 'type'),
+            'sizes' => self::attributeOrNull($link, 'sizes'),
+            'title' => self::attributeOrNull($link, 'title'),
+            'imagesrcset' => self::attributeOrNull($link, 'imagesrcset'),
+            'imagesizes' => self::attributeOrNull($link, 'imagesizes'),
+            'crossorigin' => self::attributeOrNull($link, 'crossorigin'),
+            'referrerpolicy' => self::attributeOrNull($link, 'referrerpolicy'),
+            'integrity' => self::attributeOrNull($link, 'integrity'),
+            'fetchpriority' => self::attributeOrNull($link, 'fetchpriority'),
+            'blockingRaw' => $blockingRaw,
+            'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
+            'disabled' => $link->hasAttribute('disabled'),
+        ];
     }
 
     private static function isValidDateParts(string $year, string $month, string $day): bool

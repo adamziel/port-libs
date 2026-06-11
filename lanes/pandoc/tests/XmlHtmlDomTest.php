@@ -745,6 +745,68 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html base meta and link document metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<base href="https://example.test/import/" target="_blank">'
+                . '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                . '<meta property="og:title" content="Review Packet"><meta http-equiv="refresh" content="30; url=next.html">'
+                . '<meta itemprop="dateModified" content="2026-06-11">'
+                . '<link rel="canonical preload modulepreload" href="chapter.html?x=1#intro" as="script" type="text/javascript" media="screen" hreflang="en" crossorigin="anonymous" referrerpolicy="no-referrer" integrity="sha384-abc" fetchpriority="high" blocking="render import" imagesrcset="hero.png 1x, hero@2x.png 2x" imagesizes="100vw" disabled>'
+                . '<p>Body</p>',
+            'document metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $base = $summary[0];
+        $charset = $summary[1];
+        $viewport = $summary[2];
+        $property = $summary[3];
+        $httpEquiv = $summary[4];
+        $itemprop = $summary[5];
+        $link = $summary[6];
+
+        $t->same('base', $base['name']);
+        $t->same('base', $base['documentMetadata']);
+        $t->same('https://example.test/import/', $base['href']);
+        $t->same('_blank', $base['target']);
+        $t->same('meta', $charset['documentMetadata']);
+        $t->same('charset', $charset['metadataKind']);
+        $t->same('utf-8', $charset['charset']);
+        $t->same(null, $charset['content']);
+        $t->same('name', $viewport['metadataKind']);
+        $t->same('viewport', $viewport['nameAttribute']);
+        $t->same('width=device-width, initial-scale=1', $viewport['content']);
+        $t->same('property', $property['metadataKind']);
+        $t->same('og:title', $property['property']);
+        $t->same('Review Packet', $property['content']);
+        $t->same('http-equiv', $httpEquiv['metadataKind']);
+        $t->same('refresh', $httpEquiv['httpEquiv']);
+        $t->same('30; url=next.html', $httpEquiv['content']);
+        $t->same('itemprop', $itemprop['metadataKind']);
+        $t->same('dateModified', $itemprop['itemprop']);
+        $t->same('link', $link['documentMetadata']);
+        $t->same('chapter.html?x=1#intro', $link['href']);
+        $t->same('canonical preload modulepreload', $link['relRaw']);
+        $t->same(['canonical', 'preload', 'modulepreload'], $link['relTokens']);
+        $t->same('script', $link['as']);
+        $t->same('text/javascript', $link['mimeType']);
+        $t->same('screen', $link['media']);
+        $t->same('en', $link['hreflang']);
+        $t->same('anonymous', $link['crossorigin']);
+        $t->same('no-referrer', $link['referrerpolicy']);
+        $t->same('sha384-abc', $link['integrity']);
+        $t->same('high', $link['fetchpriority']);
+        $t->same('render import', $link['blockingRaw']);
+        $t->same(['render', 'import'], $link['blockingTokens']);
+        $t->same('hero.png 1x, hero@2x.png 2x', $link['imagesrcset']);
+        $t->same('100vw', $link['imagesizes']);
+        $t->same(true, $link['disabled']);
+        $t->same(
+            '<base href="https://example.test/import/" target="_blank"><meta charset="utf-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="Review Packet" property="og:title"><meta content="30; url=next.html" http-equiv="refresh"><meta content="2026-06-11" itemprop="dateModified"><link as="script" blocking="render import" crossorigin="anonymous" disabled fetchpriority="high" href="chapter.html?x=1#intro" hreflang="en" imagesizes="100vw" imagesrcset="hero.png 1x, hero@2x.png 2x" integrity="sha384-abc" media="screen" referrerpolicy="no-referrer" rel="canonical preload modulepreload" type="text/javascript"><p>Body</p>',
+            $html
+        );
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();
