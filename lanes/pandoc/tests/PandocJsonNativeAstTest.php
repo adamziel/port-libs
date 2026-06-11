@@ -1303,6 +1303,67 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'records table helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['native-table-helpers', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => [0.25]]],
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => [1]],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignRight'],
+                                        ['t' => 'RowSpan', 'c' => [2]],
+                                        ['t' => 'ColSpan', 'c' => [3]],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Payload']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $cell = $body->children[0]->children[0];
+
+            $t->same(['left', 'center'], $table->attr('alignments'), "{$source} table alignments");
+            $t->same([0.25, null], $table->attr('widths'), "{$source} table widths");
+            $t->same([$tableBlock['c'][2][0][0], $tableBlock['c'][2][1][0]], $table->attr('alignmentNatives'), "{$source} table alignment native payloads");
+            $t->same([$tableBlock['c'][2][0][1], $tableBlock['c'][2][1][1]], $table->attr('columnWidthNatives'), "{$source} table width native payloads");
+            $t->same($tableBlock['c'][4][0]['c'][1], $body->attr('rowHeadColumnsNative'), "{$source} row head columns native payload");
+            $t->same($tableBlock['c'][4][0]['c'][3][0]['c'][1][0]['c'][1], $cell->attr('alignmentNative'), "{$source} cell alignment native payload");
+            $t->same($tableBlock['c'][4][0]['c'][3][0]['c'][1][0]['c'][2], $cell->attr('rowSpanNative'), "{$source} cell row span native payload");
+            $t->same($tableBlock['c'][4][0]['c'][3][0]['c'][1][0]['c'][3], $cell->attr('colSpanNative'), "{$source} cell column span native payload");
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
