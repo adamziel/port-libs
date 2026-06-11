@@ -9285,6 +9285,53 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'diagnoses ODT manifest file entries missing media types before byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sidecarBytes = 'BINARYPAYLOAD';
+        $manifestWithMissingMediaType = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/nameless.bin" manifest:media-type="" manifest:size="' . strlen($sidecarBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/" manifest:media-type=""/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithMissingMediaType, null, null, [
+            ['name' => 'Pictures/nameless.bin', 'data' => $sidecarBytes, 'compressionMethod' => 0],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $mediaParts = array_column($result['media'], 'part');
+
+        $nameless = $manifestByPath['Pictures/nameless.bin'];
+        $t->same('', $nameless['mediaType']);
+        $t->same(true, $nameless['exists']);
+        $t->same(strlen($sidecarBytes), $nameless['storedByteLength']);
+        $t->same(null, $nameless['byteLength']);
+        $t->same(false, $nameless['canExposeBytes']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $nameless['diagnostics']);
+
+        $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
+        $t->same(2, $summary['emptyMediaTypeCount']);
+        $t->same(['Pictures/nameless.bin', 'Configurations2/'], $summary['emptyMediaTypeParts']);
+        $t->same(1, $summary['emptyMediaTypeDirectoryCount']);
+        $t->same(['Configurations2/'], $summary['emptyMediaTypeDirectoryParts']);
+        $t->same(1, $summary['emptyMediaTypeNonDirectoryCount']);
+        $t->same('Pictures/nameless.bin', $summary['emptyMediaTypeNonDirectoryItems'][0]['part']);
+        $t->same(false, $summary['emptyMediaTypeNonDirectoryItems'][0]['canExposeBytes']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $summary['emptyMediaTypeNonDirectoryItems'][0]['diagnostics']);
+        $t->same(1, $summary['diagnosticCount']);
+        $t->same(['odf-manifest-file-entry-missing-media-type' => 1], $summary['diagnosticCodeCounts']);
+        $t->same('Pictures/nameless.bin', $summary['diagnostics'][0]['part']);
+        $t->same(false, $summary['diagnostics'][0]['canExposeBytes']);
+
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $provenance['parts']['Pictures/nameless.bin']['manifestDiagnostics']);
+        $t->same(false, $provenance['parts']['Pictures/nameless.bin']['canExposeBytes']);
+        $t->same(false, in_array('Pictures/nameless.bin', $mediaParts, true));
+    },
     'preserves ODT manifest media-type parameter provenance for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $manifestWithMediaTypeParameters = str_replace(

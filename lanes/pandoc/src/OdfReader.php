@@ -452,6 +452,8 @@ final class OdfReader
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === 0 || $compressionMethod === 8;
+            $missingFileMediaType = $mediaType === '' && is_string($part) && $part !== '' && !$isDirectory;
+            $diagnostics = $missingFileMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
             $declaredSizeMismatch = !$encrypted
                 && $declaredSize !== null
                 && $storedByteLength !== null
@@ -461,9 +463,10 @@ final class OdfReader
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$scriptPackagePart
+                && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
-            $items[] = [
+            $item = [
                 'manifestIndex' => $manifestIndex,
                 'fullPath' => $fullPath,
                 'part' => $part,
@@ -494,6 +497,10 @@ final class OdfReader
                 'canExposeBytes' => $canExposeBytes,
                 'encryption' => $encrypted ? $this->encryptionRecords($encryptionElements) : null,
             ];
+            if ($diagnostics !== []) {
+                $item['diagnostics'] = $diagnostics;
+            }
+            $items[] = $item;
             ++$manifestIndex;
         }
 
@@ -718,6 +725,7 @@ final class OdfReader
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'diagnostics' => $item['diagnostics'] ?? [],
             ];
             if (is_string($part) && $part !== '') {
                 $manifestByPart[$part] = $item;
@@ -794,6 +802,7 @@ final class OdfReader
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
+                'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -12311,12 +12320,22 @@ final class OdfReader
         $groups = [];
         $groupOrder = [];
         $emptyMediaTypeParts = [];
+        $emptyMediaTypeDirectoryParts = [];
+        $emptyMediaTypeNonDirectoryItems = [];
+        $diagnostics = [];
         $summary = [
             'manifestItemCount' => count($manifest),
             'typedItemCount' => 0,
             'mediaTypeCount' => 0,
             'emptyMediaTypeCount' => 0,
             'emptyMediaTypeParts' => [],
+            'emptyMediaTypeDirectoryCount' => 0,
+            'emptyMediaTypeDirectoryParts' => [],
+            'emptyMediaTypeNonDirectoryCount' => 0,
+            'emptyMediaTypeNonDirectoryItems' => [],
+            'diagnosticCount' => 0,
+            'diagnosticCodeCounts' => [],
+            'diagnostics' => [],
             'directoryCount' => 0,
             'missingCount' => 0,
             'encryptedCount' => 0,
@@ -12350,6 +12369,7 @@ final class OdfReader
             $compressedByteLength = $item['compressedByteLength'] ?? null;
             $declaredSize = $item['declaredSize'] ?? null;
             $compressionMethod = $item['compressionMethod'] ?? null;
+            $itemDiagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
 
             if ($isDirectory) {
                 ++$summary['directoryCount'];
@@ -12383,8 +12403,40 @@ final class OdfReader
                 ++$summary['unsupportedCompressionMethodCount'];
             }
 
+            foreach ($itemDiagnostics as $diagnostic) {
+                $code = (string) $diagnostic;
+                if ($code === '') {
+                    continue;
+                }
+
+                $diagnostics[] = self::withoutEmpty([
+                    'code' => $code,
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $item['part'] ?? null,
+                    'mediaType' => $mediaType,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                ]);
+            }
+
             if ($mediaType === '') {
                 $emptyMediaTypeParts[] = $part;
+                if ($isDirectory) {
+                    $emptyMediaTypeDirectoryParts[] = $part;
+                } else {
+                    $emptyMediaTypeNonDirectoryItems[] = self::withoutEmpty([
+                        'fullPath' => $item['fullPath'] ?? null,
+                        'part' => $item['part'] ?? null,
+                        'exists' => $exists,
+                        'storedByteLength' => $storedByteLength,
+                        'compressedByteLength' => $compressedByteLength,
+                        'compressionMethod' => $compressionMethod,
+                        'compressionMethodName' => $item['compressionMethodName'] ?? null,
+                        'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                        'diagnostics' => $itemDiagnostics,
+                    ]);
+                }
                 continue;
             }
 
@@ -12485,6 +12537,13 @@ final class OdfReader
         $summary['mediaTypeCount'] = count($items);
         $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
         $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
+        $summary['emptyMediaTypeDirectoryCount'] = count($emptyMediaTypeDirectoryParts);
+        $summary['emptyMediaTypeDirectoryParts'] = $emptyMediaTypeDirectoryParts;
+        $summary['emptyMediaTypeNonDirectoryCount'] = count($emptyMediaTypeNonDirectoryItems);
+        $summary['emptyMediaTypeNonDirectoryItems'] = $emptyMediaTypeNonDirectoryItems;
+        $summary['diagnosticCount'] = count($diagnostics);
+        $summary['diagnosticCodeCounts'] = $this->diagnosticCodeCounts($diagnostics);
+        $summary['diagnostics'] = $diagnostics;
         $summary['items'] = $items;
 
         return $summary;
