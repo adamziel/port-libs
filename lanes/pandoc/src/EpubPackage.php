@@ -1324,15 +1324,24 @@ final class EpubPackage
     /**
      * @param array<string, mixed> $item
      *
-     * @return array{id:string, href:string, partName:string, mediaType:string}
+     * @return array<string, mixed>
      */
     private static function compactManifestBindingItem(array $item): array
     {
         return [
             'id' => (string) ($item['id'] ?? ''),
             'href' => (string) ($item['href'] ?? ''),
+            'target' => (string) ($item['target'] ?? ''),
             'partName' => (string) ($item['partName'] ?? ''),
             'mediaType' => self::mediaTypeBase((string) ($item['mediaType'] ?? '')),
+            'exists' => ($item['exists'] ?? false) === true,
+            'byteLength' => is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null,
+            'compressedByteLength' => is_int($item['compressedByteLength'] ?? null) ? $item['compressedByteLength'] : null,
+            'compressionMethod' => is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null,
+            'compressionMethodName' => is_string($item['compressionMethodName'] ?? null) ? $item['compressionMethodName'] : null,
+            'compressionSupported' => is_bool($item['compressionSupported'] ?? null) ? $item['compressionSupported'] : null,
+            'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+            'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? false),
         ];
     }
 
