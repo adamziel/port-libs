@@ -222,6 +222,112 @@ XML;
         $t->true(in_array('relationship-part', $inventory['word/_rels/header1.xml.rels']['roles'], true), 'header relationship part role missing');
         $t->true(in_array('relationship-target', $inventory['word/media/header.png']['roles'], true), 'header image relationship target role missing');
     },
+    'summarizes docx header and footer parts from document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '  <Relationship Id="rFooterFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rHeaderDefault"/>' . "\n" .
+            '      <w:footerReference w:type="first" r:id="rFooterFirst"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:p>
+    <w:r><w:t xml:space="preserve">Review header </w:t></w:r>
+    <w:hyperlink r:id="rHeaderLink"><w:r><w:t>portal</w:t></w:r></w:hyperlink>
+  </w:p>
+  <w:p>
+    <w:r>
+      <w:drawing>
+        <wp:inline>
+          <wp:docPr id="7" name="Header logo" title="Header logo" descr="Header logo"/>
+          <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rHeaderImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+        </wp:inline>
+      </w:drawing>
+    </w:r>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-portal" TargetMode="External"/>
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-logo.png"/>
+</Relationships>
+XML;
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Footer page label</w:t></w:r></w:p>
+</w:ftr>
+XML;
+        $parts['word/media/header-logo.png'] = 'header logo bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $header = $docx['headers']['byRelationshipId']['rHeaderDefault'];
+        $footer = $docx['footers']['byRelationshipId']['rFooterFirst'];
+        $headerImage = $docx['packageProvenance']['relationshipParts']['word/_rels/header1.xml.rels']['relationships']['rHeaderImage'];
+
+        $t->same(1, $docx['headers']['count']);
+        $t->same(1, $docx['headers']['existingCount']);
+        $t->same(0, $docx['headers']['missingCount']);
+        $t->same(1, $docx['headers']['referencedCount']);
+        $t->same(['rHeaderDefault'], $docx['headers']['relationshipIds']);
+        $t->same(['word/header1.xml'], $docx['headers']['partNames']);
+        $t->same('header', $header['sourceType']);
+        $t->same(true, $header['referenced']);
+        $t->same(['default'], $header['referenceTypes']);
+        $t->same(true, $header['exists']);
+        $t->same(true, $header['validRoot']);
+        $t->same('hdr', $header['rootName']);
+        $t->same(2, $header['blockCount']);
+        $t->same('Review header portal Header logo', $header['text']);
+        $t->same('word/_rels/header1.xml.rels', $header['relationshipsPart']);
+        $t->same(2, $header['relationshipCount']);
+        $t->same('rHeaderDefault', $header['relationship']['id']);
+        $t->same('word/document.xml', $header['relationship']['sourcePart']);
+        $t->same('word/header1.xml', $header['relationship']['targetPart']);
+        $t->same('slot=default', $header['relationship']['targetQuery']);
+        $t->same('hdr', $header['relationship']['targetFragment']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $header['relationship']['contentType']);
+        $t->same('override', $header['relationship']['contentTypeSource']);
+        $t->same('word/media/header-logo.png', $headerImage['targetPart']);
+        $t->same(true, $headerImage['exists']);
+
+        $t->same(1, $docx['footers']['count']);
+        $t->same(1, $docx['footers']['existingCount']);
+        $t->same(0, $docx['footers']['missingCount']);
+        $t->same(1, $docx['footers']['referencedCount']);
+        $t->same(['rFooterFirst'], $docx['footers']['relationshipIds']);
+        $t->same('footer', $footer['sourceType']);
+        $t->same(['first'], $footer['referenceTypes']);
+        $t->same(true, $footer['validRoot']);
+        $t->same('ftr', $footer['rootName']);
+        $t->same(1, $footer['blockCount']);
+        $t->same('Footer page label', $footer['text']);
+        $t->same('word/footer1.xml', $footer['relationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml', $footer['relationship']['contentType']);
+        $t->same('override', $footer['relationship']['contentTypeSource']);
+    },
     'flags docx relationship sidecars whose source part is missing' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/missing-header.xml.rels'] = <<<'XML'
