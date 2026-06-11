@@ -379,6 +379,14 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'typst-pdf-tags:disabled';
                     }
                 }
+                if (is_array($pdfExport) && is_array($pdfExport['ppi'] ?? null)) {
+                    $ppi = $pdfExport['ppi'];
+                    if (is_int($ppi['ppi'] ?? null)) {
+                        $diagnostics[] = 'typst-ppi:' . $ppi['ppi'];
+                    } else {
+                        $diagnostics[] = 'typst-ppi:invalid';
+                    }
+                }
                 if (is_array($pdfExport) && ($pdfExport['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-pdf-export-issues:' . count($pdfExport['issues']);
                 }
@@ -5694,6 +5702,7 @@ final class PdfEngineHandoff
             'diagnosticColor' => 'diagnostic-color-boundary-overridden',
             'dependencyFormat' => 'dependency-format-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'ppi' => 'ppi-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5732,6 +5741,7 @@ final class PdfEngineHandoff
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
         $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
+        $ppiValues = $this->engineOptionValues($engineOptions, ['--ppi'], true);
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
         $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true);
         $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true);
@@ -5743,7 +5753,7 @@ final class PdfEngineHandoff
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $ppiValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -5790,6 +5800,11 @@ final class PdfEngineHandoff
             $pdfStandardValues
         );
         $pdfStandard = $pdfStandardHistory === [] ? null : $pdfStandardHistory[count($pdfStandardHistory) - 1];
+        $ppiHistory = array_map(
+            fn (string $value): array => $this->typstPpiEntry($value),
+            $ppiValues
+        );
+        $ppi = $ppiHistory === [] ? null : $ppiHistory[count($ppiHistory) - 1];
         $featureGateHistory = array_map(
             fn (string $value): array => $this->typstFeatureGateEntry($value),
             $featureGateValues
@@ -5832,6 +5847,7 @@ final class PdfEngineHandoff
             'packageCache' => $packageCacheValues,
             'pages' => $pageSelectionValues,
             'pdfStandard' => $pdfStandardValues,
+            'ppi' => $ppiValues,
             'features' => $featureGateValues,
             'jobs' => $jobsValues,
             'dependencyOutput' => $dependencyOutputValues,
@@ -5848,7 +5864,7 @@ final class PdfEngineHandoff
         }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $ppiHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5964,15 +5980,20 @@ final class PdfEngineHandoff
                 'issues' => $openOutputIssues,
             ];
         }
-        if ($pageSelection !== null || $noPdfTagsCount > 0) {
+        if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
             foreach ($pageSelectionHistory as $entry) {
                 foreach ($entry['issues'] as $issue) {
                     $pdfExportIssues[] = $issue;
                 }
             }
+            foreach ($ppiHistory as $entry) {
+                foreach ($entry['issues'] as $issue) {
+                    $pdfExportIssues[] = $issue;
+                }
+            }
             foreach ($overrides as $override) {
-                if ($override['option'] === 'pages') {
+                if ($override['option'] === 'pages' || $override['option'] === 'ppi') {
                     $pdfExportIssues[] = $override['issue'];
                 }
             }
@@ -5986,6 +6007,9 @@ final class PdfEngineHandoff
                     'flagCount' => $noPdfTagsCount,
                     'issues' => $pdfTagIssues,
                 ];
+            }
+            if ($ppi !== null) {
+                $pdfExport['ppi'] = $ppi;
             }
             $provenance['pdfExport'] = $pdfExport;
         }
@@ -6009,6 +6033,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($ppiHistory)) {
+            $provenance['ppiHistory'] = $ppiHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
@@ -6617,6 +6644,37 @@ final class PdfEngineHandoff
             'raw' => $raw,
             'value' => $value,
             'segments' => $segments,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, ppi:int|null, safe:bool, issues:list<string>}
+     */
+    private function typstPpiEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $issues = [];
+        $ppi = null;
+
+        if ($value === '') {
+            $issues[] = 'ppi-empty-boundary';
+        } elseif (preg_match('/\A[0-9]+\z/', $value) !== 1) {
+            $issues[] = 'ppi-invalid-boundary';
+        } elseif (!$this->decimalStringLessThanOrEqual($value, '2400')) {
+            $issues[] = 'ppi-excessive-boundary';
+        } else {
+            $ppi = (int) $value;
+            if ($ppi < 1) {
+                $issues[] = 'ppi-nonpositive-boundary';
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'ppi' => $ppi,
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
