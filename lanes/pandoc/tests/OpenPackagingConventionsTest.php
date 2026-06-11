@@ -631,6 +631,81 @@ XML;
         $t->same(0, $rawManifest['missingContentTypePartCount']);
         $t->same(true, $rawManifest['valid']);
     },
+    'preflights OPC ZIP manifest content type override declarations before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/WORD/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/missing.xml" ContentType="application/xml"/>
+  <Override PartName="/word/_rels/missing.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+</Types>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $overrides = [];
+        foreach ($summary['contentTypeOverrideDeclarations'] as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['contentTypeOverrideDeclarationCount']);
+        $t->same(2, $summary['contentTypeUsedOverrideDeclarationCount']);
+        $t->same(2, $summary['contentTypeUnusedOverrideDeclarationCount']);
+        $t->same(2, $summary['contentTypeInvalidOverrideDeclarationCount']);
+        $t->same(['/word/_rels/missing.xml.rels', '/word/missing.xml'], $summary['contentTypeUnusedOverridePartNames']);
+        $t->same([
+            'override-target-missing-part' => 2,
+            'relationship-override-source-missing' => 1,
+        ], $summary['contentTypeOverrideDeclarationIssueCounts']);
+        $t->same([
+            'override-target-missing-part' => 2,
+            'relationship-override-source-missing' => 1,
+        ], $summary['issueCounts']);
+        $t->same(['override-target-missing-part', 'relationship-override-source-missing'], $summary['issues']);
+
+        $t->same('exact', $overrides['/word/document.xml']['matchKind']);
+        $t->same(true, $overrides['/word/document.xml']['exists']);
+        $t->same('/word/document.xml', $overrides['/word/document.xml']['packagePartName']);
+        $t->same(true, $overrides['/word/document.xml']['partNameExactMatch']);
+        $t->same(false, $overrides['/word/document.xml']['partNameEquivalentMatch']);
+        $t->same([], $overrides['/word/document.xml']['issues']);
+
+        $t->same('equivalent', $overrides['/WORD/styles.xml']['matchKind']);
+        $t->same(true, $overrides['/WORD/styles.xml']['exists']);
+        $t->same('/word/styles.xml', $overrides['/WORD/styles.xml']['packagePartName']);
+        $t->same(false, $overrides['/WORD/styles.xml']['partNameExactMatch']);
+        $t->same(true, $overrides['/WORD/styles.xml']['partNameEquivalentMatch']);
+        $t->same([], $overrides['/WORD/styles.xml']['issues']);
+        $t->same('override', $entries['word/styles.xml']['contentTypeSource']);
+        $t->same('/WORD/styles.xml', $entries['word/styles.xml']['contentTypeOverridePartName']);
+        $t->same(true, $entries['word/styles.xml']['contentTypeOverridePartNameEquivalentMatch']);
+
+        $t->same('missing', $overrides['/word/missing.xml']['matchKind']);
+        $t->same(false, $overrides['/word/missing.xml']['exists']);
+        $t->same(null, $overrides['/word/missing.xml']['packagePartName']);
+        $t->same(['override-target-missing-part'], $overrides['/word/missing.xml']['issues']);
+
+        $t->same('missing', $overrides['/word/_rels/missing.xml.rels']['matchKind']);
+        $t->same(true, $overrides['/word/_rels/missing.xml.rels']['relationshipPart']);
+        $t->same('/word/missing.xml', $overrides['/word/_rels/missing.xml.rels']['relationshipSource']);
+        $t->same(false, $overrides['/word/_rels/missing.xml.rels']['relationshipSourceExists']);
+        $t->same([
+            'override-target-missing-part',
+            'relationship-override-source-missing',
+        ], $overrides['/word/_rels/missing.xml.rels']['issues']);
+    },
     'classifies generic OPC ZIP payload handoff roles from content types' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
