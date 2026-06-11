@@ -9807,6 +9807,91 @@ XML;
         $t->same('same-document-fragment', $fragment['uriKind']);
         $t->same('signature-object', $fragment['fragment']);
     },
+    'preserves ODT XML signature reference target suffix provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="suffix-signature">
+    <dsig:SignedInfo>
+      <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <dsig:Reference URI="content.xml?view=body#signature-body">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>contentdigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Pictures/hero.png#image-ref">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>herodigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Pictures/missing.png?missing=true">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>missingdigest</dsig:DigestValue>
+      </dsig:Reference>
+    </dsig:SignedInfo>
+    <dsig:SignatureValue>signature-bytes</dsig:SignatureValue>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+        $manifestWithSignatureTargets = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignatureTargets, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
+        ]));
+        $signatures = $result['signatureMetadata'];
+        $part = $signatures['parts'][0];
+        $references = $part['signatures'][0]['references'];
+        $referencesByUri = [];
+        foreach ($references as $reference) {
+            $referencesByUri[$reference['uri']] = $reference;
+        }
+
+        $t->same($signatures, $result['document']->attr('signatureMetadata'));
+        $t->same($signatures, $result['importReport']['signatureMetadata']);
+        $t->same(3, $signatures['packagePartReferenceCount']);
+        $t->same(3, $signatures['packagePartReferenceSuffixCount']);
+        $t->same(2, $signatures['packagePartReferenceQueryCount']);
+        $t->same(2, $signatures['packagePartReferenceFragmentCount']);
+        $t->same(1, $signatures['missingPartReferenceCount']);
+        $t->same(['Pictures/hero.png', 'Pictures/missing.png', 'content.xml'], $signatures['signedParts']);
+        $t->same(3, $part['packagePartReferenceSuffixCount']);
+        $t->same(2, $part['packagePartReferenceQueryCount']);
+        $t->same(2, $part['packagePartReferenceFragmentCount']);
+
+        $content = $referencesByUri['content.xml?view=body#signature-body'];
+        $t->same('package-part', $content['uriKind']);
+        $t->same('content.xml', $content['part']);
+        $t->same('content.xml', $content['partReference']);
+        $t->same('?view=body#signature-body', $content['partSuffix']);
+        $t->same('view=body', $content['partQuery']);
+        $t->same('signature-body', $content['partFragment']);
+        $t->same(true, $content['targetExists']);
+        $t->same('content.xml', $content['targetManifestFullPath']);
+        $t->same(strlen($contentXml), $content['targetStoredByteLength']);
+
+        $hero = $referencesByUri['Pictures/hero.png#image-ref'];
+        $t->same('Pictures/hero.png', $hero['part']);
+        $t->same('Pictures/hero.png', $hero['partReference']);
+        $t->same('#image-ref', $hero['partSuffix']);
+        $t->same(false, array_key_exists('partQuery', $hero));
+        $t->same('image-ref', $hero['partFragment']);
+        $t->same(true, $hero['targetExists']);
+        $t->same('image/png', $hero['targetMediaType']);
+
+        $missing = $referencesByUri['Pictures/missing.png?missing=true'];
+        $t->same('Pictures/missing.png', $missing['part']);
+        $t->same('Pictures/missing.png', $missing['partReference']);
+        $t->same('?missing=true', $missing['partSuffix']);
+        $t->same('missing=true', $missing['partQuery']);
+        $t->same(false, array_key_exists('partFragment', $missing));
+        $t->same(false, $missing['targetExists']);
+        $t->same(true, $missing['targetDeclaredInManifest']);
+        $t->same(['odf-signature-reference-missing-package-part'], $missing['diagnostics']);
+    },
     'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

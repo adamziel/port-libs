@@ -11017,6 +11017,9 @@ final class OdfReader
         $missingPartReferenceCount = 0;
         $undeclaredPartReferenceCount = 0;
         $encryptedPartReferenceCount = 0;
+        $packagePartReferenceSuffixCount = 0;
+        $packagePartReferenceQueryCount = 0;
+        $packagePartReferenceFragmentCount = 0;
         $signedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
@@ -11074,6 +11077,9 @@ final class OdfReader
             $missingPartReferenceCount += (int) ($parsed['missingPartReferenceCount'] ?? 0);
             $undeclaredPartReferenceCount += (int) ($parsed['undeclaredPartReferenceCount'] ?? 0);
             $encryptedPartReferenceCount += (int) ($parsed['encryptedPartReferenceCount'] ?? 0);
+            $packagePartReferenceSuffixCount += (int) ($parsed['packagePartReferenceSuffixCount'] ?? 0);
+            $packagePartReferenceQueryCount += (int) ($parsed['packagePartReferenceQueryCount'] ?? 0);
+            $packagePartReferenceFragmentCount += (int) ($parsed['packagePartReferenceFragmentCount'] ?? 0);
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
@@ -11104,6 +11110,9 @@ final class OdfReader
             'missingPartReferenceCount' => $missingPartReferenceCount,
             'undeclaredPartReferenceCount' => $undeclaredPartReferenceCount,
             'encryptedPartReferenceCount' => $encryptedPartReferenceCount,
+            'packagePartReferenceSuffixCount' => $packagePartReferenceSuffixCount,
+            'packagePartReferenceQueryCount' => $packagePartReferenceQueryCount,
+            'packagePartReferenceFragmentCount' => $packagePartReferenceFragmentCount,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
             'parts' => $parts,
@@ -11263,21 +11272,22 @@ final class OdfReader
             ];
         }
 
-        $path = preg_replace('/[#?].*$/', '', $uri) ?? $uri;
-        if ($path === '') {
+        $partReference = preg_replace('/[#?].*$/', '', $uri) ?? $uri;
+        if ($partReference === '') {
             return [
                 'uriKind' => 'same-document-fragment',
             ];
         }
 
         try {
-            $part = $this->manifestPackagePart($path);
+            $packageReference = $this->manifestPackageReference($uri);
         } catch (\InvalidArgumentException|\RuntimeException) {
             return [
                 'uriKind' => 'unsafe-package-path',
                 'diagnostics' => ['odf-signature-reference-unsafe-package-path'],
             ];
         }
+        $part = $packageReference['part'];
 
         $manifestItem = $manifestByPart[$part] ?? null;
         $entry = $package->has($part) ? $package->entry($part) : null;
@@ -11296,6 +11306,10 @@ final class OdfReader
         return self::withoutEmpty([
             'uriKind' => 'package-part',
             'part' => $part,
+            'partReference' => $packageReference['partReference'],
+            'partSuffix' => $packageReference['partSuffix'],
+            'partQuery' => $packageReference['partQuery'],
+            'partFragment' => $packageReference['partFragment'],
             'targetExists' => $entry instanceof ZipPackageEntry,
             'targetDeclaredInManifest' => is_array($manifestItem),
             'targetManifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] ?? null : null,
@@ -11325,6 +11339,9 @@ final class OdfReader
             'missingPartReferenceCount' => 0,
             'undeclaredPartReferenceCount' => 0,
             'encryptedPartReferenceCount' => 0,
+            'packagePartReferenceSuffixCount' => 0,
+            'packagePartReferenceQueryCount' => 0,
+            'packagePartReferenceFragmentCount' => 0,
         ];
 
         foreach ($signatures as $signature) {
@@ -11341,6 +11358,15 @@ final class OdfReader
                 $kind = (string) ($reference['uriKind'] ?? '');
                 if ($kind === 'package-part') {
                     $summary['packagePartReferenceCount']++;
+                    if (is_string($reference['partSuffix'] ?? null)) {
+                        $summary['packagePartReferenceSuffixCount']++;
+                    }
+                    if (is_string($reference['partQuery'] ?? null)) {
+                        $summary['packagePartReferenceQueryCount']++;
+                    }
+                    if (is_string($reference['partFragment'] ?? null)) {
+                        $summary['packagePartReferenceFragmentCount']++;
+                    }
                     if (($reference['targetExists'] ?? null) === false) {
                         $summary['missingPartReferenceCount']++;
                     }
