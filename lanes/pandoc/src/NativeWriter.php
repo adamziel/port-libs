@@ -1261,19 +1261,31 @@ final class NativeWriter
         };
     }
 
-    private function rawFormat(AstNode $node): string
+    private function rawFormat(AstNode $node): mixed
     {
         $format = (string) $node->attr('format', '');
         if ($format !== '') {
-            return $format;
+            return $this->rawFormatNative($node, $format);
         }
 
-        return match ($node->type) {
+        $format = match ($node->type) {
             'raw_html', 'raw_html_inline' => 'html',
             'raw_tex' => 'latex',
             'raw_markdown' => 'markdown',
             default => 'plain',
         };
+
+        return $this->rawFormatNative($node, $format);
+    }
+
+    private function rawFormatNative(AstNode $node, string $format): mixed
+    {
+        $native = $node->attr('formatNative');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== 'Format') {
+            return $format;
+        }
+
+        return ($native['c'] ?? null) === $format ? $native : ['t' => 'Format', 'c' => $format];
     }
 
     private function rawText(AstNode $node): string

@@ -1808,6 +1808,63 @@ return [
             $t->same(['t' => 'DisplayMath'], $displayMath->attr('mathTypeNative'), "{$source} display math native payload");
         }
     },
+    'preserves tagged pandoc raw format constructors after raw edits' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => [
+                    ['t' => 'Format', 'c' => 'html'],
+                    '<section>Raw</section>',
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'RawInline', 'c' => [
+                        ['t' => 'Format', 'c' => 'tex'],
+                        '\\alpha',
+                    ]],
+                ]],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $rawBlock = $document->children[0];
+            $rawInline = $document->children[1]->children[0];
+            $t->same('Format', $rawBlock->attr('formatConstructor'), "{$source} raw block format constructor");
+            $t->same(['t' => 'Format', 'c' => 'html'], $rawBlock->attr('formatNative'), "{$source} raw block format native payload");
+            $t->same('Format', $rawInline->attr('formatConstructor'), "{$source} raw inline format constructor");
+            $t->same(['t' => 'Format', 'c' => 'tex'], $rawInline->attr('formatNative'), "{$source} raw inline format native payload");
+
+            $editedBlock = new AstNode($rawBlock->type, array_replace($rawBlock->attrs, [
+                'text' => '<section>Edited ' . $source . '</section>',
+                'html' => '<section>Edited ' . $source . '</section>',
+            ]), $rawBlock->children);
+            $editedInline = new AstNode($rawInline->type, array_replace($rawInline->attrs, [
+                'text' => '\\beta_' . $source,
+                'tex' => '\\beta_' . $source,
+            ]), $rawInline->children);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                $editedBlock,
+                new AstNode('paragraph', $document->children[1]->attrs, [$editedInline]),
+            ]);
+            $packets = [
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($editedDocument),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ];
+
+            foreach ($packets as $label => $encoded) {
+                $encodedBlock = $encoded['blocks'][0];
+                $encodedInline = $encoded['blocks'][1]['c'][0];
+                $t->same(['t' => 'Format', 'c' => 'html'], $encodedBlock['c'][0], "{$label} raw block format constructor");
+                $t->same('<section>Edited ' . $source . '</section>', $encodedBlock['c'][1], "{$label} raw block edited text");
+                $t->same(['t' => 'Format', 'c' => 'tex'], $encodedInline['c'][0], "{$label} raw inline format constructor");
+                $t->same('\\beta_' . $source, $encodedInline['c'][1], "{$label} raw inline edited text");
+            }
+        }
+    },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
         $styles = [
             ['DefaultStyle', 'default'],

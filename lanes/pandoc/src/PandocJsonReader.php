@@ -471,8 +471,12 @@ final class PandocJsonReader
 
     private function readRawBlock(mixed $content): AstNode
     {
-        [$format, $text] = $this->formatTextTuple($content, 'RawBlock');
+        [$format, $text, $formatNative] = $this->formatTextTuple($content, 'RawBlock');
         $attrs = ['format' => $format, 'text' => $text];
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
         $normalized = strtolower($format);
 
         if ($normalized === 'html') {
@@ -1193,8 +1197,12 @@ final class PandocJsonReader
 
     private function readRawInline(mixed $content): AstNode
     {
-        [$format, $text] = $this->formatTextTuple($content, 'RawInline');
+        [$format, $text, $formatNative] = $this->formatTextTuple($content, 'RawInline');
         $attrs = ['format' => $format, 'text' => $text];
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
         $normalized = strtolower($format);
 
         if ($normalized === 'html') {
@@ -1401,16 +1409,29 @@ final class PandocJsonReader
     }
 
     /**
-     * @return array{string, string}
+     * @return array{0:string, 1:string, 2:array<string, mixed>|null}
      */
     private function formatTextTuple(mixed $content, string $context): array
     {
         $tuple = $this->tuple($content, 2, $context);
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+        $formatNative = null;
+        if (is_array($tuple[0]) && !array_is_list($tuple[0]) && ($tuple[0]['t'] ?? null) === 'Format') {
+            if (!is_string($tuple[0]['c'] ?? null)) {
+                throw new \InvalidArgumentException("{$context} Format content must be a string");
+            }
+            $format = $tuple[0]['c'];
+            $formatNative = $tuple[0];
+        } elseif (is_string($tuple[0])) {
+            $format = $tuple[0];
+        } else {
             throw new \InvalidArgumentException("{$context} content must be [format, text]");
         }
 
-        return [$tuple[0], $tuple[1]];
+        if (!is_string($tuple[1])) {
+            throw new \InvalidArgumentException("{$context} content must be [format, text]");
+        }
+
+        return [$format, $tuple[1], $formatNative];
     }
 
     /**

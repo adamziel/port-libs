@@ -697,17 +697,15 @@ final class NativeReader
      */
     private function rawBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawBlock content');
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
-            throw new \InvalidArgumentException('Pandoc native JSON RawBlock content must contain format and text strings');
-        }
-
-        $format = $tuple[0];
-        $text = $tuple[1];
+        [$format, $text, $formatNative] = $this->formatTextTuple($content, 'Pandoc native JSON RawBlock content');
         $attrs = array_replace($attrs, [
             'format' => $format,
             'text' => $text,
         ]);
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
 
         $normalizedFormat = strtolower($format);
         if ($this->isMarkdownRawFormat($normalizedFormat)) {
@@ -1273,17 +1271,15 @@ final class NativeReader
      */
     private function rawInline(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawInline content');
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
-            throw new \InvalidArgumentException('Pandoc native JSON RawInline content must contain format and text strings');
-        }
-
-        $format = $tuple[0];
-        $text = $tuple[1];
+        [$format, $text, $formatNative] = $this->formatTextTuple($content, 'Pandoc native JSON RawInline content');
         $attrs = array_replace($attrs, [
             'format' => $format,
             'text' => $text,
         ]);
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
 
         $normalizedFormat = strtolower($format);
         if ($this->isMarkdownRawFormat($normalizedFormat)) {
@@ -1295,6 +1291,32 @@ final class NativeReader
             'html' => new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text])),
             default => new AstNode('raw_inline', $attrs),
         };
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:array<string, mixed>|null}
+     */
+    private function formatTextTuple(mixed $content, string $context): array
+    {
+        $tuple = $this->tuple($content, 2, $context);
+        $formatNative = null;
+        if (is_array($tuple[0]) && !array_is_list($tuple[0]) && ($tuple[0]['t'] ?? null) === 'Format') {
+            if (!is_string($tuple[0]['c'] ?? null)) {
+                throw new \InvalidArgumentException("{$context} Format content must be a string");
+            }
+            $format = $tuple[0]['c'];
+            $formatNative = $tuple[0];
+        } elseif (is_string($tuple[0])) {
+            $format = $tuple[0];
+        } else {
+            throw new \InvalidArgumentException("{$context} must contain format and text strings");
+        }
+
+        if (!is_string($tuple[1])) {
+            throw new \InvalidArgumentException("{$context} must contain format and text strings");
+        }
+
+        return [$format, $tuple[1], $formatNative];
     }
 
     /**
