@@ -2303,6 +2303,92 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
     },
 
+    'plans typst output format boundary history without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/output-format-boundary.pdf',
+            'source' => '= Typst Output Format Boundary Packet',
+            'engineOptions' => [
+                '--format=svg',
+                '--format',
+                'pdf',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst output format boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'output-format-not-pdf-boundary:svg',
+                'output-format-boundary-overridden',
+            ],
+            'outputFormat' => [
+                'raw' => 'pdf',
+                'value' => 'pdf',
+                'format' => 'pdf',
+                'pdfCompatible' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'outputFormat',
+                    'count' => 2,
+                    'values' => ['svg', 'pdf'],
+                    'selected' => 'pdf',
+                    'issue' => 'output-format-boundary-overridden',
+                ],
+            ],
+            'outputFormatHistory' => [
+                [
+                    'raw' => 'svg',
+                    'value' => 'svg',
+                    'format' => 'svg',
+                    'pdfCompatible' => false,
+                    'safe' => false,
+                    'issues' => ['output-format-not-pdf-boundary:svg'],
+                ],
+                [
+                    'raw' => 'pdf',
+                    'value' => 'pdf',
+                    'format' => 'pdf',
+                    'pdfCompatible' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/output-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/output-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same('review', $plan['typstOutputFormatPolicy']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-boundary:pdf', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'fake runner reviews typst output format boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $okPlan = $handoff->plan($document(), [
