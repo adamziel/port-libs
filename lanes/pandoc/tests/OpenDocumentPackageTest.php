@@ -1123,6 +1123,45 @@ XML;
             extraParts: [['name' => 'settings.xml', 'data' => $badSettingsXml]],
         )));
     },
+    'classifies compact ODT settings XML as a package inventory role' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ZoomValue" config:type="int">125</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSettings,
+            extraParts: [['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0]],
+        ))->summarize();
+        $settingsPart = $summary['packageInventory']['parts']['settings.xml'];
+
+        $t->same(true, $summary['settingsXml']);
+        $t->same(['odf-settings', 'manifest-declared'], $settingsPart['roles']);
+        $t->same(true, $settingsPart['declaredInManifest']);
+        $t->same(false, $settingsPart['undeclared']);
+        $t->same('settings.xml', $settingsPart['manifestPath']);
+        $t->same('text/xml', $settingsPart['manifestMediaType']);
+        $t->same(0, $settingsPart['compressionMethod']);
+        $t->same('stored', $settingsPart['compressionMethodName']);
+        $t->same(strlen($settingsXml), $settingsPart['byteLength']);
+        $t->same(true, $settingsPart['canExposeBytes']);
+        $t->same(0, $summary['undeclaredPackageEntryCount']);
+        $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
+    },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
         $blocks = (new WordPressBlockWriter())->write($document);
