@@ -25580,6 +25580,121 @@ XML);
         $t->contains('<dt>Bell 2025</dt><dd>Direct Abstract Hyphen Packet :: Hyphen abstract packet :: Hyphen annotation packet :: Hyphen note packet</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Abstract Flat Packet :: Flat abstract packet :: Flat annotation packet :: Flat note packet</dd>', $blocks);
     },
+    'normalizes bounded direct csl json page extent aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-pages-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Pages Alias Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'pages' => 'A12-A18',
+                'pagetotal' => '14',
+                'volumes' => '2',
+            ],
+            [
+                'id' => 'direct-numpages-alias',
+                'type' => 'chapter',
+                'title' => 'Direct NumPages Alias Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'pages' => 'ii-iv',
+                'numPages' => '3',
+                'numberofvolumes' => '1',
+            ],
+            [
+                'id' => 'direct-page-total-alias',
+                'type' => 'report',
+                'title' => 'Direct Page Total Alias Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'pages' => '77',
+                'pageTotal' => '22',
+                'volumeCount' => '4',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $pages = $processor->item('direct-pages-alias');
+        $numpages = $processor->item('direct-numpages-alias');
+        $pageTotal = $processor->item('direct-page-total-alias');
+        $t->same('A12-A18', $pages['page'] ?? null);
+        $t->same('A12', $pages['pageFirst'] ?? null);
+        $t->same('14', $pages['numberOfPages'] ?? null);
+        $t->same('2', $pages['numberOfVolumes'] ?? null);
+        $t->same('ii-iv', $numpages['page'] ?? null);
+        $t->same('ii', $numpages['pageFirst'] ?? null);
+        $t->same('3', $numpages['numberOfPages'] ?? null);
+        $t->same('1', $numpages['numberOfVolumes'] ?? null);
+        $t->same('77', $pageTotal['page'] ?? null);
+        $t->same('77', $pageTotal['pageFirst'] ?? null);
+        $t->same('22', $pageTotal['numberOfPages'] ?? null);
+        $t->same('4', $pageTotal['numberOfVolumes'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Page Extent Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-page-extent-alias-review</id>
+    <updated>2026-06-11T18:40:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="page page-first number-of-pages number-of-volumes" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="page"/>
+            <text variable="page-first"/>
+            <number variable="number-of-pages"/>
+            <number variable="number-of-volumes"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-page-extent"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="page"/>
+      <text variable="page-first"/>
+      <number variable="number-of-pages"/>
+      <number variable="number-of-volumes"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Page Extent Alias Review', $summary['title'] ?? null);
+        $t->same(['page', 'page-first', 'number-of-pages', 'number-of-volumes'], $branch['variables'] ?? null);
+        $t->same('[Ames | A12-A18 | A12 | 14 | 2; Bell | ii-iv | ii | 3 | 1; Chen | 77 | 77 | 22 | 4]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-pages-alias', 'text' => '[@direct-pages-alias]']),
+            new AstNode('citation', ['id' => 'direct-numpages-alias', 'text' => '[@direct-numpages-alias]']),
+            new AstNode('citation', ['id' => 'direct-page-total-alias', 'text' => '[@direct-page-total-alias]']),
+        ]));
+        $t->same('Direct Pages Alias Packet :: A12-A18 :: A12 :: 14 :: 2', $styled->renderBibliographyEntry('direct-pages-alias'));
+        $t->same('Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1', $styled->renderBibliographyEntry('direct-numpages-alias'));
+        $t->same('Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4', $styled->renderBibliographyEntry('direct-page-total-alias'));
+
+        $document = (new MarkdownReader())->read('Direct page extent aliases [@direct-pages-alias; @direct-numpages-alias; @direct-page-total-alias] keep page counts visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct page extent aliases [Ames | A12-A18 | A12 | 14 | 2; Bell | ii-iv | ii | 3 | 1; Chen | 77 | 77 | 22 | 4] keep page counts visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Pages Alias Packet :: A12-A18 :: A12 :: 14 :: 2</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,

@@ -996,7 +996,7 @@ final class CitationCslProcessor
             ...$sourceFilePolicy['diagnostics'],
             ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
         ];
-        $page = self::stringField($item, 'page');
+        $page = self::firstStringField($item, ['page', 'pages']);
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
         $publisher = self::stringField($item, 'publisher');
         $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
@@ -1184,8 +1184,8 @@ final class CitationCslProcessor
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle']),
             'collectionTitleShort' => self::firstStringField($item, ['collection-title-short', 'collectionTitleShort', 'shortseries', 'short-series', 'series-short']),
             'collectionNumber' => self::firstStringField($item, ['collection-number', 'collectionNumber']),
-            'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes']),
-            'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages']),
+            'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes', 'numberofvolumes', 'volumes', 'volume-count', 'volumeCount', 'volumecount', 'num-volumes', 'numVolumes', 'numvolumes']),
+            'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages', 'numberofpages', 'pagetotal', 'page-total', 'pageTotal', 'num-pages', 'numPages', 'numpages', 'total-pages', 'totalPages', 'totalpages']),
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber']),
             'division' => self::stringField($item, 'division'),
             'section' => self::stringField($item, 'section'),
