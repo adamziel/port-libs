@@ -265,6 +265,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
             }
+            if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
+            }
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
             }
@@ -5510,9 +5513,10 @@ final class PdfEngineHandoff
         $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
+        $certificateValues = $this->engineOptionValues($engineOptions, ['--cert'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp'], true);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $certificateValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
             return [];
         }
 
@@ -5524,13 +5528,17 @@ final class PdfEngineHandoff
         );
         $packagePath = $packagePathValues === [] ? null : $this->typstBoundaryPathEntry($packagePathValues[count($packagePathValues) - 1], 'package-path');
         $packageCache = $packageCacheValues === [] ? null : $this->typstBoundaryPathEntry($packageCacheValues[count($packageCacheValues) - 1], 'package-cache');
+        $certificates = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
+            $certificateValues
+        );
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
         );
         $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5546,6 +5554,7 @@ final class PdfEngineHandoff
             'fontPaths' => $fontPaths,
             'packagePath' => $packagePath,
             'packageCache' => $packageCache,
+            'certificates' => $certificates,
             'inputVariables' => $inputVariables,
             'issues' => $issues,
         ];

@@ -120,6 +120,7 @@ return [
             ],
             'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'certificates' => [],
             'inputVariables' => [],
             'issues' => ['package-cache-external-boundary'],
         ];
@@ -154,6 +155,56 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst certificate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/certificate-boundary.pdf',
+            'source' => '= Typst Certificate Boundary Packet',
+            'engineOptions' => [
+                '--cert=certs/reviewer-ca.pem',
+                '--cert',
+                'https://certs.example.invalid/root.pem',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst certificate boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'certificates' => [
+                ['raw' => 'certs/reviewer-ca.pem', 'path' => 'certs/reviewer-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'https://certs.example.invalid/root.pem', 'path' => 'https://certs.example.invalid/root.pem', 'kind' => 'uri', 'safe' => false, 'issues' => ['certificate-external-boundary']],
+            ],
+            'inputVariables' => [],
+            'issues' => ['certificate-external-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/certificate-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/certificate-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -173,6 +224,7 @@ return [
             'fontPaths' => [],
             'packagePath' => null,
             'packageCache' => null,
+            'certificates' => [],
             'inputVariables' => [
                 ['raw' => 'audience=reviewer', 'name' => 'audience', 'value' => 'reviewer', 'safe' => true, 'issues' => []],
                 ['raw' => 'draft=true', 'name' => 'draft', 'value' => 'true', 'safe' => true, 'issues' => []],
@@ -214,6 +266,7 @@ return [
                 '--font-path',
                 '--package-path',
                 '--package-cache',
+                '--cert',
                 '--input',
                 '--creation-timestamp',
             ],
@@ -227,6 +280,9 @@ return [
             ],
             'packagePath' => ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['package-path-empty']],
             'packageCache' => ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['package-cache-empty']],
+            'certificates' => [
+                ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['certificate-empty']],
+            ],
             'inputVariables' => [
                 ['raw' => '', 'name' => '', 'value' => '', 'safe' => false, 'issues' => ['input-variable-invalid-boundary']],
             ],
@@ -236,6 +292,7 @@ return [
                 'package-cache-empty',
                 'creation-timestamp-empty-boundary',
                 'font-path-empty',
+                'certificate-empty',
                 'input-variable-invalid-boundary',
             ],
             'creationTimestamp' => [
@@ -267,9 +324,10 @@ return [
         $t->contains('typst-font-paths:1', implode(',', $plan['diagnostics']));
         $t->same(true, in_array('typst-package-path:', $plan['diagnostics'], true));
         $t->same(true, in_array('typst-package-cache:', $plan['diagnostics'], true));
+        $t->contains('typst-certificates:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-inputs:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:6', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:7', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
@@ -288,6 +346,7 @@ return [
             'fontPaths' => [],
             'packagePath' => null,
             'packageCache' => null,
+            'certificates' => [],
             'inputVariables' => [],
             'issues' => [],
             'creationTimestamp' => [
@@ -342,6 +401,7 @@ return [
             'fontPaths' => [],
             'packagePath' => null,
             'packageCache' => null,
+            'certificates' => [],
             'inputVariables' => [],
             'issues' => ['creation-timestamp-invalid-boundary'],
             'creationTimestamp' => [
