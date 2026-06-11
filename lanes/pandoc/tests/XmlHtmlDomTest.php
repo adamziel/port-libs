@@ -219,6 +219,61 @@ XML, 'package reader XML');
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html text-level semantic elements for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><abbr title="HyperText Markup Language">HTML</abbr> <dfn title="Review term">term</dfn> <mark>note</mark> '
+                . '<code>printf()</code> <kbd>Ctrl+S</kbd> <samp>saved</samp> <var>x</var> <small>fine print</small> '
+                . '<sub>2</sub><sup>n</sup> <bdi dir="auto">Review ID</bdi> <bdo dir="rtl">source</bdo> <u>spelling</u> <s>old</s></p>',
+            'text-level semantic review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/text-semantics-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $abbr = $paragraph['children'][0];
+        $dfn = $paragraph['children'][2];
+        $mark = $paragraph['children'][4];
+        $code = $paragraph['children'][6];
+        $kbd = $paragraph['children'][8];
+        $samp = $paragraph['children'][10];
+        $var = $paragraph['children'][12];
+        $small = $paragraph['children'][14];
+        $sub = $paragraph['children'][16];
+        $sup = $paragraph['children'][17];
+        $bdi = $paragraph['children'][19];
+        $bdo = $paragraph['children'][21];
+        $u = $paragraph['children'][23];
+        $s = $paragraph['children'][25];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('HTML term note printf() Ctrl+S saved x fine print 2n Review ID source spelling old', $paragraph['text']);
+        $t->same('abbreviation', $abbr['textSemantic']);
+        $t->same('HyperText Markup Language', $abbr['abbreviationTitle']);
+        $t->same('definition', $dfn['textSemantic']);
+        $t->same('term', $dfn['definitionTerm']);
+        $t->same('Review term', $dfn['definitionTitle']);
+        $t->same('mark', $mark['textSemantic']);
+        $t->same('code', $code['textSemantic']);
+        $t->same('keyboard-input', $kbd['textSemantic']);
+        $t->same('sample-output', $samp['textSemantic']);
+        $t->same('variable', $var['textSemantic']);
+        $t->same('side-comment', $small['textSemantic']);
+        $t->same('subscript', $sub['textSemantic']);
+        $t->same('superscript', $sup['textSemantic']);
+        $t->same('bidirectional-isolate', $bdi['textSemantic']);
+        $t->same('auto', $bdi['textDirection']);
+        $t->same('bidirectional-override', $bdo['textSemantic']);
+        $t->same('rtl', $bdo['textDirection']);
+        $t->same('unarticulated-annotation', $u['textSemantic']);
+        $t->same('struck-text', $s['textSemantic']);
+        $t->same('<p><abbr title="HyperText Markup Language">HTML</abbr> <dfn title="Review term">term</dfn> <mark>note</mark> <code>printf()</code> <kbd>Ctrl+S</kbd> <samp>saved</samp> <var>x</var> <small>fine print</small> <sub>2</sub><sup>n</sup> <bdi dir="auto">Review ID</bdi> <bdo dir="rtl">source</bdo> <u>spelling</u> <s>old</s></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
+    },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             'Text&nbsp;<span title="A &quot;quote&quot; &amp; source">source &lt;em&gt;</span><!--review--><input checked>',

@@ -894,8 +894,53 @@ final class XmlHtmlDom
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
+        if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
+            $summary += self::textSemanticSummary($node, $name);
+        }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function textSemanticSummary(\DOMElement $element, string $name): array
+    {
+        $summary = [
+            'textSemantic' => match ($name) {
+                'abbr' => 'abbreviation',
+                'bdi' => 'bidirectional-isolate',
+                'bdo' => 'bidirectional-override',
+                'code' => 'code',
+                'dfn' => 'definition',
+                'kbd' => 'keyboard-input',
+                'mark' => 'mark',
+                's' => 'struck-text',
+                'samp' => 'sample-output',
+                'small' => 'side-comment',
+                'sub' => 'subscript',
+                'sup' => 'superscript',
+                'u' => 'unarticulated-annotation',
+                'var' => 'variable',
+                default => 'text',
+            },
+            'semanticTag' => $name,
+            'semanticText' => self::normalizedText($element),
+        ];
+
+        if ($name === 'abbr') {
+            $summary['abbreviationTitle'] = self::attributeOrNull($element, 'title');
+        }
+        if ($name === 'dfn') {
+            $summary['definitionTerm'] = self::normalizedText($element);
+            $summary['definitionTitle'] = self::attributeOrNull($element, 'title');
+        }
+        if ($name === 'bdi' || $name === 'bdo') {
+            $direction = strtolower(trim($element->getAttribute('dir')));
+            $summary['textDirection'] = in_array($direction, ['auto', 'ltr', 'rtl'], true) ? $direction : null;
+        }
+
+        return $summary;
     }
 
     /**
