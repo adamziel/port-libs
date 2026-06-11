@@ -824,6 +824,101 @@ XML;
             ['name' => 'settings.xml', 'data' => $badSettingsXml],
         ])));
     },
+    'maps ODT Configurations2 package state into metadata-only review report' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $toolbarXml = '<toolbar><item id="review"/></toolbar>';
+        $acceleratorXml = '<accelerator><shortcut key="F9"/></accelerator>';
+        $menubarXml = '<menubar><menu id="review"/></menubar>';
+        $iconBytes = 'ICON';
+        $manifestWithConfigurations = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/toolbar/reviewbar.xml" manifest:media-type="text/xml" manifest:size="' . strlen($toolbarXml) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/images/review.png" manifest:media-type="image/png" manifest:size="' . strlen($iconBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/statusbar/missing.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml">'
+            . '<manifest:encryption-data manifest:checksum-type="SHA256" manifest:checksum="config-checksum"/>'
+            . '</manifest:file-entry>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithConfigurations, null, null, [
+            ['name' => 'Configurations2/toolbar/reviewbar.xml', 'data' => $toolbarXml],
+            ['name' => 'Configurations2/images/review.png', 'data' => $iconBytes],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml],
+            ['name' => 'Configurations2/menubar/review.xml', 'data' => $menubarXml],
+        ]));
+        $configurations = $result['packageConfigurations'];
+        $itemsByPart = [];
+        foreach ($configurations['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same(5, $configurations['count']);
+        $t->same(5, $configurations['partCount']);
+        $t->same(4, $configurations['declaredPartCount']);
+        $t->same(1, $configurations['undeclaredPartCount']);
+        $t->same(1, $configurations['missingPartCount']);
+        $t->same(1, $configurations['encryptedPartCount']);
+        $t->same(4, $configurations['xmlPartCount']);
+        $t->same(1, $configurations['binaryPartCount']);
+        $t->same(3, $configurations['issueCount']);
+        $t->same([
+            'odf-configuration-encrypted-package-part',
+            'odf-configuration-missing-package-part',
+            'odf-configuration-undeclared-package-part',
+        ], $configurations['issueCodes']);
+        $t->same([
+            'accelerator-configuration' => 1,
+            'configuration-image' => 1,
+            'menubar-configuration' => 1,
+            'statusbar-configuration' => 1,
+            'toolbar-configuration' => 1,
+        ], $configurations['kindCounts']);
+        $t->same($configurations, $result['document']->attr('packageConfigurations'));
+        $t->same($configurations, $result['metadata']['odfPackageConfigurations']);
+        $t->same($configurations, $result['importReport']['packageConfigurations']);
+
+        $toolbar = $itemsByPart['Configurations2/toolbar/reviewbar.xml'];
+        $t->same('toolbar-configuration', $toolbar['kind']);
+        $t->same('toolbar', $toolbar['component']);
+        $t->same('reviewbar.xml', $toolbar['fileName']);
+        $t->same(true, $toolbar['declared']);
+        $t->same(true, $toolbar['exists']);
+        $t->same(true, $toolbar['xml']);
+        $t->same(false, $toolbar['canExposeBytes']);
+        $t->same(strlen($toolbarXml), $toolbar['storedByteLength']);
+        $t->same(strlen($toolbarXml), $toolbar['declaredSize']);
+        $t->same(sprintf('%08x', crc32($toolbarXml)), $toolbar['storedCrc32']);
+        $t->same([], $toolbar['issues']);
+
+        $image = $itemsByPart['Configurations2/images/review.png'];
+        $t->same('configuration-image', $image['kind']);
+        $t->same('image/png', $image['mediaType']);
+        $t->same(false, $image['xml']);
+        $t->same(4, $image['storedByteLength']);
+        $t->same('package-configuration-metadata-only', $image['reviewPolicy']);
+
+        $missing = $itemsByPart['Configurations2/statusbar/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-configuration-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPart['Configurations2/accelerator/current.xml'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(false, $encrypted['canExposeBytes']);
+        $t->same(strlen($acceleratorXml), $encrypted['storedByteLength']);
+        $t->same(['odf-configuration-encrypted-package-part'], $encrypted['issues']);
+
+        $undeclared = $itemsByPart['Configurations2/menubar/review.xml'];
+        $t->same(false, $undeclared['declared']);
+        $t->same(true, $undeclared['undeclared']);
+        $t->same(null, $undeclared['mediaType'] ?? null);
+        $t->same(['odf-configuration-undeclared-package-part'], $undeclared['issues']);
+
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'), 'Configurations2 parts must stay out of document media byte handoff');
+        $t->same(9, $result['importReport']['manifest']['count']);
+        $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
+        $t->same(['odf-configuration', 'manifest-declared', 'media-resource'], $result['importReport']['manifest']['packageProvenance']['parts']['Configurations2/images/review.png']['roles']);
+    },
     'maps ODT page layouts and master pages into import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithPageLayout = <<<'XML'
 <office:document-styles

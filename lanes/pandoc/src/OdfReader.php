@@ -85,6 +85,7 @@ final class OdfReader
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
+     *     packageConfigurations:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
      *     scriptMetadata:array<string, mixed>,
@@ -119,9 +120,13 @@ final class OdfReader
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
+        $packageConfigurations = $this->packageConfigurationMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
+        }
+        if ($packageConfigurations['count'] > 0) {
+            $metadata['odfPackageConfigurations'] = $packageConfigurations;
         }
 
         $document = new AstNode('document', [
@@ -173,6 +178,7 @@ final class OdfReader
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
             'packageThumbnails' => $packageThumbnails,
+            'packageConfigurations' => $packageConfigurations,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -194,6 +200,7 @@ final class OdfReader
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
             'packageThumbnails' => $packageThumbnails,
+            'packageConfigurations' => $packageConfigurations,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
@@ -259,6 +266,7 @@ final class OdfReader
                     'items' => $media,
                 ],
                 'packageThumbnails' => $packageThumbnails,
+                'packageConfigurations' => $packageConfigurations,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
@@ -660,6 +668,9 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if ($this->isConfigurationPackagePartName($entry->name)) {
+            $roles[] = 'odf-configuration';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -672,6 +683,9 @@ final class OdfReader
             }
             if ($this->isScriptPackagePartName($part)) {
                 $roles[] = 'script-package';
+            }
+            if ($this->isConfigurationPackagePartName($part)) {
+                $roles[] = 'odf-configuration';
             }
         }
         if ($undeclared) {
@@ -11752,6 +11766,9 @@ final class OdfReader
             if ($this->isThumbnailPackagePartName($part)) {
                 continue;
             }
+            if ($this->isConfigurationPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -11922,6 +11939,152 @@ final class OdfReader
             'tif', 'tiff' => 'image/tiff',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array{count:int, partCount:int, declaredPartCount:int, undeclaredPartCount:int, missingPartCount:int, encryptedPartCount:int, xmlPartCount:int, binaryPartCount:int, issueCount:int, issueCodes:list<string>, kindCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function packageConfigurationMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isConfigurationPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $part = $entry['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isConfigurationPackagePartName($part)) {
+                continue;
+            }
+
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'mediaType' => null,
+                'exists' => true,
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'declared' => false,
+            ];
+        }
+
+        ksort($candidatesByPart);
+
+        $items = [];
+        $issueCodes = [];
+        $kindCounts = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $declared = ($item['declared'] ?? false) === true;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $mediaType = self::nullable((string) ($item['mediaType'] ?? ''));
+            $kind = $this->configurationPartKind($part);
+            $issues = [];
+
+            if (!$entry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-configuration-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-configuration-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-configuration-encrypted-package-part';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            $items[] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'mediaType' => $mediaType,
+                'kind' => $kind,
+                'component' => $this->configurationPartComponent($part),
+                'fileName' => basename($part),
+                'exists' => $entry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'xml' => $this->isConfigurationXmlPart($part, $mediaType),
+                'canExposeBytes' => false,
+                'byteLength' => null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'reviewPolicy' => 'package-configuration-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'partCount' => count($items),
+            'declaredPartCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredPartCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingPartCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'xmlPartCount' => count(array_filter($items, static fn (array $item): bool => $item['xml'] === true)),
+            'binaryPartCount' => count(array_filter($items, static fn (array $item): bool => $item['xml'] !== true)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'items' => $items,
+        ];
+    }
+
+    private function isConfigurationPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'configurations2/') && !str_ends_with($normalized, '/');
+    }
+
+    private function configurationPartKind(string $part): string
+    {
+        $component = strtolower((string) $this->configurationPartComponent($part));
+
+        return match ($component) {
+            'accelerator' => 'accelerator-configuration',
+            'floater' => 'floater-configuration',
+            'images' => 'configuration-image',
+            'menubar' => 'menubar-configuration',
+            'popupmenu' => 'popupmenu-configuration',
+            'progressbar' => 'progressbar-configuration',
+            'statusbar' => 'statusbar-configuration',
+            'toolbar' => 'toolbar-configuration',
+            'toolpanel' => 'toolpanel-configuration',
+            default => 'configuration-state',
+        };
+    }
+
+    private function configurationPartComponent(string $part): ?string
+    {
+        $segments = explode('/', trim($part, '/'));
+
+        return $segments[1] ?? null;
+    }
+
+    private function isConfigurationXmlPart(string $part, ?string $mediaType): bool
+    {
+        $baseMediaType = strtolower(trim(explode(';', (string) $mediaType, 2)[0]));
+
+        return str_ends_with(strtolower($part), '.xml') || $this->isXmlMediaType($baseMediaType);
     }
 
     private function isXmlMediaType(string $mediaType): bool
