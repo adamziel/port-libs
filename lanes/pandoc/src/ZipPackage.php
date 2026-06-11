@@ -5035,6 +5035,174 @@ final class ZipPackage
     /**
      * @return array{
      *     archiveLength:int,
+     *     hasEndOfCentralDirectoryRecord:bool,
+     *     eocdOffset:?int,
+     *     fixedHeaderOffset:?int,
+     *     fixedHeaderLength:int,
+     *     signatureOffset:?int,
+     *     signatureLength:int,
+     *     signatureHex:?string,
+     *     diskNumberOffset:?int,
+     *     diskNumber:?int,
+     *     centralDirectoryDiskOffset:?int,
+     *     centralDirectoryDisk:?int,
+     *     diskEntryCountOffset:?int,
+     *     diskEntryCount:?int,
+     *     totalEntryCountOffset:?int,
+     *     totalEntryCount:?int,
+     *     centralDirectorySizeOffset:?int,
+     *     centralDirectorySize:?int,
+     *     centralDirectoryOffsetFieldOffset:?int,
+     *     centralDirectoryOffset:?int,
+     *     packageCommentLengthOffset:?int,
+     *     packageCommentLength:?int,
+     *     fixedHeaderEnd:?int,
+     *     packageCommentOffset:?int,
+     *     packageCommentEnd:?int,
+     *     declaredArchiveEndOffset:?int,
+     *     availablePackageCommentBytes:?int,
+     *     hasPackageComment:bool,
+     *     hasTrailingBytes:bool,
+     *     trailingByteCount:int,
+     *     hasTruncatedPackageComment:bool,
+     *     centralDirectoryEnd:?int,
+     *     isSingleDisk:bool,
+     *     requiresZip64:bool,
+     *     isArchiveLayoutSupported:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public static function endOfCentralDirectoryFixedFieldsPreflight(string $bytes): array
+    {
+        $archiveLength = strlen($bytes);
+        $record = self::findEndOfCentralDirectoryCandidate($bytes)
+            ?? self::findEndOfCentralDirectoryRecord($bytes);
+
+        if ($record === null) {
+            return [
+                'archiveLength' => $archiveLength,
+                'hasEndOfCentralDirectoryRecord' => false,
+                'eocdOffset' => null,
+                'fixedHeaderOffset' => null,
+                'fixedHeaderLength' => 22,
+                'signatureOffset' => null,
+                'signatureLength' => 4,
+                'signatureHex' => null,
+                'diskNumberOffset' => null,
+                'diskNumber' => null,
+                'centralDirectoryDiskOffset' => null,
+                'centralDirectoryDisk' => null,
+                'diskEntryCountOffset' => null,
+                'diskEntryCount' => null,
+                'totalEntryCountOffset' => null,
+                'totalEntryCount' => null,
+                'centralDirectorySizeOffset' => null,
+                'centralDirectorySize' => null,
+                'centralDirectoryOffsetFieldOffset' => null,
+                'centralDirectoryOffset' => null,
+                'packageCommentLengthOffset' => null,
+                'packageCommentLength' => null,
+                'fixedHeaderEnd' => null,
+                'packageCommentOffset' => null,
+                'packageCommentEnd' => null,
+                'declaredArchiveEndOffset' => null,
+                'availablePackageCommentBytes' => null,
+                'hasPackageComment' => false,
+                'hasTrailingBytes' => false,
+                'trailingByteCount' => 0,
+                'hasTruncatedPackageComment' => false,
+                'centralDirectoryEnd' => null,
+                'isSingleDisk' => false,
+                'requiresZip64' => false,
+                'isArchiveLayoutSupported' => false,
+                'isSupportedByBoundedReader' => false,
+                'issues' => ['eocd-record-not-found'],
+            ];
+        }
+
+        $eocdOffset = $record['offset'];
+        $diskNumber = self::readUInt16($bytes, $eocdOffset + 4);
+        $centralDirectoryDisk = self::readUInt16($bytes, $eocdOffset + 6);
+        $diskEntryCount = self::readUInt16($bytes, $eocdOffset + 8);
+        $totalEntryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $packageCommentLength = self::readUInt16($bytes, $eocdOffset + 20);
+        $fixedHeaderEnd = $eocdOffset + 22;
+        $declaredArchiveEndOffset = $record['declaredArchiveEndOffset'];
+        $availablePackageCommentBytes = max(0, min($packageCommentLength, $archiveLength - $fixedHeaderEnd));
+        $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
+        $hasTrailingBytes = $trailingByteCount > 0;
+        $hasTruncatedPackageComment = $declaredArchiveEndOffset > $archiveLength;
+        $isSingleDisk = $diskNumber === 0
+            && $centralDirectoryDisk === 0
+            && $diskEntryCount === $totalEntryCount;
+        $requiresZip64 = $diskEntryCount === 0xffff
+            || $totalEntryCount === 0xffff
+            || $centralDirectorySize === 0xffffffff
+            || $centralDirectoryOffset === 0xffffffff;
+        $centralDirectoryEnd = $centralDirectoryOffset <= PHP_INT_MAX - $centralDirectorySize
+            ? $centralDirectoryOffset + $centralDirectorySize
+            : null;
+        $issues = [];
+        if ($hasTrailingBytes) {
+            $issues[] = 'eocd-trailing-bytes';
+        }
+        if ($hasTruncatedPackageComment) {
+            $issues[] = 'eocd-comment-truncated';
+        }
+        if (!$isSingleDisk) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($requiresZip64) {
+            $issues[] = 'zip64-end-of-central-directory-required';
+        }
+
+        return [
+            'archiveLength' => $archiveLength,
+            'hasEndOfCentralDirectoryRecord' => true,
+            'eocdOffset' => $eocdOffset,
+            'fixedHeaderOffset' => $eocdOffset,
+            'fixedHeaderLength' => 22,
+            'signatureOffset' => $eocdOffset,
+            'signatureLength' => 4,
+            'signatureHex' => bin2hex(substr($bytes, $eocdOffset, 4)),
+            'diskNumberOffset' => $eocdOffset + 4,
+            'diskNumber' => $diskNumber,
+            'centralDirectoryDiskOffset' => $eocdOffset + 6,
+            'centralDirectoryDisk' => $centralDirectoryDisk,
+            'diskEntryCountOffset' => $eocdOffset + 8,
+            'diskEntryCount' => $diskEntryCount,
+            'totalEntryCountOffset' => $eocdOffset + 10,
+            'totalEntryCount' => $totalEntryCount,
+            'centralDirectorySizeOffset' => $eocdOffset + 12,
+            'centralDirectorySize' => $centralDirectorySize,
+            'centralDirectoryOffsetFieldOffset' => $eocdOffset + 16,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'packageCommentLengthOffset' => $eocdOffset + 20,
+            'packageCommentLength' => $packageCommentLength,
+            'fixedHeaderEnd' => $fixedHeaderEnd,
+            'packageCommentOffset' => $fixedHeaderEnd,
+            'packageCommentEnd' => $fixedHeaderEnd + $availablePackageCommentBytes,
+            'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+            'availablePackageCommentBytes' => $availablePackageCommentBytes,
+            'hasPackageComment' => $packageCommentLength > 0,
+            'hasTrailingBytes' => $hasTrailingBytes,
+            'trailingByteCount' => $trailingByteCount,
+            'hasTruncatedPackageComment' => $hasTruncatedPackageComment,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'isSingleDisk' => $isSingleDisk,
+            'requiresZip64' => $requiresZip64,
+            'isArchiveLayoutSupported' => $isSingleDisk && !$requiresZip64,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     archiveLength:int,
      *     hasEndOfCentralDirectoryCandidate:bool,
      *     eocdOffset:?int,
      *     declaredArchiveEndOffset:?int,
@@ -9522,6 +9690,7 @@ final class ZipPackage
      *     archive:?array<string, mixed>,
      *     endOfCentralDirectoryTrailingBytes:array<string, mixed>,
      *     endOfCentralDirectoryOffset:array<string, mixed>,
+     *     endOfCentralDirectoryFixedFields:array<string, mixed>,
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
@@ -9614,6 +9783,11 @@ final class ZipPackage
             $addDiagnostics($endOfCentralDirectoryOffset['issues']);
         }
 
+        $endOfCentralDirectoryFixedFields = self::endOfCentralDirectoryFixedFieldsPreflight($bytes);
+        if (!$endOfCentralDirectoryFixedFields['isSupportedByBoundedReader']) {
+            $addDiagnostics($endOfCentralDirectoryFixedFields['issues']);
+        }
+
         $archive = $runPreflight(
             'end-of-central-directory',
             static fn (): array => self::endOfCentralDirectoryPreflight($bytes)
@@ -9643,6 +9817,7 @@ final class ZipPackage
                 'archive' => null,
                 'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
                 'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+                'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
@@ -10101,6 +10276,7 @@ final class ZipPackage
             'archive' => $archive,
             'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
@@ -10168,6 +10344,7 @@ final class ZipPackage
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
+     *     endOfCentralDirectoryFixedFields:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
      *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
@@ -10211,6 +10388,7 @@ final class ZipPackage
         self::assertReadLimit($maxEntryUncompressedBytes, 'strict package import preflight');
 
         $archive = $this->archivePreflight();
+        $endOfCentralDirectoryFixedFields = self::endOfCentralDirectoryFixedFieldsPreflight($this->bytes);
         $centralDirectoryInventory = self::centralDirectoryInventoryPreflight($this->bytes);
         $centralDirectoryFixedHeaders = self::centralDirectoryFixedHeaderPreflight($this->bytes);
         $centralDirectoryVariableFields = self::centralDirectoryVariableFieldsPreflight($this->bytes);
@@ -10392,6 +10570,7 @@ final class ZipPackage
             'maxExpansionRatio' => $maxExpansionRatio,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
             'centralDirectoryInventory' => $centralDirectoryInventory,
             'centralDirectoryFixedHeaders' => $centralDirectoryFixedHeaders,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
@@ -10429,6 +10608,7 @@ final class ZipPackage
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
+     *     endOfCentralDirectoryFixedFields:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
      *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,

@@ -4729,6 +4729,88 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
     },
 
+    'preflights zip end of central directory fixed fields before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $comment = 'eocd fixed field comment';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD fixed fields</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "review media bytes\n",
+                'method' => 0,
+            ],
+        ], $comment);
+        $package = ZipPackage::fromString($zip);
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+        $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+
+        $summary = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(strlen($zip), $summary['archiveLength']);
+        $t->same(true, $summary['hasEndOfCentralDirectoryRecord']);
+        $t->same($eocdOffset, $summary['eocdOffset']);
+        $t->same($eocdOffset, $summary['fixedHeaderOffset']);
+        $t->same(22, $summary['fixedHeaderLength']);
+        $t->same($eocdOffset, $summary['signatureOffset']);
+        $t->same(4, $summary['signatureLength']);
+        $t->same('504b0506', $summary['signatureHex']);
+        $t->same($eocdOffset + 4, $summary['diskNumberOffset']);
+        $t->same(0, $summary['diskNumber']);
+        $t->same($eocdOffset + 6, $summary['centralDirectoryDiskOffset']);
+        $t->same(0, $summary['centralDirectoryDisk']);
+        $t->same($eocdOffset + 8, $summary['diskEntryCountOffset']);
+        $t->same(2, $summary['diskEntryCount']);
+        $t->same($eocdOffset + 10, $summary['totalEntryCountOffset']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same($eocdOffset + 12, $summary['centralDirectorySizeOffset']);
+        $t->same($centralDirectorySize, $summary['centralDirectorySize']);
+        $t->same($eocdOffset + 16, $summary['centralDirectoryOffsetFieldOffset']);
+        $t->same($centralDirectoryOffset, $summary['centralDirectoryOffset']);
+        $t->same($eocdOffset + 20, $summary['packageCommentLengthOffset']);
+        $t->same(strlen($comment), $summary['packageCommentLength']);
+        $t->same($eocdOffset + 22, $summary['fixedHeaderEnd']);
+        $t->same($eocdOffset + 22, $summary['packageCommentOffset']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
+        $t->same(strlen($comment), $summary['availablePackageCommentBytes']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same(false, $summary['hasTrailingBytes']);
+        $t->same(0, $summary['trailingByteCount']);
+        $t->same(false, $summary['hasTruncatedPackageComment']);
+        $t->same($eocdOffset, $summary['centralDirectoryEnd']);
+        $t->same(true, $summary['isSingleDisk']);
+        $t->same(false, $summary['requiresZip64']);
+        $t->same(true, $summary['isArchiveLayoutSupported']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same($summary, $rawStrict['endOfCentralDirectoryFixedFields']);
+        $t->same($summary, $strict['endOfCentralDirectoryFixedFields']);
+
+        $tailedZip = $zip . 'detached-tail';
+        $tailedSummary = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($tailedZip);
+        $tailedRaw = ZipPackage::rawStrictImportPreflight($tailedZip, 2048, 100.0, 2048);
+
+        $t->same(strlen($tailedZip), $tailedSummary['archiveLength']);
+        $t->same($eocdOffset, $tailedSummary['eocdOffset']);
+        $t->same(strlen($zip), $tailedSummary['declaredArchiveEndOffset']);
+        $t->same(true, $tailedSummary['hasTrailingBytes']);
+        $t->same(strlen('detached-tail'), $tailedSummary['trailingByteCount']);
+        $t->same(false, $tailedSummary['isSupportedByBoundedReader']);
+        $t->same(['eocd-trailing-bytes'], $tailedSummary['issues']);
+        $t->same($tailedSummary, $tailedRaw['endOfCentralDirectoryFixedFields']);
+        $t->contains('eocd-trailing-bytes', implode(',', $tailedRaw['diagnostics']));
+        $t->same(false, $tailedRaw['canInstantiate']);
+    },
+
     'preflights trailing bytes after the zip end of central directory before raw import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [
