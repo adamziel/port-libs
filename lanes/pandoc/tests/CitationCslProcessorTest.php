@@ -5709,6 +5709,98 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
         $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact pubmed identifier aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-pubmed-id',
+                'type' => 'article-journal',
+                'title' => 'Direct PubMed ID Packet',
+                'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                'issued' => ['date-parts' => [[2026]]],
+                'container-title' => 'Journal of Clinical Review',
+                'pubmedId' => '11111111',
+                'pmcId' => 'PMC1111111',
+            ],
+            [
+                'id' => 'direct-pubmed-hyphen',
+                'type' => 'article-journal',
+                'title' => 'Hyphenated PubMed Packet',
+                'author' => [['family' => 'Roe', 'given' => 'Pat']],
+                'issued' => ['date-parts' => [[2025]]],
+                'pubmed-id' => '22222222',
+                'pubmed-central-id' => 'PMC2222222',
+            ],
+            [
+                'id' => 'direct-pubmed-compact',
+                'type' => 'article-journal',
+                'title' => 'Compact PubMed Identifier Packet',
+                'author' => [['literal' => 'Clinical Desk']],
+                'issued' => ['date-parts' => [[2024]]],
+                'pubmedidentifier' => '33333333',
+                'pubmedcentral' => 'PMC3333333',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $idSuffix = $processor->item('direct-pubmed-id');
+        $hyphen = $processor->item('direct-pubmed-hyphen');
+        $compact = $processor->item('direct-pubmed-compact');
+
+        $t->same('11111111', $idSuffix['pmid'] ?? null);
+        $t->same('PMC1111111', $idSuffix['pmcid'] ?? null);
+        $t->same('11111111', $idSuffix['raw']['pubmedId'] ?? null);
+        $t->same('PMC1111111', $idSuffix['raw']['pmcId'] ?? null);
+        $t->same('22222222', $hyphen['pmid'] ?? null);
+        $t->same('PMC2222222', $hyphen['pmcid'] ?? null);
+        $t->same('22222222', $hyphen['raw']['pubmed-id'] ?? null);
+        $t->same('PMC2222222', $hyphen['raw']['pubmed-central-id'] ?? null);
+        $t->same('33333333', $compact['pmid'] ?? null);
+        $t->same('PMC3333333', $compact['pmcid'] ?? null);
+        $t->same('33333333', $compact['raw']['pubmedidentifier'] ?? null);
+        $t->same('PMC3333333', $compact['raw']['pubmedcentral'] ?? null);
+        $t->same('(Ng 2026; Roe 2025; Clinical Desk 2024)', $processor->renderCitationCluster([
+            $citation('direct-pubmed-id', '[@direct-pubmed-id]'),
+            $citation('direct-pubmed-hyphen', '[@direct-pubmed-hyphen]'),
+            $citation('direct-pubmed-compact', '[@direct-pubmed-compact]'),
+        ]));
+        $t->same('Ng, Nia. Direct PubMed ID Packet. Journal of Clinical Review. 2026. PMID 11111111. PMCID PMC1111111.', $processor->renderBibliographyEntry('direct-pubmed-id'));
+        $t->same('Clinical Desk. Compact PubMed Identifier Packet. 2024. PMID 33333333. PMCID PMC3333333.', $processor->renderBibliographyEntry('direct-pubmed-compact'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="pubmed-id"/>
+        <text variable="pubmed-central-id"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pubmedidentifier"/>
+      <text variable="pubmedcentralidentifier"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 11111111 | PMC1111111; Roe | 22222222 | PMC2222222; Clinical Desk | 33333333 | PMC3333333]', $styled->renderCitationCluster([
+            $citation('direct-pubmed-id', '[@direct-pubmed-id]'),
+            $citation('direct-pubmed-hyphen', '[@direct-pubmed-hyphen]'),
+            $citation('direct-pubmed-compact', '[@direct-pubmed-compact]'),
+        ]));
+        $t->same('Direct PubMed ID Packet :: 11111111 :: PMC1111111', $styled->renderBibliographyEntry('direct-pubmed-id'));
+        $t->same('Compact PubMed Identifier Packet :: 33333333 :: PMC3333333', $styled->renderBibliographyEntry('direct-pubmed-compact'));
+
+        $document = (new MarkdownReader())->read('Direct PubMed aliases @direct-pubmed-id, hyphenated [@direct-pubmed-hyphen], and compact [@direct-pubmed-compact] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct PubMed aliases Ng (2026), hyphenated (Roe 2025), and compact (Clinical Desk 2024) stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Direct PubMed ID Packet. Journal of Clinical Review. 2026. PMID 11111111. PMCID PMC1111111.</dd>', $blocks);
+        $t->contains('<dt>Clinical Desk 2024</dt><dd>Clinical Desk. Compact PubMed Identifier Packet. 2024. PMID 33333333. PMCID PMC3333333.</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
