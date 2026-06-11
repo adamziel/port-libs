@@ -8261,6 +8261,77 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
     },
 
+    'preflights central directory variable fields before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $extra = pack('vva*', 0xcafe, strlen('field'), 'field');
+        $entryComment = 'content types review';
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'method' => 0,
+                'centralExtra' => $extra,
+                'localExtra' => '',
+                'comment' => $entryComment,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central variable field accounting</w:p></w:document>',
+                'method' => 8,
+            ],
+        ], 'package comment');
+        $nameBytes = strlen('[Content_Types].xml') + strlen('word/document.xml');
+
+        $summary = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same($nameBytes + strlen($extra) + strlen($entryComment), $summary['centralDirectoryVariableFieldBytes']);
+        $t->same($nameBytes, $summary['centralDirectoryNameBytes']);
+        $t->same(strlen($extra), $summary['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($entryComment), $summary['centralDirectoryCommentBytes']);
+        $t->same(1, $summary['centralExtraFieldEntryCount']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same('[Content_Types].xml', $summary['entries'][0]['name']);
+        $t->same(46, $summary['entries'][0]['fixedHeaderLength']);
+        $t->same(strlen('[Content_Types].xml'), $summary['entries'][0]['rawNameLength']);
+        $t->same(strlen($extra), $summary['entries'][0]['centralExtraFieldLength']);
+        $t->same(strlen($entryComment), $summary['entries'][0]['rawCommentLength']);
+        $t->same($summary['entries'][0]['variableFieldsOffset'], $summary['entries'][0]['rawNameOffset']);
+        $t->same($summary['entries'][0]['rawNameOffset'] + strlen('[Content_Types].xml'), $summary['entries'][0]['centralExtraFieldOffset']);
+        $t->same($summary['entries'][0]['centralExtraFieldOffset'] + strlen($extra), $summary['entries'][0]['rawCommentOffset']);
+        $t->same($summary['entries'][0]['rawCommentOffset'] + strlen($entryComment), $summary['entries'][0]['recordEnd']);
+
+        $t->same($summary, $rawStrict['centralDirectoryVariableFields']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+
+        $declaredTooHigh = $rewriteEndOfCentralDirectory($zip, [
+            'diskEntryCount' => 3,
+            'totalEntryCount' => 3,
+        ]);
+        $mismatch = ZipPackage::centralDirectoryVariableFieldsPreflight($declaredTooHigh);
+        $mismatchRaw = ZipPackage::rawStrictImportPreflight($declaredTooHigh, 1024, 20.0, 1024);
+
+        $t->same(2, $mismatch['entryCount']);
+        $t->same(3, $mismatch['declaredEntryCount']);
+        $t->same(false, $mismatch['isSupportedByBoundedReader']);
+        $t->same(['central-directory-variable-field-missing-entry'], $mismatch['issues']);
+        $t->same($mismatch, $mismatchRaw['centralDirectoryVariableFields']);
+        $t->same(false, $mismatchRaw['isValid']);
+        $t->same(false, $mismatchRaw['canInstantiate']);
+        $t->contains('central-directory-variable-field-issues', implode(',', $mismatchRaw['diagnostics']));
+        $t->contains('central-directory-variable-field-missing-entry', implode(',', $mismatchRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $mismatchRaw['diagnostics']));
+    },
+
     'preflights raw central directory name collisions before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawName = 'word/media/review-image.bin';
         $firstName = 'word/media/review-one.png';
