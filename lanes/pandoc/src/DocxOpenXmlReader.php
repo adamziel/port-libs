@@ -1083,7 +1083,13 @@ final class DocxOpenXmlReader
                 $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : '';
                 $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
                 $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
+                $resolvedTarget = is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : '';
+                $targetQuery = is_string($relationship['targetQuery'] ?? null) ? $relationship['targetQuery'] : null;
+                $targetFragment = is_string($relationship['targetFragment'] ?? null) ? $relationship['targetFragment'] : null;
+                $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '';
                 $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+                $defaultExtension = is_string($relationship['defaultExtension'] ?? null) ? $relationship['defaultExtension'] : null;
+                $overridePartName = is_string($relationship['overridePartName'] ?? null) ? $relationship['overridePartName'] : null;
 
                 $types[$typeKey]['count']++;
                 if ($external) {
@@ -1110,11 +1116,17 @@ final class DocxOpenXmlReader
                     'relationshipsPart' => $relationshipsPart,
                     'target' => $target,
                     'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
+                    'resolvedTarget' => $resolvedTarget,
                     'external' => $external,
                     'targetPart' => $targetPart,
+                    'targetQuery' => $targetQuery,
+                    'targetFragment' => $targetFragment,
+                    'targetReferenceSuffix' => $targetReferenceSuffix,
                     'exists' => $exists,
                     'contentType' => $contentType,
                     'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
+                    'defaultExtension' => $defaultExtension,
+                    'overridePartName' => $overridePartName,
                 ];
             }
         }

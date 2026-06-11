@@ -485,6 +485,83 @@ XML;
         $t->same(['https://example.test/review.png'], $thumbnail['externalTargets']);
         $t->same(['_rels/.rels'], $thumbnail['relationshipParts']);
     },
+    'preserves docx relationship type target suffix provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/vnd.example.review+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXmlReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml?slot=package#payload"/>' . "\n" .
+            '  <Relationship Id="rMissingComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml?thread=review#c1"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImageReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png?density=2#logo"/>
+</Relationships>
+XML;
+        $parts['customXml/item1.xml'] = '<review/>';
+        $parts['word/media/header.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $types = $document->attr('docx')['packageProvenance']['relationshipTypes'];
+        $customXmlType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $commentsType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $customXml = $types[$customXmlType];
+        $comments = $types[$commentsType];
+        $imageRelationships = [];
+        foreach ($types[$imageType]['relationships'] as $relationship) {
+            $imageRelationships[$relationship['id']] = $relationship;
+        }
+        $headerImage = $imageRelationships['rHeaderImageReview'];
+
+        $t->same('customXml', $customXml['label']);
+        $t->same(1, $customXml['count']);
+        $t->same(['customXml/item1.xml'], $customXml['existingTargetParts']);
+        $t->same('rCustomXmlReview', $customXml['relationships'][0]['id']);
+        $t->same('../customXml/item1.xml?slot=package#payload', $customXml['relationships'][0]['target']);
+        $t->same('customXml/item1.xml?slot=package#payload', $customXml['relationships'][0]['resolvedTarget']);
+        $t->same('customXml/item1.xml', $customXml['relationships'][0]['targetPart']);
+        $t->same('slot=package', $customXml['relationships'][0]['targetQuery']);
+        $t->same('payload', $customXml['relationships'][0]['targetFragment']);
+        $t->same('?slot=package#payload', $customXml['relationships'][0]['targetReferenceSuffix']);
+        $t->same('override', $customXml['relationships'][0]['contentTypeSource']);
+        $t->same(null, $customXml['relationships'][0]['defaultExtension']);
+        $t->same('customXml/item1.xml', $customXml['relationships'][0]['overridePartName']);
+
+        $t->same('comments', $comments['label']);
+        $t->same(1, $comments['missingTargetCount']);
+        $t->same('rMissingComments', $comments['relationships'][0]['id']);
+        $t->same('word/comments.xml?thread=review#c1', $comments['relationships'][0]['resolvedTarget']);
+        $t->same('word/comments.xml', $comments['relationships'][0]['targetPart']);
+        $t->same('thread=review', $comments['relationships'][0]['targetQuery']);
+        $t->same('c1', $comments['relationships'][0]['targetFragment']);
+        $t->same('?thread=review#c1', $comments['relationships'][0]['targetReferenceSuffix']);
+        $t->same(false, $comments['relationships'][0]['exists']);
+        $t->same('override', $comments['relationships'][0]['contentTypeSource']);
+
+        $t->same('word/_rels/header1.xml.rels', $headerImage['relationshipsPart']);
+        $t->same('word/header1.xml', $headerImage['sourcePart']);
+        $t->same('media/header.png?density=2#logo', $headerImage['target']);
+        $t->same('word/media/header.png?density=2#logo', $headerImage['resolvedTarget']);
+        $t->same('word/media/header.png', $headerImage['targetPart']);
+        $t->same('density=2', $headerImage['targetQuery']);
+        $t->same('logo', $headerImage['targetFragment']);
+        $t->same('?density=2#logo', $headerImage['targetReferenceSuffix']);
+        $t->same(true, $headerImage['exists']);
+        $t->same('default', $headerImage['contentTypeSource']);
+        $t->same('png', $headerImage['defaultExtension']);
+        $t->same(null, $headerImage['overridePartName']);
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
