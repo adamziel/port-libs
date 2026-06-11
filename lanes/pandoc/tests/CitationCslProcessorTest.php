@@ -7550,6 +7550,80 @@ XML);
         $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
         $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
     },
+    'maps bounded biblatex series editor aliases into collection editor metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{series-editor-compact,
+  title           = {Series Editor Packet},
+  date            = {2026},
+  serieseditor    = {Series, Selma and {{Series Desk}}},
+  serieseditor+an = {1=series editor alias verified; 2=literal series editor verified}
+}
+
+@collection{series-editor-hyphen,
+  title            = {Hyphen Series Editor Packet},
+  date             = {2025},
+  series-editor    = {Hyphen, Hera},
+  series-editor+an:family = {1=hyphen alias verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Series', $items[0]['collection-editor'][0]['family'] ?? null);
+        $t->same('Selma', $items[0]['collection-editor'][0]['given'] ?? null);
+        $t->same('Series Desk', $items[0]['collection-editor'][1]['literal'] ?? null);
+        $t->same('series editor alias verified', $items[0]['collection-editor'][0]['annotations'][0]['value'] ?? null);
+        $t->same('literal series editor verified', $items[0]['collection-editor'][1]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['serieseditor']));
+        $t->same('Hyphen', $items[1]['collection-editor'][0]['family'] ?? null);
+        $t->same('family', $items[1]['collection-editor'][0]['annotations'][0]['part'] ?? null);
+        $t->same('hyphen alias verified', $items[1]['collection-editor'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[1]['biblatex-field-annotations']['series-editor']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('series-editor-compact');
+        $hyphen = $processor->item('series-editor-hyphen');
+        $t->same('Series', $compact['collectionEditors'][0]['family'] ?? null);
+        $t->same('Series Desk', $compact['collectionEditors'][1]['literal'] ?? null);
+        $t->same('Hyphen', $hyphen['collectionEditors'][0]['family'] ?? null);
+        $t->same('hyphen alias verified', $hyphen['collectionEditors'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <names variable="collection-editor"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="collection-editor"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('(Series and Series Desk; Hyphen)', $styled->renderCitationCluster([
+            $citation('series-editor-compact', '[@series-editor-compact]'),
+            $citation('series-editor-hyphen', '[@series-editor-hyphen]'),
+        ]));
+        $t->same(
+            'Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified',
+            $styled->renderBibliographyEntry('series-editor-compact')
+        );
+        $t->same(
+            'Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified',
+            $styled->renderBibliographyEntry('series-editor-hyphen')
+        );
+
+        $document = (new MarkdownReader())->read('Series editors [@series-editor-compact; @series-editor-hyphen] stay attached to collection metadata.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series editors (Series and Series Desk; Hyphen) stay attached to collection metadata.</p>', $blocks);
+        $t->contains('<dt>Series Editor Packet 2026</dt><dd>Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified</dd>', $blocks);
+        $t->contains('<dt>Hyphen Series Editor Packet 2025</dt><dd>Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified</dd>', $blocks);
+    },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{direct-extended-roles,
