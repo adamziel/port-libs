@@ -1414,6 +1414,7 @@ final class NativeReader
         $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
+            'targetNative' => [$target[0], $target[1]],
         ]);
 
         return new AstNode('link', $attrs, $this->inlines($label));
@@ -1447,6 +1448,7 @@ final class NativeReader
         $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
+            'targetNative' => [$target[0], $target[1]],
         ]);
         $alt = trim($this->plainTextFromInlines($label));
         if ($alt !== '') {

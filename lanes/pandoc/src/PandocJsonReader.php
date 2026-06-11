@@ -1305,6 +1305,7 @@ final class PandocJsonReader
         $attrs = array_merge($attrs, [
             'url' => $target[0],
             'title' => $target[1],
+            'targetNative' => [$target[0], $target[1]],
         ]);
         if ($type === 'image') {
             $alt = trim($this->plainText($label));

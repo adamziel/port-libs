@@ -875,7 +875,9 @@ return [
             $t->same('Ready', $table->children[1]->children[0]->children[1]->attr('text'), "{$source} legacy body cell text");
             $t->same('link', $paragraph->children[0]->type, "{$source} legacy link node");
             $t->same('https://example.test/source', $paragraph->children[0]->attr('url'), "{$source} legacy link target");
+            $t->same(['https://example.test/source', 'Legacy source'], $paragraph->children[0]->attr('targetNative'), "{$source} legacy link target tuple");
             $t->same('image', $paragraph->children[2]->type, "{$source} legacy image node");
+            $t->same(['media/diagram.png', 'Diagram title'], $paragraph->children[2]->attr('targetNative'), "{$source} legacy image target tuple");
             $t->same('diagram', $paragraph->children[2]->attr('alt'), "{$source} legacy image alt");
         }
 
@@ -1553,6 +1555,68 @@ return [
         $t->same($bodyAttr, $nativeTableBody[0]);
         $t->same($rowAttr, $nativeTableRow[0]);
         $t->same($cellAttr, $nativeTableCell[0]);
+    },
+    'records pandoc target tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
+        $linkAttr = ['source-link', ['review-link'], [['data-origin', 'json']]];
+        $imageAttr = ['cover-image', ['review-image'], [['data-origin', 'asset']]];
+        $linkTarget = ['https://example.test/source?x=1#review', 'Source title'];
+        $imageTarget = ['media/cover.png', 'Cover title'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        $linkAttr,
+                        [['t' => 'Str', 'c' => 'source']],
+                        $linkTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        $imageAttr,
+                        [
+                            ['t' => 'Str', 'c' => 'Cover'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'image'],
+                        ],
+                        $imageTarget,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $link = $paragraph->children[0];
+            $image = $paragraph->children[2];
+
+            $t->same('link', $link->type, "{$source} link type");
+            $t->same('Link', $link->attr('constructor'), "{$source} link constructor");
+            $t->same($packet['blocks'][0]['c'][0], $link->attr('native'), "{$source} link native payload");
+            $t->same($linkTarget, $link->attr('targetNative'), "{$source} link target tuple");
+            $t->same($linkTarget[0], $link->attr('url'), "{$source} link url");
+            $t->same($linkTarget[1], $link->attr('title'), "{$source} link title");
+            $t->same('image', $image->type, "{$source} image type");
+            $t->same('Image', $image->attr('constructor'), "{$source} image constructor");
+            $t->same($packet['blocks'][0]['c'][2], $image->attr('native'), "{$source} image native payload");
+            $t->same($imageTarget, $image->attr('targetNative'), "{$source} image target tuple");
+            $t->same($imageTarget[0], $image->attr('url'), "{$source} image url");
+            $t->same($imageTarget[1], $image->attr('title'), "{$source} image title");
+            $t->same('Cover image', $image->attr('alt'), "{$source} image alt");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($linkTarget, $jsonPacket['blocks'][0]['c'][0]['c'][2]);
+        $t->same($imageTarget, $jsonPacket['blocks'][0]['c'][2]['c'][2]);
+        $t->same($linkTarget, $nativePacket['blocks'][0]['c'][0]['c'][2]);
+        $t->same($imageTarget, $nativePacket['blocks'][0]['c'][2]['c'][2]);
     },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
