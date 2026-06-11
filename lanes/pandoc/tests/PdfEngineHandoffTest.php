@@ -1886,6 +1886,80 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
     },
 
+    'fake runner preserves typst warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/warnings.pdf',
+            'source' => '= Typst Warning Packet',
+            'engineOptions' => ['--root=project'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst warning provenance packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            'warning: unknown font family: Review Serif',
+            '  ' . "\u{250C}\u{2500}" . ' project/main.typ:6:12-6:24',
+            '  ' . "\u{2502}",
+            '6 ' . "\u{2502}" . ' #set text(font: "Review Serif")',
+            '  ' . "\u{2502}" . '            ^^^^^^^^^^^^^',
+            '  = hint: available fonts are listed with `typst fonts`',
+            'warning: package import crosses review root',
+            '  ' . "\u{250C}\u{2500}" . ' shared/included.typ:10:3',
+            '  = hint: move the import under project/ before compiling',
+            '',
+        ]);
+        $expected = [
+            [
+                'message' => 'unknown font family: Review Serif',
+                'sourceFile' => 'project/main.typ',
+                'line' => 6,
+                'column' => 12,
+                'endLine' => 6,
+                'endColumn' => 24,
+                'hints' => ['available fonts are listed with `typst fonts`'],
+                'root' => 'project',
+                'insideRoot' => true,
+                'boundaryStatus' => 'inside-root',
+                'issues' => [],
+            ],
+            [
+                'message' => 'package import crosses review root',
+                'sourceFile' => 'shared/included.typ',
+                'line' => 10,
+                'column' => 3,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['move the import under project/ before compiling'],
+                'root' => 'project',
+                'insideRoot' => false,
+                'boundaryStatus' => 'outside-root',
+                'issues' => ['warning-source-outside-root'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/warnings.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/warnings.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstWarningProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $t->contains('typst-warning-provenance:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-outside-root:shared/included.typ', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:1', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstWarningProvenance']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
