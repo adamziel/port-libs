@@ -537,6 +537,125 @@ XML;
         $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
         $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
+    'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
+        $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
+        $thumbnailBytes = 'jpeg thumbnail bytes';
+        $badThumbnailBytes = '<not-image/>';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpeg" ContentType="image/jpeg; profile=package-thumbnail"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPackageThumb" Type="' . $thumbnailType . '" Target="docProps/thumbnail-review.jpeg?size=small#cover"/>' . "\n" .
+            '  <Relationship Id="rMissingThumb" Type="' . $thumbnailType . '" Target="docProps/missing-thumbnail.png"/>' . "\n" .
+            '  <Relationship Id="rExternalThumb" Type="' . $thumbnailType . '" Target="https://example.test/thumb.png?review=1#preview" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rBadThumb" Type="' . $thumbnailType . '" Target="docProps/bad-thumbnail.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/thumbnail-review.jpeg'] = $thumbnailBytes;
+        $parts['docProps/bad-thumbnail.xml'] = $badThumbnailBytes;
+        $parts['docProps/_rels/thumbnail-review.jpeg.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rThumbAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="thumbnail-audit.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $thumbnails = $package['packageThumbnails'];
+        $items = $thumbnails['byRelationshipId'];
+        $packageThumb = $items['rPackageThumb'];
+        $missingThumb = $items['rMissingThumb'];
+        $externalThumb = $items['rExternalThumb'];
+        $badThumb = $items['rBadThumb'];
+        $relationshipType = $package['relationshipTypes'][$thumbnailType];
+
+        $t->same($thumbnails, $docx['packageThumbnails']);
+        $t->same(4, $thumbnails['count']);
+        $t->same(2, $thumbnails['readableCount']);
+        $t->same(1, $thumbnails['missingCount']);
+        $t->same(1, $thumbnails['externalCount']);
+        $t->same(4, $thumbnails['invalidCount']);
+        $t->same(4, $thumbnails['issueCount']);
+        $t->same([
+            'external-thumbnail-target',
+            'invalid-thumbnail-content-type',
+            'missing-in-package',
+            'multiple-thumbnail-relationships-for-source',
+            'thumbnail-target-has-relationships',
+        ], $thumbnails['issueCodes']);
+        $t->same(['rPackageThumb', 'rMissingThumb', 'rExternalThumb', 'rBadThumb'], $thumbnails['relationshipIds']);
+        $t->same(['docProps/thumbnail-review.jpeg', 'docProps/missing-thumbnail.png', 'docProps/bad-thumbnail.xml'], $thumbnails['targetParts']);
+        $t->same(['https://example.test/thumb.png?review=1#preview'], $thumbnails['externalTargets']);
+        $t->same(['image/jpeg; profile=package-thumbnail', 'image/png', 'application/xml'], $thumbnails['contentTypes']);
+
+        $t->same('docProps/thumbnail-review.jpeg?size=small#cover', $packageThumb['target']);
+        $t->same('docProps/thumbnail-review.jpeg?size=small#cover', $packageThumb['resolvedTarget']);
+        $t->same('docProps/thumbnail-review.jpeg', $packageThumb['targetPart']);
+        $t->same('?size=small#cover', $packageThumb['targetReferenceSuffix']);
+        $t->same('size=small', $packageThumb['targetQuery']);
+        $t->same('cover', $packageThumb['targetFragment']);
+        $t->same('image/jpeg; profile=package-thumbnail', $packageThumb['contentType']);
+        $t->same('image/jpeg', $packageThumb['contentTypeBase']);
+        $t->same(true, $packageThumb['contentTypeHasParameters']);
+        $t->same(['profile' => 'package-thumbnail'], $packageThumb['contentTypeParameterMap']);
+        $t->same(false, $packageThumb['external']);
+        $t->same(true, $packageThumb['exists']);
+        $t->same(strlen($thumbnailBytes), $packageThumb['byteLength']);
+        $t->same(sprintf('%08x', crc32($thumbnailBytes)), $packageThumb['crc32']);
+        $t->same(null, $packageThumb['storedByteLength']);
+        $t->same(null, $packageThumb['storedCrc32']);
+        $t->same(false, $packageThumb['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-metadata-only', $packageThumb['reviewPolicy']);
+        $t->same('docProps/_rels/thumbnail-review.jpeg.rels', $packageThumb['targetRelationshipsPart']);
+        $t->same(true, $packageThumb['targetHasRelationships']);
+        $t->same(false, $packageThumb['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'thumbnail-target-has-relationships'], $packageThumb['issues']);
+
+        $t->same('docProps/missing-thumbnail.png', $missingThumb['targetPart']);
+        $t->same('image/png', $missingThumb['contentType']);
+        $t->same(false, $missingThumb['exists']);
+        $t->same(null, $missingThumb['byteLength']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'missing-in-package'], $missingThumb['issues']);
+
+        $t->same(true, $externalThumb['external']);
+        $t->same(null, $externalThumb['targetPart']);
+        $t->same('review=1', $externalThumb['targetQuery']);
+        $t->same('preview', $externalThumb['targetFragment']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'external-thumbnail-target'], $externalThumb['issues']);
+
+        $t->same('docProps/bad-thumbnail.xml', $badThumb['targetPart']);
+        $t->same('application/xml', $badThumb['contentType']);
+        $t->same(false, $badThumb['valid']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'invalid-thumbnail-content-type'], $badThumb['issues']);
+
+        $t->same(4, $summary['packageThumbnailCount']);
+        $t->same(2, $summary['packageThumbnailReadableCount']);
+        $t->same(1, $summary['packageThumbnailMissingCount']);
+        $t->same(1, $summary['packageThumbnailExternalCount']);
+        $t->same(4, $summary['packageThumbnailInvalidCount']);
+        $t->same(4, $summary['packageThumbnailIssueCount']);
+        $t->same($thumbnails['issueCodes'], $summary['packageThumbnailIssueCodes']);
+        $t->same(4, $summary['relationshipTypeCounts'][$thumbnailType]);
+        $t->same('thumbnail', $relationshipType['label']);
+        $t->same(4, $relationshipType['count']);
+        $t->same(3, $relationshipType['internalCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(2, $relationshipType['existingTargetCount']);
+        $t->same(1, $relationshipType['missingTargetCount']);
+        $t->same(['docProps/thumbnail-review.jpeg', 'docProps/bad-thumbnail.xml'], $relationshipType['existingTargetParts']);
+        $t->same(['docProps/missing-thumbnail.png'], $relationshipType['missingTargetParts']);
+        $t->true(in_array('root-relationship-target', $package['parts']['docProps/thumbnail-review.jpeg']['roles'], true), 'thumbnail root target role missing');
+        $t->true(!isset($docx['media']['docProps/thumbnail-review.jpeg']), 'package thumbnail should not be exposed as document media');
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

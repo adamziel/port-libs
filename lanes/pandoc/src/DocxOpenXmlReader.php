@@ -45,6 +45,7 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
@@ -114,6 +115,15 @@ final class DocxOpenXmlReader
             $documentRelationshipsPart,
             $documentRelationships,
         );
+        $packageThumbnails = $this->packageThumbnailProvenance($parts, $rootRelationships, $contentTypes);
+        $packageProvenance['packageThumbnails'] = $packageThumbnails;
+        $packageProvenance['summary']['packageThumbnailCount'] = $packageThumbnails['count'];
+        $packageProvenance['summary']['packageThumbnailReadableCount'] = $packageThumbnails['readableCount'];
+        $packageProvenance['summary']['packageThumbnailMissingCount'] = $packageThumbnails['missingCount'];
+        $packageProvenance['summary']['packageThumbnailExternalCount'] = $packageThumbnails['externalCount'];
+        $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
+        $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
+        $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
@@ -328,6 +338,7 @@ final class DocxOpenXmlReader
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
                 'customXmlParts' => $customXmlParts,
+                'packageThumbnails' => $packageThumbnails,
                 'media' => $media,
             ],
         ];
@@ -2442,6 +2453,138 @@ final class DocxOpenXmlReader
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packageThumbnailProvenance(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $thumbnailRelationships = [];
+        foreach ($rootRelationships as $relationship) {
+            if ($relationship['type'] === self::THUMBNAIL_REL) {
+                $thumbnailRelationships[] = $relationship;
+            }
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $rootHasMultipleThumbnails = count($thumbnailRelationships) > 1;
+        foreach ($thumbnailRelationships as $relationship) {
+            $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $external = (bool) ($summary['external'] ?? false);
+            $exists = (bool) ($summary['exists'] ?? false);
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $relationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+            $targetHasRelationships = $relationshipsPart !== null && isset($parts[$relationshipsPart]);
+            $issues = [];
+
+            if ($rootHasMultipleThumbnails) {
+                $issues[] = 'multiple-thumbnail-relationships-for-source';
+            }
+            if ($external) {
+                $issues[] = 'external-thumbnail-target';
+            } elseif (!$exists) {
+                $issues[] = 'missing-in-package';
+            }
+            if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-content-type';
+            }
+            if ($contentTypeBase !== '' && !$this->isImageContentType($contentTypeBase)) {
+                $issues[] = 'invalid-thumbnail-content-type';
+            }
+            if ($targetHasRelationships) {
+                $issues[] = 'thumbnail-target-has-relationships';
+            }
+
+            $issues = array_values(array_unique($issues));
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $item = [
+                'source' => '/',
+                'id' => $summary['id'],
+                'type' => $summary['type'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'contentType' => $summary['contentType'],
+                'contentTypeBase' => $summary['contentTypeBase'],
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'expectedContentTypePrefix' => 'image/',
+                'external' => $external,
+                'exists' => $exists,
+                'relationshipsPart' => '_rels/.rels',
+                'targetRelationshipsPart' => $relationshipsPart,
+                'targetHasRelationships' => $targetHasRelationships,
+                'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'storedByteLength' => null,
+                'storedCrc32' => null,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-thumbnail-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($targetParts, $targetPart);
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidCount' => count(array_filter($items, static fn (array $item): bool => $item['valid'] !== true)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    private function isImageContentType(string $contentType): bool
+    {
+        return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), 'image/');
     }
 
     /**
