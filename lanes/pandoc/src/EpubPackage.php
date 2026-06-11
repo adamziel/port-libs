@@ -5760,12 +5760,36 @@ final class EpubPackage
                 'textPartName' => $textReference['partName'],
                 'textExists' => $textReference['exists'],
                 'textManifestId' => $textReference['manifestId'],
+                'textManifestMediaType' => $textReference['manifestMediaType'],
+                'textHrefHasQuery' => $textReference['hrefHasQuery'],
+                'textHrefQuery' => $textReference['hrefQuery'],
+                'textHrefHasFragment' => $textReference['hrefHasFragment'],
+                'textHrefFragment' => $textReference['hrefFragment'],
+                'textByteLength' => $textReference['byteLength'],
+                'textCompressedByteLength' => $textReference['compressedByteLength'],
+                'textCompressionMethod' => $textReference['compressionMethod'],
+                'textCompressionMethodName' => $textReference['compressionMethodName'],
+                'textCompressionSupported' => $textReference['compressionSupported'],
+                'textCrc32' => $textReference['crc32'],
+                'textCanExposeBytes' => $textReference['canExposeBytes'],
                 'audioSrc' => $audioSrc,
                 'audioTarget' => $audioReference['target'],
                 'audioPartName' => $audioReference['partName'],
                 'audioExists' => $audioReference['exists'],
                 'audioExternal' => $audioReference['external'],
                 'audioManifestId' => $audioReference['manifestId'],
+                'audioManifestMediaType' => $audioReference['manifestMediaType'],
+                'audioHrefHasQuery' => $audioReference['hrefHasQuery'],
+                'audioHrefQuery' => $audioReference['hrefQuery'],
+                'audioHrefHasFragment' => $audioReference['hrefHasFragment'],
+                'audioHrefFragment' => $audioReference['hrefFragment'],
+                'audioByteLength' => $audioReference['byteLength'],
+                'audioCompressedByteLength' => $audioReference['compressedByteLength'],
+                'audioCompressionMethod' => $audioReference['compressionMethod'],
+                'audioCompressionMethodName' => $audioReference['compressionMethodName'],
+                'audioCompressionSupported' => $audioReference['compressionSupported'],
+                'audioCrc32' => $audioReference['crc32'],
+                'audioCanExposeBytes' => $audioReference['canExposeBytes'],
                 'clipBegin' => $clipBegin,
                 'clipBeginSeconds' => $clip['clipBeginSeconds'],
                 'clipEnd' => $clipEnd,
@@ -5782,7 +5806,7 @@ final class EpubPackage
     /**
      * @param array<string, array<string, mixed>> $manifestByPart
      *
-     * @return array{target:?string, partName:?string, exists:bool, external:bool, manifestId:?string, diagnostics:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private static function mediaOverlayReference(
         ?string $href,
@@ -5798,6 +5822,18 @@ final class EpubPackage
                 'exists' => false,
                 'external' => false,
                 'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
                 'diagnostics' => [[
                     'type' => 'missing-media-overlay-' . $kind . '-reference',
                     'message' => 'EPUB media-overlay par is missing a ' . $kind . ' source reference',
@@ -5814,6 +5850,18 @@ final class EpubPackage
                 'exists' => false,
                 'external' => false,
                 'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
                 'diagnostics' => [[
                     'type' => 'invalid-media-overlay-' . $kind . '-reference',
                     'href' => $href,
@@ -5822,6 +5870,7 @@ final class EpubPackage
             ];
         }
 
+        $hrefSuffix = self::packageHrefSuffixReport($target);
         if (self::isAbsoluteUri($target)) {
             return [
                 'target' => $target,
@@ -5829,6 +5878,18 @@ final class EpubPackage
                 'exists' => false,
                 'external' => true,
                 'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => $hrefSuffix['hasQuery'],
+                'hrefQuery' => $hrefSuffix['query'],
+                'hrefHasFragment' => $hrefSuffix['hasFragment'],
+                'hrefFragment' => $hrefSuffix['fragment'],
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
                 'diagnostics' => [[
                     'type' => 'external-media-overlay-' . $kind . '-reference',
                     'href' => $href,
@@ -5839,6 +5900,7 @@ final class EpubPackage
 
         $partName = OpcPackagePath::stripQueryAndFragment($target);
         $exists = $package->has($partName);
+        $entry = $exists ? $package->entry($partName) : null;
         $manifestItem = $manifestByPart[$partName] ?? null;
         $diagnostics = [];
         if (!$exists) {
@@ -5849,6 +5911,10 @@ final class EpubPackage
                 'message' => 'EPUB media-overlay ' . $kind . ' reference targets a missing package part',
             ];
         }
+        $provenance = self::zipEntryProvenance($entry);
+        if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
 
         return [
             'target' => $target,
@@ -5856,8 +5922,13 @@ final class EpubPackage
             'exists' => $exists,
             'external' => false,
             'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+            'manifestMediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null,
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
-        ];
+        ] + $provenance;
     }
 
     /**

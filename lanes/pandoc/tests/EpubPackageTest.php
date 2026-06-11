@@ -2222,6 +2222,89 @@ XML;
         $t->same($overlays['diagnostics'], $summary['wordpressImport']['mediaOverlayDiagnostics']);
     },
 
+    'preserves media-overlay reference ZIP provenance for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>',
+            $epub3OpfXml
+        );
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>',
+            $opfWithMediaOverlay
+        );
+        $smil = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq>
+      <par id="intro">
+        <text src="../text/chapter1.xhtml?view=review#intro"/>
+        <audio src="../audio/chapter.mp3?clip=1#t=0,4" clipBegin="0s" clipEnd="4s"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Intro</h1></body></html>';
+        $audio = 'MP3-CHAPTER-AUDIO';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMediaOverlay, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1, 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG', 'method' => 0],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => $audio, 'method' => 12],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smil, 'method' => 8],
+        ]));
+        $overlays = $epub->mediaOverlays();
+        $summary = $epub->summary();
+        $chapter = $overlays['itemsById']['mo-chapter'];
+        $item = $chapter['items'][0];
+
+        $t->same('/EPUB/text/chapter1.xhtml?view=review#intro', $item['textTarget']);
+        $t->same('/EPUB/text/chapter1.xhtml', $item['textPartName']);
+        $t->same('chapter1', $item['textManifestId']);
+        $t->same('application/xhtml+xml', $item['textManifestMediaType']);
+        $t->same(true, $item['textHrefHasQuery']);
+        $t->same('view=review', $item['textHrefQuery']);
+        $t->same(true, $item['textHrefHasFragment']);
+        $t->same('intro', $item['textHrefFragment']);
+        $t->same(strlen($chapter1), $item['textByteLength']);
+        $t->same(strlen(gzdeflate($chapter1)), $item['textCompressedByteLength']);
+        $t->same(8, $item['textCompressionMethod']);
+        $t->same('deflated', $item['textCompressionMethodName']);
+        $t->same(true, $item['textCompressionSupported']);
+        $t->same(hash('crc32b', $chapter1), $item['textCrc32']);
+        $t->same(true, $item['textCanExposeBytes']);
+
+        $t->same('/EPUB/audio/chapter.mp3?clip=1#t=0,4', $item['audioTarget']);
+        $t->same('/EPUB/audio/chapter.mp3', $item['audioPartName']);
+        $t->same('audio', $item['audioManifestId']);
+        $t->same('audio/mpeg', $item['audioManifestMediaType']);
+        $t->same(true, $item['audioHrefHasQuery']);
+        $t->same('clip=1', $item['audioHrefQuery']);
+        $t->same(true, $item['audioHrefHasFragment']);
+        $t->same('t=0,4', $item['audioHrefFragment']);
+        $t->same(strlen($audio), $item['audioByteLength']);
+        $t->same(strlen($audio), $item['audioCompressedByteLength']);
+        $t->same(12, $item['audioCompressionMethod']);
+        $t->same('unsupported', $item['audioCompressionMethodName']);
+        $t->same(false, $item['audioCompressionSupported']);
+        $t->same(hash('crc32b', $audio), $item['audioCrc32']);
+        $t->same(false, $item['audioCanExposeBytes']);
+        $t->same(4.0, $item['clipDurationSeconds']);
+
+        $t->same($overlays, $summary['mediaOverlays']);
+        $t->same($overlays, $summary['wordpressImport']['mediaOverlays']);
+        $t->same($overlays['items'], $summary['wordpressImport']['mediaOverlayItems']);
+    },
+
     'summarizes OPF manifest fallback chains for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $fallbackXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback review content.</p></body></html>';
         $fallbackCss = 'body { color: #123456; }';
