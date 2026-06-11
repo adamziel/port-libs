@@ -68,6 +68,31 @@ return [
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'preserves docx drawing image target suffixes for package media handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            'Target="media/review.png"',
+            'Target="media/review.png?variant=proof#inline"',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $image = $document->children[4]->children[1];
+        $mediaRelationship = $docx['packageProvenance']['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
+
+        $t->same('image', $image->type);
+        $t->same('word/media/review.png?variant=proof#inline', $image->attr('url'));
+        $t->same('word/media/review.png', $image->attr('mediaPath'));
+        $t->same('word/media/review.png', $image->attr('targetPart'));
+        $t->same('?variant=proof#inline', $image->attr('targetReferenceSuffix'));
+        $t->same('variant=proof', $image->attr('targetQuery'));
+        $t->same('inline', $image->attr('targetFragment'));
+        $t->same('image/png', $image->attr('contentType'));
+        $t->same('image/png', $docx['media']['word/media/review.png']['contentType']);
+        $t->same('word/media/review.png', $mediaRelationship['targetPart']);
+        $t->same('?variant=proof#inline', $mediaRelationship['targetReferenceSuffix']);
+    },
     'exposes docx package content type relationship and part inventory provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

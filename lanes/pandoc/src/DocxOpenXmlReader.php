@@ -3162,7 +3162,7 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            $isExternal = $relationship['targetMode'] === 'External';
+            $isExternal = $this->isExternalRelationshipTarget($relationship);
             $url = $isExternal ? $relationship['target'] : $relationship['resolvedTarget'];
             $alt = $docPr instanceof \DOMElement ? trim($docPr->getAttribute('descr')) : '';
             $title = $docPr instanceof \DOMElement ? trim($docPr->getAttribute('title') ?: $docPr->getAttribute('name')) : '';
@@ -3173,8 +3173,14 @@ final class DocxOpenXmlReader
                 'targetMode' => $relationship['targetMode'],
             ];
             if (!$isExternal) {
-                $attrs['mediaPath'] = $relationship['resolvedTarget'];
-                $attrs['contentType'] = $this->contentTypeFor($relationship['resolvedTarget'], $contentTypes);
+                $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+                $targetReferenceSuffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
+                $attrs['mediaPath'] = $targetPart;
+                $attrs['targetPart'] = $targetPart;
+                $attrs['targetQuery'] = $targetReferenceSuffix['query'];
+                $attrs['targetFragment'] = $targetReferenceSuffix['fragment'];
+                $attrs['targetReferenceSuffix'] = $targetReferenceSuffix['suffix'];
+                $attrs['contentType'] = $this->contentTypeFor($targetPart, $contentTypes);
             }
             if ($alt !== '') {
                 $attrs['alt'] = $alt;
