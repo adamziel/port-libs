@@ -1894,7 +1894,24 @@ final class ZipPackage
             ];
         }
 
-        return self::commentPreflightSummary($this->packageComment, $entryComments);
+        $archive = self::endOfCentralDirectoryPreflight($this->bytes);
+        foreach ($entryComments as $index => $entryComment) {
+            $entry = $this->entries[$index];
+            if ($entry->centralDirectoryRecordOffset === null) {
+                continue;
+            }
+
+            $entryComments[$index]['commentOffset'] = $entry->centralDirectoryRecordOffset
+                + 46
+                + strlen($entry->rawName)
+                + strlen($entry->centralExtraFieldData);
+        }
+
+        return self::commentPreflightSummary(
+            $this->packageComment,
+            $entryComments,
+            $archive['eocdOffset'] + 22
+        );
     }
 
     /**
@@ -1947,7 +1964,8 @@ final class ZipPackage
 
             $rawName = substr($bytes, $variableStart, $nameLength);
             $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
-            $rawComment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            $rawCommentOffset = $variableStart + $nameLength + $extraLength;
+            $rawComment = substr($bytes, $rawCommentOffset, $commentLength);
             self::assertSafePartName($rawName);
             $decodedName = self::decodeZipText(
                 $rawName,
@@ -1971,6 +1989,7 @@ final class ZipPackage
                 'comment' => $decodedComment['text'],
                 'rawComment' => $rawComment,
                 'commentEncoding' => $decodedComment['encoding'],
+                'commentOffset' => $rawCommentOffset,
             ];
 
             $cursor += 46 + $variableLength;
@@ -1993,7 +2012,11 @@ final class ZipPackage
             throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
         }
 
-        $summary = self::commentPreflightSummary($archive['packageComment'], $entryComments);
+        $summary = self::commentPreflightSummary(
+            $archive['packageComment'],
+            $entryComments,
+            $archive['eocdOffset'] + 22
+        );
         $issues = self::commentPolicyIssues($summary);
 
         return [
@@ -2062,7 +2085,7 @@ final class ZipPackage
     }
 
     /**
-     * @param list<array{name:string, comment:string, rawComment:string, commentEncoding:string}> $entryComments
+     * @param list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentOffset?:int}> $entryComments
      * @return array{
      *     packageComment:string,
      *     rawPackageComment:string,
@@ -2093,9 +2116,16 @@ final class ZipPackage
      *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
      * }
      */
-    private static function commentPreflightSummary(string $rawPackageComment, array $entryComments): array
+    private static function commentPreflightSummary(
+        string $rawPackageComment,
+        array $entryComments,
+        ?int $packageCommentOffset = null
+    ): array
     {
         $packageComment = self::decodePackageComment($rawPackageComment);
+        $packageCommentEnd = $packageCommentOffset === null
+            ? null
+            : $packageCommentOffset + strlen($rawPackageComment);
         $packageCommentControlByteOffsets = self::rawControlByteOffsets($rawPackageComment);
         $packageCommentFormatControlNames = self::unicodeFormatControlNames($packageComment['text']);
         $packageCommentBidiControlNames = self::unicodeBidiControlNames($packageComment['text']);
@@ -2131,12 +2161,18 @@ final class ZipPackage
                 $commentIssues[] = 'entry-comment-bidi-format-control';
             }
 
+            $commentOffset = isset($entry['commentOffset']) && is_int($entry['commentOffset'])
+                ? $entry['commentOffset']
+                : null;
+            $commentEnd = $commentOffset === null ? null : $commentOffset + strlen($entry['rawComment']);
             $summary = [
                 'name' => $entry['name'],
                 'comment' => $entry['comment'],
                 'rawComment' => $entry['rawComment'],
                 'commentEncoding' => $entry['commentEncoding'],
                 'commentLength' => strlen($entry['rawComment']),
+                'commentOffset' => $commentOffset,
+                'commentEnd' => $commentEnd,
                 'hasControlBytes' => $commentControlByteOffsets !== [],
                 'commentControlByteOffsets' => $commentControlByteOffsets,
                 'hasUnicodeFormatControls' => $commentFormatControlNames !== [],
@@ -2165,6 +2201,8 @@ final class ZipPackage
             'rawPackageComment' => $rawPackageComment,
             'packageCommentEncoding' => $packageComment['encoding'],
             'packageCommentLength' => strlen($rawPackageComment),
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentEnd' => $packageCommentEnd,
             'packageCommentHasControlBytes' => $packageCommentControlByteOffsets !== [],
             'packageCommentControlByteOffsets' => $packageCommentControlByteOffsets,
             'packageCommentHasUnicodeFormatControls' => $packageCommentFormatControlNames !== [],

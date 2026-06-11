@@ -5740,6 +5740,7 @@ return [
         ], "source\u{202e}package");
 
         $summary = ZipPackage::commentPolicyPreflight($zip);
+        $variableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
 
         $t->same(2, $summary['entryCount']);
@@ -5753,6 +5754,8 @@ return [
         ], $summary['issues']);
         $t->same("source\u{202e}package", $summary['packageComment']);
         $t->same("source\u{202e}package", $summary['rawPackageComment']);
+        $t->same($summary['eocdOffset'] + 22, $summary['packageCommentOffset']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(true, $summary['hasEntryComments']);
         $t->same(true, $summary['hasComments']);
@@ -5766,7 +5769,14 @@ return [
         $t->same('word/document.xml', $summary['commentControlByteEntries'][0]['name']);
         $t->same("entry\x7fcomment", $summary['commentControlByteEntries'][0]['comment']);
         $t->same([5], $summary['commentControlByteEntries'][0]['commentControlByteOffsets']);
+        $t->same($variableFields['entries'][0]['rawCommentOffset'], $summary['commentControlByteEntries'][0]['commentOffset']);
+        $t->same(
+            $variableFields['entries'][0]['rawCommentOffset'] + strlen("entry\x7fcomment"),
+            $summary['commentControlByteEntries'][0]['commentEnd']
+        );
         $t->same(['entry-comment-control-bytes'], $summary['commentControlByteEntries'][0]['issues']);
+        $t->same($variableFields['entries'][1]['rawCommentOffset'], $summary['entries'][1]['commentOffset']);
+        $t->same($variableFields['entries'][1]['rawCommentOffset'], $summary['entries'][1]['commentEnd']);
         $t->same([], $summary['entries'][1]['issues']);
 
         $t->same(false, $rawStrict['isValid']);
@@ -5780,6 +5790,44 @@ return [
         $t->contains('comment-bidi-format-controls', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
+    'preflights zip comment byte offsets before package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentComment = 'document central comment';
+        $mediaComment = 'media central comment';
+        $packageComment = 'package byte review';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>comment byte offsets</w:p></w:document>',
+                'method' => 8,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => 'comment byte offset media review',
+                'method' => 0,
+                'comment' => $mediaComment,
+            ],
+        ], $packageComment);
+
+        $variableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $rawSummary = ZipPackage::commentPolicyPreflight($zip);
+        $objectSummary = ZipPackage::fromString($zip)->commentPreflight();
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same($rawSummary['eocdOffset'] + 22, $rawSummary['packageCommentOffset']);
+        $t->same(strlen($zip), $rawSummary['packageCommentEnd']);
+        $t->same($variableFields['entries'][0]['rawCommentOffset'], $rawSummary['entries'][0]['commentOffset']);
+        $t->same($variableFields['entries'][0]['rawCommentOffset'] + strlen($documentComment), $rawSummary['entries'][0]['commentEnd']);
+        $t->same($variableFields['entries'][1]['rawCommentOffset'], $rawSummary['entries'][1]['commentOffset']);
+        $t->same($variableFields['entries'][1]['rawCommentOffset'] + strlen($mediaComment), $rawSummary['entries'][1]['commentEnd']);
+        $t->same($rawSummary['packageCommentOffset'], $objectSummary['packageCommentOffset']);
+        $t->same($rawSummary['entries'][0]['commentOffset'], $objectSummary['entries'][0]['commentOffset']);
+        $t->same($rawSummary['entries'][1]['commentEnd'], $objectSummary['entries'][1]['commentEnd']);
+        $t->same($rawSummary, $rawStrict['comments']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
     },
 
     'rejects generated zip comment control bytes before package writing' => static function (TestRunner $t): void {
