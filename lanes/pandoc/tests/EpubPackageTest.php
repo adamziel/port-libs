@@ -294,6 +294,47 @@ return [
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'reports duplicate OPF manifest item ids without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithDuplicateManifestId = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1-alt.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDuplicateManifestId],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter1-alt.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Alternate Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/text/chapter1.xhtml', $epub->manifestItem('chapter1')['partName']);
+        $t->same('/EPUB/text/chapter1.xhtml', $epub->readingOrder()[0]['partName']);
+        $t->same(['nav', 'style', 'cover', 'chapter1', 'chapter1', 'chapter2'], array_column($epub->manifestItems(), 'id'));
+        $t->same('/EPUB/text/chapter1-alt.xhtml', $epub->manifestItems()[4]['partName']);
+        $t->same(false, $validation['valid']);
+        $t->same(1, $validation['diagnosticCount']);
+        $t->same(['duplicate-manifest-item-id'], array_column($validation['diagnostics'], 'type'));
+        $t->same(false, $manifest['valid']);
+        $t->same(6, $manifest['itemCount']);
+        $t->same(1, $manifest['duplicateIdCount']);
+        $t->same('chapter1', $manifest['duplicateIdItems'][0]['id']);
+        $t->same([3, 4], $manifest['duplicateIdItems'][0]['indexes']);
+        $t->same(['/EPUB/text/chapter1.xhtml', '/EPUB/text/chapter1-alt.xhtml'], $manifest['duplicateIdItems'][0]['partNames']);
+        $t->same(0, $manifest['duplicatePartCount']);
+        $t->same($manifest['duplicateIdItems'], $summary['wordpressImport']['packageValidation']['manifest']['duplicateIdItems']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'records EPUB manifest ZIP compression provenance without inflating unsupported parts' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
         $opfWithZipProvenance = str_replace(
             '</metadata>',

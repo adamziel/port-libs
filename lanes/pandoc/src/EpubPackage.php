@@ -762,13 +762,23 @@ final class EpubPackage
         $hrefSuffixItems = [];
         $missingItems = [];
         $parts = [];
+        $ids = [];
         $diagnostics = [];
 
-        foreach ($manifestItems as $item) {
+        foreach ($manifestItems as $index => $item) {
             $id = (string) ($item['id'] ?? '');
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            if ($id !== '') {
+                $ids[$id][] = [
+                    'index' => $index,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                ];
+            }
+
             if (($item['exists'] ?? false) !== true) {
                 $missingItem = [
                     'id' => $id,
@@ -872,6 +882,29 @@ final class EpubPackage
             ];
         }
 
+        $duplicateIdItems = [];
+        foreach ($ids as $id => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'id' => $id,
+                'indexes' => array_column($items, 'index'),
+                'hrefs' => array_column($items, 'href'),
+                'partNames' => array_column($items, 'partName'),
+                'mediaTypes' => array_values(array_unique(array_column($items, 'mediaType'))),
+            ];
+            $duplicateIdItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-manifest-item-id',
+                'id' => $id,
+                'indexes' => $duplicate['indexes'],
+                'partNames' => $duplicate['partNames'],
+                'message' => 'EPUB OPF manifest declares the same item id more than once; the first item is used for id lookups',
+            ];
+        }
+
         $duplicatePartItems = [];
         foreach ($parts as $partName => $items) {
             if (count($items) < 2) {
@@ -900,6 +933,7 @@ final class EpubPackage
             'usableNavItemCount' => count($usableNavItems),
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
+            'duplicateIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
             'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
@@ -907,6 +941,7 @@ final class EpubPackage
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
+            'duplicateIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
             'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
@@ -1019,7 +1054,7 @@ final class EpubPackage
         $ncxItems = [];
         foreach ($manifestItems as $item) {
             $id = (string) ($item['id'] ?? '');
-            if ($id !== '') {
+            if ($id !== '' && !isset($manifestById[$id])) {
                 $manifestById[$id] = $item;
             }
 
@@ -1661,7 +1696,7 @@ final class EpubPackage
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
         $encryption = self::parseEncryption($package, $manifestById);
         $manifestById = self::attachEncryptionToManifest($manifestById, $encryption);
-        $manifestItems = array_values($manifestById);
+        $manifestItems = self::attachEncryptionToManifest($manifestItems, $encryption);
         $packageLinks = self::parsePackageLinks(
             $metadataElement,
             $opfPartName,
@@ -3327,10 +3362,6 @@ final class EpubPackage
                 throw new \RuntimeException('EPUB manifest items must include id, href, and media-type');
             }
 
-            if (isset($byId[$id])) {
-                throw new \RuntimeException("Duplicate EPUB manifest item id: {$id}");
-            }
-
             $target = self::resolvePackageHref($opfPartName, $href);
             if (self::isAbsoluteUri($target)) {
                 throw new \RuntimeException("EPUB manifest item {$id} must reference an internal package part");
@@ -3358,7 +3389,9 @@ final class EpubPackage
                 'hrefFragment' => $hrefSuffix['fragment'],
             ] + self::zipEntryProvenance($entry);
 
-            $byId[$id] = $item;
+            if (!isset($byId[$id])) {
+                $byId[$id] = $item;
+            }
             $items[] = $item;
         }
 
