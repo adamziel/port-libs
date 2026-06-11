@@ -25973,6 +25973,92 @@ XML);
         ]));
         $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
     },
+    'normalizes bounded direct csl json short volume title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-short-volume-compact',
+                'type' => 'book',
+                'title' => 'Compact Short Volume Packet',
+                'author' => [
+                    ['family' => 'Rios', 'given' => 'Rin'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'volumetitle' => 'Migration Corpus',
+                'shortvolumetitle' => 'MC',
+            ],
+            [
+                'id' => 'direct-short-volume-hyphen',
+                'type' => 'book',
+                'title' => 'Hyphen Short Volume Packet',
+                'author' => [
+                    ['family' => 'Park', 'given' => 'Pia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'volume-title' => 'Review Compendium',
+                'short-volume-title' => 'RC',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-short-volume-compact');
+        $hyphen = $processor->item('direct-short-volume-hyphen');
+        $t->same('Migration Corpus', $compact['volumeTitle'] ?? null);
+        $t->same('MC', $compact['volumeTitleShort'] ?? null);
+        $t->same('MC', $compact['raw']['shortvolumetitle'] ?? null);
+        $t->same('Review Compendium', $hyphen['volumeTitle'] ?? null);
+        $t->same('RC', $hyphen['volumeTitleShort'] ?? null);
+        $t->same('RC', $hyphen['raw']['short-volume-title'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Short Volume Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-short-volume-title-alias-review</id>
+    <updated>2026-06-11T23:48:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title"/>
+        <text variable="volume-title" form="short"/>
+        <text variable="volume-title-short"/>
+        <text variable="short-volume-title"/>
+        <text variable="shortvolumetitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title" form="short"/>
+      <text variable="short-volume-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Short Volume Title Alias Review', $summary['title'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('volume-title-short', $citationChildren[3]['variable'] ?? null);
+        $t->same('short-volume-title', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Rios | Migration Corpus | MC | MC | MC | MC; Park | Review Compendium | RC | RC | RC | RC]', $styled->renderCitationCluster([
+            $citation('direct-short-volume-compact', '[@direct-short-volume-compact]'),
+            $citation('direct-short-volume-hyphen', '[@direct-short-volume-hyphen]'),
+        ]));
+        $t->same('Compact Short Volume Packet :: Migration Corpus :: MC :: MC', $styled->renderBibliographyEntry('direct-short-volume-compact'));
+        $t->same('Hyphen Short Volume Packet :: Review Compendium :: RC :: RC', $styled->renderBibliographyEntry('direct-short-volume-hyphen'));
+
+        $document = (new MarkdownReader())->read('Direct short volume aliases [@direct-short-volume-compact; @direct-short-volume-hyphen] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct short volume aliases [Rios | Migration Corpus | MC | MC | MC | MC; Park | Review Compendium | RC | RC | RC | RC] stay visible.</p>', $blocks);
+        $t->contains('<dt>Rios 2026</dt><dd>Compact Short Volume Packet :: Migration Corpus :: MC :: MC</dd>', $blocks);
+        $t->contains('<dt>Park 2025</dt><dd>Hyphen Short Volume Packet :: Review Compendium :: RC :: RC</dd>', $blocks);
+    },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
