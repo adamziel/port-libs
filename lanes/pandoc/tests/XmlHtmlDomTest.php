@@ -207,6 +207,35 @@ XML, 'package reader XML');
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
+                . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
+                . '<textarea><!ENTITY reviewer SYSTEM "file:///etc/passwd"></textarea>'
+                . '<template><?xml-stylesheet href="file"?></template>'
+                . '<iframe><!DOCTYPE html></iframe>',
+            'raw text declaration HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('script', $summary[0]['name']);
+        $t->same('{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}', $summary[0]['text']);
+        $t->same('body:before{content:"<!ENTITY reviewer SYSTEM file>"}', $summary[1]['text']);
+        $t->same('<!ENTITY reviewer SYSTEM "file:///etc/passwd">', $summary[2]['text']);
+        $t->same('<?xml-stylesheet href="file"?>', $summary[3]['text']);
+        $t->same('<!DOCTYPE html>', $summary[4]['text']);
+        $t->same(
+            '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
+                . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
+                . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
+                . '<template>&lt;?xml-stylesheet href="file"?&gt;</template>'
+                . '<iframe>&lt;!DOCTYPE html&gt;</iframe>',
+            $html
+        );
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<p>bad</p><!DOCTYPE html>', 'unsafe HTML fragment'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<p><?review href="file"?></p>', 'unsafe HTML fragment'));
+    },
     'summarizes html select option state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<select name="review-status" multiple><option value="draft">Draft<option selected value="review">Review<optgroup label="Archive" disabled><option value="a1">Archive One<option selected>Archive Two</optgroup></select><p>after</p>',

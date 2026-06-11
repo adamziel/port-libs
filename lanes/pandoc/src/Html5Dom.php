@@ -12,7 +12,13 @@ final class Html5Dom
     public static function parseHtmlFragment(string $html): \DOMElement
     {
         self::assertNoNullByte($html, 'HTML fragment');
-        self::assertNoHtmlFragmentDeclarations($html, 'HTML fragment');
+        $preflight = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectRawTextContent: true
+        );
+        self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
         $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
 
         $dom = self::loadHtml(
@@ -281,7 +287,13 @@ final class Html5Dom
     private static function assertSafeHtmlDocumentSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
-        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        $preflight = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectRawTextContent: true
+        );
+        $declarationScanSource = self::sourceWithoutClosedComments($preflight);
         self::assertSimpleHtmlDocumentDoctype($declarationScanSource, $label);
         if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');

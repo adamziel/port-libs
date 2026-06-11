@@ -302,8 +302,14 @@ final class XmlHtmlDom
     public static function loadHtmlFragment(string $html, string $label = 'HTML fragment'): \DOMDocument
     {
         self::assertSafeSource($html, $label);
-        self::assertNoDoctype($html, $label);
-        self::assertNoHtmlFragmentDeclarations($html, $label);
+        $preflight = self::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectRawTextContent: true
+        );
+        self::assertNoDoctype($preflight, $label);
+        self::assertNoHtmlFragmentDeclarations($preflight, $label);
         $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
@@ -549,7 +555,8 @@ final class XmlHtmlDom
     public static function protectHtmlRcdataElements(
         string $html,
         bool $protectTemplateContent = false,
-        bool $protectIframeContent = false
+        bool $protectIframeContent = false,
+        bool $protectRawTextContent = false
     ): string
     {
         $offset = 0;
@@ -582,7 +589,7 @@ final class XmlHtmlDom
 
             $endPattern = '~</\s*' . preg_quote($name, '~') . '\s*>~i';
             if (preg_match($endPattern, $html, $endMatches, PREG_OFFSET_CAPTURE, $contentStart) !== 1) {
-                $protected .= self::protectHtmlRcdataElementContent($name, substr($html, $contentStart))
+                $protected .= self::protectHtmlRcdataElementContent($name, substr($html, $contentStart), $protectRawTextContent)
                     . '</' . $name . '>';
 
                 return $protected;
@@ -591,7 +598,7 @@ final class XmlHtmlDom
             $endTag = (string) $endMatches[0][0];
             $endOffset = (int) $endMatches[0][1];
             $content = substr($html, $contentStart, $endOffset - $contentStart);
-            $protected .= self::protectHtmlRcdataElementContent($name, $content);
+            $protected .= self::protectHtmlRcdataElementContent($name, $content, $protectRawTextContent);
             $protected .= $endTag;
             $offset = $endOffset + strlen($endTag);
         }
@@ -601,10 +608,10 @@ final class XmlHtmlDom
         );
     }
 
-    private static function protectHtmlRcdataElementContent(string $name, string $content): string
+    private static function protectHtmlRcdataElementContent(string $name, string $content, bool $protectRawTextContent = false): string
     {
         if (in_array($name, ['script', 'style'], true)) {
-            return $content;
+            return $protectRawTextContent ? self::escapeHtmlRawTextContent($content) : $content;
         }
 
         if (in_array($name, ['title', 'textarea'], true)) {

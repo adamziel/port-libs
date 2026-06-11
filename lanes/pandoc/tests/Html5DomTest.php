@@ -197,6 +197,42 @@ return [
         ));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument("<html><body>bad\0packet</body></html>"));
     },
+    'preflights html declarations outside protected raw text content' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
+                . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
+                . '<textarea><!ENTITY reviewer SYSTEM "file:///etc/passwd"></textarea>'
+                . '<template><!DOCTYPE html [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]></template>'
+                . '<iframe><?xml-stylesheet href="file"?></iframe>'
+        );
+        $document = Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><head><title>Review <!DOCTYPE html></title></head><body>'
+                . '<script>{"doctype":"<!DOCTYPE html>"}</script>'
+                . '<textarea><?review href="file"?></textarea>'
+                . '</body></html>'
+        );
+        $documentBody = $document->getElementsByTagName('body')->item(0);
+        $title = $document->getElementsByTagName('title')->item(0);
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->same('Review <!DOCTYPE html>', $title instanceof DOMElement ? $title->textContent : null);
+        $t->same(
+            '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
+                . '<style>body:before{content:"<!ENTITY reviewer SYSTEM file>"}</style>'
+                . '<textarea>&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;</textarea>'
+                . '<template>&lt;!DOCTYPE html [&lt;!ENTITY reviewer SYSTEM "file:///etc/passwd"&gt;]&gt;</template>'
+                . '<iframe>&lt;?xml-stylesheet href="file"?&gt;</iframe>',
+            $serialized
+        );
+        $t->same(
+            '<script>{"doctype":"<!DOCTYPE html>"}</script><textarea>&lt;?review href="file"?&gt;</textarea>',
+            $documentBody instanceof DOMElement ? Html5Dom::serializeHtmlChildren($documentBody) : ''
+        );
+        $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment('<p>bad</p><!DOCTYPE html>'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><body><p>bad</p><!ENTITY reviewer SYSTEM "file:///etc/passwd"></body></html>'
+        ));
+    },
     'rejects external and non-html complete document doctypes before parser loading' => static function (TestRunner $t): void {
         $dom = Html5Dom::parseHtmlDocument('<!DOCTYPE html><html><body><main><p>Review packet</p></main></body></html>');
         $body = $dom->getElementsByTagName('body')->item(0);
