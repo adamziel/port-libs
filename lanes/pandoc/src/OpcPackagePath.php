@@ -92,6 +92,33 @@ final class OpcPackagePath
         return self::canonicalPartName(self::decodeUriPath($path, 'OPC part name'), $allowRoot);
     }
 
+    public static function canonicalPartNameFromStrictUri(string $partName, bool $allowRoot = false): string
+    {
+        if ($partName === '') {
+            throw new \InvalidArgumentException('OPC part name must not be empty');
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $partName) === 1) {
+            throw new \InvalidArgumentException('OPC part name URI contains invalid URI bytes');
+        }
+
+        $path = str_starts_with($partName, '/') ? $partName : '/' . $partName;
+        if ($path === '/' && $allowRoot) {
+            return '/';
+        }
+
+        $segments = explode('/', $path);
+        array_shift($segments);
+        foreach ($segments as $segment) {
+            $decoded = rawurldecode($segment);
+            if ($decoded === '' || $decoded === '.' || $decoded === '..') {
+                throw new \InvalidArgumentException('OPC part name URI must not contain empty or dot path segments');
+            }
+        }
+
+        return self::canonicalPartNameFromUri($partName, $allowRoot);
+    }
+
     public static function partNameToUri(string $partName, bool $allowRoot = false): string
     {
         $partName = self::canonicalPartName($partName, $allowRoot);

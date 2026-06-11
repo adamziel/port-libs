@@ -1094,12 +1094,17 @@ XML;
         $t->same('image/png', $types->contentTypeForPart('/word/media/source diagram.png'));
         $t->same('image/png', $types->contentTypeForPart('/word/media/source%20diagram.png'));
         $t->contains('PartName="/word/media/source%20diagram.png"', $types->toXml());
+        $t->same('/word/media/source diagram.png', OpcPackagePath::canonicalPartNameFromStrictUri('/word/media/source%20diagram.png'));
 
         foreach ([
             '/word/media/raw source.png',
+            "/word/media/raw\tname.png",
+            "/word/media/raw\nname.png",
             '/word/media/trailing./source.png',
             '/word/media/source%2E',
         ] as $partName) {
+            $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromStrictUri($partName));
+
             $xml = '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="' . $partName . '" ContentType="image/png"/></Types>';
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
         }
