@@ -243,6 +243,91 @@ return [
         $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
         $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
     },
+    'preflights OPC ZIP entry manifest with central directory provenance before handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $package = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 10,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>',
+                'compressionMethod' => 8,
+                'creatorHostSystem' => 10,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'compressionMethod' => 8,
+                'creatorHostSystem' => 0,
+            ],
+            [
+                'name' => 'word/media/source.png',
+                'data' => 'PNG',
+                'compressionMethod' => 0,
+                'creatorHostSystem' => 0,
+            ],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same([
+            'deflated' => 2,
+            'stored' => 2,
+        ], $summary['zipCompressionMethodCounts']);
+        $t->same([
+            'ms-dos-fat' => 2,
+            'windows-ntfs' => 2,
+        ], $summary['zipCreatorHostSystemCounts']);
+        $t->same(['utf-8' => 4], $summary['zipNameEncodingCounts']);
+        $t->same(0, $summary['zipDataDescriptorEntryCount']);
+        $t->same(0, $summary['zipStrictGeneralPurposeFlagReviewEntryCount']);
+        $t->same(0, $summary['zipCreatorVersionBelowNeededEntryCount']);
+
+        $contentTypes = $entries['[Content_Types].xml'];
+        $t->same('[Content_Types].xml', $contentTypes['rawEntryName']);
+        $t->same('utf-8', $contentTypes['nameEncoding']);
+        $t->same(0, $contentTypes['localHeaderOffset']);
+        $t->same(0, $contentTypes['compressionMethod']);
+        $t->same('stored', $contentTypes['compressionMethodName']);
+        $t->same(0x0800, $contentTypes['generalPurposeFlags']);
+        $t->same(['utf-8-names'], $contentTypes['generalPurposeFlagNames']);
+        $t->same(true, $contentTypes['usesUtf8Names']);
+        $t->same(false, $contentTypes['usesDataDescriptor']);
+        $t->same(false, $contentTypes['requiresStrictGeneralPurposeFlagReview']);
+        $t->same(0x0a14, $contentTypes['versionMadeBy']);
+        $t->same(10, $contentTypes['madeByHostSystem']);
+        $t->same('windows-ntfs', $contentTypes['madeByHostSystemName']);
+        $t->same(20, $contentTypes['madeByVersion']);
+        $t->same(20, $contentTypes['versionNeededToExtract']);
+        $t->same(true, $contentTypes['creatorVersionMeetsNeeded']);
+        $t->same('content-types', $contentTypes['role']);
+
+        $document = $entries['word/document.xml'];
+        $media = $entries['word/media/source.png'];
+        $t->same('deflated', $document['compressionMethodName']);
+        $t->same('ms-dos-fat', $document['madeByHostSystemName']);
+        $t->same('stored', $media['compressionMethodName']);
+        $t->same('media', $media['role']);
+        $t->true($contentTypes['localHeaderOffset'] < $document['localHeaderOffset']);
+        $t->true($document['localHeaderOffset'] < $media['localHeaderOffset']);
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

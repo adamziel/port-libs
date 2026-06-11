@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, zipDataDescriptorEntryCount:int, zipStrictGeneralPurposeFlagReviewEntryCount:int, zipCreatorVersionBelowNeededEntryCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, zipCompressionMethodCounts:array<string, int>, zipCreatorHostSystemCounts:array<string, int>, zipNameEncodingCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, rawEntryName:string, nameEncoding:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, localHeaderOffset:int, compressionMethod:int, compressionMethodName:string, generalPurposeFlags:int, generalPurposeFlagNames:list<string>, usesUtf8Names:bool, usesDataDescriptor:bool, requiresStrictGeneralPurposeFlagReview:bool, versionMadeBy:int, madeByHostSystem:int, madeByHostSystemName:string, madeByVersion:int, versionNeededToExtract:int, creatorVersionMeetsNeeded:bool, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -282,8 +282,16 @@ final class OpcRelationshipGraph
         $packagePartEntryIndexesByEquivalenceKey = [];
         $contentTypes = null;
         $contentTypesParseError = null;
+        $compressionEntriesByName = self::zipPreflightEntriesByName($package->compressionMethodPreflight()['entries']);
+        $generalPurposeFlagEntriesByName = self::zipPreflightEntriesByName($package->generalPurposeFlagPreflight()['entries']);
+        $creatorHostEntriesByName = self::zipPreflightEntriesByName($package->creatorHostSystemPreflight()['entries']);
+        $localHeaderEntriesByName = self::zipPreflightEntriesByName($package->localHeaderPreflight()['entries']);
 
         foreach ($package->entries() as $entryIndex => $entry) {
+            $compressionEntry = $compressionEntriesByName[$entry->name] ?? [];
+            $generalPurposeFlagEntry = $generalPurposeFlagEntriesByName[$entry->name] ?? [];
+            $creatorHostEntry = $creatorHostEntriesByName[$entry->name] ?? [];
+            $localHeaderEntry = $localHeaderEntriesByName[$entry->name] ?? [];
             $isDirectory = $entry->isDirectory();
             $partName = null;
             $equivalenceKey = null;
@@ -311,12 +319,27 @@ final class OpcRelationshipGraph
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
+                'rawEntryName' => $entry->rawName,
+                'nameEncoding' => $entry->nameEncoding,
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
+                'localHeaderOffset' => (int) ($localHeaderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset),
                 'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => (string) ($compressionEntry['compressionMethodName'] ?? self::zipCompressionMethodNameForManifest($entry->compressionMethod)),
+                'generalPurposeFlags' => $entry->generalPurposeFlags,
+                'generalPurposeFlagNames' => $generalPurposeFlagEntry['flagNames'] ?? [],
+                'usesUtf8Names' => (bool) ($generalPurposeFlagEntry['usesUtf8Names'] ?? false),
+                'usesDataDescriptor' => (bool) ($generalPurposeFlagEntry['usesDataDescriptor'] ?? false),
+                'requiresStrictGeneralPurposeFlagReview' => (bool) ($generalPurposeFlagEntry['requiresStrictReview'] ?? false),
+                'versionMadeBy' => $entry->versionMadeBy,
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => (string) ($creatorHostEntry['madeByHostSystemName'] ?? 'unknown'),
+                'madeByVersion' => $entry->madeByVersion(),
+                'versionNeededToExtract' => $entry->neededToExtractVersion(),
+                'creatorVersionMeetsNeeded' => (bool) ($creatorHostEntry['creatorVersionMeetsNeeded'] ?? ($entry->madeByVersion() >= $entry->neededToExtractVersion())),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'crc32Hex' => $entry->crc32Hex(),
@@ -477,6 +500,9 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $zipCompressionMethodCounts = [];
+        $zipCreatorHostSystemCounts = [];
+        $zipNameEncodingCounts = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -507,6 +533,9 @@ final class OpcRelationshipGraph
         $mediaPartCandidateCount = 0;
         $xmlPayloadPartCount = 0;
         $binaryPayloadPartCount = 0;
+        $zipDataDescriptorEntryCount = 0;
+        $zipStrictGeneralPurposeFlagReviewEntryCount = 0;
+        $zipCreatorVersionBelowNeededEntryCount = 0;
         $largestPayloadEntry = null;
 
         if ($contentTypesItems === []) {
@@ -526,6 +555,22 @@ final class OpcRelationshipGraph
             }
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
+            }
+
+            $zipCompressionMethodCounts[$entry['compressionMethodName']]
+                = ($zipCompressionMethodCounts[$entry['compressionMethodName']] ?? 0) + 1;
+            $zipCreatorHostSystemCounts[$entry['madeByHostSystemName']]
+                = ($zipCreatorHostSystemCounts[$entry['madeByHostSystemName']] ?? 0) + 1;
+            $zipNameEncodingCounts[$entry['nameEncoding']]
+                = ($zipNameEncodingCounts[$entry['nameEncoding']] ?? 0) + 1;
+            if ($entry['usesDataDescriptor']) {
+                $zipDataDescriptorEntryCount++;
+            }
+            if ($entry['requiresStrictGeneralPurposeFlagReview']) {
+                $zipStrictGeneralPurposeFlagReviewEntryCount++;
+            }
+            if (!$entry['creatorVersionMeetsNeeded']) {
+                $zipCreatorVersionBelowNeededEntryCount++;
             }
 
             if ($contentTypes instanceof OpcContentTypes && $entry['isPackagePart'] && !$entry['contentTypesItem']) {
@@ -639,6 +684,9 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        ksort($zipCompressionMethodCounts);
+        ksort($zipCreatorHostSystemCounts);
+        ksort($zipNameEncodingCounts);
         sort($contentTypesItems, SORT_STRING);
         sort($missingContentTypeParts, SORT_STRING);
         sort($missingContentTypeExtensions, SORT_STRING);
@@ -687,9 +735,15 @@ final class OpcRelationshipGraph
             'mediaPartCandidateCount' => $mediaPartCandidateCount,
             'xmlPayloadPartCount' => $xmlPayloadPartCount,
             'binaryPayloadPartCount' => $binaryPayloadPartCount,
+            'zipDataDescriptorEntryCount' => $zipDataDescriptorEntryCount,
+            'zipStrictGeneralPurposeFlagReviewEntryCount' => $zipStrictGeneralPurposeFlagReviewEntryCount,
+            'zipCreatorVersionBelowNeededEntryCount' => $zipCreatorVersionBelowNeededEntryCount,
             'issueCounts' => $issueCounts,
             'issues' => $issues,
             'roleCounts' => $roleCounts,
+            'zipCompressionMethodCounts' => $zipCompressionMethodCounts,
+            'zipCreatorHostSystemCounts' => $zipCreatorHostSystemCounts,
+            'zipNameEncodingCounts' => $zipNameEncodingCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
@@ -6882,6 +6936,33 @@ final class OpcRelationshipGraph
             'embedded-package-candidate' => 'embedded-package',
             'media' => 'media',
             default => self::isXmlLikePartName($partName) ? 'xml' : 'binary',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, array<string, mixed>>
+     */
+    private static function zipPreflightEntriesByName(array $entries): array
+    {
+        $entriesByName = [];
+        foreach ($entries as $entry) {
+            if (!isset($entry['name']) || !is_string($entry['name'])) {
+                continue;
+            }
+
+            $entriesByName[$entry['name']] = $entry;
+        }
+
+        return $entriesByName;
+    }
+
+    private static function zipCompressionMethodNameForManifest(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
         };
     }
 
