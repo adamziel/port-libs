@@ -24985,6 +24985,64 @@ XML);
         ]));
         $t->same('Hyphenated Event Proceedings :: Hyphen Review Clinic :: source track :: clinic :: Remote Hall; Review Room :: 2026-07-08/2026-07-09 :: CC0 :: iv', $styled->renderBibliographyEntry('hyphen-event-metadata'));
     },
+    'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([[
+            'id' => 'literal-spacing',
+            'type' => 'book',
+            'title' => 'Spacing Packet',
+            'author' => [
+                ['family' => 'Ng', 'given' => 'Nia'],
+            ],
+            'issued' => ['date-parts' => [[2026]]],
+        ]]);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Literal Spacing Review</title>
+    <id>https://example.test/styles/bounded-csl-literal-spacing-review</id>
+    <updated>2026-06-11T12:58:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter="">
+        <names variable="author"/>
+        <text value="  "/>
+        <text value="--"/>
+        <text value="  "/>
+        <date variable="issued" date-parts="year"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter="">
+      <text variable="title"/>
+      <text value="  /  "/>
+      <names variable="author"/>
+      <text value=" "/>
+      <text value=" "/>
+      <date variable="issued"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationRendering = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('  ', $citationRendering[1]['value'] ?? null);
+        $t->same('--', $citationRendering[2]['value'] ?? null);
+        $t->same('  ', $citationRendering[3]['value'] ?? null);
+        $t->same('[Ng  --  2026]', $styled->renderCitationCluster([
+            $citation('literal-spacing', '[@literal-spacing]'),
+        ]));
+        $t->same('Spacing Packet  /  Ng, Nia  2026', $styled->renderBibliographyEntry('literal-spacing'));
+
+        $document = (new MarkdownReader())->read('Literal spacing source [@literal-spacing] keeps CSL separators visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

@@ -1470,9 +1470,14 @@ final class CslStyle
     {
         $variable = trim($text->getAttribute('variable'));
         $term = trim($text->getAttribute('term'));
-        $value = trim($text->getAttribute('value'));
+        $value = $text->hasAttribute('value') ? $text->getAttribute('value') : '';
         $macro = trim($text->getAttribute('macro'));
-        $declared = array_filter([$variable, $term, $value, $macro], static fn (string $attribute): bool => $attribute !== '');
+        $declared = array_filter([
+            $variable !== '',
+            $term !== '',
+            $text->hasAttribute('value'),
+            $macro !== '',
+        ]);
         if (count($declared) !== 1) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' text element must declare exactly one variable, term, value, or macro');
         }
