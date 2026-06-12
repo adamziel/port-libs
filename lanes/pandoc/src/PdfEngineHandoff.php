@@ -326,6 +326,9 @@ final class PdfEngineHandoff
                 if (is_array($systemFonts) && is_int($systemFonts['flagCount'] ?? null) && $systemFonts['flagCount'] > 0) {
                     $diagnostics[] = 'typst-ignore-system-fonts:' . $systemFonts['flagCount'];
                 }
+                if (is_array($systemFonts) && ($systemFonts['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-system-font-issues:' . count($systemFonts['issues']);
+                }
             }
             if (($typstBoundaryProvenance['embeddedFonts'] ?? []) !== []) {
                 $embeddedFonts = $typstBoundaryProvenance['embeddedFonts'];
@@ -334,6 +337,9 @@ final class PdfEngineHandoff
                 }
                 if (is_array($embeddedFonts) && is_int($embeddedFonts['flagCount'] ?? null) && $embeddedFonts['flagCount'] > 0) {
                     $diagnostics[] = 'typst-ignore-embedded-fonts:' . $embeddedFonts['flagCount'];
+                }
+                if (is_array($embeddedFonts) && ($embeddedFonts['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-embedded-font-issues:' . count($embeddedFonts['issues']);
                 }
             }
             if (($typstBoundaryProvenance['openOutput'] ?? []) !== []) {
@@ -6125,6 +6131,8 @@ final class PdfEngineHandoff
             $systemFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_SYSTEM_FONTS'], 'ignore-system-fonts');
             if ($systemFontEnvironmentFlag['enabled'] === true) {
                 $ignoreSystemFontCount = 1;
+            }
+            if ($systemFontEnvironmentFlag['enabled'] === true || $systemFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_SYSTEM_FONTS';
             }
         }
@@ -6132,11 +6140,13 @@ final class PdfEngineHandoff
             $embeddedFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_EMBEDDED_FONTS'], 'ignore-embedded-fonts');
             if ($embeddedFontEnvironmentFlag['enabled'] === true) {
                 $ignoreEmbeddedFontCount = 1;
+            }
+            if ($embeddedFontEnvironmentFlag['enabled'] === true || $embeddedFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_EMBEDDED_FONTS';
             }
         }
 
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6269,6 +6279,11 @@ final class PdfEngineHandoff
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
+        foreach (array_filter([$systemFontEnvironmentFlag, $embeddedFontEnvironmentFlag]) as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
         foreach ($overrides as $override) {
             $issues[] = $override['issue'];
         }
@@ -6359,27 +6374,27 @@ final class PdfEngineHandoff
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
-        if ($ignoreSystemFontCount > 0) {
+        if ($ignoreSystemFontCount > 0 || ($systemFontEnvironmentFlag['issues'] ?? []) !== []) {
             $provenance['systemFonts'] = [
-                'ignoreSystemFonts' => true,
-                'systemFontAccess' => 'disabled',
+                'ignoreSystemFonts' => $ignoreSystemFontCount > 0,
+                'systemFontAccess' => $ignoreSystemFontCount > 0 ? 'disabled' : 'default',
                 'flagCount' => $ignoreSystemFontCount,
                 'fontPathCount' => count($fontPaths),
-                'issues' => [],
+                'issues' => $systemFontEnvironmentFlag['issues'] ?? [],
             ];
-            if ($systemFontEnvironmentFlag !== null && $systemFontEnvironmentFlag['enabled'] === true) {
+            if ($systemFontEnvironmentFlag !== null) {
                 $provenance['systemFonts']['environmentVariable'] = 'TYPST_IGNORE_SYSTEM_FONTS';
                 $provenance['systemFonts']['environmentValue'] = $systemFontEnvironmentFlag['raw'];
             }
         }
-        if ($ignoreEmbeddedFontCount > 0) {
+        if ($ignoreEmbeddedFontCount > 0 || ($embeddedFontEnvironmentFlag['issues'] ?? []) !== []) {
             $provenance['embeddedFonts'] = [
-                'ignoreEmbeddedFonts' => true,
-                'embeddedFontAccess' => 'disabled',
+                'ignoreEmbeddedFonts' => $ignoreEmbeddedFontCount > 0,
+                'embeddedFontAccess' => $ignoreEmbeddedFontCount > 0 ? 'disabled' : 'default',
                 'flagCount' => $ignoreEmbeddedFontCount,
-                'issues' => [],
+                'issues' => $embeddedFontEnvironmentFlag['issues'] ?? [],
             ];
-            if ($embeddedFontEnvironmentFlag !== null && $embeddedFontEnvironmentFlag['enabled'] === true) {
+            if ($embeddedFontEnvironmentFlag !== null) {
                 $provenance['embeddedFonts']['environmentVariable'] = 'TYPST_IGNORE_EMBEDDED_FONTS';
                 $provenance['embeddedFonts']['environmentValue'] = $embeddedFontEnvironmentFlag['raw'];
             }

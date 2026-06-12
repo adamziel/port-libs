@@ -975,6 +975,81 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst invalid font environment flag provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-env-flag-boundary.pdf',
+            'source' => '= Typst Font Environment Flag Boundary Packet',
+            'engineEnvironment' => [
+                'TYPST_IGNORE_SYSTEM_FONTS' => 'maybe',
+                'TYPST_IGNORE_EMBEDDED_FONTS' => 'sometimes',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font environment flag boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'ignore-system-fonts-environment-invalid-boundary',
+                'ignore-embedded-fonts-environment-invalid-boundary',
+            ],
+            'environmentVariables' => [
+                'TYPST_IGNORE_SYSTEM_FONTS',
+                'TYPST_IGNORE_EMBEDDED_FONTS',
+            ],
+            'systemFonts' => [
+                'ignoreSystemFonts' => false,
+                'systemFontAccess' => 'default',
+                'flagCount' => 0,
+                'fontPathCount' => 0,
+                'issues' => ['ignore-system-fonts-environment-invalid-boundary'],
+                'environmentVariable' => 'TYPST_IGNORE_SYSTEM_FONTS',
+                'environmentValue' => 'maybe',
+            ],
+            'embeddedFonts' => [
+                'ignoreEmbeddedFonts' => false,
+                'embeddedFontAccess' => 'default',
+                'flagCount' => 0,
+                'issues' => ['ignore-embedded-fonts-environment-invalid-boundary'],
+                'environmentVariable' => 'TYPST_IGNORE_EMBEDDED_FONTS',
+                'environmentValue' => 'sometimes',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-env-flag-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-env-flag-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(0, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(0, $plan['typstBoundarySummary']['fontAccessControlCount']);
+        $t->same(2, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-environment:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-access:default', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-embedded-font-access:default', implode(',', $plan['diagnostics']));
+        $t->contains('typst-embedded-font-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst open output side effect provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
