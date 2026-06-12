@@ -2211,6 +2211,122 @@ return [
             $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} edited paragraph drops stale review queue");
         }
     },
+    'preserves recursive current native constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $emphInline = [
+            't' => 'Emph',
+            'c' => [
+                ['t' => 'Str', 'c' => 'recursive'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'inline'],
+            ],
+            'reviewPayload' => ['source' => 'emph-provenance'],
+        ];
+        $spanInline = [
+            't' => 'Span',
+            'c' => [
+                ['review-span', ['native-current'], [['data-review', 'span']]],
+                [
+                    ['t' => 'Str', 'c' => 'span'],
+                ],
+            ],
+            'reviewPayload' => ['source' => 'span-provenance'],
+        ];
+        $blockQuote = [
+            't' => 'BlockQuote',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                    ['t' => 'Space'],
+                    $emphInline,
+                    ['t' => 'Space'],
+                    $spanInline,
+                ]],
+            ],
+            'reviewPayload' => ['source' => 'blockquote-provenance'],
+        ];
+        $divBlock = [
+            't' => 'Div',
+            'c' => [
+                ['review-div', ['native-current'], [['data-review', 'div']]],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Div'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'payload'],
+                    ]],
+                ],
+            ],
+            'reviewPayload' => ['source' => 'div-provenance'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$blockQuote, $divBlock],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $emph = $document->children[0]->children[0]->children[2];
+        $standaloneInlinePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [$emph]),
+        ]));
+
+        $t->same($blockQuote, $encoded['blocks'][0], 'unchanged current blockquote payload is reused');
+        $t->same($divBlock, $encoded['blocks'][1], 'unchanged current div payload is reused');
+        $t->same($emphInline, $standaloneInlinePacket['blocks'][0]['c'][0], 'standalone current recursive inline payload is reusable');
+
+        $editedBlockQuote = new AstNode('blockquote', $document->children[0]->attrs, [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Edited']),
+            ]),
+        ]);
+        $editedEmph = new AstNode('emph', $emph->attrs, [
+            new AstNode('text', ['text' => 'edited']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'inline']),
+        ]);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            $editedBlockQuote,
+            new AstNode('paragraph', [], [$editedEmph]),
+        ]));
+
+        $t->same('Edited', $editedPacket['blocks'][0]['c'][0]['c'][0]['c'], 'edited recursive block regenerates child text');
+        $t->same(false, array_key_exists('reviewPayload', $editedPacket['blocks'][0]), 'edited recursive block drops stale inert payload');
+        $t->same('edited', $editedPacket['blocks'][1]['c'][0]['c'][0]['c'], 'edited recursive inline regenerates child content');
+        $t->same(false, array_key_exists('reviewPayload', $editedPacket['blocks'][1]['c'][0]), 'edited recursive inline drops stale inert payload');
+    },
+    'canonicalizes recursive native payloads that still contain legacy target tuples' => static function (TestRunner $t): void {
+        $legacyBlockQuote = [
+            't' => 'BlockQuote',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        [
+                            ['t' => 'Str', 'c' => 'legacy'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'target'],
+                        ],
+                        ['https://example.test/source', 'Legacy source'],
+                    ]],
+                ]],
+            ],
+            'reviewPayload' => ['source' => 'legacy-target-provenance'],
+        ];
+        $document = (new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$legacyBlockQuote],
+        ]);
+
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $link = $encoded['blocks'][0]['c'][0]['c'][0];
+
+        $t->same('BlockQuote', $encoded['blocks'][0]['t']);
+        $t->same(false, array_key_exists('reviewPayload', $encoded['blocks'][0]), 'recursive legacy target payload should regenerate');
+        $t->same('Link', $link['t']);
+        $t->same(3, count($link['c']));
+        $t->same(['https://example.test/source', 'Legacy source'], $link['c'][2]);
+    },
     'preserves current header native payloads through json and native writers until edited' => static function (TestRunner $t): void {
         $headerAttr = [
             'review-heading',
