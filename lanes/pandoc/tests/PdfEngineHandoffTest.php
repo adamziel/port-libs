@@ -649,6 +649,71 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst font path list boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-path-list-boundary.pdf',
+            'source' => '= Typst Font Path List Boundary Packet',
+            'engineOptions' => [
+                '--font-path=fonts/local;/usr/share/fonts;https://fonts.example.invalid/review',
+                '--font-path=fonts/alt:vendor/fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font path list boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'fonts/local', 'path' => 'fonts/local', 'kind' => 'relative', 'safe' => true, 'issues' => [], 'sourceRaw' => 'fonts/local;/usr/share/fonts;https://fonts.example.invalid/review', 'listSeparator' => ';', 'listIndex' => 0, 'listCount' => 3],
+                ['raw' => '/usr/share/fonts', 'path' => '/usr/share/fonts', 'kind' => 'absolute', 'safe' => false, 'issues' => ['font-path-external-boundary'], 'sourceRaw' => 'fonts/local;/usr/share/fonts;https://fonts.example.invalid/review', 'listSeparator' => ';', 'listIndex' => 1, 'listCount' => 3],
+                ['raw' => 'https://fonts.example.invalid/review', 'path' => 'https://fonts.example.invalid/review', 'kind' => 'uri', 'safe' => false, 'issues' => ['font-path-external-boundary'], 'sourceRaw' => 'fonts/local;/usr/share/fonts;https://fonts.example.invalid/review', 'listSeparator' => ';', 'listIndex' => 2, 'listCount' => 3],
+                ['raw' => 'fonts/alt', 'path' => 'fonts/alt', 'kind' => 'relative', 'safe' => true, 'issues' => [], 'sourceRaw' => 'fonts/alt:vendor/fonts', 'listSeparator' => ':', 'listIndex' => 0, 'listCount' => 2],
+                ['raw' => 'vendor/fonts', 'path' => 'vendor/fonts', 'kind' => 'relative', 'safe' => true, 'issues' => [], 'sourceRaw' => 'fonts/alt:vendor/fonts', 'listSeparator' => ':', 'listIndex' => 1, 'listCount' => 2],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['font-path-external-boundary'],
+            'fontPathPolicy' => [
+                'reviewStatus' => 'review',
+                'fontPathCount' => 5,
+                'safeFontPathCount' => 3,
+                'unsafeFontPathCount' => 2,
+                'relativeFontPathCount' => 3,
+                'workspaceFontPathCount' => 0,
+                'absoluteFontPathCount' => 1,
+                'uriFontPathCount' => 1,
+                'invalidFontPathCount' => 0,
+                'issues' => ['font-path-external-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-path-list-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-path-list-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:5', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-unsafe:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst embedded font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

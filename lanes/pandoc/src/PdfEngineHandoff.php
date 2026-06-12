@@ -5958,6 +5958,86 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<string> $values
+     * @return list<array<string, mixed>>
+     */
+    private function typstFontPathBoundaryEntries(array $values): array
+    {
+        $entries = [];
+        foreach ($values as $raw) {
+            $segments = $this->typstFontPathListSegments($raw);
+            foreach ($segments as $segment) {
+                $entry = $this->typstBoundaryPathEntry($segment['value'], 'font-path');
+                if ($segment['segmentCount'] > 1) {
+                    $entry['sourceRaw'] = $raw;
+                    $entry['listSeparator'] = $segment['separator'];
+                    $entry['listIndex'] = $segment['index'];
+                    $entry['listCount'] = $segment['segmentCount'];
+                }
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{value:string, separator:string|null, index:int, segmentCount:int}>
+     */
+    private function typstFontPathListSegments(string $raw): array
+    {
+        $separator = str_contains($raw, ';') ? ';' : ':';
+        if ($separator === ':' && str_contains($raw, '://')) {
+            return [['value' => $raw, 'separator' => null, 'index' => 0, 'segmentCount' => 1]];
+        }
+
+        $segments = [];
+        $start = 0;
+        $length = strlen($raw);
+        for ($offset = 0; $offset < $length; ++$offset) {
+            if ($raw[$offset] !== $separator) {
+                continue;
+            }
+            if ($separator === ':' && $this->typstFontPathColonBelongsToPath($raw, $offset)) {
+                continue;
+            }
+
+            $segments[] = substr($raw, $start, $offset - $start);
+            $start = $offset + 1;
+        }
+
+        if ($segments === []) {
+            return [['value' => $raw, 'separator' => null, 'index' => 0, 'segmentCount' => 1]];
+        }
+
+        $segments[] = substr($raw, $start);
+        $count = count($segments);
+        $entries = [];
+        foreach ($segments as $index => $segment) {
+            $entries[] = [
+                'value' => $segment,
+                'separator' => $separator,
+                'index' => $index,
+                'segmentCount' => $count,
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function typstFontPathColonBelongsToPath(string $raw, int $offset): bool
+    {
+        if (substr($raw, $offset, 3) === '://') {
+            return true;
+        }
+
+        return $offset === 1
+            && preg_match('/\A[A-Za-z]\z/', $raw[0]) === 1
+            && isset($raw[2])
+            && ($raw[2] === '/' || $raw[2] === '\\');
+    }
+
+    /**
      * @param list<string> $engineOptions
      * @return array<string, mixed>
      */
@@ -5999,10 +6079,7 @@ final class PdfEngineHandoff
             $rootValues
         );
         $root = $rootHistory === [] ? null : $rootHistory[count($rootHistory) - 1];
-        $fontPaths = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'font-path'),
-            $fontPathValues
-        );
+        $fontPaths = $this->typstFontPathBoundaryEntries($fontPathValues);
         $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
         $certificates = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
