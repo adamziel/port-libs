@@ -2911,6 +2911,154 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited figure drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][1]), 'edited figure drops stale source ordinal');
     },
+    'preserves sidecar-free current table and figure native payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['sidecar-free-table', ['review-table'], [['data-source', 'native']]],
+                ['t' => 'Caption', 'c' => [
+                    null,
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Sidecar-free'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'table'],
+                        ]],
+                    ],
+                ]],
+                [[['t' => 'AlignCenter', 'c' => []], ['t' => 'ColWidth', 'c' => [0.5]]]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => [0]],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignCenter', 'c' => []],
+                                        ['t' => 'RowSpan', 'c' => [1]],
+                                        ['t' => 'ColSpan', 'c' => [1]],
+                                        [
+                                            ['t' => 'Para', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Sidecar-free'],
+                                                ['t' => 'Space'],
+                                                ['t' => 'Str', 'c' => 'cell'],
+                                            ]],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['sidecar-free-figure', ['review-figure'], [['data-source', 'native']]],
+                ['t' => 'Caption', 'c' => [
+                    null,
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Sidecar-free'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', ['review-image'], [['data-image', 'source']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Sidecar-free'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'image'],
+                            ],
+                            ['media/sidecar-free.png', 'Source image'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $figure = $document->children[1];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('table', $table->type, "{$source} sidecar-free table node");
+            $t->same('figure', $figure->type, "{$source} sidecar-free figure node");
+            $t->same($tableBlock, $table->attr('native'), "{$source} sidecar-free table native payload");
+            $t->same($figureBlock, $figure->attr('native'), "{$source} sidecar-free figure native payload");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves sidecar-free table and figure payloads");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves sidecar-free table and figure payloads");
+        }
+
+        $table = $documents['json']->children[0];
+        $figure = $documents['json']->children[1];
+        $body = $table->children[0];
+        $row = $body->children[0];
+        $cell = $row->children[0];
+        $editedCell = new AstNode('table_cell', $cell->attrs, [
+            new AstNode('text', ['text' => 'Edited']),
+        ]);
+        $editedRow = new AstNode('table_row', $row->attrs, [$editedCell]);
+        $editedBody = new AstNode('table_body', $body->attrs, [$editedRow]);
+        $editedTable = new AstNode('table', $table->attrs, [$editedBody]);
+        $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+            'caption' => 'Edited figure',
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'figure']),
+            ],
+            'captionBlocks' => [
+                new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'figure']),
+                ]),
+            ],
+        ]), $figure->children);
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            $editedTable,
+            $editedFigure,
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($editedDocument),
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $encodedTable = $encoded['blocks'][0];
+            $encodedBody = $encodedTable['c'][4][0]['c'] ?? $encodedTable['c'][4][0];
+            $encodedRow = $encodedBody[3][0]['c'] ?? $encodedBody[3][0];
+            $encodedCell = $encodedRow[1][0]['c'] ?? $encodedRow[1][0];
+            $encodedFigure = $encoded['blocks'][1];
+
+            $t->same('Edited', $encodedCell[4][0]['c'][0]['c'], "{$writer} writer regenerates edited sidecar-free table cell");
+            $t->same(false, $encodedTable === $tableBlock, "{$writer} writer does not reuse edited sidecar-free table payload");
+            $t->same('Edited', $encodedFigure['c'][1]['c'][1][0]['c'][0]['c'], "{$writer} writer regenerates edited sidecar-free figure caption");
+            $t->same(false, $encodedFigure === $figureBlock, "{$writer} writer does not reuse edited sidecar-free figure payload");
+        }
+    },
     'preserves table row and cell native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $cellNative = [
             't' => 'Cell',
@@ -3911,7 +4059,7 @@ return [
         $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
         $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
         $t->same('Reviewer', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
-        $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
+        $t->same('Para', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Reviewer figure', $roundTrip->attr('caption'));
         $t->contains(
             '<figure class="wp-block-image wp-import-figure" id="json-figure" data-review="figure" xml:lang="fr-CA" title="Escaped &quot;figure&quot; title" data-pandoc-latex-placement="htbp">',
@@ -4015,7 +4163,7 @@ return [
         $t->same($figureBlock['c'][1], $encoded['blocks'][0]['c'][1]);
         $t->same('Short', $encoded['blocks'][0]['c'][1]['c'][0]['c'][0][0]['c']);
         $t->same('Long', $encoded['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
-        $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
+        $t->same('Para', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Image', $encoded['blocks'][0]['c'][2][0]['c'][0]['t']);
         $t->same('Alt', $encoded['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
         $t->same('figure', $roundTrip->children[0]->type);

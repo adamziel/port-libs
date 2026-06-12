@@ -1139,8 +1139,7 @@ final class PandocJsonWriter
 
             return is_array($content)
                 && array_is_list($content)
-                && count($content) === ($tag === 'Figure' ? 3 : 6)
-                && $this->hasNativePayloadSidecars($native);
+                && count($content) === ($tag === 'Figure' ? 3 : 6);
         }
 
         return in_array($tag, [
@@ -1156,20 +1155,6 @@ final class PandocJsonWriter
             'Null',
             'Div',
         ], true);
-    }
-
-    /**
-     * @param array<string, mixed> $native
-     */
-    private function hasNativePayloadSidecars(array $native): bool
-    {
-        foreach ($native as $key => $_value) {
-            if ($key !== 't' && $key !== 'c') {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function hasLegacyTargetInlinePayload(mixed $value): bool
