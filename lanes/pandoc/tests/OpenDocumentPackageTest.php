@@ -1820,6 +1820,108 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'reports compact ODT object replacement sidecars as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $previewBytes = 'PREVIEWPNG';
+        $encryptedBytes = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+        $invalidBytes = 'replacement-bytes';
+        $orphanBytes = 'ORPHANWEBP';
+        $replacementEntries =
+            '  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/preview.png" manifest:size="' . strlen($previewBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="ObjectReplacements/missing.jpg"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="image/svg+xml" manifest:full-path="ObjectReplacements/encrypted.svg" manifest:size="' . strlen($encryptedBytes) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="replacement-checksum"/></manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="ObjectReplacements/invalid.bin" manifest:size="' . strlen($invalidBytes) . '"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $replacementEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'ObjectReplacements/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/encrypted.svg', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/invalid.bin', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/orphan.webp', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $replacements = $summary['packageObjectReplacements'];
+        $itemsByPath = [];
+        foreach ($replacements['items'] as $item) {
+            $itemsByPath[$item['packagePath']] = $item;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(5, $replacements['count']);
+        $t->same(3, $replacements['readableCount']);
+        $t->same(4, $replacements['declaredCount']);
+        $t->same(1, $replacements['undeclaredCount']);
+        $t->same(1, $replacements['missingCount']);
+        $t->same(1, $replacements['encryptedCount']);
+        $t->same(1, $replacements['invalidMediaTypeCount']);
+        $t->same(4, $replacements['issueCount']);
+        $t->same([
+            'odf-object-replacement-encrypted-package-part',
+            'odf-object-replacement-invalid-media-type',
+            'odf-object-replacement-missing-package-part',
+            'odf-object-replacement-undeclared-package-part',
+        ], $replacements['issueCodes']);
+
+        $preview = $itemsByPath['ObjectReplacements/preview.png'];
+        $t->same('image/png', $preview['mediaType']);
+        $t->same(true, $preview['valid']);
+        $t->same(false, $preview['canExposeAsDocumentMedia']);
+        $t->same(strlen($previewBytes), $preview['byteLength']);
+        $t->same(sprintf('%08x', crc32($previewBytes)), $preview['crc32']);
+        $t->same('object-replacement-package-bytes-blocked', $preview['byteExposurePolicy']);
+        $t->same('object-replacement-metadata-only', $preview['reviewPolicy']);
+
+        $missing = $itemsByPath['ObjectReplacements/missing.jpg'];
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-object-replacement-missing-package-part'], $missing['issues']);
+        $t->same('object-replacement-package-bytes-blocked', $missing['byteExposurePolicy']);
+
+        $encrypted = $itemsByPath['ObjectReplacements/encrypted.svg'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(['odf-object-replacement-encrypted-package-part'], $encrypted['issues']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+
+        $invalid = $itemsByPath['ObjectReplacements/invalid.bin'];
+        $t->same('application/octet-stream', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-object-replacement-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPath['ObjectReplacements/orphan.webp'];
+        $t->same('image/webp', $orphan['mediaType']);
+        $t->same(false, $orphan['declared']);
+        $t->same(['odf-object-replacement-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(4, $summary['manifestReview']['objectReplacementPackagePartCount']);
+        $t->same([
+            'ObjectReplacements/preview.png',
+            'ObjectReplacements/missing.jpg',
+            'ObjectReplacements/encrypted.svg',
+            'ObjectReplacements/invalid.bin',
+        ], array_column($summary['manifestReview']['objectReplacementPackageItems'], 'path'));
+        $t->same(true, $reviewByPath['ObjectReplacements/preview.png']['objectReplacementPackagePart']);
+        $t->same(false, $reviewByPath['ObjectReplacements/preview.png']['canExposeBytes']);
+        $t->same(null, $reviewByPath['ObjectReplacements/preview.png']['byteLength']);
+        $t->same(strlen($previewBytes), $reviewByPath['ObjectReplacements/preview.png']['storedByteLength']);
+        $t->same('object-replacement-package-bytes-blocked', $reviewByPath['ObjectReplacements/preview.png']['byteExposurePolicy']);
+        $t->same(true, $reviewByPath['ObjectReplacements/missing.jpg']['objectReplacementPackagePart']);
+        $t->same('object-replacement-package-bytes-blocked', $reviewByPath['ObjectReplacements/missing.jpg']['byteExposurePolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $reviewByPath['ObjectReplacements/encrypted.svg']['byteExposurePolicy']);
+
+        $t->same(4, $inventory['objectReplacementPartCount']);
+        $t->same(4, $inventory['roleCounts']['object-replacement']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['object-replacement']);
+        $t->same(['object-replacement', 'manifest-declared'], $inventory['parts']['ObjectReplacements/preview.png']['roles']);
+        $t->same(['object-replacement', 'manifest-declared'], $inventory['parts']['ObjectReplacements/invalid.bin']['roles']);
+        $t->same(['object-replacement', 'undeclared-package-entry'], $inventory['parts']['ObjectReplacements/orphan.webp']['roles']);
+        $t->same(true, $inventory['parts']['ObjectReplacements/preview.png']['objectReplacementPackagePart']);
+        $t->same(1, count($summary['mediaParts']), 'object replacement sidecars must stay out of document media handoff');
+    },
     'reports compact ODT RDF metadata sidecars as package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $rdfXml = <<<'XML'
 <rdf:RDF
