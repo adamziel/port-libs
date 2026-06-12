@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3249,
-        "latestSlice": "pandoc-odf-compact-manifest-inventory-uri maps one ODF/ODT package ingestion coverage slice for URI-encoded manifest full-paths in compact OpenDocumentPackage inventory, preserving raw manifestPath and resolved manifestPackagePath while decoded ZIP package parts remain manifest-declared. mappedOdfCompactManifestInventoryUriCases is 1, odfCompactManifestInventoryUriAssertions is 12. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php (1 file, 1066 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73731 assertions, 0 failures) after final rebase onto current main 48e2a2b0 without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3250,
+        "latestSlice": "pandoc-docx-relationship-type-target-suffix maps one DOCX/OpenXML package ingestion coverage slice for relationship-type package review buckets. Grouped relationshipTypes entries now retain resolvedTarget, targetQuery, targetFragment, targetReferenceSuffix, defaultExtension, and overridePartName. phpPass moves 3288 -> 3289, phpFail remains 0, mappedDocxRelationshipTypeTargetSuffixCases is 1, and docxRelationshipTypeTargetSuffixAssertions is 35. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php (1 file, 2301 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73809 assertions, 0 failures) after final rebase onto current main 58011902 without running Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "ODF compact manifest inventory URI package-path provenance is verified over current main 48e2a2b0.",
-        "latestFocusedSource": "2026-06-12 ODF/ODT package ingestion slice inspected compact OpenDocumentPackage inventory provenance for URI-encoded manifest full-paths against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 48e2a2b0; focused OpenDocumentPackageTest.php passed 1 file, 1066 assertions, 0 failures.",
+        "status": "DOCX/OpenXML relationship-type target suffix provenance is verified over current main 58011902.",
+        "latestFocusedSource": "2026-06-12 DOCX/OpenXML slice inspected relationship-type grouped target suffix provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 58011902; focused DocxOpenXmlReaderTest.php passed 1 file, 2301 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -123,7 +123,9 @@
         "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
         "pandocJsonNativeMetaInlineFallbackAssertions": 10,
         "mappedOdfCompactManifestInventoryUriCases": 1,
-        "odfCompactManifestInventoryUriAssertions": 12
+        "odfCompactManifestInventoryUriAssertions": 12,
+        "mappedDocxRelationshipTypeTargetSuffixCases": 1,
+        "docxRelationshipTypeTargetSuffixAssertions": 35
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -991,12 +993,12 @@
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
         "xmlHtmlDomLinkResourceReviewAssertions": 38
     },
-    "wordpressScenario": "ODF/ODT compact package inventory now preserves raw URI-encoded manifest full-paths alongside resolved ZIP package paths as manifestPackagePath, so encoded manifest parts remain declared in compact inventory review packets without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "DOCX/OpenXML package review queues now preserve resolved targets, query strings, fragments, target suffixes, default extension sources, and override part names inside relationship-type grouped relationship entries without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "ODF compact manifest inventory URI package-path provenance is verified over current main 48e2a2b0.",
-    "mapping": "Accounts for one bounded native PHP ODF/ODT compact package inventory mapping for URI-encoded manifest full-path package-path provenance on current main 48e2a2b0.",
-    "audit": "updated 2026-06-12: OpenDocumentPackage compact package inventory now exposes manifestPackagePath beside raw manifestPath for URI-encoded ODF manifest entries and verifies decoded ZIP parts stay declared. Verified on current main 48e2a2b0 with php -l lanes/pandoc/src/OpenDocumentPackage.php, php -l lanes/pandoc/tests/OpenDocumentPackageTest.php, php tools/run-tests.php lanes/pandoc/tests/OpenDocumentPackageTest.php (1 test file, 1066 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73731 assertions, 0 failures).",
-    "latestSlice": "pandoc-odf-compact-manifest-inventory-uri maps one ODF/ODT package ingestion coverage slice for URI-encoded manifest full-paths in compact OpenDocumentPackage inventory, preserving raw manifestPath and resolved manifestPackagePath while decoded ZIP package parts remain manifest-declared. mappedOdfCompactManifestInventoryUriCases is 1, odfCompactManifestInventoryUriAssertions is 12. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php (1 file, 1066 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73731 assertions, 0 failures) after final rebase onto current main 48e2a2b0 without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "DOCX/OpenXML relationship-type target suffix provenance is verified over current main 58011902.",
+    "mapping": "Accounts for one bounded native PHP DOCX/OpenXML mapping for relationship-type package review target suffix provenance on current main 58011902.",
+    "audit": "updated 2026-06-12: DocxOpenXmlReader relationshipTypes grouped relationship entries preserve resolvedTarget, targetQuery, targetFragment, targetReferenceSuffix, defaultExtension, and overridePartName. Verified on current main 58011902 with php -l lanes/pandoc/src/DocxOpenXmlReader.php, php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php, php tools/run-tests.php lanes/pandoc/tests/DocxOpenXmlReaderTest.php (1 test file, 2301 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73809 assertions, 0 failures).",
+    "latestSlice": "pandoc-docx-relationship-type-target-suffix maps one DOCX/OpenXML package ingestion coverage slice for relationship-type package review buckets. Grouped relationshipTypes entries now retain resolvedTarget, targetQuery, targetFragment, targetReferenceSuffix, defaultExtension, and overridePartName. phpPass moves 3288 -> 3289, phpFail remains 0, mappedDocxRelationshipTypeTargetSuffixCases is 1, and docxRelationshipTypeTargetSuffixAssertions is 35. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php (1 file, 2301 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73809 assertions, 0 failures) after final rebase onto current main 58011902 without running Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1136,7 +1138,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-12 XML/HTML5 DOM link resource hint/preload provenance over current main 5cdf8aebd.",
+    "latestFocusedSource": "2026-06-12 DOCX/OpenXML slice inspected relationship-type grouped target suffix provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 58011902; focused DocxOpenXmlReaderTest.php passed 1 file, 2301 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1310,5 +1312,7 @@
     "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
     "pandocJsonNativeMetaInlineFallbackAssertions": 10,
     "mappedOdfCompactManifestInventoryUriCases": 1,
-    "odfCompactManifestInventoryUriAssertions": 12
+    "odfCompactManifestInventoryUriAssertions": 12,
+    "mappedDocxRelationshipTypeTargetSuffixCases": 1,
+    "docxRelationshipTypeTargetSuffixAssertions": 35
 }
