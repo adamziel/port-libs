@@ -3140,6 +3140,108 @@ XML;
         $t->same($overlays['items'], $summary['wordpressImport']['mediaOverlayItems']);
     },
 
+    'classifies media-overlay remote text and missing audio targets for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>',
+            $epub3OpfXml
+        );
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>',
+            $opfWithMediaOverlay
+        );
+        $smil = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq>
+      <par id="local">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter.mp3" clipBegin="0s" clipEnd="2s"/>
+      </par>
+      <par id="remote-text-missing-audio">
+        <text src="https://publisher.example.invalid/transcripts/chapter1.xhtml#caption"/>
+        <audio src="../audio/missing.mp3" clipBegin="2s" clipEnd="5s"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMediaOverlay],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smil],
+        ]));
+
+        $overlays = $epub->mediaOverlays();
+        $summary = $epub->summary();
+        $chapter = $overlays['itemsById']['mo-chapter'];
+        $local = $chapter['items'][0];
+        $remote = $chapter['items'][1];
+
+        $t->same(true, $local['textExists']);
+        $t->same(false, $local['textExternal']);
+        $t->same('/EPUB/text/chapter1.xhtml#intro', $local['textTarget']);
+        $t->same(true, $local['audioExists']);
+        $t->same(false, $local['audioExternal']);
+        $t->same('/EPUB/audio/chapter.mp3', $local['audioTarget']);
+        $t->same([], $local['textDiagnostics']);
+        $t->same([], $local['audioDiagnostics']);
+
+        $t->same('https://publisher.example.invalid/transcripts/chapter1.xhtml#caption', $remote['textTarget']);
+        $t->same(null, $remote['textPartName']);
+        $t->same(false, $remote['textExists']);
+        $t->same(true, $remote['textExternal']);
+        $t->same(true, $remote['textHrefHasFragment']);
+        $t->same('caption', $remote['textHrefFragment']);
+        $t->same('external-media-overlay-text-reference', $remote['textDiagnostics'][0]['type']);
+        $t->same('/EPUB/audio/missing.mp3', $remote['audioTarget']);
+        $t->same('/EPUB/audio/missing.mp3', $remote['audioPartName']);
+        $t->same(false, $remote['audioExists']);
+        $t->same(false, $remote['audioExternal']);
+        $t->same('missing-media-overlay-audio-reference', $remote['audioDiagnostics'][0]['type']);
+        $t->same(['external-media-overlay-text-reference', 'missing-media-overlay-audio-reference'], array_column($remote['diagnostics'], 'type'));
+        $t->same(3.0, $remote['clipDurationSeconds']);
+
+        $t->same(['/EPUB/text/chapter1.xhtml#intro'], $chapter['textLocalTargets']);
+        $t->same(['https://publisher.example.invalid/transcripts/chapter1.xhtml#caption'], $chapter['textExternalTargets']);
+        $t->same([], $chapter['textMissingTargets']);
+        $t->same(['/EPUB/audio/chapter.mp3'], $chapter['audioLocalTargets']);
+        $t->same([], $chapter['audioExternalTargets']);
+        $t->same(['/EPUB/audio/missing.mp3'], $chapter['audioMissingTargets']);
+        $t->same(1, $chapter['textLocalTargetCount']);
+        $t->same(1, $chapter['textExternalTargetCount']);
+        $t->same(0, $chapter['textMissingTargetCount']);
+        $t->same(1, $chapter['audioLocalTargetCount']);
+        $t->same(0, $chapter['audioExternalTargetCount']);
+        $t->same(1, $chapter['audioMissingTargetCount']);
+
+        $t->same($chapter['textLocalTargets'], $overlays['textLocalTargets']);
+        $t->same($chapter['textExternalTargets'], $overlays['textExternalTargets']);
+        $t->same($chapter['textMissingTargets'], $overlays['textMissingTargets']);
+        $t->same($chapter['audioLocalTargets'], $overlays['audioLocalTargets']);
+        $t->same($chapter['audioExternalTargets'], $overlays['audioExternalTargets']);
+        $t->same($chapter['audioMissingTargets'], $overlays['audioMissingTargets']);
+        $t->same(['external-media-overlay-text-reference', 'missing-media-overlay-audio-reference'], array_column($overlays['diagnostics'], 'type'));
+        $t->same($overlays['textLocalTargets'], $summary['wordpressImport']['mediaOverlayTextLocalTargets']);
+        $t->same($overlays['textExternalTargets'], $summary['wordpressImport']['mediaOverlayTextExternalTargets']);
+        $t->same($overlays['textMissingTargets'], $summary['wordpressImport']['mediaOverlayTextMissingTargets']);
+        $t->same($overlays['audioLocalTargets'], $summary['wordpressImport']['mediaOverlayAudioLocalTargets']);
+        $t->same($overlays['audioExternalTargets'], $summary['wordpressImport']['mediaOverlayAudioExternalTargets']);
+        $t->same($overlays['audioMissingTargets'], $summary['wordpressImport']['mediaOverlayAudioMissingTargets']);
+        $t->same($overlays['diagnostics'], $summary['wordpressImport']['mediaOverlayDiagnostics']);
+    },
+
     'summarizes OPF manifest fallback chains for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $fallbackXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback review content.</p></body></html>';
         $fallbackCss = 'body { color: #123456; }';
