@@ -347,6 +347,81 @@ return [
         $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
         $t->same('image/png; profile=media-default', $image->attr('contentType'));
     },
+    'groups docx package inventory by content type for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/xml; profile=custom-review"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = '<root/>';
+        $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $bucketsByBase = [];
+        foreach ($summary['contentTypeBuckets'] as $bucket) {
+            $key = $bucket['contentTypeBase'] === '' ? '(missing)' : $bucket['contentTypeBase'];
+            $bucketsByBase[$key] = $bucket;
+        }
+
+        $xml = $bucketsByBase['application/xml'];
+        $rels = $bucketsByBase['application/vnd.openxmlformats-package.relationships+xml'];
+        $documentMain = $bucketsByBase['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'];
+        $png = $bucketsByBase['image/png'];
+        $missing = $bucketsByBase['(missing)'];
+
+        $t->same(6, $summary['contentTypeBucketCount']);
+        $t->same([
+            '(missing)',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-package.core-properties+xml',
+            'application/vnd.openxmlformats-package.relationships+xml',
+            'application/xml',
+            'image/png',
+        ], array_keys($bucketsByBase));
+
+        $t->same(4, $xml['partCount']);
+        $t->same(strlen($parts['[Content_Types].xml']) + strlen($parts['word/styles.xml']) + strlen($parts['word/numbering.xml']) + strlen($parts['customXml/item1.xml']), $xml['byteLength']);
+        $t->same(['application/xml', 'application/xml; profile=custom-review'], $xml['contentTypes']);
+        $t->same(1, $xml['parameterizedPartCount']);
+        $t->same(['default' => 3, 'override' => 1], $xml['contentTypeSourceCounts']);
+        $t->same(['xml'], $xml['defaultExtensions']);
+        $t->same(['customXml/item1.xml'], $xml['overridePartNames']);
+        $t->same(['content-types' => 1, 'document-relationship-target' => 1, 'package-part' => 2], $xml['roleCounts']);
+        $t->same(['[Content_Types].xml', 'word/styles.xml', 'word/numbering.xml', 'customXml/item1.xml'], $xml['partNames']);
+
+        $t->same(2, $rels['partCount']);
+        $t->same(2, $rels['relationshipPartCount']);
+        $t->same(['default' => 2], $rels['contentTypeSourceCounts']);
+        $t->same(['rels'], $rels['defaultExtensions']);
+        $t->same(['office-document-relationships' => 1, 'package-relationships' => 1, 'relationship-part' => 2], $rels['roleCounts']);
+
+        $t->same(1, $documentMain['partCount']);
+        $t->same(['override' => 1], $documentMain['contentTypeSourceCounts']);
+        $t->same(['word/document.xml'], $documentMain['overridePartNames']);
+        $t->same(['office-document' => 1, 'root-relationship-target' => 1], $documentMain['roleCounts']);
+
+        $t->same(1, $png['partCount']);
+        $t->same(['word/media/review.png'], $png['partNames']);
+        $t->same(['document-relationship-target' => 1], $png['roleCounts']);
+
+        $t->same('', $missing['contentTypeBase']);
+        $t->same([], $missing['contentTypes']);
+        $t->same(1, $missing['partCount']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['bin'], $missing['defaultExtensions']);
+        $t->same(['package-part' => 1], $missing['roleCounts']);
+        $t->same(['customXml/raw-review.bin'], $missing['partNames']);
+    },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
