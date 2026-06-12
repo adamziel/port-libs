@@ -5797,6 +5797,37 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $engineOptions
+     * @return list<string>
+     */
+    private function typstFontPathValues(array $engineOptions): array
+    {
+        $values = [];
+        foreach ($this->engineOptionValues($engineOptions, ['--font-path'], true) as $value) {
+            array_push($values, ...$this->splitTypstFontPathValue($value));
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTypstFontPathValue(string $raw): array
+    {
+        $value = str_replace('\\', '/', trim($raw));
+        if ($value === ''
+            || preg_match('/\A[A-Za-z]:\//', $value) === 1
+            || preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:\/\//', $value) === 1
+            || !str_contains($raw, PATH_SEPARATOR)
+        ) {
+            return [$raw];
+        }
+
+        return explode(PATH_SEPARATOR, $raw);
+    }
+
+    /**
+     * @param list<string> $engineOptions
      */
     private function engineOptionFlagCount(array $engineOptions, string $name): int
     {
@@ -5861,7 +5892,7 @@ final class PdfEngineHandoff
         }
 
         $rootValues = $this->engineOptionValues($engineOptions, ['--root'], true);
-        $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
+        $fontPathValues = $this->typstFontPathValues($engineOptions);
         $certificateValues = $this->engineOptionValues($engineOptions, ['--cert'], true);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true);
