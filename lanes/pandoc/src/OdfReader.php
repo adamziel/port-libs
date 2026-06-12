@@ -891,6 +891,7 @@ final class OdfReader
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        $largestPackageParts = $this->largestPackageParts($parts, 5);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -913,8 +914,53 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'largestPackagePartLimit' => 5,
+            'largestPackagePartCount' => count($largestPackageParts),
+            'largestPackageParts' => $largestPackageParts,
             'parts' => $parts,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return list<array<string, mixed>>
+     */
+    private function largestPackageParts(array $parts, int $limit): array
+    {
+        $items = [];
+        foreach ($parts as $part) {
+            if (($part['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $items[] = [
+                'part' => (string) ($part['part'] ?? ''),
+                'roles' => $part['roles'] ?? [],
+                'byteLength' => (int) ($part['byteLength'] ?? 0),
+                'compressedByteLength' => (int) ($part['compressedByteLength'] ?? 0),
+                'compressionMethod' => $part['compressionMethod'] ?? null,
+                'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'crc32' => $part['crc32'] ?? null,
+                'declaredInManifest' => (bool) ($part['declaredInManifest'] ?? false),
+                'manifestIndex' => $part['manifestIndex'] ?? null,
+                'manifestFullPath' => $part['manifestFullPath'] ?? null,
+                'manifestMediaType' => $part['manifestMediaType'] ?? null,
+                'canExposeBytes' => (bool) ($part['canExposeBytes'] ?? false),
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+                'undeclared' => (bool) ($part['undeclared'] ?? false),
+            ];
+        }
+
+        usort($items, static function (array $left, array $right): int {
+            $byBytes = ($right['byteLength'] <=> $left['byteLength']);
+            if ($byBytes !== 0) {
+                return $byBytes;
+            }
+
+            return strcmp((string) $left['part'], (string) $right['part']);
+        });
+
+        return array_slice($items, 0, max(0, $limit));
     }
 
     /**
