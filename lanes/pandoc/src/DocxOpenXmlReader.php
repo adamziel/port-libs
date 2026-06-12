@@ -327,6 +327,16 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['embeddedObjects'] = $embeddedObjects;
+        $packageProvenance['summary']['embeddedObjectCount'] = $embeddedObjects['count'];
+        $packageProvenance['summary']['embeddedObjectRelationshipCount'] = $embeddedObjects['relationshipCount'];
+        $packageProvenance['summary']['embeddedObjectExistingCount'] = $embeddedObjects['existingCount'];
+        $packageProvenance['summary']['embeddedObjectMissingCount'] = $embeddedObjects['missingCount'];
+        $packageProvenance['summary']['embeddedObjectExternalCount'] = $embeddedObjects['externalCount'];
+        $packageProvenance['summary']['embeddedObjectUnresolvedCount'] = $embeddedObjects['unresolvedCount'];
+        $packageProvenance['summary']['embeddedObjectMissingContentTypeCount'] = $embeddedObjects['missingContentTypeCount'];
+        $packageProvenance['summary']['embeddedObjectIssueCount'] = $embeddedObjects['issueCount'];
+        $packageProvenance['summary']['embeddedObjectIssueCodes'] = $embeddedObjects['issueCodes'];
         $packageProvenance['activeXControls'] = $activeXControls;
         $packageProvenance['summary']['activeXControlCount'] = $activeXControls['count'];
         $packageProvenance['summary']['activeXControlRelationshipCount'] = $activeXControls['relationshipCount'];
@@ -1289,10 +1299,23 @@ final class DocxOpenXmlReader
         }
 
         $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
         foreach ($items as $item) {
             $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
             $this->appendUniqueString($partNames, $partName);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
         }
+        ksort($issueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -1308,12 +1331,18 @@ final class DocxOpenXmlReader
             )),
             'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'referencedRelationshipIds' => $referencedRelationshipIds,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+            'byteExposurePolicy' => 'embedded-object-bytes-blocked',
+            'reviewPolicy' => 'embedded-object-metadata-only',
         ];
     }
 
@@ -1370,6 +1399,7 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => '',
             'exists' => false,
             'bytes' => 0,
+            'crc32' => null,
             'contentType' => '',
             'contentTypeBase' => '',
             'contentTypeHasParameters' => false,
@@ -1381,6 +1411,9 @@ final class DocxOpenXmlReader
             'overridePartName' => null,
             'relationshipsPart' => null,
             'relationshipCount' => 0,
+            'canExposeAsDocumentMedia' => false,
+            'byteExposurePolicy' => 'embedded-object-bytes-blocked',
+            'reviewPolicy' => 'embedded-object-metadata-only',
             'relationship' => null,
             'issues' => [],
         ];
@@ -1413,6 +1446,7 @@ final class DocxOpenXmlReader
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
         $item['exists'] = $exists;
         $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
         $item['contentType'] = $summary['contentType'];
         $item['contentTypeBase'] = $summary['contentTypeBase'];
         $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];

@@ -1585,6 +1585,102 @@ XML;
         $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
+    'preserves docx embedded object package provenance as metadata only' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $embeddedBytes = 'embedded package payload bytes';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject; profile=embedded-review"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedPackage" Type="' . $packageRel . '" Target="embeddings/review.bin?audit=object#ole"/>' . "\n" .
+            '  <Relationship Id="rRemotePackage" Type="' . $packageRel . '" Target="https://example.test/embedded.bin?remote=1#ole" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rEmbeddedPackage" ProgID="Package" ShapeID="_x0000_i2048" DrawAspect="Icon" ObjectID="_pkg1" UpdateMode="OnCall"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rUnknownPackage" ProgID="Package"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/embeddings/review.bin'] = $embeddedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $embedded = $package['embeddedObjects'];
+        $summary = $package['summary'];
+        $item = $embedded['byRelationshipId']['rEmbeddedPackage'];
+        $unknown = $embedded['byRelationshipId']['rUnknownPackage'];
+        $remote = $embedded['byRelationshipId']['rRemotePackage'];
+
+        $t->same($docx['embeddedObjects'], $embedded);
+        $t->same(3, $embedded['count']);
+        $t->same(2, $embedded['relationshipCount']);
+        $t->same(2, $embedded['referencedCount']);
+        $t->same(1, $embedded['unreferencedRelationshipCount']);
+        $t->same(1, $embedded['existingCount']);
+        $t->same(1, $embedded['externalCount']);
+        $t->same(1, $embedded['unresolvedCount']);
+        $t->same(0, $embedded['missingContentTypeCount']);
+        $t->same(2, $embedded['issueCount']);
+        $t->same(['external-embedded-object', 'unknown-relationship'], $embedded['issueCodes']);
+        $t->same(['word/embeddings/review.bin'], $embedded['partNames']);
+        $t->same(['https://example.test/embedded.bin?remote=1#ole'], $embedded['externalTargets']);
+        $t->same(['application/vnd.openxmlformats-officedocument.oleObject; profile=embedded-review'], $embedded['contentTypes']);
+        $t->same('embedded-object-bytes-blocked', $embedded['byteExposurePolicy']);
+        $t->same('embedded-object-metadata-only', $embedded['reviewPolicy']);
+
+        $t->same(3, $summary['embeddedObjectCount']);
+        $t->same(2, $summary['embeddedObjectRelationshipCount']);
+        $t->same(1, $summary['embeddedObjectExistingCount']);
+        $t->same(0, $summary['embeddedObjectMissingCount']);
+        $t->same(1, $summary['embeddedObjectExternalCount']);
+        $t->same(1, $summary['embeddedObjectUnresolvedCount']);
+        $t->same(0, $summary['embeddedObjectMissingContentTypeCount']);
+        $t->same(2, $summary['embeddedObjectIssueCount']);
+        $t->same($embedded['issueCodes'], $summary['embeddedObjectIssueCodes']);
+
+        $t->same('Package', $item['progId']);
+        $t->same('_x0000_i2048', $item['shapeId']);
+        $t->same('Icon', $item['drawAspect']);
+        $t->same('_pkg1', $item['objectId']);
+        $t->same('OnCall', $item['updateMode']);
+        $t->same('word/embeddings/review.bin', $item['targetPart']);
+        $t->same('audit=object', $item['targetQuery']);
+        $t->same('ole', $item['targetFragment']);
+        $t->same('?audit=object#ole', $item['targetReferenceSuffix']);
+        $t->same(true, $item['exists']);
+        $t->same(strlen($embeddedBytes), $item['bytes']);
+        $t->same(sprintf('%08x', crc32($embeddedBytes)), $item['crc32']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleobject', $item['contentTypeBase']);
+        $t->same(['profile' => 'embedded-review'], $item['contentTypeParameterMap']);
+        $t->same(false, $item['canExposeAsDocumentMedia']);
+        $t->same('embedded-object-bytes-blocked', $item['byteExposurePolicy']);
+        $t->same('embedded-object-metadata-only', $item['reviewPolicy']);
+        $t->same([], $item['issues']);
+
+        $t->same(true, $unknown['referenced']);
+        $t->same(null, $unknown['crc32']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+        $t->same(false, $remote['referenced']);
+        $t->same(true, $remote['external']);
+        $t->same(null, $remote['targetPart']);
+        $t->same('remote=1', $remote['targetQuery']);
+        $t->same('ole', $remote['targetFragment']);
+        $t->same(['external-embedded-object'], $remote['issues']);
+    },
     'reports docx activex control package provenance as metadata only' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
