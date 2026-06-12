@@ -1121,6 +1121,56 @@ XML;
         $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
     },
+    'keeps compact ODT configuration package parts metadata only' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $configBytes = '<config:config-item-set/>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($configBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configBytes, 'compressionMethod' => 0],
+            ],
+        ));
+        $summary = $odt->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $config = $odt->manifestEntry('Configurations2/accelerator/current.xml');
+        $reviewConfig = $reviewByPath['Configurations2/accelerator/current.xml'];
+        $inventory = $summary['packageInventory'];
+        $inventoryConfig = $inventory['parts']['Configurations2/accelerator/current.xml'];
+
+        $t->same(true, $config['configurationPackagePart']);
+        $t->same(true, $config['exists']);
+        $t->same(false, $config['canExposeBytes']);
+        $t->same(null, $config['byteLength']);
+        $t->same(strlen($configBytes), $config['storedByteLength']);
+        $t->same(null, $config['crc32']);
+        $t->same(sprintf('%08x', crc32($configBytes)), $config['storedCrc32']);
+        $t->same('configuration-package-bytes-blocked', $config['byteExposurePolicy']);
+        $t->same([], $config['diagnostics']);
+
+        $t->same(1, $summary['manifestReview']['configurationPackagePartCount']);
+        $t->same(['Configurations2/accelerator/current.xml'], array_column($summary['manifestReview']['configurationPackageItems'], 'path'));
+        $t->same(true, $reviewConfig['configurationPackagePart']);
+        $t->same('configuration-package-bytes-blocked', $reviewConfig['byteExposurePolicy']);
+        $t->same(false, $reviewConfig['canExposeBytes']);
+
+        $t->same(1, $inventory['configurationPackagePartCount']);
+        $t->same(['configuration-package', 'manifest-declared'], $inventoryConfig['roles']);
+        $t->same(false, $inventoryConfig['canExposeBytes']);
+        $t->same(1, $inventory['roleCounts']['configuration-package']);
+        $t->same(1, $inventory['mediaResourcePartCount']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['exposableMediaPartCount']);
+        $t->same(0, $summary['undeclaredPackageEntryCount']);
+    },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $encryptedBytes = 'ENCRYPTEDPNG';
