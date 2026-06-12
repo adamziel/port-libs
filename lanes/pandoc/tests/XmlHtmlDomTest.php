@@ -2701,6 +2701,71 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/document-metadata-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html link resource hint and preload provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<link rel="preload modulepreload dns-prefetch preload custom-rel bad&lt;tag" href="app.js" as="Script" crossorigin="anonymous" integrity="sha384-app" fetchpriority="High">'
+                . '<link rel="preconnect preload" as="bogus">'
+                . '<link rel="stylesheet icon canonical" href="/site.css"><p>Body</p>',
+            'link resource review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/link-resource-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $preload = $summary[0];
+        $missingHref = $summary[1];
+        $stylesheet = $summary[2];
+
+        $t->same('link', $preload['linkResourceReview']);
+        $t->same(['preload', 'modulepreload', 'dns-prefetch', 'custom-rel'], $preload['linkRelTokens']);
+        $t->same(['preload' => 2, 'modulepreload' => 1, 'dns-prefetch' => 1, 'custom-rel' => 1], $preload['linkRelTokenCounts']);
+        $t->same(['preload'], $preload['duplicateLinkRelTokens']);
+        $t->same(['bad<tag'], $preload['invalidLinkRelTokens']);
+        $t->same(['custom-rel'], $preload['customLinkRelTokens']);
+        $t->same(['preload', 'modulepreload', 'dns-prefetch'], $preload['linkResourceRelTokens']);
+        $t->same(['preload', 'modulepreload', 'resource-hint'], $preload['linkResourceKinds']);
+        $t->same('preload', $preload['linkPrimaryResourceKind']);
+        $t->same(['dns-prefetch'], $preload['linkResourceHintTokens']);
+        $t->same(true, $preload['linkHrefRequired']);
+        $t->same(true, $preload['linkHrefPresent']);
+        $t->same('Script', $preload['preloadAsRaw']);
+        $t->same('script', $preload['preloadAs']);
+        $t->same(true, $preload['preloadAsRequired']);
+        $t->same(true, $preload['preloadAsValid']);
+        $t->same([
+            ['code' => 'invalid-link-rel-token', 'relToken' => 'bad<tag'],
+            ['code' => 'duplicate-link-rel-token', 'relToken' => 'preload', 'count' => 2],
+        ], $preload['linkIssues']);
+        $t->same('anonymous', $preload['crossorigin']);
+        $t->same('sha384-app', $preload['integrity']);
+        $t->same('High', $preload['fetchpriority']);
+
+        $t->same(['preconnect', 'preload'], $missingHref['linkResourceRelTokens']);
+        $t->same(['resource-hint', 'preload'], $missingHref['linkResourceKinds']);
+        $t->same('resource-hint', $missingHref['linkPrimaryResourceKind']);
+        $t->same(true, $missingHref['linkHrefRequired']);
+        $t->same(false, $missingHref['linkHrefPresent']);
+        $t->same('bogus', $missingHref['preloadAs']);
+        $t->same(false, $missingHref['preloadAsValid']);
+        $t->same([
+            ['code' => 'missing-link-href', 'relTokens' => ['preconnect', 'preload']],
+            ['code' => 'invalid-preload-as', 'asRaw' => 'bogus'],
+        ], $missingHref['linkIssues']);
+
+        $t->same(['stylesheet', 'icon', 'canonical'], $stylesheet['linkResourceRelTokens']);
+        $t->same(['stylesheet', 'icon', 'canonical'], $stylesheet['linkResourceKinds']);
+        $t->same('stylesheet', $stylesheet['linkPrimaryResourceKind']);
+        $t->same(true, $stylesheet['linkHrefRequired']);
+        $t->same([], $stylesheet['linkIssues']);
+        $t->same(false, $stylesheet['preloadAsRequired']);
+        $t->same(true, $stylesheet['preloadAsValid']);
+        $t->same('<link as="Script" crossorigin="anonymous" fetchpriority="High" href="app.js" integrity="sha384-app" rel="preload modulepreload dns-prefetch preload custom-rel bad&lt;tag"><link as="bogus" rel="preconnect preload"><link href="/site.css" rel="stylesheet icon canonical"><p>Body</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/link-resource-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'

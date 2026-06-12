@@ -1254,7 +1254,7 @@ final class XmlHtmlDom
             $relRaw = self::attributeOrNull($element, 'rel');
             $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
 
-            return [
+            $summary = [
                 'documentMetadata' => 'link',
                 'href' => self::attributeOrNull($element, 'href'),
                 'relRaw' => $relRaw,
@@ -1272,6 +1272,8 @@ final class XmlHtmlDom
                 'imageSizes' => self::attributeOrNull($element, 'imagesizes'),
                 'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
             ];
+
+            return $summary + self::linkResourceReviewSummary($element, $relRaw);
         }
 
         $content = self::attributeOrNull($element, 'content');
@@ -1293,6 +1295,154 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function linkResourceReviewSummary(\DOMElement $link, ?string $relRaw): array
+    {
+        $tokens = $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw);
+        $knownTokens = [
+            'alternate' => true,
+            'author' => true,
+            'canonical' => true,
+            'dns-prefetch' => true,
+            'expect' => true,
+            'help' => true,
+            'icon' => true,
+            'license' => true,
+            'manifest' => true,
+            'modulepreload' => true,
+            'next' => true,
+            'pingback' => true,
+            'preconnect' => true,
+            'prefetch' => true,
+            'preload' => true,
+            'prev' => true,
+            'prerender' => true,
+            'search' => true,
+            'stylesheet' => true,
+        ];
+        $resourceTokenKinds = [
+            'alternate' => 'alternate',
+            'canonical' => 'canonical',
+            'dns-prefetch' => 'resource-hint',
+            'icon' => 'icon',
+            'manifest' => 'manifest',
+            'modulepreload' => 'modulepreload',
+            'preconnect' => 'resource-hint',
+            'prefetch' => 'resource-hint',
+            'preload' => 'preload',
+            'prerender' => 'resource-hint',
+            'search' => 'search',
+            'stylesheet' => 'stylesheet',
+        ];
+        $resourceHintTokens = ['dns-prefetch' => true, 'preconnect' => true, 'prefetch' => true, 'prerender' => true];
+        $preloadDestinations = [
+            'audio' => true,
+            'document' => true,
+            'embed' => true,
+            'fetch' => true,
+            'font' => true,
+            'image' => true,
+            'object' => true,
+            'script' => true,
+            'style' => true,
+            'track' => true,
+            'video' => true,
+            'worker' => true,
+        ];
+
+        $normalized = [];
+        $counts = [];
+        $invalid = [];
+        $custom = [];
+        $resourceRelTokens = [];
+        $resourceKinds = [];
+        $resourceHints = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if (!self::isSafeHtmlRelToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (!array_key_exists($lower, $counts)) {
+                $normalized[] = $lower;
+                $counts[$lower] = 0;
+            }
+            ++$counts[$lower];
+
+            if (!isset($knownTokens[$lower])) {
+                $custom[] = $lower;
+            }
+            if (isset($resourceTokenKinds[$lower]) && !in_array($lower, $resourceRelTokens, true)) {
+                $resourceRelTokens[] = $lower;
+            }
+            if (isset($resourceTokenKinds[$lower]) && !in_array($resourceTokenKinds[$lower], $resourceKinds, true)) {
+                $resourceKinds[] = $resourceTokenKinds[$lower];
+            }
+            if (isset($resourceHintTokens[$lower]) && !in_array($lower, $resourceHints, true)) {
+                $resourceHints[] = $lower;
+            }
+        }
+
+        $duplicates = [];
+        foreach ($counts as $token => $count) {
+            if ($count > 1) {
+                $duplicates[] = $token;
+            }
+        }
+
+        $asRaw = self::attributeOrNull($link, 'as');
+        $as = $asRaw === null ? null : strtolower(trim($asRaw));
+        $hasPreload = in_array('preload', $normalized, true);
+        $preloadAsValid = !$hasPreload || ($as !== null && isset($preloadDestinations[$as]));
+        $href = self::attributeOrNull($link, 'href');
+        $hrefRequired = $resourceRelTokens !== [];
+        $issues = [];
+
+        foreach ($invalid as $token) {
+            $issues[] = ['code' => 'invalid-link-rel-token', 'relToken' => $token];
+        }
+        foreach ($duplicates as $token) {
+            $issues[] = ['code' => 'duplicate-link-rel-token', 'relToken' => $token, 'count' => $counts[$token]];
+        }
+        if ($hrefRequired && ($href === null || trim($href) === '')) {
+            $issues[] = ['code' => 'missing-link-href', 'relTokens' => $resourceRelTokens];
+        }
+        if ($hasPreload && ($as === null || $as === '')) {
+            $issues[] = ['code' => 'missing-preload-as'];
+        } elseif ($hasPreload && !isset($preloadDestinations[$as])) {
+            $issues[] = ['code' => 'invalid-preload-as', 'asRaw' => $asRaw];
+        }
+
+        return [
+            'linkResourceReview' => 'link',
+            'linkRelTokens' => $normalized,
+            'linkRelTokenCounts' => $counts,
+            'duplicateLinkRelTokens' => $duplicates,
+            'invalidLinkRelTokens' => $invalid,
+            'customLinkRelTokens' => $custom,
+            'linkResourceRelTokens' => $resourceRelTokens,
+            'linkResourceKinds' => $resourceKinds,
+            'linkPrimaryResourceKind' => $resourceKinds[0] ?? null,
+            'linkResourceHintTokens' => $resourceHints,
+            'linkHrefRequired' => $hrefRequired,
+            'linkHrefPresent' => $href !== null && trim($href) !== '',
+            'preloadAsRaw' => $asRaw,
+            'preloadAs' => $as === '' ? null : $as,
+            'preloadAsRequired' => $hasPreload,
+            'preloadAsValid' => $preloadAsValid,
+            'linkIssues' => $issues,
+        ];
+    }
+
+    private static function isSafeHtmlRelToken(string $token): bool
+    {
+        return $token !== ''
+            && preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $token) === 1;
     }
 
     /**
