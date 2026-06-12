@@ -2422,6 +2422,141 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited structural block drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][0]), 'edited structural block drops stale source ordinal');
     },
+    'preserves current table and figure native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-table', ['review-table'], [['data-source', 'native']]],
+                ['t' => 'Caption', 'c' => [
+                    null,
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Source'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'table'],
+                        ]],
+                    ],
+                ]],
+                [[['t' => 'AlignCenter', 'c' => []], ['t' => 'ColWidth', 'c' => [0.75]]]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => [1]],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignCenter', 'c' => []],
+                                        ['t' => 'RowSpan', 'c' => [1]],
+                                        ['t' => 'ColSpan', 'c' => [1]],
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Metric'],
+                                            ]],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 71,
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['source-figure', ['review-figure'], [['data-source', 'native']]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Source'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', ['review-image'], [['data-image', 'source']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Source'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'image'],
+                            ],
+                            ['media/source.png', 'Source image'],
+                        ]],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 72,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $table = $document->children[0];
+            $figure = $document->children[1];
+
+            $t->same('table', $table->type, "{$source} table node");
+            $t->same('figure', $figure->type, "{$source} figure node");
+            $t->same($tableBlock, $table->attr('native'), "{$source} table native payload");
+            $t->same($figureBlock, $figure->attr('native'), "{$source} figure native payload");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves unchanged table and figure payloads");
+        }
+
+        $table = $documents['json']->children[0];
+        $figure = $documents['json']->children[1];
+        $editedTable = new AstNode('table', array_replace($table->attrs, [
+            'id' => 'edited-table',
+        ]), $table->children);
+        $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+            'caption' => 'Edited figure',
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'figure']),
+            ],
+            'captionBlocks' => [
+                new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'figure']),
+                ]),
+            ],
+        ]), $figure->children);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            $editedTable,
+            $editedFigure,
+        ]));
+
+        $t->same('Table', $editedPacket['blocks'][0]['t']);
+        $t->same('edited-table', $editedPacket['blocks'][0]['c'][0][0]);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited table drops stale review provenance');
+        $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][0]), 'edited table drops stale source ordinal');
+        $t->same('Figure', $editedPacket['blocks'][1]['t']);
+        $t->same('Edited', $editedPacket['blocks'][1]['c'][1]['c'][1][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited figure drops stale review provenance');
+        $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][1]), 'edited figure drops stale source ordinal');
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
