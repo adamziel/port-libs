@@ -1047,8 +1047,8 @@ final class PandocJsonWriter
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
-            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
-            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
+            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
+            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
             'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
             'native_inline' => $this->nativeTaggedConstructor($node, 'inline'),
@@ -1445,6 +1445,27 @@ final class PandocJsonWriter
         }
 
         return is_int($content) && $content === $integer ? $tagged : null;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function targetTuple(AstNode $node): array
+    {
+        $url = (string) $node->attr('url', '');
+        $title = (string) $node->attr('title', '');
+        $native = $node->attr('targetNative');
+        if (
+            is_array($native)
+            && array_is_list($native)
+            && count($native) >= 2
+            && $native[0] === $url
+            && $native[1] === $title
+        ) {
+            return $native;
+        }
+
+        return [$url, $title];
     }
 
     /**
