@@ -9089,6 +9089,58 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(8, count($result['document']->children));
     },
+    'summarizes largest ODT package parts for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $declaredBytes = str_repeat('D', 9000);
+        $undeclaredBytes = str_repeat('U', 8000);
+        $manifestWithLargeMedia = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/large-review.png" manifest:media-type="image/png" manifest:size="' . strlen($declaredBytes) . '"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithLargeMedia, null, null, [
+            ['name' => 'Pictures/large-review.png', 'data' => $declaredBytes, 'compressionMethod' => 0],
+            ['name' => 'Configurations2/review-state.xml', 'data' => $undeclaredBytes, 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $largest = $provenance['largestPackageParts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(5, $provenance['largestPackagePartLimit']);
+        $t->same(5, $provenance['largestPackagePartCount']);
+        $t->same([
+            'Pictures/large-review.png',
+            'Configurations2/review-state.xml',
+        ], array_slice(array_column($largest, 'part'), 0, 2));
+
+        $t->same(strlen($declaredBytes), $largest[0]['byteLength']);
+        $t->same(strlen($declaredBytes), $largest[0]['compressedByteLength']);
+        $t->same(0, $largest[0]['compressionMethod']);
+        $t->same('stored', $largest[0]['compressionMethodName']);
+        $t->same(sprintf('%08x', crc32($declaredBytes)), $largest[0]['crc32']);
+        $t->same(['manifest-declared', 'media-resource'], $largest[0]['roles']);
+        $t->same(true, $largest[0]['declaredInManifest']);
+        $t->same(5, $largest[0]['manifestIndex']);
+        $t->same('Pictures/large-review.png', $largest[0]['manifestFullPath']);
+        $t->same('image/png', $largest[0]['manifestMediaType']);
+        $t->same(true, $largest[0]['canExposeBytes']);
+        $t->same('package-bytes-exposable', $largest[0]['byteExposurePolicy']);
+        $t->same(false, $largest[0]['undeclared']);
+
+        $t->same(strlen($undeclaredBytes), $largest[1]['byteLength']);
+        $t->same(strlen($undeclaredBytes), $largest[1]['compressedByteLength']);
+        $t->same(sprintf('%08x', crc32($undeclaredBytes)), $largest[1]['crc32']);
+        $t->same(['undeclared-package-entry'], $largest[1]['roles']);
+        $t->same(false, $largest[1]['declaredInManifest']);
+        $t->same(null, $largest[1]['manifestIndex']);
+        $t->same(null, $largest[1]['manifestFullPath']);
+        $t->same(null, $largest[1]['manifestMediaType']);
+        $t->same(false, $largest[1]['canExposeBytes']);
+        $t->same(null, $largest[1]['byteExposurePolicy']);
+        $t->same(true, $largest[1]['undeclared']);
+        $t->same('Configurations2/review-state.xml', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
+    },
     'reports ODT package thumbnails as metadata-only previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $orphanThumbnailBytes = 'ORPHAN-THUMBNAIL';
