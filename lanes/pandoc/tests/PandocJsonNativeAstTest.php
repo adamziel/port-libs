@@ -2132,6 +2132,71 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current header native payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $headerAttr = [
+            'review-heading',
+            ['source-heading'],
+            [
+                ['data-review', 'first'],
+                ['data-origin', 'json-filter'],
+                ['data-review', 'second'],
+            ],
+        ];
+        $headerBlock = [
+            't' => 'Header',
+            'c' => [
+                3,
+                $headerAttr,
+                [
+                    ['t' => 'Str', 'c' => 'Review'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Heading'],
+                ],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 42,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$headerBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('heading', $heading->type, "{$source} header type");
+            $t->same('Header', $heading->attr('constructor'), "{$source} header constructor");
+            $t->same($headerBlock, $heading->attr('native'), "{$source} source-tagged header native payload");
+            $t->same($headerAttr, $heading->attr('attrNative'), "{$source} duplicate header attr tuple");
+            $t->same(['data-review' => 'second', 'data-origin' => 'json-filter'], $heading->attr('attributes'), "{$source} normalized duplicate header attrs");
+            $t->same($headerBlock, $jsonPacket['blocks'][0], "{$source} JSON writer preserves unchanged source-tagged header payload");
+            $t->same($headerBlock, $nativePacket['blocks'][0], "{$source} native writer preserves unchanged source-tagged header payload");
+        }
+
+        $heading = $documents['json']->children[0];
+        $editedHeading = new AstNode('heading', array_replace($heading->attrs, [
+            'level' => 4,
+        ]), $heading->children);
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [$editedHeading]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJson, 'native' => $editedNative] as $source => $encoded) {
+            $t->same('Header', $encoded['blocks'][0]['t'], "{$source} edited header constructor");
+            $t->same(4, $encoded['blocks'][0]['c'][0], "{$source} edited header level regenerates");
+            $t->same($headerAttr, $encoded['blocks'][0]['c'][1], "{$source} edited header keeps compatible attr tuple");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} edited header drops stale review provenance");
+            $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][0]), "{$source} edited header drops stale source ordinal");
+        }
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',

@@ -957,6 +957,7 @@ final class PandocJsonWriter
     {
         $tag = $native['t'];
         return in_array($tag, [
+            'Header',
             'CodeBlock',
             'RawBlock',
             'HorizontalRule',
