@@ -417,9 +417,9 @@ final class NativeWriter
                 $this->attrTuple($node),
                 $this->tableCaption($node),
                 $this->tableColumnSpecs($node),
-                $this->tableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head')),
+                $this->tableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head'), 'TableHead'),
                 array_map(fn (AstNode $body): array => $this->tableBody($body), $this->tableSections($node, 'table_body')),
-                $this->tableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot')),
+                $this->tableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot'), 'TableFoot'),
             ],
         ];
     }
@@ -649,30 +649,34 @@ final class NativeWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}
      */
-    private function tableSection(AstNode $section): array
+    private function tableSection(AstNode $section, string $constructor): array
     {
-        return [
+        $payload = [
             $this->attrTuple($section),
             $this->tableRows($section->children),
         ];
+
+        return $this->reusableTaggedTableHelperNative($section, $constructor, $payload) ?? $payload;
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
      */
     private function tableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
 
-        return [
+        $payload = [
             $this->attrTuple($body),
             $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
                 ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->tableRows(array_values($headRows)) : [],
             $this->tableRows($body->children),
         ];
+
+        return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload) ?? $payload;
     }
 
     /**

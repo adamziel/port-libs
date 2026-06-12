@@ -538,9 +538,9 @@ final class PandocJsonWriter
                 $this->attrTuple($node),
                 $this->writeTableCaption($node),
                 $this->writeTableColumnSpecs($node),
-                $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head')),
+                $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head'), 'TableHead'),
                 array_map(fn (AstNode $body): array => $this->writeTableBody($body), $this->tableSections($node, 'table_body')),
-                $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot')),
+                $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot'), 'TableFoot'),
             ],
         ];
     }
@@ -770,30 +770,34 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>}
      */
-    private function writeTableSection(AstNode $section): array
+    private function writeTableSection(AstNode $section, string $constructor): array
     {
-        return [
+        $payload = [
             $this->attrTuple($section),
             $this->writeTableRows($section->children),
         ];
+
+        return $this->reusableTaggedTableHelperNative($section, $constructor, $payload) ?? $payload;
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
      */
     private function writeTableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
 
-        return [
+        $payload = [
             $this->attrTuple($body),
             $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
                 ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
+
+        return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload) ?? $payload;
     }
 
     /**
