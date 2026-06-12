@@ -751,6 +751,7 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
         $corePackagePartCount = 0;
@@ -829,7 +830,7 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
-            $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared);
+            $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
 
             $parts[$entry->name] = [
@@ -913,6 +914,7 @@ final class OdfReader
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -932,6 +934,15 @@ final class OdfReader
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
+            'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
+            'embeddedObjectPackageMissingCount' => $embeddedObjectPackages['missingCount'],
+            'embeddedObjectPackageEncryptedCount' => $embeddedObjectPackages['encryptedCount'],
+            'embeddedObjectContainedPartCount' => $embeddedObjectPackages['containedPartCount'],
+            'embeddedObjectDeclaredContainedPartCount' => $embeddedObjectPackages['declaredContainedPartCount'],
+            'embeddedObjectExistingDeclaredContainedPartCount' => $embeddedObjectPackages['existingDeclaredContainedPartCount'],
+            'embeddedObjectMissingDeclaredContainedPartCount' => $embeddedObjectPackages['missingDeclaredContainedPartCount'],
+            'embeddedObjectUndeclaredContainedPartCount' => $embeddedObjectPackages['undeclaredContainedPartCount'],
             'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
             'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
@@ -940,7 +951,228 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'embeddedObjectPackages' => $embeddedObjectPackages,
             'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, array<string, mixed>>
+     */
+    private function objectPackageRootParts(array $manifest): array
+    {
+        $roots = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+            if (!$this->isEmbeddedObjectPackageMediaType((string) ($item['mediaTypeBase'] ?? $item['mediaType'] ?? ''))) {
+                continue;
+            }
+
+            $root = rtrim($part, '/') . '/';
+            if ($root === '/') {
+                continue;
+            }
+
+            $roots[$root] = $item;
+        }
+
+        return $roots;
+    }
+
+    private function isEmbeddedObjectPackageMediaType(string $mediaType): bool
+    {
+        $base = strtolower(trim(explode(';', $mediaType, 2)[0]));
+
+        return in_array($base, [
+            'application/vnd.oasis.opendocument.chart',
+            'application/vnd.oasis.opendocument.formula',
+            'application/vnd.oasis.opendocument.graphics',
+            'application/vnd.oasis.opendocument.presentation',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'application/vnd.oasis.opendocument.text',
+        ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return array<string, mixed>
+     */
+    private function embeddedObjectPackageProvenance(
+        ZipPackage $package,
+        array $manifest,
+        array $objectPackageRootParts
+    ): array {
+        $entriesByPart = [];
+        foreach ($package->entries() as $entry) {
+            $entriesByPart[$entry->name] = $entry;
+        }
+
+        $items = [];
+        $byRootPart = [];
+        $rootParts = [];
+        $objectTypes = [];
+        $issueCodes = [];
+        foreach ($objectPackageRootParts as $rootPart => $rootItem) {
+            $objectPath = rtrim($rootPart, '/');
+            $declaredContainedParts = [];
+            $declaredContainedPartItems = [];
+            $existingDeclaredContainedParts = [];
+            $missingDeclaredContainedParts = [];
+            $encryptedDeclaredContainedParts = [];
+            foreach ($manifest as $item) {
+                $part = $item['part'] ?? null;
+                if (!is_string($part) || $part === '' || $part === $rootPart || !str_starts_with($part, $rootPart)) {
+                    continue;
+                }
+
+                $declaredContainedParts[$part] = true;
+                $summary = $this->embeddedObjectManifestPartSummary($item);
+                $declaredContainedPartItems[] = $summary;
+                if (($item['exists'] ?? false) === true) {
+                    $existingDeclaredContainedParts[] = $summary;
+                } else {
+                    $missingDeclaredContainedParts[] = $summary;
+                }
+                if (($item['encrypted'] ?? false) === true) {
+                    $encryptedDeclaredContainedParts[] = $summary;
+                }
+            }
+
+            $containedParts = [];
+            $undeclaredContainedParts = [];
+            $containedByteLength = 0;
+            foreach ($entriesByPart as $part => $entry) {
+                if ($part === $rootPart || !str_starts_with($part, $rootPart) || $entry->isDirectory()) {
+                    continue;
+                }
+
+                $partSummary = [
+                    'part' => $entry->name,
+                    'byteLength' => $entry->uncompressedSize,
+                    'compressedByteLength' => $entry->compressedSize,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'crc32' => $entry->crc32Hex(),
+                    'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                ];
+                $containedParts[] = $partSummary;
+                $containedByteLength += $entry->uncompressedSize;
+                if (!isset($declaredContainedParts[$entry->name])) {
+                    $undeclaredContainedParts[] = $partSummary;
+                }
+            }
+
+            usort($containedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+            usort($undeclaredContainedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+
+            $exists = $containedParts !== [] || isset($entriesByPart[$rootPart]);
+            $encrypted = ($rootItem['encrypted'] ?? false) === true || $encryptedDeclaredContainedParts !== [];
+            $issues = [];
+            if (!$exists) {
+                $issues[] = 'odf-embedded-object-package-missing';
+            }
+            if ($missingDeclaredContainedParts !== []) {
+                $issues[] = 'odf-embedded-object-package-missing-declared-part';
+            }
+            if ($undeclaredContainedParts !== []) {
+                $issues[] = 'odf-embedded-object-package-undeclared-contained-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-embedded-object-package-encrypted';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $objectType = $this->objectTypeForMediaType((string) ($rootItem['mediaTypeBase'] ?? $rootItem['mediaType'] ?? ''));
+            $item = [
+                'rootPart' => $rootPart,
+                'objectPath' => $objectPath,
+                'fullPath' => $rootItem['fullPath'] ?? null,
+                'manifestIndex' => $rootItem['manifestIndex'] ?? null,
+                'objectType' => $objectType,
+                'mediaType' => $rootItem['mediaType'] ?? '',
+                'mediaTypeBase' => $rootItem['mediaTypeBase'] ?? '',
+                'version' => $rootItem['version'] ?? null,
+                'preferredViewMode' => $rootItem['preferredViewMode'] ?? null,
+                'exists' => $exists,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+                'reviewPolicy' => 'embedded-object-package-metadata-only',
+                'containedPartCount' => count($containedParts),
+                'containedByteLength' => $containedParts === [] ? null : $containedByteLength,
+                'containedParts' => $containedParts,
+                'declaredContainedPartCount' => count($declaredContainedPartItems),
+                'declaredContainedParts' => $declaredContainedPartItems,
+                'existingDeclaredContainedPartCount' => count($existingDeclaredContainedParts),
+                'missingDeclaredContainedPartCount' => count($missingDeclaredContainedParts),
+                'missingDeclaredContainedParts' => $missingDeclaredContainedParts,
+                'encryptedDeclaredContainedPartCount' => count($encryptedDeclaredContainedParts),
+                'undeclaredContainedPartCount' => count($undeclaredContainedParts),
+                'undeclaredContainedParts' => $undeclaredContainedParts,
+                'issues' => $issues,
+            ];
+            $items[] = $item;
+            $byRootPart[$rootPart] = $item;
+            $rootParts[] = $rootPart;
+            if (!in_array($objectType, $objectTypes, true)) {
+                $objectTypes[] = $objectType;
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-embedded-object-package-missing', $item['issues'], true))),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'containedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['containedPartCount'], $items)),
+            'containedByteLength' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedByteLength'] ?? 0), $items)),
+            'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
+            'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
+            'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
+            'encryptedDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['encryptedDeclaredContainedPartCount'], $items)),
+            'undeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['undeclaredContainedPartCount'], $items)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'rootParts' => $rootParts,
+            'objectTypes' => $objectTypes,
+            'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+            'reviewPolicy' => 'embedded-object-package-metadata-only',
+            'byRootPart' => $byRootPart,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function embeddedObjectManifestPartSummary(array $item): array
+    {
+        return [
+            'fullPath' => $item['fullPath'] ?? null,
+            'part' => $item['part'] ?? null,
+            'manifestIndex' => $item['manifestIndex'] ?? null,
+            'mediaType' => $item['mediaType'] ?? '',
+            'mediaTypeBase' => $item['mediaTypeBase'] ?? '',
+            'exists' => ($item['exists'] ?? false) === true,
+            'encrypted' => ($item['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+            'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+            'declaredSize' => $item['declaredSize'] ?? null,
+            'storedByteLength' => $item['storedByteLength'] ?? null,
+            'compressedByteLength' => $item['compressedByteLength'] ?? null,
+            'compressionMethod' => $item['compressionMethod'] ?? null,
+            'compressionMethodName' => $item['compressionMethodName'] ?? null,
+            'storedCrc32' => $item['storedCrc32'] ?? null,
+            'diagnostics' => $item['diagnostics'] ?? [],
         ];
     }
 
@@ -965,10 +1197,15 @@ final class OdfReader
 
     /**
      * @param array<string, mixed>|null $manifestItem
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
      * @return list<string>
      */
-    private function packagePartRoles(ZipPackageEntry $entry, ?array $manifestItem, bool $undeclared): array
-    {
+    private function packagePartRoles(
+        ZipPackageEntry $entry,
+        ?array $manifestItem,
+        bool $undeclared,
+        array $objectPackageRootParts
+    ): array {
         $roles = [];
         if ($entry->name === 'mimetype') {
             $roles[] = 'odf-mimetype';
@@ -996,6 +1233,16 @@ final class OdfReader
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
+        }
+        if (isset($objectPackageRootParts[$entry->name])) {
+            $roles[] = 'embedded-object-root';
+        } else {
+            foreach (array_keys($objectPackageRootParts) as $rootPart) {
+                if (str_starts_with($entry->name, $rootPart)) {
+                    $roles[] = 'embedded-object-part';
+                    break;
+                }
+            }
         }
         if (is_array($manifestItem)) {
             $roles[] = 'manifest-declared';
@@ -9192,6 +9439,7 @@ final class OdfReader
 
         return match ($base) {
             'application/vnd.oasis.opendocument.chart' => 'chart',
+            'application/vnd.oasis.opendocument.formula' => 'formula',
             'application/vnd.oasis.opendocument.graphics' => 'graphics',
             'application/vnd.oasis.opendocument.presentation' => 'presentation',
             'application/vnd.oasis.opendocument.spreadsheet' => 'spreadsheet',

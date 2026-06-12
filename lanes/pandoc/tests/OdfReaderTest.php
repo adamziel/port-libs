@@ -9204,8 +9204,9 @@ XML;
         $t->same(false, $configurationDirectory['canExposeBytes']);
         $t->same(3, $packageProvenance['packageDirectoryCount']);
         $t->same(1, $packageProvenance['mediaResourcePartCount']);
+        $t->same(1, $packageProvenance['embeddedObjectPackageCount']);
         $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Pictures/']['roles']);
-        $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Object 1/']['roles']);
+        $t->same(['zip-directory', 'embedded-object-root', 'manifest-declared'], $packageProvenance['parts']['Object 1/']['roles']);
         $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Configurations2/']['roles']);
         $t->same($manifestReport['directoryItems'], array_values(array_filter(
             $result['document']->attr('manifest')['items'],
@@ -10425,6 +10426,113 @@ XML;
         $t->same(false, $inventory['Thumbnails/thumbnail.png']['declaredInManifest']);
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'reports ODT embedded object package provenance without exposing payload bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $chartContent = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body/></office:document-content>';
+        $chartStyles = '<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>';
+        $chartPreview = 'PREVIEW';
+        $chartRdf = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
+        $oleBytes = 'OLEBYTES!';
+        $manifestWithObjects = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="Object%20Chart/" manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:version="1.3" manifest:preferred-view-mode="view"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20Chart/content.xml" manifest:media-type="text/xml" manifest:size="' . strlen($chartContent) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20Chart/styles.xml" manifest:media-type="text/xml" manifest:size="' . strlen($chartStyles) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20Chart/Pictures/preview.png" manifest:media-type="image/png" manifest:size="' . strlen($chartPreview) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20OLE/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20OLE/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject" manifest:size="' . strlen($oleBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20Missing/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Object%20Missing/content.xml" manifest:media-type="text/xml"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithObjects, null, null, [
+            ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Object Chart/content.xml', 'data' => $chartContent, 'compressionMethod' => 0],
+            ['name' => 'Object Chart/styles.xml', 'data' => $chartStyles, 'compressionMethod' => 0],
+            ['name' => 'Object Chart/Pictures/preview.png', 'data' => $chartPreview, 'compressionMethod' => 0],
+            ['name' => 'Object Chart/manifest.rdf', 'data' => $chartRdf, 'compressionMethod' => 0],
+            ['name' => 'Object OLE/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Object OLE/oleObject.bin', 'data' => $oleBytes, 'compressionMethod' => 0],
+        ]));
+
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $objects = $provenance['embeddedObjectPackages'];
+        $chart = $objects['byRootPart']['Object Chart/'];
+        $ole = $objects['byRootPart']['Object OLE/'];
+        $missing = $objects['byRootPart']['Object Missing/'];
+        $inventory = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(3, $provenance['embeddedObjectPackageCount']);
+        $t->same(2, $provenance['embeddedObjectPackageExistingCount']);
+        $t->same(1, $provenance['embeddedObjectPackageMissingCount']);
+        $t->same(0, $provenance['embeddedObjectPackageEncryptedCount']);
+        $t->same(5, $provenance['embeddedObjectContainedPartCount']);
+        $t->same(5, $provenance['embeddedObjectDeclaredContainedPartCount']);
+        $t->same(4, $provenance['embeddedObjectExistingDeclaredContainedPartCount']);
+        $t->same(1, $provenance['embeddedObjectMissingDeclaredContainedPartCount']);
+        $t->same(1, $provenance['embeddedObjectUndeclaredContainedPartCount']);
+        $t->same(3, $objects['count']);
+        $t->same(['Object Chart/', 'Object OLE/', 'Object Missing/'], $objects['rootParts']);
+        $t->same(['chart', 'spreadsheet'], $objects['objectTypes']);
+        $t->same('embedded-object-package-bytes-blocked', $objects['byteExposurePolicy']);
+        $t->same('embedded-object-package-metadata-only', $objects['reviewPolicy']);
+        $t->same([
+            'odf-embedded-object-package-missing',
+            'odf-embedded-object-package-missing-declared-part',
+            'odf-embedded-object-package-undeclared-contained-part',
+        ], $objects['issueCodes']);
+
+        $t->same('Object Chart/', $chart['rootPart']);
+        $t->same('Object Chart', $chart['objectPath']);
+        $t->same('Object%20Chart/', $chart['fullPath']);
+        $t->same('chart', $chart['objectType']);
+        $t->same('application/vnd.oasis.opendocument.chart', $chart['mediaType']);
+        $t->same('1.3', $chart['version']);
+        $t->same('view', $chart['preferredViewMode']);
+        $t->same(true, $chart['exists']);
+        $t->same(false, $chart['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $chart['byteExposurePolicy']);
+        $t->same(4, $chart['containedPartCount']);
+        $t->same(strlen($chartContent) + strlen($chartStyles) + strlen($chartPreview) + strlen($chartRdf), $chart['containedByteLength']);
+        $t->same(['Object Chart/Pictures/preview.png', 'Object Chart/content.xml', 'Object Chart/manifest.rdf', 'Object Chart/styles.xml'], array_column($chart['containedParts'], 'part'));
+        $t->same(3, $chart['declaredContainedPartCount']);
+        $t->same(3, $chart['existingDeclaredContainedPartCount']);
+        $t->same(0, $chart['missingDeclaredContainedPartCount']);
+        $t->same(1, $chart['undeclaredContainedPartCount']);
+        $t->same(['Object Chart/manifest.rdf'], array_column($chart['undeclaredContainedParts'], 'part'));
+        $t->same(['odf-embedded-object-package-undeclared-contained-part'], $chart['issues']);
+
+        $t->same('spreadsheet', $ole['objectType']);
+        $t->same('application/vnd.oasis.opendocument.spreadsheet', $ole['mediaType']);
+        $t->same(false, $ole['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $ole['byteExposurePolicy']);
+        $t->same(1, $ole['containedPartCount']);
+        $t->same(strlen($oleBytes), $ole['containedByteLength']);
+        $t->same(['Object OLE/oleObject.bin'], array_column($ole['containedParts'], 'part'));
+        $t->same([], $ole['issues']);
+
+        $t->same('Object Missing/', $missing['rootPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(0, $missing['containedPartCount']);
+        $t->same(1, $missing['declaredContainedPartCount']);
+        $t->same(1, $missing['missingDeclaredContainedPartCount']);
+        $t->same(['Object Missing/content.xml'], array_column($missing['missingDeclaredContainedParts'], 'part'));
+        $t->same([
+            'odf-embedded-object-package-missing',
+            'odf-embedded-object-package-missing-declared-part',
+        ], $missing['issues']);
+
+        $t->same(2, $provenance['roleCounts']['embedded-object-root']);
+        $t->same(5, $provenance['roleCounts']['embedded-object-part']);
+        $t->true(in_array('embedded-object-root', $inventory['Object Chart/']['roles'], true), 'Object chart root role missing');
+        $t->true(in_array('embedded-object-part', $inventory['Object Chart/content.xml']['roles'], true), 'Object chart content role missing');
+        $t->true(in_array('embedded-object-part', $inventory['Object Chart/manifest.rdf']['roles'], true), 'Object chart undeclared part role missing');
+        $t->true(in_array('undeclared-package-entry', $inventory['Object Chart/manifest.rdf']['roles'], true), 'Object chart undeclared role missing');
+        $t->true(in_array('embedded-object-root', $inventory['Object OLE/']['roles'], true), 'Object OLE root role missing');
+        $t->true(in_array('embedded-object-part', $inventory['Object OLE/oleObject.bin']['roles'], true), 'Object OLE payload role missing');
     },
     'preserves ODT raw ZIP entry name provenance in package review' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
