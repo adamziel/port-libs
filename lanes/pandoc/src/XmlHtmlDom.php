@@ -8,6 +8,7 @@ final class XmlHtmlDom
 {
     private const FRAGMENT_ROOT_ATTRIBUTE = 'data-port-libs-pandoc-fragment-root';
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
+    private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
 
     /** @var array<string, true> */
@@ -958,6 +959,9 @@ final class XmlHtmlDom
         if ($name === 'template') {
             $summary += self::templateSummary($node);
         }
+        if ($name === 'noscript') {
+            $summary += self::noscriptSummary($node);
+        }
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
@@ -1773,6 +1777,92 @@ final class XmlHtmlDom
         ));
         $summary['templateContentActiveElementNames'] = self::inertHtmlFragmentDescendantNames($root, ['script' => true, 'style' => true]);
         $summary['templateContentEmbeddedElementNames'] = self::inertHtmlFragmentDescendantNames($root, [
+            'audio' => true,
+            'canvas' => true,
+            'embed' => true,
+            'iframe' => true,
+            'object' => true,
+            'video' => true,
+        ]);
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function noscriptSummary(\DOMElement $element): array
+    {
+        $text = $element->textContent;
+
+        $summary = [
+            'noscript' => 'fallback-source',
+            'noscriptText' => $text,
+            'noscriptTextLength' => strlen($text),
+            'noscriptTextSha256' => hash('sha256', $text),
+            'noscriptContainsMarkupLikeText' => preg_match('/<\s*[A-Za-z!\/?]/', $text) === 1,
+            'noscriptContainsActiveLikeText' => preg_match('/<\s*(script|style|iframe|object|embed|link|meta)\b|<!doctype|<\?/i', $text) === 1,
+            'noscriptReviewPolicy' => 'noscript-inert-escaped-source',
+        ];
+
+        return $summary + self::noscriptContentReviewSummary($text);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function noscriptContentReviewSummary(string $source): array
+    {
+        $summary = [
+            'noscriptContentReviewPolicy' => 'noscript-content-inert-fragment-review',
+            'noscriptContentByteLength' => strlen($source),
+            'noscriptContentSha256' => hash('sha256', $source),
+            'noscriptContentParsed' => false,
+            'noscriptContentDiagnostics' => [],
+        ];
+
+        if (strlen($source) > self::NOSCRIPT_CONTENT_REVIEW_MAX_BYTES) {
+            $summary['noscriptContentDiagnostics'] = ['noscript-content-review-limit-exceeded'];
+
+            return $summary;
+        }
+
+        try {
+            $fragment = self::loadHtmlFragment($source, 'noscript content fragment');
+        } catch (\InvalidArgumentException $exception) {
+            $summary['noscriptContentDiagnostics'] = ['noscript-content-unsafe-or-unparseable'];
+            $summary['noscriptContentError'] = $exception->getMessage();
+
+            return $summary;
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $text = self::normalizedText($root);
+        $topLevelElementNames = [];
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $topLevelElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $summary['noscriptContentParsed'] = true;
+        $summary['noscriptContentTopLevelElementNames'] = $topLevelElementNames;
+        $summary['noscriptContentTopLevelElementCount'] = count($topLevelElementNames);
+        $summary['noscriptContentTextLength'] = strlen($text);
+        $summary['noscriptContentTextSha256'] = hash('sha256', $text);
+        if ($text !== '') {
+            $summary['noscriptContentText'] = $text;
+        }
+        $summary['noscriptContentLinkHrefs'] = self::inertHtmlFragmentAttributeValues($root, ['a', 'area'], 'href');
+        $summary['noscriptContentImageSources'] = self::inertHtmlFragmentAttributeValues($root, ['img'], 'src');
+        $forms = self::descendantHtmlElements($root, 'form');
+        $summary['noscriptContentFormCount'] = count($forms);
+        $summary['noscriptContentFormActions'] = array_values(array_filter(
+            array_map(static fn (\DOMElement $form): ?string => self::attributeOrNull($form, 'action'), $forms),
+            static fn (?string $action): bool => $action !== null && $action !== ''
+        ));
+        $summary['noscriptContentActiveElementNames'] = self::inertHtmlFragmentDescendantNames($root, ['script' => true, 'style' => true]);
+        $summary['noscriptContentEmbeddedElementNames'] = self::inertHtmlFragmentDescendantNames($root, [
             'audio' => true,
             'canvas' => true,
             'embed' => true,
