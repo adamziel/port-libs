@@ -704,6 +704,132 @@ XML;
         $t->same(strlen($settingsBytes), $settings['storedByteLength']);
         $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
     },
+    'reports compact ODT configuration package parts as metadata-only review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $acceleratorXml = '<accel:accelerator xmlns:accel="urn:oasis:names:tc:opendocument:xmlns:config:1.0"><accel:item key="F9"/></accel:accelerator>';
+        $encryptedXml = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="secret"/>';
+        $orphanXml = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="orphan"/>';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/encrypted.xml" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="config-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="config-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Configurations2/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml; charset=UTF-8" manifest:full-path="Configurations2/accelerator/current.xml?profile=review#keys" manifest:size="' . strlen($acceleratorXml) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/missing.xml"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/encrypted.xml', 'data' => $encryptedXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/orphan.xml', 'data' => $orphanXml, 'compressionMethod' => 0],
+            ],
+        ));
+        $summary = $odt->summarize();
+        $configurations = $summary['packageConfigurations'];
+        $itemsByPart = [];
+        foreach ($configurations['items'] as $item) {
+            $itemsByPart[$item['packagePath']] = $item;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+        $accelerator = $itemsByPart['Configurations2/accelerator/current.xml'];
+
+        $t->same(5, $configurations['count']);
+        $t->same(3, $configurations['storedCount']);
+        $t->same(4, $configurations['declaredCount']);
+        $t->same(1, $configurations['undeclaredCount']);
+        $t->same(1, $configurations['missingCount']);
+        $t->same(1, $configurations['directoryCount']);
+        $t->same(1, $configurations['encryptedCount']);
+        $t->same(3, $configurations['issueCount']);
+        $t->same([
+            'odf-configuration-encrypted-package-part',
+            'odf-configuration-missing-package-part',
+            'odf-configuration-undeclared-package-part',
+        ], $configurations['issueCodes']);
+        $t->same([
+            'Configurations2/',
+            'Configurations2/accelerator/current.xml',
+            'Configurations2/encrypted.xml',
+            'Configurations2/missing.xml',
+            'Configurations2/orphan.xml',
+        ], array_column($configurations['items'], 'packagePath'));
+
+        $t->same('Configurations2/accelerator/current.xml?profile=review#keys', $accelerator['fullPath']);
+        $t->same('Configurations2/accelerator/current.xml', $accelerator['packagePath']);
+        $t->same('?profile=review#keys', $accelerator['pathSuffix']);
+        $t->same('profile=review', $accelerator['pathQuery']);
+        $t->same('keys', $accelerator['pathFragment']);
+        $t->same('text/xml; charset=UTF-8', $accelerator['mediaType']);
+        $t->same('text/xml', $accelerator['mediaTypeBase']);
+        $t->same(['charset' => 'UTF-8'], $accelerator['mediaTypeParameterMap']);
+        $t->same(true, $accelerator['declared']);
+        $t->same(true, $accelerator['exists']);
+        $t->same(null, $accelerator['byteLength']);
+        $t->same(strlen($acceleratorXml), $accelerator['storedByteLength']);
+        $t->same(null, $accelerator['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
+        $t->same(false, $accelerator['canExposeBytes']);
+        $t->same(false, $accelerator['canExposeAsDocumentMedia']);
+        $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
+        $t->same('package-configuration-metadata-only', $accelerator['reviewPolicy']);
+        $t->same([], $accelerator['issues']);
+        $t->same($odt->manifestEntry('Configurations2/accelerator/current.xml?profile=review#keys'), $odt->manifestEntry('Configurations2/accelerator/current.xml'));
+
+        $missing = $itemsByPart['Configurations2/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['storedByteLength']);
+        $t->same('configuration-package-bytes-blocked', $missing['byteExposurePolicy']);
+        $t->same(['odf-configuration-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPart['Configurations2/encrypted.xml'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedXml), $encrypted['storedByteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['odf-configuration-encrypted-package-part'], $encrypted['issues']);
+
+        $orphan = $itemsByPart['Configurations2/orphan.xml'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(null, $orphan['mediaType']);
+        $t->same(strlen($orphanXml), $orphan['storedByteLength']);
+        $t->same(['odf-configuration-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(4, $summary['manifestReview']['configurationPackagePartCount']);
+        $t->same([
+            'Configurations2/',
+            'Configurations2/accelerator/current.xml?profile=review#keys',
+            'Configurations2/missing.xml',
+            'Configurations2/encrypted.xml',
+        ], array_column($summary['manifestReview']['configurationPackageItems'], 'path'));
+        $t->same(true, $reviewByPath['Configurations2/accelerator/current.xml?profile=review#keys']['configurationPackagePart']);
+        $t->same(false, $reviewByPath['Configurations2/accelerator/current.xml?profile=review#keys']['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $reviewByPath['Configurations2/accelerator/current.xml?profile=review#keys']['byteExposurePolicy']);
+
+        $t->same(4, $inventory['packageConfigurationPartCount']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['package-configuration']);
+        $t->same(['package-configuration', 'manifest-declared'], $inventory['parts']['Configurations2/accelerator/current.xml']['roles']);
+        $t->same(['package-configuration', 'undeclared-package-entry'], $inventory['parts']['Configurations2/orphan.xml']['roles']);
+        $t->same(false, $inventory['parts']['Configurations2/accelerator/current.xml']['canExposeBytes']);
+        $t->same('?profile=review#keys', $inventory['parts']['Configurations2/accelerator/current.xml']['manifestPathSuffix']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('Configurations2/orphan.xml', $summary['undeclaredPackageEntries'][0]['path']);
+    },
     'resolves compact ODT URI encoded manifest paths to ZIP package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
         $manifest = str_replace(
