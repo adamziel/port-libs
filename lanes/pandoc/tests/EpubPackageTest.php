@@ -4685,6 +4685,113 @@ XML;
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 
+    'summarizes OPF manifest package part byte provenance for review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:manifest-package-byte-review</dc:identifier>
+    <dc:title>Manifest package byte review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="style" href="styles/book.css" media-type="text/css"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="chapter" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="large" href="media/large.bin" media-type="application/octet-stream"/>
+    <item id="tie-alpha" href="media/tie-alpha.bin" media-type="application/octet-stream"/>
+    <item id="tie-beta" href="media/tie-beta.bin" media-type="application/octet-stream"/>
+    <item id="remote" href="https://cdn.example.invalid/video.mp4" media-type="video/mp4"/>
+    <item id="missing" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter1.xhtml">One</a></li></ol></nav></body></html>
+XML;
+        $packageParts = [
+            'EPUB/nav.xhtml' => $navXml,
+            'EPUB/text/chapter1.xhtml' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>One</body></html>',
+            'EPUB/styles/book.css' => str_repeat('s', 256),
+            'EPUB/images/cover.png' => str_repeat('c', 512),
+            'EPUB/media/large.bin' => str_repeat('L', 2048),
+            'EPUB/media/tie-alpha.bin' => str_repeat('a', 1024),
+            'EPUB/media/tie-beta.bin' => str_repeat('b', 1024),
+        ];
+        $zipParts = [
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfXml],
+        ];
+        foreach ($packageParts as $partName => $data) {
+            $zipParts[] = ['name' => $partName, 'data' => $data, 'compressionMethod' => 0];
+        }
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts($zipParts));
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+        $packageItemsById = [];
+        foreach ($manifest['packagePartItems'] as $item) {
+            $packageItemsById[$item['id']] = $item;
+        }
+        $expectedByteLength = array_sum(array_map(
+            static fn (string $data): int => strlen($data),
+            $packageParts
+        ));
+
+        $t->same(false, $manifest['valid']);
+        $t->same(9, $manifest['itemCount']);
+        $t->same(8, $manifest['packagePartCount']);
+        $t->same(7, $manifest['existingPackagePartCount']);
+        $t->same(1, $manifest['missingPackagePartCount']);
+        $t->same(7, $manifest['exposablePackagePartCount']);
+        $t->same(1, $manifest['nonExposablePackagePartCount']);
+        $t->same(0, $manifest['unexposableExistingPackagePartCount']);
+        $t->same($expectedByteLength, $manifest['packageByteLength']);
+        $t->same($expectedByteLength, $manifest['packageCompressedByteLength']);
+        $t->same($expectedByteLength, $manifest['exposablePackageByteLength']);
+        $t->same($expectedByteLength, $manifest['exposablePackageCompressedByteLength']);
+        $t->same(5, $manifest['largestPackagePartLimit']);
+        $t->same(5, $manifest['largestPackagePartCount']);
+        $t->same([
+            '/EPUB/media/large.bin',
+            '/EPUB/media/tie-alpha.bin',
+            '/EPUB/media/tie-beta.bin',
+            '/EPUB/images/cover.png',
+            '/EPUB/styles/book.css',
+        ], array_column($manifest['largestPackageParts'], 'partName'));
+        $t->same(['nav', 'style', 'cover', 'chapter', 'large', 'tie-alpha', 'tie-beta', 'missing'], array_column($manifest['packagePartItems'], 'id'));
+        $t->same(['remote'], array_column($manifest['externalItems'], 'id'));
+        $t->same(false, isset($packageItemsById['remote']));
+
+        $large = $packageItemsById['large'];
+        $t->same('/EPUB/media/large.bin', $large['partName']);
+        $t->same(strlen($packageParts['EPUB/media/large.bin']), $large['byteLength']);
+        $t->same(strlen($packageParts['EPUB/media/large.bin']), $large['compressedByteLength']);
+        $t->same(0, $large['compressionMethod']);
+        $t->same('stored', $large['compressionMethodName']);
+        $t->same(true, $large['compressionSupported']);
+        $t->same(true, $large['canExposeBytes']);
+        $t->same(hash('crc32b', $packageParts['EPUB/media/large.bin']), $large['crc32']);
+
+        $missing = $packageItemsById['missing'];
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(null, $missing['compressedByteLength']);
+        $t->same(null, $missing['compressionMethod']);
+        $t->same(false, $missing['canExposeBytes']);
+
+        $t->same($manifest['packagePartItems'], $summary['wordpressImport']['manifestPackagePartItems']);
+        $t->same($manifest['largestPackageParts'], $summary['wordpressImport']['manifestLargestPackageParts']);
+        $t->same($manifest['packageByteLength'], $summary['wordpressImport']['manifestPackageByteLength']);
+        $t->same($manifest['packageCompressedByteLength'], $summary['wordpressImport']['manifestPackageCompressedByteLength']);
+        $t->same($manifest['exposablePackageByteLength'], $summary['wordpressImport']['manifestExposablePackageByteLength']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

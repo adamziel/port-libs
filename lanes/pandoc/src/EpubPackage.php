@@ -22,6 +22,7 @@ final class EpubPackage
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
     public const SMIL_MEDIA_TYPE = 'application/smil+xml';
     public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
+    private const MANIFEST_LARGEST_PACKAGE_PART_LIMIT = 5;
     private const RESERVED_PACKAGE_PREFIXES = [
         'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
         'dcterms' => 'http://purl.org/dc/terms/',
@@ -658,6 +659,11 @@ final class EpubPackage
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
                 'manifestExternalItems' => $validationReport['manifest']['externalItems'],
+                'manifestPackagePartItems' => $validationReport['manifest']['packagePartItems'],
+                'manifestLargestPackageParts' => $validationReport['manifest']['largestPackageParts'],
+                'manifestPackageByteLength' => $validationReport['manifest']['packageByteLength'],
+                'manifestPackageCompressedByteLength' => $validationReport['manifest']['packageCompressedByteLength'],
+                'manifestExposablePackageByteLength' => $validationReport['manifest']['exposablePackageByteLength'],
                 'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
                 'manifestMissingRequiredAttributeItems' => $validationReport['manifest']['missingRequiredAttributeItems'],
                 'manifestMissingRequiredAttributeNames' => $validationReport['manifest']['missingRequiredAttributeNames'],
@@ -1032,8 +1038,18 @@ final class EpubPackage
         $duplicateMediaTypeParameterItems = [];
         $missingItems = [];
         $externalItems = [];
+        $packagePartItems = [];
         $parts = [];
         $ids = [];
+        $existingPackagePartCount = 0;
+        $missingPackagePartCount = 0;
+        $exposablePackagePartCount = 0;
+        $nonExposablePackagePartCount = 0;
+        $unexposableExistingPackagePartCount = 0;
+        $packageByteLength = 0;
+        $packageCompressedByteLength = 0;
+        $exposablePackageByteLength = 0;
+        $exposablePackageCompressedByteLength = 0;
         $mediaTypeParameterItems = [];
         $mediaTypeParameterNames = [];
         $mediaTypeParameterCount = 0;
@@ -1138,23 +1154,75 @@ final class EpubPackage
                     'partName' => null,
                     'mediaType' => $mediaType,
                 ];
-            } elseif ($partName !== '' && ($item['exists'] ?? false) !== true) {
-                $missingItem = [
-                    'id' => $id,
+            } elseif ($partName !== '') {
+                $exists = ($item['exists'] ?? false) === true;
+                $byteLength = is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null;
+                $compressedByteLength = is_int($item['compressedByteLength'] ?? null) ? $item['compressedByteLength'] : null;
+                $compressionMethod = is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null;
+                $compressionMethodName = is_string($item['compressionMethodName'] ?? null) ? $item['compressionMethodName'] : null;
+                $compressionSupported = is_bool($item['compressionSupported'] ?? null) ? $item['compressionSupported'] : null;
+                $crc32 = is_string($item['crc32'] ?? null) ? $item['crc32'] : null;
+                $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+                $packagePartItem = [
+                    'index' => $index,
+                    'id' => $id === '' ? null : $id,
                     'href' => (string) ($item['href'] ?? ''),
                     'target' => (string) ($item['target'] ?? ''),
                     'partName' => $partName,
                     'mediaType' => $mediaType,
+                    'exists' => $exists,
+                    'byteLength' => $byteLength,
+                    'compressedByteLength' => $compressedByteLength,
+                    'compressionMethod' => $compressionMethod,
+                    'compressionMethodName' => $compressionMethodName,
+                    'compressionSupported' => $compressionSupported,
+                    'crc32' => $crc32,
+                    'canExposeBytes' => $canExposeBytes,
                 ];
-                $missingItems[] = $missingItem;
-                $diagnostics[] = [
-                    'type' => 'missing-manifest-href-target',
-                    'id' => $id,
-                    'href' => $missingItem['href'],
-                    'partName' => $partName,
-                    'mediaType' => $mediaType,
-                    'message' => 'EPUB OPF manifest href points at a package part that is not present in the ZIP',
-                ];
+                $packagePartItems[] = $packagePartItem;
+
+                if ($exists) {
+                    ++$existingPackagePartCount;
+                    if ($byteLength !== null) {
+                        $packageByteLength += $byteLength;
+                    }
+                    if ($compressedByteLength !== null) {
+                        $packageCompressedByteLength += $compressedByteLength;
+                    }
+                } else {
+                    ++$missingPackagePartCount;
+                    $missingItem = [
+                        'id' => $id,
+                        'href' => (string) ($item['href'] ?? ''),
+                        'target' => (string) ($item['target'] ?? ''),
+                        'partName' => $partName,
+                        'mediaType' => $mediaType,
+                    ];
+                    $missingItems[] = $missingItem;
+                    $diagnostics[] = [
+                        'type' => 'missing-manifest-href-target',
+                        'id' => $id,
+                        'href' => $missingItem['href'],
+                        'partName' => $partName,
+                        'mediaType' => $mediaType,
+                        'message' => 'EPUB OPF manifest href points at a package part that is not present in the ZIP',
+                    ];
+                }
+
+                if ($canExposeBytes) {
+                    ++$exposablePackagePartCount;
+                    if ($byteLength !== null) {
+                        $exposablePackageByteLength += $byteLength;
+                    }
+                    if ($compressedByteLength !== null) {
+                        $exposablePackageCompressedByteLength += $compressedByteLength;
+                    }
+                } else {
+                    ++$nonExposablePackagePartCount;
+                    if ($exists) {
+                        ++$unexposableExistingPackagePartCount;
+                    }
+                }
             }
 
             $hasQuery = ($item['hrefHasQuery'] ?? false) === true;
@@ -1290,6 +1358,11 @@ final class EpubPackage
             ];
         }
 
+        $largestPackageParts = self::largestManifestPackagePartItems(
+            $packagePartItems,
+            self::MANIFEST_LARGEST_PACKAGE_PART_LIMIT
+        );
+
         return [
             'valid' => $diagnostics === [],
             'itemCount' => count($manifestItems),
@@ -1298,6 +1371,18 @@ final class EpubPackage
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
             'externalItemCount' => count($externalItems),
+            'packagePartCount' => count($packagePartItems),
+            'existingPackagePartCount' => $existingPackagePartCount,
+            'missingPackagePartCount' => $missingPackagePartCount,
+            'exposablePackagePartCount' => $exposablePackagePartCount,
+            'nonExposablePackagePartCount' => $nonExposablePackagePartCount,
+            'unexposableExistingPackagePartCount' => $unexposableExistingPackagePartCount,
+            'packageByteLength' => $packageByteLength,
+            'packageCompressedByteLength' => $packageCompressedByteLength,
+            'exposablePackageByteLength' => $exposablePackageByteLength,
+            'exposablePackageCompressedByteLength' => $exposablePackageCompressedByteLength,
+            'largestPackagePartLimit' => self::MANIFEST_LARGEST_PACKAGE_PART_LIMIT,
+            'largestPackagePartCount' => count($largestPackageParts),
             'duplicateIdCount' => count($duplicateIdItems),
             'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
@@ -1320,6 +1405,8 @@ final class EpubPackage
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
             'externalItems' => $externalItems,
+            'packagePartItems' => $packagePartItems,
+            'largestPackageParts' => $largestPackageParts,
             'duplicateIdItems' => $duplicateIdItems,
             'duplicateManifestIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
@@ -1336,6 +1423,47 @@ final class EpubPackage
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $packagePartItems
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function largestManifestPackagePartItems(array $packagePartItems, int $limit): array
+    {
+        if ($limit < 1) {
+            return [];
+        }
+
+        $items = array_values(array_filter(
+            $packagePartItems,
+            static fn (array $item): bool => ($item['exists'] ?? false) === true
+                && is_int($item['byteLength'] ?? null)
+        ));
+
+        usort(
+            $items,
+            static function (array $left, array $right): int {
+                $leftByteLength = is_int($left['byteLength'] ?? null) ? $left['byteLength'] : -1;
+                $rightByteLength = is_int($right['byteLength'] ?? null) ? $right['byteLength'] : -1;
+                $byByteLength = $rightByteLength <=> $leftByteLength;
+                if ($byByteLength !== 0) {
+                    return $byByteLength;
+                }
+
+                $leftCompressedByteLength = is_int($left['compressedByteLength'] ?? null) ? $left['compressedByteLength'] : -1;
+                $rightCompressedByteLength = is_int($right['compressedByteLength'] ?? null) ? $right['compressedByteLength'] : -1;
+                $byCompressedByteLength = $rightCompressedByteLength <=> $leftCompressedByteLength;
+                if ($byCompressedByteLength !== 0) {
+                    return $byCompressedByteLength;
+                }
+
+                return strcmp((string) ($left['partName'] ?? ''), (string) ($right['partName'] ?? ''));
+            }
+        );
+
+        return array_slice($items, 0, $limit);
     }
 
     /**
