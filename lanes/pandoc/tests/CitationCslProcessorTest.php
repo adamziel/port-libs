@@ -28799,6 +28799,72 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
     },
+    'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
+        $ris = <<<'RIS'
+TY  - JOUR
+ID  - ris-journal
+AU  - Ng, Nia
+AU  - Roe, Pat
+TI  - RIS Packet Handoff
+T2  - Journal of Import Review
+PY  - 2026/06/10/
+VL  - 12
+IS  - 3
+SP  - 101
+EP  - 120
+DO  - 10.5555/ris
+UR  - https://example.test/ris
+KW  - wordpress
+KW  - pandoc
+ER  -
+
+TY  - RPRT
+ID  - ris-report
+AU  - WordPress Migration Team
+TI  - RIS Report Packet
+PB  - Review Press
+CY  - Portland
+PY  - 2025
+N1  - bounded review
+ER  -
+RIS;
+
+        $items = CitationCslProcessor::risItems($ris);
+        $t->same(2, count($items));
+        $t->same('ris-journal', $items[0]['id']);
+        $t->same('article-journal', $items[0]['type']);
+        $t->same('RIS Packet Handoff', $items[0]['title']);
+        $t->same('Journal of Import Review', $items[0]['container-title']);
+        $t->same([2026, 6, 10], $items[0]['issued']['date-parts'][0]);
+        $t->same('101-120', $items[0]['page']);
+        $t->same(['wordpress', 'pandoc'], $items[0]['keyword']);
+        $t->same('JOUR', $items[0]['rawRis']['type']);
+        $t->same(['literal' => 'WordPress Migration Team'], $items[1]['author'][0]);
+
+        $processor = CitationCslProcessor::fromRis($ris);
+        $journal = $processor->item('ris-journal');
+        $report = $processor->item('ris-report');
+        $t->same('Ng', $journal['authors'][0]['family'] ?? null);
+        $t->same('Nia', $journal['authors'][0]['given'] ?? null);
+        $t->same('10.5555/ris', $journal['doi'] ?? null);
+        $t->same(['wordpress', 'pandoc'], $journal['keywords'] ?? null);
+        $t->same('report', $report['type'] ?? null);
+        $t->same('Review Press', $report['publisher'] ?? null);
+        $t->same('Portland', $report['publisherPlace'] ?? null);
+
+        $t->same('(Ng and Roe 2026; WordPress Migration Team 2025)', $processor->renderCitationCluster([
+            $citation('ris-journal', '[@ris-journal]'),
+            $citation('ris-report', '[@ris-report]'),
+        ]));
+        $t->same('Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.', $processor->renderBibliographyEntry('ris-journal'));
+        $t->same('WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.', $processor->renderBibliographyEntry('ris-report'));
+
+        $document = (new MarkdownReader())->read('RIS imports cite [@ris-journal; @ris-report].');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>RIS imports cite (Ng and Roe 2026; WordPress Migration Team 2025).</p>', $blocks);
+        $t->contains('<dt>Ng and Roe 2026</dt><dd>Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.</dd>', $blocks);
+        $t->contains('<dt>WordPress Migration Team 2025</dt><dd>WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
