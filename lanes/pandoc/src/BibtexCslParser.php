@@ -554,7 +554,7 @@ final class BibtexCslParser
     private static function resolveXdataFields(array $entry, array $entriesByKey, array $stack): array
     {
         $fields = $entry['fields'];
-        $xdata = self::biblatexKeyList($fields['xdata'] ?? '');
+        $xdata = self::biblatexXdataKeyList($fields);
         if ($xdata === []) {
             return $fields;
         }
@@ -566,7 +566,7 @@ final class BibtexCslParser
             }
 
             $parentFields = self::resolveInheritedFields($parent, $entriesByKey, $stack);
-            unset($parentFields['xdata'], $parentFields['crossref']);
+            unset($parentFields['xdata'], $parentFields['xdata-keys'], $parentFields['xdatakeys'], $parentFields['crossref']);
             foreach ($parentFields as $field => $value) {
                 if (!isset($fields[$field]) || trim($fields[$field]) === '') {
                     $fields[$field] = $value;
@@ -1210,7 +1210,7 @@ final class BibtexCslParser
      */
     private static function withBiblatexRelationMetadata(array $item, array $fields, array $entriesByKey): array
     {
-        $xdata = self::biblatexKeyList($fields['xdata'] ?? '');
+        $xdata = self::biblatexXdataKeyList($fields);
         if ($xdata !== []) {
             $item['xdataKeys'] = $xdata;
             $item['xdataItems'] = self::referencedXdataEntrySummaries($xdata, $entriesByKey);
@@ -1220,7 +1220,7 @@ final class BibtexCslParser
             }
         }
 
-        $entrySet = self::biblatexKeyList($fields['entryset'] ?? '');
+        $entrySet = self::biblatexKeyList(self::firstRawField($fields, ['entryset', 'entry-set', 'entrysetkeys', 'entry-set-keys']));
         if ($entrySet !== []) {
             $item['entrySet'] = $entrySet;
             $item['entrySetItems'] = self::referencedEntrySummaries($entrySet, $entriesByKey);
@@ -1230,7 +1230,7 @@ final class BibtexCslParser
             }
         }
 
-        $related = self::biblatexKeyList($fields['related'] ?? '');
+        $related = self::biblatexKeyList(self::firstRawField($fields, ['related', 'relatedkeys', 'related-keys']));
         if ($related !== []) {
             $item['relatedKeys'] = $related;
             $item['relatedItems'] = self::referencedEntrySummaries($related, $entriesByKey);
@@ -1239,23 +1239,23 @@ final class BibtexCslParser
                 $item['missingRelatedKeys'] = $missing;
             }
 
-            $relatedType = self::cleanBibtexText($fields['relatedtype'] ?? '');
+            $relatedType = self::firstField($fields, ['relatedtype', 'related-type']);
             if ($relatedType !== '') {
                 $item['relatedType'] = $relatedType;
             }
 
-            $relatedString = self::cleanBibtexText($fields['relatedstring'] ?? '');
+            $relatedString = self::firstField($fields, ['relatedstring', 'related-string']);
             if ($relatedString !== '') {
                 $item['relatedString'] = $relatedString;
             }
 
-            $relatedOptions = self::biblatexOptionList($fields['relatedoptions'] ?? '');
+            $relatedOptions = self::biblatexOptionList(self::firstRawField($fields, ['relatedoptions', 'related-options']));
             if ($relatedOptions !== []) {
                 $item['related-options'] = $relatedOptions;
             }
         }
 
-        $xref = self::biblatexKeyList($fields['xref'] ?? '');
+        $xref = self::biblatexKeyList(self::firstRawField($fields, ['xref', 'xrefkeys', 'xref-keys']));
         if ($xref !== []) {
             $item['xrefKeys'] = $xref;
             $item['xrefItems'] = self::referencedEntrySummaries($xref, $entriesByKey);
@@ -1266,6 +1266,15 @@ final class BibtexCslParser
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private static function biblatexXdataKeyList(array $fields): array
+    {
+        return self::biblatexKeyList(self::firstRawField($fields, ['xdata', 'xdatakeys', 'xdata-keys']));
     }
 
     /**
