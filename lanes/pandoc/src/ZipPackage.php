@@ -9743,8 +9743,11 @@ final class ZipPackage
      *     localExtraFieldEntryCount:int,
      *     skippedArchiveExtraDataRecordCount:int,
      *     skippedArchiveExtraDataRecordBytes:int,
+     *     localExtraFieldRecordCount:int,
+     *     localExtraFieldRecordIds:list<int>,
      *     hasLocalHeaderVariableFields:bool,
      *     hasLocalExtraFields:bool,
+     *     largestLocalExtraFieldEntry:?array<string, mixed>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
@@ -9767,6 +9770,10 @@ final class ZipPackage
      *         rawNameLength:int,
      *         localExtraFieldOffset:int,
      *         localExtraFieldLength:int,
+     *         localExtraFieldRecordCount:int,
+     *         localExtraFieldIds:list<int>,
+     *         localExtraFieldStructureIssues:list<string>,
+     *         localExtraFieldRecords:list<array<string, mixed>>,
      *         dataStart:int,
      *         hasLocalExtraFields:bool
      *     }>
@@ -9796,6 +9803,9 @@ final class ZipPackage
         $localExtraFieldEntryCount = 0;
         $skippedArchiveExtraDataRecords = [];
         $skippedArchiveExtraDataRecordBytes = 0;
+        $localExtraFieldRecordCount = 0;
+        $localExtraFieldRecordIds = [];
+        $largestLocalExtraFieldEntry = null;
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
         }
@@ -9861,8 +9871,32 @@ final class ZipPackage
             $rawNameOffset = $localVariableFieldsOffset;
             $localExtraFieldOffset = $rawNameOffset + $localHeader['nameLength'];
             $dataStart = $localExtraFieldOffset + $localHeader['extraFieldLength'];
+            $localExtraFieldStructure = self::extraFieldStructureSummary(
+                $localHeader['extraFieldData'],
+                'local-header'
+            );
+            $localExtraFieldRecords = [];
+            $localExtraFieldIds = [];
+            foreach ($localExtraFieldStructure['fields'] as $field) {
+                $record = $field + [
+                    'localExtraFieldRecordOffset' => is_int($field['headerOffset'] ?? null)
+                        ? $localExtraFieldOffset + $field['headerOffset']
+                        : null,
+                    'localExtraFieldDataOffset' => is_int($field['dataOffset'] ?? null)
+                        ? $localExtraFieldOffset + $field['dataOffset']
+                        : null,
+                    'localExtraFieldRecordEnd' => is_int($field['recordEnd'] ?? null)
+                        ? $localExtraFieldOffset + $field['recordEnd']
+                        : null,
+                ];
+                $localExtraFieldRecords[] = $record;
+                if (is_int($field['id'] ?? null)) {
+                    $localExtraFieldIds[] = $field['id'];
+                    $localExtraFieldRecordIds[] = $field['id'];
+                }
+            }
 
-            $entries[] = [
+            $entry = [
                 'name' => $localHeader['name'],
                 'rawName' => $localHeader['rawName'],
                 'nameEncoding' => $localHeader['nameEncoding'],
@@ -9881,14 +9915,26 @@ final class ZipPackage
                 'rawNameLength' => $localHeader['nameLength'],
                 'localExtraFieldOffset' => $localExtraFieldOffset,
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'localExtraFieldRecordCount' => $localExtraFieldStructure['fieldCount'],
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldStructureIssues' => $localExtraFieldStructure['issues'],
+                'localExtraFieldRecords' => $localExtraFieldRecords,
                 'dataStart' => $dataStart,
                 'hasLocalExtraFields' => $localHeader['extraFieldLength'] > 0,
             ];
+            $entries[] = $entry;
 
             $localHeaderNameBytes += $localHeader['nameLength'];
             $localHeaderExtraFieldBytes += $localHeader['extraFieldLength'];
+            $localExtraFieldRecordCount += $localExtraFieldStructure['fieldCount'];
             if ($localHeader['extraFieldLength'] > 0) {
                 $localExtraFieldEntryCount++;
+                if (
+                    $largestLocalExtraFieldEntry === null
+                    || $localHeader['extraFieldLength'] > $largestLocalExtraFieldEntry['localExtraFieldLength']
+                ) {
+                    $largestLocalExtraFieldEntry = $entry;
+                }
             }
 
             $cursor += 46 + $variableLength;
@@ -9913,8 +9959,11 @@ final class ZipPackage
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
             'skippedArchiveExtraDataRecordCount' => count($skippedArchiveExtraDataRecords),
             'skippedArchiveExtraDataRecordBytes' => $skippedArchiveExtraDataRecordBytes,
+            'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
+            'localExtraFieldRecordIds' => $localExtraFieldRecordIds,
             'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
             'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
+            'largestLocalExtraFieldEntry' => $largestLocalExtraFieldEntry,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'skippedArchiveExtraDataRecords' => $skippedArchiveExtraDataRecords,
@@ -13992,7 +14041,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, nameLength:int, extraFieldLength:int, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int, crc32:int, compressedSize:int, uncompressedSize:int}
+     * @return array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, nameLength:int, extraFieldLength:int, extraFieldData:string, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int, crc32:int, compressedSize:int, uncompressedSize:int}
      */
     private static function readLocalHeaderNameMetadata(
         string $bytes,
@@ -14052,6 +14101,7 @@ final class ZipPackage
             'decodedNameSafetyIssues' => $decodedNameSafetyIssues,
             'nameLength' => $nameLength,
             'extraFieldLength' => $extraLength,
+            'extraFieldData' => $extraFieldData,
             'localHeaderLength' => 30 + $nameLength + $extraLength,
             'versionNeededToExtract' => $versionNeededToExtract,
             'generalPurposeFlags' => $flags,
