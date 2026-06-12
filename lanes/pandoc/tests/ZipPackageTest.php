@@ -51,6 +51,25 @@ $buildUnixOwnerExtra = static function (int $uid, int $gid) use ($packZipVariabl
 
     return pack('vv', 0x7875, strlen($payload)) . $payload;
 };
+$buildWinZipAesExtra = static function (
+    int $vendorVersion = 2,
+    string $vendorId = 'AE',
+    int $strength = 3,
+    int $actualCompressionMethod = 8,
+    string $trailingBytes = ''
+): string {
+    if (strlen($vendorId) !== 2) {
+        throw new \RuntimeException('WinZip AES vendor id must be exactly two bytes');
+    }
+
+    $payload = pack('v', $vendorVersion)
+        . $vendorId
+        . chr($strength)
+        . pack('v', $actualCompressionMethod)
+        . $trailingBytes;
+
+    return pack('vv', 0x9901, strlen($payload)) . $payload;
+};
 
 /**
  * @param list<array{
@@ -7880,6 +7899,110 @@ return [
                 'extraFieldData' => $aesExtra,
             ],
         ]));
+    },
+
+    'preflights winzip aes extra field provenance before raw package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $buildWinZipAesExtra): void {
+        $centralAes = $buildWinZipAesExtra(2, 'AE', 3, 8);
+        $localAes = $buildWinZipAesExtra(1, 'AE', 1, 0);
+        $truncatedAes = pack('vv', 0x9901, 3) . 'abc';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/aes-deflated.bin',
+                'data' => 'well formed AES metadata stays blocked',
+                'method' => 0,
+                'centralExtra' => $centralAes,
+                'localExtra' => $centralAes,
+            ],
+            [
+                'name' => 'word/media/aes-mismatch.bin',
+                'data' => 'mismatched AES metadata stays blocked',
+                'method' => 0,
+                'centralExtra' => $centralAes,
+                'localExtra' => $localAes,
+            ],
+            [
+                'name' => 'word/media/aes-truncated.bin',
+                'data' => 'truncated AES metadata stays blocked',
+                'method' => 0,
+                'centralExtra' => $truncatedAes,
+                'localExtra' => '',
+            ],
+        ]);
+
+        $summary = ZipPackage::encryptionPolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['encryptedEntryCount']);
+        $t->same(3, $summary['winZipAesEntryCount']);
+        $t->same(3, $summary['centralWinZipAesEntryCount']);
+        $t->same(2, $summary['localWinZipAesEntryCount']);
+        $t->same(1, $summary['mismatchedWinZipAesEntryCount']);
+        $t->same(1, $summary['malformedWinZipAesEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'encrypted-zip-entries',
+            'winzip-aes-extra-field-mismatch',
+            'malformed-winzip-aes-extra-fields',
+        ], $summary['issues']);
+
+        $wellFormed = $summary['encryptedEntries'][0];
+        $t->same('word/media/aes-deflated.bin', $wellFormed['name']);
+        $t->same(true, $wellFormed['hasWinZipAesExtraField']);
+        $t->same(true, $wellFormed['hasCentralWinZipAesExtraField']);
+        $t->same(true, $wellFormed['hasLocalWinZipAesExtraField']);
+        $t->same(true, $wellFormed['winZipAesExtraFieldMatches']);
+        $t->same(false, $wellFormed['hasMalformedWinZipAesExtraField']);
+        $t->same(['winzip-aes'], $wellFormed['encryptionTypes']);
+        $t->same([
+            'zip-encrypted-entry-not-extracted',
+            'zip-winzip-aes-extra-field',
+            'zip-central-winzip-aes-extra-field',
+            'zip-local-winzip-aes-extra-field',
+        ], $wellFormed['diagnostics']);
+        $t->same(7, $wellFormed['centralWinZipAes']['dataLength']);
+        $t->same('02004145030800', $wellFormed['centralWinZipAes']['dataHex']);
+        $t->same(2, $wellFormed['centralWinZipAes']['vendorVersion']);
+        $t->same('AE-2', $wellFormed['centralWinZipAes']['vendorVersionName']);
+        $t->same('AE', $wellFormed['centralWinZipAes']['vendorId']);
+        $t->same('4145', $wellFormed['centralWinZipAes']['vendorIdHex']);
+        $t->same(3, $wellFormed['centralWinZipAes']['strength']);
+        $t->same('aes-256', $wellFormed['centralWinZipAes']['strengthName']);
+        $t->same(8, $wellFormed['centralWinZipAes']['actualCompressionMethod']);
+        $t->same('deflated', $wellFormed['centralWinZipAes']['actualCompressionMethodName']);
+        $t->same(0, $wellFormed['centralWinZipAes']['trailingByteCount']);
+        $t->same(true, $wellFormed['centralWinZipAes']['isWellFormed']);
+        $t->same([], $wellFormed['centralWinZipAes']['issues']);
+
+        $mismatched = $summary['encryptedEntries'][1];
+        $t->same('word/media/aes-mismatch.bin', $mismatched['name']);
+        $t->same(false, $mismatched['winZipAesExtraFieldMatches']);
+        $t->same(1, $mismatched['localWinZipAes']['vendorVersion']);
+        $t->same('AE-1', $mismatched['localWinZipAes']['vendorVersionName']);
+        $t->same(1, $mismatched['localWinZipAes']['strength']);
+        $t->same('aes-128', $mismatched['localWinZipAes']['strengthName']);
+        $t->same(0, $mismatched['localWinZipAes']['actualCompressionMethod']);
+        $t->same('stored', $mismatched['localWinZipAes']['actualCompressionMethodName']);
+        $t->contains('zip-winzip-aes-extra-field-mismatch', implode(',', $mismatched['diagnostics']));
+
+        $truncated = $summary['encryptedEntries'][2];
+        $t->same('word/media/aes-truncated.bin', $truncated['name']);
+        $t->same(true, $truncated['hasMalformedWinZipAesExtraField']);
+        $t->same(null, $truncated['localWinZipAes']);
+        $t->same(3, $truncated['centralWinZipAes']['dataLength']);
+        $t->same(false, $truncated['centralWinZipAes']['isWellFormed']);
+        $t->same(['winzip-aes-extra-field-truncated'], $truncated['centralWinZipAes']['issues']);
+        $t->contains('zip-winzip-aes-extra-field-malformed', implode(',', $truncated['diagnostics']));
+
+        $t->same($summary, $rawStrict['encryption']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->contains('encrypted-zip-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('winzip-aes-extra-field-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('malformed-winzip-aes-extra-fields', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
     'rejects unsupported zip general purpose flag bits before package import' => static function (TestRunner $t) use ($buildZipPackage): void {

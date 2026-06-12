@@ -6205,6 +6205,10 @@ final class ZipPackage
         $strongEncryptionEntryCount = 0;
         $centralDirectoryEncryptionEntryCount = 0;
         $winZipAesEntryCount = 0;
+        $centralWinZipAesEntryCount = 0;
+        $localWinZipAesEntryCount = 0;
+        $mismatchedWinZipAesEntryCount = 0;
+        $malformedWinZipAesEntryCount = 0;
         $truncatedTraditionalEncryptionHeaderEntryCount = 0;
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
@@ -6232,6 +6236,22 @@ final class ZipPackage
             $centralExtraFieldIds = self::extraFieldIdsForPolicy($centralExtraFieldData, "central extra fields for {$decodedName['text']}");
             $localHeader = self::localHeaderMetadataForPolicy($bytes, $localHeaderOffset, $index);
             $localExtraFieldIds = self::extraFieldIdsForPolicy($localHeader['extraFieldData'], "local extra fields for {$decodedName['text']}");
+            $centralWinZipAes = self::winZipAesExtraFieldForPolicy(
+                self::extraFieldDataForPolicy(
+                    $centralExtraFieldData,
+                    self::WINZIP_AES_EXTRA_ID,
+                    "central extra fields for {$decodedName['text']}"
+                )
+            );
+            $localWinZipAes = self::winZipAesExtraFieldForPolicy(
+                self::extraFieldDataForPolicy(
+                    $localHeader['extraFieldData'],
+                    self::WINZIP_AES_EXTRA_ID,
+                    "local extra fields for {$decodedName['text']}"
+                )
+            );
+            $hasCentralWinZipAesExtraField = $centralWinZipAes !== null;
+            $hasLocalWinZipAesExtraField = $localWinZipAes !== null;
 
             $hasTraditionalEncryption = ($flags & self::ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0
                 || (($localHeader['generalPurposeFlags'] & self::ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0);
@@ -6239,8 +6259,11 @@ final class ZipPackage
                 || (($localHeader['generalPurposeFlags'] & self::STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG) !== 0);
             $hasCentralDirectoryEncryption = ($flags & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0
                 || (($localHeader['generalPurposeFlags'] & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0);
-            $hasWinZipAesExtraField = in_array(self::WINZIP_AES_EXTRA_ID, $centralExtraFieldIds, true)
-                || in_array(self::WINZIP_AES_EXTRA_ID, $localExtraFieldIds, true);
+            $hasWinZipAesExtraField = $hasCentralWinZipAesExtraField || $hasLocalWinZipAesExtraField;
+            $winZipAesExtraFieldMatches = !($hasCentralWinZipAesExtraField && $hasLocalWinZipAesExtraField)
+                || $centralWinZipAes['dataHex'] === $localWinZipAes['dataHex'];
+            $hasMalformedWinZipAesExtraField = ($centralWinZipAes !== null && !$centralWinZipAes['isWellFormed'])
+                || ($localWinZipAes !== null && !$localWinZipAes['isWellFormed']);
             $dataOffset = $localHeader['dataOffset'];
             $traditionalEncryptionHeaderOffset = null;
             $traditionalEncryptionHeaderLength = 0;
@@ -6280,6 +6303,18 @@ final class ZipPackage
             if ($hasWinZipAesExtraField) {
                 $encryptionTypes[] = 'winzip-aes';
                 $diagnostics[] = 'zip-winzip-aes-extra-field';
+                if ($hasCentralWinZipAesExtraField) {
+                    $diagnostics[] = 'zip-central-winzip-aes-extra-field';
+                }
+                if ($hasLocalWinZipAesExtraField) {
+                    $diagnostics[] = 'zip-local-winzip-aes-extra-field';
+                }
+                if (!$winZipAesExtraFieldMatches) {
+                    $diagnostics[] = 'zip-winzip-aes-extra-field-mismatch';
+                }
+                if ($hasMalformedWinZipAesExtraField) {
+                    $diagnostics[] = 'zip-winzip-aes-extra-field-malformed';
+                }
             }
             if ($hasTruncatedTraditionalEncryptionHeader) {
                 $diagnostics[] = 'zip-traditional-encryption-header-truncated';
@@ -6312,6 +6347,18 @@ final class ZipPackage
             if ($hasWinZipAesExtraField) {
                 $winZipAesEntryCount++;
             }
+            if ($hasCentralWinZipAesExtraField) {
+                $centralWinZipAesEntryCount++;
+            }
+            if ($hasLocalWinZipAesExtraField) {
+                $localWinZipAesEntryCount++;
+            }
+            if (!$winZipAesExtraFieldMatches) {
+                $mismatchedWinZipAesEntryCount++;
+            }
+            if ($hasMalformedWinZipAesExtraField) {
+                $malformedWinZipAesEntryCount++;
+            }
             if ($hasTruncatedTraditionalEncryptionHeader) {
                 $truncatedTraditionalEncryptionHeaderEntryCount++;
             }
@@ -6330,6 +6377,8 @@ final class ZipPackage
                 'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'centralWinZipAes' => $centralWinZipAes,
+                'localWinZipAes' => $localWinZipAes,
                 'compressedSize' => $compressedSize,
                 'uncompressedSize' => $uncompressedSize,
                 'compressedDataEnd' => $dataOffset + $compressedSize,
@@ -6344,6 +6393,10 @@ final class ZipPackage
                 'hasStrongEncryption' => $hasStrongEncryption,
                 'hasCentralDirectoryEncryption' => $hasCentralDirectoryEncryption,
                 'hasWinZipAesExtraField' => $hasWinZipAesExtraField,
+                'hasCentralWinZipAesExtraField' => $hasCentralWinZipAesExtraField,
+                'hasLocalWinZipAesExtraField' => $hasLocalWinZipAesExtraField,
+                'winZipAesExtraFieldMatches' => $winZipAesExtraFieldMatches,
+                'hasMalformedWinZipAesExtraField' => $hasMalformedWinZipAesExtraField,
                 'encryptionTypes' => array_values(array_unique($encryptionTypes)),
                 'policy' => $encryptionTypes === [] ? 'metadata' : 'blocked',
                 'diagnostics' => $diagnostics,
@@ -6371,6 +6424,12 @@ final class ZipPackage
         if ($truncatedTraditionalEncryptionHeaderEntryCount > 0) {
             $issues[] = 'truncated-traditional-encryption-header';
         }
+        if ($mismatchedWinZipAesEntryCount > 0) {
+            $issues[] = 'winzip-aes-extra-field-mismatch';
+        }
+        if ($malformedWinZipAesEntryCount > 0) {
+            $issues[] = 'malformed-winzip-aes-extra-fields';
+        }
 
         return [
             'entryCount' => count($entries),
@@ -6379,6 +6438,10 @@ final class ZipPackage
             'strongEncryptionEntryCount' => $strongEncryptionEntryCount,
             'centralDirectoryEncryptionEntryCount' => $centralDirectoryEncryptionEntryCount,
             'winZipAesEntryCount' => $winZipAesEntryCount,
+            'centralWinZipAesEntryCount' => $centralWinZipAesEntryCount,
+            'localWinZipAesEntryCount' => $localWinZipAesEntryCount,
+            'mismatchedWinZipAesEntryCount' => $mismatchedWinZipAesEntryCount,
+            'malformedWinZipAesEntryCount' => $malformedWinZipAesEntryCount,
             'truncatedTraditionalEncryptionHeaderEntryCount' => $truncatedTraditionalEncryptionHeaderEntryCount,
             'hasEncryptedEntries' => $encryptedEntries !== [],
             'extractionPolicy' => $encryptedEntries === [] ? 'no-encrypted-zip-entries' : 'encrypted-zip-entries-blocked',
@@ -14222,6 +14285,102 @@ final class ZipPackage
         }
 
         return null;
+    }
+
+    /**
+     * @return array{
+     *     dataLength:int,
+     *     dataHex:string,
+     *     vendorVersion:?int,
+     *     vendorVersionName:?string,
+     *     vendorId:?string,
+     *     vendorIdHex:?string,
+     *     strength:?int,
+     *     strengthName:?string,
+     *     actualCompressionMethod:?int,
+     *     actualCompressionMethodName:?string,
+     *     trailingByteCount:int,
+     *     isWellFormed:bool,
+     *     issues:list<string>,
+     *     diagnostics:list<string>
+     * }|null
+     */
+    private static function winZipAesExtraFieldForPolicy(?string $data): ?array
+    {
+        if ($data === null) {
+            return null;
+        }
+
+        $length = strlen($data);
+        $issues = [];
+        $diagnostics = [];
+        $vendorVersion = null;
+        $vendorVersionName = null;
+        $vendorId = null;
+        $vendorIdHex = null;
+        $strength = null;
+        $strengthName = null;
+        $actualCompressionMethod = null;
+        $actualCompressionMethodName = null;
+        $trailingByteCount = 0;
+
+        if ($length < 7) {
+            $issues[] = 'winzip-aes-extra-field-truncated';
+            $diagnostics[] = 'zip-winzip-aes-extra-field-truncated';
+        } else {
+            $vendorVersion = self::readUInt16($data, 0);
+            $vendorVersionName = match ($vendorVersion) {
+                1 => 'AE-1',
+                2 => 'AE-2',
+                default => 'unknown',
+            };
+            $vendorId = substr($data, 2, 2);
+            $vendorIdHex = bin2hex($vendorId);
+            $strength = ord($data[4]);
+            $strengthName = match ($strength) {
+                1 => 'aes-128',
+                2 => 'aes-192',
+                3 => 'aes-256',
+                default => 'unknown',
+            };
+            $actualCompressionMethod = self::readUInt16($data, 5);
+            $actualCompressionMethodName = self::compressionMethodName($actualCompressionMethod);
+            $trailingByteCount = max(0, $length - 7);
+
+            if ($vendorVersionName === 'unknown') {
+                $issues[] = 'winzip-aes-unknown-vendor-version';
+                $diagnostics[] = 'zip-winzip-aes-unknown-vendor-version';
+            }
+            if ($vendorId !== 'AE') {
+                $issues[] = 'winzip-aes-unexpected-vendor-id';
+                $diagnostics[] = 'zip-winzip-aes-unexpected-vendor-id';
+            }
+            if ($strengthName === 'unknown') {
+                $issues[] = 'winzip-aes-unknown-strength';
+                $diagnostics[] = 'zip-winzip-aes-unknown-strength';
+            }
+            if ($trailingByteCount > 0) {
+                $issues[] = 'winzip-aes-extra-field-trailing-bytes';
+                $diagnostics[] = 'zip-winzip-aes-extra-field-trailing-bytes';
+            }
+        }
+
+        return [
+            'dataLength' => $length,
+            'dataHex' => bin2hex($data),
+            'vendorVersion' => $vendorVersion,
+            'vendorVersionName' => $vendorVersionName,
+            'vendorId' => $vendorId,
+            'vendorIdHex' => $vendorIdHex,
+            'strength' => $strength,
+            'strengthName' => $strengthName,
+            'actualCompressionMethod' => $actualCompressionMethod,
+            'actualCompressionMethodName' => $actualCompressionMethodName,
+            'trailingByteCount' => $trailingByteCount,
+            'isWellFormed' => $issues === [],
+            'issues' => $issues,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

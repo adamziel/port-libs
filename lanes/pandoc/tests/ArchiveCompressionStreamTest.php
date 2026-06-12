@@ -7239,6 +7239,8 @@ return [
                 'zip-encrypted-entry-not-extracted',
                 'zip-central-directory-encryption',
                 'zip-winzip-aes-extra-field',
+                'zip-central-winzip-aes-extra-field',
+                'zip-local-winzip-aes-extra-field',
             ], $inspection['encryptedEntries'][2]['diagnostics']);
             $t->same([0x9901], $inspection['encryptedEntries'][2]['centralExtraFieldIds']);
             $t->same([0x9901], $inspection['encryptedEntries'][2]['localExtraFieldIds']);
