@@ -10117,6 +10117,154 @@ return [
         $t->same([$documentEntry, $localOnlyEntry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip entry data descriptor provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>selected descriptor provenance</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>signed descriptor</w:comment></w:comments>';
+        $footnotesXml = '<w:footnotes><w:footnote>unsigned descriptor</w:footnote></w:footnotes>';
+        $commentsCompressedSize = strlen(gzdeflate($commentsXml));
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/footnotes.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+        ], 1024);
+
+        $t->same(4, $summary['requestedEntryCount']);
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedDataDescriptorEntryCount']);
+        $t->same(1, $summary['selectedSignedDataDescriptorEntryCount']);
+        $t->same(1, $summary['selectedUnsignedDataDescriptorEntryCount']);
+        $t->same(0, $summary['selectedZip64SizedDataDescriptorEntryCount']);
+        $t->same(2, $summary['selectedZeroLocalHeaderPlaceholderEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+
+        $documentEntry = $summary['entries'][0];
+        $commentsEntry = $summary['entries'][1];
+        $footnotesEntry = $summary['entries'][2];
+        $missingEntry = $summary['entries'][3];
+
+        $t->same(false, $documentEntry['usesDataDescriptor']);
+        $t->same(null, $documentEntry['dataDescriptorOffset']);
+        $t->same(null, $documentEntry['dataDescriptorLength']);
+        $t->same(null, $documentEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same($crc32($documentXml), $documentEntry['localHeaderCrc32']);
+        $t->same(strlen($documentXml), $documentEntry['localHeaderCompressedSize']);
+        $t->same(strlen($documentXml), $documentEntry['localHeaderUncompressedSize']);
+
+        $t->same(true, $commentsEntry['usesDataDescriptor']);
+        $t->same(true, $commentsEntry['dataDescriptorHasSignature']);
+        $t->same($commentsEntry['compressedDataEnd'], $commentsEntry['dataDescriptorOffset']);
+        $t->same($commentsEntry['compressedDataEnd'] + 4, $commentsEntry['dataDescriptorValueOffset']);
+        $t->same(16, $commentsEntry['dataDescriptorLength']);
+        $t->same($footnotesEntry['localHeaderOffset'], $commentsEntry['dataDescriptorNextOffset']);
+        $t->same(16, $commentsEntry['dataDescriptorSpan']);
+        $t->same($footnotesEntry['localHeaderOffset'], $commentsEntry['dataDescriptorEnd']);
+        $t->same(0, $commentsEntry['dataDescriptorSurplusBytes']);
+        $t->same(0, $commentsEntry['dataDescriptorTruncatedBytes']);
+        $t->same($crc32($commentsXml), $commentsEntry['dataDescriptorCrc32']);
+        $t->same(sprintf('%08x', $crc32($commentsXml)), $commentsEntry['dataDescriptorCrc32Hex']);
+        $t->same($commentsCompressedSize, $commentsEntry['dataDescriptorCompressedSize']);
+        $t->same(strlen($commentsXml), $commentsEntry['dataDescriptorUncompressedSize']);
+        $t->same(false, $commentsEntry['dataDescriptorUsesZip64SizedFields']);
+        $t->same(0, $commentsEntry['localHeaderCrc32']);
+        $t->same(0, $commentsEntry['localHeaderCompressedSize']);
+        $t->same(0, $commentsEntry['localHeaderUncompressedSize']);
+        $t->same(true, $commentsEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same(hash('sha256', $commentsXml), $commentsEntry['contentSha256']);
+
+        $t->same(true, $footnotesEntry['usesDataDescriptor']);
+        $t->same(false, $footnotesEntry['dataDescriptorHasSignature']);
+        $t->same($footnotesEntry['compressedDataEnd'], $footnotesEntry['dataDescriptorOffset']);
+        $t->same($footnotesEntry['compressedDataEnd'], $footnotesEntry['dataDescriptorValueOffset']);
+        $t->same(12, $footnotesEntry['dataDescriptorLength']);
+        $t->same($documentEntry['centralDirectoryRecordOffset'], $footnotesEntry['dataDescriptorNextOffset']);
+        $t->same(12, $footnotesEntry['dataDescriptorSpan']);
+        $t->same($documentEntry['centralDirectoryRecordOffset'], $footnotesEntry['dataDescriptorEnd']);
+        $t->same($crc32($footnotesXml), $footnotesEntry['dataDescriptorCrc32']);
+        $t->same(strlen($footnotesXml), $footnotesEntry['dataDescriptorCompressedSize']);
+        $t->same(strlen($footnotesXml), $footnotesEntry['dataDescriptorUncompressedSize']);
+        $t->same(true, $footnotesEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same(hash('sha256', $footnotesXml), $footnotesEntry['contentSha256']);
+
+        $expectedDescriptorEntries = [
+            [
+                'name' => 'word/comments.xml',
+                'usesDataDescriptor' => true,
+                'dataDescriptorHasSignature' => true,
+                'dataDescriptorOffset' => $commentsEntry['compressedDataEnd'],
+                'dataDescriptorValueOffset' => $commentsEntry['compressedDataEnd'] + 4,
+                'dataDescriptorLength' => 16,
+                'dataDescriptorNextOffset' => $footnotesEntry['localHeaderOffset'],
+                'dataDescriptorSpan' => 16,
+                'dataDescriptorEnd' => $footnotesEntry['localHeaderOffset'],
+                'dataDescriptorSurplusBytes' => 0,
+                'dataDescriptorTruncatedBytes' => 0,
+                'dataDescriptorCrc32' => $crc32($commentsXml),
+                'dataDescriptorCrc32Hex' => sprintf('%08x', $crc32($commentsXml)),
+                'dataDescriptorCompressedSize' => $commentsCompressedSize,
+                'dataDescriptorUncompressedSize' => strlen($commentsXml),
+                'dataDescriptorUsesZip64SizedFields' => false,
+                'localHeaderCrc32' => 0,
+                'localHeaderCompressedSize' => 0,
+                'localHeaderUncompressedSize' => 0,
+                'hasZeroLocalHeaderPlaceholders' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'usesDataDescriptor' => true,
+                'dataDescriptorHasSignature' => false,
+                'dataDescriptorOffset' => $footnotesEntry['compressedDataEnd'],
+                'dataDescriptorValueOffset' => $footnotesEntry['compressedDataEnd'],
+                'dataDescriptorLength' => 12,
+                'dataDescriptorNextOffset' => $documentEntry['centralDirectoryRecordOffset'],
+                'dataDescriptorSpan' => 12,
+                'dataDescriptorEnd' => $documentEntry['centralDirectoryRecordOffset'],
+                'dataDescriptorSurplusBytes' => 0,
+                'dataDescriptorTruncatedBytes' => 0,
+                'dataDescriptorCrc32' => $crc32($footnotesXml),
+                'dataDescriptorCrc32Hex' => sprintf('%08x', $crc32($footnotesXml)),
+                'dataDescriptorCompressedSize' => strlen($footnotesXml),
+                'dataDescriptorUncompressedSize' => strlen($footnotesXml),
+                'dataDescriptorUsesZip64SizedFields' => false,
+                'localHeaderCrc32' => 0,
+                'localHeaderCompressedSize' => 0,
+                'localHeaderUncompressedSize' => 0,
+                'hasZeroLocalHeaderPlaceholders' => true,
+            ],
+        ];
+        $t->same($expectedDescriptorEntries, $summary['selectedDataDescriptorProvenanceEntries']);
+
+        $t->same(false, $missingEntry['exists']);
+        $t->same(false, $missingEntry['usesDataDescriptor']);
+        $t->same(null, $missingEntry['dataDescriptorOffset']);
+        $t->same(null, $missingEntry['localHeaderCrc32']);
+        $t->same(null, $missingEntry['hasZeroLocalHeaderPlaceholders']);
+        $t->same([$documentEntry, $commentsEntry, $footnotesEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";

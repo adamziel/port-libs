@@ -4907,6 +4907,12 @@ final class ZipPackage
         $selectedLocalExtraFieldEntryCount = 0;
         $selectedCentralExtraFieldRecordCount = 0;
         $selectedLocalExtraFieldRecordCount = 0;
+        $selectedDataDescriptorProvenanceEntries = [];
+        $selectedDataDescriptorEntryCount = 0;
+        $selectedSignedDataDescriptorEntryCount = 0;
+        $selectedUnsignedDataDescriptorEntryCount = 0;
+        $selectedZip64SizedDataDescriptorEntryCount = 0;
+        $selectedZeroLocalHeaderPlaceholderEntryCount = 0;
         foreach ($selectedEntriesByName as $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
@@ -4996,6 +5002,24 @@ final class ZipPackage
                     'name' => $entry->name,
                 ] + $extraFieldProvenance;
             }
+            $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
+            if ($dataDescriptorProvenance['usesDataDescriptor']) {
+                $selectedDataDescriptorEntryCount++;
+                if ($dataDescriptorProvenance['dataDescriptorHasSignature'] === true) {
+                    $selectedSignedDataDescriptorEntryCount++;
+                } else {
+                    $selectedUnsignedDataDescriptorEntryCount++;
+                }
+                if ($dataDescriptorProvenance['dataDescriptorUsesZip64SizedFields']) {
+                    $selectedZip64SizedDataDescriptorEntryCount++;
+                }
+                if ($dataDescriptorProvenance['hasZeroLocalHeaderPlaceholders'] === true) {
+                    $selectedZeroLocalHeaderPlaceholderEntryCount++;
+                }
+                $selectedDataDescriptorProvenanceEntries[] = [
+                    'name' => $entry->name,
+                ] + $dataDescriptorProvenance;
+            }
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -5058,6 +5082,25 @@ final class ZipPackage
                 'hasLocalExtraFields' => false,
                 'centralLocalExtraFieldIdsMatch' => null,
                 'hasExtraFieldProvenance' => false,
+                'usesDataDescriptor' => false,
+                'dataDescriptorHasSignature' => null,
+                'dataDescriptorOffset' => null,
+                'dataDescriptorValueOffset' => null,
+                'dataDescriptorLength' => null,
+                'dataDescriptorNextOffset' => null,
+                'dataDescriptorSpan' => null,
+                'dataDescriptorEnd' => null,
+                'dataDescriptorSurplusBytes' => null,
+                'dataDescriptorTruncatedBytes' => null,
+                'dataDescriptorCrc32' => null,
+                'dataDescriptorCrc32Hex' => null,
+                'dataDescriptorCompressedSize' => null,
+                'dataDescriptorUncompressedSize' => null,
+                'dataDescriptorUsesZip64SizedFields' => false,
+                'localHeaderCrc32' => null,
+                'localHeaderCompressedSize' => null,
+                'localHeaderUncompressedSize' => null,
+                'hasZeroLocalHeaderPlaceholders' => null,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'expansionRatio' => null,
@@ -5109,6 +5152,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryRawCommentHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
+            $summary = array_merge($summary, $this->entryDataDescriptorHandoffProvenance($entry, $localHeader));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5225,6 +5269,11 @@ final class ZipPackage
             'selectedExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount + $selectedLocalExtraFieldRecordCount,
             'selectedCentralExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount,
             'selectedLocalExtraFieldRecordCount' => $selectedLocalExtraFieldRecordCount,
+            'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
+            'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
+            'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
+            'selectedZip64SizedDataDescriptorEntryCount' => $selectedZip64SizedDataDescriptorEntryCount,
+            'selectedZeroLocalHeaderPlaceholderEntryCount' => $selectedZeroLocalHeaderPlaceholderEntryCount,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5238,11 +5287,92 @@ final class ZipPackage
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
+            'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @return array{
+     *     usesDataDescriptor:bool,
+     *     dataDescriptorHasSignature:?bool,
+     *     dataDescriptorOffset:?int,
+     *     dataDescriptorValueOffset:?int,
+     *     dataDescriptorLength:?int,
+     *     dataDescriptorNextOffset:?int,
+     *     dataDescriptorSpan:?int,
+     *     dataDescriptorEnd:?int,
+     *     dataDescriptorSurplusBytes:?int,
+     *     dataDescriptorTruncatedBytes:?int,
+     *     dataDescriptorCrc32:?int,
+     *     dataDescriptorCrc32Hex:?string,
+     *     dataDescriptorCompressedSize:?int,
+     *     dataDescriptorUncompressedSize:?int,
+     *     dataDescriptorUsesZip64SizedFields:bool,
+     *     localHeaderCrc32:int,
+     *     localHeaderCompressedSize:int,
+     *     localHeaderUncompressedSize:int,
+     *     hasZeroLocalHeaderPlaceholders:?bool
+     * }
+     */
+    private function entryDataDescriptorHandoffProvenance(ZipPackageEntry $entry, array $localHeader): array
+    {
+        $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
+        $summary = [
+            'usesDataDescriptor' => $usesDataDescriptor,
+            'dataDescriptorHasSignature' => null,
+            'dataDescriptorOffset' => null,
+            'dataDescriptorValueOffset' => null,
+            'dataDescriptorLength' => null,
+            'dataDescriptorNextOffset' => null,
+            'dataDescriptorSpan' => null,
+            'dataDescriptorEnd' => null,
+            'dataDescriptorSurplusBytes' => null,
+            'dataDescriptorTruncatedBytes' => null,
+            'dataDescriptorCrc32' => null,
+            'dataDescriptorCrc32Hex' => null,
+            'dataDescriptorCompressedSize' => null,
+            'dataDescriptorUncompressedSize' => null,
+            'dataDescriptorUsesZip64SizedFields' => false,
+            'localHeaderCrc32' => (int) $localHeader['crc32'],
+            'localHeaderCompressedSize' => (int) $localHeader['compressedSize'],
+            'localHeaderUncompressedSize' => (int) $localHeader['uncompressedSize'],
+            'hasZeroLocalHeaderPlaceholders' => null,
+        ];
+
+        if (!$usesDataDescriptor) {
+            return $summary;
+        }
+
+        $summary['hasZeroLocalHeaderPlaceholders'] = $localHeader['crc32'] === 0
+            && $localHeader['compressedSize'] === 0
+            && $localHeader['uncompressedSize'] === 0;
+        $descriptor = $this->dataDescriptorMetadata(
+            $entry,
+            ((int) $localHeader['dataStart']) + $entry->compressedSize,
+            $this->nextEntryOrCentralDirectoryOffset($entry)
+        );
+
+        $summary['dataDescriptorHasSignature'] = $descriptor['hasSignature'];
+        $summary['dataDescriptorOffset'] = $descriptor['descriptorOffset'];
+        $summary['dataDescriptorValueOffset'] = $descriptor['valueOffset'];
+        $summary['dataDescriptorLength'] = $descriptor['descriptorLength'];
+        $summary['dataDescriptorNextOffset'] = $descriptor['nextOffset'];
+        $summary['dataDescriptorSpan'] = $descriptor['descriptorSpan'];
+        $summary['dataDescriptorEnd'] = $descriptor['descriptorEnd'];
+        $summary['dataDescriptorSurplusBytes'] = $descriptor['surplusDescriptorBytes'];
+        $summary['dataDescriptorTruncatedBytes'] = $descriptor['truncatedDescriptorBytes'];
+        $summary['dataDescriptorCrc32'] = $descriptor['crc32'];
+        $summary['dataDescriptorCrc32Hex'] = $descriptor['crc32Hex'];
+        $summary['dataDescriptorCompressedSize'] = $entry->compressedSize;
+        $summary['dataDescriptorUncompressedSize'] = $entry->uncompressedSize;
+        $summary['dataDescriptorUsesZip64SizedFields'] = $descriptor['usesZip64SizedDescriptor'];
+
+        return $summary;
     }
 
     /**
