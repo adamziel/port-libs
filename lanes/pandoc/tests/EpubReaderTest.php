@@ -7994,6 +7994,83 @@ XML;
         $t->same($ocf, $result['importReport']['ocf']);
         $t->same($ocf, $result['document']->attr('ocf'));
     },
+    'preserves OCF sidecar reference fragments for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $cfi = 'epubcfi(/6/2[chapter1]!/4/2/1:12)';
+        $metadataXml = <<<XML
+<metadata xmlns="http://www.idpf.org/2013/metadata" xmlns:review="https://example.invalid/epub-review">
+  <review:position id="cfi-position" href="OEBPS/text/chapter1.xhtml#{$cfi}" media-type="application/xhtml+xml">Chapter CFI</review:position>
+</metadata>
+XML;
+        $rightsXml = <<<'XML'
+<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:drm="https://example.invalid/epub-drm">
+  <drm:clip id="audio-clip" URI="OEBPS/audio/chapter1.mp3#t=1.5,4.5" media-type="audio/mpeg">Audio clip</drm:clip>
+</rights>
+XML;
+        $signaturesXml = <<<XML
+<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:Signature Id="fragment-signature">
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <ds:Reference URI="OEBPS/text/chapter1.xhtml#{$cfi}">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>chapter-cfi-digest</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="OEBPS/audio/chapter1.mp3#t=2,6">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>audio-fragment-digest</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:SignatureValue>fragment-signature-value</ds:SignatureValue>
+  </ds:Signature>
+</signatures>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/metadata.xml', 'data' => $metadataXml],
+                ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
+                ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3DATA'],
+            ]
+        ));
+
+        $ocf = $result['ocf'];
+        $t->same(3, $ocf['sidecarCount']);
+        $t->same(4, $ocf['referenceCount']);
+        $t->same(4, $ocf['localReferenceCount']);
+        $t->same([], $ocf['diagnostics']);
+
+        $metadataReference = $ocf['metadata']['items'][0]['reference'];
+        $t->same('/OEBPS/text/chapter1.xhtml#' . $cfi, $metadataReference['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $metadataReference['part']);
+        $t->same($cfi, $metadataReference['fragment']);
+        $t->same('epub-cfi', $metadataReference['fragmentKind']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $metadataReference['epubCfi']['path']);
+        $t->same(true, $metadataReference['epubCfi']['valid']);
+
+        $rightsReference = $ocf['rights']['items'][0]['reference'];
+        $t->same('/OEBPS/audio/chapter1.mp3#t=1.5,4.5', $rightsReference['target']);
+        $t->same('t=1.5,4.5', $rightsReference['fragment']);
+        $t->same('media-fragment', $rightsReference['fragmentKind']);
+        $t->same(['t'], $rightsReference['mediaFragment']['dimensionNames']);
+        $t->same(1.5, $rightsReference['mediaFragment']['time']['startSeconds']);
+        $t->same(4.5, $rightsReference['mediaFragment']['time']['endSeconds']);
+
+        $signatureCfiReference = $ocf['signatures']['items'][0]['references'][0];
+        $t->same('epub-cfi', $signatureCfiReference['fragmentKind']);
+        $t->same('/6/2[chapter1]!/4/2/1:12', $signatureCfiReference['epubCfi']['path']);
+        $t->same('chapter-cfi-digest', $signatureCfiReference['digestValue']);
+
+        $signatureMediaReference = $ocf['signatures']['references'][1];
+        $t->same('media-fragment', $signatureMediaReference['fragmentKind']);
+        $t->same(2.0, $signatureMediaReference['mediaFragment']['time']['startSeconds']);
+        $t->same(6.0, $signatureMediaReference['mediaFragment']['time']['endSeconds']);
+        $t->same($ocf, $result['importReport']['ocf']);
+        $t->same($ocf, $result['document']->attr('ocf'));
+    },
     'parses EPUB3 SMIL media overlays for spine audio review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlay = str_replace(
             '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
