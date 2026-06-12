@@ -516,6 +516,9 @@ final class EpubPackage
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
             'containerLinkRelCounts' => $containerLinkReport['relCounts'],
             'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+            'containerLinkMediaTypeParameterItems' => $containerLinkReport['mediaTypeParameterItems'],
+            'containerLinkMediaTypeParameterNames' => $containerLinkReport['mediaTypeParameterNames'],
+            'containerLinkMediaTypeDiagnostics' => $containerLinkReport['mediaTypeDiagnostics'],
             'containerLinkVocabulary' => $containerLinkVocabulary,
             'ocfSidecars' => $ocfSidecars,
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
@@ -524,6 +527,9 @@ final class EpubPackage
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
             'packageLinkRelCounts' => $packageLinkReport['relCounts'],
             'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
+            'packageLinkMediaTypeParameterItems' => $packageLinkReport['mediaTypeParameterItems'],
+            'packageLinkMediaTypeParameterNames' => $packageLinkReport['mediaTypeParameterNames'],
+            'packageLinkMediaTypeDiagnostics' => $packageLinkReport['mediaTypeDiagnostics'],
             'packageLinkVocabulary' => $packageLinkVocabulary,
             'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
             'accessibility' => $this->metadata['accessibility'] ?? self::accessibilityMetadataReport($this->metadata, $this->packageLinks),
@@ -614,6 +620,9 @@ final class EpubPackage
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
                 'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+                'containerLinkMediaTypeParameterItems' => $containerLinkReport['mediaTypeParameterItems'],
+                'containerLinkMediaTypeParameterNames' => $containerLinkReport['mediaTypeParameterNames'],
+                'containerLinkMediaTypeDiagnostics' => $containerLinkReport['mediaTypeDiagnostics'],
                 'containerLinkVocabulary' => $containerLinkVocabulary,
                 'containerLinkVocabularyDiagnostics' => $containerLinkVocabulary['diagnostics'],
                 'ocfSidecars' => $ocfSidecars,
@@ -628,6 +637,9 @@ final class EpubPackage
                 'packageLinksByRel' => $packageLinkReport['linksByRel'],
                 'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
                 'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
+                'packageLinkMediaTypeParameterItems' => $packageLinkReport['mediaTypeParameterItems'],
+                'packageLinkMediaTypeParameterNames' => $packageLinkReport['mediaTypeParameterNames'],
+                'packageLinkMediaTypeDiagnostics' => $packageLinkReport['mediaTypeDiagnostics'],
                 'packageLinkVocabulary' => $packageLinkVocabulary,
                 'packageLinkVocabularyDiagnostics' => $packageLinkVocabulary['diagnostics'],
                 'accessibility' => $this->metadata['accessibility'] ?? self::accessibilityMetadataReport($this->metadata, $this->packageLinks),
@@ -2876,6 +2888,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport(
+            $mediaType,
+            'container-link',
+            'EPUB OCF container link',
+        );
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -2944,7 +2962,15 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'mediaType' => $mediaType,
+            'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+            'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+            'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+            'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => $properties,
@@ -4878,6 +4904,36 @@ final class EpubPackage
 
     /**
      * @return array{
+     *     normalizedMediaType:?string,
+     *     mediaTypeBase:?string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeParameters:list<array{name:string, value:string, raw:string}>,
+     *     mediaTypeParameterMap:array<string, string>,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function optionalLinkMediaTypeReport(?string $mediaType, string $diagnosticScope, string $messageSubject): array
+    {
+        if ($mediaType === null || trim($mediaType) === '') {
+            return [
+                'normalizedMediaType' => null,
+                'mediaTypeBase' => null,
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'mediaTypeSyntaxValid' => true,
+                'mediaTypeDiagnostics' => [],
+            ];
+        }
+
+        return self::mediaTypeReport($mediaType, $diagnosticScope, $messageSubject);
+    }
+
+    /**
+     * @return array{
      *     byteLength:?int,
      *     compressedByteLength:?int,
      *     compressionMethod:?int,
@@ -5940,6 +5996,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport(
+            $mediaType,
+            'package-link',
+            'EPUB OPF metadata link',
+        );
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -6009,7 +6071,15 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'mediaType' => $mediaType,
+            'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+            'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+            'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+            'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => $properties,
@@ -6098,6 +6168,9 @@ final class EpubPackage
             'linkRelTokens' => $report['relTokens'],
             'linkRelCounts' => $report['relCounts'],
             'linksByRel' => $report['linksByRel'],
+            'linkMediaTypeParameterItems' => $report['mediaTypeParameterItems'],
+            'linkMediaTypeParameterNames' => $report['mediaTypeParameterNames'],
+            'linkMediaTypeDiagnostics' => $report['mediaTypeDiagnostics'],
             'diagnosticCount' => count($report['diagnostics']),
             'diagnostics' => $report['diagnostics'],
             'children' => $children,
@@ -6126,6 +6199,12 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport(
+            $mediaType,
+            'collection-link',
+            'EPUB OPF collection link',
+        );
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -6187,7 +6266,15 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'mediaType' => $mediaType,
+            'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+            'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+            'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+            'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => $properties,
@@ -6216,6 +6303,10 @@ final class EpubPackage
         $localCount = 0;
         $externalCount = 0;
         $missingCount = 0;
+        $mediaTypeParameterItems = [];
+        $mediaTypeParameterNames = [];
+        $mediaTypeParameterCount = 0;
+        $mediaTypeDiagnostics = [];
 
         foreach ($links as $linkIndex => $link) {
             if (($link['external'] ?? false) === true) {
@@ -6238,6 +6329,58 @@ final class EpubPackage
                 $diagnostics[] = ['index' => $linkIndex, 'id' => $link['id'] ?? null] + $diagnostic;
             }
 
+            $parameters = is_array($link['mediaTypeParameters'] ?? null)
+                ? array_values($link['mediaTypeParameters'])
+                : [];
+            if ($parameters !== []) {
+                $parameterNames = [];
+                foreach ($parameters as $parameter) {
+                    if (!is_array($parameter)) {
+                        continue;
+                    }
+
+                    $name = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                    if ($name !== '') {
+                        $parameterNames[] = $name;
+                        $mediaTypeParameterNames[$name] = true;
+                    }
+                }
+
+                $mediaTypeParameterCount += count($parameters);
+                $mediaTypeParameterItems[] = [
+                    'index' => $linkIndex,
+                    'id' => $link['id'] ?? null,
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                    'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                    'partName' => is_string($link['partName'] ?? null) ? $link['partName'] : null,
+                    'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+                    'mediaTypeBase' => is_string($link['mediaTypeBase'] ?? null) ? $link['mediaTypeBase'] : null,
+                    'parameterCount' => count($parameters),
+                    'parameterNames' => array_values(array_unique($parameterNames)),
+                    'parameters' => $parameters,
+                    'parameterMap' => is_array($link['mediaTypeParameterMap'] ?? null)
+                        ? $link['mediaTypeParameterMap']
+                        : [],
+                ];
+            }
+
+            foreach (is_array($link['mediaTypeDiagnostics'] ?? null) ? $link['mediaTypeDiagnostics'] : [] as $mediaTypeDiagnostic) {
+                if (!is_array($mediaTypeDiagnostic)) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'index' => $linkIndex,
+                    'id' => $link['id'] ?? null,
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                    'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                    'partName' => is_string($link['partName'] ?? null) ? $link['partName'] : null,
+                    'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+                ] + $mediaTypeDiagnostic;
+                $mediaTypeDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+
             if ($includeVocabularyDiagnostics) {
                 foreach (['relVocabulary', 'propertyVocabulary'] as $field) {
                     $report = is_array($link[$field] ?? null) ? $link[$field] : [];
@@ -6256,6 +6399,12 @@ final class EpubPackage
             'relTokens' => array_keys($relCounts),
             'relCounts' => $relCounts,
             'linksByRel' => $linksByRel,
+            'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterCount' => $mediaTypeParameterCount,
+            'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
+            'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
+            'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -8200,7 +8349,11 @@ final class EpubPackage
      *     mediaTypeDiagnostics:list<array<string, mixed>>
      * }
      */
-    private static function mediaTypeReport(string $mediaType): array
+    private static function mediaTypeReport(
+        string $mediaType,
+        string $diagnosticScope = 'manifest',
+        string $messageSubject = 'EPUB OPF manifest'
+    ): array
     {
         $segments = self::mediaTypeSegments($mediaType);
         $base = strtolower(trim((string) array_shift($segments)));
@@ -8210,10 +8363,10 @@ final class EpubPackage
 
         if ($base === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+\/[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $base) !== 1) {
             $diagnostics[] = [
-                'type' => 'invalid-manifest-media-type',
+                'type' => 'invalid-' . $diagnosticScope . '-media-type',
                 'mediaType' => $mediaType,
                 'mediaTypeBase' => $base,
-                'message' => 'EPUB OPF manifest media-type must be a MIME type in type/subtype form',
+                'message' => $messageSubject . ' media-type must be a MIME type in type/subtype form',
             ];
         }
 
@@ -8226,11 +8379,11 @@ final class EpubPackage
             $equals = strpos($raw, '=');
             if ($equals === false) {
                 $diagnostics[] = [
-                    'type' => 'invalid-manifest-media-type-parameter',
+                    'type' => 'invalid-' . $diagnosticScope . '-media-type-parameter',
                     'mediaType' => $mediaType,
                     'parameter' => $raw,
                     'parameterIndex' => $index,
-                    'message' => 'EPUB OPF manifest media-type parameters must use name=value syntax',
+                    'message' => $messageSubject . ' media-type parameters must use name=value syntax',
                 ];
                 continue;
             }
@@ -8238,12 +8391,12 @@ final class EpubPackage
             $name = strtolower(trim(substr($raw, 0, $equals)));
             if ($name === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $name) !== 1) {
                 $diagnostics[] = [
-                    'type' => 'invalid-manifest-media-type-parameter-name',
+                    'type' => 'invalid-' . $diagnosticScope . '-media-type-parameter-name',
                     'mediaType' => $mediaType,
                     'parameter' => $raw,
                     'parameterIndex' => $index,
                     'name' => $name,
-                    'message' => 'EPUB OPF manifest media-type parameter names must be MIME tokens',
+                    'message' => $messageSubject . ' media-type parameter names must be MIME tokens',
                 ];
                 continue;
             }
@@ -8256,13 +8409,13 @@ final class EpubPackage
 
             if (isset($parameterMap[$name])) {
                 $diagnostics[] = [
-                    'type' => 'duplicate-manifest-media-type-parameter',
+                    'type' => 'duplicate-' . $diagnosticScope . '-media-type-parameter',
                     'mediaType' => $mediaType,
                     'parameter' => $name,
                     'parameterIndex' => $index,
                     'previousValue' => $parameterMap[$name],
                     'value' => $value,
-                    'message' => 'EPUB OPF manifest media-type parameter repeats a name; later value is retained for package review',
+                    'message' => $messageSubject . ' media-type parameter repeats a name; later value is retained for package review',
                 ];
             }
 

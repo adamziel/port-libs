@@ -2374,6 +2374,91 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml?view=review#install'], $summary['wordpressImport']['collectionLinkTargets']);
     },
 
+    'preserves EPUB link media type parameter provenance for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-typed" rel="record" href="EPUB/meta/container-record.json" media-type="application/ld+json; profile=&quot;ocf;review&quot;"/>
+</metadata>
+XML;
+        $opfWithTypedLinks = str_replace(
+            '</metadata>',
+            '    <link id="package-typed" rel="record" href="meta/package-record.json" media-type="application/ld+json; charset=UTF-8; profile=package"/>
+    <link id="package-bad-type" rel="record" href="meta/bad-record.json" media-type="application/json; review"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithTypedLinks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="container-record" href="meta/container-record.json" media-type="application/ld+json"/>
+    <item id="package-record" href="meta/package-record.json" media-type="application/ld+json"/>
+    <item id="bad-record" href="meta/bad-record.json" media-type="application/json"/>',
+            $opfWithTypedLinks
+        );
+        $opfWithTypedLinks = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="typed-links" role="review">
+    <link id="collection-typed" rel="first" href="text/chapter1.xhtml#install" media-type="application/xhtml+xml; charset=UTF-8"/>
+  </collection>',
+            $opfWithTypedLinks
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithTypedLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/container-record.json', 'data' => '{"name":"container"}'],
+            ['name' => 'EPUB/meta/package-record.json', 'data' => '{"name":"package"}'],
+            ['name' => 'EPUB/meta/bad-record.json', 'data' => '{"name":"bad"}'],
+        ]));
+        $summary = $epub->summary();
+        $containerLink = $epub->containerLinks()[0];
+        $packageLink = $epub->packageLinks()[0];
+        $badPackageLink = $epub->packageLinks()[1];
+        $collection = $epub->collections()[0];
+        $collectionLink = $collection['links'][0];
+
+        $t->same('application/ld+json', $containerLink['mediaTypeBase']);
+        $t->same(true, $containerLink['mediaTypeHasParameters']);
+        $t->same(1, $containerLink['mediaTypeParameterCount']);
+        $t->same('profile="ocf;review"', $containerLink['mediaTypeParameters'][0]['raw']);
+        $t->same(['profile' => 'ocf;review'], $containerLink['mediaTypeParameterMap']);
+        $t->same('application/ld+json; profile=ocf;review', $containerLink['normalizedMediaType']);
+        $t->same([], $containerLink['mediaTypeDiagnostics']);
+
+        $t->same('application/ld+json', $packageLink['mediaTypeBase']);
+        $t->same(2, $packageLink['mediaTypeParameterCount']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'package'], $packageLink['mediaTypeParameterMap']);
+        $t->same('application/ld+json; charset=utf-8; profile=package', $packageLink['normalizedMediaType']);
+        $t->same(true, $packageLink['mediaTypeSyntaxValid']);
+
+        $t->same('application/json', $badPackageLink['mediaTypeBase']);
+        $t->same(false, $badPackageLink['mediaTypeSyntaxValid']);
+        $t->same('invalid-package-link-media-type-parameter', $badPackageLink['mediaTypeDiagnostics'][0]['type']);
+        $t->same('review', $badPackageLink['mediaTypeDiagnostics'][0]['parameter']);
+
+        $t->same('application/xhtml+xml', $collectionLink['mediaTypeBase']);
+        $t->same(['charset' => 'UTF-8'], $collectionLink['mediaTypeParameterMap']);
+        $t->same('application/xhtml+xml; charset=utf-8', $collectionLink['normalizedMediaType']);
+        $t->same([], $collection['linkMediaTypeDiagnostics']);
+
+        $t->same(['profile'], $summary['containerLinkMediaTypeParameterNames']);
+        $t->same($summary['containerLinkMediaTypeParameterItems'], $summary['wordpressImport']['containerLinkMediaTypeParameterItems']);
+        $t->same(['charset', 'profile'], $summary['packageLinkMediaTypeParameterNames']);
+        $t->same('package-typed', $summary['packageLinkMediaTypeParameterItems'][0]['id']);
+        $t->same(['invalid-package-link-media-type-parameter'], array_column($summary['packageLinkMediaTypeDiagnostics'], 'type'));
+        $t->same(['invalid-package-link-media-type-parameter'], array_column($summary['wordpressImport']['packageLinkMediaTypeDiagnostics'], 'type'));
+        $t->same(['charset'], $collection['linkMediaTypeParameterNames']);
+        $t->same($collection, $summary['collections'][0]);
+    },
+
     'summarizes OPF accessibility metadata for compact package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $a11yRecord = '{"@context":"https://schema.org","accessibilitySummary":"Compact package accessibility record"}';
         $opfWithAccessibility = str_replace(
