@@ -2940,6 +2940,87 @@ XML;
         ], array_column($summary['wordpressImport']['collectionDiagnostics'], 'type'));
     },
 
+    'summarizes OPF collection role vocabulary tokens for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionRoles = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/">',
+            $epub3OpfXml
+        );
+        $opfWithCollectionRoles = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series-vocab" role="series schema:isPartOf https://example.invalid/collection-role#review bad/role series unknown:missing">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Collection role vocabulary review</dc:title></metadata>
+    <collection id="preview-vocab" role="preview schema:hasPart">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Preview role vocabulary review</dc:title></metadata>
+    </collection>
+  </collection>',
+            $opfWithCollectionRoles
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionRoles],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $summary = $epub->summary();
+        $series = $epub->collections()[0];
+        $preview = $series['children'][0];
+        $seriesVocabulary = $series['roleVocabulary'];
+        $previewVocabulary = $preview['roleVocabulary'];
+
+        $t->same('series', $series['primaryRole']);
+        $t->same(['series', 'schema:isPartOf', 'https://example.invalid/collection-role#review', 'bad/role', 'series', 'unknown:missing'], $series['roleTokens']);
+        $t->same(6, $seriesVocabulary['count']);
+        $t->same(5, $seriesVocabulary['validCount']);
+        $t->same(1, $seriesVocabulary['invalidCount']);
+        $t->same(1, $seriesVocabulary['resolvedCount']);
+        $t->same(1, $seriesVocabulary['absoluteUrlCount']);
+        $t->same(1, $seriesVocabulary['duplicateCount']);
+        $t->same('prefixed-nmtoken', $seriesVocabulary['items'][1]['kind']);
+        $t->same('schema', $seriesVocabulary['items'][1]['prefix']);
+        $t->same('isPartOf', $seriesVocabulary['items'][1]['localName']);
+        $t->same('https://schema.org/isPartOf', $seriesVocabulary['items'][1]['iri']);
+        $t->same('absolute-url-with-fragment', $seriesVocabulary['items'][2]['kind']);
+        $t->same('invalid-collection-role-token', $seriesVocabulary['items'][3]['diagnostics'][0]['type']);
+        $t->same('duplicate-collection-role-token', $seriesVocabulary['items'][4]['diagnostics'][0]['type']);
+        $t->same('unknown-collection-role-prefix', $seriesVocabulary['items'][5]['diagnostics'][0]['type']);
+        $t->same(3, $series['diagnosticCount']);
+        $t->same(['invalid-collection-role-token', 'duplicate-collection-role-token', 'unknown-collection-role-prefix'], array_column($series['diagnostics'], 'type'));
+
+        $t->same('preview', $preview['primaryRole']);
+        $t->same(2, $previewVocabulary['count']);
+        $t->same(1, $previewVocabulary['resolvedCount']);
+        $t->same('https://schema.org/hasPart', $previewVocabulary['items'][1]['iri']);
+
+        $vocabulary = $summary['collectionRoleVocabulary'];
+        $t->same(true, $vocabulary['present']);
+        $t->same(2, $vocabulary['collectionCount']);
+        $t->same(8, $vocabulary['roleTokenCount']);
+        $t->same(7, $vocabulary['validTokenCount']);
+        $t->same(1, $vocabulary['invalidTokenCount']);
+        $t->same(2, $vocabulary['resolvedTokenCount']);
+        $t->same(1, $vocabulary['absoluteUrlTokenCount']);
+        $t->same(1, $vocabulary['duplicateTokenCount']);
+        $t->same(2, $vocabulary['roles']['series']);
+        $t->same(1, $vocabulary['roles']['preview']);
+        $t->same(1, $vocabulary['roles']['schema:isPartOf']);
+        $t->same(1, $vocabulary['roles']['schema:hasPart']);
+        $t->same(3, $vocabulary['diagnosticCount']);
+        $t->same([0], $vocabulary['diagnostics'][0]['collectionPath']);
+        $t->same('series-vocab', $vocabulary['diagnostics'][0]['collectionId']);
+        $t->same(['invalid-collection-role-token', 'duplicate-collection-role-token', 'unknown-collection-role-prefix'], array_column($vocabulary['diagnostics'], 'type'));
+        $t->same($vocabulary, $summary['wordpressImport']['collectionRoleVocabulary']);
+        $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['collectionRoleVocabularyDiagnostics']);
+        $t->same(['invalid-collection-role-token', 'duplicate-collection-role-token', 'unknown-collection-role-prefix'], array_column($summary['wordpressImport']['collectionDiagnostics'], 'type'));
+    },
+
     'summarizes OPF package and collection remote link policy for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithLinks = str_replace(
             '</metadata>',
