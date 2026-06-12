@@ -4791,6 +4791,77 @@ XML;
         $t->same(1, $inventory['roleCounts']['obfuscated-font']);
     },
 
+    'summarizes EPUB package inventory byte buckets for review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $opfWithAudio = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/theme.mp3" media-type="audio/mpeg"/>',
+            $epub3OpfXml
+        );
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>';
+        $chapter2 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>';
+        $cover = 'PNG';
+        $audio = 'AUDIO-REVIEW-BYTES';
+        $note = 'private review note';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithAudio, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1, 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => $chapter2, 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => $cover, 'method' => 0],
+            ['name' => 'EPUB/audio/theme.mp3', 'data' => $audio, 'method' => 12],
+            ['name' => 'EPUB/notes/source.txt', 'data' => $note, 'method' => 0],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $manifestBytes = strlen($epub3NavXml)
+            + strlen($chapter1)
+            + strlen($chapter2)
+            + strlen('body { font-family: serif; }')
+            + strlen($cover)
+            + strlen($audio);
+        $manifestCompressedBytes = strlen(gzdeflate($epub3NavXml))
+            + strlen(gzdeflate($chapter1))
+            + strlen(gzdeflate($chapter2))
+            + strlen(gzdeflate('body { font-family: serif; }'))
+            + strlen($cover)
+            + strlen($audio);
+        $exposableBytes = $inventory['totalByteLength'] - strlen($audio);
+        $exposableCompressedBytes = $inventory['totalCompressedByteLength'] - strlen($audio);
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same(10, $inventory['entryCount']);
+        $t->same(6, $inventory['opfManifestDeclaredEntryCount']);
+        $t->same(1, $inventory['undeclaredEntryCount']);
+        $t->same(1, $inventory['unsupportedCompressionMethodCount']);
+        $t->same(9, $inventory['exposableEntryCount']);
+        $t->same(1, $inventory['blockedEntryCount']);
+        $t->same($exposableBytes, $inventory['exposableByteLength']);
+        $t->same($exposableCompressedBytes, $inventory['exposableCompressedByteLength']);
+        $t->same(strlen($audio), $inventory['blockedByteLength']);
+        $t->same(strlen($audio), $inventory['blockedCompressedByteLength']);
+        $t->same(strlen($audio), $inventory['unsupportedCompressionByteLength']);
+        $t->same(strlen($audio), $inventory['unsupportedCompressionCompressedByteLength']);
+        $t->same($manifestBytes, $inventory['roleByteLengths']['opf-manifest-declared']);
+        $t->same($manifestCompressedBytes, $inventory['roleCompressedByteLengths']['opf-manifest-declared']);
+        $t->same(strlen($note), $inventory['roleByteLengths']['undeclared-package-entry']);
+        $t->same(strlen($note), $inventory['roleCompressedByteLengths']['undeclared-package-entry']);
+        $t->same(strlen($audio), $inventory['resourceKindByteLengths']['audio']);
+        $t->same(strlen($audio), $inventory['resourceKindCompressedByteLengths']['audio']);
+        $t->same(strlen($cover), $inventory['resourceKindByteLengths']['cover-image']);
+        $t->same(strlen($cover), $inventory['resourceKindCompressedByteLengths']['cover-image']);
+        $t->same(strlen($chapter1) + strlen($chapter2), $inventory['resourceKindByteLengths']['xhtml']);
+        $t->same(strlen(gzdeflate($chapter1)) + strlen(gzdeflate($chapter2)), $inventory['resourceKindCompressedByteLengths']['xhtml']);
+        $t->same(['/EPUB/audio/theme.mp3'], $inventory['unsupportedCompressionPartNames']);
+        $t->same(false, $inventory['byPackagePath']['EPUB/audio/theme.mp3']['canExposeBytes']);
+        $t->same('unsupported', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['compressionMethodName']);
+        $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

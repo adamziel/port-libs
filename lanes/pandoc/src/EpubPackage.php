@@ -4967,7 +4967,11 @@ final class EpubPackage
         $entries = [];
         $byPackagePath = [];
         $roleCounts = [];
+        $roleByteLengths = [];
+        $roleCompressedByteLengths = [];
         $resourceKindCounts = [];
+        $resourceKindByteLengths = [];
+        $resourceKindCompressedByteLengths = [];
         $undeclaredPartNames = [];
         $unsupportedCompressionPartNames = [];
         $encryptedPartNames = [];
@@ -4981,6 +4985,14 @@ final class EpubPackage
         $directoryEntryCount = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
+        $exposableEntryCount = 0;
+        $blockedEntryCount = 0;
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
+        $blockedByteLength = 0;
+        $blockedCompressedByteLength = 0;
+        $unsupportedCompressionByteLength = 0;
+        $unsupportedCompressionCompressedByteLength = 0;
 
         foreach ($package->entries() as $index => $entry) {
             $packagePath = $entry->name;
@@ -5082,6 +5094,8 @@ final class EpubPackage
             if ($resourceKind !== null) {
                 $addRole('resource-kind-' . $resourceKind);
                 $resourceKindCounts[$resourceKind] = ($resourceKindCounts[$resourceKind] ?? 0) + 1;
+                $resourceKindByteLengths[$resourceKind] = ($resourceKindByteLengths[$resourceKind] ?? 0) + $entry->uncompressedSize;
+                $resourceKindCompressedByteLengths[$resourceKind] = ($resourceKindCompressedByteLengths[$resourceKind] ?? 0) + $entry->compressedSize;
             }
             if ($inSpine) {
                 $addRole('spine-reading-order');
@@ -5107,9 +5121,8 @@ final class EpubPackage
             if (($provenance['compressionSupported'] ?? false) !== true) {
                 ++$unsupportedCompressionMethodCount;
                 $unsupportedCompressionPartNames[$partName] = true;
-            }
-            foreach ($roles as $role) {
-                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $unsupportedCompressionByteLength += $entry->uncompressedSize;
+                $unsupportedCompressionCompressedByteLength += $entry->compressedSize;
             }
             $totalByteLength += $entry->uncompressedSize;
             $totalCompressedByteLength += $entry->compressedSize;
@@ -5151,12 +5164,31 @@ final class EpubPackage
                     : 'encrypted-resource-bytes-blocked';
             }
 
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
+                $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
+            }
+            if (($item['canExposeBytes'] ?? false) === true) {
+                ++$exposableEntryCount;
+                $exposableByteLength += $entry->uncompressedSize;
+                $exposableCompressedByteLength += $entry->compressedSize;
+            } else {
+                ++$blockedEntryCount;
+                $blockedByteLength += $entry->uncompressedSize;
+                $blockedCompressedByteLength += $entry->compressedSize;
+            }
+
             $entries[] = $item;
             $byPackagePath[$packagePath] = $item;
         }
 
         ksort($roleCounts, SORT_STRING);
+        ksort($roleByteLengths, SORT_STRING);
+        ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($resourceKindCounts, SORT_STRING);
+        ksort($resourceKindByteLengths, SORT_STRING);
+        ksort($resourceKindCompressedByteLengths, SORT_STRING);
 
         return [
             'entryCount' => count($entries),
@@ -5172,11 +5204,23 @@ final class EpubPackage
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
+            'exposableEntryCount' => $exposableEntryCount,
+            'blockedEntryCount' => $blockedEntryCount,
+            'exposableByteLength' => $exposableByteLength,
+            'exposableCompressedByteLength' => $exposableCompressedByteLength,
+            'blockedByteLength' => $blockedByteLength,
+            'blockedCompressedByteLength' => $blockedCompressedByteLength,
+            'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
+            'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
             'byteExposurePolicy' => 'epub-package-inventory-metadata-only',
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
             'roleCounts' => $roleCounts,
+            'roleByteLengths' => $roleByteLengths,
+            'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'resourceKindCounts' => $resourceKindCounts,
+            'resourceKindByteLengths' => $resourceKindByteLengths,
+            'resourceKindCompressedByteLengths' => $resourceKindCompressedByteLengths,
             'opfManifestDeclaredPartNames' => array_keys($manifestDeclaredPartNames),
             'missingOpfManifestDeclaredPartNames' => array_keys($missingManifestDeclaredPartNames),
             'undeclaredPartNames' => array_keys($undeclaredPartNames),
