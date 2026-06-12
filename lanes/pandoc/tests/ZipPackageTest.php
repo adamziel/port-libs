@@ -9571,6 +9571,112 @@ return [
         $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
     },
 
+    'summarizes selected zip handoff role and kind byte buckets for review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>role bucket handoff</w:p></w:body></w:document>';
+        $imageBytes = 'PNGDATA';
+        $unsupportedBytes = 'legacy compressed payload';
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/legacy.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+                'centralCompressedSize' => strlen($unsupportedBytes),
+                'centralUncompressedSize' => strlen($unsupportedBytes),
+                'localCompressedSize' => strlen($unsupportedBytes),
+                'localUncompressedSize' => strlen($unsupportedBytes),
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+            ['name' => 'word/legacy.bin', 'required' => true, 'kind' => 'file', 'role' => 'legacy-payload'],
+        ], 512);
+
+        $roles = [];
+        foreach ($summary['roleBuckets'] as $bucket) {
+            $roles[$bucket['role']] = $bucket;
+        }
+        $kinds = [];
+        foreach ($summary['kindBuckets'] as $bucket) {
+            $kinds[$bucket['kind']] = $bucket;
+        }
+
+        $t->same(5, $summary['requestedEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(['unreadable-entry'], $summary['issues']);
+        $t->same(['main-document', 'attachment', 'media-directory', 'optional-sidecar', 'legacy-payload'], array_column($summary['roleBuckets'], 'role'));
+
+        $main = $roles['main-document'];
+        $t->same(1, $main['requiredCount']);
+        $t->same(1, $main['presentCount']);
+        $t->same(1, $main['handoffEntryCount']);
+        $t->same($documentCompressedBytes, $main['compressedBytes']);
+        $t->same(strlen($documentXml), $main['uncompressedBytes']);
+        $t->same(strlen($documentXml), $main['bytesRead']);
+        $t->same([], $main['issues']);
+
+        $attachment = $roles['attachment'];
+        $t->same(1, $attachment['optionalCount']);
+        $t->same(1, $attachment['fileCount']);
+        $t->same(strlen($imageBytes), $attachment['compressedBytes']);
+        $t->same(strlen($imageBytes), $attachment['bytesRead']);
+
+        $directory = $roles['media-directory'];
+        $t->same(1, $directory['directoryCount']);
+        $t->same(1, $directory['handoffEntryCount']);
+        $t->same(0, $directory['compressedBytes']);
+        $t->same(0, $directory['bytesRead']);
+
+        $missing = $roles['optional-sidecar'];
+        $t->same(1, $missing['missingCount']);
+        $t->same(0, $missing['failedEntryCount']);
+        $t->same([], $missing['issues']);
+
+        $legacy = $roles['legacy-payload'];
+        $t->same(1, $legacy['requiredCount']);
+        $t->same(1, $legacy['failedEntryCount']);
+        $t->same(strlen($unsupportedBytes), $legacy['compressedBytes']);
+        $t->same(0, $legacy['bytesRead']);
+        $t->same(['unreadable-entry'], $legacy['issues']);
+
+        $fileKind = $kinds['file'];
+        $t->same(4, $fileKind['requestCount']);
+        $t->same(2, $fileKind['requiredCount']);
+        $t->same(3, $fileKind['presentCount']);
+        $t->same(1, $fileKind['missingCount']);
+        $t->same(2, $fileKind['handoffEntryCount']);
+        $t->same(1, $fileKind['failedEntryCount']);
+        $t->same(strlen($documentXml) + strlen($imageBytes), $fileKind['bytesRead']);
+        $t->same(['unreadable-entry'], $fileKind['issues']);
+
+        $directoryKind = $kinds['directory'];
+        $t->same(1, $directoryKind['requestCount']);
+        $t->same(1, $directoryKind['directoryCount']);
+        $t->same(1, $directoryKind['handoffEntryCount']);
+        $t->same([], $directoryKind['issues']);
+    },
+
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";

@@ -4736,6 +4736,8 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     roleBuckets:list<array<string, mixed>>,
+     *     kindBuckets:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4756,6 +4758,8 @@ final class ZipPackage
         $failedEntries = [];
         $handoffEntries = [];
         $issues = [];
+        $roleBuckets = [];
+        $kindBuckets = [];
         $presentNames = [];
         $requiredEntryCount = 0;
         $optionalEntryCount = 0;
@@ -4931,6 +4935,8 @@ final class ZipPackage
                 if ($entryIssues !== []) {
                     $failedEntries[] = $summary;
                 }
+                self::addEntryHandoffBucket($roleBuckets, 'role', $role, $summary);
+                self::addEntryHandoffBucket($kindBuckets, 'kind', $expectedKind, $summary);
                 $entries[] = $summary;
                 continue;
             }
@@ -5009,6 +5015,8 @@ final class ZipPackage
             } else {
                 $failedEntries[] = $summary;
             }
+            self::addEntryHandoffBucket($roleBuckets, 'role', $role, $summary);
+            self::addEntryHandoffBucket($kindBuckets, 'kind', $expectedKind, $summary);
             $entries[] = $summary;
         }
 
@@ -5037,11 +5045,88 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
+            'roleBuckets' => array_values($roleBuckets),
+            'kindBuckets' => array_values($kindBuckets),
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $buckets
+     * @param array<string, mixed> $entry
+     */
+    private static function addEntryHandoffBucket(array &$buckets, string $label, ?string $value, array $entry): void
+    {
+        $bucketKey = $value ?? '';
+        if (!isset($buckets[$bucketKey])) {
+            $buckets[$bucketKey] = [
+                $label => $value,
+                'requestCount' => 0,
+                'requiredCount' => 0,
+                'optionalCount' => 0,
+                'presentCount' => 0,
+                'missingCount' => 0,
+                'fileCount' => 0,
+                'directoryCount' => 0,
+                'handoffEntryCount' => 0,
+                'readableEntryCount' => 0,
+                'failedEntryCount' => 0,
+                'duplicateRequestCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'bytesRead' => 0,
+                'issues' => [],
+            ];
+        }
+
+        $bucket = &$buckets[$bucketKey];
+        $bucket['requestCount']++;
+        if (($entry['required'] ?? false) === true) {
+            $bucket['requiredCount']++;
+        } else {
+            $bucket['optionalCount']++;
+        }
+
+        if (($entry['exists'] ?? false) === true) {
+            $bucket['presentCount']++;
+            if (($entry['isDirectory'] ?? false) === true) {
+                $bucket['directoryCount']++;
+            } else {
+                $bucket['fileCount']++;
+            }
+        } else {
+            $bucket['missingCount']++;
+        }
+
+        if (($entry['status'] ?? null) === 'ready') {
+            $bucket['handoffEntryCount']++;
+        }
+        if (($entry['isReadable'] ?? false) === true) {
+            $bucket['readableEntryCount']++;
+        }
+        if (($entry['isDuplicateRequest'] ?? false) === true) {
+            $bucket['duplicateRequestCount']++;
+        }
+        if (($entry['issues'] ?? []) !== []) {
+            $bucket['failedEntryCount']++;
+        }
+        if (is_int($entry['compressedSize'] ?? null)) {
+            $bucket['compressedBytes'] += $entry['compressedSize'];
+        }
+        if (is_int($entry['uncompressedSize'] ?? null)) {
+            $bucket['uncompressedBytes'] += $entry['uncompressedSize'];
+        }
+        if (is_int($entry['bytesRead'] ?? null)) {
+            $bucket['bytesRead'] += $entry['bytesRead'];
+        }
+        foreach ($entry['issues'] ?? [] as $issue) {
+            if (is_string($issue)) {
+                self::appendUniqueIssue($bucket['issues'], $issue);
+            }
+        }
     }
 
     public function centralDirectoryOffset(): int
