@@ -5694,6 +5694,17 @@ final class PdfEngineHandoff
         $count = count($engineOptions);
         foreach ($engineOptions as $index => $option) {
             $option = trim($option);
+            if ($option === '-f') {
+                $next = $engineOptions[$index + 1] ?? '';
+                $values[] = is_string($next) && $next !== '' && !str_starts_with($next, '-')
+                    ? $next
+                    : '';
+                continue;
+            }
+            if (str_starts_with($option, '-f=')) {
+                $values[] = substr($option, strlen('-f='));
+                continue;
+            }
             if ($option === '--format') {
                 $next = $engineOptions[$index + 1] ?? '';
                 $values[] = is_string($next) && $next !== '' && !str_starts_with($next, '-')
