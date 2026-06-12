@@ -27488,6 +27488,76 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json title family subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-title-subtitle-family',
+                'type' => 'chapter',
+                'title' => 'Direct Subtitle Family Packet',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'Dana'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'mainTitle' => 'Migration Source Compendium',
+                'mainSubtitle' => 'Reviewer Appendix',
+                'volume-title' => 'Review Annual',
+                'volume-subtitle' => 'Field Notes',
+                'issuetitle' => 'Special Source Issue',
+                'issuesubtitle' => 'Import Queue',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-title-subtitle-family');
+        $t->same('Migration Source Compendium: Reviewer Appendix', $item['mainTitle'] ?? null);
+        $t->same('Review Annual: Field Notes', $item['volumeTitle'] ?? null);
+        $t->same('Special Source Issue: Import Queue', $item['issueTitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Title Subtitle Family Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-title-subtitle-family-review</id>
+    <updated>2026-06-12T02:57:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="volume-title"/>
+        <text variable="issue-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="issue-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Title Subtitle Family Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('issue-title', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Doe | Migration Source Compendium: Reviewer Appendix | Review Annual: Field Notes | Special Source Issue: Import Queue]', $styled->renderCitationCluster([
+            $citation('direct-title-subtitle-family', '[@direct-title-subtitle-family]'),
+        ]));
+        $t->same('Direct Subtitle Family Packet :: Migration Source Compendium: Reviewer Appendix :: Review Annual: Field Notes :: Special Source Issue: Import Queue', $styled->renderBibliographyEntry('direct-title-subtitle-family'));
+
+        $document = (new MarkdownReader())->read('Direct subtitle aliases [@direct-title-subtitle-family] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct subtitle aliases [Doe | Migration Source Compendium: Reviewer Appendix | Review Annual: Field Notes | Special Source Issue: Import Queue] remain visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Direct Subtitle Family Packet :: Migration Source Compendium: Reviewer Appendix :: Review Annual: Field Notes :: Special Source Issue: Import Queue</dd>', $blocks);
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
