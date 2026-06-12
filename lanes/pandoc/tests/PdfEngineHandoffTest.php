@@ -508,6 +508,13 @@ return [
             'openOutput' => [
                 'enabled' => true,
                 'flagCount' => 2,
+                'defaultViewerCount' => 2,
+                'explicitViewerCount' => 0,
+                'selectedViewer' => null,
+                'viewers' => [
+                    ['raw' => '', 'viewer' => null, 'mode' => 'default-viewer', 'kind' => 'default', 'safe' => true, 'issues' => []],
+                    ['raw' => '', 'viewer' => null, 'mode' => 'default-viewer', 'kind' => 'default', 'safe' => true, 'issues' => []],
+                ],
                 'issues' => ['open-output-side-effect-boundary'],
             ],
         ];
@@ -528,6 +535,89 @@ return [
         $t->contains('typst-open-output:enabled', implode(',', $plan['diagnostics']));
         $t->contains('typst-open-output-flags:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst open output viewer provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/open-output-viewer-boundary.pdf',
+            'source' => '= Typst Open Output Viewer Packet',
+            'engineOptions' => [
+                '--open=xdg-open',
+                '--open',
+                'tools/review-viewer',
+                '--open=https://viewer.example.invalid/run',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst open output viewer packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'open-output-viewer-external-boundary',
+                'open-output-side-effect-boundary',
+            ],
+            'openOutput' => [
+                'enabled' => true,
+                'flagCount' => 3,
+                'defaultViewerCount' => 0,
+                'explicitViewerCount' => 3,
+                'selectedViewer' => [
+                    'raw' => 'https://viewer.example.invalid/run',
+                    'viewer' => 'https://viewer.example.invalid/run',
+                    'mode' => 'explicit-viewer',
+                    'kind' => 'uri',
+                    'safe' => false,
+                    'issues' => ['open-output-viewer-external-boundary'],
+                ],
+                'viewers' => [
+                    ['raw' => 'xdg-open', 'viewer' => 'xdg-open', 'mode' => 'explicit-viewer', 'kind' => 'program', 'safe' => true, 'issues' => []],
+                    ['raw' => 'tools/review-viewer', 'viewer' => 'tools/review-viewer', 'mode' => 'explicit-viewer', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                    [
+                        'raw' => 'https://viewer.example.invalid/run',
+                        'viewer' => 'https://viewer.example.invalid/run',
+                        'mode' => 'explicit-viewer',
+                        'kind' => 'uri',
+                        'safe' => false,
+                        'issues' => ['open-output-viewer-external-boundary'],
+                    ],
+                ],
+                'issues' => [
+                    'open-output-side-effect-boundary',
+                    'open-output-viewer-external-boundary',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/open-output-viewer-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/open-output-viewer-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-output:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-output-flags:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-output-viewers:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-output-viewer:https://viewer.example.invalid/run', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
