@@ -1263,6 +1263,7 @@ return [
             'inputVariables' => [],
             'issues' => [
                 'pdf-standard-invalid-boundary',
+                'pdf-standard-pdfa-pdfua-conflict-boundary',
                 'pdf-standard-boundary-overridden',
             ],
             'pdfStandard' => [
@@ -1272,6 +1273,18 @@ return [
                 'standardCount' => 2,
                 'safe' => true,
                 'issues' => [],
+            ],
+            'pdfStandardPolicy' => [
+                'reviewStatus' => 'review',
+                'standardCount' => 2,
+                'pdfVersionCount' => 0,
+                'pdfaCount' => 1,
+                'pdfuaCount' => 1,
+                'otherStandardCount' => 0,
+                'pdfVersions' => [],
+                'pdfaStandards' => ['a-2b'],
+                'pdfuaStandards' => ['ua-1'],
+                'issues' => ['pdf-standard-pdfa-pdfua-conflict-boundary'],
             ],
             'overrides' => [
                 [
@@ -1316,8 +1329,91 @@ return [
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standards:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfa:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfua:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-issues:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst conflicting pdf standard policy provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-standard-policy.pdf',
+            'source' => '= Typst PDF Standard Policy Packet',
+            'engineOptions' => [
+                '--pdf-standard=1.4,2.0,a-1b,a-2u,ua-1',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF standard policy packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'pdf-standard-multiple-pdf-versions-boundary',
+                'pdf-standard-multiple-pdfa-boundary',
+                'pdf-standard-pdfa-pdfua-conflict-boundary',
+                'pdf-standard-pdfua-version-conflict-boundary',
+            ],
+            'pdfStandard' => [
+                'raw' => '1.4,2.0,a-1b,a-2u,ua-1',
+                'value' => '1.4,2.0,a-1b,a-2u,ua-1',
+                'standards' => ['1.4', '2.0', 'a-1b', 'a-2u', 'ua-1'],
+                'standardCount' => 5,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'pdfStandardPolicy' => [
+                'reviewStatus' => 'review',
+                'standardCount' => 5,
+                'pdfVersionCount' => 2,
+                'pdfaCount' => 2,
+                'pdfuaCount' => 1,
+                'otherStandardCount' => 0,
+                'pdfVersions' => ['1.4', '2.0'],
+                'pdfaStandards' => ['a-1b', 'a-2u'],
+                'pdfuaStandards' => ['ua-1'],
+                'issues' => [
+                    'pdf-standard-multiple-pdf-versions-boundary',
+                    'pdf-standard-multiple-pdfa-boundary',
+                    'pdf-standard-pdfa-pdfua-conflict-boundary',
+                    'pdf-standard-pdfua-version-conflict-boundary',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-standard-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-standard-policy.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standards:5', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-versions:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfa:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfua:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
@@ -1346,7 +1442,10 @@ return [
             'packagePath' => null,
             'packageCache' => null,
             'inputVariables' => [],
-            'issues' => ['pdf-tags-disabled-for-pdfua'],
+            'issues' => [
+                'pdf-tags-disabled-for-pdfua',
+                'pdf-standard-pdfa-pdfua-conflict-boundary',
+            ],
             'pdfStandard' => [
                 'raw' => 'a-2b,ua-1',
                 'value' => 'a-2b,ua-1',
@@ -1354,6 +1453,18 @@ return [
                 'standardCount' => 2,
                 'safe' => true,
                 'issues' => [],
+            ],
+            'pdfStandardPolicy' => [
+                'reviewStatus' => 'review',
+                'standardCount' => 2,
+                'pdfVersionCount' => 0,
+                'pdfaCount' => 1,
+                'pdfuaCount' => 1,
+                'otherStandardCount' => 0,
+                'pdfVersions' => [],
+                'pdfaStandards' => ['a-2b'],
+                'pdfuaStandards' => ['ua-1'],
+                'issues' => ['pdf-standard-pdfa-pdfua-conflict-boundary'],
             ],
             'pdfExport' => [
                 'pageSelection' => [
@@ -1391,9 +1502,13 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-pages:1,3-4,8-', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standards:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfa:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-pdfua:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standard-policy-issues:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-tags:disabled', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-export-issues:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);

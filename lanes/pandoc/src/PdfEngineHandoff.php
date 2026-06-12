@@ -463,6 +463,24 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-pdf-standards:' . $pdfStandard['standardCount'];
                 }
             }
+            if (($typstBoundaryProvenance['pdfStandardPolicy'] ?? null) !== null) {
+                $pdfStandardPolicy = $typstBoundaryProvenance['pdfStandardPolicy'];
+                if (is_array($pdfStandardPolicy) && is_string($pdfStandardPolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-pdf-standard-policy:' . $pdfStandardPolicy['reviewStatus'];
+                }
+                if (is_array($pdfStandardPolicy) && is_int($pdfStandardPolicy['pdfVersionCount'] ?? null) && $pdfStandardPolicy['pdfVersionCount'] > 0) {
+                    $diagnostics[] = 'typst-pdf-standard-policy-versions:' . $pdfStandardPolicy['pdfVersionCount'];
+                }
+                if (is_array($pdfStandardPolicy) && is_int($pdfStandardPolicy['pdfaCount'] ?? null) && $pdfStandardPolicy['pdfaCount'] > 0) {
+                    $diagnostics[] = 'typst-pdf-standard-policy-pdfa:' . $pdfStandardPolicy['pdfaCount'];
+                }
+                if (is_array($pdfStandardPolicy) && is_int($pdfStandardPolicy['pdfuaCount'] ?? null) && $pdfStandardPolicy['pdfuaCount'] > 0) {
+                    $diagnostics[] = 'typst-pdf-standard-policy-pdfua:' . $pdfStandardPolicy['pdfuaCount'];
+                }
+                if (is_array($pdfStandardPolicy) && ($pdfStandardPolicy['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-pdf-standard-policy-issues:' . count($pdfStandardPolicy['issues']);
+                }
+            }
             if (($typstBoundaryProvenance['overrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-overrides:' . count($typstBoundaryProvenance['overrides']);
             }
@@ -6234,6 +6252,7 @@ final class PdfEngineHandoff
             $pdfStandardValues
         );
         $pdfStandard = $pdfStandardHistory === [] ? null : $pdfStandardHistory[count($pdfStandardHistory) - 1];
+        $pdfStandardPolicy = $this->typstPdfStandardPolicy($pdfStandard);
         $featureGateHistory = array_map(
             fn (string $value): array => $this->typstFeatureGateEntryFromSource($value, $featureGateEnvironmentVariable),
             $featureGateValues
@@ -6309,6 +6328,9 @@ final class PdfEngineHandoff
         foreach ($pdfTagIssues as $issue) {
             $issues[] = $issue;
         }
+        foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6354,6 +6376,9 @@ final class PdfEngineHandoff
         }
         if ($pdfStandard !== null) {
             $provenance['pdfStandard'] = $pdfStandard;
+        }
+        if ($pdfStandardPolicy !== []) {
+            $provenance['pdfStandardPolicy'] = $pdfStandardPolicy;
         }
         if ($featureGates !== null) {
             $provenance['featureGates'] = $featureGates;
@@ -7132,6 +7157,83 @@ final class PdfEngineHandoff
             'standardCount' => count($standards),
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array{standards:list<string>, standardCount:int}|null $pdfStandard
+     * @return array{reviewStatus:string, standardCount:int, pdfVersionCount:int, pdfaCount:int, pdfuaCount:int, otherStandardCount:int, pdfVersions:list<string>, pdfaStandards:list<string>, pdfuaStandards:list<string>, issues:list<string>}|array{}
+     */
+    private function typstPdfStandardPolicy(?array $pdfStandard): array
+    {
+        if ($pdfStandard === null || !isset($pdfStandard['standards']) || !is_array($pdfStandard['standards'])) {
+            return [];
+        }
+
+        $standards = array_values(array_filter(
+            $pdfStandard['standards'],
+            static fn (mixed $standard): bool => is_string($standard) && $standard !== ''
+        ));
+        if ($standards === []) {
+            return [];
+        }
+
+        $pdfVersions = [];
+        $pdfaStandards = [];
+        $pdfuaStandards = [];
+        $otherStandards = [];
+        foreach ($standards as $standard) {
+            if (preg_match('/\A(?:1\.[4567]|2\.0)\z/', $standard) === 1) {
+                $pdfVersions[] = $standard;
+                continue;
+            }
+            if (preg_match('/\Aa-\d/', $standard) === 1) {
+                $pdfaStandards[] = $standard;
+                continue;
+            }
+            if (preg_match('/\Aua-\d/', $standard) === 1) {
+                $pdfuaStandards[] = $standard;
+                continue;
+            }
+
+            $otherStandards[] = $standard;
+        }
+
+        $pdfVersions = array_values(array_unique($pdfVersions));
+        $pdfaStandards = array_values(array_unique($pdfaStandards));
+        $pdfuaStandards = array_values(array_unique($pdfuaStandards));
+        $otherStandards = array_values(array_unique($otherStandards));
+        $issues = [];
+
+        if (count($pdfVersions) > 1) {
+            $issues[] = 'pdf-standard-multiple-pdf-versions-boundary';
+        }
+        if (count($pdfaStandards) > 1) {
+            $issues[] = 'pdf-standard-multiple-pdfa-boundary';
+        }
+        if ($pdfaStandards !== [] && $pdfuaStandards !== []) {
+            $issues[] = 'pdf-standard-pdfa-pdfua-conflict-boundary';
+        }
+        if (in_array('2.0', $pdfVersions, true) && in_array('ua-1', $pdfuaStandards, true)) {
+            $issues[] = 'pdf-standard-pdfua-version-conflict-boundary';
+        }
+
+        $issues = array_values(array_unique($issues));
+        if ($issues === []) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => 'review',
+            'standardCount' => count($standards),
+            'pdfVersionCount' => count($pdfVersions),
+            'pdfaCount' => count($pdfaStandards),
+            'pdfuaCount' => count($pdfuaStandards),
+            'otherStandardCount' => count($otherStandards),
+            'pdfVersions' => $pdfVersions,
+            'pdfaStandards' => $pdfaStandards,
+            'pdfuaStandards' => $pdfuaStandards,
+            'issues' => $issues,
         ];
     }
 
