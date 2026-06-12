@@ -4557,6 +4557,104 @@ return [
             }
         }
     },
+    'preserves list wrapped short caption maybe constructors after caption edits' => static function (TestRunner $t): void {
+        $shortCaption = ['t' => 'ShortCaption', 'c' => [[
+            ['t' => 'Str', 'c' => 'Short'],
+        ]], 'reviewQueue' => 'short-caption-source'];
+        $shortMaybe = ['t' => 'Just', 'c' => [$shortCaption], 'reviewQueue' => 'short-maybe-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['wrapped-short-table', ['json-native'], []],
+                ['t' => 'Caption', 'c' => [
+                    $shortMaybe,
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Original'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ], 'reviewQueue' => 'caption-source'],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [['t' => 'TableBody', 'c' => [
+                    ['', [], []],
+                    ['t' => 'RowHeadColumns', 'c' => 0],
+                    [],
+                    [],
+                ]]],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+
+            $t->same('Just', $table->attr('shortCaptionMaybeConstructor'), "{$source} short caption maybe constructor");
+            $t->same($shortMaybe, $table->attr('shortCaptionMaybeNative'), "{$source} short caption maybe native payload");
+            $t->same('ShortCaption', $table->attr('shortCaptionConstructor'), "{$source} short caption constructor");
+            $t->same($shortCaption, $table->attr('shortCaptionNative'), "{$source} short caption native payload");
+            $t->same('Short', $table->attr('shortCaption'), "{$source} short caption text");
+
+            $editedLongTable = new AstNode('table', array_replace($table->attrs, [
+                'caption' => 'Edited caption',
+                'captionBlocks' => [new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'caption']),
+                ])],
+            ]), $table->children);
+            $editedShortTable = new AstNode('table', array_replace($table->attrs, [
+                'shortCaption' => 'Edited short',
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'short']),
+                ],
+            ]), $table->children);
+
+            foreach ([
+                "{$source} json long edit" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedLongTable])),
+                "{$source} native long edit" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedLongTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $caption = $encoded['blocks'][0]['c'][1];
+                $shortMaybePayload = $caption['c'][0];
+
+                $t->same('Caption', $caption['t'], "{$label} caption constructor");
+                $t->same('Just', $shortMaybePayload['t'], "{$label} short maybe constructor");
+                $t->same(true, array_is_list($shortMaybePayload['c']), "{$label} short maybe keeps list wrapper");
+                $t->same('short-maybe-source', $shortMaybePayload['reviewQueue'], "{$label} short maybe sidecar preserved");
+                $t->same('ShortCaption', $shortMaybePayload['c'][0]['t'], "{$label} short caption constructor");
+                $t->same('short-caption-source', $shortMaybePayload['c'][0]['reviewQueue'], "{$label} short caption sidecar preserved");
+                $t->same('Short', $shortMaybePayload['c'][0]['c'][0][0]['c'], "{$label} short caption text preserved");
+                $t->same('Edited', $caption['c'][1][0]['c'][0]['c'], "{$label} long caption regenerated");
+            }
+
+            foreach ([
+                "{$source} json short edit" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedShortTable])),
+                "{$source} native short edit" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedShortTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $shortMaybePayload = $encoded['blocks'][0]['c'][1]['c'][0];
+
+                $t->same('Just', $shortMaybePayload['t'], "{$label} short maybe constructor");
+                $t->same(true, array_is_list($shortMaybePayload['c']), "{$label} short maybe keeps list wrapper");
+                $t->same('ShortCaption', $shortMaybePayload['c'][0]['t'], "{$label} short caption constructor");
+                $t->same('Edited', $shortMaybePayload['c'][0]['c'][0][0]['c'], "{$label} edited short caption first token");
+                $t->same('short', $shortMaybePayload['c'][0]['c'][0][2]['c'], "{$label} edited short caption last token");
+                $t->same(false, array_key_exists('reviewQueue', $shortMaybePayload['c'][0]), "{$label} edited short caption drops stale sidecar");
+            }
+        }
+    },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

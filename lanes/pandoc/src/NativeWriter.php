@@ -490,6 +490,17 @@ final class NativeWriter
             $shortCaption = $shortCaption['c'] ?? [];
         }
 
+        if (
+            is_array($shortCaption)
+            && array_is_list($shortCaption)
+            && count($shortCaption) === 1
+            && is_array($shortCaption[0])
+            && !array_is_list($shortCaption[0])
+            && ($shortCaption[0]['t'] ?? null) === 'ShortCaption'
+        ) {
+            $shortCaption = $shortCaption[0]['c'] ?? [];
+        }
+
         if (is_array($shortCaption) && array_is_list($shortCaption) && count($shortCaption) === 1 && is_array($shortCaption[0]) && array_is_list($shortCaption[0])) {
             $shortCaption = $shortCaption[0];
         }
@@ -533,6 +544,17 @@ final class NativeWriter
      */
     private function shortCaptionNativeContent(mixed $sourceShort, array $generatedShort): mixed
     {
+        if (
+            is_array($sourceShort)
+            && array_is_list($sourceShort)
+            && count($sourceShort) === 1
+            && is_array($sourceShort[0])
+            && !array_is_list($sourceShort[0])
+            && ($sourceShort[0]['t'] ?? null) === 'ShortCaption'
+        ) {
+            return [['t' => 'ShortCaption', 'c' => [$generatedShort]]];
+        }
+
         if (is_array($sourceShort) && !array_is_list($sourceShort) && ($sourceShort['t'] ?? null) === 'ShortCaption') {
             return ['t' => 'ShortCaption', 'c' => [$generatedShort]];
         }
