@@ -1522,7 +1522,7 @@ final class NativeWriter
             return null;
         }
 
-        $content = $this->validAttrTuple($tagged['c'] ?? null);
+        $content = $this->validAttrTuplePrefix($tagged['c'] ?? null);
         if ($content === null) {
             return null;
         }
@@ -1530,6 +1530,18 @@ final class NativeWriter
         return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
             ? $tagged
             : null;
+    }
+
+    /**
+     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}|null
+     */
+    private function validAttrTuplePrefix(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) < 3) {
+            return null;
+        }
+
+        return $this->validAttrTuple(array_slice($value, 0, 3));
     }
 
     /**
