@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,290 pass / 0 fail | [3,250 / 2,276 (142.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | opc-zip-manifest-content-type-byte-buckets-9ee7a923 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage, active closures | 96.0% | 3,290 pass / 0 fail | [3,250 / 2,276 (142.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | No landed stale-open blocker; continue format closures | progress-status-reconciliation-3af5dde50f |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -75,6 +75,22 @@ for OpenDocument text packages under the current no-external-validator policy.
 | Verification | `jq empty lanes/pandoc/lane-status.json`, `git diff --check -- progress.md lanes/pandoc/lane-status.json`, focused ODF/ODT suite (`4` files, `5,827` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `73,816` assertions, `0` failures). |
 | Ship verdict | Shippable for native PHP ODT package import and downstream writer handoff. Defer non-critical future hardening to newly discovered format-specific beads rather than keeping this format blocked. |
 
+### Pandoc Progress/Status Reconciliation
+
+Dashboard reconciliation on 2026-06-12: `PANDOC_STATUS.md` is now present, the
+root dashboard, lane status, upstream manifest, ready/open beads, and landed
+commit history agree on the current shipping call.
+
+| Check | Evidence | Verdict |
+| --- | --- | --- |
+| Upstream denominator | Static upstream inventory remains 2,276 Pandoc test/data/benchmark artifacts at `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`; input-format scope is 50 tokens after skipping IPYNB for this phase. | Denominator accepted for native PHP progress accounting; not upstream runner parity. |
+| Local passing numerator | `lane-status.json` reports 3,290 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,250 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,250 / 2,276 = 142.8%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
+| Shippable format gate | ODF/ODT is ship-ready with 49 local mapped cases / 20 upstream ODF/ODT cases, 245.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
+| Remaining critical gaps | 16 input tokens remain partial and 33 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and CSV/TSV. | Full Pandoc input lane remains active. |
+| Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 73,816 assertions, 0 failures. |
+
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
 `lanes/pandoc/src/PandocFormatRegistry.php`, which records 51 upstream Pandoc
@@ -86,5 +102,7 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 status JSON to list case counters, PHP registry inspection for input support
 status, `git diff --check -- progress.md`, and `php tools/run-tests.php
 lanes/pandoc/tests` (`44` files, `73816` assertions, `0` failures on current
-main `28b0d1d670`). No Pandoc binary, office suite, TeX/Typst engine, browser
-engine, Node tooling, or external validator was invoked.
+main `3af5dde50f`). `bd orphans --label lane:pandoc` was used for stale-open
+cleanup, but only main-ancestor referenced commits were closed. No Pandoc binary,
+office suite, TeX/Typst engine, browser engine, Node tooling, or external
+validator was invoked.
