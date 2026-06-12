@@ -10763,6 +10763,103 @@ XML;
         $t->true(in_array('embedded-object-root', $inventory['Object OLE/']['roles'], true), 'Object OLE root role missing');
         $t->true(in_array('embedded-object-part', $inventory['Object OLE/oleObject.bin']['roles'], true), 'Object OLE payload role missing');
     },
+    'reports ODT object replacement sidecars as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $previewBytes = 'PREVIEWPNG';
+        $encryptedBytes = '<svg/>';
+        $invalidBytes = 'NOTIMAGE';
+        $orphanBytes = 'ORPHANPNG';
+        $manifestWithReplacements = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="ObjectReplacements/preview.png" manifest:media-type="image/png" manifest:size="' . strlen($previewBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="ObjectReplacements/missing.jpg" manifest:media-type="image/jpeg"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="ObjectReplacements/encrypted.svg" manifest:media-type="image/svg+xml" manifest:size="' . strlen($encryptedBytes) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="replacement-checksum"/></manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="ObjectReplacements/invalid.bin" manifest:media-type="application/octet-stream" manifest:size="' . strlen($invalidBytes) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithReplacements, null, null, [
+            ['name' => 'ObjectReplacements/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/encrypted.svg', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/invalid.bin', 'data' => $invalidBytes, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/orphan.png', 'data' => $orphanBytes, 'compressionMethod' => 0],
+        ]));
+
+        $replacements = $result['packageObjectReplacements'];
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $itemsByPart = [];
+        foreach ($replacements['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $inventory = $provenance['parts'];
+
+        $t->same($replacements, $result['document']->attr('packageObjectReplacements'));
+        $t->same($replacements, $result['metadata']['odfPackageObjectReplacements']);
+        $t->same($replacements, $result['importReport']['packageObjectReplacements']);
+        $t->same(5, $replacements['count']);
+        $t->same(3, $replacements['readableCount']);
+        $t->same(4, $replacements['declaredCount']);
+        $t->same(1, $replacements['undeclaredCount']);
+        $t->same(1, $replacements['missingCount']);
+        $t->same(1, $replacements['encryptedCount']);
+        $t->same(1, $replacements['invalidMediaTypeCount']);
+        $t->same(4, $replacements['issueCount']);
+        $t->same([
+            'odf-object-replacement-encrypted-package-part',
+            'odf-object-replacement-invalid-media-type',
+            'odf-object-replacement-missing-package-part',
+            'odf-object-replacement-undeclared-package-part',
+        ], $replacements['issueCodes']);
+
+        $preview = $itemsByPart['ObjectReplacements/preview.png'];
+        $t->same('image/png', $preview['mediaType']);
+        $t->same(true, $preview['declared']);
+        $t->same(true, $preview['valid']);
+        $t->same(strlen($previewBytes), $preview['byteLength']);
+        $t->same(sprintf('%08x', crc32($previewBytes)), $preview['crc32']);
+        $t->same('object-replacement-package-bytes-blocked', $preview['byteExposurePolicy']);
+        $t->same('object-replacement-metadata-only', $preview['reviewPolicy']);
+        $t->same(false, $preview['canExposeAsDocumentMedia']);
+        $t->same(true, $manifestByPart['ObjectReplacements/preview.png']['objectReplacementPackagePart']);
+        $t->same(false, $manifestByPart['ObjectReplacements/preview.png']['canExposeBytes']);
+        $t->same('object-replacement-package-bytes-blocked', $manifestByPart['ObjectReplacements/preview.png']['byteExposurePolicy']);
+
+        $missing = $itemsByPart['ObjectReplacements/missing.jpg'];
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-object-replacement-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPart['ObjectReplacements/encrypted.svg'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['odf-object-replacement-encrypted-package-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPart['ObjectReplacements/invalid.bin'];
+        $t->same('application/octet-stream', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-object-replacement-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPart['ObjectReplacements/orphan.png'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same('image/png', $orphan['mediaType']);
+        $t->same(['odf-object-replacement-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(4, $provenance['objectReplacementPartCount']);
+        $t->same(4, $provenance['roleCounts']['object-replacement']);
+        $t->same(1, $provenance['undeclaredRoleCounts']['object-replacement']);
+        $t->same(['object-replacement', 'manifest-declared'], $inventory['ObjectReplacements/preview.png']['roles']);
+        $t->same(['object-replacement', 'undeclared-package-entry'], $inventory['ObjectReplacements/orphan.png']['roles']);
+        $t->same(false, in_array('media-resource', $inventory['ObjectReplacements/preview.png']['roles'], true));
+        $t->same(1, count($result['media']), 'object replacement sidecars must stay out of document media handoff');
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+    },
     'preserves ODT raw ZIP entry name provenance in package review' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
