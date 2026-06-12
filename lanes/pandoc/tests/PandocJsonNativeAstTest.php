@@ -2502,6 +2502,118 @@ return [
             return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
         }, $editedCite['c'][1])));
     },
+    'preserves current raw and empty native payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $rawHtmlBlock = [
+            't' => 'RawBlock',
+            'c' => ['html', '<section data-review="block">Raw block</section>'],
+            'reviewQueue' => 'raw-block-review',
+            'sourceOrdinal' => 6101,
+        ];
+        $rawMarkdownBlock = [
+            't' => 'RawBlock',
+            'c' => ['markdown', '::: {.review}' . "\n" . 'Raw markdown' . "\n" . ':::'],
+            'reviewQueue' => 'raw-markdown-review',
+            'sourceOrdinal' => 6102,
+        ];
+        $horizontalRuleBlock = [
+            't' => 'HorizontalRule',
+            'reviewQueue' => 'separator-review',
+            'sourceOrdinal' => 6103,
+        ];
+        $nullBlock = [
+            't' => 'Null',
+            'reviewQueue' => 'null-review',
+            'sourceOrdinal' => 6104,
+        ];
+        $rawHtmlInline = [
+            't' => 'RawInline',
+            'c' => ['html', '<span data-review="inline">raw inline</span>'],
+            'reviewQueue' => 'raw-inline-review',
+            'sourceOrdinal' => 6105,
+        ];
+        $rawTexInline = [
+            't' => 'RawInline',
+            'c' => ['latex', '\\alpha + \\omega'],
+            'reviewQueue' => 'raw-tex-review',
+            'sourceOrdinal' => 6106,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $rawHtmlBlock,
+                $rawMarkdownBlock,
+                $horizontalRuleBlock,
+                $nullBlock,
+                ['t' => 'Para', 'c' => [
+                    $rawHtmlInline,
+                    ['t' => 'Space'],
+                    $rawTexInline,
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $rawHtml = $document->children[0];
+            $rawMarkdown = $document->children[1];
+            $horizontalRule = $document->children[2];
+            $null = $document->children[3];
+            $paragraph = $document->children[4];
+            $inlineHtml = $paragraph->children[0];
+            $inlineTex = $paragraph->children[2];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('raw_html', $rawHtml->type, "{$source} raw HTML block type");
+            $t->same('raw_markdown', $rawMarkdown->type, "{$source} raw markdown block type");
+            $t->same('horizontal_rule', $horizontalRule->type, "{$source} horizontal rule type");
+            $t->same('null_block', $null->type, "{$source} null block type");
+            $t->same('raw_html_inline', $inlineHtml->type, "{$source} raw HTML inline type");
+            $t->same('raw_tex', $inlineTex->type, "{$source} raw TeX inline type");
+            $t->same($rawHtmlBlock, $rawHtml->attr('native'), "{$source} raw HTML block native payload");
+            $t->same($rawMarkdownBlock, $rawMarkdown->attr('native'), "{$source} raw markdown block native payload");
+            $t->same($horizontalRuleBlock, $horizontalRule->attr('native'), "{$source} horizontal rule native payload");
+            $t->same($nullBlock, $null->attr('native'), "{$source} null native payload");
+            $t->same($rawHtmlInline, $inlineHtml->attr('native'), "{$source} raw HTML inline native payload");
+            $t->same($rawTexInline, $inlineTex->attr('native'), "{$source} raw TeX inline native payload");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves unchanged raw and empty payloads");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves unchanged raw and empty payloads");
+        }
+
+        $jsonDocument = $documents['json'];
+        $rawHtml = $jsonDocument->children[0];
+        $rawTex = $jsonDocument->children[4]->children[2];
+        $editedRawBlock = new AstNode('raw_html', array_replace($rawHtml->attrs, [
+            'html' => '<section>Edited block</section>',
+            'text' => '<section>Edited block</section>',
+        ]));
+        $editedRawInline = new AstNode('raw_tex', array_replace($rawTex->attrs, [
+            'tex' => '\\beta',
+            'text' => '\\beta',
+        ]));
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            $editedRawBlock,
+            new AstNode('paragraph', [], [$editedRawInline]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJson, 'native' => $editedNative] as $source => $encoded) {
+            $t->same('RawBlock', $encoded['blocks'][0]['t'], "{$source} edited raw block constructor");
+            $t->same(['html', '<section>Edited block</section>'], $encoded['blocks'][0]['c'], "{$source} edited raw block content regenerates");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} edited raw block drops stale review provenance");
+            $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][0]), "{$source} edited raw block drops stale source ordinal");
+            $t->same('RawInline', $encoded['blocks'][1]['c'][0]['t'], "{$source} edited raw inline constructor");
+            $t->same(['latex', '\\beta'], $encoded['blocks'][1]['c'][0]['c'], "{$source} edited raw inline content regenerates");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]['c'][0]), "{$source} edited raw inline drops stale review provenance");
+            $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][1]['c'][0]), "{$source} edited raw inline drops stale source ordinal");
+        }
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];
