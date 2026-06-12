@@ -206,6 +206,66 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html microdata attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="review" itemscope itemtype="https://schema.org/Article ./Local bad&lt;tag" itemid="./articles/42" itemref="headline author missing bad&lt;tag">'
+                . '<h1 id="headline" itemprop="headline schema:name bad&lt;tag headline">Title</h1><p id="author" itemprop="author">Ada</p></article>'
+                . '<span itemtype="javascript:alert(1)" itemid=" bad id ">Loose</span>',
+            'microdata attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/microdata-attribute-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $headline = $article['children'][0];
+        $author = $article['children'][1];
+        $invalid = $summary[1];
+
+        $t->same('item', $article['microdata']);
+        $t->same('', $article['itemScopeRaw']);
+        $t->same(true, $article['itemScope']);
+        $t->same('https://schema.org/Article ./Local bad<tag', $article['itemTypeRaw']);
+        $t->same(['https://schema.org/Article', './Local', 'bad<tag'], $article['itemTypeTokens']);
+        $t->same(['https://schema.org/Article', './Local'], $article['itemTypes']);
+        $t->same(['bad<tag'], $article['invalidItemTypes']);
+        $t->same(false, $article['itemTypeValid']);
+        $t->same('./articles/42', $article['itemIdRaw']);
+        $t->same('./articles/42', $article['itemId']);
+        $t->same(true, $article['itemIdValid']);
+        $t->same('headline author missing bad<tag', $article['itemRefRaw']);
+        $t->same(['headline', 'author', 'missing', 'bad<tag'], $article['itemRefTokens']);
+        $t->same(['headline', 'author', 'missing'], $article['itemRefIds']);
+        $t->same(['bad<tag'], $article['invalidItemRefIds']);
+        $t->same(false, $article['itemRefValid']);
+        $t->same(['headline', 'author'], $article['itemRefResolvedIds']);
+        $t->same(['missing'], $article['itemRefMissingIds']);
+
+        $t->same('property', $headline['microdata']);
+        $t->same('headline schema:name bad<tag headline', $headline['itemPropRaw']);
+        $t->same(['headline', 'schema:name', 'bad<tag', 'headline'], $headline['itemPropTokens']);
+        $t->same(['headline', 'schema:name'], $headline['itemProperties']);
+        $t->same(['bad<tag'], $headline['invalidItemProperties']);
+        $t->same(false, $headline['itemPropValid']);
+        $t->same('author', $author['itemPropRaw']);
+        $t->same(['author'], $author['itemProperties']);
+        $t->same(true, $author['itemPropValid']);
+
+        $t->same('metadata', $invalid['microdata']);
+        $t->same(['javascript:alert(1)'], $invalid['itemTypeTokens']);
+        $t->same([], $invalid['itemTypes']);
+        $t->same(['javascript:alert(1)'], $invalid['invalidItemTypes']);
+        $t->same(false, $invalid['itemTypeValid']);
+        $t->same(' bad id ', $invalid['itemIdRaw']);
+        $t->same('bad id', $invalid['itemId']);
+        $t->same(false, $invalid['itemIdValid']);
+        $t->same('<article id="review" itemid="./articles/42" itemref="headline author missing bad&lt;tag" itemscope itemtype="https://schema.org/Article ./Local bad&lt;tag"><h1 id="headline" itemprop="headline schema:name bad&lt;tag headline">Title</h1><p id="author" itemprop="author">Ada</p></article><span itemid=" bad id " itemtype="javascript:alert(1)">Loose</span>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/microdata-attribute-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'

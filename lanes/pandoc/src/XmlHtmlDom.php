@@ -1796,6 +1796,11 @@ final class XmlHtmlDom
             $summary['roles'] = self::spaceSeparatedTokens($attributes['role']);
         }
 
+        $microdata = self::microdataAttributeSummary($element, $attributes);
+        if ($microdata !== []) {
+            $summary += $microdata;
+        }
+
         if (array_key_exists('lang', $attributes)) {
             $summary['languageRaw'] = $attributes['lang'];
             $summary['language'] = trim($attributes['lang']);
@@ -1962,6 +1967,176 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function microdataAttributeSummary(\DOMElement $element, array $attributes): array
+    {
+        $microdataAttributes = ['itemprop', 'itemref', 'itemscope', 'itemtype', 'itemid'];
+        $hasMicrodata = false;
+        foreach ($microdataAttributes as $attribute) {
+            if (array_key_exists($attribute, $attributes)) {
+                $hasMicrodata = true;
+                break;
+            }
+        }
+
+        if (!$hasMicrodata) {
+            return [];
+        }
+
+        $summary = [
+            'microdata' => array_key_exists('itemscope', $attributes)
+                ? 'item'
+                : (array_key_exists('itemprop', $attributes) ? 'property' : 'metadata'),
+        ];
+
+        if (array_key_exists('itemscope', $attributes)) {
+            $summary['itemScopeRaw'] = $attributes['itemscope'];
+            $summary['itemScope'] = true;
+        }
+
+        if (array_key_exists('itemprop', $attributes)) {
+            $properties = self::semanticMetadataTokenSummary($attributes['itemprop']);
+            $summary['itemPropRaw'] = $attributes['itemprop'];
+            $summary['itemPropTokens'] = $properties['tokens'];
+            $summary['itemProperties'] = $properties['values'];
+            $summary['invalidItemProperties'] = $properties['invalid'];
+            $summary['itemPropValid'] = $properties['valid'];
+        }
+
+        if (array_key_exists('itemtype', $attributes)) {
+            $types = self::semanticMetadataTokenSummary($attributes['itemtype']);
+            $summary['itemTypeRaw'] = $attributes['itemtype'];
+            $summary['itemTypeTokens'] = $types['tokens'];
+            $summary['itemTypes'] = $types['values'];
+            $summary['invalidItemTypes'] = $types['invalid'];
+            $summary['itemTypeValid'] = $types['valid'];
+        }
+
+        if (array_key_exists('itemid', $attributes)) {
+            $itemId = trim($attributes['itemid']);
+            $summary['itemIdRaw'] = $attributes['itemid'];
+            $summary['itemId'] = $itemId === '' ? null : $itemId;
+            $summary['itemIdValid'] = $itemId !== '' && self::isSafeHtmlSemanticMetadataToken($itemId);
+        }
+
+        if (array_key_exists('itemref', $attributes)) {
+            $references = self::idReferenceTokenSummary($attributes['itemref']);
+            $resolved = self::itemRefResolutionSummary($element, $references['values']);
+            $summary['itemRefRaw'] = $attributes['itemref'];
+            $summary['itemRefTokens'] = $references['tokens'];
+            $summary['itemRefIds'] = $references['values'];
+            $summary['invalidItemRefIds'] = $references['invalid'];
+            $summary['itemRefValid'] = $references['valid'];
+            $summary['itemRefResolvedIds'] = $resolved['resolved'];
+            $summary['itemRefMissingIds'] = $resolved['missing'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function semanticMetadataTokenSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $values = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            if (!self::isSafeHtmlSemanticMetadataToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $values, true)) {
+                $values[] = $token;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'values' => $values,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isSafeHtmlSemanticMetadataToken(string $token): bool
+    {
+        if ($token === '' || preg_match('/[\s<>"\'`{}\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 1) {
+            return false;
+        }
+
+        $scheme = strtolower(strstr($token, ':', true) ?: '');
+        if (in_array($scheme, ['javascript', 'vbscript', 'data'], true)) {
+            return false;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $token) === 1 && !str_contains($token, '://')) {
+            return preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*:[A-Za-z0-9_.-]+$/', $token) === 1;
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function idReferenceTokenSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $values = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            if (!self::isHtmlIdReferenceToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $values, true)) {
+                $values[] = $token;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'values' => $values,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isHtmlIdReferenceToken(string $token): bool
+    {
+        return $token !== ''
+            && preg_match('/[\s<>"\'`\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) !== 1;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array{resolved:list<string>, missing:list<string>}
+     */
+    private static function itemRefResolutionSummary(\DOMElement $element, array $ids): array
+    {
+        $resolved = [];
+        $missing = [];
+        foreach ($ids as $id) {
+            if (self::htmlElementById($element, $id) instanceof \DOMElement) {
+                $resolved[] = $id;
+                continue;
+            }
+
+            $missing[] = $id;
+        }
+
+        return [
+            'resolved' => $resolved,
+            'missing' => $missing,
+        ];
     }
 
     private static function inputModeState(string $value): ?string
