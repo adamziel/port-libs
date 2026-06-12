@@ -9253,16 +9253,34 @@ return [
         $t->same(true, $documentEntry['exists']);
         $t->same(false, $documentEntry['isDirectory']);
         $t->same(8, $documentEntry['compressionMethod']);
+        $t->same('deflated', $documentEntry['compressionMethodName']);
+        $t->same(0, $documentEntry['localHeaderOffset']);
+        $t->same(30 + strlen('word/document.xml'), $documentEntry['localHeaderLength']);
+        $t->same($documentEntry['localHeaderOffset'] + $documentEntry['localHeaderLength'], $documentEntry['compressedDataOffset']);
+        $t->same($documentEntry['compressedDataOffset'] + $documentEntry['compressedSize'], $documentEntry['compressedDataEnd']);
+        $t->true($documentEntry['compressedDataEnd'] <= $documentEntry['centralDirectoryRecordOffset']);
+        $t->true($documentEntry['centralDirectoryRecordOffset'] < $documentEntry['centralDirectoryRecordEnd']);
         $t->same(strlen($documentXml), $documentEntry['uncompressedSize']);
+        $t->same(strlen($documentXml) / $documentEntry['compressedSize'], $documentEntry['expansionRatio']);
         $t->same(strlen($documentXml), $documentEntry['bytesRead']);
         $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
         $t->same('ready', $documentEntry['status']);
         $t->same([], $documentEntry['issues']);
 
+        $imageEntry = $summary['entries'][1];
+        $t->same('word/media/image.png', $imageEntry['name']);
+        $t->same('stored', $imageEntry['compressionMethodName']);
+        $t->same($documentEntry['compressedDataEnd'], $imageEntry['localHeaderOffset']);
+        $t->same($imageEntry['compressedDataOffset'] + strlen($imageBytes), $imageEntry['compressedDataEnd']);
+        $t->same(1.0, $imageEntry['expansionRatio']);
+
         $directoryEntry = $summary['entries'][2];
         $t->same('word/media/', $directoryEntry['name']);
         $t->same('directory', $directoryEntry['expectedKind']);
         $t->same(true, $directoryEntry['isDirectory']);
+        $t->same('stored', $directoryEntry['compressionMethodName']);
+        $t->same($directoryEntry['compressedDataOffset'], $directoryEntry['compressedDataEnd']);
+        $t->same(0.0, $directoryEntry['expansionRatio']);
         $t->same(0, $directoryEntry['bytesRead']);
         $t->same(hash('sha256', ''), $directoryEntry['contentSha256']);
         $t->same('ready', $directoryEntry['status']);
@@ -9270,6 +9288,9 @@ return [
         $missingRequired = $summary['entries'][3];
         $t->same('word/missing.xml', $missingRequired['name']);
         $t->same(false, $missingRequired['exists']);
+        $t->same(null, $missingRequired['compressionMethodName']);
+        $t->same(null, $missingRequired['compressedDataOffset']);
+        $t->same(null, $missingRequired['centralDirectoryRecordOffset']);
         $t->same('missing-required', $missingRequired['status']);
         $t->same(['missing-required-entry'], $missingRequired['issues']);
 
@@ -9283,12 +9304,16 @@ return [
         $t->same('word/media/large.bin', $oversizedEntry['name']);
         $t->same(8, $oversizedEntry['maxUncompressedBytes']);
         $t->same(strlen($largeBytes), $oversizedEntry['uncompressedSize']);
+        $t->same($oversizedEntry['compressedDataOffset'] + strlen($largeBytes), $oversizedEntry['compressedDataEnd']);
         $t->same(null, $oversizedEntry['bytesRead']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $oversizedEntry['issues']);
 
         $unsupportedEntry = $summary['entries'][6];
         $t->same('word/media/unsupported.bin', $unsupportedEntry['name']);
         $t->same(12, $unsupportedEntry['compressionMethod']);
+        $t->same('unsupported', $unsupportedEntry['compressionMethodName']);
+        $t->same($unsupportedEntry['compressedDataOffset'] + strlen($unsupportedBytes), $unsupportedEntry['compressedDataEnd']);
+        $t->same(1.0, $unsupportedEntry['expansionRatio']);
         $t->same(false, $unsupportedEntry['isReadable']);
         $t->same(['unreadable-entry'], $unsupportedEntry['issues']);
         $t->contains('Unsupported ZIP compression method 12', $unsupportedEntry['error']);

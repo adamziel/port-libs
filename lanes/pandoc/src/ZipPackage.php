@@ -4862,10 +4862,18 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'compressionMethod' => null,
+                'compressionMethodName' => null,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
+                'expansionRatio' => null,
                 'crc32' => null,
                 'crc32Hex' => null,
+                'localHeaderOffset' => null,
+                'localHeaderLength' => null,
+                'compressedDataOffset' => null,
+                'compressedDataEnd' => null,
+                'centralDirectoryRecordOffset' => null,
+                'centralDirectoryRecordEnd' => null,
                 'maxUncompressedBytes' => $entryMaxUncompressedBytes,
                 'isReadable' => false,
                 'bytesRead' => null,
@@ -4897,12 +4905,23 @@ final class ZipPackage
 
             $presentNames[$name] = true;
             $isDirectory = $entry->isDirectory();
+            $localHeader = $this->readLocalHeader($entry);
+            $compressedDataOffset = $localHeader['dataStart'];
+            $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['compressionMethod'] = $entry->compressionMethod;
+            $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
+            $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
             $summary['crc32'] = $entry->crc32;
             $summary['crc32Hex'] = $entry->crc32Hex();
+            $summary['localHeaderOffset'] = $entry->localHeaderOffset;
+            $summary['localHeaderLength'] = $localHeader['localHeaderLength'];
+            $summary['compressedDataOffset'] = $compressedDataOffset;
+            $summary['compressedDataEnd'] = $compressedDataEnd;
+            $summary['centralDirectoryRecordOffset'] = $entry->centralDirectoryRecordOffset;
+            $summary['centralDirectoryRecordEnd'] = $entry->centralDirectoryRecordEnd;
 
             if ($expectedKind === 'file' && $isDirectory) {
                 $entryIssues[] = 'directory-entry-not-file';
