@@ -1039,8 +1039,8 @@ final class CitationCslProcessor
             'address',
             'location',
         ]);
-        $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
-        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origaddress']);
+        $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher', 'origPublisher']);
+        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
@@ -1071,19 +1071,19 @@ final class CitationCslProcessor
         if ($publisherPlace === '' && $publisherPlaceList !== []) {
             $publisherPlace = implode('; ', $publisherPlaceList);
         }
-        $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
-        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
+        $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
+        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
         $language = self::stringField($item, 'language');
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
         }
-        $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList', 'originallanguagelist', 'origlanguagelist']);
-        $originalLanguage = self::firstStringField($item, ['original-language', 'originalLanguage', 'originallanguage', 'origlanguage']);
+        $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList', 'originallanguagelist', 'origlanguagelist', 'origLanguageList']);
+        $originalLanguage = self::firstStringField($item, ['original-language', 'originalLanguage', 'originallanguage', 'origlanguage', 'origLanguage']);
         if ($originalLanguage === '' && $originalLanguageList !== []) {
             $originalLanguage = implode('; ', $originalLanguageList);
         }
-        $originalGenre = self::firstStringField($item, ['original-genre', 'originalGenre', 'origtype', 'origgenre']);
+        $originalGenre = self::firstStringField($item, ['original-genre', 'originalGenre', 'origtype', 'origType', 'origgenre', 'origGenre']);
         $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace', 'eventplace', 'event-location', 'eventLocation', 'eventlocation', 'event-venue', 'eventVenue', 'eventvenue', 'venue']);
         $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList', 'eventplacelist', 'event-location-list', 'eventLocationList', 'eventlocationlist', 'event-venue-list', 'eventVenueList', 'eventvenuelist', 'venue-list', 'venueList']);
         if ($eventPlace === '' && $eventPlaceList !== []) {
@@ -1110,7 +1110,7 @@ final class CitationCslProcessor
             'visited',
         ]), $id, 'accessed');
         $availableDate = self::dateVariable(self::firstPresentField($item, ['available-date', 'availableDate', 'availabledate']), $id, 'available-date');
-        $originalDate = self::dateVariable(self::firstPresentField($item, ['original-date', 'originalDate', 'originaldate', 'origdate']), $id, 'original-date');
+        $originalDate = self::dateVariable(self::firstPresentField($item, ['original-date', 'originalDate', 'originaldate', 'origdate', 'origDate']), $id, 'original-date');
         $reprintDate = self::dateVariable(self::firstPresentField($item, ['reprint-date', 'reprintDate', 'reprintdate']), $id, 'reprint-date');
         $submittedDate = self::dateVariable(self::firstPresentField($item, ['submitted', 'submitted-date', 'submittedDate', 'submitteddate']), $id, 'submitted');
         $eventDate = self::dateVariable(self::firstPresentField($item, ['event-date', 'eventDate', 'eventdate']), $id, 'event-date');
@@ -1449,8 +1449,8 @@ final class CitationCslProcessor
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
             'availableDate' => $availableDate,
-            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'originaltitle', 'origtitle']),
-            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'origtitleaddon']),
+            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle']),
+            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'origtitleaddon', 'origTitleAddon']),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
@@ -1459,7 +1459,7 @@ final class CitationCslProcessor
             'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
             'originalGenre' => $originalGenre,
             'originalDate' => $originalDate,
-            'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'orig-date-addon']),
+            'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'origDateAddon', 'orig-date-addon']),
             'reprintDate' => $reprintDate,
             'reprintDateAddon' => self::firstStringField($item, ['reprint-date-addon', 'reprintDateAddon', 'reprintdateaddon', 'reprintdateaddendum', 'reprint-date-addendum']),
             'submittedDate' => $submittedDate,

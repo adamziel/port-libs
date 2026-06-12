@@ -28226,6 +28226,122 @@ XML);
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
     },
+    'normalizes bounded direct csl json camel orig aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-orig-camel',
+                'type' => 'book',
+                'title' => 'Direct Orig Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+                'origTitle' => 'Manual Fuente',
+                'origTitleAddon' => 'source leaf',
+                'origDate' => ['date-parts' => [[1999, 3, 5]]],
+                'origDateAddon' => 'source date note',
+                'origPublisher' => 'Legacy Press',
+                'origLocation' => 'Madrid',
+                'origLanguage' => 'spanish',
+                'origGenre' => 'facsimile',
+            ],
+            [
+                'id' => 'direct-orig-list-camel',
+                'type' => 'book',
+                'title' => 'Direct Orig List Camel Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'origPublisherList' => ['Archive Press', 'Migration Desk'],
+                'origLocationList' => 'Paris; Lyon',
+                'origLanguageList' => ['french', 'latin'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-orig-camel');
+        $list = $processor->item('direct-orig-list-camel');
+        $t->same('Manual Fuente', $camel['originalTitle'] ?? null);
+        $t->same('source leaf', $camel['originalTitleAddon'] ?? null);
+        $t->same('1999-03-05', $camel['originalDate']['display'] ?? null);
+        $t->same('source date note', $camel['originalDateAddon'] ?? null);
+        $t->same('Legacy Press', $camel['originalPublisher'] ?? null);
+        $t->same('Madrid', $camel['originalPublisherPlace'] ?? null);
+        $t->same('spanish', $camel['originalLanguage'] ?? null);
+        $t->same('facsimile', $camel['originalGenre'] ?? null);
+        $t->same(['Archive Press', 'Migration Desk'], $list['originalPublisherList'] ?? null);
+        $t->same(['Paris', 'Lyon'], $list['originalPublisherPlaceList'] ?? null);
+        $t->same(['french', 'latin'], $list['originalLanguageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Camel Orig Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-camel-orig-alias-review</id>
+    <updated>2026-06-12T11:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="origtitle"/>
+        <date variable="origdate"/>
+        <text variable="origdateaddon"/>
+        <text variable="origpublisher"/>
+        <text variable="origlocation"/>
+        <text variable="origlanguage"/>
+        <text variable="origgenre"/>
+        <text variable="original-publisher-list"/>
+        <text variable="original-publisher-place-list"/>
+        <text variable="original-language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <date variable="original-date"/>
+      <text variable="original-date-addon"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+      <text variable="original-language-list"/>
+      <text variable="original-genre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Camel Orig Alias Review', $summary['title'] ?? null);
+        $t->same('origtitle', $citationChildren[1]['variable'] ?? null);
+        $t->same('origdate', $citationChildren[2]['variable'] ?? null);
+        $t->same('origdateaddon', $citationChildren[3]['variable'] ?? null);
+        $t->same('origpublisher', $citationChildren[4]['variable'] ?? null);
+        $t->same('origlocation', $citationChildren[5]['variable'] ?? null);
+        $t->same('origlanguage', $citationChildren[6]['variable'] ?? null);
+        $t->same('origgenre', $citationChildren[7]['variable'] ?? null);
+        $t->same('[Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin]', $styled->renderCitationCluster([
+            $citation('direct-orig-camel', '[@direct-orig-camel]'),
+            $citation('direct-orig-list-camel', '[@direct-orig-list-camel]'),
+        ]));
+        $t->same('Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile', $styled->renderBibliographyEntry('direct-orig-camel'));
+        $t->same('Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin', $styled->renderBibliographyEntry('direct-orig-list-camel'));
+        $t->same(
+            'Ng, Nia. Direct Orig Camel Packet. Review Press, 2026. Original date addendum: source date note. Original title: Manual Fuente. Original title addendum: source leaf. Original genre: facsimile. Original work published 1999-03-05. Original publisher: Legacy Press, Madrid. Original language: spanish.',
+            CitationCslProcessor::fromJson($json)->renderBibliographyEntry('direct-orig-camel')
+        );
+
+        $document = (new MarkdownReader())->read('Camel orig aliases [@direct-orig-camel; @direct-orig-list-camel] keep original publication metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Camel orig aliases [Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin] keep original publication metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
