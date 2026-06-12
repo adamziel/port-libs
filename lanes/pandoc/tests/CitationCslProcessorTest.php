@@ -2299,6 +2299,94 @@ XML);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.</dd>', $blocks);
     },
+    'maps bounded translated title subtitle aliases into csl output' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{translated-subtitle-source,
+  author              = {Chen, Mira},
+  title               = {Manual de archivo},
+  titletranslation    = {Archive Manual},
+  subtitletranslation = {Source desk},
+  date                = {2026},
+  publisher           = {Review Press}
+}
+
+@article{translated-subtitle-alias,
+  author              = {Roe, Pat},
+  title               = {Chronique des imports},
+  translated-title    = {Import Chronicle},
+  translated-subtitle = {Reviewer packet},
+  journaltitle        = {Journal des Sources},
+  date                = {2025},
+  pages               = {44--48}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Archive Manual: Source desk', $items[0]['translated-title'] ?? null);
+        $t->same('Import Chronicle: Reviewer packet', $items[1]['translated-title'] ?? null);
+        $t->same('Archive Manual', $items[0]['rawBibtex']['fields']['titletranslation'] ?? null);
+        $t->same('Source desk', $items[0]['rawBibtex']['fields']['subtitletranslation'] ?? null);
+        $t->same('Import Chronicle', $items[1]['rawBibtex']['fields']['translated-title'] ?? null);
+        $t->same('Reviewer packet', $items[1]['rawBibtex']['fields']['translated-subtitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('Archive Manual: Source desk', $processor->item('translated-subtitle-source')['translatedTitle'] ?? null);
+        $t->same('Import Chronicle: Reviewer packet', $processor->item('translated-subtitle-alias')['translatedTitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Translated Title Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-translated-title-subtitle-alias-review</id>
+    <updated>2026-06-12T00:08:41+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title"/>
+        <text variable="translated-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="titletranslation"/>
+      <text variable="title-translation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Translated Title Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('translated-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Chen | Manual de archivo | Archive Manual: Source desk; Roe | Chronique des imports | Import Chronicle: Reviewer packet]', $styled->renderCitationCluster([
+            $citation('translated-subtitle-source', '[@translated-subtitle-source]'),
+            $citation('translated-subtitle-alias', '[@translated-subtitle-alias]'),
+        ]));
+        $t->same('Manual de archivo :: Archive Manual: Source desk :: Archive Manual: Source desk', $styled->renderBibliographyEntry('translated-subtitle-source'));
+        $t->same('Chronique des imports :: Import Chronicle: Reviewer packet :: Import Chronicle: Reviewer packet', $styled->renderBibliographyEntry('translated-subtitle-alias'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-translated-subtitle',
+            'title' => 'Direct source',
+            'translatedTitle' => 'Direct Translation',
+            'translatedSubtitle' => 'Reviewer Packet',
+        ]]);
+        $t->same('Direct Translation: Reviewer Packet', $direct->item('direct-translated-subtitle')['translatedTitle'] ?? null);
+        $t->same('Direct source. Translated title: Direct Translation: Reviewer Packet.', $direct->renderBibliographyEntry('direct-translated-subtitle'));
+
+        $document = (new MarkdownReader())->read('Translated subtitle source [@translated-subtitle-source; @translated-subtitle-alias] keeps translated-title subtitles visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Translated subtitle source [Chen | Manual de archivo | Archive Manual: Source desk; Roe | Chronique des imports | Import Chronicle: Reviewer packet] keeps translated-title subtitles visible.</p>', $blocks);
+        $t->contains('<dt>Chen 2026</dt><dd>Manual de archivo :: Archive Manual: Source desk :: Archive Manual: Source desk</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Chronique des imports :: Import Chronicle: Reviewer packet :: Import Chronicle: Reviewer packet</dd>', $blocks);
+    },
     'applies bounded csl text variable rendering for original dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

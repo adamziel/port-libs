@@ -1225,7 +1225,11 @@ final class CitationCslProcessor
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
-            'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
+            'translatedTitle' => self::composedStringField(
+                $item,
+                ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation'],
+                ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']
+            ),
             'reviewedTitle' => $reviewedTitle,
             'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
