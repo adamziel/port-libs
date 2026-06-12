@@ -364,6 +364,7 @@ final class OpenDocumentPackage
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $scriptPackagePartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -410,6 +411,7 @@ final class OpenDocumentPackage
                 'manifestEncryptionIssueCodes' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
                     ? ($manifestEntry['encryption']['issueCodes'] ?? [])
                     : [],
+                'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -433,6 +435,9 @@ final class OpenDocumentPackage
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
             }
+            if (in_array('script-package', $roles, true)) {
+                ++$scriptPackagePartCount;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -454,6 +459,7 @@ final class OpenDocumentPackage
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'scriptPackagePartCount' => $scriptPackagePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -492,6 +498,9 @@ final class OpenDocumentPackage
         if (self::isSignaturePackagePartName($entry->name)) {
             $roles[] = 'package-signature';
         }
+        if (self::isScriptPackagePartName($entry->name)) {
+            $roles[] = 'script-package';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -506,6 +515,14 @@ final class OpenDocumentPackage
         }
 
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
+    }
+
+    private static function isScriptPackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'basic/')
+            || str_starts_with($normalized, 'scripts/');
     }
 
     /**
@@ -544,6 +561,7 @@ final class OpenDocumentPackage
             $isRoot = $entry['path'] === '/';
             $packagePath = $entry['packagePath'];
             $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
+            $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -552,7 +570,7 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -588,19 +606,48 @@ final class OpenDocumentPackage
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
+                'scriptPackagePart' => $scriptPackagePart,
                 'canExposeBytes' => $canExposeBytes,
-                'byteExposurePolicy' => $isRoot
-                    ? 'package-root-no-bytes'
-                    : ($isDirectory
-                        ? 'directory-entry-no-bytes'
-                        : ($encrypted
-                            ? 'encrypted-resource-bytes-blocked'
-                            : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part')))),
+                'byteExposurePolicy' => self::byteExposurePolicy(
+                    $isRoot,
+                    $exists,
+                    $isDirectory,
+                    $encrypted,
+                    $scriptPackagePart,
+                    $hasSupportedCompression
+                ),
                 'diagnostics' => $diagnostics,
             ];
         }
 
         return $hydrated;
+    }
+
+    private static function byteExposurePolicy(
+        bool $isRoot,
+        bool $exists,
+        bool $isDirectory,
+        bool $encrypted,
+        bool $scriptPackagePart,
+        bool $hasSupportedCompression
+    ): string {
+        if ($isRoot) {
+            return 'package-root-no-bytes';
+        }
+        if ($isDirectory) {
+            return 'directory-entry-no-bytes';
+        }
+        if ($encrypted) {
+            return 'encrypted-resource-bytes-blocked';
+        }
+        if ($scriptPackagePart) {
+            return 'script-package-bytes-blocked';
+        }
+        if (!$hasSupportedCompression) {
+            return 'unsupported-compression-bytes-blocked';
+        }
+
+        return $exists ? 'package-bytes-exposable' : 'missing-package-part';
     }
 
     /**
@@ -628,6 +675,7 @@ final class OpenDocumentPackage
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
+                'scriptPackagePart' => self::isScriptPackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -971,6 +1019,8 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'scriptPackagePartCount' => 0,
+            'scriptPackageItems' => [],
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'items' => [],
@@ -992,6 +1042,10 @@ final class OpenDocumentPackage
             }
             if (is_string($entry['pathFragment'] ?? null)) {
                 ++$summary['manifestPartReferenceFragmentCount'];
+            }
+            if (($entry['scriptPackagePart'] ?? false) === true) {
+                ++$summary['scriptPackagePartCount'];
+                $summary['scriptPackageItems'][] = $item;
             }
             if (($entry['exists'] ?? false) === true) {
                 ++$summary['existsCount'];
@@ -1070,12 +1124,15 @@ final class OpenDocumentPackage
             'encryption' => $entry['encryption'] ?? null,
             'encryptionRecordCount' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
             'encryptionIssueCodes' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['issueCodes'] ?? []) : [],
+            'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
             'compressedByteLength' => $entry['compressedByteLength'] ?? null,
             'compressionMethod' => $entry['compressionMethod'] ?? null,
             'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+            'crc32' => $entry['crc32'] ?? null,
+            'storedCrc32' => $entry['storedCrc32'] ?? null,
             'declaredSize' => $entry['declaredSize'] ?? null,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,

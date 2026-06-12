@@ -914,6 +914,7 @@ XML;
         $t->same(1, $inventory['mediaResourcePartCount']);
         $t->same(1, $inventory['packageThumbnailPartCount']);
         $t->same(1, $inventory['packageSignaturePartCount']);
+        $t->same(1, $inventory['scriptPackagePartCount']);
         $t->same([
             'manifest-declared' => 6,
             'media-resource' => 1,
@@ -925,18 +926,109 @@ XML;
             'odf-styles' => 1,
             'package-signature' => 1,
             'package-thumbnail' => 1,
+            'script-package' => 1,
             'undeclared-package-entry' => 2,
         ], $inventory['roleCounts']);
         $t->same([
             'package-thumbnail' => 1,
+            'script-package' => 1,
             'undeclared-package-entry' => 2,
         ], $inventory['undeclaredRoleCounts']);
         $t->same(['odf-settings', 'manifest-declared'], $inventory['parts']['settings.xml']['roles']);
         $t->same(['package-signature', 'manifest-declared'], $inventory['parts']['META-INF/documentsignatures.xml']['roles']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['parts']['Thumbnails/thumbnail.png']['roles']);
-        $t->same(['undeclared-package-entry'], $inventory['parts']['Scripts/review/basic.xba']['roles']);
+        $t->same(['script-package', 'undeclared-package-entry'], $inventory['parts']['Scripts/review/basic.xba']['roles']);
         $t->same(1, $summary['packageSignatures']['count']);
         $t->same(1, $summary['packageThumbnails']['count']);
+    },
+    'blocks compact ODT script package bytes in package review summaries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
+        $javaScript = 'function ReviewLinkClick() { return false; }';
+        $encryptedScript = 'encrypted macro payload';
+        $orphanScript = 'function orphan() { return true; }';
+        $scriptEntries =
+            '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/missing.js"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/encrypted.js" manifest:size="2048"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="macro-checksum"><manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="macro-iv"/></manifest:encryption-data></manifest:file-entry>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $scriptEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+                ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
+                ['name' => 'Scripts/encrypted.js', 'data' => $encryptedScript, 'compressionMethod' => 0],
+                ['name' => 'Scripts/orphan.js', 'data' => $orphanScript, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(6, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same([
+            'Basic/',
+            'Basic/Standard/Review.xml',
+            'Scripts/',
+            'Scripts/review-link.js',
+            'Scripts/missing.js',
+            'Scripts/encrypted.js',
+        ], array_column($summary['manifestReview']['scriptPackageItems'], 'path'));
+        $t->same(6, $inventory['scriptPackagePartCount']);
+        $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Basic/']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/Review.xml']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/review-link.js']['roles']);
+        $t->same(['script-package', 'undeclared-package-entry'], $inventory['parts']['Scripts/orphan.js']['roles']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['script-package']);
+
+        $basic = $reviewByPath['Basic/Standard/Review.xml'];
+        $t->same(true, $basic['scriptPackagePart']);
+        $t->same(true, $basic['exists']);
+        $t->same(false, $basic['canExposeBytes']);
+        $t->same(null, $basic['byteLength']);
+        $t->same(strlen($basicModuleXml), $basic['storedByteLength']);
+        $t->same(null, $basic['crc32']);
+        $t->same(sprintf('%08x', crc32($basicModuleXml)), $basic['storedCrc32']);
+        $t->same('script-package-bytes-blocked', $basic['byteExposurePolicy']);
+        $t->same([], $basic['diagnostics']);
+
+        $javascript = $reviewByPath['Scripts/review-link.js'];
+        $t->same(true, $javascript['scriptPackagePart']);
+        $t->same(false, $javascript['canExposeBytes']);
+        $t->same(null, $javascript['byteLength']);
+        $t->same(strlen($javaScript), $javascript['storedByteLength']);
+        $t->same('script-package-bytes-blocked', $javascript['byteExposurePolicy']);
+
+        $missing = $reviewByPath['Scripts/missing.js'];
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $missing['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
+
+        $encrypted = $reviewByPath['Scripts/encrypted.js'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(false, $encrypted['canExposeBytes']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedScript), $encrypted['storedByteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['odf-manifest-encrypted-package-part', 'odf-manifest-declared-size-mismatch'], $encrypted['diagnostics']);
+
+        $orphan = $summary['undeclaredPackageEntries'][0];
+        $t->same('Scripts/orphan.js', $orphan['path']);
+        $t->same(true, $orphan['scriptPackagePart']);
+        $t->same(false, $orphan['canExposeBytes']);
+        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['exposableMediaPartCount']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
     },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
