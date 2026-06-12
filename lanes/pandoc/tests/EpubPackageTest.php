@@ -823,6 +823,82 @@ XML;
         $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
     },
 
+    'preserves OPF binding handler target provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $localHandlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Local widget fallback</h1></body></html>';
+        $opfWithBindingTargets = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="local-handler" href="widgets/local-handler.xhtml?mode=review#boot" media-type="application/xhtml+xml" properties="scripted"/>
+    <item id="remote-handler" href="https://cdn.example.invalid/widgets/remote-handler.xhtml?profile=review#boot" media-type="application/xhtml+xml" properties="scripted remote-resources"/>',
+            $epub3OpfXml
+        );
+        $opfWithBindingTargets = str_replace(
+            '</spine>',
+            '</spine>
+  <bindings>
+    <mediaType media-type="application/x-local-widget" handler="local-handler"/>
+    <mediaType media-type="application/x-remote-widget" handler="remote-handler"/>
+  </bindings>',
+            $opfWithBindingTargets
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithBindingTargets],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/local-handler.xhtml', 'data' => $localHandlerXhtml],
+        ]));
+
+        $bindings = $epub->bindings();
+        $summary = $epub->summary();
+        $local = $bindings['items'][0];
+        $remote = $bindings['items'][1];
+
+        $t->same(true, $bindings['present']);
+        $t->same(2, $bindings['itemCount']);
+        $t->same(['application/x-local-widget', 'application/x-remote-widget'], $bindings['boundMediaTypes']);
+        $t->same('application/x-local-widget', $local['mediaType']);
+        $t->same('local-handler', $local['handlerId']);
+        $t->same('widgets/local-handler.xhtml?mode=review#boot', $local['handlerHref']);
+        $t->same('/EPUB/widgets/local-handler.xhtml?mode=review#boot', $local['handlerTarget']);
+        $t->same('/EPUB/widgets/local-handler.xhtml', $local['handlerPartName']);
+        $t->same(false, $local['handlerExternal']);
+        $t->same(true, $local['handlerExists']);
+        $t->same(true, $local['handlerCanExposeBytes']);
+        $t->same(true, $local['handlerHrefHasQuery']);
+        $t->same('mode=review', $local['handlerHrefQuery']);
+        $t->same(true, $local['handlerHrefHasFragment']);
+        $t->same('boot', $local['handlerHrefFragment']);
+        $t->same([], $local['handlerManifestDiagnostics']);
+        $t->same([], $local['diagnostics']);
+        $t->same('application/x-remote-widget', $remote['mediaType']);
+        $t->same('remote-handler', $remote['handlerId']);
+        $t->same('https://cdn.example.invalid/widgets/remote-handler.xhtml?profile=review#boot', $remote['handlerHref']);
+        $t->same('https://cdn.example.invalid/widgets/remote-handler.xhtml?profile=review#boot', $remote['handlerTarget']);
+        $t->same(null, $remote['handlerPartName']);
+        $t->same(true, $remote['handlerExternal']);
+        $t->same(false, $remote['handlerExists']);
+        $t->same(false, $remote['handlerCanExposeBytes']);
+        $t->same(true, $remote['handlerHrefHasQuery']);
+        $t->same('profile=review', $remote['handlerHrefQuery']);
+        $t->same(true, $remote['handlerHrefHasFragment']);
+        $t->same('boot', $remote['handlerHrefFragment']);
+        $t->same('external-manifest-href-target', $remote['handlerManifestDiagnostics'][0]['type']);
+        $t->same('external-binding-handler', $remote['diagnostics'][0]['type']);
+        $t->same('https://cdn.example.invalid/widgets/remote-handler.xhtml?profile=review#boot', $remote['diagnostics'][0]['handlerTarget']);
+        $t->same(1, count($bindings['diagnostics']));
+        $t->same(1, $bindings['diagnostics'][0]['index']);
+        $t->same('external-binding-handler', $bindings['diagnostics'][0]['type']);
+        $t->same($bindings, $summary['bindings']);
+        $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
+        $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+    },
+
     'flags encrypted OPF binding handlers for compact package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked widget fallback</h1></body></html>';
         $opfWithEncryptedBinding = str_replace(

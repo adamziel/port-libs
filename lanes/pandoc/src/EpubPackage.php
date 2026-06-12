@@ -8362,6 +8362,15 @@ final class EpubPackage
                     'handlerId' => $handlerId,
                     'message' => 'EPUB OPF binding handler does not reference a manifest item',
                 ];
+            } elseif (($handler['external'] ?? false) === true) {
+                $itemDiagnostics[] = [
+                    'type' => 'external-binding-handler',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'handlerId' => $handlerId,
+                    'handlerHref' => (string) ($handler['href'] ?? ''),
+                    'handlerTarget' => (string) ($handler['target'] ?? ''),
+                    'message' => 'EPUB OPF binding handler points outside the package and was not fetched',
+                ];
             } elseif (($handler['encrypted'] ?? false) === true) {
                 $handlerEncryption = is_array($handler['encryption'] ?? null) ? $handler['encryption'] : [];
                 $itemDiagnostics[] = [
@@ -8380,7 +8389,7 @@ final class EpubPackage
                 $diagnostics[] = ['index' => $index] + $diagnostic;
             }
 
-            $handlerPartName = is_array($handler) ? (string) $handler['partName'] : null;
+            $handlerPartName = is_array($handler) && is_string($handler['partName'] ?? null) ? $handler['partName'] : null;
             $entry = $handlerPartName !== null && $package->has($handlerPartName)
                 ? $package->entry($handlerPartName)
                 : null;
@@ -8395,9 +8404,16 @@ final class EpubPackage
                 'mediaType' => $mediaType === '' ? null : $mediaType,
                 'handlerId' => $handlerId === '' ? null : $handlerId,
                 'handlerHref' => is_array($handler) ? (string) $handler['href'] : null,
+                'handlerTarget' => is_array($handler) ? (string) ($handler['target'] ?? '') : null,
                 'handlerPartName' => $handlerPartName,
+                'handlerExternal' => is_array($handler) && ($handler['external'] ?? false) === true,
                 'handlerMediaType' => is_array($handler) ? (string) $handler['mediaType'] : null,
                 'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
+                'handlerHrefHasQuery' => is_array($handler) && ($handler['hrefHasQuery'] ?? false) === true,
+                'handlerHrefQuery' => is_array($handler) ? ($handler['hrefQuery'] ?? null) : null,
+                'handlerHrefHasFragment' => is_array($handler) && ($handler['hrefHasFragment'] ?? false) === true,
+                'handlerHrefFragment' => is_array($handler) ? ($handler['hrefFragment'] ?? null) : null,
+                'handlerManifestDiagnostics' => is_array($handler) && is_array($handler['diagnostics'] ?? null) ? $handler['diagnostics'] : [],
                 'handlerExists' => $entry instanceof ZipPackageEntry,
                 'handlerEncrypted' => $handlerEncrypted,
                 'handlerCanExposeBytes' => $handlerProvenance['canExposeBytes'],
