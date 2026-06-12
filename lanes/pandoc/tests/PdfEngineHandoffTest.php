@@ -1095,6 +1095,59 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst pretty pdf export boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-pretty-boundary.pdf',
+            'source' => '= Typst Pretty PDF Boundary Packet',
+            'engineOptions' => [
+                '--pretty',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst pretty PDF boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'pdfExport' => [
+                'pageSelection' => null,
+                'issues' => [],
+                'pretty' => [
+                    'enabled' => true,
+                    'flagCount' => 1,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-pretty-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-pretty-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pretty:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary:ok', implode(',', $plan['diagnostics']));
+        $t->same(1, $plan['typstBoundarySummary']['pdfExportControlCount']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans invalid typst pdf export boundary histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
