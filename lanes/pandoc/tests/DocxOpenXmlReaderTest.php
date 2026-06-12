@@ -285,6 +285,84 @@ return [
         $t->same(1, $byExtension['(none)']['missingContentTypePartCount']);
         $t->same(['customXml/no-extension'], $byExtension['(none)']['partNames']);
     },
+    'summarizes docx package parts by content type base for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '  <Default Extension="png" ContentType="image/png"/>',
+                '</Types>',
+            ],
+            [
+                '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+                '  <Default Extension="jpeg" ContentType="image/jpeg; profile=preview"/>',
+                '  <Override PartName="/customXml/item1.xml" ContentType="application/xml; profile=custom-data"/>' . "\n" .
+                '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+                '</Types>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>' . "\n" .
+            '  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/preview.jpeg?view=package#thumb"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = '<root/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/preview.jpeg'] = 'jpeg preview bytes';
+        $parts['customXml/untyped-payload.bin'] = 'opaque custom payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byContentType = [];
+        foreach ($summary['partContentTypes'] as $contentType) {
+            $key = $contentType['contentTypeBase'] === '' ? '(missing)' : $contentType['contentTypeBase'];
+            $byContentType[$key] = $contentType;
+        }
+
+        $t->same(8, $summary['partContentTypeCount']);
+        $t->same(2, $summary['parameterizedContentTypePartCount']);
+        $t->same(12, array_sum(array_column($summary['partContentTypes'], 'partCount')));
+
+        $xml = $byContentType['application/xml'];
+        $t->same(4, $xml['partCount']);
+        $t->same(1, $xml['parameterizedContentTypePartCount']);
+        $t->same(['application/xml', 'application/xml; profile=custom-data'], $xml['contentTypes']);
+        $t->same(['default' => 3, 'override' => 1], $xml['contentTypeSourceCounts']);
+        $t->same(['content-types' => 1, 'document-relationship-target' => 1, 'package-part' => 2], $xml['roleCounts']);
+        $t->same(['[Content_Types].xml', 'word/styles.xml', 'word/numbering.xml', 'customXml/item1.xml'], $xml['partNames']);
+        $t->same(['xml'], $xml['defaultExtensions']);
+        $t->same(['customXml/item1.xml'], $xml['overridePartNames']);
+
+        $relationships = $byContentType['application/vnd.openxmlformats-package.relationships+xml'];
+        $t->same(2, $relationships['partCount']);
+        $t->same(2, $relationships['relationshipPartCount']);
+        $t->same(['default' => 2], $relationships['contentTypeSourceCounts']);
+        $t->same(['office-document-relationships' => 1, 'package-relationships' => 1, 'relationship-part' => 2], $relationships['roleCounts']);
+
+        $comments = $byContentType['application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml'];
+        $t->same(1, $comments['partCount']);
+        $t->same(['document-relationship-target' => 1], $comments['roleCounts']);
+        $t->same(['word/comments.xml'], $comments['overridePartNames']);
+
+        $jpeg = $byContentType['image/jpeg'];
+        $t->same(1, $jpeg['partCount']);
+        $t->same(1, $jpeg['parameterizedContentTypePartCount']);
+        $t->same(['image/jpeg; profile=preview'], $jpeg['contentTypes']);
+        $t->same(['jpeg'], $jpeg['defaultExtensions']);
+        $t->same(['word/media/preview.jpeg'], $jpeg['partNames']);
+
+        $missing = $byContentType['(missing)'];
+        $t->same('', $missing['contentTypeBase']);
+        $t->same(1, $missing['partCount']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['package-part' => 1], $missing['roleCounts']);
+        $t->same(['bin'], $missing['defaultExtensions']);
+        $t->same(['customXml/untyped-payload.bin'], $missing['partNames']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

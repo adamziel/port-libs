@@ -2301,6 +2301,7 @@ final class DocxOpenXmlReader
         $contentTypeSourceCounts = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
+        $parameterizedContentTypePartCount = 0;
         foreach ($partInventory as $part) {
             $packageByteLength += (int) ($part['bytes'] ?? 0);
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
@@ -2312,6 +2313,9 @@ final class DocxOpenXmlReader
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$relationshipPartCount;
             }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$parameterizedContentTypePartCount;
+            }
         }
 
         ksort($roleCounts);
@@ -2319,6 +2323,7 @@ final class DocxOpenXmlReader
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
+        $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -2443,6 +2448,7 @@ final class DocxOpenXmlReader
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
             'partExtensionCount' => count($partExtensions),
+            'partContentTypeCount' => count($partContentTypes),
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
@@ -2461,6 +2467,7 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'parameterizedContentTypePartCount' => $parameterizedContentTypePartCount,
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -2468,6 +2475,7 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
             'partExtensions' => $partExtensions,
+            'partContentTypes' => $partContentTypes,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2592,6 +2600,79 @@ final class DocxOpenXmlReader
         }
 
         return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeSummary(array $partInventory): array
+    {
+        $contentTypes = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            if (!isset($contentTypes[$contentTypeBase])) {
+                $contentTypes[$contentTypeBase] = [
+                    'contentTypeBase' => $contentTypeBase,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedContentTypePartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'contentTypes' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$contentTypes[$contentTypeBase]['partCount'];
+            $contentTypes[$contentTypeBase]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $contentTypes[$contentTypeBase]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$contentTypes[$contentTypeBase]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$contentTypes[$contentTypeBase]['parameterizedContentTypePartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$contentTypes[$contentTypeBase]['missingContentTypePartCount'];
+            }
+            $contentTypes[$contentTypeBase]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($contentTypes[$contentTypeBase]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeBase]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeBase]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeBase]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $contentTypes[$contentTypeBase]['roleCounts'][$role] =
+                    ($contentTypes[$contentTypeBase]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($contentTypes, SORT_STRING);
+        foreach ($contentTypes as $contentTypeBase => $summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $contentTypes[$contentTypeBase] = $summary;
+        }
+
+        return array_values($contentTypes);
     }
 
     /**
