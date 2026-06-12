@@ -26538,6 +26538,106 @@ XML);
         $t->contains('<dt>Bell 2025</dt><dd>Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4</dd>', $blocks);
     },
+    'maps bounded biblatex page total aliases into csl number of pages metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{totalpages-alias,
+  author     = {Ames, Ada},
+  title      = {Total Pages Alias Packet},
+  date       = {2026},
+  totalpages = {42}
+}
+
+@book{hyphen-total-pages-alias,
+  author      = {Bell, Bea},
+  title       = {Hyphen Total Pages Alias Packet},
+  date        = {2025},
+  total-pages = {18}
+}
+
+@book{page-total-alias,
+  author     = {Chen, Cy},
+  title      = {Page Total Alias Packet},
+  date       = {2024},
+  page-total = {77}
+}
+
+@book{num-pages-alias,
+  author    = {Doe, Dee},
+  title     = {Num Pages Alias Packet},
+  date      = {2023},
+  num-pages = {9}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(4, count($items));
+        $t->same('42', $items[0]['number-of-pages'] ?? null);
+        $t->same('18', $items[1]['number-of-pages'] ?? null);
+        $t->same('77', $items[2]['number-of-pages'] ?? null);
+        $t->same('9', $items[3]['number-of-pages'] ?? null);
+        $t->same('42', $items[0]['rawBibtex']['fields']['totalpages'] ?? null);
+        $t->same('18', $items[1]['rawBibtex']['fields']['total-pages'] ?? null);
+        $t->same('77', $items[2]['rawBibtex']['fields']['page-total'] ?? null);
+        $t->same('9', $items[3]['rawBibtex']['fields']['num-pages'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $total = $processor->item('totalpages-alias');
+        $hyphenTotal = $processor->item('hyphen-total-pages-alias');
+        $pageTotal = $processor->item('page-total-alias');
+        $numPages = $processor->item('num-pages-alias');
+        $t->same('42', $total['numberOfPages'] ?? null);
+        $t->same('18', $hyphenTotal['numberOfPages'] ?? null);
+        $t->same('77', $pageTotal['numberOfPages'] ?? null);
+        $t->same('9', $numPages['numberOfPages'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Page Total Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-page-total-alias-review</id>
+    <updated>2026-06-12T01:12:20+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="number-of-pages"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <number variable="number-of-pages"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Page Total Alias Review', $summary['title'] ?? null);
+        $t->same('number-of-pages', $citationChildren[1]['variable'] ?? null);
+        $t->same('[Ames | 42; Bell | 18; Chen | 77; Doe | 9]', $styled->renderCitationCluster([
+            $citation('totalpages-alias', '[@totalpages-alias]'),
+            $citation('hyphen-total-pages-alias', '[@hyphen-total-pages-alias]'),
+            $citation('page-total-alias', '[@page-total-alias]'),
+            $citation('num-pages-alias', '[@num-pages-alias]'),
+        ]));
+        $t->same('Total Pages Alias Packet :: 42', $styled->renderBibliographyEntry('totalpages-alias'));
+        $t->same('Hyphen Total Pages Alias Packet :: 18', $styled->renderBibliographyEntry('hyphen-total-pages-alias'));
+        $t->same('Page Total Alias Packet :: 77', $styled->renderBibliographyEntry('page-total-alias'));
+        $t->same('Num Pages Alias Packet :: 9', $styled->renderBibliographyEntry('num-pages-alias'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX page totals [@totalpages-alias; @hyphen-total-pages-alias; @page-total-alias; @num-pages-alias] keep page-count aliases visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX page totals [Ames | 42; Bell | 18; Chen | 77; Doe | 9] keep page-count aliases visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Total Pages Alias Packet :: 42</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Hyphen Total Pages Alias Packet :: 18</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Page Total Alias Packet :: 77</dd>', $blocks);
+        $t->contains('<dt>Doe 2023</dt><dd>Num Pages Alias Packet :: 9</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,

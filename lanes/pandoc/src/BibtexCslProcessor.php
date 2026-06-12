@@ -426,7 +426,7 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
-            'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
+            'number-of-pages' => ['pagetotal', 'page-total', 'numpages', 'num-pages', 'numberofpages', 'number-of-pages', 'totalpages', 'total-pages'],
             'chapter-number' => ['chapter'],
             'DOI' => ['doi'],
             'URL' => ['url'],

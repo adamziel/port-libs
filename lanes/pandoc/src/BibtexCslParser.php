@@ -774,7 +774,7 @@ final class BibtexCslParser
             'collection-title-short' => self::firstField($fields, ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short', 'collectiontitleshort']),
             'collection-number' => self::firstField($fields, ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number']),
             'number-of-volumes' => self::firstField($fields, ['volumes']),
-            'number-of-pages' => self::firstField($fields, ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages']),
+            'number-of-pages' => self::firstField($fields, ['pagetotal', 'page-total', 'numpages', 'num-pages', 'numberofpages', 'number-of-pages', 'totalpages', 'total-pages']),
             'chapter-number' => self::firstField($fields, ['chapter']),
             'section' => self::firstField($fields, ['section']),
             'part' => self::firstField($fields, ['part', 'part-number', 'partnumber']),
