@@ -1402,7 +1402,7 @@ final class CitationCslProcessor
             'archivePlace' => $archivePlace,
             'archiveLocation' => $archiveLocation,
             'archiveSummary' => $archiveSummary,
-            'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library']),
+            'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library', 'shelfmark', 'shelf-mark', 'shelfMark']),
             'language' => $language,
             'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
             'abstract' => self::firstStringField($item, ['abstract', 'abstract-note', 'abstractNote', 'abstractnote']),

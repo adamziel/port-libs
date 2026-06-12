@@ -19531,6 +19531,105 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
     },
+    'maps bounded direct csl shelfmark aliases into call-number metadata' => static function (TestRunner $t) use ($citation): void {
+        $items = [
+            [
+                'id' => 'shelfmark-card',
+                'type' => 'manuscript',
+                'title' => 'Shelfmark Review Card',
+                'author' => [
+                    ['literal' => 'Repository Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'archive' => 'City Archive',
+                'shelfmark' => 'MS 42 Box 7',
+            ],
+            [
+                'id' => 'shelf-mark-card',
+                'type' => 'manuscript',
+                'title' => 'Shelf Mark Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'archive' => 'Field Notes Library',
+                'shelf-mark' => 'Folio A-9',
+            ],
+            [
+                'id' => 'camel-shelfmark-card',
+                'type' => 'manuscript',
+                'title' => 'Camel Shelfmark Packet',
+                'author' => [
+                    ['family' => 'Lee', 'given' => 'Lin'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'archive' => 'Vault Archive',
+                'shelfMark' => 'Vault B/12',
+            ],
+        ];
+
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Shelfmark Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-shelfmark-review</id>
+    <updated>2026-06-12T02:12:09+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="call-number" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="archive"/>
+            <text variable="call-number"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-call-number"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="call-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $shelfmark = $processor->item('shelfmark-card');
+        $shelfMark = $processor->item('shelf-mark-card');
+        $camel = $processor->item('camel-shelfmark-card');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Shelfmark Review', $summary['title'] ?? null);
+        $t->same(['call-number'], $branch['variables'] ?? null);
+        $t->same('MS 42 Box 7', $shelfmark['callNumber'] ?? null);
+        $t->same('Folio A-9', $shelfMark['callNumber'] ?? null);
+        $t->same('Vault B/12', $camel['callNumber'] ?? null);
+
+        $t->same('[Repository Desk | City Archive | MS 42 Box 7; Ng | Field Notes Library | Folio A-9; Lee | Vault Archive | Vault B/12]', $processor->renderCitationCluster([
+            $citation('shelfmark-card', '[@shelfmark-card]'),
+            $citation('shelf-mark-card', '[@shelf-mark-card]'),
+            $citation('camel-shelfmark-card', '[@camel-shelfmark-card]'),
+        ]));
+        $t->same('Shelfmark Review Card :: MS 42 Box 7', $processor->renderBibliographyEntry('shelfmark-card'));
+        $t->same('Shelf Mark Packet :: Folio A-9', $processor->renderBibliographyEntry('shelf-mark-card'));
+
+        $default = CitationCslProcessor::fromItems([$items[0]]);
+        $t->same('Repository Desk. Shelfmark Review Card. 2026. Call number: MS 42 Box 7. Archive: City Archive.', $default->renderBibliographyEntry('shelfmark-card'));
+
+        $document = (new MarkdownReader())->read('Shelfmark source [@shelfmark-card; @shelf-mark-card; @camel-shelfmark-card] keeps shelfmarks visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Shelfmark source [Repository Desk | City Archive | MS 42 Box 7; Ng | Field Notes Library | Folio A-9; Lee | Vault Archive | Vault B/12] keeps shelfmarks visible.</p>', $blocks);
+        $t->contains('<dt>Repository Desk 2026</dt><dd>Shelfmark Review Card :: MS 42 Box 7</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Shelf Mark Packet :: Folio A-9</dd>', $blocks);
+        $t->contains('<dt>Lee 2024</dt><dd>Camel Shelfmark Packet :: Vault B/12</dd>', $blocks);
+    },
     'maps bounded biblatex sort override fields into csl ordering metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{visible-zed,
