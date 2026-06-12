@@ -494,8 +494,12 @@ final class PandocJsonReader
 
     private function readRawBlock(mixed $content): AstNode
     {
-        [$format, $text] = $this->formatTextTuple($content, 'RawBlock');
+        [$format, $formatNative, $text] = $this->formatTextTuple($content, 'RawBlock');
         $attrs = ['format' => $format, 'text' => $text];
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
         $normalized = strtolower($format);
 
         if ($normalized === 'html') {
@@ -1216,8 +1220,12 @@ final class PandocJsonReader
 
     private function readRawInline(mixed $content): AstNode
     {
-        [$format, $text] = $this->formatTextTuple($content, 'RawInline');
+        [$format, $formatNative, $text] = $this->formatTextTuple($content, 'RawInline');
         $attrs = ['format' => $format, 'text' => $text];
+        if ($formatNative !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $formatNative;
+        }
         $normalized = strtolower($format);
 
         if ($normalized === 'html') {
@@ -1432,17 +1440,39 @@ final class PandocJsonReader
         return $attrs;
     }
 
-    /**
-     * @return array{string, string}
-     */
     private function formatTextTuple(mixed $content, string $context): array
     {
         $tuple = $this->tuple($content, 2, $context);
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+        if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException("{$context} content must be [format, text]");
         }
 
-        return [$tuple[0], $tuple[1]];
+        [$format, $native] = $this->readFormatValue($tuple[0], $context . ' format');
+
+        return [$format, $native, $tuple[1]];
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>|null}
+     */
+    private function readFormatValue(mixed $value, string $context): array
+    {
+        if (is_string($value)) {
+            return [$value, null];
+        }
+
+        $content = $this->constructorContent($value, 'Format', $context);
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_string($content)) {
+            throw new \InvalidArgumentException("{$context} must contain a string");
+        }
+        if (!is_array($value) || array_is_list($value)) {
+            return [$content, null];
+        }
+
+        return [$content, $value];
     }
 
     /**
