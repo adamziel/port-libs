@@ -245,6 +245,9 @@ final class BibtexCslProcessor
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
+        if (($item['call-number'] ?? '') !== '') {
+            $parts[] = 'Call number: ' . (string) $item['call-number'];
+        }
         if (($item['DOI'] ?? '') !== '') {
             $parts[] = 'doi:' . (string) $item['DOI'];
         }
@@ -443,8 +446,10 @@ final class BibtexCslProcessor
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
+            'archive-collection' => ['archivecollection', 'archive-collection', 'archive_collection'],
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
-            'archive_location' => ['eprint', 'archive-location', 'archive_location'],
+            'archive_location' => ['eprint', 'archive-location', 'archive_location', 'archivelocation'],
+            'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
@@ -530,9 +535,9 @@ final class BibtexCslProcessor
             $item['categories'] = $categories;
         }
 
-        if (($item['archive'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
+        if (($item['archive'] ?? '') !== '' || ($item['archive-collection'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
             $summaryParts = [];
-            foreach (['archive', 'archive-place', 'archive_location'] as $field) {
+            foreach (['archive', 'archive-collection', 'archive-place', 'archive_location'] as $field) {
                 if (($item[$field] ?? '') !== '') {
                     $summaryParts[] = (string) $item[$field];
                 }

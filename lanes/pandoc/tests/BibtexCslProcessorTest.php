@@ -407,6 +407,53 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries archive collection and call number aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{compact-shelfmark,
+  author            = {{Archive Catalog Desk}},
+  title             = {Compact Archive Shelfmark Packet},
+  date              = {2026},
+  archive           = {City Archive},
+  archiveCollection = {Migration Papers},
+  archiveLocation   = {Box 4 Folder 2},
+  shelfmark         = {MS 42 Box 4}
+}
+
+@book{library-manual,
+  author    = {Lee, Lin},
+  title     = {Reading Room Manual},
+  date      = {2025},
+  publisher = {Review Press},
+  library   = {Reading Room Shelf B/12},
+  url       = {https://example.test/reading-room-manual}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $compact = $items['compact-shelfmark'];
+        $manual = $items['library-manual'];
+
+        $t->same('City Archive', $compact['archive']);
+        $t->same('Migration Papers', $compact['archive-collection']);
+        $t->same('Box 4 Folder 2', $compact['archive_location']);
+        $t->same('City Archive:Migration Papers:Box 4 Folder 2', $compact['archive-summary']);
+        $t->same('MS 42 Box 4', $compact['call-number']);
+        $t->same('Reading Room Shelf B/12', $manual['call-number']);
+        $t->same('Archive Catalog Desk. Compact Archive Shelfmark Packet. 2026. Call number: MS 42 Box 4.', $processor->renderBibliographyText($compact));
+        $t->same('Lin Lee. Reading Room Manual. Review Press. 2025. Call number: Reading Room Shelf B/12. https://example.test/reading-room-manual.', $processor->renderBibliographyText($manual));
+
+        $document = (new MarkdownReader())->read('Archive review cites @compact-shelfmark and [@library-manual].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same('MS 42 Box 4', $handoff['bibliography']->children[0]->attr('cslItem')['call-number'] ?? null);
+        $t->same('Reading Room Shelf B/12', $handoff['bibliography']->children[1]->attr('cslItem')['call-number'] ?? null);
+        $t->contains('Call number: MS 42 Box 4', $markdown);
+        $t->contains('Call number: Reading Room Shelf B/12', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
