@@ -2580,6 +2580,60 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited structural block drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][0]), 'edited structural block drops stale source ordinal');
     },
+    'preserves current zero-content block native payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $horizontalRuleBlock = [
+            't' => 'HorizontalRule',
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 57,
+        ];
+        $nullBlock = [
+            't' => 'Null',
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 58,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$horizontalRuleBlock, $nullBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $horizontalRule = $document->children[0];
+            $null = $document->children[1];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('horizontal_rule', $horizontalRule->type, "{$source} horizontal rule type");
+            $t->same('null_block', $null->type, "{$source} null block type");
+            $t->same('HorizontalRule', $horizontalRule->attr('constructor'), "{$source} horizontal rule constructor");
+            $t->same('Null', $null->attr('constructor'), "{$source} null constructor");
+            $t->same($horizontalRuleBlock, $horizontalRule->attr('native'), "{$source} horizontal rule native payload");
+            $t->same($nullBlock, $null->attr('native'), "{$source} null native payload");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves zero-content payloads");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves zero-content payloads");
+        }
+
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('horizontal_rule', array_replace($documents['json']->children[0]->attrs, [
+                'reviewState' => 'semantic-edit',
+            ])),
+            new AstNode('null_block', array_replace($documents['json']->children[1]->attrs, [
+                'reviewState' => 'semantic-edit',
+            ])),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJson, 'native' => $editedNative] as $source => $encoded) {
+            $t->same(['t' => 'HorizontalRule'], $encoded['blocks'][0], "{$source} edited horizontal rule regenerates without stale provenance");
+            $t->same(['t' => 'Null'], $encoded['blocks'][1], "{$source} edited null block regenerates without stale provenance");
+        }
+    },
     'preserves current table and figure native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',
