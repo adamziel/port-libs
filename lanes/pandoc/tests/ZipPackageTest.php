@@ -9507,6 +9507,120 @@ return [
         $t->same(2, $safeSummary['readableEntryCount']);
     },
 
+    'preflights selected zip entry raw name provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $documentXml = '<w:document><w:body><w:p>selected raw name provenance</w:p></w:body></w:document>';
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodeBytes = "unicode path media placeholder\n";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $cp437Bytes = "legacy encoded media placeholder\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'localName' => $unicodeRawName,
+                'data' => $unicodeBytes,
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+            [
+                'name' => $cp437RawName,
+                'data' => $cp437Bytes,
+                'method' => 0,
+                'flags' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $unicodeName, 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => $cp437Name, 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/missing.png', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 1024);
+
+        $t->same(4, $summary['requestedEntryCount']);
+        $t->same(3, $summary['presentEntryCount']);
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedRawNameProvenanceEntryCount']);
+        $t->same(1, $summary['selectedLegacyEncodedNameEntryCount']);
+        $t->same(1, $summary['selectedUnicodePathExtraEntryCount']);
+        $t->same(2, $summary['selectedDecodedNameDiffersFromRawNameEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same('word/document.xml', $documentEntry['rawName']);
+        $t->same(bin2hex('word/document.xml'), $documentEntry['rawNameHex']);
+        $t->same('utf-8', $documentEntry['nameEncoding']);
+        $t->same(true, $documentEntry['rawNameMatchesDecodedName']);
+        $t->same(false, $documentEntry['hasRawNameProvenance']);
+
+        $unicodeEntry = $summary['entries'][1];
+        $t->same($unicodeName, $unicodeEntry['name']);
+        $t->same($unicodeRawName, $unicodeEntry['rawName']);
+        $t->same(bin2hex($unicodeRawName), $unicodeEntry['rawNameHex']);
+        $t->same('info-zip-unicode-path', $unicodeEntry['nameEncoding']);
+        $t->same(false, $unicodeEntry['rawNameMatchesDecodedName']);
+        $t->same(false, $unicodeEntry['usesLegacyNameEncoding']);
+        $t->same(true, $unicodeEntry['usesUnicodePathExtraField']);
+        $t->same(true, $unicodeEntry['hasRawNameProvenance']);
+        $t->same(strlen($unicodeBytes), $unicodeEntry['bytesRead']);
+        $t->same(hash('sha256', $unicodeBytes), $unicodeEntry['contentSha256']);
+
+        $cp437Entry = $summary['entries'][2];
+        $t->same($cp437Name, $cp437Entry['name']);
+        $t->same($cp437RawName, $cp437Entry['rawName']);
+        $t->same(bin2hex($cp437RawName), $cp437Entry['rawNameHex']);
+        $t->same('cp437', $cp437Entry['nameEncoding']);
+        $t->same(false, $cp437Entry['rawNameMatchesDecodedName']);
+        $t->same(true, $cp437Entry['usesLegacyNameEncoding']);
+        $t->same(false, $cp437Entry['usesUnicodePathExtraField']);
+        $t->same(true, $cp437Entry['hasRawNameProvenance']);
+        $t->same(strlen($cp437Bytes), $cp437Entry['bytesRead']);
+        $t->same(hash('sha256', $cp437Bytes), $cp437Entry['contentSha256']);
+
+        $t->same([
+            [
+                'name' => $unicodeName,
+                'rawName' => $unicodeRawName,
+                'rawNameHex' => bin2hex($unicodeRawName),
+                'nameEncoding' => 'info-zip-unicode-path',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => true,
+                'hasRawNameProvenance' => true,
+            ],
+            [
+                'name' => $cp437Name,
+                'rawName' => $cp437RawName,
+                'rawNameHex' => bin2hex($cp437RawName),
+                'nameEncoding' => 'cp437',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => true,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => true,
+            ],
+        ], $summary['selectedRawNameProvenanceEntries']);
+
+        $missingEntry = $summary['entries'][3];
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['rawName']);
+        $t->same(null, $missingEntry['rawNameHex']);
+        $t->same(null, $missingEntry['nameEncoding']);
+        $t->same(false, $missingEntry['hasRawNameProvenance']);
+        $t->same([$documentEntry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
+        $t->same("unicode path media placeholder\n", $package->read('/' . $unicodeName));
+        $t->same("legacy encoded media placeholder\n", $package->read('/' . $cp437Name));
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";

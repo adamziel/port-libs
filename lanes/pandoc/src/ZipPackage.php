@@ -4731,11 +4731,16 @@ final class ZipPackage
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
+     *     selectedRawNameProvenanceEntryCount:int,
+     *     selectedLegacyEncodedNameEntryCount:int,
+     *     selectedUnicodePathExtraEntryCount:int,
+     *     selectedDecodedNameDiffersFromRawNameEntryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4855,9 +4860,28 @@ final class ZipPackage
 
         $selectedCompressedBytes = 0;
         $selectedUncompressedBytes = 0;
+        $selectedRawNameProvenanceEntries = [];
+        $selectedLegacyEncodedNameEntryCount = 0;
+        $selectedUnicodePathExtraEntryCount = 0;
+        $selectedDecodedNameDiffersFromRawNameEntryCount = 0;
         foreach ($selectedEntriesByName as $entry) {
             $selectedCompressedBytes += $entry->compressedSize;
             $selectedUncompressedBytes += $entry->uncompressedSize;
+            $rawNameProvenance = self::entryRawNameHandoffProvenance($entry);
+            if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
+                $selectedDecodedNameDiffersFromRawNameEntryCount++;
+            }
+            if ($rawNameProvenance['usesLegacyNameEncoding']) {
+                $selectedLegacyEncodedNameEntryCount++;
+            }
+            if ($rawNameProvenance['usesUnicodePathExtraField']) {
+                $selectedUnicodePathExtraEntryCount++;
+            }
+            if ($rawNameProvenance['hasRawNameProvenance']) {
+                $selectedRawNameProvenanceEntries[] = [
+                    'name' => $entry->name,
+                ] + $rawNameProvenance;
+            }
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -4895,6 +4919,13 @@ final class ZipPackage
                 'isDirectory' => null,
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
+                'rawName' => null,
+                'rawNameHex' => null,
+                'nameEncoding' => null,
+                'rawNameMatchesDecodedName' => null,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => false,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'expansionRatio' => null,
@@ -4943,6 +4974,7 @@ final class ZipPackage
             $summary['isDirectory'] = $isDirectory;
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
+            $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5032,15 +5064,42 @@ final class ZipPackage
             'unreadableEntryCount' => $unreadableEntryCount,
             'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
+            'selectedRawNameProvenanceEntryCount' => count($selectedRawNameProvenanceEntries),
+            'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
+            'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
+            'selectedDecodedNameDiffersFromRawNameEntryCount' => $selectedDecodedNameDiffersFromRawNameEntryCount,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
+            'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{rawName:string, rawNameHex:string, nameEncoding:string, rawNameMatchesDecodedName:bool, usesLegacyNameEncoding:bool, usesUnicodePathExtraField:bool, hasRawNameProvenance:bool}
+     */
+    private static function entryRawNameHandoffProvenance(ZipPackageEntry $entry): array
+    {
+        $rawNameMatchesDecodedName = $entry->rawName === $entry->name;
+        $usesLegacyNameEncoding = $entry->nameEncoding === 'cp437';
+        $usesUnicodePathExtraField = $entry->nameEncoding === 'info-zip-unicode-path';
+
+        return [
+            'rawName' => $entry->rawName,
+            'rawNameHex' => bin2hex($entry->rawName),
+            'nameEncoding' => $entry->nameEncoding,
+            'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+            'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+            'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+            'hasRawNameProvenance' => !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField,
         ];
     }
 
