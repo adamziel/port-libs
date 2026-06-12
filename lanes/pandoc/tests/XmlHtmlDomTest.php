@@ -206,6 +206,51 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html aria reference relationships for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="panel" role="region" aria-labelledby="title title" aria-describedby="summary missing-note" aria-controls="review-form error" aria-details="details" aria-errormessage="error"><h2 id="title">Review Title</h2><p id="summary">Review summary</p><aside id="details">Extended details</aside><form id="review-form"><input id="field" aria-activedescendant="option-2" aria-owns="option-1 option-2"><div id="option-1">One</div><div id="option-2">Two</div></form><p id="error">Fix field</p></section>',
+            'aria reference review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/aria-reference-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $section = $summary[0];
+        $input = $section['children'][3]['children'][0];
+
+        $t->same('section', $section['name']);
+        $t->same(['region'], $section['roles']);
+        $t->same([
+            'aria-controls',
+            'aria-describedby',
+            'aria-details',
+            'aria-errormessage',
+            'aria-labelledby',
+        ], $section['ariaReferenceAttributes']);
+        $t->same('title title', $section['ariaReferences']['aria-labelledby']['raw']);
+        $t->same(['title', 'title'], $section['ariaReferences']['aria-labelledby']['tokens']);
+        $t->same(['title'], $section['ariaReferences']['aria-labelledby']['ids']);
+        $t->same([['id' => 'title', 'name' => 'h2', 'text' => 'Review Title']], $section['ariaReferences']['aria-labelledby']['targets']);
+        $t->same(['missing-note'], $section['ariaReferences']['aria-describedby']['missingIds']);
+        $t->same(false, $section['ariaReferences']['aria-describedby']['valid']);
+        $t->same(['review-form', 'error'], array_column($section['ariaReferences']['aria-controls']['targets'], 'id'));
+        $t->same('Extended details', $section['ariaReferences']['aria-details']['targets'][0]['text']);
+        $t->same('Fix field', $section['ariaReferences']['aria-errormessage']['targets'][0]['text']);
+        $t->same(['review-form', 'error', 'summary', 'details', 'title'], $section['ariaReferencedIds']);
+        $t->same(['missing-note'], $section['ariaMissingReferenceIds']);
+        $t->same(false, $section['ariaReferenceValid']);
+
+        $t->same(['aria-activedescendant', 'aria-owns'], $input['ariaReferenceAttributes']);
+        $t->same('Two', $input['ariaReferences']['aria-activedescendant']['targets'][0]['text']);
+        $t->same(['option-1', 'option-2'], array_column($input['ariaReferences']['aria-owns']['targets'], 'id'));
+        $t->same(true, $input['ariaReferenceValid']);
+        $t->same('<section aria-controls="review-form error" aria-describedby="summary missing-note" aria-details="details" aria-errormessage="error" aria-labelledby="title title" id="panel" role="region"><h2 id="title">Review Title</h2><p id="summary">Review summary</p><aside id="details">Extended details</aside><form id="review-form"><input aria-activedescendant="option-2" aria-owns="option-1 option-2" id="field"><div id="option-1">One</div><div id="option-2">Two</div></form><p id="error">Fix field</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/aria-reference-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'
