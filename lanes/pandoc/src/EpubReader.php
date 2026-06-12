@@ -85,6 +85,14 @@ final class EpubReader
         'xml:lang' => true,
         'dir' => true,
     ];
+    private const OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES = [
+        'id' => true,
+        'idref' => true,
+        'linear' => true,
+        'properties' => true,
+        'xml:lang' => true,
+        'dir' => true,
+    ];
 
     /**
      * @return array{
@@ -4652,9 +4660,47 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function spineItemrefCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_SPINE_ITEMREF_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function manifestItemAttributes(\DOMElement $element): array
+    {
+        return self::opfElementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function spineItemrefAttributes(\DOMElement $element): array
+    {
+        return self::opfElementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function opfElementAttributes(\DOMElement $element): array
     {
         $attributes = [];
         if (!$element->hasAttributes()) {
@@ -7455,6 +7501,10 @@ final class EpubReader
             $content = $this->resolveSpineContentItem($manifestItem, $manifestById, $binding);
             $contentItem = $content['item'];
             $properties = self::spaceDelimited($itemref->getAttribute('properties'));
+            $language = self::xmlLang($itemref);
+            $direction = self::direction($itemref);
+            $attributes = self::spineItemrefAttributes($itemref);
+            $customAttributes = self::spineItemrefCustomAttributes($attributes);
             $itemProperties = self::spineItemPropertyReport($properties);
             $linearProperties = self::spineItemLinearReport($itemref, $idref);
             $itemProperties['linear'] = $linearProperties;
@@ -7480,6 +7530,10 @@ final class EpubReader
                 'linearSpecified' => $linearProperties['specified'],
                 'linearValid' => $linearProperties['valid'],
                 'properties' => $properties,
+                'language' => $language,
+                'direction' => $direction,
+                'attributes' => $attributes,
+                'customAttributes' => $customAttributes,
                 'refinements' => $refinements,
                 'linkedResources' => $linkedResources,
                 'spineItemProperties' => $itemProperties,
@@ -7660,6 +7714,7 @@ final class EpubReader
         $spineProperties['duplicateItemIdCount'] = count($duplicateItemIds);
         $spineProperties['duplicateItemIds'] = $duplicateItemIds;
         $spineProperties['duplicateItemIdItemCount'] = $duplicateItemIdItemCount;
+        $spineProperties['authoring'] = self::spineItemrefAuthoringReport($spine);
         $spineProperties['itemDiagnostics'] = $itemDiagnostics;
         $spineProperties['diagnostics'] = array_merge(
             $diagnostics,
@@ -7667,6 +7722,70 @@ final class EpubReader
         );
 
         return $spineProperties;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineItemrefAuthoringReport(array $spine): array
+    {
+        $items = [];
+        $itemsByIndex = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+
+        foreach ($spine as $item) {
+            $index = (int) ($item['index'] ?? count($items));
+            $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
+            $customAttributes = is_array($item['customAttributes'] ?? null)
+                ? $item['customAttributes']
+                : self::spineItemrefCustomAttributes($attributes);
+            $summary = [
+                'index' => $index,
+                'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                'idref' => (string) ($item['idref'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                'linear' => (bool) ($item['linear'] ?? true),
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+            ];
+
+            $items[] = $summary;
+            $itemsByIndex[$index] = $summary;
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+        }
+
+        ksort($itemsByIndex, SORT_NUMERIC);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'itemsByIndex' => array_values($itemsByIndex),
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
+        ];
     }
 
     /**
@@ -14134,6 +14253,10 @@ final class EpubReader
                 'spineItemId' => is_string($item['id'] ?? null) ? $item['id'] : null,
                 'spinePart' => is_string($item['part'] ?? null) ? $item['part'] : null,
                 'spineMediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'spineItemLanguage' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'spineItemDirection' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'spineItemAttributes' => is_array($item['attributes'] ?? null) ? $item['attributes'] : [],
+                'spineItemCustomAttributes' => is_array($item['customAttributes'] ?? null) ? $item['customAttributes'] : [],
                 'contentManifestId' => (string) ($asset['id'] ?? ''),
                 'contentHref' => (string) ($asset['href'] ?? ''),
                 'contentTarget' => is_string($asset['target'] ?? null) ? $asset['target'] : null,
@@ -20411,6 +20534,10 @@ final class EpubReader
                 'linearRaw' => $item['linearRaw'] ?? null,
                 'linearSpecified' => $item['linearSpecified'] ?? false,
                 'linearValid' => $item['linearValid'] ?? true,
+                'spineItemLanguage' => $item['language'] ?? null,
+                'spineItemDirection' => $item['direction'] ?? null,
+                'spineItemAttributes' => $item['attributes'] ?? [],
+                'spineItemCustomAttributes' => $item['customAttributes'] ?? [],
                 'refinements' => $item['refinements'] ?? [],
                 'linkedResources' => $item['linkedResources'] ?? [],
                 'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
