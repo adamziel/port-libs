@@ -2317,6 +2317,7 @@ final class DocxOpenXmlReader
         ksort($contentTypeSourceCounts);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
+        $partExtensions = $this->packagePartExtensionSummary($partInventory);
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -2440,6 +2441,7 @@ final class DocxOpenXmlReader
         return [
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
+            'partExtensionCount' => count($partExtensions),
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
@@ -2464,6 +2466,7 @@ final class DocxOpenXmlReader
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
+            'partExtensions' => $partExtensions,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2532,6 +2535,62 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directories);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartExtensionSummary(array $partInventory): array
+    {
+        $extensions = [];
+        foreach ($partInventory as $partName => $part) {
+            $extension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $key = $extension ?? '';
+            if (!isset($extensions[$key])) {
+                $extensions[$key] = [
+                    'extension' => $extension,
+                    'defaultDeclared' => (bool) ($part['partExtensionDefaultDeclared'] ?? false),
+                    'defaultContentType' => $part['partExtensionDefaultContentType'] ?? null,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$extensions[$key]['partCount'];
+            $extensions[$key]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $extensions[$key]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$extensions[$key]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$extensions[$key]['missingContentTypePartCount'];
+            }
+            $extensions[$key]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($extensions[$key]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $extensions[$key]['roleCounts'][$role] =
+                    ($extensions[$key]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($extensions, SORT_STRING);
+        foreach ($extensions as $extension => $summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $extensions[$extension] = $summary;
+        }
+
+        return array_values($extensions);
     }
 
     /**
@@ -3800,6 +3859,7 @@ final class DocxOpenXmlReader
         $inventory = [];
         foreach ($parts as $partName => $contents) {
             $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+            $partExtension = $this->packagePartExtension($partName);
             $roles = array_keys($rolesByPart[$partName] ?? []);
             if ($roles === []) {
                 $roles = ['package-part'];
@@ -3809,6 +3869,9 @@ final class DocxOpenXmlReader
                 'partName' => $partName,
                 'directory' => $this->packagePartDirectory($partName),
                 'baseName' => $this->packagePartBaseName($partName),
+                'partExtension' => $partExtension,
+                'partExtensionDefaultDeclared' => $partExtension !== null && isset($contentTypes['defaults'][$partExtension]),
+                'partExtensionDefaultContentType' => $partExtension === null ? null : ($contentTypes['defaults'][$partExtension] ?? null),
                 'bytes' => strlen($contents),
                 'crc32' => sprintf('%08x', crc32($contents)),
                 'contentType' => $contentTypeResolution['contentType'],
@@ -3846,6 +3909,13 @@ final class DocxOpenXmlReader
         $position = strrpos($partName, '/');
 
         return $position === false ? $partName : substr($partName, $position + 1);
+    }
+
+    private function packagePartExtension(string $partName): ?string
+    {
+        $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
+
+        return $extension === '' ? null : $extension;
     }
 
     /**

@@ -220,6 +220,71 @@ return [
         $t->same(['missing' => 1], $byDirectory['customXml']['contentTypeSourceCounts']);
         $t->same(['package-part' => 1], $byDirectory['customXml']['roleCounts']);
     },
+    'summarizes docx package part extensions for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="TIFF" ContentType="image/tiff; profile=scan"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/media/scan.TIFF'] = 'scan tiff bytes';
+        $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
+        $parts['customXml/no-extension'] = 'extensionless payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byExtension = [];
+        foreach ($summary['partExtensions'] as $extension) {
+            $byExtension[$extension['extension'] ?? '(none)'] = $extension;
+        }
+
+        $t->same(6, $summary['partExtensionCount']);
+        $t->same('xml', $inventory['[Content_Types].xml']['partExtension']);
+        $t->same(true, $inventory['[Content_Types].xml']['partExtensionDefaultDeclared']);
+        $t->same('application/xml', $inventory['[Content_Types].xml']['partExtensionDefaultContentType']);
+        $t->same('rels', $inventory['_rels/.rels']['partExtension']);
+        $t->same(true, $inventory['_rels/.rels']['partExtensionDefaultDeclared']);
+        $t->same('tiff', $inventory['word/media/scan.TIFF']['partExtension']);
+        $t->same(true, $inventory['word/media/scan.TIFF']['partExtensionDefaultDeclared']);
+        $t->same('image/tiff; profile=scan', $inventory['word/media/scan.TIFF']['partExtensionDefaultContentType']);
+        $t->same('image/tiff; profile=scan', $inventory['word/media/scan.TIFF']['contentType']);
+        $t->same('bin', $inventory['customXml/raw-review.bin']['partExtension']);
+        $t->same(false, $inventory['customXml/raw-review.bin']['partExtensionDefaultDeclared']);
+        $t->same(null, $inventory['customXml/raw-review.bin']['partExtensionDefaultContentType']);
+        $t->same(null, $inventory['customXml/no-extension']['partExtension']);
+        $t->same(false, $inventory['customXml/no-extension']['partExtensionDefaultDeclared']);
+
+        $t->same(5, $byExtension['xml']['partCount']);
+        $t->same(0, $byExtension['xml']['missingContentTypePartCount']);
+        $t->same(['default' => 3, 'override' => 2], $byExtension['xml']['contentTypeSourceCounts']);
+        $t->true(in_array('word/document.xml', $byExtension['xml']['partNames'], true), 'document XML extension bucket missing main part');
+
+        $t->same(2, $byExtension['rels']['partCount']);
+        $t->same(2, $byExtension['rels']['relationshipPartCount']);
+        $t->same(['default' => 2], $byExtension['rels']['contentTypeSourceCounts']);
+        $t->same(['office-document-relationships' => 1, 'package-relationships' => 1, 'relationship-part' => 2], $byExtension['rels']['roleCounts']);
+
+        $t->same(1, $byExtension['tiff']['partCount']);
+        $t->same(true, $byExtension['tiff']['defaultDeclared']);
+        $t->same('image/tiff; profile=scan', $byExtension['tiff']['defaultContentType']);
+        $t->same(['default' => 1], $byExtension['tiff']['contentTypeSourceCounts']);
+        $t->same(['word/media/scan.TIFF'], $byExtension['tiff']['partNames']);
+
+        $t->same(1, $byExtension['bin']['partCount']);
+        $t->same(false, $byExtension['bin']['defaultDeclared']);
+        $t->same(1, $byExtension['bin']['missingContentTypePartCount']);
+        $t->same(['missing' => 1], $byExtension['bin']['contentTypeSourceCounts']);
+        $t->same(['customXml/raw-review.bin'], $byExtension['bin']['partNames']);
+
+        $t->same(1, $byExtension['(none)']['partCount']);
+        $t->same(null, $byExtension['(none)']['extension']);
+        $t->same(false, $byExtension['(none)']['defaultDeclared']);
+        $t->same(1, $byExtension['(none)']['missingContentTypePartCount']);
+        $t->same(['customXml/no-extension'], $byExtension['(none)']['partNames']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
