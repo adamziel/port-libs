@@ -104,13 +104,13 @@ final class DocxOpenXmlReader
             $parts[$entry->name] = $package->read($entry->name);
         }
 
-        return $this->readPackage($parts);
+        return $this->readPackage($parts, $package);
     }
 
     /**
      * @param array<string, string> $parts
      */
-    public function readPackage(array $parts): AstNode
+    public function readPackage(array $parts, ?ZipPackage $sourcePackage = null): AstNode
     {
         $parts = $this->normalizeParts($parts);
         $contentTypes = $this->readContentTypes($parts);
@@ -130,6 +130,7 @@ final class DocxOpenXmlReader
             $documentPart,
             $documentRelationshipsPart,
             $documentRelationships,
+            $sourcePackage,
         );
         $packageThumbnails = $this->packageThumbnailProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageThumbnails'] = $packageThumbnails;
@@ -3160,6 +3161,7 @@ final class DocxOpenXmlReader
         string $documentPart,
         string $documentRelationshipsPart,
         array $documentRelationships,
+        ?ZipPackage $sourcePackage = null,
     ): array {
         $contentTypesPart = $this->contentTypesPartProvenance($parts, $contentTypes);
         $relationshipParts = $this->packageRelationshipPartsProvenance(
@@ -3178,6 +3180,17 @@ final class DocxOpenXmlReader
             $documentRelationshipsPart,
             $documentRelationships,
         );
+        $zipPackage = $this->zipPackageProvenance($sourcePackage, $parts);
+        $partInventory = $this->packagePartInventoryWithZipProvenance($partInventory, $zipPackage);
+        $summary = $this->packageProvenanceSummary($contentTypesPart, $relationshipParts, $partInventory);
+        $summary['zipPackagePresent'] = $zipPackage['present'];
+        $summary['zipEntryCount'] = $zipPackage['entryCount'];
+        $summary['zipFileEntryCount'] = $zipPackage['fileEntryCount'];
+        $summary['zipDirectoryEntryCount'] = $zipPackage['directoryEntryCount'];
+        $summary['zipLoadedPartCount'] = $zipPackage['loadedPartCount'];
+        $summary['zipUnsupportedCompressionMethodCount'] = $zipPackage['unsupportedCompressionMethodCount'];
+        $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
+        $summary['zipCompressionMethods'] = $zipPackage['compressionMethods']['methodBuckets'] ?? [];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -3186,8 +3199,198 @@ final class DocxOpenXmlReader
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
-            'summary' => $this->packageProvenanceSummary($contentTypesPart, $relationshipParts, $partInventory),
+            'zipPackage' => $zipPackage,
+            'summary' => $summary,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return array<string, mixed>
+     */
+    private function zipPackageProvenance(?ZipPackage $sourcePackage, array $parts): array
+    {
+        if (!$sourcePackage instanceof ZipPackage) {
+            return [
+                'present' => false,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'loadedPartCount' => 0,
+                'unsupportedCompressionMethodCount' => 0,
+                'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
+                'centralDirectoryOrderNames' => [],
+                'localHeaderOrderNames' => [],
+                'directoryPackagePaths' => [],
+                'loadedPartNames' => [],
+                'compressionMethods' => [
+                    'entryCount' => 0,
+                    'supportedEntryCount' => 0,
+                    'unsupportedCompressionMethodCount' => 0,
+                    'storedEntryCount' => 0,
+                    'deflatedEntryCount' => 0,
+                    'storedCompressedBytes' => 0,
+                    'storedUncompressedBytes' => 0,
+                    'deflatedCompressedBytes' => 0,
+                    'deflatedUncompressedBytes' => 0,
+                    'unsupportedCompressedBytes' => 0,
+                    'unsupportedUncompressedBytes' => 0,
+                    'unsupportedEntries' => [],
+                    'methodBuckets' => [],
+                    'entries' => [],
+                ],
+                'localHeaderOrder' => [
+                    'entryCount' => 0,
+                    'centralDirectoryOffset' => null,
+                    'centralDirectoryOrderNames' => [],
+                    'localHeaderOrderNames' => [],
+                    'hasCentralDirectoryOrderMismatch' => false,
+                    'mismatchedEntryCount' => 0,
+                    'mismatchedEntries' => [],
+                    'entries' => [],
+                ],
+                'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+                'canExposeBytes' => false,
+                'entries' => [],
+                'byPackagePath' => [],
+            ];
+        }
+
+        $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
+        $compressionMethods = $sourcePackage->compressionMethodPreflight();
+        $localOrderByName = [];
+        foreach ($localHeaderOrder['entries'] as $entry) {
+            $localOrderByName[(string) $entry['name']] = $entry;
+        }
+
+        $entries = [];
+        $byPackagePath = [];
+        $directoryPackagePaths = [];
+        $loadedPartNames = [];
+        $fileEntryCount = 0;
+        $directoryEntryCount = 0;
+        $loadedPartCount = 0;
+        foreach ($sourcePackage->entries() as $centralDirectoryIndex => $entry) {
+            $isDirectory = $entry->isDirectory();
+            $loadedPart = !$isDirectory && array_key_exists($entry->name, $parts);
+            if ($isDirectory) {
+                ++$directoryEntryCount;
+                $directoryPackagePaths[] = $entry->name;
+            } else {
+                ++$fileEntryCount;
+            }
+            if ($loadedPart) {
+                ++$loadedPartCount;
+                $loadedPartNames[] = $entry->name;
+            }
+
+            $localOrder = $localOrderByName[$entry->name] ?? null;
+            $summary = [
+                'packagePath' => $entry->name,
+                'partName' => $isDirectory ? null : $entry->name,
+                'roles' => $this->zipPackageEntryRoles($entry, $loadedPart),
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'matchesCentralDirectoryOrder' => is_array($localOrder)
+                    ? $localOrder['matchesCentralDirectoryOrder']
+                    : null,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+                'compressionSupported' => $entry->compressionMethod === 0 || $entry->compressionMethod === 8,
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'crc32' => $entry->crc32Hex(),
+                'isDirectory' => $isDirectory,
+                'loadedPart' => $loadedPart,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            ];
+            $entries[] = $summary;
+            $byPackagePath[$entry->name] = $summary;
+        }
+
+        return [
+            'present' => true,
+            'entryCount' => count($entries),
+            'fileEntryCount' => $fileEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'loadedPartCount' => $loadedPartCount,
+            'unsupportedCompressionMethodCount' => (int) $compressionMethods['unsupportedCompressionMethodCount'],
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'centralDirectoryOrderNames' => $localHeaderOrder['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $localHeaderOrder['localHeaderOrderNames'],
+            'directoryPackagePaths' => $directoryPackagePaths,
+            'loadedPartNames' => $loadedPartNames,
+            'compressionMethods' => $compressionMethods,
+            'localHeaderOrder' => $localHeaderOrder,
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+            'entries' => $entries,
+            'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    private function zipPackageEntryRoles(ZipPackageEntry $entry, bool $loadedPart): array
+    {
+        if ($entry->isDirectory()) {
+            return ['zip-directory'];
+        }
+
+        $roles = ['zip-file-entry'];
+        if ($loadedPart) {
+            $roles[] = 'loaded-package-part';
+        }
+        if ($entry->name === '[Content_Types].xml') {
+            $roles[] = 'content-types';
+        }
+        if ($this->isRelationshipPartName($entry->name)) {
+            $roles[] = 'relationship-part';
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @param array<string, mixed> $zipPackage
+     * @return array<string, array<string, mixed>>
+     */
+    private function packagePartInventoryWithZipProvenance(array $partInventory, array $zipPackage): array
+    {
+        if (($zipPackage['present'] ?? false) !== true || !is_array($zipPackage['byPackagePath'] ?? null)) {
+            return $partInventory;
+        }
+
+        foreach ($zipPackage['byPackagePath'] as $partName => $entry) {
+            if (!is_string($partName) || !is_array($entry) || !isset($partInventory[$partName])) {
+                continue;
+            }
+
+            $partInventory[$partName]['zipEntryPresent'] = true;
+            $partInventory[$partName]['centralDirectoryIndex'] = $entry['centralDirectoryIndex'] ?? null;
+            $partInventory[$partName]['localHeaderOrder'] = $entry['localHeaderOrder'] ?? null;
+            $partInventory[$partName]['localHeaderOffset'] = $entry['localHeaderOffset'] ?? null;
+            $partInventory[$partName]['matchesCentralDirectoryOrder'] = $entry['matchesCentralDirectoryOrder'] ?? null;
+            $partInventory[$partName]['compressionMethod'] = $entry['compressionMethod'] ?? null;
+            $partInventory[$partName]['compressionMethodName'] = $entry['compressionMethodName'] ?? null;
+            $partInventory[$partName]['compressionSupported'] = $entry['compressionSupported'] ?? null;
+            $partInventory[$partName]['compressedByteLength'] = $entry['compressedByteLength'] ?? null;
+            $partInventory[$partName]['zipCrc32'] = $entry['crc32'] ?? null;
+            $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
+            $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
+        }
+
+        return $partInventory;
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     /**

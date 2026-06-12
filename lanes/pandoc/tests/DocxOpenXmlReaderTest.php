@@ -142,6 +142,90 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'preserves docx source zip entry provenance across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = [
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+        ];
+        foreach ($parts as $name => $data) {
+            $zipParts[] = [
+                'name' => $name,
+                'data' => $data,
+                'compressionMethod' => $name === '[Content_Types].xml' ? 0 : 8,
+            ];
+        }
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx zip provenance fixture');
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $inventory = $package['parts'];
+        $summary = $package['summary'];
+        $orderNames = array_column($zipParts, 'name');
+        $methodBuckets = [];
+        foreach ($summary['zipCompressionMethods'] as $bucket) {
+            $methodBuckets[$bucket['compressionMethod']] = $bucket;
+        }
+        $deflatedDocument = gzdeflate($parts['word/document.xml']);
+
+        $t->true(is_string($deflatedDocument), 'fixture document XML should deflate');
+        $t->same(true, $zipPackage['present']);
+        $t->same(count($parts) + 1, $zipPackage['entryCount']);
+        $t->same(count($parts), $zipPackage['fileEntryCount']);
+        $t->same(1, $zipPackage['directoryEntryCount']);
+        $t->same(count($parts), $zipPackage['loadedPartCount']);
+        $t->same(0, $zipPackage['unsupportedCompressionMethodCount']);
+        $t->same(true, $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same($orderNames, $zipPackage['centralDirectoryOrderNames']);
+        $t->same($orderNames, $zipPackage['localHeaderOrderNames']);
+        $t->same(['word/media/'], $zipPackage['directoryPackagePaths']);
+        $t->true(in_array('word/document.xml', $zipPackage['loadedPartNames'], true), 'document part missing from zip loaded parts');
+        $t->same('docx-zip-entry-metadata-only', $zipPackage['byteExposurePolicy']);
+        $t->same(false, $zipPackage['canExposeBytes']);
+
+        $directory = $zipPackage['byPackagePath']['word/media/'];
+        $t->same(true, $directory['isDirectory']);
+        $t->same(null, $directory['partName']);
+        $t->same(false, $directory['loadedPart']);
+        $t->same(['zip-directory'], $directory['roles']);
+        $t->true(!isset($inventory['word/media/']), 'directory entries must stay out of loaded DOCX parts');
+
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $t->same(0, $contentTypesEntry['compressionMethod']);
+        $t->same('stored', $contentTypesEntry['compressionMethodName']);
+        $t->same(true, $contentTypesEntry['loadedPart']);
+        $t->true(in_array('content-types', $contentTypesEntry['roles'], true), 'content-types ZIP role missing');
+        $t->same(sprintf('%08x', crc32($parts['[Content_Types].xml'])), $contentTypesEntry['crc32']);
+
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $t->same(8, $documentEntry['compressionMethod']);
+        $t->same('deflated', $documentEntry['compressionMethodName']);
+        $t->same(strlen($parts['word/document.xml']), $documentEntry['byteLength']);
+        $t->same(strlen($deflatedDocument), $documentEntry['compressedByteLength']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $documentEntry['crc32']);
+        $t->same(true, $documentEntry['matchesCentralDirectoryOrder']);
+
+        $t->same(true, $inventory['word/document.xml']['zipEntryPresent']);
+        $t->same($documentEntry['centralDirectoryIndex'], $inventory['word/document.xml']['centralDirectoryIndex']);
+        $t->same($documentEntry['localHeaderOrder'], $inventory['word/document.xml']['localHeaderOrder']);
+        $t->same($documentEntry['localHeaderOffset'], $inventory['word/document.xml']['localHeaderOffset']);
+        $t->same(8, $inventory['word/document.xml']['compressionMethod']);
+        $t->same('deflated', $inventory['word/document.xml']['compressionMethodName']);
+        $t->same(strlen($deflatedDocument), $inventory['word/document.xml']['compressedByteLength']);
+        $t->same($documentEntry['crc32'], $inventory['word/document.xml']['zipCrc32']);
+        $t->same('docx-zip-entry-metadata-only', $inventory['word/document.xml']['zipByteExposurePolicy']);
+        $t->same(false, $inventory['word/document.xml']['zipCanExposeBytes']);
+
+        $t->same(true, $summary['zipPackagePresent']);
+        $t->same(count($parts) + 1, $summary['zipEntryCount']);
+        $t->same(count($parts), $summary['zipFileEntryCount']);
+        $t->same(1, $summary['zipDirectoryEntryCount']);
+        $t->same(count($parts), $summary['zipLoadedPartCount']);
+        $t->same(0, $summary['zipUnsupportedCompressionMethodCount']);
+        $t->same(true, $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(2, $methodBuckets[0]['entryCount']);
+        $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
