@@ -26736,6 +26736,109 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json singular citation alias keys' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-singular-citation-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Singular Alias Packet',
+                'author' => [
+                    ['family' => 'Single', 'given' => 'Sia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'citationAlias' => 'direct-singular-alias',
+            ],
+            [
+                'id' => 'direct-hyphen-citation-alias',
+                'type' => 'paper-conference',
+                'title' => 'Direct Hyphen Alias Packet',
+                'author' => [
+                    ['family' => 'Hyphen', 'given' => 'Hal'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'citation-alias' => 'direct-hyphen-alias, direct-hyphen-backup',
+            ],
+            [
+                'id' => 'direct-flat-citation-alias',
+                'type' => 'report',
+                'title' => 'Direct Flat Alias Packet',
+                'author' => [
+                    ['family' => 'Flat', 'given' => 'Fay'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'citationalias' => 'direct-flat-alias',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $singular = $processor->item('direct-singular-citation-alias');
+        $hyphen = $processor->item('direct-hyphen-citation-alias');
+        $flat = $processor->item('direct-flat-citation-alias');
+        $singularAlias = $processor->item('direct-singular-alias');
+        $hyphenAlias = $processor->item('direct-hyphen-backup');
+        $flatAlias = $processor->item('direct-flat-alias');
+        $t->same(['direct-singular-alias'], $singular['citationAliases'] ?? null);
+        $t->same(['direct-hyphen-alias', 'direct-hyphen-backup'], $hyphen['citationAliases'] ?? null);
+        $t->same(['direct-flat-alias'], $flat['citationAliases'] ?? null);
+        $t->same('direct-singular-alias', $singular['citationAliasSummary'] ?? null);
+        $t->same('direct-hyphen-alias; direct-hyphen-backup', $hyphen['citationAliasSummary'] ?? null);
+        $t->same('direct-flat-alias', $flat['citationAliasSummary'] ?? null);
+        $t->same('direct-singular-citation-alias', $singularAlias['id'] ?? null);
+        $t->same('direct-singular-alias', $singularAlias['citationAlias'] ?? null);
+        $t->same('direct-hyphen-citation-alias', $hyphenAlias['id'] ?? null);
+        $t->same('direct-hyphen-backup', $hyphenAlias['citationAlias'] ?? null);
+        $t->same('direct-flat-citation-alias', $flatAlias['id'] ?? null);
+        $t->same('direct-flat-alias', $flatAlias['citationAlias'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Singular Citation Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-singular-citation-alias-review</id>
+    <updated>2026-06-12T03:45:53+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-alias"/>
+        <text variable="citation-alias-summary"/>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="citation-aliases"/>
+      <text variable="citation-aliases-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Singular Citation Alias Review', $summary['title'] ?? null);
+        $t->same('citation-alias', $citationChildren[1]['variable'] ?? null);
+        $t->same('citation-alias-summary', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Single | direct-singular-alias | direct-singular-alias | Direct Singular Alias Packet; Hyphen | direct-hyphen-alias, direct-hyphen-backup | direct-hyphen-alias; direct-hyphen-backup | Direct Hyphen Alias Packet; Flat | direct-flat-alias | direct-flat-alias | Direct Flat Alias Packet]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-singular-alias', 'text' => '[@direct-singular-alias]']),
+            new AstNode('citation', ['id' => 'direct-hyphen-backup', 'text' => '[@direct-hyphen-backup]']),
+            new AstNode('citation', ['id' => 'direct-flat-alias', 'text' => '[@direct-flat-alias]']),
+        ]));
+        $t->same('Direct Singular Alias Packet :: direct-singular-alias :: direct-singular-alias', $styled->renderBibliographyEntry('direct-singular-citation-alias'));
+        $t->same('Direct Hyphen Alias Packet :: direct-hyphen-alias, direct-hyphen-backup :: direct-hyphen-alias; direct-hyphen-backup', $styled->renderBibliographyEntry('direct-hyphen-citation-alias'));
+        $t->same('Direct Flat Alias Packet :: direct-flat-alias :: direct-flat-alias', $styled->renderBibliographyEntry('direct-flat-citation-alias'));
+
+        $document = (new MarkdownReader())->read('Singular alias keys [@direct-singular-alias; @direct-hyphen-backup; @direct-flat-alias] remain canonical.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Singular alias keys [Single | direct-singular-alias | direct-singular-alias | Direct Singular Alias Packet; Hyphen | direct-hyphen-alias, direct-hyphen-backup | direct-hyphen-alias; direct-hyphen-backup | Direct Hyphen Alias Packet; Flat | direct-flat-alias | direct-flat-alias | Direct Flat Alias Packet] remain canonical.</p>', $blocks);
+        $t->contains('<dt>Single 2026</dt><dd>Direct Singular Alias Packet :: direct-singular-alias :: direct-singular-alias</dd>', $blocks);
+        $t->contains('<dt>Hyphen 2025</dt><dd>Direct Hyphen Alias Packet :: direct-hyphen-alias, direct-hyphen-backup :: direct-hyphen-alias; direct-hyphen-backup</dd>', $blocks);
+        $t->contains('<dt>Flat 2024</dt><dd>Direct Flat Alias Packet :: direct-flat-alias :: direct-flat-alias</dd>', $blocks);
+    },
     'normalizes bounded direct csl json publisher place aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
