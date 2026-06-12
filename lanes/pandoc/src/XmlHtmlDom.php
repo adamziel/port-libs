@@ -767,6 +767,9 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (in_array($name, ['dl', 'dt', 'dd'], true)) {
+            $summary += self::descriptionListSummary($node, $name);
+        }
         if (self::isHtmlHeadingElementName($name)) {
             $summary += self::headingSummary($node, $name);
         }
@@ -1722,6 +1725,120 @@ final class XmlHtmlDom
         return [
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function descriptionListSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'dt') {
+            return [
+                'descriptionListPart' => 'term',
+                'descriptionTermText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'dd') {
+            return [
+                'descriptionListPart' => 'description',
+                'descriptionText' => self::normalizedText($element),
+            ];
+        }
+
+        $groups = [];
+        $terms = [];
+        $descriptions = [];
+        $termCount = 0;
+        $descriptionCount = 0;
+        $orphanDescriptionCount = 0;
+
+        foreach (self::descriptionListItems($element) as $item) {
+            $itemName = self::htmlElementName($item);
+            if ($itemName === 'dt') {
+                if ($descriptions !== []) {
+                    $groups[] = self::descriptionListGroup($terms, $descriptions);
+                    $terms = [];
+                    $descriptions = [];
+                }
+
+                $terms[] = self::normalizedText($item);
+                ++$termCount;
+                continue;
+            }
+
+            if ($terms === []) {
+                ++$orphanDescriptionCount;
+            }
+
+            $descriptions[] = self::normalizedText($item);
+            ++$descriptionCount;
+        }
+
+        if ($terms !== [] || $descriptions !== []) {
+            $groups[] = self::descriptionListGroup($terms, $descriptions);
+        }
+
+        return [
+            'descriptionList' => 'description-list',
+            'descriptionListGroups' => $groups,
+            'descriptionListGroupCount' => count($groups),
+            'descriptionTermCount' => $termCount,
+            'descriptionCount' => $descriptionCount,
+            'orphanDescriptionCount' => $orphanDescriptionCount,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function descriptionListItems(\DOMElement $list): array
+    {
+        $items = [];
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if ($name === 'dt' || $name === 'dd') {
+                $items[] = $child;
+                continue;
+            }
+
+            if ($name !== 'div') {
+                continue;
+            }
+
+            foreach ($child->childNodes as $wrapped) {
+                if (!$wrapped instanceof \DOMElement) {
+                    continue;
+                }
+
+                $wrappedName = self::htmlElementName($wrapped);
+                if ($wrappedName === 'dt' || $wrappedName === 'dd') {
+                    $items[] = $wrapped;
+                }
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $terms
+     * @param list<string> $descriptions
+     * @return array<string, mixed>
+     */
+    private static function descriptionListGroup(array $terms, array $descriptions): array
+    {
+        return [
+            'terms' => $terms,
+            'descriptions' => $descriptions,
+            'termCount' => count($terms),
+            'descriptionCount' => count($descriptions),
+            'orphan' => $terms === [],
         ];
     }
 

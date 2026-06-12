@@ -432,6 +432,50 @@ XML, 'package reader XML');
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html description list groups for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dl id="glossary"><dd>Loose detail</dd><dt>Alpha</dt><dt>Alias</dt><dd>First <strong>definition</strong></dd><div data-source="wrapped"><dt>Beta</dt><dd>Second</dd><dd>Extra</dd></div></dl>',
+            'description list review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/description-list-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $list = $summary[0];
+        $loose = $list['children'][0];
+        $term = $list['children'][1];
+        $alias = $list['children'][2];
+        $description = $list['children'][3];
+        $wrapper = $list['children'][4];
+
+        $t->same('dl', $list['name']);
+        $t->same('description-list', $list['descriptionList']);
+        $t->same(3, $list['descriptionListGroupCount']);
+        $t->same(3, $list['descriptionTermCount']);
+        $t->same(4, $list['descriptionCount']);
+        $t->same(1, $list['orphanDescriptionCount']);
+        $t->same(['terms' => [], 'descriptions' => ['Loose detail'], 'termCount' => 0, 'descriptionCount' => 1, 'orphan' => true], $list['descriptionListGroups'][0]);
+        $t->same(['terms' => ['Alpha', 'Alias'], 'descriptions' => ['First definition'], 'termCount' => 2, 'descriptionCount' => 1, 'orphan' => false], $list['descriptionListGroups'][1]);
+        $t->same(['terms' => ['Beta'], 'descriptions' => ['Second', 'Extra'], 'termCount' => 1, 'descriptionCount' => 2, 'orphan' => false], $list['descriptionListGroups'][2]);
+
+        $t->same('description', $loose['descriptionListPart']);
+        $t->same('Loose detail', $loose['descriptionText']);
+        $t->same('term', $term['descriptionListPart']);
+        $t->same('Alpha', $term['descriptionTermText']);
+        $t->same('term', $alias['descriptionListPart']);
+        $t->same('Alias', $alias['descriptionTermText']);
+        $t->same('description', $description['descriptionListPart']);
+        $t->same('First definition', $description['descriptionText']);
+        $t->same('Beta', $wrapper['children'][0]['descriptionTermText']);
+        $t->same('Extra', $wrapper['children'][2]['descriptionText']);
+        $t->same('<dl id="glossary"><dd>Loose detail</dd><dt>Alpha</dt><dt>Alias</dt><dd>First <strong>definition</strong></dd><div data-source="wrapped"><dt>Beta</dt><dd>Second</dd><dd>Extra</dd></div></dl>', $html);
+        $t->contains('<dl id="glossary">', $blocks);
+        $t->contains('<div data-source="wrapped"><dt>Beta</dt><dd>Second</dd><dd>Extra</dd></div>', $blocks);
+        $t->same('/migration/description-list-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'
