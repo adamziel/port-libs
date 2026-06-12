@@ -5139,11 +5139,17 @@ final class ZipPackage
      *     fixedHeaderEnd:?int,
      *     packageCommentOffset:?int,
      *     packageCommentEnd:?int,
+     *     packageComment:?string,
+     *     packageCommentHex:?string,
+     *     packageCommentPreviewHex:?string,
      *     declaredArchiveEndOffset:?int,
      *     availablePackageCommentBytes:?int,
+     *     missingPackageCommentBytes:?int,
      *     hasPackageComment:bool,
      *     hasTrailingBytes:bool,
      *     trailingByteCount:int,
+     *     trailingBytesOffset:?int,
+     *     trailingBytesPreviewHex:?string,
      *     hasTruncatedPackageComment:bool,
      *     centralDirectoryEnd:?int,
      *     isSingleDisk:bool,
@@ -5186,11 +5192,17 @@ final class ZipPackage
                 'fixedHeaderEnd' => null,
                 'packageCommentOffset' => null,
                 'packageCommentEnd' => null,
+                'packageComment' => null,
+                'packageCommentHex' => null,
+                'packageCommentPreviewHex' => null,
                 'declaredArchiveEndOffset' => null,
                 'availablePackageCommentBytes' => null,
+                'missingPackageCommentBytes' => null,
                 'hasPackageComment' => false,
                 'hasTrailingBytes' => false,
                 'trailingByteCount' => 0,
+                'trailingBytesOffset' => null,
+                'trailingBytesPreviewHex' => null,
                 'hasTruncatedPackageComment' => false,
                 'centralDirectoryEnd' => null,
                 'isSingleDisk' => false,
@@ -5212,8 +5224,14 @@ final class ZipPackage
         $fixedHeaderEnd = $eocdOffset + 22;
         $declaredArchiveEndOffset = $record['declaredArchiveEndOffset'];
         $availablePackageCommentBytes = max(0, min($packageCommentLength, $archiveLength - $fixedHeaderEnd));
+        $packageComment = substr($bytes, $fixedHeaderEnd, $availablePackageCommentBytes);
+        $missingPackageCommentBytes = max(0, $packageCommentLength - $availablePackageCommentBytes);
         $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
         $hasTrailingBytes = $trailingByteCount > 0;
+        $trailingBytesOffset = $hasTrailingBytes ? $declaredArchiveEndOffset : null;
+        $trailingBytesPreviewHex = $hasTrailingBytes
+            ? bin2hex(substr($bytes, $declaredArchiveEndOffset, min(16, $trailingByteCount)))
+            : null;
         $hasTruncatedPackageComment = $declaredArchiveEndOffset > $archiveLength;
         $isSingleDisk = $diskNumber === 0
             && $centralDirectoryDisk === 0
@@ -5265,11 +5283,17 @@ final class ZipPackage
             'fixedHeaderEnd' => $fixedHeaderEnd,
             'packageCommentOffset' => $fixedHeaderEnd,
             'packageCommentEnd' => $fixedHeaderEnd + $availablePackageCommentBytes,
+            'packageComment' => $packageComment,
+            'packageCommentHex' => bin2hex($packageComment),
+            'packageCommentPreviewHex' => bin2hex(substr($packageComment, 0, 16)),
             'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
             'availablePackageCommentBytes' => $availablePackageCommentBytes,
+            'missingPackageCommentBytes' => $missingPackageCommentBytes,
             'hasPackageComment' => $packageCommentLength > 0,
             'hasTrailingBytes' => $hasTrailingBytes,
             'trailingByteCount' => $trailingByteCount,
+            'trailingBytesOffset' => $trailingBytesOffset,
+            'trailingBytesPreviewHex' => $trailingBytesPreviewHex,
             'hasTruncatedPackageComment' => $hasTruncatedPackageComment,
             'centralDirectoryEnd' => $centralDirectoryEnd,
             'isSingleDisk' => $isSingleDisk,

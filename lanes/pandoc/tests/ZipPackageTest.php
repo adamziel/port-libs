@@ -4854,11 +4854,17 @@ return [
         $t->same($eocdOffset + 22, $summary['fixedHeaderEnd']);
         $t->same($eocdOffset + 22, $summary['packageCommentOffset']);
         $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same($comment, $summary['packageComment']);
+        $t->same(bin2hex($comment), $summary['packageCommentHex']);
+        $t->same(bin2hex(substr($comment, 0, 16)), $summary['packageCommentPreviewHex']);
         $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
         $t->same(strlen($comment), $summary['availablePackageCommentBytes']);
+        $t->same(0, $summary['missingPackageCommentBytes']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(false, $summary['hasTrailingBytes']);
         $t->same(0, $summary['trailingByteCount']);
+        $t->same(null, $summary['trailingBytesOffset']);
+        $t->same(null, $summary['trailingBytesPreviewHex']);
         $t->same(false, $summary['hasTruncatedPackageComment']);
         $t->same($eocdOffset, $summary['centralDirectoryEnd']);
         $t->same(true, $summary['isSingleDisk']);
@@ -4878,11 +4884,22 @@ return [
         $t->same(strlen($zip), $tailedSummary['declaredArchiveEndOffset']);
         $t->same(true, $tailedSummary['hasTrailingBytes']);
         $t->same(strlen('detached-tail'), $tailedSummary['trailingByteCount']);
+        $t->same(strlen($zip), $tailedSummary['trailingBytesOffset']);
+        $t->same(bin2hex('detached-tail'), $tailedSummary['trailingBytesPreviewHex']);
         $t->same(false, $tailedSummary['isSupportedByBoundedReader']);
         $t->same(['eocd-trailing-bytes'], $tailedSummary['issues']);
         $t->same($tailedSummary, $tailedRaw['endOfCentralDirectoryFixedFields']);
         $t->contains('eocd-trailing-bytes', implode(',', $tailedRaw['diagnostics']));
         $t->same(false, $tailedRaw['canInstantiate']);
+
+        $truncatedZip = substr($zip, 0, -8);
+        $truncatedSummary = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($truncatedZip);
+        $t->same(true, $truncatedSummary['hasTruncatedPackageComment']);
+        $t->same(strlen($comment) - 8, $truncatedSummary['availablePackageCommentBytes']);
+        $t->same(8, $truncatedSummary['missingPackageCommentBytes']);
+        $t->same(substr($comment, 0, -8), $truncatedSummary['packageComment']);
+        $t->same(bin2hex(substr($comment, 0, -8)), $truncatedSummary['packageCommentHex']);
+        $t->same(['eocd-comment-truncated'], $truncatedSummary['issues']);
     },
 
     'preflights trailing bytes after the zip end of central directory before raw import' => static function (TestRunner $t) use ($buildZipPackage): void {
