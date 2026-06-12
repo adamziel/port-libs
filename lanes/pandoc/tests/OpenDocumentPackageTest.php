@@ -1299,7 +1299,7 @@ XML;
         $t->same(['zip-directory', 'embedded-object-root', 'manifest-declared'], $parts['Object Chart/']['roles']);
         $t->same(['embedded-object-part', 'manifest-declared'], $parts['Object Chart/content.xml']['roles']);
         $t->same(['embedded-object-part', 'manifest-declared'], $parts['Object Chart/Pictures/preview.png']['roles']);
-        $t->same(['embedded-object-part', 'undeclared-package-entry'], $parts['Object Chart/manifest.rdf']['roles']);
+        $t->same(['rdf-metadata', 'embedded-object-part', 'undeclared-package-entry'], $parts['Object Chart/manifest.rdf']['roles']);
         $t->same(['zip-directory', 'embedded-object-root', 'manifest-declared'], $parts['Object OLE/']['roles']);
         $t->same(['embedded-object-part', 'manifest-declared'], $parts['Object OLE/oleObject.bin']['roles']);
         $t->same('embedded-object-package-bytes-blocked', $parts['Object Chart/content.xml']['byteExposurePolicy']);
