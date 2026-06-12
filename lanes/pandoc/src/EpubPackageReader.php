@@ -46,6 +46,7 @@ final class EpubPackageReader
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
                 'spine' => $package['spine'],
+                'guide' => $package['guide'],
                 'toc' => $toc,
                 'ncx' => $ncx,
             ],
@@ -79,7 +80,8 @@ final class EpubPackageReader
      *     metadataProperties:list<array{property:string, value:string, refines:string}>,
      *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
-     *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>
+     *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>,
+     *     guide:array<string, mixed>
      * }
      */
     private function readPackageDocument(string $root, string $opfPath, string $rootfile): array
@@ -195,6 +197,8 @@ final class EpubPackageReader
             }
         }
 
+        $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
+
         return [
             'version' => trim($packageElement->getAttribute('version')),
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
@@ -203,6 +207,129 @@ final class EpubPackageReader
             'metadataLinks' => $metadataLinks,
             'manifest' => $manifest,
             'spine' => $spine,
+            'guide' => $guide,
+        ];
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}> $manifest
+     * @return array{
+     *     present:bool,
+     *     itemCount:int,
+     *     typedItemCount:int,
+     *     missingTypeCount:int,
+     *     types:list<string>,
+     *     typeCounts:array<string, int>,
+     *     items:list<array<string, mixed>>,
+     *     itemsByType:array<string, list<array<string, mixed>>>,
+     *     diagnosticCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function readGuideReferences(string $root, string $opfDir, array $manifest, \DOMElement $packageElement): array
+    {
+        $guide = $this->firstDirectChild($packageElement, 'guide');
+        if (!$guide instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'itemCount' => 0,
+                'typedItemCount' => 0,
+                'missingTypeCount' => 0,
+                'types' => [],
+                'typeCounts' => [],
+                'items' => [],
+                'itemsByType' => [],
+                'diagnosticCount' => 0,
+                'diagnostics' => [],
+            ];
+        }
+
+        $manifestByPath = [];
+        foreach ($manifest as $item) {
+            $path = (string) ($item['path'] ?? '');
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $item;
+            }
+        }
+
+        $items = [];
+        $itemsByType = [];
+        $typeCounts = [];
+        $typedItemCount = 0;
+        $missingTypeCount = 0;
+        $diagnostics = [];
+        $index = 0;
+        foreach ($guide->childNodes as $node) {
+            if (!$node instanceof \DOMElement || $node->localName !== 'reference') {
+                continue;
+            }
+
+            $href = trim($node->getAttribute('href'));
+            [$path, $fragment] = $this->splitResolvedHref($opfDir, $href);
+            $external = $href !== '' && preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1;
+            $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
+            $typeRaw = trim($node->getAttribute('type'));
+            $types = $this->tokens($typeRaw);
+            $itemDiagnostics = [];
+
+            if ($types === []) {
+                ++$missingTypeCount;
+                $diagnostic = [
+                    'type' => 'missing-guide-reference-type',
+                    'href' => $href,
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            } else {
+                ++$typedItemCount;
+            }
+
+            if (!$external && $path !== '' && !$exists) {
+                $diagnostic = [
+                    'type' => 'missing-guide-reference',
+                    'href' => $href,
+                    'path' => $path,
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+
+            $manifestItem = $manifestByPath[$path] ?? null;
+            $item = [
+                'index' => $index,
+                'type' => $types[0] ?? '',
+                'typeRaw' => $typeRaw,
+                'types' => $types,
+                'title' => trim($node->getAttribute('title')),
+                'href' => $href,
+                'path' => $path,
+                'fragment' => $fragment,
+                'external' => $external,
+                'exists' => $exists,
+                'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : '',
+                'mediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : '',
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            foreach ($types as $type) {
+                $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+                $itemsByType[$type][] = $item;
+            }
+            $items[] = $item;
+            ++$index;
+        }
+
+        return [
+            'present' => true,
+            'itemCount' => count($items),
+            'typedItemCount' => $typedItemCount,
+            'missingTypeCount' => $missingTypeCount,
+            'types' => array_keys($typeCounts),
+            'typeCounts' => $typeCounts,
+            'items' => $items,
+            'itemsByType' => $itemsByType,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -744,6 +871,14 @@ final class EpubPackageReader
         }
 
         return $absolute;
+    }
+
+    private function packagePathExists(string $root, string $relative): bool
+    {
+        $normalized = $this->normalizeRelativePath($relative);
+        $absolute = realpath($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalized));
+
+        return $absolute !== false && str_starts_with($absolute, $root . DIRECTORY_SEPARATOR) && is_file($absolute);
     }
 
     private function resolvePackageHref(string $baseDir, string $href): string

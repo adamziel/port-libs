@@ -24,4 +24,10 @@
     <itemref idref="chapter1"/>
     <itemref idref="chapter2" linear="yes"/>
   </spine>
+  <guide>
+    <reference type="cover" title="Cover image" href="images/cover.png"/>
+    <reference type="text" title="Start reading" href="chapter1.xhtml#opening-title"/>
+    <reference type="glossary appendix" title="Glossary" href="glossary.xhtml"/>
+    <reference title="Untyped detail" href="chapter2.xhtml#details"/>
+  </guide>
 </package>

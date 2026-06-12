@@ -60,6 +60,48 @@ return [
         $t->same('EPUB/chapter2.xhtml', $spine[1]['path']);
         $t->same(true, $spine[1]['linear']);
     },
+    'maps epub guide references for compact package review' => static function (TestRunner $t) use ($fixture): void {
+        $document = (new EpubPackageReader())->readDirectory($fixture());
+        $epub = $document->attr('epub');
+        $guide = $epub['guide'];
+
+        $t->same(true, $guide['present']);
+        $t->same(4, $guide['itemCount']);
+        $t->same(3, $guide['typedItemCount']);
+        $t->same(1, $guide['missingTypeCount']);
+        $t->same(['cover', 'text', 'glossary', 'appendix'], $guide['types']);
+        $t->same(['cover' => 1, 'text' => 1, 'glossary' => 1, 'appendix' => 1], $guide['typeCounts']);
+        $t->same(4, count($guide['items']));
+        $t->same('cover', $guide['items'][0]['type']);
+        $t->same(['cover'], $guide['items'][0]['types']);
+        $t->same('Cover image', $guide['items'][0]['title']);
+        $t->same('images/cover.png', $guide['items'][0]['href']);
+        $t->same('EPUB/images/cover.png', $guide['items'][0]['path']);
+        $t->same('', $guide['items'][0]['fragment']);
+        $t->same(true, $guide['items'][0]['exists']);
+        $t->same('cover', $guide['items'][0]['manifestId']);
+        $t->same('image/png', $guide['items'][0]['mediaType']);
+        $t->same([], $guide['items'][0]['diagnostics']);
+        $t->same('EPUB/chapter1.xhtml', $guide['items'][1]['path']);
+        $t->same('opening-title', $guide['items'][1]['fragment']);
+        $t->same('Start reading', $guide['itemsByType']['text'][0]['title']);
+        $t->same(['glossary', 'appendix'], $guide['items'][2]['types']);
+        $t->same('EPUB/glossary.xhtml', $guide['items'][2]['path']);
+        $t->same(false, $guide['items'][2]['exists']);
+        $t->same('missing-guide-reference', $guide['items'][2]['diagnostics'][0]['type']);
+        $t->same('Glossary', $guide['itemsByType']['appendix'][0]['title']);
+        $t->same('', $guide['items'][3]['type']);
+        $t->same('', $guide['items'][3]['typeRaw']);
+        $t->same([], $guide['items'][3]['types']);
+        $t->same('EPUB/chapter2.xhtml', $guide['items'][3]['path']);
+        $t->same('details', $guide['items'][3]['fragment']);
+        $t->same(true, $guide['items'][3]['exists']);
+        $t->same('chapter2', $guide['items'][3]['manifestId']);
+        $t->same('missing-guide-reference-type', $guide['items'][3]['diagnostics'][0]['type']);
+        $t->same(2, $guide['diagnosticCount']);
+        $t->same(2, $guide['diagnostics'][0]['index']);
+        $t->same(3, $guide['diagnostics'][1]['index']);
+    },
     'maps epub nav document and ncx fallback outlines' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
