@@ -26938,6 +26938,103 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json title subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-title-subtitle-family',
+                'type' => 'chapter',
+                'title' => 'Direct Subtitle Family Packet',
+                'author' => [
+                    ['family' => 'Rivera', 'given' => 'Rin'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'maintitle' => 'Migration Compendium',
+                'mainsubtitle' => 'Source Supplements',
+                'maintitleaddon' => 'review packet',
+                'volumetitle' => 'Collected Sources',
+                'volumesubtitle' => 'Appendix Review',
+                'parttitle' => 'Archive Part',
+                'partsubtitle' => 'Field Notes',
+            ],
+            [
+                'id' => 'direct-hyphen-title-subtitle-family',
+                'type' => 'chapter',
+                'title' => 'Hyphen Subtitle Family Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cai'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'main-title' => 'Hyphen Main',
+                'main-subtitle' => 'Core Notes',
+                'volume-title' => 'Reference Volume',
+                'volume-subtitle' => 'Import Notes',
+                'part-title' => 'Docket Part',
+                'part-subtitle' => 'Review Files',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-title-subtitle-family');
+        $hyphen = $processor->item('direct-hyphen-title-subtitle-family');
+        $t->same('Migration Compendium: Source Supplements', $compact['mainTitle'] ?? null);
+        $t->same('Collected Sources: Appendix Review', $compact['volumeTitle'] ?? null);
+        $t->same('Archive Part: Field Notes', $compact['partTitle'] ?? null);
+        $t->same('Hyphen Main: Core Notes', $hyphen['mainTitle'] ?? null);
+        $t->same('Reference Volume: Import Notes', $hyphen['volumeTitle'] ?? null);
+        $t->same('Docket Part: Review Files', $hyphen['partTitle'] ?? null);
+        $t->same('Source Supplements', $compact['raw']['mainsubtitle'] ?? null);
+        $t->same('Import Notes', $hyphen['raw']['volume-subtitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Title Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-title-subtitle-alias-review</id>
+    <updated>2026-06-12T01:26:24+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="volume-title"/>
+        <text variable="part-title"/>
+        <text variable="main-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+      <text variable="main-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Title Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('part-title', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Rivera | Migration Compendium: Source Supplements | Collected Sources: Appendix Review | Archive Part: Field Notes | review packet; Chen | Hyphen Main: Core Notes | Reference Volume: Import Notes | Docket Part: Review Files]', $styled->renderCitationCluster([
+            $citation('direct-title-subtitle-family', '[@direct-title-subtitle-family]'),
+            $citation('direct-hyphen-title-subtitle-family', '[@direct-hyphen-title-subtitle-family]'),
+        ]));
+        $t->same('Direct Subtitle Family Packet :: Migration Compendium: Source Supplements :: Collected Sources: Appendix Review :: Archive Part: Field Notes :: review packet', $styled->renderBibliographyEntry('direct-title-subtitle-family'));
+        $t->same('Hyphen Subtitle Family Packet :: Hyphen Main: Core Notes :: Reference Volume: Import Notes :: Docket Part: Review Files', $styled->renderBibliographyEntry('direct-hyphen-title-subtitle-family'));
+
+        $document = (new MarkdownReader())->read('Direct title subtitle aliases [@direct-title-subtitle-family; @direct-hyphen-title-subtitle-family] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct title subtitle aliases [Rivera | Migration Compendium: Source Supplements | Collected Sources: Appendix Review | Archive Part: Field Notes | review packet; Chen | Hyphen Main: Core Notes | Reference Volume: Import Notes | Docket Part: Review Files] stay visible.</p>', $blocks);
+        $t->contains('<dt>Rivera 2026</dt><dd>Direct Subtitle Family Packet :: Migration Compendium: Source Supplements :: Collected Sources: Appendix Review :: Archive Part: Field Notes :: review packet</dd>', $blocks);
+        $t->contains('<dt>Chen 2025</dt><dd>Hyphen Subtitle Family Packet :: Hyphen Main: Core Notes :: Reference Volume: Import Notes :: Docket Part: Review Files</dd>', $blocks);
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
