@@ -60,12 +60,61 @@ final class CitationCslProcessor
         return self::fromItems(self::bibtexItems($bibtex));
     }
 
+    public static function fromRis(string $ris): self
+    {
+        return self::fromItems(self::risItems($ris));
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
     public static function bibtexItems(string $bibtex): array
     {
         return BibtexCslParser::parse($bibtex);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function risItems(string $ris): array
+    {
+        $records = [];
+        $fields = [];
+        $lastTag = null;
+        foreach (preg_split('/\r\n|\n|\r/', $ris) ?: [] as $line) {
+            $line = ltrim($line, "\xEF\xBB\xBF");
+            if (trim($line) === '') {
+                continue;
+            }
+
+            if (preg_match('/^([A-Za-z0-9]{2})\s*-\s?(.*)$/', $line, $matches) !== 1) {
+                if ($lastTag !== null && $fields !== []) {
+                    $lastIndex = count($fields[$lastTag]) - 1;
+                    $fields[$lastTag][$lastIndex] = trim($fields[$lastTag][$lastIndex] . ' ' . trim($line));
+                }
+                continue;
+            }
+
+            $tag = strtoupper($matches[1]);
+            $value = trim($matches[2]);
+            if ($tag === 'ER') {
+                if ($fields !== []) {
+                    $records[] = self::risRecordToItem($fields, count($records) + 1);
+                }
+                $fields = [];
+                $lastTag = null;
+                continue;
+            }
+
+            $fields[$tag][] = $value;
+            $lastTag = $tag;
+        }
+
+        if ($fields !== []) {
+            $records[] = self::risRecordToItem($fields, count($records) + 1);
+        }
+
+        return $records;
     }
 
     /**
@@ -1549,6 +1598,208 @@ final class CitationCslProcessor
             'editorialRoles' => self::editorialRoles($item['editorial-roles'] ?? [], $id),
             'raw' => $item,
         ];
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @return array<string, mixed>
+     */
+    private static function risRecordToItem(array $fields, int $index): array
+    {
+        $type = strtoupper(trim($fields['TY'][0] ?? 'GEN'));
+        $id = self::risFirst($fields, ['ID']);
+        if ($id === '') {
+            $id = self::risFirst($fields, ['AN', 'DO', 'UR']);
+        }
+        if ($id === '') {
+            $id = 'ris-' . $index;
+        }
+
+        $item = [
+            'id' => $id,
+            'type' => self::risCslType($type),
+            'title' => self::risFirst($fields, ['TI', 'T1', 'CT']),
+            'short-title' => self::risFirst($fields, ['ST']),
+            'container-title' => self::risFirst($fields, ['T2', 'JF', 'JO', 'JA', 'BT']),
+            'container-title-short' => self::risFirst($fields, ['J2']),
+            'collection-title' => self::risFirst($fields, ['T3']),
+            'publisher' => self::risFirst($fields, ['PB']),
+            'publisher-place' => self::risFirst($fields, ['CY', 'PP']),
+            'volume' => self::risFirst($fields, ['VL']),
+            'issue' => self::risFirst($fields, ['IS']),
+            'page' => self::risPageRange($fields),
+            'edition' => self::risFirst($fields, ['ET']),
+            'section' => self::risFirst($fields, ['SE']),
+            'doi' => self::risFirst($fields, ['DO']),
+            'url' => self::risFirst($fields, ['UR']),
+            'language' => self::risFirst($fields, ['LA']),
+            'abstract' => self::risFirst($fields, ['AB', 'N2']),
+            'note' => self::risFirst($fields, ['N1', 'NT']),
+            'medium' => self::risFirst($fields, ['M3']),
+            'source' => self::risFirst($fields, ['DB']),
+            'issued' => self::risDate($fields, ['Y1', 'PY', 'DA']),
+            'accessed' => self::risDate($fields, ['Y2']),
+            'author' => self::risNames($fields, ['A1', 'AU']),
+            'editor' => self::risNames($fields, ['A2', 'ED']),
+            'translator' => self::risNames($fields, ['A3']),
+            'keyword' => self::risValues($fields, ['KW']),
+            'rawRis' => [
+                'type' => $type,
+                'fields' => $fields,
+            ],
+        ];
+
+        $serialNumber = self::risFirst($fields, ['SN']);
+        if ($serialNumber !== '') {
+            $item[self::risSerialIdentifierField($serialNumber)] = $serialNumber;
+        }
+
+        return array_filter($item, static fn (mixed $value): bool => $value !== '' && $value !== [] && $value !== null);
+    }
+
+    private static function risCslType(string $type): string
+    {
+        return match ($type) {
+            'JOUR', 'JFULL', 'EJOUR' => 'article-journal',
+            'MGZN' => 'article-magazine',
+            'NEWS' => 'article-newspaper',
+            'BOOK' => 'book',
+            'CHAP' => 'chapter',
+            'CONF', 'CPAPER' => 'paper-conference',
+            'RPRT' => 'report',
+            'THES' => 'thesis',
+            'PAT' => 'patent',
+            'DATA' => 'dataset',
+            'ELEC', 'WEB' => 'webpage',
+            'UNPB' => 'manuscript',
+            'SLIDE' => 'graphic',
+            'SOUND' => 'song',
+            'VIDEO' => 'motion_picture',
+            default => 'document',
+        };
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @param list<string> $tags
+     */
+    private static function risFirst(array $fields, array $tags): string
+    {
+        foreach ($tags as $tag) {
+            foreach ($fields[$tag] ?? [] as $value) {
+                $value = trim($value);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @param list<string> $tags
+     * @return list<string>
+     */
+    private static function risValues(array $fields, array $tags): array
+    {
+        $values = [];
+        foreach ($tags as $tag) {
+            foreach ($fields[$tag] ?? [] as $value) {
+                $value = trim($value);
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @param list<string> $tags
+     * @return list<array<string, mixed>>
+     */
+    private static function risNames(array $fields, array $tags): array
+    {
+        $names = [];
+        foreach (self::risValues($fields, $tags) as $value) {
+            $names[] = self::risName($value);
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function risName(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return ['literal' => ''];
+        }
+
+        if (str_contains($value, ',')) {
+            [$family, $given] = array_map('trim', explode(',', $value, 2));
+            return array_filter([
+                'family' => $family,
+                'given' => $given,
+            ], static fn (string $part): bool => $part !== '');
+        }
+
+        return ['literal' => $value];
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     */
+    private static function risPageRange(array $fields): string
+    {
+        $start = self::risFirst($fields, ['SP']);
+        $end = self::risFirst($fields, ['EP']);
+        if ($start !== '' && $end !== '') {
+            return $start . '-' . $end;
+        }
+
+        return $start !== '' ? $start : self::risFirst($fields, ['PG']);
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @param list<string> $tags
+     * @return array<string, mixed>|null
+     */
+    private static function risDate(array $fields, array $tags): ?array
+    {
+        $value = self::risFirst($fields, $tags);
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = str_replace('.', '-', trim($value));
+        if (preg_match('/^(-?\d{1,4})(?:[\/-](\d{1,2})(?:[\/-](\d{1,2}))?)?/', $normalized, $matches) === 1) {
+            $parts = [(int) $matches[1]];
+            if (isset($matches[2]) && $matches[2] !== '' && (int) $matches[2] > 0) {
+                $parts[] = (int) $matches[2];
+            }
+            if (isset($matches[3]) && $matches[3] !== '' && (int) $matches[3] > 0) {
+                $parts[] = (int) $matches[3];
+            }
+
+            return ['date-parts' => [$parts], 'raw' => $value];
+        }
+
+        return ['literal' => $value, 'raw' => $value];
+    }
+
+    private static function risSerialIdentifierField(string $value): string
+    {
+        $compact = strtoupper(str_replace(['-', ' '], '', trim($value)));
+
+        return preg_match('/^\d{4}\d{3}[\dX]$/', $compact) === 1 ? 'ISSN' : 'ISBN';
     }
 
     /**
