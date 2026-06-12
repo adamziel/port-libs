@@ -42,6 +42,7 @@ final class EpubPackageReader
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
                 'metadataProperties' => $package['metadataProperties'],
+                'metadataLinks' => $package['metadataLinks'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
                 'spine' => $package['spine'],
@@ -76,6 +77,7 @@ final class EpubPackageReader
      *     uniqueIdentifierId:string,
      *     metadata:array<string, mixed>,
      *     metadataProperties:list<array{property:string, value:string, refines:string}>,
+     *     metadataLinks:list<array{id:string, rel:list<string>, href:string, path:string, fragment:string, mediaType:string, properties:list<string>, refines:string, external:bool}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
      *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>
      * }
@@ -100,6 +102,7 @@ final class EpubPackageReader
             'publisher' => '',
         ];
         $metadataProperties = [];
+        $metadataLinks = [];
         $metadataNodes = $xpath->query('./*[local-name()="metadata"]/*', $packageElement);
         if ($metadataNodes instanceof \DOMNodeList) {
             foreach ($metadataNodes as $node) {
@@ -107,6 +110,23 @@ final class EpubPackageReader
                     continue;
                 }
                 $name = $node->localName;
+                if ($name === 'link') {
+                    $href = trim($node->getAttribute('href'));
+                    [$path, $fragment] = $this->splitResolvedHref($opfDir, $href);
+                    $metadataLinks[] = [
+                        'id' => trim($node->getAttribute('id')),
+                        'rel' => $this->tokens($node->getAttribute('rel')),
+                        'href' => $href,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'mediaType' => trim($node->getAttribute('media-type')),
+                        'properties' => $this->tokens($node->getAttribute('properties')),
+                        'refines' => trim($node->getAttribute('refines')),
+                        'external' => $href !== '' && preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1,
+                    ];
+                    continue;
+                }
+
                 $value = $this->normalizedText($node->textContent);
                 if ($value === '') {
                     continue;
@@ -180,6 +200,7 @@ final class EpubPackageReader
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
             'metadata' => $metadata,
             'metadataProperties' => $metadataProperties,
+            'metadataLinks' => $metadataLinks,
             'manifest' => $manifest,
             'spine' => $spine,
         ];
