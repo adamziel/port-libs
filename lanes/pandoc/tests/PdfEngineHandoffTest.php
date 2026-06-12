@@ -1517,6 +1517,87 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst overlapping page selection boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-pages-overlap-boundary.pdf',
+            'source' => '= Typst Overlapping Pages Boundary Packet',
+            'engineOptions' => [
+                '--pages=1-3,3,2-4,8-',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst overlapping page selection packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['pages-overlapping-selection-boundary'],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '1-3,3,2-4,8-',
+                    'value' => '1-3,3,2-4,8-',
+                    'segments' => [
+                        ['raw' => '1-3', 'kind' => 'range', 'start' => 1, 'end' => 3, 'issues' => []],
+                        ['raw' => '3', 'kind' => 'page', 'start' => 3, 'end' => 3, 'issues' => []],
+                        ['raw' => '2-4', 'kind' => 'range', 'start' => 2, 'end' => 4, 'issues' => []],
+                        ['raw' => '8-', 'kind' => 'range-from', 'start' => 8, 'end' => null, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => ['pages-overlapping-selection-boundary'],
+                'pageSelectionPolicy' => [
+                    'reviewStatus' => 'review',
+                    'segmentCount' => 4,
+                    'pageSegmentCount' => 1,
+                    'rangeSegmentCount' => 2,
+                    'rangeFromSegmentCount' => 1,
+                    'invalidSegmentCount' => 0,
+                    'finiteRangeCount' => 3,
+                    'openEndedRangeCount' => 1,
+                    'overlapCount' => 3,
+                    'overlaps' => [
+                        ['left' => '1-3', 'right' => '3'],
+                        ['left' => '1-3', 'right' => '2-4'],
+                        ['left' => '3', 'right' => '2-4'],
+                    ],
+                    'issues' => ['pages-overlapping-selection-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-pages-overlap-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-pages-overlap-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:1-3,3,2-4,8-', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages-overlaps:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(1, $plan['typstBoundarySummary']['pdfExportControlCount']);
+        $t->same(1, $plan['typstBoundarySummary']['issueCount']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst pretty pdf export boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

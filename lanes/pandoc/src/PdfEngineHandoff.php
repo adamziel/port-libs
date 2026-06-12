@@ -422,6 +422,15 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'typst-pdf-pages:' . ($pageSelection['value'] === '' ? 'invalid' : $pageSelection['value']);
                     }
                 }
+                if (is_array($pdfExport) && is_array($pdfExport['pageSelectionPolicy'] ?? null)) {
+                    $pageSelectionPolicy = $pdfExport['pageSelectionPolicy'];
+                    if (is_string($pageSelectionPolicy['reviewStatus'] ?? null)) {
+                        $diagnostics[] = 'typst-pdf-pages-policy:' . $pageSelectionPolicy['reviewStatus'];
+                    }
+                    if (is_int($pageSelectionPolicy['overlapCount'] ?? null) && $pageSelectionPolicy['overlapCount'] > 0) {
+                        $diagnostics[] = 'typst-pdf-pages-overlaps:' . $pageSelectionPolicy['overlapCount'];
+                    }
+                }
                 if (is_array($pdfExport) && is_array($pdfExport['pdfStandard'] ?? null)) {
                     $pdfStandard = $pdfExport['pdfStandard'];
                     if (isset($pdfStandard['standards']) && is_array($pdfStandard['standards'])) {
@@ -6242,6 +6251,7 @@ final class PdfEngineHandoff
             $pageSelectionValues
         );
         $pageSelection = $pageSelectionHistory === [] ? null : $pageSelectionHistory[count($pageSelectionHistory) - 1];
+        $pageSelectionPolicy = $this->typstPageSelectionPolicy($pageSelection);
         $ppiHistory = array_map(
             fn (string $value): array => $this->typstPpiEntry($value),
             $ppiValues
@@ -6326,6 +6336,9 @@ final class PdfEngineHandoff
             }
         }
         foreach ($pdfTagIssues as $issue) {
+            $issues[] = $issue;
+        }
+        foreach (($pageSelectionPolicy['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
         foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
@@ -6484,6 +6497,9 @@ final class PdfEngineHandoff
                     $pdfExportIssues[] = $issue;
                 }
             }
+            foreach (($pageSelectionPolicy['issues'] ?? []) as $issue) {
+                $pdfExportIssues[] = $issue;
+            }
             foreach ($overrides as $override) {
                 if (in_array($override['option'], ['pages', 'ppi'], true)) {
                     $pdfExportIssues[] = $override['issue'];
@@ -6495,6 +6511,9 @@ final class PdfEngineHandoff
             ];
             if ($ppi !== null) {
                 $pdfExport['ppi'] = $ppi;
+            }
+            if ($pageSelectionPolicy !== []) {
+                $pdfExport['pageSelectionPolicy'] = $pageSelectionPolicy;
             }
             if ($noPdfTagsCount > 0) {
                 $pdfExport['tags'] = [
@@ -7581,6 +7600,84 @@ final class PdfEngineHandoff
             'segments' => $segments,
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array{segments?:list<array{raw:string, kind:string, start:int|null, end:int|null, issues:list<string>}>}|null $pageSelection
+     * @return array{reviewStatus:string, segmentCount:int, pageSegmentCount:int, rangeSegmentCount:int, rangeFromSegmentCount:int, invalidSegmentCount:int, finiteRangeCount:int, openEndedRangeCount:int, overlapCount:int, overlaps:list<array{left:string, right:string}>, issues:list<string>}|array{}
+     */
+    private function typstPageSelectionPolicy(?array $pageSelection): array
+    {
+        if ($pageSelection === null || !isset($pageSelection['segments']) || !is_array($pageSelection['segments'])) {
+            return [];
+        }
+
+        $kindCounts = [
+            'page' => 0,
+            'range' => 0,
+            'range-from' => 0,
+            'invalid' => 0,
+        ];
+        $intervals = [];
+        foreach ($pageSelection['segments'] as $segment) {
+            if (!is_array($segment)) {
+                ++$kindCounts['invalid'];
+                continue;
+            }
+
+            $kind = is_string($segment['kind'] ?? null) ? $segment['kind'] : 'invalid';
+            if (!array_key_exists($kind, $kindCounts)) {
+                $kind = 'invalid';
+            }
+            ++$kindCounts[$kind];
+
+            $start = $segment['start'] ?? null;
+            $end = $segment['end'] ?? null;
+            if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-from'], true)) {
+                continue;
+            }
+
+            $intervals[] = [
+                'raw' => is_string($segment['raw'] ?? null) ? $segment['raw'] : '',
+                'start' => $start,
+                'end' => is_int($end) ? $end : null,
+            ];
+        }
+
+        $overlaps = [];
+        $intervalCount = count($intervals);
+        for ($leftIndex = 0; $leftIndex < $intervalCount; ++$leftIndex) {
+            for ($rightIndex = $leftIndex + 1; $rightIndex < $intervalCount; ++$rightIndex) {
+                $left = $intervals[$leftIndex];
+                $right = $intervals[$rightIndex];
+                $leftEnd = $left['end'] ?? PHP_INT_MAX;
+                $rightEnd = $right['end'] ?? PHP_INT_MAX;
+                if ($left['start'] <= $rightEnd && $right['start'] <= $leftEnd) {
+                    $overlaps[] = [
+                        'left' => $left['raw'],
+                        'right' => $right['raw'],
+                    ];
+                }
+            }
+        }
+
+        if ($overlaps === []) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => 'review',
+            'segmentCount' => count($pageSelection['segments']),
+            'pageSegmentCount' => $kindCounts['page'],
+            'rangeSegmentCount' => $kindCounts['range'],
+            'rangeFromSegmentCount' => $kindCounts['range-from'],
+            'invalidSegmentCount' => $kindCounts['invalid'],
+            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'],
+            'openEndedRangeCount' => $kindCounts['range-from'],
+            'overlapCount' => count($overlaps),
+            'overlaps' => $overlaps,
+            'issues' => ['pages-overlapping-selection-boundary'],
         ];
     }
 
