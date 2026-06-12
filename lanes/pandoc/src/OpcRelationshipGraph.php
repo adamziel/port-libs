@@ -564,6 +564,8 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $byteCountsByContentType = [];
+        $byteCountsByContentTypeSource = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -660,6 +662,22 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            if ($entry['isPackagePart'] && !$entry['contentTypesItem'] && $entry['partName'] !== null) {
+                self::incrementZipEntryManifestByteBucket(
+                    $byteCountsByContentTypeSource,
+                    $entry['contentTypeSource'] ?? 'unavailable',
+                    $entry['compressedSize'],
+                    $entry['uncompressedSize'],
+                );
+                if (is_string($entry['contentType'])) {
+                    self::incrementZipEntryManifestByteBucket(
+                        $byteCountsByContentType,
+                        $entry['contentType'],
+                        $entry['compressedSize'],
+                        $entry['uncompressedSize'],
+                    );
+                }
+            }
             self::recordZipEntryManifestCompressionMethodProvenance(
                 $compressionMethodCounts,
                 $entryNamesByCompressionMethod,
@@ -784,6 +802,8 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        ksort($byteCountsByContentType);
+        ksort($byteCountsByContentTypeSource);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -863,6 +883,8 @@ final class OpcRelationshipGraph
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'byteCountsByContentType' => $byteCountsByContentType,
+            'byteCountsByContentTypeSource' => $byteCountsByContentTypeSource,
             'compressionMethodCounts' => $compressionMethodCounts,
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
