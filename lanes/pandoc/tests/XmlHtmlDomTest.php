@@ -1382,6 +1382,49 @@ XML, 'package reader XML');
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes html canvas fallback state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<canvas id="chart" width="640" height="360">Chart <a href="chart-data.csv">data</a></canvas>'
+                . '<canvas id="defaults" width="-1" height="bogus"></canvas>',
+            'canvas fallback review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/canvas-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $canvas = $summary[0];
+        $fallbackLink = $canvas['children'][1];
+        $defaultCanvas = $summary[1];
+
+        $t->same('canvas', $canvas['name']);
+        $t->same('canvas', $canvas['embeddedResource']);
+        $t->same('bitmap-fallback', $canvas['canvas']);
+        $t->same('640', $canvas['canvasWidthRaw']);
+        $t->same('360', $canvas['canvasHeightRaw']);
+        $t->same(640, $canvas['canvasWidth']);
+        $t->same(360, $canvas['canvasHeight']);
+        $t->same('Chart data', $canvas['canvasFallbackText']);
+        $t->same('Chart <a href="chart-data.csv">data</a>', $canvas['canvasFallbackHtml']);
+        $t->same(true, $canvas['canvasHasFallback']);
+        $t->same('canvas-fallback-metadata-only', $canvas['canvasReviewPolicy']);
+        $t->same('a', $fallbackLink['hyperlink']);
+        $t->same('chart-data.csv', $fallbackLink['href']);
+
+        $t->same('canvas', $defaultCanvas['embeddedResource']);
+        $t->same('-1', $defaultCanvas['canvasWidthRaw']);
+        $t->same('bogus', $defaultCanvas['canvasHeightRaw']);
+        $t->same(300, $defaultCanvas['canvasWidth']);
+        $t->same(150, $defaultCanvas['canvasHeight']);
+        $t->same('', $defaultCanvas['canvasFallbackText']);
+        $t->same('', $defaultCanvas['canvasFallbackHtml']);
+        $t->same(false, $defaultCanvas['canvasHasFallback']);
+        $t->same('<canvas height="360" id="chart" width="640">Chart <a href="chart-data.csv">data</a></canvas><canvas height="bogus" id="defaults" width="-1"></canvas>', $html);
+        $t->contains('<canvas height="360" id="chart" width="640">', $blocks);
+        $t->same('/migration/canvas-fallback-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html embedded image and media source candidates for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<picture><source media="(min-width: 60em)" type="image/avif" srcset="hero.avif 1x, hero@2x.avif 2x"><source type="image/webp" srcset="hero.webp 800w"><img src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w" sizes="100vw" alt="Hero &amp; Source" loading="lazy" decoding="async"></picture>'

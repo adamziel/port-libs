@@ -902,7 +902,7 @@ final class XmlHtmlDom
                 }
             }
         }
-        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
+        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'canvas', 'iframe', 'embed', 'object', 'param'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
         if (in_array($name, ['a', 'area'], true)) {
@@ -2495,6 +2495,7 @@ final class XmlHtmlDom
             'audio', 'video' => self::mediaElementSummary($element, $name),
             'source' => ['embeddedResource' => 'source'] + self::sourceElementSummary($element),
             'track' => ['embeddedResource' => 'track'] + self::trackElementSummary($element),
+            'canvas' => self::canvasSummary($element),
             'iframe' => self::iframeSummary($element),
             'embed' => self::embedSummary($element),
             'object' => self::objectSummary($element),
@@ -2601,6 +2602,25 @@ final class XmlHtmlDom
             'srclang' => self::attributeOrNull($track, 'srclang'),
             'label' => self::attributeOrNull($track, 'label'),
             'default' => $track->hasAttribute('default'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function canvasSummary(\DOMElement $canvas): array
+    {
+        return [
+            'embeddedResource' => 'canvas',
+            'canvas' => 'bitmap-fallback',
+            'canvasWidthRaw' => self::attributeOrNull($canvas, 'width'),
+            'canvasHeightRaw' => self::attributeOrNull($canvas, 'height'),
+            'canvasWidth' => self::nonNegativeIntegerAttribute($canvas, 'width', 300, 100000),
+            'canvasHeight' => self::nonNegativeIntegerAttribute($canvas, 'height', 150, 100000),
+            'canvasFallbackText' => self::normalizedText($canvas),
+            'canvasFallbackHtml' => self::serializeHtmlChildren($canvas),
+            'canvasHasFallback' => $canvas->hasChildNodes(),
+            'canvasReviewPolicy' => 'canvas-fallback-metadata-only',
         ];
     }
 
