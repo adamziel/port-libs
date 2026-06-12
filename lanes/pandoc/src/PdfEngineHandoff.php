@@ -6500,7 +6500,7 @@ final class PdfEngineHandoff
                 'issues' => [$kind . '-empty'],
             ];
         }
-        if ($kind === 'dependency-output' && $value === '-') {
+        if (in_array($kind, ['dependency-output', 'timings-output'], true) && $value === '-') {
             return [
                 'raw' => $raw,
                 'path' => '-',
