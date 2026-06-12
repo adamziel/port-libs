@@ -956,6 +956,18 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
+        if (in_array($tag, [
+            'Header',
+            'BlockQuote',
+            'OrderedList',
+            'BulletList',
+            'DefinitionList',
+            'LineBlock',
+            'Div',
+        ], true)) {
+            return $this->hasOnlyCurrentNativePayloadShapes($native);
+        }
+
         return in_array($tag, [
             'CodeBlock',
             'RawBlock',
@@ -986,6 +998,37 @@ final class PandocJsonWriter
             'RawInline',
             'Cite',
         ], true);
+    }
+
+    private function hasOnlyCurrentNativePayloadShapes(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return true;
+        }
+
+        if (!array_is_list($value)) {
+            $tag = $value['t'] ?? null;
+            if ($tag === 'Link' || $tag === 'Image') {
+                $content = $value['c'] ?? null;
+                if (!is_array($content) || !array_is_list($content) || count($content) !== 3) {
+                    return false;
+                }
+            }
+            if ($tag === 'Table') {
+                $content = $value['c'] ?? null;
+                if (is_array($content) && array_is_list($content) && count($content) !== 6) {
+                    return false;
+                }
+            }
+        }
+
+        foreach ($value as $item) {
+            if (!$this->hasOnlyCurrentNativePayloadShapes($item)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool

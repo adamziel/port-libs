@@ -2132,6 +2132,138 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current structural block native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $headerBlock = [
+            't' => 'Header',
+            'reviewQueue' => 'header-import',
+            'c' => [
+                2,
+                ['source-heading', ['review-heading'], [['data-origin', 'json']]],
+                [['t' => 'Str', 'c' => 'Heading']],
+            ],
+        ];
+        $quoteBlock = [
+            't' => 'BlockQuote',
+            'reviewQueue' => 'quote-import',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Quoted'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ]],
+            ],
+        ];
+        $orderedBlock = [
+            't' => 'OrderedList',
+            'reviewQueue' => 'ordered-import',
+            'c' => [
+                [3, ['t' => 'UpperRoman', 'c' => []], ['t' => 'TwoParens', 'c' => []]],
+                [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Ordered']]]]],
+            ],
+        ];
+        $bulletBlock = [
+            't' => 'BulletList',
+            'reviewQueue' => 'bullet-import',
+            'c' => [
+                [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Bullet']]]],
+            ],
+        ];
+        $definitionBlock = [
+            't' => 'DefinitionList',
+            'reviewQueue' => 'definition-import',
+            'c' => [
+                [
+                    [['t' => 'Str', 'c' => 'Term']],
+                    [
+                        [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'Definition']]]],
+                    ],
+                ],
+            ],
+        ];
+        $lineBlock = [
+            't' => 'LineBlock',
+            'reviewQueue' => 'line-import',
+            'c' => [
+                [
+                    ['t' => 'Str', 'c' => 'Line'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ],
+            ],
+        ];
+        $divBlock = [
+            't' => 'Div',
+            'reviewQueue' => 'div-import',
+            'c' => [
+                ['source-div', ['review-div'], [['data-origin', 'json']]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'source'],
+                    ]],
+                ],
+            ],
+        ];
+        $blocks = [$headerBlock, $quoteBlock, $orderedBlock, $bulletBlock, $definitionBlock, $lineBlock, $divBlock];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $blocks,
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same(['heading', 'blockquote', 'ordered_list', 'bullet_list', 'definition_list', 'line_block', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} structural block types");
+            $t->same($blocks, $encoded['blocks'], "{$source} unchanged structural block payloads are reused by JSON writer");
+        }
+
+        $jsonDocument = $documents['json'];
+        $editedHeader = new AstNode('heading', $jsonDocument->children[0]->attrs, [
+            new AstNode('text', ['text' => 'Edited']),
+        ]);
+        $editedDiv = new AstNode('div', array_replace($jsonDocument->children[6]->attrs, [
+            'id' => 'edited-div',
+        ]), $jsonDocument->children[6]->children);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [$editedHeader, $editedDiv]));
+
+        $t->same('Header', $editedPacket['blocks'][0]['t']);
+        $t->same('Edited', $editedPacket['blocks'][0]['c'][2][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited header regenerates instead of reusing stale inert provenance');
+        $t->same('Div', $editedPacket['blocks'][1]['t']);
+        $t->same('edited-div', $editedPacket['blocks'][1]['c'][0][0]);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited div regenerates instead of reusing stale inert provenance');
+
+        $legacyTargetDiv = [
+            't' => 'Div',
+            'reviewQueue' => 'legacy-target-import',
+            'c' => [
+                ['', [], []],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Link', 'c' => [
+                            [['t' => 'Str', 'c' => 'legacy']],
+                            ['https://example.test/legacy', 'Legacy'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $legacyEncoded = (new PandocJsonWriter())->toArray((new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyTargetDiv],
+        ]));
+
+        $t->same(false, array_key_exists('reviewQueue', $legacyEncoded['blocks'][0]), 'legacy nested target shape prevents wrapper payload reuse');
+        $t->same(['', [], []], $legacyEncoded['blocks'][0]['c'][1][0]['c'][0]['c'][0]);
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
