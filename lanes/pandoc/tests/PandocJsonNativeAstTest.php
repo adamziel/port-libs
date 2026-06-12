@@ -2190,6 +2190,106 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves json-reader native constructor payloads through native writer when rebuilding wrappers' => static function (TestRunner $t): void {
+        $blockquoteBlock = [
+            't' => 'BlockQuote',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Quoted'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ]],
+            ],
+            'reviewQueue' => 'blockquote-source',
+            'sourceOrdinal' => 61,
+        ];
+        $linkInline = [
+            't' => 'Link',
+            'c' => [
+                ['source-link', ['review-link'], [['data-link', 'source']]],
+                [
+                    ['t' => 'Str', 'c' => 'Source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'link'],
+                ],
+                ['https://example.test/source', 'Source title'],
+            ],
+            'reviewQueue' => 'link-source',
+            'sourceOrdinal' => 62,
+        ];
+        $imageInline = [
+            't' => 'Image',
+            'c' => [
+                ['source-image', ['review-image'], [['data-image', 'source']]],
+                [
+                    ['t' => 'Str', 'c' => 'Source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'image'],
+                ],
+                ['media/source.png', 'Source image'],
+            ],
+            'reviewQueue' => 'image-source',
+            'sourceOrdinal' => 63,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $blockquoteBlock,
+                ['t' => 'Para', 'c' => [
+                    $linkInline,
+                    ['t' => 'Space'],
+                    $imageInline,
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $blockquote = $document->children[0];
+        $paragraph = $document->children[1];
+        $link = $paragraph->children[0];
+        $image = $paragraph->children[2];
+        $rebuilt = new AstNode('document', $document->attrs, [
+            $blockquote,
+            new AstNode('paragraph', [], [
+                $link,
+                new AstNode('space'),
+                $image,
+            ]),
+        ]);
+
+        $nativePacket = json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($blockquoteBlock, $nativePacket['blocks'][0]);
+        $t->same($linkInline, $nativePacket['blocks'][1]['c'][0]);
+        $t->same($imageInline, $nativePacket['blocks'][1]['c'][2]);
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $link->children));
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $image->children));
+
+        $editedBlockquote = new AstNode('blockquote', $blockquote->attrs, [
+            new AstNode('paragraph', $blockquote->children[0]->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'source']),
+            ]),
+        ]);
+        $editedLink = new AstNode('link', $link->attrs, [
+            new AstNode('text', ['text' => 'Edited']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'link']),
+        ]);
+        $editedPacket = json_decode((new NativeWriter())->write(new AstNode('document', [], [
+            $editedBlockquote,
+            new AstNode('paragraph', [], [$editedLink]),
+        ])), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('BlockQuote', $editedPacket['blocks'][0]['t']);
+        $t->same('Edited', $editedPacket['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]));
+        $t->same('Link', $editedPacket['blocks'][1]['c'][0]['t']);
+        $t->same('Edited', $editedPacket['blocks'][1]['c'][0]['c'][1][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]['c'][0]));
+    },
     'preserves current plain and paragraph native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $plainBlock = [
             't' => 'Plain',
