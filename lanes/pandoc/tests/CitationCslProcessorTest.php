@@ -2588,6 +2588,85 @@ XML);
         $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
     },
+    'normalizes bounded direct csl json primary language aliases' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-langid-primary',
+                'type' => 'book',
+                'title' => 'Direct Langid Source',
+                'author' => [['family' => 'Meyer', 'given' => 'Ada']],
+                'issued' => ['date-parts' => [[2026]]],
+                'langid' => 'de-AT',
+            ],
+            [
+                'id' => 'direct-compact-language-list',
+                'type' => 'article-journal',
+                'title' => 'Compact Language List Source',
+                'author' => [['literal' => 'Locale Lab']],
+                'issued' => ['date-parts' => [[2025]]],
+                'languagelist' => ['en-US', 'fr-FR'],
+            ],
+            [
+                'id' => 'direct-langid-list-scalar',
+                'type' => 'report',
+                'title' => 'Langid List Source',
+                'author' => [['family' => 'Chen', 'given' => 'Kai']],
+                'issued' => ['date-parts' => [[2024]]],
+                'langid-list' => 'zh-Hant, ja-JP',
+            ],
+        ]);
+
+        $langid = $processor->item('direct-langid-primary');
+        $compactList = $processor->item('direct-compact-language-list');
+        $langidList = $processor->item('direct-langid-list-scalar');
+        $t->same('de-AT', $langid['language'] ?? null);
+        $t->same(['de-AT'], $langid['languageList'] ?? null);
+        $t->same('en-US; fr-FR', $compactList['language'] ?? null);
+        $t->same(['en-US', 'fr-FR'], $compactList['languageList'] ?? null);
+        $t->same('zh-Hant; ja-JP', $langidList['language'] ?? null);
+        $t->same(['zh-Hant', 'ja-JP'], $langidList['languageList'] ?? null);
+        $t->same('(Meyer 2026; Locale Lab 2025; Chen 2024)', $processor->renderCitationCluster([
+            $citation('direct-langid-primary', '[@direct-langid-primary]'),
+            $citation('direct-compact-language-list', '[@direct-compact-language-list]'),
+            $citation('direct-langid-list-scalar', '[@direct-langid-list-scalar]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Meyer | de-AT | de-AT; Locale Lab | en-US; fr-FR | en-US; fr-FR; Chen | zh-Hant; ja-JP | zh-Hant; ja-JP]', $styled->renderCitationCluster([
+            $citation('direct-langid-primary', '[@direct-langid-primary]'),
+            $citation('direct-compact-language-list', '[@direct-compact-language-list]'),
+            $citation('direct-langid-list-scalar', '[@direct-langid-list-scalar]'),
+        ]));
+        $t->same('Compact Language List Source :: en-US; fr-FR', $styled->renderBibliographyEntry('direct-compact-language-list'));
+        $t->same('Langid List Source :: zh-Hant; ja-JP', $styled->renderBibliographyEntry('direct-langid-list-scalar'));
+
+        $document = (new MarkdownReader())->read('Language aliases [@direct-langid-primary; @direct-compact-language-list; @direct-langid-list-scalar] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Sources'));
+        $t->contains('<p>Language aliases [Meyer | de-AT | de-AT; Locale Lab | en-US; fr-FR | en-US; fr-FR; Chen | zh-Hant; ja-JP | zh-Hant; ja-JP] remain visible.</p>', $blocks);
+        $t->contains('<dt>Meyer 2026</dt><dd>Direct Langid Source :: de-AT</dd>', $blocks);
+        $t->contains('<dt>Locale Lab 2025</dt><dd>Compact Language List Source :: en-US; fr-FR</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Langid List Source :: zh-Hant; ja-JP</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
