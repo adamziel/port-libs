@@ -751,6 +751,8 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $manifestByteExposurePolicyCounts = [];
+        $manifestByteExposurePolicyItems = [];
         $roleCounts = [];
         $undeclaredRoleCounts = [];
         $corePackagePartCount = 0;
@@ -761,6 +763,9 @@ final class OdfReader
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
             $manifestIndex = $item['manifestIndex'] ?? count($manifestFileEntryOrder);
+            $byteExposurePolicy = is_string($item['byteExposurePolicy'] ?? null)
+                ? $item['byteExposurePolicy']
+                : 'unknown';
             $manifestFileEntryOrder[] = [
                 'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder),
                 'fullPath' => $item['fullPath'] ?? null,
@@ -774,7 +779,22 @@ final class OdfReader
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
-                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'diagnostics' => $item['diagnostics'] ?? [],
+            ];
+            $manifestByteExposurePolicyCounts[$byteExposurePolicy] = ($manifestByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $manifestByteExposurePolicyItems[] = [
+                'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestByteExposurePolicyItems),
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'mediaType' => $item['mediaType'] ?? null,
+                'exists' => ($item['exists'] ?? false) === true,
+                'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
             if (is_string($part) && $part !== '') {
@@ -891,6 +911,7 @@ final class OdfReader
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        ksort($manifestByteExposurePolicyCounts, SORT_STRING);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -898,6 +919,8 @@ final class OdfReader
             'manifestDeclaredPartCount' => count($manifestByPart),
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
+            'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,
+            'manifestByteExposurePolicyItems' => $manifestByteExposurePolicyItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,

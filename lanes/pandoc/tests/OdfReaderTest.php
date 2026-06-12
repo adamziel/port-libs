@@ -9836,6 +9836,62 @@ XML;
         $t->same('undeclared-package-entry-no-bytes', $undeclared['byteExposurePolicy']);
         $t->same(['odf-manifest-undeclared-package-entry'], $undeclared['diagnostics']);
     },
+    'summarizes ODT manifest byte exposure policy buckets in package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewEntries = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/" manifest:media-type=""/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="first-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="first-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/nameless.bin"/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>
+XML;
+        $manifestWithPolicyEntries = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $reviewEntries,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithPolicyEntries, null, null, [
+            ['name' => 'Pictures/nameless.bin', 'data' => 'BINARY', 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>', 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $policyItemsByPath = [];
+        foreach ($provenance['manifestByteExposurePolicyItems'] as $item) {
+            $policyItemsByPath[$item['fullPath']] = $item;
+        }
+
+        $t->same([
+            'directory-entry-no-bytes' => 1,
+            'encrypted-resource-bytes-blocked' => 1,
+            'missing-media-type-bytes-blocked' => 1,
+            'missing-package-part' => 1,
+            'package-bytes-exposable' => 3,
+            'package-root-no-bytes' => 1,
+            'script-package-bytes-blocked' => 1,
+        ], $provenance['manifestByteExposurePolicyCounts']);
+        $t->same(9, count($provenance['manifestByteExposurePolicyItems']));
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same('package-root-no-bytes', $policyItemsByPath['/']['byteExposurePolicy']);
+        $t->same(null, $policyItemsByPath['/']['part']);
+        $t->same(0, $policyItemsByPath['/']['manifestIndex']);
+        $t->same('package-bytes-exposable', $policyItemsByPath['content.xml']['byteExposurePolicy']);
+        $t->same(true, $policyItemsByPath['content.xml']['canExposeBytes']);
+        $t->same('directory-entry-no-bytes', $policyItemsByPath['Pictures/']['byteExposurePolicy']);
+        $t->same(true, $policyItemsByPath['Pictures/']['isDirectory']);
+        $t->same('encrypted-resource-bytes-blocked', $policyItemsByPath['Pictures/hero.png']['byteExposurePolicy']);
+        $t->same(true, $policyItemsByPath['Pictures/hero.png']['encrypted']);
+        $t->same(false, $policyItemsByPath['Pictures/missing.png']['exists']);
+        $t->same('missing-package-part', $policyItemsByPath['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same('missing-media-type-bytes-blocked', $policyItemsByPath['Pictures/nameless.bin']['byteExposurePolicy']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $policyItemsByPath['Pictures/nameless.bin']['diagnostics']);
+        $t->same('script-package-bytes-blocked', $policyItemsByPath['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->same(false, $policyItemsByPath['Basic/Standard/Module1.xml']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $provenance['parts']['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+    },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
