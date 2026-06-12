@@ -5875,6 +5875,72 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
     },
 
+    'summarizes central directory repair plan buckets before package handoff' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>repair bucket review</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "repair bucket media\n",
+                'method' => 0,
+            ],
+        ]);
+        $base = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $understatedZip = $rewriteEndOfCentralDirectory($zip, [
+            'centralDirectorySize' => $base['entries'][1]['recordEnd'] - $base['centralDirectoryOffset'],
+        ]);
+
+        $repairPlan = ZipPackage::centralDirectoryRepairPlanPreflight($understatedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($understatedZip, 2048, 100.0, 2048);
+
+        $t->same(4, $repairPlan['declaredEntryCount']);
+        $t->same(2, $repairPlan['scannedEntryCount']);
+        $t->same(2, $repairPlan['retainedEntryCount']);
+        $t->same(2, $repairPlan['recoverableGapEntryCount']);
+        $t->same(4, $repairPlan['plannedEntryCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $repairPlan['retainedEntryNames']);
+        $t->same(['word/styles.xml', 'word/media/review.txt'], $repairPlan['recoverableEntryNames']);
+        $t->same(
+            ['[Content_Types].xml', 'word/document.xml', 'word/styles.xml', 'word/media/review.txt'],
+            $repairPlan['plannedEntryNames']
+        );
+        $t->same([
+            'retain-declared-central-directory-entry' => 2,
+            'append-recoverable-gap-central-directory-entry' => 2,
+        ], $repairPlan['plannedActionCounts']);
+        $t->same([
+            'declared-central-directory' => 2,
+            'central-directory-eocd-gap' => 2,
+        ], $repairPlan['plannedSourceCounts']);
+        $t->same(true, $repairPlan['plannedMatchesDeclaredEntryCount']);
+        $t->same(true, $repairPlan['gapFullyRecovered']);
+        $t->same(true, $repairPlan['repairAvailable']);
+        $t->same('review-only-central-directory-size-repair', $repairPlan['policy']);
+        $t->same([
+            'central-directory-repair-plan-review',
+            'central-directory-size-understatement-repair-available',
+        ], $repairPlan['issues']);
+        $t->same(0, $repairPlan['duplicatePlannedEntryNameGroupCount']);
+        $t->same(0, $repairPlan['duplicatePlannedRawNameGroupCount']);
+        $t->same(0, $repairPlan['duplicatePlannedLocalHeaderOffsetGroupCount']);
+        $t->same($repairPlan, $raw['centralDirectoryRepairPlan']);
+        $t->contains('central-directory-repair-plan-review', implode(',', $raw['diagnostics']));
+        $t->contains('central-directory-size-understatement-repair-available', implode(',', $raw['diagnostics']));
+    },
+
     'embeds zip central directory inventory in strict package import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
         $zip = $buildZipPackage([
             [
