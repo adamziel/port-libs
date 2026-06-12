@@ -407,6 +407,49 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex source locator metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{source-locator,
+  author     = {Roe, Pat},
+  title      = {Source Locator Packet},
+  date       = {2026},
+  source     = {Migration Appendix},
+  section    = {Review Shelf A},
+  supplement = {Plate 4}
+}
+
+@misc{source-title-alias,
+  author       = {Ng, Nia},
+  title        = {Source Title Alias Packet},
+  year         = {2025},
+  source-title = {Archive Guide}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $locator = $items['source-locator'];
+        $alias = $items['source-title-alias'];
+
+        $t->same('Migration Appendix', $locator['source']);
+        $t->same('Review Shelf A', $locator['section']);
+        $t->same('Plate 4', $locator['supplement']);
+        $t->same('Archive Guide', $alias['source']);
+        $t->same('Archive Guide', $alias['rawBibtex']['fields']['source-title']);
+        $t->same('Pat Roe. Source Locator Packet. 2026. Source: Migration Appendix. Section: Review Shelf A. Supplement: Plate 4.', $processor->renderBibliographyText($locator));
+
+        $document = (new MarkdownReader())->read('Source locator review cites @source-locator and [@source-title-alias].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same('Migration Appendix', $handoff['bibliography']->children[0]->attr('cslItem')['source'] ?? null);
+        $t->same('Archive Guide', $handoff['bibliography']->children[1]->attr('cslItem')['source'] ?? null);
+        $t->contains('Source: Migration Appendix', $markdown);
+        $t->contains('Section: Review Shelf A', $blocks);
+        $t->contains('Source: Archive Guide', $blocks);
+    },
     'carries archive collection and call number aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{compact-shelfmark,

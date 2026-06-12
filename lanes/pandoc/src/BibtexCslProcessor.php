@@ -242,6 +242,15 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        if (($item['source'] ?? '') !== '') {
+            $parts[] = 'Source: ' . (string) $item['source'];
+        }
+        if (($item['section'] ?? '') !== '') {
+            $parts[] = 'Section: ' . (string) $item['section'];
+        }
+        if (($item['supplement'] ?? '') !== '') {
+            $parts[] = 'Supplement: ' . (string) $item['supplement'];
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -431,6 +440,9 @@ final class BibtexCslProcessor
             'page' => ['pages', 'page'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
+            'source' => ['source', 'sourcetitle', 'source-title'],
+            'section' => ['section'],
+            'supplement' => ['supplement'],
             'DOI' => ['doi'],
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
