@@ -5147,6 +5147,9 @@ return [
         $t->same(strlen($localExtra), $summary['localHeaderExtraFieldBytes']);
         $t->same(strlen('word/document.xml') + strlen('word/media/review.bin') + strlen($localExtra), $summary['localHeaderVariableFieldBytes']);
         $t->same(1, $summary['localExtraFieldEntryCount']);
+        $t->same(0, $summary['skippedArchiveExtraDataRecordCount']);
+        $t->same(0, $summary['skippedArchiveExtraDataRecordBytes']);
+        $t->same([], $summary['skippedArchiveExtraDataRecords']);
         $t->same(true, $summary['hasLocalHeaderVariableFields']);
         $t->same(true, $summary['hasLocalExtraFields']);
         $t->same(true, $summary['isSupportedByBoundedReader']);
@@ -5178,6 +5181,75 @@ return [
         $t->same($summary, $strict['localHeaderVariableFields']);
         $t->same($summary['localHeaderVariableFieldBytes'], $localHeaders['localHeaderVariableFieldBytes']);
         $t->same($first['dataStart'], $localHeaders['entries'][0]['dataStart']);
+    },
+
+    'preflights zip local header variable fields across inter-entry archive extra records' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $archiveExtraData = 'local-header-archive-extra';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local fields across archive extra data</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "review media bytes\n",
+                'method' => 0,
+            ],
+        ]);
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+        $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+        $firstCentralNameLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 28, 2))['value'];
+        $firstCentralExtraLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 30, 2))['value'];
+        $firstCentralCommentLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 32, 2))['value'];
+        $interEntryOffset = $centralDirectoryOffset
+            + 46
+            + $firstCentralNameLength
+            + $firstCentralExtraLength
+            + $firstCentralCommentLength;
+        $interEntryRecordZip = substr($zip, 0, $interEntryOffset)
+            . $archiveExtraRecord
+            . substr($zip, $interEntryOffset);
+        $interEntryRecordZip = $rewriteEndOfCentralDirectory($interEntryRecordZip, [
+            'centralDirectorySize' => $centralDirectorySize + strlen($archiveExtraRecord),
+        ]);
+
+        $summary = ZipPackage::localHeaderVariableFieldsPreflight($interEntryRecordZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($interEntryRecordZip, 4096, 100.0, 4096);
+        $archiveExtraSummary = ZipPackage::archiveExtraDataRecordPreflight($interEntryRecordZip);
+        $skippedRecord = $summary['skippedArchiveExtraDataRecords'][0];
+        $diagnostics = implode(',', $rawStrict['diagnostics']);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.png'), $summary['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $summary['localHeaderExtraFieldBytes']);
+        $t->same(1, $summary['localExtraFieldEntryCount']);
+        $t->same(1, $summary['skippedArchiveExtraDataRecordCount']);
+        $t->same(strlen($archiveExtraRecord), $summary['skippedArchiveExtraDataRecordBytes']);
+        $t->same($interEntryOffset, $skippedRecord['offset']);
+        $t->same($interEntryOffset + 8, $skippedRecord['dataOffset']);
+        $t->same(strlen($archiveExtraData), $skippedRecord['dataLength']);
+        $t->same($interEntryOffset + strlen($archiveExtraRecord), $skippedRecord['endOffset']);
+        $t->same('before-central-directory-entry', $skippedRecord['location']);
+        $t->same(['archive-extra-data-record'], $skippedRecord['issues']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same('word/media/review.png', $summary['entries'][1]['name']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $t->same($archiveExtraSummary['archiveExtraDataRecords'], $summary['skippedArchiveExtraDataRecords']);
+        $t->same($summary, $rawStrict['localHeaderVariableFields']);
+        $t->contains('archive-extra-data-records', $diagnostics);
+        $t->same(false, str_contains($diagnostics, 'raw-local-header-variable-fields-preflight-failed'));
     },
 
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {

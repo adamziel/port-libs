@@ -8421,10 +8421,13 @@ final class ZipPackage
      *     localHeaderNameBytes:int,
      *     localHeaderExtraFieldBytes:int,
      *     localExtraFieldEntryCount:int,
+     *     skippedArchiveExtraDataRecordCount:int,
+     *     skippedArchiveExtraDataRecordBytes:int,
      *     hasLocalHeaderVariableFields:bool,
      *     hasLocalExtraFields:bool,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
      *     entries:list<array{
      *         name:string,
      *         rawName:string,
@@ -8471,12 +8474,35 @@ final class ZipPackage
         $localHeaderNameBytes = 0;
         $localHeaderExtraFieldBytes = 0;
         $localExtraFieldEntryCount = 0;
+        $skippedArchiveExtraDataRecords = [];
+        $skippedArchiveExtraDataRecordBytes = 0;
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
         }
 
         $cursor = $archive['centralDirectoryOffset'];
         for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            while ($cursor < $archive['centralDirectoryEnd']) {
+                $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($archiveExtraDataRecord === null) {
+                    break;
+                }
+
+                $skippedArchiveExtraDataRecords[] = self::archiveExtraDataRecordSummary(
+                    $archiveExtraDataRecord,
+                    $index === 0 ? 'central-directory-prefix' : 'before-central-directory-entry',
+                    $archive['eocdOffset'],
+                    $archive['centralDirectoryEnd']
+                );
+                $skippedArchiveExtraDataRecordBytes += $archiveExtraDataRecord['endOffset'] - $archiveExtraDataRecord['offset'];
+                $cursor = $archiveExtraDataRecord['endOffset'];
+            }
+
+            if ($cursor >= $archive['centralDirectoryEnd']) {
+                $issues[] = 'local-header-variable-field-missing-entry';
+                break;
+            }
+
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
                 throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
             }
@@ -8565,10 +8591,13 @@ final class ZipPackage
             'localHeaderNameBytes' => $localHeaderNameBytes,
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'skippedArchiveExtraDataRecordCount' => count($skippedArchiveExtraDataRecords),
+            'skippedArchiveExtraDataRecordBytes' => $skippedArchiveExtraDataRecordBytes,
             'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
             'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'skippedArchiveExtraDataRecords' => $skippedArchiveExtraDataRecords,
             'entries' => $entries,
         ];
     }
