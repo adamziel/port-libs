@@ -854,6 +854,61 @@ XML;
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][1]['targetStartsAtPackageRoot']);
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][2]['targetHasParentTraversal']);
     },
+    'summarizes docx relationship targets that escape the package root' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/review/source.xml'] = '<review/>';
+        $parts['word/review/_rels/source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEscapingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../../media/escaped.png?audit=escape#asset"/>
+</Relationships>
+XML;
+        $parts['media/escaped.png'] = 'escaped image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/review/_rels/source.xml.rels'];
+        $escaping = $relationshipPart['relationships']['rEscapingImage'];
+        $escapingSummary = $summary['relationshipTargetsWithPackageRootEscapes'][0];
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $imageRelationships = [];
+        foreach ($package['relationshipTypes'][$imageType]['relationships'] as $relationship) {
+            $imageRelationships[$relationship['id']] = $relationship;
+        }
+        $inventory = $package['parts']['media/escaped.png'];
+
+        $t->same('word/review/source.xml', $relationshipPart['sourcePart']);
+        $t->same(true, $relationshipPart['sourceExists']);
+        $t->same(1, $relationshipPart['relationshipCount']);
+        $t->same('../../../media/escaped.png?audit=escape#asset', $escaping['target']);
+        $t->same('media/escaped.png?audit=escape#asset', $escaping['resolvedTarget']);
+        $t->same('media/escaped.png', $escaping['targetPart']);
+        $t->same('audit=escape', $escaping['targetQuery']);
+        $t->same('asset', $escaping['targetFragment']);
+        $t->same(3, $escaping['targetParentTraversalCount']);
+        $t->same(true, $escaping['targetHasParentTraversal']);
+        $t->same(1, $escaping['targetPackageRootEscapeCount']);
+        $t->same(true, $escaping['targetEscapesPackageRoot']);
+        $t->same(false, $escaping['targetStartsAtPackageRoot']);
+        $t->same(true, $escaping['exists']);
+        $t->same('image/png', $escaping['contentType']);
+
+        $t->same(1, $summary['relationshipTargetPackageRootEscapeCount']);
+        $t->same(1, $summary['relationshipTargetPackageRootEscapeSegmentCount']);
+        $t->same(1, $summary['relationshipTargetParentTraversalCount']);
+        $t->same(3, $summary['relationshipTargetParentTraversalSegmentCount']);
+        $t->same(['word/review/_rels/source.xml.rels'], $summary['relationshipPartsWithPackageRootEscapes']);
+        $t->same('rEscapingImage', $escapingSummary['id']);
+        $t->same(1, $escapingSummary['targetPackageRootEscapeCount']);
+        $t->same(true, $escapingSummary['targetEscapesPackageRoot']);
+
+        $t->same(1, $package['relationshipTypes'][$imageType]['packageRootEscapeTargetCount']);
+        $t->same(1, $imageRelationships['rEscapingImage']['targetPackageRootEscapeCount']);
+        $t->same(true, $imageRelationships['rEscapingImage']['targetEscapesPackageRoot']);
+        $t->true(in_array('relationship-target', $inventory['roles'], true), 'escaped relationship target inventory role missing');
+        $t->same('image/png', $inventory['contentType']);
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';
