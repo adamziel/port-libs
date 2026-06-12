@@ -26938,6 +26938,87 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json volume subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-compact-volume-subtitle',
+                'type' => 'book',
+                'title' => 'Direct Compact Volume Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'volumetitle' => 'Collected Source Reviews',
+                'volumesubtitle' => 'Archive Supplement',
+                'shortvolumetitle' => 'CSR',
+            ],
+            [
+                'id' => 'direct-hyphen-volume-subtitle',
+                'type' => 'book',
+                'title' => 'Direct Hyphen Volume Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'volume-title' => 'Source Review Annual',
+                'volume-subtitle' => 'Import Appendix',
+                'short-volume-title' => 'SRA',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-compact-volume-subtitle');
+        $hyphen = $processor->item('direct-hyphen-volume-subtitle');
+        $t->same('Collected Source Reviews: Archive Supplement', $compact['volumeTitle'] ?? null);
+        $t->same('CSR', $compact['volumeTitleShort'] ?? null);
+        $t->same('Source Review Annual: Import Appendix', $hyphen['volumeTitle'] ?? null);
+        $t->same('SRA', $hyphen['volumeTitleShort'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Volume Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-volume-subtitle-alias-review</id>
+    <updated>2026-06-12T00:44:32+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title"/>
+        <text variable="volume-title" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Volume Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('volume-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('[Smith | Collected Source Reviews: Archive Supplement | CSR; Ng | Source Review Annual: Import Appendix | SRA]', $styled->renderCitationCluster([
+            $citation('direct-compact-volume-subtitle', '[@direct-compact-volume-subtitle]'),
+            $citation('direct-hyphen-volume-subtitle', '[@direct-hyphen-volume-subtitle]'),
+        ]));
+        $t->same('Direct Compact Volume Packet :: Collected Source Reviews: Archive Supplement :: CSR', $styled->renderBibliographyEntry('direct-compact-volume-subtitle'));
+        $t->same('Direct Hyphen Volume Packet :: Source Review Annual: Import Appendix :: SRA', $styled->renderBibliographyEntry('direct-hyphen-volume-subtitle'));
+
+        $document = (new MarkdownReader())->read('Direct volume aliases [@direct-compact-volume-subtitle; @direct-hyphen-volume-subtitle] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct volume aliases [Smith | Collected Source Reviews: Archive Supplement | CSR; Ng | Source Review Annual: Import Appendix | SRA] stay visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Direct Compact Volume Packet :: Collected Source Reviews: Archive Supplement :: CSR</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Hyphen Volume Packet :: Source Review Annual: Import Appendix :: SRA</dd>', $blocks);
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [

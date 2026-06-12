@@ -1279,8 +1279,19 @@ final class CitationCslProcessor
             ]),
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle', 'maintitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon', 'maintitleaddon']),
-            'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),
-            'volumeTitleShort' => self::firstStringField($item, ['volume-title-short', 'volumeTitleShort', 'volumetitleshort']),
+            'volumeTitle' => self::composedStringField(
+                $item,
+                ['volume-title', 'volumeTitle', 'volumetitle'],
+                ['volume-subtitle', 'volumeSubtitle', 'volumesubtitle']
+            ),
+            'volumeTitleShort' => self::firstStringField($item, [
+                'volume-title-short',
+                'volumeTitleShort',
+                'volumetitleshort',
+                'short-volume-title',
+                'shortVolumeTitle',
+                'shortvolumetitle',
+            ]),
             'partTitle' => self::firstStringField($item, ['part-title', 'partTitle', 'parttitle']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
