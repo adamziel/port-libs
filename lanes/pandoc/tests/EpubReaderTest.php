@@ -1924,6 +1924,96 @@ XML;
 
         $t->same($ncx, $result['importReport']['ncx']);
     },
+    'reports NCX document metadata audio provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $audioBytes = 'TITLE-AUDIO-DATA';
+        $opfWithDocAudio = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="title-audio" href="audio/title.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+        $ncxWithDocumentAudio = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <docTitle id="source-title" class="source-title" xml:lang="en">
+    <text id="title-text" class="main-title">WordPress Import EPUB</text>
+    <audio id="title-audio-label" src="audio/title.mp3" clipBegin="0s" clipEnd="2.5s"/>
+  </docTitle>
+  <docAuthor id="primary-author" xml:lang="fr">
+    <text id="author-text">Migration Desk</text>
+    <audio id="missing-author-audio" src="audio/missing-author.mp3" clipBegin="not-a-clock"/>
+  </docAuthor>
+  <docAuthor id="remote-author">
+    <text>Remote Narrator</text>
+    <audio id="remote-author-audio" src="https://cdn.example.test/audio/author.mp3"/>
+  </docAuthor>
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithDocAudio,
+            null,
+            [
+                ['name' => 'OEBPS/audio/title.mp3', 'data' => $audioBytes],
+            ],
+            overrideNcxXml: $ncxWithDocumentAudio,
+        ));
+
+        $ncx = $result['ncx'];
+        $title = $ncx['docTitleEntries'][0];
+        $t->same('source-title', $title['id']);
+        $t->same('source-title', $title['class']);
+        $t->same(['source-title'], $title['classes']);
+        $t->same('WordPress Import EPUB', $title['text']);
+        $t->same(['class' => 'main-title', 'id' => 'title-text'], $title['textAttributes']);
+        $t->same(1, $title['labelAudioCount']);
+        $titleAudio = $title['labelAudio'][0];
+        $t->same('doc-title', $titleAudio['owner']);
+        $t->same('title-audio-label', $titleAudio['id']);
+        $t->same('/OEBPS/audio/title.mp3', $titleAudio['target']);
+        $t->same('title-audio', $titleAudio['manifestId']);
+        $t->same('audio/mpeg', $titleAudio['mediaType']);
+        $t->same(hash('sha256', $audioBytes), $titleAudio['byteSha256']);
+        $t->same(2.5, $titleAudio['clipDurationSeconds']);
+        $t->same([], $titleAudio['diagnostics']);
+
+        $author = $ncx['docAuthorDetails'][0];
+        $t->same('primary-author', $author['id']);
+        $t->same('Migration Desk', $author['text']);
+        $t->same(['id' => 'author-text'], $author['textAttributes']);
+        $missingAuthorAudio = $author['labelAudio'][0];
+        $t->same('doc-author', $missingAuthorAudio['owner']);
+        $t->same('/OEBPS/audio/missing-author.mp3', $missingAuthorAudio['part']);
+        $t->same(false, $missingAuthorAudio['exists']);
+        $t->same(['missing-ncx-audio-reference', 'invalid-ncx-audio-clip-begin'], array_column($missingAuthorAudio['diagnostics'], 'type'));
+
+        $remoteAuthorAudio = $ncx['docAuthorDetails'][1]['labelAudio'][0];
+        $t->same('remote-author-audio', $remoteAuthorAudio['id']);
+        $t->same(true, $remoteAuthorAudio['external']);
+        $t->same('https://cdn.example.test/audio/author.mp3', $remoteAuthorAudio['target']);
+        $t->same('external-ncx-audio-reference', $remoteAuthorAudio['diagnostics'][0]['type']);
+
+        $report = $ncx['audioLabelReport'];
+        $t->same(3, $report['count']);
+        $t->same(1, $report['localCount']);
+        $t->same(1, $report['externalCount']);
+        $t->same(1, $report['missingCount']);
+        $t->same('doc-title', $report['items'][0]['scope']);
+        $t->same('source-title', $report['items'][0]['ownerId']);
+        $t->same('doc-author', $report['items'][1]['scope']);
+        $t->same('primary-author', $report['items'][1]['ownerId']);
+        $t->same('doc-author', $report['items'][2]['scope']);
+        $t->same('remote-author', $report['items'][2]['ownerId']);
+        $t->same(['doc-title', 'doc-author'], array_keys($report['byOwner']));
+        $t->same(3, $report['diagnosticCount']);
+        $t->same(['missing-ncx-audio-reference', 'invalid-ncx-audio-clip-begin', 'external-ncx-audio-reference'], array_column($report['diagnostics'], 'type'));
+        $t->same($ncx, $result['importReport']['ncx']);
+    },
     'reports NCX navList targets for legacy package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $ncxWithNavList = <<<'XML'
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">

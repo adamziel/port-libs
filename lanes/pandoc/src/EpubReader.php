@@ -11955,10 +11955,30 @@ final class EpubReader
             ? $this->readNcxPageList($package, $pageList, (string) $item['part'], $manifestByPart)
             : self::emptyNcxPageListReport();
         $navLists = $this->readNcxNavLists($package, $root, (string) $item['part'], $manifestByPart);
-        $docTitleEntries = self::readNcxTextElementEntries($root, 'docTitle');
-        $docAuthorDetails = self::readNcxTextElementEntries($root, 'docAuthor');
+        $docTitleEntries = $this->readNcxTextElementEntries(
+            $package,
+            $root,
+            (string) $item['part'],
+            $manifestByPart,
+            'docTitle',
+            'doc-title'
+        );
+        $docAuthorDetails = $this->readNcxTextElementEntries(
+            $package,
+            $root,
+            (string) $item['part'],
+            $manifestByPart,
+            'docAuthor',
+            'doc-author'
+        );
         $navMapItems = $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part'], $manifestByPart) : [];
-        $audioLabelReport = self::ncxLabelAudioReport($navMapItems, $pageListReport, $navLists['items']);
+        $audioLabelReport = self::ncxLabelAudioReport(
+            $navMapItems,
+            $pageListReport,
+            $navLists['items'],
+            $docTitleEntries,
+            $docAuthorDetails
+        );
 
         return [
             'part' => (string) $item['part'],
@@ -12217,11 +12237,19 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private static function readNcxTextElementEntries(\DOMElement $root, string $localName): array
+    private function readNcxTextElementEntries(
+        ZipPackage $package,
+        \DOMElement $root,
+        string $ncxPart,
+        array $manifestByPart,
+        string $localName,
+        string $owner
+    ): array
     {
         $items = [];
         foreach (self::childElements($root, $localName, self::NCX_NS) as $index => $element) {
             $textElement = self::firstDescendantElement($element, 'text', self::NCX_NS);
+            $labelAudio = $this->readNcxLabelAudio($package, $element, $ncxPart, $manifestByPart, $owner);
             $items[] = [
                 'index' => $index,
                 'id' => self::nullableAttribute($element, 'id'),
@@ -12233,6 +12261,10 @@ final class EpubReader
                     ? self::normalizedText($textElement)
                     : self::normalizedText($element),
                 'attributes' => self::elementAttributes($element),
+                'textAttributes' => $textElement instanceof \DOMElement ? self::elementAttributes($textElement) : [],
+                'labelAudioCount' => count($labelAudio),
+                'labelAudio' => $labelAudio,
+                'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
             ];
         }
 
@@ -12865,7 +12897,13 @@ final class EpubReader
      *
      * @return array<string, mixed>
      */
-    private static function ncxLabelAudioReport(array $navMapItems, array $pageListReport, array $navLists): array
+    private static function ncxLabelAudioReport(
+        array $navMapItems,
+        array $pageListReport,
+        array $navLists,
+        array $docTitleEntries = [],
+        array $docAuthorDetails = []
+    ): array
     {
         $items = [];
         $byOwner = [];
@@ -12930,6 +12968,30 @@ final class EpubReader
         };
 
         $walkTargets($navMapItems, 'nav-map');
+
+        foreach ($docTitleEntries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            foreach (is_array($entry['labelAudio'] ?? null) ? $entry['labelAudio'] : [] as $audio) {
+                if (is_array($audio)) {
+                    $appendAudio($audio, 'doc-title', is_string($entry['id'] ?? null) ? $entry['id'] : null);
+                }
+            }
+        }
+
+        foreach ($docAuthorDetails as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            foreach (is_array($entry['labelAudio'] ?? null) ? $entry['labelAudio'] : [] as $audio) {
+                if (is_array($audio)) {
+                    $appendAudio($audio, 'doc-author', is_string($entry['id'] ?? null) ? $entry['id'] : null);
+                }
+            }
+        }
 
         foreach (is_array($pageListReport['labelAudio'] ?? null) ? $pageListReport['labelAudio'] : [] as $audio) {
             if (is_array($audio)) {

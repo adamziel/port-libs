@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,290 pass / 0 fail | [3,250 / 2,276 (142.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | opc-zip-manifest-content-type-byte-buckets-9ee7a923 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,291 pass / 0 fail | [3,251 / 2,276 (142.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | EPUB3 remains partial; NCX document metadata audio provenance is now covered. | epub-ncx-document-audio-provenance-3af5dde50f |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -36,7 +36,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 274 | 29 | Finish HTML5 tree construction and implement XML/JATS readers. |
 | JSON/native AST | `json`, `native` | partial | 44 | 252 | Complete JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 91 | 35 | Finish direct WordprocessingML/package reader parity. |
-| EPUB/EPUB3 | `epub` | partial | 58 | 9 | Finish EPUB package reader parity. |
+| EPUB/EPUB3 | `epub` | partial | 59 | 9 | Finish EPUB package reader parity; latest slice preserves NCX docTitle/docAuthor audio provenance. |
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 49 | 20 | 0 critical gaps for native PHP ODT import; continue only non-critical hardening slices as discovered. |
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 106 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | unsupported | 76 | 8 | Implement native bibliography and citation readers. |
@@ -48,6 +48,14 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
 | Tabular/data readers | `csv`, `tsv` | unsupported | 0 | 2 | Implement CSV/TSV table readers. |
 | Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 33 | Close the remaining unsupported input registry rows. |
+
+### EPUB3 Package Closure Update (2026-06-12)
+
+| Surface | Evidence | Verdict |
+| --- | --- | --- |
+| EPUB3 package reader | Upstream denominator 9; local passing evidence 59; mapped evidence 655.6% of the static denominator. | Partial, not shippable. |
+| Latest closed gap | NCX `docTitle`/`docAuthor` entries now preserve text attributes plus local, missing, and remote audio-label provenance in document metadata and import reports. | Covered by one focused native PHP test with 39 assertions. |
+| Remaining critical gaps | Direct EPUB package reader parity still needs broader structural/content coverage, and no upstream Pandoc runner, EPUBCheck, browser renderer, or external validator was executed. | Keep EPUB3 in partial status. |
 
 Adjacent import targets outside the Pandoc input denominator:
 
@@ -84,7 +92,10 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md`, and `php tools/run-tests.php
-lanes/pandoc/tests` (`44` files, `73816` assertions, `0` failures on current
-main `28b0d1d670`). No Pandoc binary, office suite, TeX/Typst engine, browser
+status, `git diff --check -- progress.md`, `php -l lanes/pandoc/src/EpubReader.php`,
+`php -l lanes/pandoc/tests/EpubReaderTest.php`, `php tools/run-tests.php
+lanes/pandoc/tests/EpubReaderTest.php` (`1` file, `4276` assertions, `0`
+failures), and `php tools/run-tests.php lanes/pandoc/tests` (`44` files,
+`73855` assertions, `0` failures on current main `3af5dde50f`). No Pandoc binary,
+office suite, TeX/Typst engine, browser
 engine, Node tooling, or external validator was invoked.
