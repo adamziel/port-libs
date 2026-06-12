@@ -10460,6 +10460,70 @@ XML;
         $t->same(false, $result['media'][1]['exists']);
         $t->same(null, $result['media'][1]['byteLength']);
     },
+    'preserves ODT manifest custom file-entry attributes in package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithCustomAttributes = <<<'XML'
+<manifest:manifest
+  xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"
+  xmlns:loext="urn:libreoffice:names:experimental:office:xmlns:loext:1.0"
+  xmlns:wp="urn:wordpress:review"
+  manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" loext:checksum="sha256-content" wp:review-priority="high"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7" loext:media-type-hint="review-cover" wp:empty-note="" xml:lang="en-US"/>
+</manifest:manifest>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithCustomAttributes));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $order = $provenance['manifestFileEntryOrder'];
+        $inventory = $provenance['parts'];
+        $content = $manifestByPart['content.xml'];
+        $hero = $manifestByPart['Pictures/hero.png'];
+        $contentAttributes = [];
+        foreach ($content['manifestAttributes'] as $attribute) {
+            $contentAttributes[$attribute['name']] = $attribute;
+        }
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(4, $content['manifestAttributeCount']);
+        $t->same(['loext:checksum', 'manifest:full-path', 'manifest:media-type', 'wp:review-priority'], $content['manifestAttributeNames']);
+        $t->same(true, $contentAttributes['manifest:full-path']['structural']);
+        $t->same(false, $contentAttributes['loext:checksum']['structural']);
+        $t->same('urn:libreoffice:names:experimental:office:xmlns:loext:1.0', $contentAttributes['loext:checksum']['namespaceUri']);
+        $t->same('sha256-content', $contentAttributes['loext:checksum']['value']);
+        $t->same(2, $content['customManifestAttributeCount']);
+        $t->same(['loext:checksum', 'wp:review-priority'], $content['customManifestAttributeNames']);
+        $t->same([
+            'loext:checksum' => 'sha256-content',
+            'wp:review-priority' => 'high',
+        ], $content['customManifestAttributeMap']);
+
+        $t->same(6, $hero['manifestAttributeCount']);
+        $t->same(['loext:media-type-hint', 'wp:empty-note', 'xml:lang'], $hero['customManifestAttributeNames']);
+        $t->same('review-cover', $hero['customManifestAttributeMap']['loext:media-type-hint']);
+        $t->same('', $hero['customManifestAttributeMap']['wp:empty-note']);
+        $t->same('en-US', $hero['customManifestAttributeMap']['xml:lang']);
+
+        $t->same(2, $provenance['manifestCustomAttributeEntryCount']);
+        $t->same(5, $provenance['manifestCustomAttributeCount']);
+        $t->same(['loext:checksum', 'loext:media-type-hint', 'wp:empty-note', 'wp:review-priority', 'xml:lang'], $provenance['manifestCustomAttributeNames']);
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($provenance['manifestCustomAttributeItems'], 'part'));
+        $t->same(['loext:checksum', 'wp:review-priority'], $order[1]['customManifestAttributeNames']);
+        $t->same(['loext:media-type-hint', 'wp:empty-note', 'xml:lang'], $order[4]['customManifestAttributeNames']);
+        $t->same(2, $inventory['content.xml']['customManifestAttributeCount']);
+        $t->same('sha256-content', $inventory['content.xml']['customManifestAttributeMap']['loext:checksum']);
+        $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
+        $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
+    },
     'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

@@ -28,6 +28,14 @@ final class OdfReader
     private const RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
     private const XHTML_NS = 'http://www.w3.org/1999/xhtml';
     private const DSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
+    private const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
+    private const MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES = [
+        'full-path' => true,
+        'media-type' => true,
+        'preferred-view-mode' => true,
+        'size' => true,
+        'version' => true,
+    ];
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -447,6 +455,7 @@ final class OdfReader
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
             $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
             $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
+            $attributeProvenance = $this->manifestFileEntryAttributeProvenance($entryElement);
             $encryptionElements = self::childElements($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElements !== [];
             $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath);
@@ -516,6 +525,13 @@ final class OdfReader
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
+                'manifestAttributeCount' => $attributeProvenance['attributeCount'],
+                'manifestAttributeNames' => $attributeProvenance['attributeNames'],
+                'manifestAttributes' => $attributeProvenance['attributes'],
+                'customManifestAttributeCount' => $attributeProvenance['customAttributeCount'],
+                'customManifestAttributeNames' => $attributeProvenance['customAttributeNames'],
+                'customManifestAttributes' => $attributeProvenance['customAttributes'],
+                'customManifestAttributeMap' => $attributeProvenance['customAttributeMap'],
                 'exists' => $exists,
                 'isDirectory' => $isDirectory,
                 'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
@@ -557,6 +573,70 @@ final class OdfReader
         }
 
         return $items;
+    }
+
+    /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>
+     * }
+     */
+    private function manifestFileEntryAttributeProvenance(\DOMElement $element): array
+    {
+        $attributes = [];
+        $customAttributes = [];
+        $customAttributeMap = [];
+        if ($element->hasAttributes()) {
+            foreach ($element->attributes as $attribute) {
+                if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI === self::XMLNS_NS) {
+                    continue;
+                }
+
+                $name = $attribute->prefix !== ''
+                    ? $attribute->prefix . ':' . $attribute->localName
+                    : $attribute->name;
+                $structural = $attribute->namespaceURI === self::MANIFEST_NS
+                    && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES[$attribute->localName]);
+                $record = [
+                    'name' => $name,
+                    'localName' => $attribute->localName,
+                    'value' => $attribute->value,
+                    'structural' => $structural,
+                ];
+                $namespaceUri = (string) $attribute->namespaceURI;
+                if ($namespaceUri !== '') {
+                    $record['namespaceUri'] = $namespaceUri;
+                }
+                if ($attribute->prefix !== '') {
+                    $record['prefix'] = $attribute->prefix;
+                }
+
+                $attributes[$name] = $record;
+                if (!$structural) {
+                    $customAttributes[$name] = $record;
+                    $customAttributeMap[$name] = $attribute->value;
+                }
+            }
+        }
+
+        ksort($attributes, SORT_STRING);
+        ksort($customAttributes, SORT_STRING);
+        ksort($customAttributeMap, SORT_STRING);
+
+        return [
+            'attributeCount' => count($attributes),
+            'attributeNames' => array_keys($attributes),
+            'attributes' => array_values($attributes),
+            'customAttributeCount' => count($customAttributes),
+            'customAttributeNames' => array_keys($customAttributes),
+            'customAttributes' => array_values($customAttributes),
+            'customAttributeMap' => $customAttributeMap,
+        ];
     }
 
     /**
@@ -792,6 +872,9 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $manifestCustomAttributeCount = 0;
+        $manifestCustomAttributeNames = [];
+        $manifestCustomAttributeItems = [];
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
@@ -820,6 +903,12 @@ final class OdfReader
                 'mediaType' => $item['mediaType'] ?? null,
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
+                'manifestAttributeCount' => $item['manifestAttributeCount'] ?? 0,
+                'manifestAttributeNames' => $item['manifestAttributeNames'] ?? [],
+                'customManifestAttributeCount' => $item['customManifestAttributeCount'] ?? 0,
+                'customManifestAttributeNames' => $item['customManifestAttributeNames'] ?? [],
+                'customManifestAttributes' => $item['customManifestAttributes'] ?? [],
+                'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -827,6 +916,26 @@ final class OdfReader
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
+            $customManifestAttributes = is_array($item['customManifestAttributes'] ?? null)
+                ? $item['customManifestAttributes']
+                : [];
+            if ($customManifestAttributes !== []) {
+                $manifestCustomAttributeCount += count($customManifestAttributes);
+                foreach ($item['customManifestAttributeNames'] ?? [] as $attributeName) {
+                    if (is_string($attributeName) && $attributeName !== '' && !in_array($attributeName, $manifestCustomAttributeNames, true)) {
+                        $manifestCustomAttributeNames[] = $attributeName;
+                    }
+                }
+                $manifestCustomAttributeItems[] = [
+                    'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestCustomAttributeItems),
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'customManifestAttributeCount' => count($customManifestAttributes),
+                    'customManifestAttributeNames' => $item['customManifestAttributeNames'] ?? [],
+                    'customManifestAttributes' => $customManifestAttributes,
+                    'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
+                ];
+            }
             if (is_string($part) && $part !== '') {
                 $manifestByPart[$part] = $item;
             }
@@ -908,6 +1017,12 @@ final class OdfReader
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
+                'manifestAttributeCount' => is_array($manifestItem) ? ($manifestItem['manifestAttributeCount'] ?? 0) : 0,
+                'manifestAttributeNames' => is_array($manifestItem) ? ($manifestItem['manifestAttributeNames'] ?? []) : [],
+                'customManifestAttributeCount' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeCount'] ?? 0) : 0,
+                'customManifestAttributeNames' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeNames'] ?? []) : [],
+                'customManifestAttributes' => is_array($manifestItem) ? ($manifestItem['customManifestAttributes'] ?? []) : [],
+                'customManifestAttributeMap' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeMap'] ?? []) : [],
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestItem) ? $manifestItem['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
@@ -972,6 +1087,7 @@ final class OdfReader
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
+        sort($manifestCustomAttributeNames, SORT_STRING);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -979,6 +1095,10 @@ final class OdfReader
             'manifestDeclaredPartCount' => count($manifestByPart),
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
+            'manifestCustomAttributeEntryCount' => count($manifestCustomAttributeItems),
+            'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
+            'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
+            'manifestCustomAttributeItems' => $manifestCustomAttributeItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
