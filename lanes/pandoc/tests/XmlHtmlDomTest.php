@@ -1080,6 +1080,67 @@ XML, 'package reader XML');
         ], $defaultButton['submitter']);
         $t->same('<form accept-charset="UTF-8 ISO-8859-1" action="https://forms.example.invalid/submit" autocomplete="off" enctype="multipart/form-data" id="remote-review" method="POST" novalidate target="_blank"><input name="title" value="Packet"><input formaction="/image-submit" formenctype="multipart/form-data" formmethod="POST" formnovalidate formtarget="_parent" src="submit.png" type="image"><button formaction="/local-submit" formenctype="text/plain" formmethod="dialog" formnovalidate formtarget="_self" type="submit">Send</button></form><form autocomplete="maybe" enctype="application/json" id="invalid-method" method="TRACE"><button>Default</button></form>', $html);
     },
+    'summarizes html search region controls for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<search id="site-search" aria-label="Documentation search"><form id="search-form" action="/search" method="GET" role="search"><label for="q">Search docs</label><input id="q" type="search" name="q" value="zip package" placeholder="Find docs"><button name="go" value="1">Find</button></form></search>'
+                . '<search id="filters"><input name="filter" value="recent"><button type="button">Clear</button></search>',
+            'search region review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/search-region-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $search = $summary[0];
+        $form = $search['children'][0];
+        $query = $form['children'][1];
+        $submit = $form['children'][2];
+        $filter = $summary[1];
+
+        $t->same('search', $search['name']);
+        $t->same('search', $search['searchRegion']);
+        $t->same('site-search', $search['elementId']);
+        $t->same(['aria-label' => 'Documentation search'], $search['ariaAttributes']);
+        $t->same('Search docsFind', $search['searchText']);
+        $t->same(1, $search['searchFormCount']);
+        $t->same([
+            'id' => 'search-form',
+            'action' => '/search',
+            'method' => 'get',
+            'role' => 'search',
+            'controlCount' => 2,
+            'controlNames' => ['q', 'go'],
+        ], $search['searchForms'][0]);
+        $t->same(2, $search['searchControlCount']);
+        $t->same(['q', 'go'], $search['searchControlNames']);
+        $t->same('search', $search['searchControls'][0]['type']);
+        $t->same(true, $search['searchControls'][0]['searchField']);
+        $t->same('zip package', $search['searchControls'][0]['value']);
+        $t->same('Find docs', $search['searchControls'][0]['placeholder']);
+        $t->same(1, $search['searchSubmitterCount']);
+        $t->same('Find', $search['searchSubmitters'][0]['label']);
+        $t->same('submit', $search['searchSubmitters'][0]['type']);
+
+        $t->same('form', $form['formSubmission']);
+        $t->same('get', $form['method']);
+        $t->same('input', $query['formControl']);
+        $t->same('search', $query['inputType']);
+        $t->same('button', $submit['formControl']);
+        $t->same('submit', $submit['buttonType']);
+
+        $t->same('filters', $filter['elementId']);
+        $t->same(0, $filter['searchFormCount']);
+        $t->same(2, $filter['searchControlCount']);
+        $t->same(['filter'], $filter['searchControlNames']);
+        $t->same(false, $filter['searchControls'][0]['searchField']);
+        $t->same(0, $filter['searchSubmitterCount']);
+
+        $t->same('<search aria-label="Documentation search" id="site-search"><form action="/search" id="search-form" method="GET" role="search"><label for="q">Search docs</label><input id="q" name="q" placeholder="Find docs" type="search" value="zip package"><button name="go" value="1">Find</button></form></search><search id="filters"><input name="filter" value="recent"><button type="button">Clear</button></search>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/search-region-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html output control state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output id="checksum" name="checksum" for="source-a  source-b missing">Ready <strong>hash</strong></output></label></form>',

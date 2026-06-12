@@ -761,6 +761,9 @@ final class XmlHtmlDom
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
         }
+        if ($name === 'search') {
+            $summary += self::searchSummary($node);
+        }
         if ($name === 'label') {
             $summary += self::labelSummary($node);
         }
@@ -2290,6 +2293,106 @@ final class XmlHtmlDom
         $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
 
         return $autocomplete === 'off' ? 'off' : 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function searchSummary(\DOMElement $search): array
+    {
+        $controls = self::searchControlSummaries($search);
+        $forms = array_map(
+            static fn (\DOMElement $form): array => self::searchFormSummary($form),
+            self::descendantHtmlElements($search, 'form')
+        );
+        $submitters = array_values(array_filter(
+            $controls,
+            static fn (array $control): bool => (bool) ($control['submitter'] ?? false)
+        ));
+
+        return [
+            'searchRegion' => 'search',
+            'searchText' => self::normalizedText($search),
+            'searchFormCount' => count($forms),
+            'searchForms' => $forms,
+            'searchControlCount' => count($controls),
+            'searchControlNames' => self::fieldsetControlNames($controls),
+            'searchControls' => $controls,
+            'searchSubmitterCount' => count($submitters),
+            'searchSubmitters' => $submitters,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function searchFormSummary(\DOMElement $form): array
+    {
+        $controls = self::searchControlSummaries($form);
+
+        return [
+            'id' => self::attributeOrNull($form, 'id'),
+            'action' => self::attributeOrNull($form, 'action'),
+            'method' => self::formMethod($form, 'method', 'get'),
+            'role' => self::attributeOrNull($form, 'role'),
+            'controlCount' => count($controls),
+            'controlNames' => self::fieldsetControlNames($controls),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function searchControlSummaries(\DOMElement $root): array
+    {
+        $controls = [];
+        foreach ($root->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || !self::isFormControlElement($control)) {
+                continue;
+            }
+
+            $name = self::htmlElementName($control);
+            $summary = [
+                'tag' => $name,
+                'id' => self::attributeOrNull($control, 'id'),
+                'controlName' => self::attributeOrNull($control, 'name'),
+                'effectiveDisabled' => self::isEffectivelyDisabledFormControl($control),
+            ];
+
+            if ($name === 'input') {
+                $type = self::inputType($control);
+                $summary['type'] = $type;
+                $summary['value'] = $control->getAttribute('value');
+                $summary['searchField'] = $type === 'search';
+                if ($control->hasAttribute('placeholder')) {
+                    $summary['placeholder'] = $control->getAttribute('placeholder');
+                }
+                if (self::isInputSubmitterType($type)) {
+                    $summary['submitter'] = true;
+                    $summary['label'] = $control->getAttribute('value');
+                }
+            } elseif ($name === 'button') {
+                $type = self::buttonType($control);
+                $summary['type'] = $type;
+                $summary['value'] = $control->getAttribute('value');
+                $summary['label'] = self::normalizedText($control);
+                $summary['submitter'] = $type === 'submit';
+            } elseif ($name === 'textarea') {
+                $summary['value'] = $control->textContent;
+            } elseif ($name === 'select') {
+                $options = self::selectOptionSummaries($control);
+                $summary['selectedValues'] = array_values(array_map(
+                    static fn (array $option): string => (string) $option['value'],
+                    array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
+                ));
+            } elseif ($name === 'output') {
+                $summary['value'] = $control->textContent;
+            }
+
+            $controls[] = $summary;
+        }
+
+        return $controls;
     }
 
     /**
