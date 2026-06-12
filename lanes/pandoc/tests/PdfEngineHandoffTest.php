@@ -176,6 +176,108 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'summarizes typst boundary provenance for package review' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/build/boundary-summary.typ',
+            'outputPath' => 'build/boundary-summary.pdf',
+            'source' => '= Typst Boundary Summary Packet',
+            'engineOptions' => [
+                '--root=workspace',
+                '--font-path=fonts',
+                '--font-path=/usr/share/fonts',
+                '--cert=certs/internal.pem',
+                '--cert=https://ca.example.invalid/root.pem',
+                '--package-path=vendor/typst',
+                '--package-cache=https://cache.example.invalid/typst',
+                '--input=audience=reviewer',
+                '--pages=1-2',
+                '--ppi=300',
+                '--pdf-standard=a-2b',
+                '--features=html,packages',
+                '--jobs=auto',
+                '--deps=build/boundary-summary.d',
+                '--deps-format=json',
+                '--timings=build/boundary-summary-timings.json',
+                '--diagnostic-format=json',
+                '--color=never',
+                '--open=xdg-open',
+                '--ignore-system-fonts',
+                '--ignore-embedded-fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary summary packet\n%%EOF\n";
+        $depfile = "build/boundary-summary.pdf: workspace/build/boundary-summary.typ\n";
+        $timingsBytes = '{"traceEvents":[{"name":"export","args":{"file":"workspace/build/boundary-summary.typ","line":1}}]}';
+        $expectedSummary = [
+            'reviewStatus' => 'review',
+            'pathEntryCount' => 9,
+            'safePathEntryCount' => 6,
+            'unsafePathEntryCount' => 3,
+            'relativePathEntryCount' => 6,
+            'workspacePathEntryCount' => 0,
+            'absolutePathEntryCount' => 1,
+            'uriPathEntryCount' => 2,
+            'stdoutPathEntryCount' => 0,
+            'invalidPathEntryCount' => 0,
+            'fontPathCount' => 2,
+            'certificateCount' => 2,
+            'packageStorageEntryCount' => 2,
+            'inputVariableCount' => 1,
+            'unsafeInputVariableCount' => 0,
+            'sidecarOutputCount' => 2,
+            'dependencyOutputPresent' => true,
+            'timingsOutputPresent' => true,
+            'diagnosticOutputPresent' => true,
+            'pdfExportControlCount' => 3,
+            'featureGateCount' => 2,
+            'executionPolicyPresent' => true,
+            'openOutputSideEffectCount' => 1,
+            'overrideCount' => 0,
+            'historyEntryCount' => 0,
+            'issueCount' => 4,
+            'issues' => [
+                'package-cache-external-boundary',
+                'font-path-external-boundary',
+                'certificate-external-boundary',
+                'open-output-side-effect-boundary',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/boundary-summary.d' => $depfile,
+                'build/boundary-summary-timings.json' => $timingsBytes,
+                'build/boundary-summary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/boundary-summary.d' => $depfile,
+                'build/boundary-summary-timings.json' => $timingsBytes,
+                'build/boundary-summary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expectedSummary, $plan['typstBoundarySummary']);
+        $t->contains('typst-boundary-summary:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-paths:9', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));
+        $t->same(['build/boundary-summary.d', 'build/boundary-summary-timings.json'], $plan['expectedEngineArtifacts']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedSummary, $result['typstBoundarySummary']);
+        $t->same($expectedSummary, $result['artifactProvenanceReview']['typstBoundarySummary']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same(hash('sha256', $depfile), $result['producedArtifactsSha256']['build/boundary-summary.d']);
+        $t->same(hash('sha256', $timingsBytes), $result['producedArtifactsSha256']['build/boundary-summary-timings.json']);
+        $t->same($expectedSummary, $sequence['finalTypstBoundarySummary']);
+    },
+
     'plans typst package cache path alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

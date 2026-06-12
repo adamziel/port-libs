@@ -201,6 +201,7 @@ final class PdfEngineHandoff
             $expectedEngineArtifacts[] = $typstTimingFile;
         }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
+        $typstBoundarySummary = $this->typstBoundarySummaryFor($typstBoundaryProvenance);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
@@ -448,6 +449,19 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'typst-boundary-issues:' . count($typstBoundaryProvenance['issues']);
             }
         }
+        if ($typstBoundarySummary !== []) {
+            $diagnostics[] = 'typst-boundary-summary:' . $typstBoundarySummary['reviewStatus'];
+            $diagnostics[] = 'typst-boundary-summary-paths:' . $typstBoundarySummary['pathEntryCount'];
+            if ($typstBoundarySummary['unsafePathEntryCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-summary-unsafe-paths:' . $typstBoundarySummary['unsafePathEntryCount'];
+            }
+            if ($typstBoundarySummary['sidecarOutputCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-summary-sidecars:' . $typstBoundarySummary['sidecarOutputCount'];
+            }
+            if ($typstBoundarySummary['issueCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
+            }
+        }
         if ($sourceMapFile !== null) {
             $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
@@ -492,6 +506,7 @@ final class PdfEngineHandoff
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
+            'typstBoundarySummary' => $typstBoundarySummary,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
         ];
@@ -727,6 +742,9 @@ final class PdfEngineHandoff
         $typstBoundaryProvenance = is_array($plan['typstBoundaryProvenance'] ?? null)
             ? $plan['typstBoundaryProvenance']
             : [];
+        $typstBoundarySummary = is_array($plan['typstBoundarySummary'] ?? null)
+            ? $plan['typstBoundarySummary']
+            : $this->typstBoundarySummaryFor($typstBoundaryProvenance);
 
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $sourceSha256 = null;
@@ -4383,6 +4401,7 @@ final class PdfEngineHandoff
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
+            'typstBoundarySummary' => $typstBoundarySummary,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
@@ -4415,6 +4434,7 @@ final class PdfEngineHandoff
             'engineOutputFiles' => $engineOutputFileList,
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
+            'typstBoundarySummary' => $typstBoundarySummary,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'engineBoundaryRoot' => $engineBoundaryRoot,
@@ -5072,6 +5092,7 @@ final class PdfEngineHandoff
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
+            'finalTypstBoundarySummary' => is_array($finalRun) && is_array($finalRun['typstBoundarySummary'] ?? null) ? $finalRun['typstBoundarySummary'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
@@ -6326,6 +6347,130 @@ final class PdfEngineHandoff
         }
 
         return $provenance;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @return array<string, mixed>
+     */
+    private function typstBoundarySummaryFor(array $provenance): array
+    {
+        if ($provenance === []) {
+            return [];
+        }
+
+        $pathEntries = [];
+        $appendPathEntry = static function (mixed $entry) use (&$pathEntries): void {
+            if (!is_array($entry) || !is_string($entry['kind'] ?? null)) {
+                return;
+            }
+
+            $pathEntries[] = $entry;
+        };
+
+        $appendPathEntry($provenance['root'] ?? null);
+        foreach (['fontPaths', 'certificates'] as $listKey) {
+            foreach (is_array($provenance[$listKey] ?? null) ? $provenance[$listKey] : [] as $entry) {
+                $appendPathEntry($entry);
+            }
+        }
+        $appendPathEntry($provenance['packagePath'] ?? null);
+        $appendPathEntry($provenance['packageCache'] ?? null);
+        if (is_array($provenance['dependencyOutput'] ?? null)) {
+            $appendPathEntry($provenance['dependencyOutput']['file'] ?? null);
+        }
+        $appendPathEntry($provenance['timingsOutput'] ?? null);
+
+        $kindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'stdout' => 0,
+            'invalid' => 0,
+        ];
+        $safePathCount = 0;
+        $unsafePathCount = 0;
+        foreach ($pathEntries as $entry) {
+            $kind = is_string($entry['kind'] ?? null) ? $entry['kind'] : 'invalid';
+            if (!array_key_exists($kind, $kindCounts)) {
+                $kind = 'invalid';
+            }
+            ++$kindCounts[$kind];
+
+            if (($entry['safe'] ?? false) === true) {
+                ++$safePathCount;
+            } else {
+                ++$unsafePathCount;
+            }
+        }
+
+        $inputVariables = is_array($provenance['inputVariables'] ?? null) ? $provenance['inputVariables'] : [];
+        $unsafeInputVariableCount = 0;
+        foreach ($inputVariables as $inputVariable) {
+            if (!is_array($inputVariable) || ($inputVariable['safe'] ?? false) !== true) {
+                ++$unsafeInputVariableCount;
+            }
+        }
+
+        $dependencyOutputPresent = is_array($provenance['dependencyOutput']['file'] ?? null);
+        $timingsOutputPresent = is_array($provenance['timingsOutput'] ?? null);
+        $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
+        $pdfExportControlCount = 0;
+        foreach ([
+            is_array($provenance['pdfStandard'] ?? null),
+            is_array($pdfExport['pageSelection'] ?? null),
+            is_array($pdfExport['ppi'] ?? null),
+            is_array($pdfExport['tags'] ?? null),
+        ] as $present) {
+            if ($present) {
+                ++$pdfExportControlCount;
+            }
+        }
+
+        $historyEntryCount = 0;
+        foreach ($provenance as $key => $value) {
+            if (is_string($key) && str_ends_with($key, 'History') && is_array($value)) {
+                $historyEntryCount += count($value);
+            }
+        }
+
+        $issues = array_values(array_filter(
+            is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+
+        return [
+            'reviewStatus' => is_string($provenance['reviewStatus'] ?? null) ? $provenance['reviewStatus'] : ($issues === [] ? 'ok' : 'review'),
+            'pathEntryCount' => count($pathEntries),
+            'safePathEntryCount' => $safePathCount,
+            'unsafePathEntryCount' => $unsafePathCount,
+            'relativePathEntryCount' => $kindCounts['relative'],
+            'workspacePathEntryCount' => $kindCounts['workspace'],
+            'absolutePathEntryCount' => $kindCounts['absolute'],
+            'uriPathEntryCount' => $kindCounts['uri'],
+            'stdoutPathEntryCount' => $kindCounts['stdout'],
+            'invalidPathEntryCount' => $kindCounts['invalid'],
+            'fontPathCount' => is_array($provenance['fontPaths'] ?? null) ? count($provenance['fontPaths']) : 0,
+            'certificateCount' => is_array($provenance['certificates'] ?? null) ? count($provenance['certificates']) : 0,
+            'packageStorageEntryCount' => is_array($provenance['packageStoragePolicy'] ?? null) && is_int($provenance['packageStoragePolicy']['storageEntryCount'] ?? null)
+                ? $provenance['packageStoragePolicy']['storageEntryCount']
+                : (int) is_array($provenance['packagePath'] ?? null) + (int) is_array($provenance['packageCache'] ?? null),
+            'inputVariableCount' => count($inputVariables),
+            'unsafeInputVariableCount' => $unsafeInputVariableCount,
+            'sidecarOutputCount' => (int) $dependencyOutputPresent + (int) $timingsOutputPresent,
+            'dependencyOutputPresent' => $dependencyOutputPresent,
+            'timingsOutputPresent' => $timingsOutputPresent,
+            'diagnosticOutputPresent' => is_array($provenance['diagnosticOutput'] ?? null),
+            'pdfExportControlCount' => $pdfExportControlCount,
+            'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
+            'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
+            'openOutputSideEffectCount' => is_array($provenance['openOutput'] ?? null) && is_int($provenance['openOutput']['flagCount'] ?? null) ? $provenance['openOutput']['flagCount'] : 0,
+            'overrideCount' => is_array($provenance['overrides'] ?? null) ? count($provenance['overrides']) : 0,
+            'historyEntryCount' => $historyEntryCount,
+            'issueCount' => count($issues),
+            'issues' => $issues,
+        ];
     }
 
     /**
