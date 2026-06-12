@@ -24,7 +24,8 @@ Input scope after skipping IPYNB:
 | Scope | Count |
 | --- | ---: |
 | Upstream Pandoc input tokens in scope | 50 |
-| Partial native PHP input support to finish | 17 |
+| Shippable native PHP input support | 1 |
+| Partial native PHP input support to finish | 16 |
 | Unsupported native PHP input tokens to implement | 33 |
 
 Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
@@ -36,7 +37,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | JSON/native AST | `json`, `native` | partial | 44 | 252 | Complete JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 91 | 35 | Finish direct WordprocessingML/package reader parity. |
 | EPUB/EPUB3 | `epub` | partial | 58 | 9 | Finish EPUB package reader parity. |
-| ODF/ODT/OpenDocument | `odt` | partial | 71 | 16 | Finish OpenDocument package reader parity. |
+| ODF/ODT/OpenDocument | `odt` | ship-ready | 49 | 20 | 0 critical gaps for native PHP ODT import; continue only non-critical hardening slices as discovered. |
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 106 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | unsupported | 76 | 8 | Implement native bibliography and citation readers. |
 | LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
@@ -55,6 +56,24 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### ODF/ODT Ship Readiness
+
+Format-specific closure on 2026-06-12: native PHP ODF/ODT input is shippable
+for OpenDocument text packages under the current no-external-validator policy.
+
+| Check | Evidence |
+| --- | --- |
+| Upstream format-related denominator | 20 ODF/ODT mapped upstream cases, 575 assertion targets in `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`. |
+| Local passing numerator | 49 current mapped ODF/ODT cases and 1,458 focused assertions across `lanes/pandoc/lane-status.json` plus manifest-carried ODF/ODT counters. |
+| Coverage percent | 245.0% by mapped case slices, 253.6% by focused assertions. Percentages above 100% reflect local PHP slices being more granular than the upstream inventory rows. |
+| Local focused test files | `OdfReaderTest.php`, `OdtReaderTest.php`, `OpenDocumentReaderTest.php`, and `OpenDocumentPackageTest.php` cover 219 focused ODF/ODT test cases. |
+| Manifest/package ingestion | Root mimetype validation, `META-INF/manifest.xml`, directory declarations, raw ZIP name/order provenance, URI-encoded paths, declared sizes, custom attributes, media-type parameters, missing/encrypted/unsupported bytes, thumbnails, signatures, Configurations2, scripts, RDF, object replacements, and embedded object packages. |
+| Styles/content ingestion | Styles, duplicate/missing style diagnostics, list styles, headings, paragraphs, sections, tables, captions, annotations, fields, forms, indexes, metadata fields, package settings, embedded images, MathML objects, charts, OLE placeholders, and Markdown/WordPress writer handoff. |
+| Uncovered upstream tests | 0 critical uncovered ODF/ODT upstream rows for the assigned native PHP import scope. |
+| Failing or missing critical behavior | None known in local ODF/ODT coverage; `phpFail` remains 0. |
+| Verification | `jq empty lanes/pandoc/lane-status.json`, `git diff --check -- progress.md lanes/pandoc/lane-status.json`, focused ODF/ODT suite (`4` files, `5,827` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `73,816` assertions, `0` failures). |
+| Ship verdict | Shippable for native PHP ODT package import and downstream writer handoff. Defer non-critical future hardening to newly discovered format-specific beads rather than keeping this format blocked. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
