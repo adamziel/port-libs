@@ -5541,6 +5541,96 @@ return [
             }
         }
     },
+    'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'review'],
+            ]],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899;'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [
+                ['source-cite-code', ['citation-source'], [['data-source', 'cite-source']]],
+                '@doe1901',
+            ]],
+            ['t' => 'Str', 'c' => ']'],
+        ];
+        $firstRecord = [
+            'citationId' => 'smith1899',
+            'citationPrefix' => [['t' => 'Str', 'c' => 'see']],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1899,
+            'reviewQueue' => 'first-citation-source',
+        ];
+        $secondRecord = [
+            'citationId' => 'doe1901',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'AuthorInText'],
+            'citationNoteNum' => 0,
+            'citationHash' => 1901,
+            'reviewQueue' => 'second-citation-source',
+        ];
+        $citeInline = [
+            't' => 'Cite',
+            'c' => [
+                [$firstRecord, $secondRecord],
+                $sourceInlines,
+            ],
+            'reviewQueue' => 'cite-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$citeInline]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $clusterSourceInlines = $cluster->attr('citationSourceInlines');
+            $editedFirstCitation = new AstNode('citation', array_replace($cluster->children[0]->attrs, [
+                'citationHash' => 1999,
+            ]), $cluster->children[0]->children);
+            $editedCluster = new AstNode('citation_group', $cluster->attrs, [
+                $editedFirstCitation,
+                $cluster->children[1],
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', $document->children[0]->attrs, [$editedCluster]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} citation group node");
+            $t->same(true, is_array($clusterSourceInlines), "{$source} records cite source inlines");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][0];
+                $encodedSourceInlines = $encodedCite['c'][1];
+
+                $t->same('Cite', $encodedCite['t'], "{$source} {$writer} writer regenerates cite constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCite), "{$source} {$writer} writer drops stale cite wrapper sidecar");
+                $t->same(1999, $encodedCite['c'][0][0]['citationHash'], "{$source} {$writer} writer emits edited citation hash");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCite['c'][0][0]), "{$source} {$writer} writer drops stale edited citation record sidecar");
+                $t->same('second-citation-source', $encodedCite['c'][0][1]['reviewQueue'], "{$source} {$writer} writer preserves unchanged citation record sidecar");
+                $t->same($sourceInlines, $encodedSourceInlines, "{$source} {$writer} writer preserves formatted cite source inline constructors");
+                $t->same('Emph', $encodedSourceInlines[2]['t'], "{$source} {$writer} writer keeps emphasized source inline");
+                $t->same('Code', $encodedSourceInlines[6]['t'], "{$source} {$writer} writer keeps code source inline");
+            }
+        }
+    },
     'round trips pandoc json cite inlines with csl metadata for wordpress handoff' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

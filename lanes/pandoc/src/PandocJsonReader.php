@@ -1255,11 +1255,12 @@ final class PandocJsonReader
             return new AstNode('citation', $attrs, $sourceInlines);
         }
 
-        return new AstNode(
-            'citation_group',
-            $sourceText === '' ? [] : ['text' => $sourceText],
-            $citations
-        );
+        $attrs = $sourceText === '' ? [] : ['text' => $sourceText];
+        if ($sourceInlines !== []) {
+            $attrs['citationSourceInlines'] = $sourceInlines;
+        }
+
+        return new AstNode('citation_group', $attrs, $citations);
     }
 
     private function readCitationRecord(mixed $record): AstNode
