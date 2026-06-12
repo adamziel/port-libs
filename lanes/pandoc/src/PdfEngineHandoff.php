@@ -167,6 +167,7 @@ final class PdfEngineHandoff
         $sourceFile = isset($options['sourcePath'])
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
             : $this->deriveSourcePath($outputFile, $profile['extension']);
+        $sourceInput = $this->sourceInputFor($engine, $sourceFile);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
         $engineEnvironment = $this->normalizeEngineEnvironment($options['engineEnvironment'] ?? []);
         $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
@@ -219,6 +220,12 @@ final class PdfEngineHandoff
             $diagnostics[] = 'intermediate-source-supplied';
         } else {
             $diagnostics[] = 'intermediate-source-rendered:' . $profile['intermediate'];
+        }
+        if ($sourceInput !== []) {
+            $diagnostics[] = 'typst-source-input:' . $sourceInput['mode'];
+            if (($sourceInput['issues'] ?? []) !== []) {
+                $diagnostics[] = 'typst-source-input-issues:' . count($sourceInput['issues']);
+            }
         }
         if ($templateFile !== null) {
             $diagnostics[] = 'pdf-template-supplied';
@@ -535,6 +542,7 @@ final class PdfEngineHandoff
             'engineFamily' => $profile['family'],
             'intermediateFormat' => $profile['intermediate'],
             'sourceFile' => $sourceFile,
+            'sourceInput' => $sourceInput,
             'outputFile' => $outputFile,
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
@@ -777,6 +785,10 @@ final class PdfEngineHandoff
             : $engine;
         $planEngineOptions = $this->normalizeStringList($plan['engineOptions'] ?? []);
         $planEngineEnvironment = $this->normalizeEngineEnvironment($plan['engineEnvironment'] ?? []);
+        $sourceInput = is_array($plan['sourceInput'] ?? null)
+            ? $plan['sourceInput']
+            : $this->sourceInputFor($engine, $sourceFile);
+        $sourceIsStdin = ($sourceInput['mode'] ?? null) === 'stdin';
         $typstOutputFormatPolicy = is_array($plan['typstOutputFormatPolicy'] ?? null)
             ? $plan['typstOutputFormatPolicy']
             : $this->typstOutputFormatPolicyFor($engine, $outputFile, $planEngineOptions);
@@ -831,7 +843,10 @@ final class PdfEngineHandoff
         $reason = null;
 
         if (is_string($sourceBytes)) {
-            if (!array_key_exists($sourceFile, $files)) {
+            if ($sourceIsStdin) {
+                $sourceSha256 = hash('sha256', $sourceBytes);
+                $diagnostics[] = 'staged-source-from-stdin';
+            } elseif (!array_key_exists($sourceFile, $files)) {
                 $files[$sourceFile] = $sourceBytes;
                 $diagnostics[] = 'staged-source-from-plan';
             } elseif ($files[$sourceFile] !== $sourceBytes) {
@@ -840,7 +855,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if (array_key_exists($sourceFile, $files)) {
+        if (!$sourceIsStdin && array_key_exists($sourceFile, $files)) {
             $sourceSha256 = hash('sha256', $files[$sourceFile]);
         }
 
@@ -969,6 +984,10 @@ final class PdfEngineHandoff
         sort($engineLogFiles);
         sort($bibliographyLogFiles);
         sort($sourceMapFiles);
+        if ($sourceIsStdin && isset($engineInputFiles['-'])) {
+            unset($engineInputFiles['-']);
+            $diagnostics[] = 'typst-source-input-dependency-stdin';
+        }
         $engineInputFileList = array_keys($engineInputFiles);
         sort($engineInputFileList);
         $engineExternalInputFileList = array_keys($engineExternalInputFiles);
@@ -986,9 +1005,12 @@ final class PdfEngineHandoff
             $outputFile,
             $engineOutputFileList
         );
+        $engineBoundaryInputPaths = $sourceIsStdin
+            ? $engineInputFileList
+            : array_merge([$sourceFile], $engineInputFileList);
         $engineBoundaryViolations = $this->engineBoundaryViolationsFor(
             $engineBoundaryRoot,
-            array_merge([$sourceFile], $engineInputFileList)
+            $engineBoundaryInputPaths
         );
         if ($engineBoundaryRoot !== null) {
             $diagnostics[] = 'engine-boundary-root:' . $engineBoundaryRoot;
@@ -4450,6 +4472,9 @@ final class PdfEngineHandoff
         if (($typstOutputFormatPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
         }
+        if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
+        }
         if ($engineBoundaryViolations !== []) {
             $artifactProvenanceIssues[] = 'engine-boundary-violations:' . count($engineBoundaryViolations);
         }
@@ -4476,6 +4501,7 @@ final class PdfEngineHandoff
             'engineArtifactStem' => $engineArtifactStem,
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
+            'sourceInput' => $sourceInput,
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
@@ -4512,6 +4538,7 @@ final class PdfEngineHandoff
             'exitCode' => $exitCode,
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
             'sourceSha256' => $sourceSha256,
+            'sourceInput' => $sourceInput,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
             'resourceArtifactsSha256' => $resourceArtifactsSha256,
             'missingResourceFiles' => $missingResourceFiles,
@@ -5176,6 +5203,7 @@ final class PdfEngineHandoff
             'finalPdfEncryptionDefaultFilters' => is_array($finalRun) && is_array($finalRun['pdfEncryptionDefaultFilters'] ?? null) ? $finalRun['pdfEncryptionDefaultFilters'] : [],
             'finalPdfEncryptionCryptFilters' => is_array($finalRun) && is_array($finalRun['pdfEncryptionCryptFilters'] ?? null) ? $finalRun['pdfEncryptionCryptFilters'] : [],
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
+            'finalSourceInput' => is_array($finalRun) && is_array($finalRun['sourceInput'] ?? null) ? $finalRun['sourceInput'] : [],
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
             'finalEngineInputFiles' => is_array($finalRun) && is_array($finalRun['engineInputFiles'] ?? null) ? $finalRun['engineInputFiles'] : [],
@@ -5522,6 +5550,25 @@ final class PdfEngineHandoff
         }
 
         return $directory . $stem . '.' . $extension;
+    }
+
+    /**
+     * @return array{mode:string, sourceFile:string, path:string|null, stagedAsFile:bool, reviewStatus:string, issues:list<string>}|array{}
+     */
+    private function sourceInputFor(string $engine, string $sourceFile): array
+    {
+        if ($engine !== 'typst' || $sourceFile !== '-') {
+            return [];
+        }
+
+        return [
+            'mode' => 'stdin',
+            'sourceFile' => '-',
+            'path' => null,
+            'stagedAsFile' => false,
+            'reviewStatus' => 'review',
+            'issues' => ['source-stdin-boundary'],
+        ];
     }
 
     /**
@@ -6979,7 +7026,8 @@ final class PdfEngineHandoff
         }
 
         $inputFiles = $engineInputFiles;
-        if (!in_array($sourceFile, $inputFiles, true)) {
+        $sourceIsStdin = $sourceFile === '-';
+        if (!$sourceIsStdin && !in_array($sourceFile, $inputFiles, true)) {
             $inputFiles[] = $sourceFile;
         }
         $inputFiles = array_values(array_unique($inputFiles));
@@ -6997,7 +7045,7 @@ final class PdfEngineHandoff
         }
 
         $issues = [];
-        if (!$this->pathIsInsideTypstRoot($sourceFile, $typstRoot)) {
+        if (!$sourceIsStdin && !$this->pathIsInsideTypstRoot($sourceFile, $typstRoot)) {
             $issues[] = 'source-outside-root';
         }
         if ($outsideRootFiles !== []) {
