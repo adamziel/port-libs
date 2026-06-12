@@ -357,6 +357,21 @@ return [
                 ['raw' => 'https://ca.example.invalid/root.pem', 'path' => 'https://ca.example.invalid/root.pem', 'kind' => 'uri', 'safe' => false, 'issues' => ['certificate-external-boundary']],
                 ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['certificate-empty']],
             ],
+            'certificatePolicy' => [
+                'reviewStatus' => 'review',
+                'certificateCount' => 3,
+                'safeCertificateCount' => 1,
+                'unsafeCertificateCount' => 2,
+                'relativeCertificateCount' => 1,
+                'workspaceCertificateCount' => 0,
+                'absoluteCertificateCount' => 0,
+                'uriCertificateCount' => 1,
+                'invalidCertificateCount' => 1,
+                'issues' => [
+                    'certificate-external-boundary',
+                    'certificate-empty',
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -373,6 +388,8 @@ return [
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-certificates:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-unsafe:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);

@@ -281,6 +281,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
+            if (($typstBoundaryProvenance['certificatePolicy'] ?? []) !== []) {
+                $certificatePolicy = $typstBoundaryProvenance['certificatePolicy'];
+                if (is_array($certificatePolicy) && is_string($certificatePolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-certificate-policy:' . $certificatePolicy['reviewStatus'];
+                }
+                if (is_array($certificatePolicy) && is_int($certificatePolicy['unsafeCertificateCount'] ?? null) && $certificatePolicy['unsafeCertificateCount'] > 0) {
+                    $diagnostics[] = 'typst-certificate-unsafe:' . $certificatePolicy['unsafeCertificateCount'];
+                }
+            }
             if (($typstBoundaryProvenance['packagePath'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-path:' . $typstBoundaryProvenance['packagePath']['path'];
             }
@@ -5976,6 +5985,7 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
             $certificateValues
         );
+        $certificatePolicy = $this->typstCertificatePolicy($certificates);
         $packagePathHistory = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-path'),
             $packagePathValues
@@ -6107,6 +6117,9 @@ final class PdfEngineHandoff
         ];
         if ($certificates !== []) {
             $provenance['certificates'] = $certificates;
+        }
+        if ($certificatePolicy !== []) {
+            $provenance['certificatePolicy'] = $certificatePolicy;
         }
         if ($fontPathPolicy !== []) {
             $provenance['fontPathPolicy'] = $fontPathPolicy;
@@ -6356,6 +6369,65 @@ final class PdfEngineHandoff
             'absoluteFontPathCount' => $kindCounts['absolute'],
             'uriFontPathCount' => $kindCounts['uri'],
             'invalidFontPathCount' => $kindCounts['invalid'],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}> $certificates
+     * @return array{reviewStatus:string, certificateCount:int, safeCertificateCount:int, unsafeCertificateCount:int, relativeCertificateCount:int, workspaceCertificateCount:int, absoluteCertificateCount:int, uriCertificateCount:int, invalidCertificateCount:int, issues:list<string>}|array{}
+     */
+    private function typstCertificatePolicy(array $certificates): array
+    {
+        if ($certificates === []) {
+            return [];
+        }
+
+        $safeCount = 0;
+        $unsafeCount = 0;
+        $kindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'invalid' => 0,
+        ];
+        $issues = [];
+        foreach ($certificates as $certificate) {
+            $kind = is_string($certificate['kind'] ?? null) ? $certificate['kind'] : 'invalid';
+            if (array_key_exists($kind, $kindCounts)) {
+                ++$kindCounts[$kind];
+            } else {
+                ++$kindCounts['invalid'];
+            }
+
+            if (($certificate['safe'] ?? false) === true) {
+                ++$safeCount;
+            } else {
+                ++$unsafeCount;
+            }
+
+            foreach (($certificate['issues'] ?? []) as $issue) {
+                if (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        if ($unsafeCount === 0) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'certificateCount' => count($certificates),
+            'safeCertificateCount' => $safeCount,
+            'unsafeCertificateCount' => $unsafeCount,
+            'relativeCertificateCount' => $kindCounts['relative'],
+            'workspaceCertificateCount' => $kindCounts['workspace'],
+            'absoluteCertificateCount' => $kindCounts['absolute'],
+            'uriCertificateCount' => $kindCounts['uri'],
+            'invalidCertificateCount' => $kindCounts['invalid'],
             'issues' => array_values(array_unique($issues)),
         ];
     }
