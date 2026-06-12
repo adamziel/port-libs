@@ -941,6 +941,9 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if ($this->isSignaturePartName($entry->name)) {
+            $roles[] = 'package-signature';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }

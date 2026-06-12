@@ -10004,6 +10004,8 @@ XML;
             ['name' => 'META-INF/macrosignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature'],
         ]));
         $signatures = $result['signatureMetadata'];
+        $packageProvenance = $result['importReport']['manifest']['packageProvenance'];
+        $packageParts = $packageProvenance['parts'];
 
         $t->same($signatures, $result['document']->attr('signatureMetadata'));
         $t->same($signatures, $result['importReport']['signatureMetadata']);
@@ -10015,6 +10017,10 @@ XML;
         $t->same(['Pictures/hero.png', 'content.xml'], $signatures['signedParts']);
         $t->same(7, $result['importReport']['manifest']['count']);
         $t->same(1, count($result['media']), 'signature XML sidecars must stay out of media byte handoff');
+        $t->same(2, $packageProvenance['packageSignaturePartCount']);
+        $t->same(2, $packageProvenance['roleCounts']['package-signature']);
+        $t->same(['package-signature', 'manifest-declared'], $packageParts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $packageParts['META-INF/macrosignatures.xml']['roles']);
 
         $documentSignatures = $signatures['parts'][0];
         $macroSignatures = $signatures['parts'][1];
