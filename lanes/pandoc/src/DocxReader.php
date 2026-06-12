@@ -94,6 +94,8 @@ final class DocxReader
     private const WORDPROCESSINGML_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
     private const WORDPROCESSINGML_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSINGML_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+    private const DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-origin';
+    private const DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -239,6 +241,7 @@ final class DocxReader
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
         $packageRelationships = $graph->preflightRelationshipRoleTargets('/');
         $packageThumbnails = $this->packageThumbnailMetadata($package, $packageRelationships);
+        $digitalSignatures = $this->digitalSignaturePackageMetadata($package, $graph);
         $encryptedPackages = $this->encryptedPackageMetadata($package, $graph->preflightEncryptedPackages());
         $customXmlStore = $this->readCustomXmlStore($package, $graph);
         $this->currentCustomXmlPartsByStoreItemId = $customXmlStore['lookupByStoreItemID'] ?? [];
@@ -297,6 +300,9 @@ final class DocxReader
         if ($packageThumbnails['count'] > 0) {
             $metadata['docxPackageThumbnails'] = $packageThumbnails;
         }
+        if ($digitalSignatures['originCount'] > 0) {
+            $metadata['docxDigitalSignatures'] = $digitalSignatures;
+        }
         if ($encryptedPackages['count'] > 0) {
             $metadata['docxEncryptedPackages'] = $encryptedPackages;
         }
@@ -348,6 +354,7 @@ final class DocxReader
                 $glossary,
                 $packageRelationships,
                 $packageThumbnails,
+                $digitalSignatures,
                 $encryptedPackages,
                 $customXmlStore,
             ),
@@ -391,6 +398,7 @@ final class DocxReader
      * @param array<string, mixed> $glossary
      * @param array<string, mixed> $packageRelationships
      * @param array<string, mixed> $packageThumbnails
+     * @param array<string, mixed> $digitalSignatures
      * @param array<string, mixed> $encryptedPackages
      * @param array<string, mixed> $customXmlStore
      * @return array<string, mixed>
@@ -417,6 +425,7 @@ final class DocxReader
         array $glossary,
         array $packageRelationships,
         array $packageThumbnails,
+        array $digitalSignatures,
         array $encryptedPackages,
         array $customXmlStore
     ): array {
@@ -465,6 +474,7 @@ final class DocxReader
             'glossary' => $glossary,
             'packageRelationships' => $packageRelationships,
             'packageThumbnails' => $packageThumbnails,
+            'digitalSignatures' => $digitalSignatures,
             'encryptedPackages' => $encryptedPackages,
             'customXmlStore' => [
                 'count' => $customXmlStore['count'] ?? 0,
@@ -681,6 +691,500 @@ final class DocxReader
             'issueCodes' => array_keys($issueCodes),
             'items' => $items,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function digitalSignaturePackageMetadata(ZipPackage $package, OpcRelationshipGraph $graph): array
+    {
+        $origins = [];
+        $signatures = [];
+        $byOriginRelationshipId = [];
+        $bySignatureRelationshipId = [];
+        $originRelationshipIds = [];
+        $signatureRelationshipIds = [];
+        $originParts = [];
+        $signatureParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($graph->preflightDigitalSignatures() as $originPreflight) {
+            $origin = $this->digitalSignatureOriginMetadata($package, $graph, $originPreflight, count($origins));
+            $origins[] = $origin;
+            $byOriginRelationshipId[(string) $origin['id']] = $origin;
+            $originRelationshipIds[] = (string) $origin['id'];
+            $this->appendUniqueMetadataString($originParts, $origin['targetPart'] ?? null);
+            $this->appendUniqueMetadataString($contentTypesSeen, $origin['contentType'] ?? null);
+            if (($origin['external'] ?? false) === true) {
+                $this->appendUniqueMetadataString($externalTargets, $origin['target'] ?? null);
+            }
+            foreach (($origin['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+
+            foreach (($origin['signatures']['items'] ?? []) as $signature) {
+                if (!is_array($signature)) {
+                    continue;
+                }
+
+                $signatures[] = $signature;
+                $bySignatureRelationshipId[(string) $signature['id']] = $signature;
+                $signatureRelationshipIds[] = (string) $signature['id'];
+                $this->appendUniqueMetadataString($signatureParts, $signature['targetPart'] ?? null);
+                $this->appendUniqueMetadataString($contentTypesSeen, $signature['contentType'] ?? null);
+                if (($signature['external'] ?? false) === true) {
+                    $this->appendUniqueMetadataString($externalTargets, $signature['target'] ?? null);
+                }
+                foreach (($signature['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => $origins !== [],
+            'originCount' => count($origins),
+            'existingOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === false && $origin['exists'] === true,
+            )),
+            'missingOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === false && $origin['exists'] === false,
+            )),
+            'externalOriginCount' => count(array_filter($origins, static fn (array $origin): bool => $origin['external'] === true)),
+            'signatureCount' => count($signatures),
+            'existingSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === true,
+            )),
+            'missingSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === false,
+            )),
+            'externalSignatureCount' => count(array_filter($signatures, static fn (array $signature): bool => $signature['external'] === true)),
+            'invalidSignatureXmlCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => in_array('invalid-digital-signature-xml', $signature['issues'], true),
+            )),
+            'unexpectedSignatureRootCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => in_array('missing-xml-signature-root', $signature['issues'], true),
+            )),
+            'issueCount' => count(array_filter(
+                array_merge($origins, $signatures),
+                static fn (array $item): bool => $item['issues'] !== [],
+            )),
+            'originRelationshipIds' => $originRelationshipIds,
+            'signatureRelationshipIds' => $signatureRelationshipIds,
+            'originParts' => $originParts,
+            'signatureParts' => $signatureParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byOriginRelationshipId' => $byOriginRelationshipId,
+            'bySignatureRelationshipId' => $bySignatureRelationshipId,
+            'origins' => $origins,
+            'signatures' => $signatures,
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $originPreflight
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureOriginMetadata(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        array $originPreflight,
+        int $index
+    ): array {
+        $target = is_string($originPreflight['target'] ?? null) ? $originPreflight['target'] : null;
+        $targetPart = is_string($originPreflight['targetPart'] ?? null) ? $originPreflight['targetPart'] : null;
+        $contentType = is_string($originPreflight['contentType'] ?? null) ? $originPreflight['contentType'] : null;
+        $entry = $targetPart !== null && ($originPreflight['exists'] ?? null) === true
+            ? $package->entry($targetPart)
+            : null;
+        $issues = $this->metadataIssueList($originPreflight['issues'] ?? []);
+        $targetReference = $this->targetReferenceMetadata($target);
+        $contentTypeMetadata = $this->contentTypeMetadata($contentType);
+        $signatureSummary = $this->digitalSignaturePartListMetadata(
+            $package,
+            $graph,
+            is_array($originPreflight['signatures'] ?? null) ? $originPreflight['signatures'] : [],
+        );
+
+        return [
+            'index' => $index,
+            'source' => '/',
+            'id' => is_string($originPreflight['id'] ?? null) ? $originPreflight['id'] : null,
+            'type' => is_string($originPreflight['type'] ?? null) ? $originPreflight['type'] : null,
+            'target' => $target,
+            'targetPart' => $targetPart,
+            'targetQuery' => $targetReference['query'],
+            'targetFragment' => $targetReference['fragment'],
+            'targetReferenceSuffix' => $targetReference['suffix'],
+            'contentType' => $contentType,
+            'contentTypeBase' => $contentTypeMetadata['base'],
+            'contentTypeHasParameters' => $contentTypeMetadata['hasParameters'],
+            'contentTypeParameterCount' => $contentTypeMetadata['parameterCount'],
+            'contentTypeParameters' => $contentTypeMetadata['parameters'],
+            'contentTypeParameterMap' => $contentTypeMetadata['parameterMap'],
+            'expectedContentType' => self::DIGITAL_SIGNATURE_ORIGIN_CONTENT_TYPE,
+            'external' => ($originPreflight['external'] ?? null) === true,
+            'exists' => isset($originPreflight['exists']) && is_bool($originPreflight['exists']) ? $originPreflight['exists'] : null,
+            'relationshipsPart' => '/_rels/.rels',
+            'originRelationshipsPart' => is_string($originPreflight['relationshipPartName'] ?? null)
+                ? $originPreflight['relationshipPartName']
+                : null,
+            'originRelationshipCount' => $signatureSummary['count'],
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+            'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'signatures' => $signatureSummary,
+            'signatureCount' => $signatureSummary['count'],
+            'signatureIssueCount' => $signatureSummary['issueCount'],
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+            'valid' => $issues === [] && $signatureSummary['issueCount'] === 0,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signaturePreflights
+     * @return array<string, mixed>
+     */
+    private function digitalSignaturePartListMetadata(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        array $signaturePreflights
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($signaturePreflights as $signaturePreflight) {
+            if (!is_array($signaturePreflight)) {
+                continue;
+            }
+
+            $item = $this->digitalSignaturePartMetadata($package, $graph, $signaturePreflight, count($items));
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueMetadataString($partNames, $item['targetPart'] ?? null);
+            $this->appendUniqueMetadataString($contentTypesSeen, $item['contentType'] ?? null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueMetadataString($externalTargets, $item['target'] ?? null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidXmlCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('invalid-digital-signature-xml', $item['issues'], true),
+            )),
+            'unexpectedRootCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-xml-signature-root', $item['issues'], true),
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $signaturePreflight
+     * @return array<string, mixed>
+     */
+    private function digitalSignaturePartMetadata(
+        ZipPackage $package,
+        OpcRelationshipGraph $graph,
+        array $signaturePreflight,
+        int $index
+    ): array {
+        $target = is_string($signaturePreflight['target'] ?? null) ? $signaturePreflight['target'] : null;
+        $targetPart = is_string($signaturePreflight['targetPart'] ?? null) ? $signaturePreflight['targetPart'] : null;
+        $contentType = is_string($signaturePreflight['contentType'] ?? null) ? $signaturePreflight['contentType'] : null;
+        $entry = $targetPart !== null && ($signaturePreflight['exists'] ?? null) === true
+            ? $package->entry($targetPart)
+            : null;
+        $issues = $this->metadataIssueList($signaturePreflight['issues'] ?? []);
+        $targetReference = $this->targetReferenceMetadata($target);
+        $contentTypeMetadata = $this->contentTypeMetadata($contentType);
+        $xmlMetadata = $this->emptyDigitalSignatureXmlMetadata();
+        if ($targetPart !== null && ($signaturePreflight['exists'] ?? null) === true) {
+            $xmlMetadata = $this->digitalSignatureXmlMetadata($package->read($targetPart), $targetPart);
+            if ($xmlMetadata['validXml'] === false) {
+                $issues[] = 'invalid-digital-signature-xml';
+            } elseif ($xmlMetadata['validRoot'] === false) {
+                $issues[] = 'missing-xml-signature-root';
+            }
+
+            if ($xmlMetadata['validXml'] === true) {
+                try {
+                    $signatureMetadata = $graph->preflightDigitalSignatureMetadata($targetPart);
+                    foreach ($this->metadataIssueList($signatureMetadata['issues'] ?? []) as $issue) {
+                        $issues[] = $issue;
+                    }
+                } catch (\Throwable) {
+                    $issues[] = 'invalid-digital-signature-metadata';
+                }
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'index' => $index,
+            'id' => is_string($signaturePreflight['id'] ?? null) ? $signaturePreflight['id'] : null,
+            'type' => is_string($signaturePreflight['type'] ?? null) ? $signaturePreflight['type'] : null,
+            'target' => $target,
+            'targetPart' => $targetPart,
+            'targetQuery' => $targetReference['query'],
+            'targetFragment' => $targetReference['fragment'],
+            'targetReferenceSuffix' => $targetReference['suffix'],
+            'contentType' => $contentType,
+            'contentTypeBase' => $contentTypeMetadata['base'],
+            'contentTypeHasParameters' => $contentTypeMetadata['hasParameters'],
+            'contentTypeParameterCount' => $contentTypeMetadata['parameterCount'],
+            'contentTypeParameters' => $contentTypeMetadata['parameters'],
+            'contentTypeParameterMap' => $contentTypeMetadata['parameterMap'],
+            'expectedContentType' => self::DIGITAL_SIGNATURE_XML_SIGNATURE_CONTENT_TYPE,
+            'external' => ($signaturePreflight['external'] ?? null) === true,
+            'exists' => isset($signaturePreflight['exists']) && is_bool($signaturePreflight['exists']) ? $signaturePreflight['exists'] : null,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+            'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'validXml' => $xmlMetadata['validXml'],
+            'xmlParseError' => $xmlMetadata['xmlParseError'],
+            'rootNamespace' => $xmlMetadata['rootNamespace'],
+            'rootLocalName' => $xmlMetadata['rootLocalName'],
+            'validRoot' => $xmlMetadata['validRoot'],
+            'referenceCount' => $xmlMetadata['referenceCount'],
+            'referenceUris' => $xmlMetadata['referenceUris'],
+            'digestMethodAlgorithms' => $xmlMetadata['digestMethodAlgorithms'],
+            'signatureMethodAlgorithms' => $xmlMetadata['signatureMethodAlgorithms'],
+            'canonicalizationMethodAlgorithms' => $xmlMetadata['canonicalizationMethodAlgorithms'],
+            'hasSignatureValue' => $xmlMetadata['hasSignatureValue'],
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyDigitalSignatureXmlMetadata(): array
+    {
+        return [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'referenceCount' => 0,
+            'referenceUris' => [],
+            'digestMethodAlgorithms' => [],
+            'signatureMethodAlgorithms' => [],
+            'canonicalizationMethodAlgorithms' => [],
+            'hasSignatureValue' => null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureXmlMetadata(string $xml, string $partName): array
+    {
+        $metadata = $this->emptyDigitalSignatureXmlMetadata();
+        try {
+            $dom = self::loadXml($xml, 'DOCX digital signature XML ' . $partName);
+        } catch (\InvalidArgumentException $exception) {
+            $metadata['validXml'] = false;
+            $metadata['xmlParseError'] = $exception->getMessage();
+
+            return $metadata;
+        }
+
+        $root = $dom->documentElement;
+        $metadata['validXml'] = $root instanceof \DOMElement;
+        $metadata['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $metadata['rootLocalName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $metadata['validRoot'] = $root instanceof \DOMElement
+            && $root->namespaceURI === OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI
+            && $root->localName === 'Signature';
+
+        if ($metadata['validRoot'] !== true || !$root instanceof \DOMElement) {
+            return $metadata;
+        }
+
+        foreach ($root->getElementsByTagNameNS(OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI, 'Reference') as $reference) {
+            if ($reference instanceof \DOMElement) {
+                ++$metadata['referenceCount'];
+                $this->appendUniqueMetadataString($metadata['referenceUris'], $reference->getAttribute('URI'));
+            }
+        }
+
+        foreach ($root->getElementsByTagNameNS(OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI, 'DigestMethod') as $digestMethod) {
+            if ($digestMethod instanceof \DOMElement) {
+                $this->appendUniqueMetadataString($metadata['digestMethodAlgorithms'], $digestMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        foreach ($root->getElementsByTagNameNS(OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI, 'SignatureMethod') as $signatureMethod) {
+            if ($signatureMethod instanceof \DOMElement) {
+                $this->appendUniqueMetadataString($metadata['signatureMethodAlgorithms'], $signatureMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        foreach ($root->getElementsByTagNameNS(OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI, 'CanonicalizationMethod') as $canonicalizationMethod) {
+            if ($canonicalizationMethod instanceof \DOMElement) {
+                $this->appendUniqueMetadataString($metadata['canonicalizationMethodAlgorithms'], $canonicalizationMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        $metadata['hasSignatureValue'] = false;
+        foreach ($root->getElementsByTagNameNS(OpcRelationshipGraph::XML_SIGNATURE_NAMESPACE_URI, 'SignatureValue') as $signatureValue) {
+            if ($signatureValue instanceof \DOMElement && trim($signatureValue->textContent) !== '') {
+                $metadata['hasSignatureValue'] = true;
+                break;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array{query:?string, fragment:?string, suffix:?string}
+     */
+    private function targetReferenceMetadata(?string $target): array
+    {
+        if ($target === null) {
+            return ['query' => null, 'fragment' => null, 'suffix' => null];
+        }
+
+        $fragmentPosition = strpos($target, '#');
+        $beforeFragment = $fragmentPosition === false ? $target : substr($target, 0, $fragmentPosition);
+        $queryPosition = strpos($beforeFragment, '?');
+        $suffixPositions = array_filter(
+            [$queryPosition, $fragmentPosition],
+            static fn (int|false $position): bool => is_int($position),
+        );
+        $suffix = $suffixPositions === [] ? null : substr($target, min($suffixPositions));
+        $query = $queryPosition === false ? null : substr($beforeFragment, $queryPosition + 1);
+        $fragment = $fragmentPosition === false ? null : substr($target, $fragmentPosition + 1);
+
+        return [
+            'query' => $query === '' ? null : $query,
+            'fragment' => $fragment === '' ? null : $fragment,
+            'suffix' => $suffix === '' ? null : $suffix,
+        ];
+    }
+
+    /**
+     * @return array{base:?string, hasParameters:bool, parameterCount:int, parameters:list<string>, parameterMap:array<string,string>}
+     */
+    private function contentTypeMetadata(?string $contentType): array
+    {
+        if ($contentType === null || trim($contentType) === '') {
+            return [
+                'base' => null,
+                'hasParameters' => false,
+                'parameterCount' => 0,
+                'parameters' => [],
+                'parameterMap' => [],
+            ];
+        }
+
+        $segments = array_map('trim', explode(';', $contentType));
+        $base = strtolower(array_shift($segments) ?? '');
+        $parameters = array_values(array_filter($segments, static fn (string $segment): bool => $segment !== ''));
+        $parameterMap = [];
+        foreach ($parameters as $parameter) {
+            [$name, $value] = array_pad(explode('=', $parameter, 2), 2, '');
+            $name = strtolower(trim($name));
+            if ($name === '') {
+                continue;
+            }
+
+            $parameterMap[$name] = trim($value, " \t\n\r\0\x0B\"");
+        }
+
+        return [
+            'base' => $base === '' ? null : $base,
+            'hasParameters' => $parameters !== [],
+            'parameterCount' => count($parameters),
+            'parameters' => $parameters,
+            'parameterMap' => $parameterMap,
+        ];
+    }
+
+    /**
+     * @param mixed $issues
+     * @return list<string>
+     */
+    private function metadataIssueList(mixed $issues): array
+    {
+        if (!is_array($issues)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(
+            $issues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+        )));
+    }
+
+    private function appendUniqueMetadataString(array &$values, mixed $value): void
+    {
+        if (!is_string($value) || $value === '' || in_array($value, $values, true)) {
+            return;
+        }
+
+        $values[] = $value;
     }
 
     /**
