@@ -1106,6 +1106,107 @@ XML;
         $t->same(1, $summary['packageSignatures']['count']);
         $t->same(1, $summary['packageThumbnails']['count']);
     },
+    'summarizes compact ODT package inventory byte buckets for review handoff' => static function (TestRunner $t) use (
+        $buildZipPackageWithCentralDirectoryOrder,
+        $manifestXml,
+        $contentXml,
+        $stylesXml,
+        $metaXml
+    ): void {
+        $heroBytes = 'PNGDATA';
+        $audioBytes = 'AUDIO-REVIEW-BYTES';
+        $noteBytes = 'private review note';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="' . strlen($heroBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/theme.ogg" manifest:size="' . strlen($audioBytes) . '"/>',
+            $manifestXml
+        );
+
+        $package = $buildZipPackageWithCentralDirectoryOrder([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => $heroBytes, 'compressionMethod' => 0],
+            ['name' => 'Media/theme.ogg', 'data' => $audioBytes, 'compressionMethod' => 12],
+            ['name' => 'Notes/private.txt', 'data' => $noteBytes, 'compressionMethod' => 0],
+        ], [
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Media/theme.ogg',
+            'Notes/private.txt',
+        ]);
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $contentCompressedBytes = strlen(gzdeflate($contentXml));
+        $stylesCompressedBytes = strlen(gzdeflate($stylesXml));
+        $manifestDeclaredBytes = strlen($contentXml)
+            + strlen($stylesXml)
+            + strlen($metaXml)
+            + strlen($heroBytes)
+            + strlen($audioBytes);
+        $manifestDeclaredCompressedBytes = $contentCompressedBytes
+            + $stylesCompressedBytes
+            + strlen($metaXml)
+            + strlen($heroBytes)
+            + strlen($audioBytes);
+        $totalBytes = strlen(OpenDocumentPackage::TEXT_MIMETYPE)
+            + strlen($manifest)
+            + strlen($contentXml)
+            + strlen($stylesXml)
+            + strlen($metaXml)
+            + strlen($heroBytes)
+            + strlen($audioBytes)
+            + strlen($noteBytes);
+        $totalCompressedBytes = strlen(OpenDocumentPackage::TEXT_MIMETYPE)
+            + strlen($manifest)
+            + $contentCompressedBytes
+            + $stylesCompressedBytes
+            + strlen($metaXml)
+            + strlen($heroBytes)
+            + strlen($audioBytes)
+            + strlen($noteBytes);
+        $exposableBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen($heroBytes);
+        $exposableCompressedBytes = $contentCompressedBytes + $stylesCompressedBytes + strlen($metaXml) + strlen($heroBytes);
+        $blockedBytes = $totalBytes - $exposableBytes;
+        $blockedCompressedBytes = $totalCompressedBytes - $exposableCompressedBytes;
+
+        $t->same(8, $inventory['entryCount']);
+        $t->same(5, $inventory['manifestDeclaredPartCount']);
+        $t->same(1, $inventory['undeclaredEntryCount']);
+        $t->same(1, $inventory['unsupportedCompressionMethodCount']);
+        $t->same(4, $inventory['exposableEntryCount']);
+        $t->same(4, $inventory['blockedEntryCount']);
+        $t->same($totalBytes, $inventory['totalByteLength']);
+        $t->same($totalCompressedBytes, $inventory['totalCompressedByteLength']);
+        $t->same($exposableBytes, $inventory['exposableByteLength']);
+        $t->same($exposableCompressedBytes, $inventory['exposableCompressedByteLength']);
+        $t->same($blockedBytes, $inventory['blockedByteLength']);
+        $t->same($blockedCompressedBytes, $inventory['blockedCompressedByteLength']);
+        $t->same(strlen($audioBytes), $inventory['unsupportedCompressionByteLength']);
+        $t->same(strlen($audioBytes), $inventory['unsupportedCompressionCompressedByteLength']);
+        $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
+        $t->same(false, $inventory['canExposeBytes']);
+        $t->same($manifestDeclaredBytes, $inventory['roleByteLengths']['manifest-declared']);
+        $t->same($manifestDeclaredCompressedBytes, $inventory['roleCompressedByteLengths']['manifest-declared']);
+        $t->same(strlen($heroBytes) + strlen($audioBytes), $inventory['roleByteLengths']['media-resource']);
+        $t->same(strlen($heroBytes) + strlen($audioBytes), $inventory['roleCompressedByteLengths']['media-resource']);
+        $t->same(strlen($noteBytes), $inventory['roleByteLengths']['undeclared-package-entry']);
+        $t->same(strlen($noteBytes), $inventory['roleCompressedByteLengths']['undeclared-package-entry']);
+        $t->same(['Media/theme.ogg'], $inventory['unsupportedCompressionPartNames']);
+        $t->same(false, $inventory['parts']['Media/theme.ogg']['canExposeBytes']);
+        $t->same('unsupported', $inventory['parts']['Media/theme.ogg']['compressionMethodName']);
+        $t->same('unsupported-compression-bytes-blocked', $inventory['parts']['Media/theme.ogg']['byteExposurePolicy']);
+        $t->same(['undeclared-package-entry'], $inventory['parts']['Notes/private.txt']['roles']);
+        $t->same(['Pictures/hero.png', 'Media/theme.ogg'], array_column($summary['mediaParts'], 'path'));
+    },
     'blocks compact ODT configuration package sidecars from document media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
         $configIconBytes = 'CONFIGPNG';
