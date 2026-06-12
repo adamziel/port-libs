@@ -531,6 +531,9 @@ final class OpenDocumentPackage
     private static function isMediaResourceManifestEntry(array $entry): bool
     {
         $packagePath = $entry['packagePath'] ?? $entry['path'] ?? '';
+        if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/')) {
+            return false;
+        }
         if (is_string($packagePath) && self::isThumbnailPackagePartName($packagePath)) {
             return false;
         }

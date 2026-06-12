@@ -879,6 +879,31 @@ XML;
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
     },
+    'keeps compact ODT manifest directory package entries out of media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0]],
+        ))->summarize();
+        $inventory = $summary['packageInventory'];
+        $directory = $inventory['parts']['Pictures/'];
+
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['exposableMediaPartCount']);
+        $t->same(1, $inventory['mediaResourcePartCount']);
+        $t->same(1, $inventory['packageDirectoryCount']);
+        $t->same(['zip-directory', 'manifest-declared'], $directory['roles']);
+        $t->same(true, $directory['declaredInManifest']);
+        $t->same(false, $directory['undeclared']);
+        $t->same(true, $summary['manifestReview']['directoryItems'][0]['isDirectory']);
+        $t->same('Pictures/', $summary['manifestReview']['directoryItems'][0]['path']);
+    },
     'summarizes compact ODT package inventory role buckets for review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $settingsXml = <<<'XML'
 <office:document-settings
