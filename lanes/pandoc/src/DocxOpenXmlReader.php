@@ -48,6 +48,9 @@ final class DocxOpenXmlReader
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     private const ACTIVEX_CONTROL_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
     private const ACTIVEX_BINARY_REL = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
+    private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+    private const VBA_PROJECT_SIGNATURE_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
+    private const VBA_DATA_REL = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -70,6 +73,9 @@ final class DocxOpenXmlReader
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
     private const CT_ACTIVEX_XML = 'application/vnd.ms-office.activex+xml';
     private const CT_ACTIVEX_BINARY = 'application/vnd.ms-office.activex';
+    private const CT_VBA_PROJECT = 'application/vnd.ms-office.vbaproject';
+    private const CT_VBA_PROJECT_SIGNATURE = 'application/vnd.ms-office.vbaprojectsignature';
+    private const CT_VBA_DATA = 'application/vnd.ms-word.vbadata+xml';
     private const CT_DIGITAL_SIGNATURE_ORIGIN = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const CT_DIGITAL_SIGNATURE_XMLSIGNATURE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
@@ -276,6 +282,12 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $vbaProjects = $this->readVbaProjects(
+            $parts,
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $customXmlParts = $this->readCustomXmlParts(
             $parts,
             $documentPart,
@@ -338,6 +350,22 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['activeXBinaryMissingCount'] = $activeXControls['missingBinaryCount'];
         $packageProvenance['summary']['activeXIssueCount'] = $activeXControls['issueCount'];
         $packageProvenance['summary']['activeXIssueCodes'] = $activeXControls['issueCodes'];
+        $packageProvenance['vbaProjects'] = $vbaProjects;
+        $packageProvenance['summary']['vbaProjectCount'] = $vbaProjects['count'];
+        $packageProvenance['summary']['vbaProjectRelationshipCount'] = $vbaProjects['relationshipCount'];
+        $packageProvenance['summary']['vbaProjectExistingCount'] = $vbaProjects['existingCount'];
+        $packageProvenance['summary']['vbaProjectMissingCount'] = $vbaProjects['missingCount'];
+        $packageProvenance['summary']['vbaProjectExternalCount'] = $vbaProjects['externalCount'];
+        $packageProvenance['summary']['vbaProjectSignatureCount'] = $vbaProjects['signatureCount'];
+        $packageProvenance['summary']['vbaProjectExistingSignatureCount'] = $vbaProjects['existingSignatureCount'];
+        $packageProvenance['summary']['vbaProjectMissingSignatureCount'] = $vbaProjects['missingSignatureCount'];
+        $packageProvenance['summary']['vbaProjectExternalSignatureCount'] = $vbaProjects['externalSignatureCount'];
+        $packageProvenance['summary']['vbaDataPartCount'] = $vbaProjects['dataPartCount'];
+        $packageProvenance['summary']['vbaDataExistingCount'] = $vbaProjects['existingDataPartCount'];
+        $packageProvenance['summary']['vbaDataMissingCount'] = $vbaProjects['missingDataPartCount'];
+        $packageProvenance['summary']['vbaDataExternalCount'] = $vbaProjects['externalDataPartCount'];
+        $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
+        $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -381,6 +409,7 @@ final class DocxOpenXmlReader
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
                 'activeXControls' => $activeXControls,
+                'vbaProjects' => $vbaProjects,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
@@ -1918,6 +1947,383 @@ final class DocxOpenXmlReader
             'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
             'byteExposurePolicy' => 'activex-binary-bytes-blocked',
             'reviewPolicy' => 'activex-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readVbaProjects(
+        array $parts,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes,
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $signaturePartNames = [];
+        $dataPartNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::VBA_PROJECT_REL) {
+                continue;
+            }
+
+            $item = $this->vbaProjectItem($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes, count($items));
+            $items[] = $item;
+            $byRelationshipId[(string) $item['relationshipId']] = $item;
+            $relationshipIds[] = (string) $item['relationshipId'];
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+
+            foreach (($item['signatureParts']['items'] ?? []) as $signature) {
+                if (!is_array($signature)) {
+                    continue;
+                }
+                $this->appendUniqueString($signaturePartNames, is_string($signature['targetPart'] ?? null) ? $signature['targetPart'] : null);
+                $this->appendUniqueString($contentTypesSeen, is_string($signature['contentType'] ?? null) ? $signature['contentType'] : null);
+                if (($signature['external'] ?? false) === true) {
+                    $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
+                }
+                foreach (($signature['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+
+            foreach (($item['dataParts']['items'] ?? []) as $dataPart) {
+                if (!is_array($dataPart)) {
+                    continue;
+                }
+                $this->appendUniqueString($dataPartNames, is_string($dataPart['targetPart'] ?? null) ? $dataPart['targetPart'] : null);
+                $this->appendUniqueString($contentTypesSeen, is_string($dataPart['contentType'] ?? null) ? $dataPart['contentType'] : null);
+                if (($dataPart['external'] ?? false) === true) {
+                    $this->appendUniqueString($externalTargets, is_string($dataPart['target'] ?? null) ? $dataPart['target'] : null);
+                }
+                foreach (($dataPart['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::VBA_PROJECT_REL)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-vba-project', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-project-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-project-content-type', $item['issues'], true))),
+            'signatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['count'] ?? 0), $items)),
+            'existingSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['existingCount'] ?? 0), $items)),
+            'missingSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['missingCount'] ?? 0), $items)),
+            'externalSignatureCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['signatureParts']['externalCount'] ?? 0), $items)),
+            'dataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['count'] ?? 0), $items)),
+            'existingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['existingCount'] ?? 0), $items)),
+            'missingDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['missingCount'] ?? 0), $items)),
+            'externalDataPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['dataParts']['externalCount'] ?? 0), $items)),
+            'issueCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['issues'] !== []
+                    || (int) ($item['signatureParts']['issueCount'] ?? 0) > 0
+                    || (int) ($item['dataParts']['issueCount'] ?? 0) > 0,
+            )),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'signaturePartNames' => $signaturePartNames,
+            'dataPartNames' => $dataPartNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'vba-project-bytes-blocked',
+            'reviewPolicy' => 'vba-project-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function vbaProjectItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $projectRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $projectRelationships = $projectRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $projectRelationshipsPart);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-vba-project';
+        } else {
+            if (!$exists) {
+                $issues[] = 'missing-vba-project';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-project-content-type';
+            } elseif ($contentTypeBase !== self::CT_VBA_PROJECT) {
+                $issues[] = 'unexpected-project-content-type';
+            }
+        }
+
+        $signatureParts = $this->vbaProjectRelatedParts(
+            $parts,
+            $targetPart,
+            $projectRelationshipsPart,
+            $projectRelationships,
+            $contentTypes,
+            self::VBA_PROJECT_SIGNATURE_REL,
+            self::CT_VBA_PROJECT_SIGNATURE,
+            'project-signature',
+        );
+        $dataParts = $this->vbaProjectRelatedParts(
+            $parts,
+            $targetPart,
+            $projectRelationshipsPart,
+            $projectRelationships,
+            $contentTypes,
+            self::VBA_DATA_REL,
+            self::CT_VBA_DATA,
+            'data',
+        );
+
+        return [
+            'index' => $index,
+            'relationshipId' => $summary['id'],
+            'relationshipType' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'external' => $external,
+            'partName' => $targetPart,
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'exists' => $exists,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_VBA_PROJECT,
+            'relationshipsPart' => $relationshipsPart,
+            'projectRelationshipsPart' => $projectRelationshipsPart,
+            'projectRelationshipCount' => count($projectRelationships),
+            'signatureParts' => $signatureParts,
+            'dataParts' => $dataParts,
+            'byteExposurePolicy' => 'vba-project-bytes-blocked',
+            'reviewPolicy' => 'vba-project-metadata-only',
+            'valid' => $issues === [] && (int) $signatureParts['issueCount'] === 0 && (int) $dataParts['issueCount'] === 0,
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyVbaProjectRelatedParts(): array
+    {
+        return [
+            'count' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'unexpectedContentTypeCount' => 0,
+            'issueCount' => 0,
+            'relationshipIds' => [],
+            'partNames' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'issueCodes' => [],
+            'byRelationshipId' => [],
+            'items' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function vbaProjectRelatedParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        string $relationshipType,
+        string $expectedContentTypeBase,
+        string $kind,
+    ): array {
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return $this->emptyVbaProjectRelatedParts();
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== $relationshipType) {
+                continue;
+            }
+
+            $item = $this->vbaProjectRelatedPartItem(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes,
+                $expectedContentTypeBase,
+                $kind,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-vba-' . $kind, $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-vba-' . $kind . '-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function vbaProjectRelatedPartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $expectedContentTypeBase,
+        string $kind,
+        int $index,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-vba-' . $kind;
+        } else {
+            if (!$exists) {
+                $issues[] = 'missing-vba-' . $kind;
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-vba-' . $kind . '-content-type';
+            } elseif ($contentTypeBase !== $expectedContentTypeBase) {
+                $issues[] = 'unexpected-vba-' . $kind . '-content-type';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'source' => $sourcePart,
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => $expectedContentTypeBase,
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'byteExposurePolicy' => 'vba-' . $kind . '-bytes-blocked',
+            'reviewPolicy' => 'vba-project-metadata-only',
             'valid' => $issues === [],
             'issues' => $issues,
             'relationship' => $summary,
@@ -4817,6 +5223,9 @@ final class DocxOpenXmlReader
         return match ($relationshipType) {
             self::ACTIVEX_CONTROL_REL => 'activex-control',
             self::ACTIVEX_BINARY_REL => 'activex-binary',
+            self::VBA_PROJECT_REL => 'vba-project',
+            self::VBA_PROJECT_SIGNATURE_REL => 'vba-project-signature',
+            self::VBA_DATA_REL => 'vba-data',
             default => null,
         };
     }

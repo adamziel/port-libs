@@ -1836,6 +1836,161 @@ XML;
         $t->true(in_array('activex-binary', $inventory['word/activeX/activeX1.bin']['roles'], true), 'ActiveX binary inventory role missing');
         $t->true(!isset($docx['media']['word/activeX/activeX1.bin']), 'ActiveX binary should not be exposed as document media');
     },
+    'reports docx vba project package provenance as metadata only' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $signatureRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
+        $dataRel = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+        $projectBytes = 'vba project binary bytes';
+        $signatureBytes = 'vba project signature bytes';
+        $dataXml = '<wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"/>';
+        $badDataXml = '<review>not vba data</review>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject; profile=macro-review"/>' . "\n" .
+            '  <Override PartName="/word/vbaProjectSignature.bin" ContentType="application/vnd.ms-office.vbaProjectSignature; profile=signed"/>' . "\n" .
+            '  <Override PartName="/word/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml; profile=vba-data"/>' . "\n" .
+            '  <Override PartName="/word/badVbaData.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rVbaProject" Type="' . $projectRel . '" Target="vbaProject.bin?macro=1#project"/>' . "\n" .
+            '  <Relationship Id="rMissingVbaProject" Type="' . $projectRel . '" Target="missingVbaProject.bin"/>' . "\n" .
+            '  <Relationship Id="rRemoteVbaProject" Type="' . $projectRel . '" Target="https://example.test/vbaProject.bin?remote=1#project" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/vbaProject.bin'] = $projectBytes;
+        $parts['word/_rels/vbaProject.bin.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rVbaSignature" Type="{$signatureRel}" Target="vbaProjectSignature.bin?sig=1#signature"/>
+  <Relationship Id="rMissingVbaSignature" Type="{$signatureRel}" Target="missingVbaProjectSignature.bin"/>
+  <Relationship Id="rRemoteVbaSignature" Type="{$signatureRel}" Target="https://example.test/vbaProjectSignature.bin" TargetMode="External"/>
+  <Relationship Id="rVbaData" Type="{$dataRel}" Target="vbaData.xml?slot=1#data"/>
+  <Relationship Id="rBadVbaData" Type="{$dataRel}" Target="badVbaData.xml"/>
+</Relationships>
+XML;
+        $parts['word/vbaProjectSignature.bin'] = $signatureBytes;
+        $parts['word/vbaData.xml'] = $dataXml;
+        $parts['word/badVbaData.xml'] = $badDataXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $vba = $docx['vbaProjects'];
+        $summary = $docx['packageProvenance']['summary'];
+        $project = $vba['byRelationshipId']['rVbaProject'];
+        $missingProject = $vba['byRelationshipId']['rMissingVbaProject'];
+        $remoteProject = $vba['byRelationshipId']['rRemoteVbaProject'];
+        $signature = $project['signatureParts']['byRelationshipId']['rVbaSignature'];
+        $missingSignature = $project['signatureParts']['byRelationshipId']['rMissingVbaSignature'];
+        $remoteSignature = $project['signatureParts']['byRelationshipId']['rRemoteVbaSignature'];
+        $data = $project['dataParts']['byRelationshipId']['rVbaData'];
+        $badData = $project['dataParts']['byRelationshipId']['rBadVbaData'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $inventory = $docx['packageProvenance']['parts'];
+
+        $t->same($vba, $docx['packageProvenance']['vbaProjects']);
+        $t->same(3, $vba['count']);
+        $t->same(3, $vba['relationshipCount']);
+        $t->same(1, $vba['existingCount']);
+        $t->same(1, $vba['missingCount']);
+        $t->same(1, $vba['externalCount']);
+        $t->same(1, $vba['missingContentTypeCount']);
+        $t->same(3, $vba['signatureCount']);
+        $t->same(1, $vba['existingSignatureCount']);
+        $t->same(1, $vba['missingSignatureCount']);
+        $t->same(1, $vba['externalSignatureCount']);
+        $t->same(2, $vba['dataPartCount']);
+        $t->same(2, $vba['existingDataPartCount']);
+        $t->same(0, $vba['missingDataPartCount']);
+        $t->same(0, $vba['externalDataPartCount']);
+        $t->same(3, $vba['issueCount']);
+        $t->same([
+            'external-vba-project',
+            'external-vba-project-signature',
+            'missing-project-content-type',
+            'missing-vba-project',
+            'missing-vba-project-signature',
+            'missing-vba-project-signature-content-type',
+            'unexpected-vba-data-content-type',
+        ], $vba['issueCodes']);
+        $t->same(['rVbaProject', 'rMissingVbaProject', 'rRemoteVbaProject'], $vba['relationshipIds']);
+        $t->same(['word/vbaProject.bin', 'word/missingVbaProject.bin'], $vba['partNames']);
+        $t->same(['word/vbaProjectSignature.bin', 'word/missingVbaProjectSignature.bin'], $vba['signaturePartNames']);
+        $t->same(['word/vbaData.xml', 'word/badVbaData.xml'], $vba['dataPartNames']);
+        $t->same('vba-project-bytes-blocked', $vba['byteExposurePolicy']);
+        $t->same('vba-project-metadata-only', $vba['reviewPolicy']);
+
+        $t->same($projectRel, $project['relationshipType']);
+        $t->same('vbaProject.bin?macro=1#project', $project['target']);
+        $t->same('word/vbaProject.bin?macro=1#project', $project['resolvedTarget']);
+        $t->same('word/vbaProject.bin', $project['targetPart']);
+        $t->same('macro=1', $project['targetQuery']);
+        $t->same('project', $project['targetFragment']);
+        $t->same('?macro=1#project', $project['targetReferenceSuffix']);
+        $t->same(true, $project['exists']);
+        $t->same(strlen($projectBytes), $project['byteLength']);
+        $t->same(sprintf('%08x', crc32($projectBytes)), $project['crc32']);
+        $t->same('application/vnd.ms-office.vbaProject; profile=macro-review', $project['contentType']);
+        $t->same('application/vnd.ms-office.vbaproject', $project['contentTypeBase']);
+        $t->same(['profile' => 'macro-review'], $project['contentTypeParameterMap']);
+        $t->same('word/_rels/vbaProject.bin.rels', $project['projectRelationshipsPart']);
+        $t->same(5, $project['projectRelationshipCount']);
+        $t->same([], $project['issues']);
+        $t->same(false, $project['valid']);
+
+        $t->same(3, $project['signatureParts']['count']);
+        $t->same(['rVbaSignature', 'rMissingVbaSignature', 'rRemoteVbaSignature'], $project['signatureParts']['relationshipIds']);
+        $t->same('word/vbaProjectSignature.bin?sig=1#signature', $signature['resolvedTarget']);
+        $t->same('?sig=1#signature', $signature['targetReferenceSuffix']);
+        $t->same(strlen($signatureBytes), $signature['byteLength']);
+        $t->same(sprintf('%08x', crc32($signatureBytes)), $signature['crc32']);
+        $t->same('application/vnd.ms-office.vbaProjectSignature; profile=signed', $signature['contentType']);
+        $t->same('application/vnd.ms-office.vbaprojectsignature', $signature['contentTypeBase']);
+        $t->same(['profile' => 'signed'], $signature['contentTypeParameterMap']);
+        $t->same('vba-project-signature-bytes-blocked', $signature['byteExposurePolicy']);
+        $t->same([], $signature['issues']);
+        $t->same(['missing-vba-project-signature', 'missing-vba-project-signature-content-type'], $missingSignature['issues']);
+        $t->same(['external-vba-project-signature'], $remoteSignature['issues']);
+
+        $t->same(2, $project['dataParts']['count']);
+        $t->same('word/vbaData.xml?slot=1#data', $data['resolvedTarget']);
+        $t->same('?slot=1#data', $data['targetReferenceSuffix']);
+        $t->same(strlen($dataXml), $data['byteLength']);
+        $t->same('application/vnd.ms-word.vbaData+xml; profile=vba-data', $data['contentType']);
+        $t->same('application/vnd.ms-word.vbadata+xml', $data['contentTypeBase']);
+        $t->same('vba-data-bytes-blocked', $data['byteExposurePolicy']);
+        $t->same([], $data['issues']);
+        $t->same(['unexpected-vba-data-content-type'], $badData['issues']);
+
+        $t->same(['missing-vba-project', 'missing-project-content-type'], $missingProject['issues']);
+        $t->same(['external-vba-project'], $remoteProject['issues']);
+        $t->same(3, $summary['vbaProjectCount']);
+        $t->same(3, $summary['vbaProjectRelationshipCount']);
+        $t->same(3, $summary['vbaProjectSignatureCount']);
+        $t->same(2, $summary['vbaDataPartCount']);
+        $t->same($vba['issueCodes'], $summary['vbaProjectIssueCodes']);
+
+        $t->same('vbaProject', $relationshipTypes[$projectRel]['label']);
+        $t->same(3, $relationshipTypes[$projectRel]['count']);
+        $t->same(2, $relationshipTypes[$projectRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$projectRel]['externalCount']);
+        $t->same(['word/vbaProject.bin'], $relationshipTypes[$projectRel]['existingTargetParts']);
+        $t->same(['word/missingVbaProject.bin'], $relationshipTypes[$projectRel]['missingTargetParts']);
+        $t->same('vbaProjectSignature', $relationshipTypes[$signatureRel]['label']);
+        $t->same(3, $relationshipTypes[$signatureRel]['count']);
+        $t->same(['word/vbaProjectSignature.bin'], $relationshipTypes[$signatureRel]['existingTargetParts']);
+        $t->same('wordVbaData', $relationshipTypes[$dataRel]['label']);
+        $t->same(2, $relationshipTypes[$dataRel]['count']);
+        $t->true(in_array('vba-project', $inventory['word/vbaProject.bin']['roles'], true), 'VBA project inventory role missing');
+        $t->true(in_array('vba-project-signature', $inventory['word/vbaProjectSignature.bin']['roles'], true), 'VBA signature inventory role missing');
+        $t->true(in_array('vba-data', $inventory['word/vbaData.xml']['roles'], true), 'VBA data inventory role missing');
+        $t->true(!isset($docx['media']['word/vbaProject.bin']), 'VBA project bytes should not be exposed as document media');
+    },
     'summarizes docx custom xml data store package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
