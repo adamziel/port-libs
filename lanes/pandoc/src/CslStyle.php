@@ -1711,6 +1711,8 @@ final class CslStyle
             'edition',
             'volume',
             'issue',
+            'issue-number',
+            'issuenumber',
             'chapter-number',
             'number-of-pages',
             'number-of-volumes',

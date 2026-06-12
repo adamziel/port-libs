@@ -27962,6 +27962,121 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note</dd>', $blocks);
     },
+    'normalizes bounded direct csl json issue number aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-issue-number-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct Issue Number Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'issueNumber' => '2',
+            ],
+            [
+                'id' => 'direct-issue-number-hyphen',
+                'type' => 'article-magazine',
+                'title' => 'Direct Issue Number Hyphen Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'issue-number' => '3-5',
+            ],
+            [
+                'id' => 'direct-issue-number-flat',
+                'type' => 'periodical',
+                'title' => 'Direct Issue Number Flat Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'issuenumber' => 'special 7',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-issue-number-camel');
+        $hyphen = $processor->item('direct-issue-number-hyphen');
+        $flat = $processor->item('direct-issue-number-flat');
+        $t->same('2', $camel['issue'] ?? null);
+        $t->same('3-5', $hyphen['issue'] ?? null);
+        $t->same('special 7', $flat['issue'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Issue Number Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-issue-number-alias-review</id>
+    <updated>2026-06-12T03:40:58+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="issue-number"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if is-numeric="issue-number">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <label variable="issue-number" form="short"/>
+            <number variable="issue-number" form="ordinal"/>
+            <text variable="issue-number" form="roman"/>
+            <text variable="issue"/>
+          </group>
+        </if>
+        <else>
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="issue-number"/>
+            <text variable="title"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <label variable="issue-number" form="short"/>
+      <number variable="issue-number" form="ordinal"/>
+      <text variable="issue-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $children = $branch['children'][0]['children'] ?? [];
+        $sortKey = $summary['citationSort'][0] ?? [];
+        $t->same('Bounded Direct CSL Issue Number Alias Review', $summary['title'] ?? null);
+        $t->same('issue-number', $sortKey['variable'] ?? null);
+        $t->same(['issue-number'], $branch['isNumeric'] ?? null);
+        $t->same('issue-number', $children[1]['variable'] ?? null);
+        $t->same('issue-number', $children[2]['variable'] ?? null);
+        $t->same('ordinal', $children[2]['form'] ?? null);
+        $t->same('issue-number', $children[3]['variable'] ?? null);
+        $t->same('roman', $children[3]['form'] ?? null);
+
+        $t->same('[Ames | no. | 2nd | ii | 2; Bell | nos. | 3rd-5th | iii-v | 3-5; Chen | special 7 | Direct Issue Number Flat Packet]', $styled->renderCitationCluster([
+            $citation('direct-issue-number-flat', '[@direct-issue-number-flat]'),
+            $citation('direct-issue-number-hyphen', '[@direct-issue-number-hyphen]'),
+            $citation('direct-issue-number-camel', '[@direct-issue-number-camel]'),
+        ]));
+        $t->same('Direct Issue Number Camel Packet :: no. :: 2nd :: 2', $styled->renderBibliographyEntry('direct-issue-number-camel'));
+        $t->same('Direct Issue Number Hyphen Packet :: nos. :: 3rd-5th :: 3-5', $styled->renderBibliographyEntry('direct-issue-number-hyphen'));
+        $t->same('Direct Issue Number Flat Packet :: no. :: special 7 :: special 7', $styled->renderBibliographyEntry('direct-issue-number-flat'));
+
+        $document = (new MarkdownReader())->read('Issue aliases [@direct-issue-number-flat; @direct-issue-number-hyphen; @direct-issue-number-camel] remain canonical.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Issue aliases [Ames | no. | 2nd | ii | 2; Bell | nos. | 3rd-5th | iii-v | 3-5; Chen | special 7 | Direct Issue Number Flat Packet] remain canonical.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Issue Number Camel Packet :: no. :: 2nd :: 2</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Issue Number Hyphen Packet :: nos. :: 3rd-5th :: 3-5</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Issue Number Flat Packet :: no. :: special 7 :: special 7</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
