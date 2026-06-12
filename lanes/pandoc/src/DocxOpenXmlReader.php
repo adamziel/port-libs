@@ -4344,6 +4344,17 @@ final class DocxOpenXmlReader
             'validRoot' => $metadata['validRoot'],
             'referenceCount' => $metadata['referenceCount'],
             'referenceUris' => $metadata['referenceUris'],
+            'references' => $metadata['references'],
+            'referenceUriKindCounts' => $metadata['referenceUriKindCounts'],
+            'packageReferenceCount' => $metadata['packageReferenceCount'],
+            'sameDocumentReferenceCount' => $metadata['sameDocumentReferenceCount'],
+            'externalReferenceCount' => $metadata['externalReferenceCount'],
+            'relativeReferenceCount' => $metadata['relativeReferenceCount'],
+            'emptyReferenceCount' => $metadata['emptyReferenceCount'],
+            'referenceTransformCount' => $metadata['referenceTransformCount'],
+            'referenceTransformAlgorithms' => $metadata['referenceTransformAlgorithms'],
+            'referenceDigestValueCount' => $metadata['referenceDigestValueCount'],
+            'referenceDigestValueMissingCount' => $metadata['referenceDigestValueMissingCount'],
             'digestMethodAlgorithms' => $metadata['digestMethodAlgorithms'],
             'signatureMethodAlgorithms' => $metadata['signatureMethodAlgorithms'],
             'canonicalizationMethodAlgorithms' => $metadata['canonicalizationMethodAlgorithms'],
@@ -4369,6 +4380,17 @@ final class DocxOpenXmlReader
             'validRoot' => null,
             'referenceCount' => 0,
             'referenceUris' => [],
+            'references' => [],
+            'referenceUriKindCounts' => [],
+            'packageReferenceCount' => 0,
+            'sameDocumentReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'relativeReferenceCount' => 0,
+            'emptyReferenceCount' => 0,
+            'referenceTransformCount' => 0,
+            'referenceTransformAlgorithms' => [],
+            'referenceDigestValueCount' => 0,
+            'referenceDigestValueMissingCount' => 0,
             'digestMethodAlgorithms' => [],
             'signatureMethodAlgorithms' => [],
             'canonicalizationMethodAlgorithms' => [],
@@ -4408,15 +4430,38 @@ final class DocxOpenXmlReader
             if (!$reference instanceof \DOMElement) {
                 continue;
             }
-            ++$metadata['referenceCount'];
-            $this->appendUniqueString($metadata['referenceUris'], $reference->getAttribute('URI'));
-        }
 
-        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'DigestMethod') as $digestMethod) {
-            if ($digestMethod instanceof \DOMElement) {
-                $this->appendUniqueString($metadata['digestMethodAlgorithms'], $digestMethod->getAttribute('Algorithm'));
+            $item = $this->digitalSignatureReferenceMetadata($reference, $metadata['referenceCount']);
+            ++$metadata['referenceCount'];
+            $metadata['references'][] = $item;
+            $metadata['referenceUriKindCounts'][$item['uriKind']] =
+                ($metadata['referenceUriKindCounts'][$item['uriKind']] ?? 0) + 1;
+            $this->appendUniqueString($metadata['referenceUris'], $item['uri']);
+            if ($item['uriKind'] === 'package-part') {
+                ++$metadata['packageReferenceCount'];
+            } elseif ($item['uriKind'] === 'same-document') {
+                ++$metadata['sameDocumentReferenceCount'];
+            } elseif ($item['uriKind'] === 'external') {
+                ++$metadata['externalReferenceCount'];
+            } elseif ($item['uriKind'] === 'relative') {
+                ++$metadata['relativeReferenceCount'];
+            } elseif ($item['uriKind'] === 'empty') {
+                ++$metadata['emptyReferenceCount'];
+            }
+            $metadata['referenceTransformCount'] += $item['transformCount'];
+            foreach ($item['transformAlgorithms'] as $algorithm) {
+                $this->appendUniqueString($metadata['referenceTransformAlgorithms'], $algorithm);
+            }
+            if ($item['digestMethodAlgorithm'] !== null) {
+                $this->appendUniqueString($metadata['digestMethodAlgorithms'], $item['digestMethodAlgorithm']);
+            }
+            if ($item['digestValuePresent']) {
+                ++$metadata['referenceDigestValueCount'];
+            } else {
+                ++$metadata['referenceDigestValueMissingCount'];
             }
         }
+        ksort($metadata['referenceUriKindCounts'], SORT_STRING);
 
         foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'SignatureMethod') as $signatureMethod) {
             if ($signatureMethod instanceof \DOMElement) {
@@ -4439,6 +4484,79 @@ final class DocxOpenXmlReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureReferenceMetadata(\DOMElement $reference, int $index): array
+    {
+        $uri = $reference->getAttribute('URI');
+        $uriKind = $this->digitalSignatureReferenceUriKind($uri);
+        $suffix = $this->targetReferenceSuffix($uri);
+        $transforms = [];
+        foreach ($reference->getElementsByTagNameNS(self::NS_XMLDSIG, 'Transform') as $transform) {
+            if ($transform instanceof \DOMElement) {
+                $this->appendUniqueString($transforms, $transform->getAttribute('Algorithm'));
+            }
+        }
+
+        $digestMethod = $this->firstChildElementByNamespace($reference, self::NS_XMLDSIG, 'DigestMethod');
+        $digestValue = $this->firstChildElementByNamespace($reference, self::NS_XMLDSIG, 'DigestValue');
+        $digestValueText = $digestValue instanceof \DOMElement ? trim($digestValue->textContent) : '';
+
+        return [
+            'index' => $index,
+            'uri' => $uri,
+            'uriKind' => $uriKind,
+            'targetPart' => $uriKind === 'package-part' ? $this->stripQueryAndFragment($uri) : null,
+            'targetQuery' => $suffix['query'],
+            'targetFragment' => $suffix['fragment'],
+            'targetReferenceSuffix' => $suffix['suffix'],
+            'external' => $uriKind === 'external',
+            'sameDocument' => $uriKind === 'same-document' || $uriKind === 'empty',
+            'startsAtPackageRoot' => str_starts_with($uri, '/'),
+            'transformCount' => count($transforms),
+            'transformAlgorithms' => $transforms,
+            'digestMethodAlgorithm' => $digestMethod instanceof \DOMElement
+                ? $this->emptyStringToNull($digestMethod->getAttribute('Algorithm'))
+                : null,
+            'digestValuePresent' => $digestValueText !== '',
+            'digestValueLength' => strlen($digestValueText),
+        ];
+    }
+
+    private function digitalSignatureReferenceUriKind(string $uri): string
+    {
+        $trimmed = trim($uri);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if (str_starts_with($trimmed, '#')) {
+            return 'same-document';
+        }
+        if (
+            str_starts_with($trimmed, '//')
+            || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) === 1
+        ) {
+            return 'external';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'package-part';
+        }
+
+        return 'relative';
+    }
+
+    private function firstChildElementByNamespace(\DOMElement $parent, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespace && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
     }
 
     /**
