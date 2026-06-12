@@ -20,6 +20,8 @@ Verification:
 - `php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/DocxOpenXmlReaderTest.php`
   - 1 test file, 1980 assertions, 0 failures
+- `php tools/run-tests.php lanes/pandoc/tests`
+  - 44 test files, 71921 assertions, 0 failures
 
 No Pandoc, Cabal/Haskell runner, Word, LibreOffice, office suite, `zip`,
 `unzip`, `ZipArchive`, browser renderer, external validator, online service,
