@@ -10379,6 +10379,82 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'summarizes ODT package inventory role buckets for compact and reader handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings"/>
+  </office:settings>
+</office:document-settings>
+XML;
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
+        $manifestWithRoleParts = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+                . '<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>'
+                . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $package = $buildOdtPackage(null, $manifestWithRoleParts, null, null, [
+            ['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0],
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMB', 'compressionMethod' => 0],
+            ['name' => 'Scripts/review/basic.xba', 'data' => 'macro', 'compressionMethod' => 0],
+        ]);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $compactInventory = OpenDocumentPackage::fromPackage($package)->summarize()['packageInventory'];
+        $expectedRoleCounts = [
+            'manifest-declared' => 6,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-settings' => 1,
+            'odf-styles' => 1,
+            'package-signature' => 1,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 2,
+        ];
+        $expectedUndeclaredRoleCounts = [
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 2,
+        ];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(10, $provenance['entryCount']);
+        $t->same(10, $compactInventory['entryCount']);
+        $t->same(6, $provenance['manifestDeclaredPartCount']);
+        $t->same(6, $compactInventory['manifestDeclaredPartCount']);
+        $t->same(2, $provenance['undeclaredEntryCount']);
+        $t->same(2, $compactInventory['undeclaredEntryCount']);
+        $t->same(6, $provenance['corePackagePartCount']);
+        $t->same(6, $compactInventory['corePackagePartCount']);
+        $t->same(1, $provenance['mediaResourcePartCount']);
+        $t->same(1, $compactInventory['mediaResourcePartCount']);
+        $t->same(1, $provenance['packageThumbnailPartCount']);
+        $t->same(1, $compactInventory['packageThumbnailPartCount']);
+        $t->same(1, $provenance['packageSignaturePartCount']);
+        $t->same(1, $compactInventory['packageSignaturePartCount']);
+        $t->same($expectedRoleCounts, $provenance['roleCounts']);
+        $t->same($expectedRoleCounts, $compactInventory['roleCounts']);
+        $t->same($expectedUndeclaredRoleCounts, $provenance['undeclaredRoleCounts']);
+        $t->same($expectedUndeclaredRoleCounts, $compactInventory['undeclaredRoleCounts']);
+        $t->same(['odf-settings', 'manifest-declared'], $provenance['parts']['settings.xml']['roles']);
+        $t->same(['odf-settings', 'manifest-declared'], $compactInventory['parts']['settings.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $provenance['parts']['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $compactInventory['parts']['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $compactInventory['parts']['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['undeclared-package-entry'], $provenance['parts']['Scripts/review/basic.xba']['roles']);
+        $t->same(['undeclared-package-entry'], $compactInventory['parts']['Scripts/review/basic.xba']['roles']);
+        $t->same(1, $result['packageThumbnails']['count']);
+        $t->same(1, $result['signatureMetadata']['partCount']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
