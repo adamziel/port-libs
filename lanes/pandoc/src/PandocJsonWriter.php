@@ -1037,10 +1037,20 @@ final class PandocJsonWriter
             'Space',
             'SoftBreak',
             'LineBreak',
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Quoted',
             'Code',
             'Math',
             'RawInline',
             'Cite',
+            'Note',
+            'Span',
         ], true);
     }
 
