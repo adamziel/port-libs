@@ -570,7 +570,7 @@ final class PandocJsonWriter
                 $blocks[] = ['t' => 'Plain', 'c' => $this->writeInlines($inlines)];
                 $inlines = [];
             }
-            $blocks[] = $this->writeBlock($child);
+            $blocks[] = $this->writeBlocks([$child])[0];
         }
 
         if ($inlines !== []) {

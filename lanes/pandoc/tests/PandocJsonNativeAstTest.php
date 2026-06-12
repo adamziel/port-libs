@@ -4212,6 +4212,72 @@ return [
             }
         }
     },
+    'preserves figure child block native payloads when rebuilding wrappers' => static function (TestRunner $t): void {
+        $figureChild = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Nested'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'payload'],
+        ], 'reviewQueue' => 'figure-child-source'];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['figure-wrapper', ['review'], [['data-source', 'json']]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Original'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ]],
+                [$figureChild],
+            ],
+            'reviewQueue' => 'figure-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $figure = $document->children[0];
+            $child = $figure->children[0];
+            $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+                'caption' => 'Edited caption',
+                'captionBlocks' => [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'Edited']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'caption']),
+                    ]),
+                ],
+            ]), $figure->children);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedFigure]);
+
+            $t->same('paragraph', $child->type, "{$source} figure child block type");
+            $t->same($figureChild, $child->attr('native'), "{$source} figure child native payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedFigure = $encoded['blocks'][0];
+                $encodedChild = $encodedFigure['c'][2][0];
+
+                $t->same('Figure', $encodedFigure['t'], "{$source} {$writer} writer emits figure constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFigure), "{$source} {$writer} writer drops stale figure wrapper payload");
+                $t->same('Edited', $encodedFigure['c'][1]['c'][1][0]['c'][0]['c'], "{$source} {$writer} writer emits edited caption");
+                $t->same($figureChild, $encodedChild, "{$source} {$writer} writer preserves unchanged figure child payload");
+            }
+        }
+    },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
