@@ -1023,7 +1023,7 @@ final class CitationCslProcessor
             'journalTitleShort',
             'journal-title-short',
         ]);
-        $publisher = self::stringField($item, 'publisher');
+        $publisher = self::firstStringField($item, ['publisher', 'institution', 'organization', 'school']);
         $publisherPlace = self::firstStringField($item, [
             'publisher-place',
             'publisherPlace',
@@ -9319,7 +9319,7 @@ final class CitationCslProcessor
             'event-place', 'eventplace', 'event-location', 'eventlocation', 'event-venue', 'eventvenue', 'venue' => (string) $item['eventPlace'],
             'event-place-list', 'eventplacelist', 'event-location-list', 'eventlocationlist', 'event-venue-list', 'eventvenuelist', 'venue-list' => implode('; ', is_array($item['eventPlaceList'] ?? null) ? $item['eventPlaceList'] : []),
             'event-type', 'eventtype' => (string) $item['eventType'],
-            'publisher' => (string) $item['publisher'],
+            'publisher', 'institution', 'organization', 'school' => (string) $item['publisher'],
             'publisher-place', 'publisherplace', 'publisher-location', 'publisherlocation', 'publication-place', 'publicationplace', 'pubplace', 'address', 'location' => (string) $item['publisherPlace'],
             'publisher-list', 'publisherlist' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
             'publisher-place-list', 'publisherplacelist', 'publisher-location-list', 'publisherlocationlist', 'publication-place-list', 'publicationplacelist', 'pubplace-list', 'pubplacelist', 'address-list', 'addresslist', 'location-list', 'locationlist' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
