@@ -88,6 +88,59 @@ return [
         ], $result['diagnostics']['blocks'][0]);
         $t->same(false, $result['diagnostics']['blocks'][1]['wrapped']);
     },
+    'renders native table captions and rows as plain text' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $cell = static fn (array $children = [], array $attrs = []): AstNode => new AstNode('table_cell', $attrs, $children);
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'captionInlines' => [
+                    $text('Migration'),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [$text('queue')]),
+                ],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', [], [
+                        $cell([$text('Format')]),
+                        $cell([$text('State')]),
+                        $cell([$text('Notes')]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        $cell([new AstNode('strong', [], [$text('plain')])]),
+                        $cell([$text('partial')]),
+                        $cell([
+                            new AstNode('paragraph', [], [$text('keeps caption')]),
+                            new AstNode('paragraph', [], [$text('keeps row text')]),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('table_foot', [], [
+                    new AstNode('table_row', [], [
+                        $cell([$text('Total')]),
+                        $cell([$text('1')]),
+                        $cell([$text('gap closed')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 80]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Migration queue',
+            'Format | State | Notes',
+            'plain | partial | keeps caption keeps row text',
+            'Total | 1 | gap closed',
+        ]), $result['text']);
+        $t->same($result['text'], (new PlainWriter(['columns' => 80]))->write($document));
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(46, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same('table', $result['diagnostics']['blocks'][0]['blockType']);
+        $t->same(false, $result['diagnostics']['blocks'][0]['wrapped']);
+    },
     'reports generated wrap breaks by source line in plain writer diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha beta gamma delta epsilon\nOne two three four\nShort"]),

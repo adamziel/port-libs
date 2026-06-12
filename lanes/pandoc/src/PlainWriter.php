@@ -392,6 +392,7 @@ final class PlainWriter
             'bullet_list' => $this->renderList($node, false),
             'ordered_list' => $this->renderList($node, true),
             'line_block' => $this->renderLineBlock($node),
+            'table' => $this->renderTable($node),
             'code_block' => (string) $node->attr('text', ''),
             'raw_markdown', 'raw_tex', 'raw_block' => (string) $node->attr('text', $node->attr('markdown', $node->attr('tex', ''))),
             'horizontal_rule' => '',
@@ -460,6 +461,141 @@ final class PlainWriter
         }
 
         return implode("\n", $lines);
+    }
+
+    private function renderTable(AstNode $node): string
+    {
+        $columnCount = TableGeometry::columnCount($node);
+        if ($columnCount === 0) {
+            return $this->renderCaption($node);
+        }
+
+        $lines = [];
+        $caption = $this->renderCaption($node);
+        if ($caption !== '') {
+            $lines[] = $caption;
+        }
+
+        foreach ($this->tableRowGroups($node) as $rows) {
+            foreach (TableGeometry::layoutRows($rows, $columnCount) as $layoutRow) {
+                $cells = [];
+                $visualColumn = 0;
+                foreach ($layoutRow['cells'] as $layoutCell) {
+                    $column = (int) $layoutCell['column'];
+                    while ($visualColumn < $column) {
+                        $cells[] = '';
+                        $visualColumn++;
+                    }
+
+                    $colspan = max(1, (int) $layoutCell['colspan']);
+                    $cells[] = $this->renderTableCell($layoutCell['node']);
+                    $visualColumn += $colspan;
+                }
+
+                while ($visualColumn < $columnCount) {
+                    $cells[] = '';
+                    $visualColumn++;
+                }
+
+                $lines[] = rtrim(implode(' | ', $cells));
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return list<list<AstNode>>
+     */
+    private function tableRowGroups(AstNode $node): array
+    {
+        $groups = [];
+        foreach ($node->children as $section) {
+            if (!$section instanceof AstNode) {
+                continue;
+            }
+
+            if ($section->type === 'table_head' || $section->type === 'table_body' || $section->type === 'table_foot') {
+                $rows = [];
+                if ($section->type === 'table_body') {
+                    $headRows = $section->attr('headRows', []);
+                    if (is_array($headRows)) {
+                        foreach ($headRows as $row) {
+                            if ($row instanceof AstNode && $row->type === 'table_row') {
+                                $rows[] = $row;
+                            }
+                        }
+                    }
+                }
+
+                foreach ($section->children as $row) {
+                    if ($row instanceof AstNode && $row->type === 'table_row') {
+                        $rows[] = $row;
+                    }
+                }
+
+                if ($rows !== []) {
+                    $groups[] = $rows;
+                }
+            }
+        }
+
+        return $groups;
+    }
+
+    private function renderTableCell(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->normalizeTableCellText((string) $cell->attr('text', ''));
+        }
+
+        $onlyInlines = true;
+        foreach ($cell->children as $child) {
+            if (!$child instanceof AstNode || !$this->isInlineNode($child)) {
+                $onlyInlines = false;
+                break;
+            }
+        }
+
+        $text = $onlyInlines
+            ? $this->renderInlines($cell->children)
+            : $this->renderBlockCollection($cell->children);
+
+        return $this->normalizeTableCellText($text);
+    }
+
+    private function renderCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('captionInlines', []);
+        if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+            return $this->normalizeTableCellText($this->renderInlines(array_values($captionInlines)));
+        }
+
+        $captionBlocks = $node->attr('captionBlocks', []);
+        if (is_array($captionBlocks) && $captionBlocks !== [] && $this->allAstNodes($captionBlocks)) {
+            return $this->normalizeTableCellText($this->renderBlockCollection(array_values($captionBlocks)));
+        }
+
+        return $this->normalizeTableCellText((string) $node->attr('caption', ''));
+    }
+
+    private function normalizeTableCellText(string $text): string
+    {
+        return trim(preg_replace('/[ \t]*\R[ \t]*/u', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param array<mixed> $nodes
+     */
+    private function allAstNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
