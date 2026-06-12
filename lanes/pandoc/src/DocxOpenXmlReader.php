@@ -578,6 +578,10 @@ final class DocxOpenXmlReader
 
         $relationships = [];
         foreach ($this->readRelationshipRecordsPart($parts, $partName) as $record) {
+            if ($record['id'] === '' || $record['target'] === '') {
+                continue;
+            }
+
             $relationships[$record['id']] = [
                 'id' => $record['id'],
                 'type' => $record['type'],
@@ -607,10 +611,6 @@ final class DocxOpenXmlReader
         foreach ($this->elements($xpath, '/rel:Relationships/rel:Relationship') as $node) {
             $recordOrdinal = $ordinal++;
             $id = $node->getAttribute('Id');
-            if ($id === '') {
-                continue;
-            }
-
             $targetMode = $node->getAttribute('TargetMode');
             $target = $node->getAttribute('Target');
             $records[] = [
@@ -619,7 +619,7 @@ final class DocxOpenXmlReader
                 'type' => $node->getAttribute('Type'),
                 'target' => $target,
                 'targetMode' => $targetMode,
-                'resolvedTarget' => $this->resolveRelationshipTarget($partName, $target, $targetMode),
+                'resolvedTarget' => $target === '' ? '' : $this->resolveRelationshipTarget($partName, $target, $targetMode),
             ];
         }
 
@@ -2341,9 +2341,14 @@ final class DocxOpenXmlReader
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
         $duplicateRelationshipRecordCount = 0;
+        $invalidRelationshipRecordCount = 0;
+        $relationshipRecordIssueCount = 0;
         $relationshipPartsWithDuplicateRelationshipIds = [];
+        $relationshipPartsWithInvalidRecords = [];
         $duplicateRelationshipIds = [];
         $duplicateRelationshipIdItems = [];
+        $invalidRelationshipRecords = [];
+        $relationshipRecordIssueCodes = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -2376,9 +2381,8 @@ final class DocxOpenXmlReader
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
                 ++$relationshipCount;
                 $type = (string) ($relationship['type'] ?? '');
-                if ($type !== '') {
-                    $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
-                }
+                $typeKey = $type === '' ? '(missing-type)' : $type;
+                $relationshipTypeCounts[$typeKey] = ($relationshipTypeCounts[$typeKey] ?? 0) + 1;
 
                 $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null)
                     ? $relationship['targetReferenceSuffix']
@@ -2424,8 +2428,13 @@ final class DocxOpenXmlReader
             $relationshipRecordCount += (int) ($relationshipPart['relationshipRecordCount'] ?? 0);
             $duplicateRelationshipIdCount += (int) ($relationshipPart['duplicateRelationshipIdCount'] ?? 0);
             $duplicateRelationshipRecordCount += (int) ($relationshipPart['duplicateRelationshipRecordCount'] ?? 0);
+            $invalidRelationshipRecordCount += (int) ($relationshipPart['invalidRelationshipRecordCount'] ?? 0);
+            $relationshipRecordIssueCount += (int) ($relationshipPart['relationshipRecordIssueCount'] ?? 0);
             if (($relationshipPart['duplicateRelationshipIdCount'] ?? 0) > 0) {
                 $relationshipPartsWithDuplicateRelationshipIds[] = (string) $relationshipsPart;
+            }
+            if (($relationshipPart['invalidRelationshipRecordCount'] ?? 0) > 0) {
+                $relationshipPartsWithInvalidRecords[] = (string) $relationshipsPart;
             }
             foreach (($relationshipPart['duplicateRelationshipIds'] ?? []) as $id) {
                 $this->appendUniqueString($duplicateRelationshipIds, is_string($id) ? $id : null);
@@ -2435,9 +2444,26 @@ final class DocxOpenXmlReader
                     $duplicateRelationshipIdItems[] = $item;
                 }
             }
+            foreach (($relationshipPart['relationshipRecordIssueCodes'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $relationshipRecordIssueCodes[$issue] = true;
+                }
+            }
+            foreach (($relationshipPart['invalidRelationshipRecords'] ?? []) as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                $invalidRelationshipRecords[] = $this->relationshipProvenanceSummaryItem($record) + [
+                    'ordinal' => $record['ordinal'] ?? null,
+                    'valid' => (bool) ($record['valid'] ?? false),
+                    'issues' => $record['issues'] ?? [],
+                ];
+            }
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipRecordIssueCodes);
 
         return [
             'partCount' => count($partInventory),
@@ -2455,6 +2481,9 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdCount' => $duplicateRelationshipIdCount,
             'duplicateRelationshipRecordCount' => $duplicateRelationshipRecordCount,
             'duplicateRelationshipIds' => $duplicateRelationshipIds,
+            'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
+            'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
+            'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
@@ -2473,6 +2502,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
+            'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
@@ -2480,6 +2510,7 @@ final class DocxOpenXmlReader
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
+            'invalidRelationshipRecords' => $invalidRelationshipRecords,
         ];
     }
 
@@ -3693,6 +3724,18 @@ final class DocxOpenXmlReader
         }
         $duplicateItems = $this->duplicateRelationshipIdItems($relationshipRecords);
         $duplicateRecordCount = count(array_filter($relationshipRecords, static fn (array $record): bool => ($record['duplicateId'] ?? false) === true));
+        $invalidRecords = array_values(array_filter($relationshipRecords, static fn (array $record): bool => ($record['valid'] ?? true) !== true));
+        $recordIssueCodes = [];
+        $recordIssueCount = 0;
+        foreach ($invalidRecords as $record) {
+            foreach (($record['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $recordIssueCodes[$issue] = true;
+                    ++$recordIssueCount;
+                }
+            }
+        }
+        ksort($recordIssueCodes);
 
         return [
             'partName' => $relationshipsPart,
@@ -3706,6 +3749,10 @@ final class DocxOpenXmlReader
             'duplicateRelationshipRecordCount' => $duplicateRecordCount,
             'duplicateRelationshipIds' => array_keys($duplicateIds),
             'duplicateRelationshipIdItems' => $duplicateItems,
+            'invalidRelationshipRecordCount' => count($invalidRecords),
+            'relationshipRecordIssueCount' => $recordIssueCount,
+            'relationshipRecordIssueCodes' => array_keys($recordIssueCodes),
+            'invalidRelationshipRecords' => $invalidRecords,
             'relationships' => $relationshipSummaries,
             'relationshipRecords' => $relationshipRecords,
         ];
@@ -3730,13 +3777,41 @@ final class DocxOpenXmlReader
 
         $items = [];
         foreach ($records as $record) {
+            $issues = $this->relationshipRecordIssues($record);
             $summary = $this->relationshipInventorySummary($parts, $record, $sourcePart, $relationshipsPart, $contentTypes);
             $summary['ordinal'] = $record['ordinal'];
-            $summary['duplicateId'] = ($idCounts[$record['id']] ?? 0) > 1;
+            $summary['valid'] = $issues === [];
+            $summary['issues'] = $issues;
+            $summary['duplicateId'] = $record['id'] !== '' && ($idCounts[$record['id']] ?? 0) > 1;
             $items[] = $summary;
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<string>
+     */
+    private function relationshipRecordIssues(array $record): array
+    {
+        $issues = [];
+        if (($record['id'] ?? '') === '') {
+            $issues[] = 'missing-relationship-id';
+        }
+        if (($record['type'] ?? '') === '') {
+            $issues[] = 'missing-relationship-type';
+        }
+        if (($record['target'] ?? '') === '') {
+            $issues[] = 'missing-relationship-target';
+        }
+
+        $targetMode = is_string($record['targetMode'] ?? null) ? $record['targetMode'] : '';
+        if ($targetMode !== '' && $targetMode !== 'Internal' && $targetMode !== 'External') {
+            $issues[] = 'unexpected-relationship-target-mode';
+        }
+
+        return $issues;
     }
 
     /**
@@ -3796,7 +3871,9 @@ final class DocxOpenXmlReader
         array $contentTypes,
     ): array {
         $external = $this->isExternalRelationshipTarget($relationship);
-        $targetPart = $external ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
+        $targetPart = $external || $relationship['target'] === ''
+            ? null
+            : $this->stripQueryAndFragment($relationship['resolvedTarget']);
         $suffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
         $contentTypeResolution = $targetPart === null
             ? $this->missingContentTypeResolution(null)

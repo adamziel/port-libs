@@ -1189,6 +1189,80 @@ XML;
         $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithDuplicateRelationshipIds']);
         $t->same($duplicate, $summary['duplicateRelationshipIdItems'][0]);
     },
+    'reports malformed docx relationship declarations without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-id.png?audit=1#img"/>' . "\n" .
+            '  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>' . "\n" .
+            '  <Relationship Id="rMissingType" Target="media/review.png?copy=notyped#img"/>' . "\n" .
+            '  <Relationship Id="rUnexpectedMode" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html" TargetMode="Sidecar"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $records = $relationshipPart['relationshipRecords'];
+        $missingId = $records[2];
+        $missingTarget = $records[3];
+        $missingType = $records[4];
+        $unexpectedMode = $records[5];
+        $missingTypeBucket = $package['relationshipTypes']['(missing-type)'];
+
+        $t->same('document', $document->type);
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same(6, $relationshipPart['relationshipRecordCount']);
+        $t->same(4, $relationshipPart['relationshipCount']);
+        $t->same(4, $relationshipPart['invalidRelationshipRecordCount']);
+        $t->same(4, $relationshipPart['relationshipRecordIssueCount']);
+        $t->same([
+            'missing-relationship-id',
+            'missing-relationship-target',
+            'missing-relationship-type',
+            'unexpected-relationship-target-mode',
+        ], $relationshipPart['relationshipRecordIssueCodes']);
+
+        $t->same('', $missingId['id']);
+        $t->same(2, $missingId['ordinal']);
+        $t->same('word/media/missing-id.png', $missingId['targetPart']);
+        $t->same('audit=1', $missingId['targetQuery']);
+        $t->same(false, $missingId['valid']);
+        $t->same(['missing-relationship-id'], $missingId['issues']);
+        $t->same('rMissingTarget', $missingTarget['id']);
+        $t->same(null, $missingTarget['targetPart']);
+        $t->same('', $missingTarget['resolvedTarget']);
+        $t->same(false, $missingTarget['valid']);
+        $t->same(['missing-relationship-target'], $missingTarget['issues']);
+        $t->true(!isset($relationshipPart['relationships']['rMissingTarget']), 'missing relationship target must not enter lookup map');
+
+        $t->same('rMissingType', $missingType['id']);
+        $t->same('', $missingType['type']);
+        $t->same('word/media/review.png', $missingType['targetPart']);
+        $t->same(true, $missingType['exists']);
+        $t->same(['missing-relationship-type'], $missingType['issues']);
+        $t->same('rMissingType', $relationshipPart['relationships']['rMissingType']['id']);
+        $t->same('missing-type', $missingTypeBucket['label']);
+        $t->same(1, $missingTypeBucket['count']);
+        $t->same(['word/media/review.png'], $missingTypeBucket['existingTargetParts']);
+
+        $t->same('rUnexpectedMode', $unexpectedMode['id']);
+        $t->same('Sidecar', $unexpectedMode['targetMode']);
+        $t->same(false, $unexpectedMode['valid']);
+        $t->same(['unexpected-relationship-target-mode'], $unexpectedMode['issues']);
+        $t->same(8, $summary['relationshipRecordCount']);
+        $t->same(6, $summary['relationshipCount']);
+        $t->same(4, $summary['invalidRelationshipRecordCount']);
+        $t->same(4, $summary['relationshipRecordIssueCount']);
+        $t->same($relationshipPart['relationshipRecordIssueCodes'], $summary['relationshipRecordIssueCodes']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidRecords']);
+        $t->same(['', 'rMissingTarget', 'rMissingType', 'rUnexpectedMode'], array_column($summary['invalidRelationshipRecords'], 'id'));
+        $t->same(['missing-relationship-id'], $summary['invalidRelationshipRecords'][0]['issues']);
+        $t->same(1, $summary['relationshipTypeCounts']['(missing-type)']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
