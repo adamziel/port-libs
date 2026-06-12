@@ -1138,6 +1138,96 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'reports compact ODT embedded object package parts as metadata-only review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $objectContentBytes = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>';
+        $objectSettingsBytes = '<office:document-settings xmlns:office="' . OpenDocumentPackage::OFFICE_NAMESPACE . '"/>';
+        $replacementBytes = 'REPLACEMENT';
+        $orphanReplacementBytes = '<svg/>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.formula" manifest:full-path="Object 1/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 1/content.xml" manifest:size="' . strlen($objectContentBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 1/settings.xml" manifest:size="' . strlen($objectSettingsBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 2/content.xml"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/Object 1.png" manifest:size="' . strlen($replacementBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Object 1/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Object 1/content.xml', 'data' => $objectContentBytes, 'compressionMethod' => 0],
+                ['name' => 'Object 1/settings.xml', 'data' => $objectSettingsBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/Object 1.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/orphan.svg', 'data' => $orphanReplacementBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $objects = $summary['packageObjects'];
+        $itemsByPart = [];
+        foreach ($objects['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(6, $objects['count']);
+        $t->same(4, $objects['objectPartCount']);
+        $t->same(2, $objects['objectReplacementCount']);
+        $t->same(5, $objects['declaredCount']);
+        $t->same(1, $objects['undeclaredCount']);
+        $t->same(1, $objects['missingCount']);
+        $t->same(1, $objects['directoryCount']);
+        $t->same(4, $objects['readableCount']);
+        $t->same(2, $objects['issueCount']);
+        $t->same([
+            'odf-object-package-missing-part',
+            'odf-object-package-undeclared-part',
+        ], $objects['issueCodes']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'), 'object replacement previews must stay out of document media handoff');
+
+        $objectDirectory = $itemsByPart['Object 1/'];
+        $t->same('embedded-object-part', $objectDirectory['kind']);
+        $t->same('Object 1', $objectDirectory['objectPath']);
+        $t->same(true, $objectDirectory['isDirectory']);
+        $t->same(true, $objectDirectory['declared']);
+        $t->same(null, $objectDirectory['byteLength']);
+        $t->same('odf-object-package-metadata-only', $objectDirectory['reviewPolicy']);
+
+        $content = $itemsByPart['Object 1/content.xml'];
+        $t->same('Object 1', $content['objectPath']);
+        $t->same(strlen($objectContentBytes), $content['byteLength']);
+        $t->same(sprintf('%08x', crc32($objectContentBytes)), $content['crc32']);
+        $t->same(false, $content['canExposeAsDocumentMedia']);
+        $t->same([], $content['issues']);
+
+        $missing = $itemsByPart['Object 2/content.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same('Object 2', $missing['objectPath']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(['odf-object-package-missing-part'], $missing['issues']);
+
+        $replacement = $itemsByPart['ObjectReplacements/Object 1.png'];
+        $t->same('object-replacement', $replacement['kind']);
+        $t->same('Object 1.png', $replacement['replacementName']);
+        $t->same('image/png', $replacement['mediaType']);
+        $t->same(strlen($replacementBytes), $replacement['byteLength']);
+        $t->same(false, $replacement['canExposeAsDocumentMedia']);
+
+        $orphan = $itemsByPart['ObjectReplacements/orphan.svg'];
+        $t->same('image/svg+xml', $orphan['mediaType']);
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(['odf-object-package-undeclared-part'], $orphan['issues']);
+
+        $t->same(3, $inventory['embeddedObjectPartCount']);
+        $t->same(2, $inventory['objectReplacementPartCount']);
+        $t->same(1, $inventory['mediaResourcePartCount']);
+        $t->same(['embedded-object', 'zip-directory', 'manifest-declared'], $inventory['parts']['Object 1/']['roles']);
+        $t->same(['embedded-object', 'manifest-declared'], $inventory['parts']['Object 1/content.xml']['roles']);
+        $t->same(['object-replacement', 'manifest-declared'], $inventory['parts']['ObjectReplacements/Object 1.png']['roles']);
+        $t->same(['object-replacement', 'undeclared-package-entry'], $inventory['parts']['ObjectReplacements/orphan.svg']['roles']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
