@@ -991,10 +991,16 @@ final class CitationCslProcessor
         }
 
         $issuedDate = self::dateVariable(self::firstPresentField($item, ['issued', 'issuedDate', 'issued-date', 'issueddate', 'date']), $id, 'issued');
-        $sourceFilePolicy = self::sourceFilesWithDiagnostics($item['sourceFiles'] ?? [], $id);
+        $sourceFilePolicy = self::sourceFilesWithDiagnostics(
+            self::firstPresentField($item, ['sourceFiles', 'source-files', 'source_files']),
+            $id
+        );
         $sourceFileDiagnostics = [
             ...$sourceFilePolicy['diagnostics'],
-            ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
+            ...self::sourceFileDiagnostics(
+                self::firstPresentField($item, ['sourceFileDiagnostics', 'source-file-diagnostics', 'source_file_diagnostics']),
+                $id
+            ),
         ];
         $page = self::firstStringField($item, ['page', 'pages']);
         $containerTitleShort = self::firstStringField($item, [

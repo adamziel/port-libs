@@ -27830,6 +27830,86 @@ XML);
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
     },
+    'normalizes bounded direct csl json source file aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-source-file-alias',
+                'type' => 'webpage',
+                'title' => 'Direct Source File Alias Packet',
+                'author' => [
+                    ['family' => 'Lane', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'source-files' => [
+                    ['label' => 'Review PDF', 'path' => 'attachments/direct-source.pdf', 'mediaType' => 'application/pdf'],
+                    ['label' => 'Remote PDF', 'path' => 'https://example.test/direct-source.pdf', 'mediaType' => 'application/pdf'],
+                ],
+                'source-file-diagnostics' => [
+                    ['label' => 'Manual Reject', 'path' => '../manual.pdf', 'mediaType' => 'application/pdf', 'reason' => 'path-traversal'],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-source-file-alias');
+        $diagnostics = $item['sourceFileDiagnostics'] ?? [];
+        $t->same([['label' => 'Review PDF', 'path' => 'attachments/direct-source.pdf', 'mediaType' => 'application/pdf']], $item['sourceFiles'] ?? null);
+        $t->same(2, count($diagnostics));
+        $t->same(['remote-uri', 'path-traversal'], array_column($diagnostics, 'reason'));
+        $t->same('Remote PDF', $diagnostics[0]['label'] ?? null);
+        $t->same('../manual.pdf', $diagnostics[1]['path'] ?? null);
+        $t->same(false, $diagnostics[1]['importable'] ?? null);
+        $t->same('source-files', array_key_exists('source-files', $item['raw'] ?? []) ? 'source-files' : null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Source File Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-source-file-alias-review</id>
+    <updated>2026-06-12T03:40:58+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="source-file-summary source-file-diagnostic-summary" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="source-file-summary"/>
+            <text variable="source-file-diagnostic-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-source-file-alias"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-media-types"/>
+      <text variable="source-file-diagnostic-reasons"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Source File Alias Review', $summary['title'] ?? null);
+        $t->same(['source-file-summary', 'source-file-diagnostic-summary'], $branch['variables'] ?? null);
+        $t->same('[Lane | Review PDF: attachments/direct-source.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/direct-source.pdf); Manual Reject: path-traversal (../manual.pdf)]', $styled->renderCitationCluster([
+            $citation('direct-source-file-alias', '[@direct-source-file-alias]'),
+        ]));
+        $t->same('Direct Source File Alias Packet :: attachments/direct-source.pdf :: application/pdf :: remote-uri; path-traversal', $styled->renderBibliographyEntry('direct-source-file-alias'));
+
+        $document = (new MarkdownReader())->read('Direct source file aliases [@direct-source-file-alias] keep attachment policy metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct source file aliases [Lane | Review PDF: attachments/direct-source.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/direct-source.pdf); Manual Reject: path-traversal (../manual.pdf)] keep attachment policy metadata visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Direct Source File Alias Packet :: attachments/direct-source.pdf :: application/pdf :: remote-uri; path-traversal</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
