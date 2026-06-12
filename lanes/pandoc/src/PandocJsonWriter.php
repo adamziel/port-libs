@@ -956,6 +956,10 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
+        if ($tag === 'Plain' || $tag === 'Para') {
+            return $this->isCurrentNativeInlineList($native['c'] ?? null);
+        }
+
         return in_array($tag, [
             'Header',
             'CodeBlock',
@@ -963,6 +967,60 @@ final class PandocJsonWriter
             'HorizontalRule',
             'Null',
         ], true);
+    }
+
+    private function isCurrentNativeInlineList(mixed $value): bool
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return false;
+        }
+
+        foreach ($value as $inline) {
+            if (!is_array($inline) || array_is_list($inline) || !is_string($inline['t'] ?? null)) {
+                return false;
+            }
+            if (!$this->isCurrentNativeInlineShape($inline)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isCurrentNativeInlineShape(array $native): bool
+    {
+        $tag = $native['t'];
+        $content = $native['c'] ?? null;
+
+        if (in_array($tag, ['Space', 'SoftBreak', 'LineBreak'], true)) {
+            return true;
+        }
+        if ($tag === 'Str') {
+            return is_string($content);
+        }
+        if (in_array($tag, ['Emph', 'Strong', 'Underline', 'Strikeout', 'Superscript', 'Subscript', 'SmallCaps'], true)) {
+            return $this->isCurrentNativeInlineList($content);
+        }
+        if (in_array($tag, ['Code', 'Math', 'RawInline', 'Cite'], true)) {
+            return is_array($content) && array_is_list($content) && count($content) === 2;
+        }
+        if ($tag === 'Quoted') {
+            return is_array($content)
+                && array_is_list($content)
+                && count($content) === 2
+                && $this->isCurrentNativeInlineList($content[1]);
+        }
+        if ($tag === 'Link' || $tag === 'Image') {
+            return is_array($content)
+                && array_is_list($content)
+                && count($content) === 3
+                && $this->isCurrentNativeInlineList($content[1]);
+        }
+
+        return false;
     }
 
     /**

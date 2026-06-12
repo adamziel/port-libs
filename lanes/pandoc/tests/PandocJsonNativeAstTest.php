@@ -2197,6 +2197,121 @@ return [
             $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][0]), "{$source} edited header drops stale source ordinal");
         }
     },
+    'preserves current plain and para native payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $codeAttr = [
+            'plain-code',
+            ['review-code'],
+            [
+                ['data-code', 'first'],
+                ['data-code', 'second'],
+            ],
+        ];
+        $linkAttr = [
+            'para-link',
+            ['review-link'],
+            [
+                ['data-link', 'source'],
+            ],
+        ];
+        $plainBlock = [
+            't' => 'Plain',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Plain', 'reviewToken' => 'plain-str'],
+                ['t' => 'Space', 'sourceOrdinal' => 4],
+                ['t' => 'Code', 'c' => [$codeAttr, 'ticket-42'], 'reviewQueue' => 'inline-code'],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 17,
+        ];
+        $paraBlock = [
+            't' => 'Para',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Paragraph', 'reviewToken' => 'para-str'],
+                ['t' => 'Space'],
+                ['t' => 'Link', 'c' => [
+                    $linkAttr,
+                    [['t' => 'Str', 'c' => 'source']],
+                    ['https://example.test/source', 'Source'],
+                ], 'reviewQueue' => 'inline-link'],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 18,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$plainBlock, $paraBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $plain = $document->children[0];
+            $paragraph = $document->children[1];
+            $codeNodes = array_values(array_filter(
+                $plain->children,
+                static fn (AstNode $child): bool => $child->type === 'code'
+            ));
+            $linkNodes = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $child): bool => $child->type === 'link'
+            ));
+            $code = $codeNodes[0];
+            $link = $linkNodes[0];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('plain', $plain->type, "{$source} plain type");
+            $t->same('Plain', $plain->attr('constructor'), "{$source} plain constructor");
+            $t->same($plainBlock, $plain->attr('native'), "{$source} source-tagged plain native payload");
+            $t->same('paragraph', $paragraph->type, "{$source} paragraph type");
+            $t->same('Para', $paragraph->attr('constructor'), "{$source} paragraph constructor");
+            $t->same($paraBlock, $paragraph->attr('native'), "{$source} source-tagged para native payload");
+            $t->same($codeAttr, $code->attr('attrNative'), "{$source} nested code attr native tuple");
+            $t->same($linkAttr, $link->attr('attrNative'), "{$source} nested link attr native tuple");
+            $t->same($plainBlock, $jsonPacket['blocks'][0], "{$source} JSON writer preserves unchanged source-tagged plain payload");
+            $t->same($paraBlock, $jsonPacket['blocks'][1], "{$source} JSON writer preserves unchanged source-tagged para payload");
+            $t->same($plainBlock, $nativePacket['blocks'][0], "{$source} native writer preserves unchanged source-tagged plain payload");
+            $t->same($paraBlock, $nativePacket['blocks'][1], "{$source} native writer preserves unchanged source-tagged para payload");
+        }
+
+        $document = $documents['json'];
+        $plain = $document->children[0];
+        $paragraph = $document->children[1];
+        $link = $paragraph->children[2];
+        $editedPlain = new AstNode('plain', $plain->attrs, [
+            new AstNode('text', ['text' => 'Edited']),
+            $plain->children[1],
+            $plain->children[2],
+        ]);
+        $editedLink = new AstNode('link', array_replace($link->attrs, [
+            'url' => 'https://example.test/edited',
+        ]), $link->children);
+        $editedParagraph = new AstNode('paragraph', $paragraph->attrs, [
+            $paragraph->children[0],
+            $paragraph->children[1],
+            $editedLink,
+        ]);
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [$editedPlain, $editedParagraph]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJson, 'native' => $editedNative] as $source => $encoded) {
+            $t->same('Plain', $encoded['blocks'][0]['t'], "{$source} edited plain constructor");
+            $t->same('Edited', $encoded['blocks'][0]['c'][0]['c'], "{$source} edited plain text regenerates");
+            $t->same($codeAttr, $encoded['blocks'][0]['c'][2]['c'][0], "{$source} edited plain keeps compatible code attr tuple");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} edited plain drops stale review provenance");
+            $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][0]), "{$source} edited plain drops stale source ordinal");
+            $t->same('Para', $encoded['blocks'][1]['t'], "{$source} edited para constructor");
+            $t->same('https://example.test/edited', $encoded['blocks'][1]['c'][2]['c'][2][0], "{$source} edited link target regenerates");
+            $t->same($linkAttr, $encoded['blocks'][1]['c'][2]['c'][0], "{$source} edited para keeps compatible link attr tuple");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} edited para drops stale review provenance");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]['c'][2]), "{$source} edited link drops stale inline provenance");
+        }
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',

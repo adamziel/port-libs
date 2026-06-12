@@ -877,7 +877,7 @@ final class NativeWriter
         ];
 
         $nodes = [];
-        if (($native['t'] ?? null) === 'Header') {
+        if (in_array($native['t'] ?? null, ['Plain', 'Para', 'Header'], true)) {
             try {
                 $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0] ?? null;
             } catch (\Throwable) {
