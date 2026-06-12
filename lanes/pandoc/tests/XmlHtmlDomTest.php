@@ -540,6 +540,63 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/list-ordinal-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html description list groups for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dl id="glossary"><dt id="term-html">HTML</dt><dt>HyperText Markup Language</dt><dd><p>Markup packet</p></dd><dd>Reviewer handoff</dd><div id="dom-entry"><dt>DOM</dt><dd>Tree API</dd></div></dl>',
+            'description list review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/description-list-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $glossary = $summary[0];
+        $htmlTerm = $glossary['children'][0];
+        $aliasTerm = $glossary['children'][1];
+        $packetDetails = $glossary['children'][2];
+        $domEntry = $glossary['children'][4];
+        $domTerm = $domEntry['children'][0];
+        $domDetails = $domEntry['children'][1];
+
+        $t->same('dl', $glossary['name']);
+        $t->same('list', $glossary['descriptionListPart']);
+        $t->same(2, $glossary['descriptionGroupCount']);
+        $t->same(3, $glossary['descriptionTermCount']);
+        $t->same(3, $glossary['descriptionDetailsCount']);
+        $t->same([
+            [
+                'sourceElement' => 'dl',
+                'sourceElementId' => 'glossary',
+                'termTexts' => ['HTML', 'HyperText Markup Language'],
+                'detailTexts' => ['Markup packet', 'Reviewer handoff'],
+                'termCount' => 2,
+                'detailCount' => 2,
+            ],
+            [
+                'sourceElement' => 'div',
+                'sourceElementId' => 'dom-entry',
+                'termTexts' => ['DOM'],
+                'detailTexts' => ['Tree API'],
+                'termCount' => 1,
+                'detailCount' => 1,
+            ],
+        ], $glossary['descriptionGroups']);
+
+        $t->same('term', $htmlTerm['descriptionListPart']);
+        $t->same('HTML', $htmlTerm['descriptionTermText']);
+        $t->same('term-html', $htmlTerm['elementId']);
+        $t->same('HyperText Markup Language', $aliasTerm['descriptionTermText']);
+        $t->same('details', $packetDetails['descriptionListPart']);
+        $t->same('Markup packet', $packetDetails['descriptionDetailsText']);
+        $t->same('DOM', $domTerm['descriptionTermText']);
+        $t->same('Tree API', $domDetails['descriptionDetailsText']);
+        $t->same('<dl id="glossary"><dt id="term-html">HTML</dt><dt>HyperText Markup Language</dt><dd><p>Markup packet</p></dd><dd>Reviewer handoff</dd><div id="dom-entry"><dt>DOM</dt><dd>Tree API</dd></div></dl>', $html);
+        $t->contains('<dt id="term-html">HTML</dt>', $blocks);
+        $t->contains('<div id="dom-entry"><dt>DOM</dt><dd>Tree API</dd></div>', $blocks);
+        $t->same('/migration/description-list-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'

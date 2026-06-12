@@ -767,6 +767,9 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (in_array($name, ['dl', 'dt', 'dd'], true)) {
+            $summary += self::descriptionListSummary($node, $name);
+        }
         if (self::isHtmlHeadingElementName($name)) {
             $summary += self::headingSummary($node, $name);
         }
@@ -1718,6 +1721,110 @@ final class XmlHtmlDom
         return [
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function descriptionListSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'dl') {
+            $groups = self::descriptionListGroups($element);
+            $termCount = array_sum(array_map(
+                static fn (array $group): int => (int) $group['termCount'],
+                $groups
+            ));
+            $detailsCount = array_sum(array_map(
+                static fn (array $group): int => (int) $group['detailCount'],
+                $groups
+            ));
+
+            return [
+                'descriptionListPart' => 'list',
+                'descriptionGroupCount' => count($groups),
+                'descriptionTermCount' => $termCount,
+                'descriptionDetailsCount' => $detailsCount,
+                'descriptionGroups' => $groups,
+            ];
+        }
+
+        if ($name === 'dt') {
+            return [
+                'descriptionListPart' => 'term',
+                'descriptionTermText' => self::normalizedText($element),
+            ];
+        }
+
+        return [
+            'descriptionListPart' => 'details',
+            'descriptionDetailsText' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function descriptionListGroups(\DOMElement $container): array
+    {
+        $groups = [];
+        $current = null;
+
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if ($name === 'div') {
+                if ($current !== null) {
+                    $groups[] = $current;
+                    $current = null;
+                }
+                array_push($groups, ...self::descriptionListGroups($child));
+                continue;
+            }
+
+            if ($name === 'dt') {
+                if ($current === null || $current['detailCount'] > 0) {
+                    if ($current !== null) {
+                        $groups[] = $current;
+                    }
+                    $current = self::emptyDescriptionListGroup($container);
+                }
+                $current['termTexts'][] = self::normalizedText($child);
+                $current['termCount'] = count($current['termTexts']);
+                continue;
+            }
+
+            if ($name === 'dd') {
+                if ($current === null) {
+                    $current = self::emptyDescriptionListGroup($container);
+                }
+                $current['detailTexts'][] = self::normalizedText($child);
+                $current['detailCount'] = count($current['detailTexts']);
+            }
+        }
+
+        if ($current !== null) {
+            $groups[] = $current;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return array{sourceElement:string, sourceElementId:?string, termTexts:list<string>, detailTexts:list<string>, termCount:int, detailCount:int}
+     */
+    private static function emptyDescriptionListGroup(\DOMElement $source): array
+    {
+        return [
+            'sourceElement' => self::htmlElementName($source),
+            'sourceElementId' => self::attributeOrNull($source, 'id'),
+            'termTexts' => [],
+            'detailTexts' => [],
+            'termCount' => 0,
+            'detailCount' => 0,
         ];
     }
 
