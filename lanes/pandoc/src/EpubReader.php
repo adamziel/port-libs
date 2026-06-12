@@ -78,6 +78,7 @@ final class EpubReader
     /**
      * @return array{
      *     document:AstNode,
+     *     mimetypeEntry:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     accessibility:array<string, mixed>,
      *     container:array<string, mixed>,
@@ -114,7 +115,7 @@ final class EpubReader
      */
     public function readPackage(ZipPackage $package): array
     {
-        $this->assertEpubMimetype($package);
+        $mimetypeEntry = $this->assertEpubMimetype($package);
         $container = $this->readContainer($package);
         $ocf = $this->readOcfSidecars($package);
         $opfPart = (string) $container['opfPart'];
@@ -123,6 +124,7 @@ final class EpubReader
         $renditions = $this->readRenditions($package, $container, $opfPart, $opf);
         $document = $this->documentNode(
             $opf['metadata'],
+            $mimetypeEntry,
             $opfPart,
             $opf['spine'],
             $opf['spineProperties'],
@@ -149,6 +151,7 @@ final class EpubReader
 
         return [
             'document' => $document,
+            'mimetypeEntry' => $mimetypeEntry,
             'metadata' => $opf['metadata'],
             'accessibility' => $opf['accessibility'],
             'container' => $container,
@@ -181,6 +184,7 @@ final class EpubReader
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
             'importReport' => [
+                'mimetypeEntry' => $mimetypeEntry,
                 'container' => $container,
                 'metadata' => $opf['metadata'],
                 'package' => $opf['package'],
@@ -221,9 +225,12 @@ final class EpubReader
         return $this->readPackage($package)['document'];
     }
 
-    private function assertEpubMimetype(ZipPackage $package): void
+    /**
+     * @return array<string, mixed>
+     */
+    private function assertEpubMimetype(ZipPackage $package): array
     {
-        $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'EPUB mimetype entry');
+        return $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'EPUB mimetype entry');
     }
 
     /**
@@ -20164,6 +20171,7 @@ final class EpubReader
      */
     private function documentNode(
         array $metadata,
+        array $mimetypeEntry,
         string $opfPart,
         array $spine,
         array $spineProperties,
@@ -20305,6 +20313,7 @@ final class EpubReader
 
         return new AstNode('document', [
             'source' => 'epub3',
+            'mimetypeEntry' => $mimetypeEntry,
             'opfPart' => $opfPart,
             'metadata' => $metadata,
             'guide' => $guide,

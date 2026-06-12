@@ -8883,6 +8883,22 @@ XML;
         $t->same('WordPress Import EPUB', $result['metadata']['title']);
         $t->same('/OEBPS/package.opf', $result['opfPart']);
         $t->same(2, count($result['document']->children));
+        $mimetypeEntry = $result['mimetypeEntry'];
+        $t->same($mimetypeEntry, $result['importReport']['mimetypeEntry']);
+        $t->same($mimetypeEntry, $result['document']->attr('mimetypeEntry'));
+        $t->same('mimetype', $mimetypeEntry['entryName']);
+        $t->same(true, $mimetypeEntry['exists']);
+        $t->same('mimetype', $mimetypeEntry['firstLocalEntryName']);
+        $t->same(true, $mimetypeEntry['isFirstLocalEntry']);
+        $t->same(0, $mimetypeEntry['compressionMethod']);
+        $t->same('stored', $mimetypeEntry['compressionMethodName']);
+        $t->same(false, $mimetypeEntry['usesDataDescriptor']);
+        $t->same([], $mimetypeEntry['centralExtraFieldIds']);
+        $t->same([], $mimetypeEntry['localExtraFieldIds']);
+        $t->same(strlen(EpubReader::MIMETYPE), $mimetypeEntry['contentBytes']);
+        $t->same(true, $mimetypeEntry['contentsMatch']);
+        $t->same(true, $mimetypeEntry['isValid']);
+        $t->same([], $mimetypeEntry['diagnostics']);
     },
     'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $buildZipPackageWithCentralDirectoryOrder, $containerXml, $opfXml): void {
         $reader = new EpubReader();
