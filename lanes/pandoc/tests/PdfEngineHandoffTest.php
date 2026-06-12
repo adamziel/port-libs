@@ -2233,6 +2233,107 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst input value reference boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/input-reference-boundary.pdf',
+            'source' => '= Typst Input Reference Boundary Packet',
+            'engineOptions' => [
+                '--input=logo=figures/logo.svg',
+                '--input',
+                'remote=https://cdn.example.invalid/logo.svg',
+                '--input=secret=../secrets/key.typ',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst input value reference boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [
+                ['raw' => 'logo=figures/logo.svg', 'name' => 'logo', 'value' => 'figures/logo.svg', 'safe' => true, 'issues' => []],
+                ['raw' => 'remote=https://cdn.example.invalid/logo.svg', 'name' => 'remote', 'value' => 'https://cdn.example.invalid/logo.svg', 'safe' => true, 'issues' => []],
+                ['raw' => 'secret=../secrets/key.typ', 'name' => 'secret', 'value' => '../secrets/key.typ', 'safe' => true, 'issues' => []],
+            ],
+            'issues' => [
+                'input-value-reference-external-boundary',
+                'input-value-reference-invalid-boundary',
+            ],
+            'inputValueReferencePolicy' => [
+                'reviewStatus' => 'review',
+                'referenceCount' => 3,
+                'safeReferenceCount' => 1,
+                'unsafeReferenceCount' => 2,
+                'relativeReferenceCount' => 1,
+                'workspaceReferenceCount' => 0,
+                'absoluteReferenceCount' => 0,
+                'uriReferenceCount' => 1,
+                'invalidReferenceCount' => 1,
+                'references' => [
+                    [
+                        'name' => 'logo',
+                        'raw' => 'logo=figures/logo.svg',
+                        'value' => 'figures/logo.svg',
+                        'path' => 'figures/logo.svg',
+                        'kind' => 'relative',
+                        'safe' => true,
+                        'issues' => [],
+                    ],
+                    [
+                        'name' => 'remote',
+                        'raw' => 'remote=https://cdn.example.invalid/logo.svg',
+                        'value' => 'https://cdn.example.invalid/logo.svg',
+                        'path' => 'https://cdn.example.invalid/logo.svg',
+                        'kind' => 'uri',
+                        'safe' => false,
+                        'issues' => ['input-value-reference-external-boundary'],
+                    ],
+                    [
+                        'name' => 'secret',
+                        'raw' => 'secret=../secrets/key.typ',
+                        'value' => '../secrets/key.typ',
+                        'path' => '../secrets/key.typ',
+                        'kind' => 'invalid',
+                        'safe' => false,
+                        'issues' => ['input-value-reference-invalid-boundary'],
+                    ],
+                ],
+                'issues' => [
+                    'input-value-reference-external-boundary',
+                    'input-value-reference-invalid-boundary',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/input-reference-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/input-reference-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-inputs:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-input-value-reference-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-input-value-references:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-input-value-reference-unsafe:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans missing typst boundary option values as review provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

@@ -311,6 +311,18 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
             }
+            if (($typstBoundaryProvenance['inputValueReferencePolicy'] ?? []) !== []) {
+                $inputValueReferencePolicy = $typstBoundaryProvenance['inputValueReferencePolicy'];
+                if (is_array($inputValueReferencePolicy) && is_string($inputValueReferencePolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-input-value-reference-policy:' . $inputValueReferencePolicy['reviewStatus'];
+                }
+                if (is_array($inputValueReferencePolicy) && is_int($inputValueReferencePolicy['referenceCount'] ?? null) && $inputValueReferencePolicy['referenceCount'] > 0) {
+                    $diagnostics[] = 'typst-input-value-references:' . $inputValueReferencePolicy['referenceCount'];
+                }
+                if (is_array($inputValueReferencePolicy) && is_int($inputValueReferencePolicy['unsafeReferenceCount'] ?? null) && $inputValueReferencePolicy['unsafeReferenceCount'] > 0) {
+                    $diagnostics[] = 'typst-input-value-reference-unsafe:' . $inputValueReferencePolicy['unsafeReferenceCount'];
+                }
+            }
             if (($typstBoundaryProvenance['systemFonts'] ?? []) !== []) {
                 $systemFonts = $typstBoundaryProvenance['systemFonts'];
                 if (is_array($systemFonts) && is_string($systemFonts['systemFontAccess'] ?? null)) {
@@ -6017,6 +6029,7 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
         );
+        $inputValueReferencePolicy = $this->typstInputValueReferencePolicy($inputVariables);
         $creationTimestampHistory = array_map(
             fn (string $value): array => $this->typstCreationTimestampEntry($value),
             $creationTimestampValues
@@ -6121,6 +6134,11 @@ final class PdfEngineHandoff
         foreach ($inputVariableOverrides as $override) {
             $issues[] = $override['issue'];
         }
+        foreach (($inputValueReferencePolicy['issues'] ?? []) as $issue) {
+            if (is_string($issue)) {
+                $issues[] = $issue;
+            }
+        }
         $issues = array_values(array_unique($issues));
 
         $provenance = [
@@ -6201,6 +6219,9 @@ final class PdfEngineHandoff
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
+        }
+        if ($inputValueReferencePolicy !== []) {
+            $provenance['inputValueReferencePolicy'] = $inputValueReferencePolicy;
         }
         if ($ignoreSystemFontCount > 0) {
             $provenance['systemFonts'] = [
@@ -6722,6 +6743,102 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    /**
+     * @param list<array{raw:string, name:string, value:string, safe:bool, issues:list<string>}> $inputVariables
+     * @return array{reviewStatus:string, referenceCount:int, safeReferenceCount:int, unsafeReferenceCount:int, relativeReferenceCount:int, workspaceReferenceCount:int, absoluteReferenceCount:int, uriReferenceCount:int, invalidReferenceCount:int, references:list<array{name:string, raw:string, value:string, path:string, kind:string, safe:bool, issues:list<string>}>, issues:list<string>}|array{}
+     */
+    private function typstInputValueReferencePolicy(array $inputVariables): array
+    {
+        $references = [];
+        $safeCount = 0;
+        $unsafeCount = 0;
+        $kindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'invalid' => 0,
+        ];
+        $issues = [];
+
+        foreach ($inputVariables as $inputVariable) {
+            if (($inputVariable['safe'] ?? false) !== true) {
+                continue;
+            }
+            $value = $inputVariable['value'] ?? '';
+            if (!is_string($value) || !$this->typstInputValueLooksLikeReference($value)) {
+                continue;
+            }
+
+            $entry = $this->typstBoundaryPathEntry($value, 'input-value-reference');
+            $kind = is_string($entry['kind'] ?? null) ? $entry['kind'] : 'invalid';
+            if (array_key_exists($kind, $kindCounts)) {
+                ++$kindCounts[$kind];
+            } else {
+                ++$kindCounts['invalid'];
+            }
+
+            if (($entry['safe'] ?? false) === true) {
+                ++$safeCount;
+            } else {
+                ++$unsafeCount;
+            }
+            foreach (($entry['issues'] ?? []) as $issue) {
+                if (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+
+            $references[] = [
+                'name' => $inputVariable['name'],
+                'raw' => $inputVariable['raw'],
+                'value' => $value,
+                'path' => $entry['path'],
+                'kind' => $kind,
+                'safe' => $entry['safe'],
+                'issues' => $entry['issues'],
+            ];
+        }
+
+        if ($references === []) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'referenceCount' => count($references),
+            'safeReferenceCount' => $safeCount,
+            'unsafeReferenceCount' => $unsafeCount,
+            'relativeReferenceCount' => $kindCounts['relative'],
+            'workspaceReferenceCount' => $kindCounts['workspace'],
+            'absoluteReferenceCount' => $kindCounts['absolute'],
+            'uriReferenceCount' => $kindCounts['uri'],
+            'invalidReferenceCount' => $kindCounts['invalid'],
+            'references' => $references,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    private function typstInputValueLooksLikeReference(string $value): bool
+    {
+        $value = str_replace('\\', '/', trim($value));
+        if ($value === '') {
+            return false;
+        }
+        if (
+            $this->isUriResourceReference($value)
+            || str_starts_with($value, '/')
+            || preg_match('/\A[A-Za-z]:\//', $value) === 1
+            || str_starts_with($value, './')
+            || str_starts_with($value, '../')
+            || str_contains($value, '/')
+        ) {
+            return true;
+        }
+
+        return preg_match('/\A[^[:cntrl:]\s]+\.[A-Za-z0-9]{1,8}\z/', $value) === 1;
     }
 
     /**
