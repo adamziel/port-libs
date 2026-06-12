@@ -1114,6 +1114,58 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst attached short jobs boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/jobs-attached.pdf',
+            'source' => '= Typst Attached Jobs Boundary Packet',
+            'engineOptions' => ['-j4'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst attached jobs boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'executionPolicy' => [
+                'jobs' => [
+                    'raw' => '4',
+                    'value' => '4',
+                    'mode' => 'fixed',
+                    'jobCount' => 4,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/jobs-attached.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/jobs-attached.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(['typst', 'compile', '-j4', 'build/jobs-attached.typ', 'build/jobs-attached.pdf'], $plan['argv']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-execution-jobs:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

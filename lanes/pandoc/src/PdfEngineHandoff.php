@@ -5784,6 +5784,10 @@ final class PdfEngineHandoff
                 }
                 if (str_starts_with($option, $name . '=')) {
                     $values[] = substr($option, strlen($name) + 1);
+                    continue;
+                }
+                if (strlen($name) === 2 && str_starts_with($name, '-') && !str_starts_with($name, '--') && str_starts_with($option, $name) && strlen($option) > 2) {
+                    $values[] = substr($option, 2);
                 }
             }
         }
