@@ -26538,6 +26538,116 @@ XML);
         $t->contains('<dt>Bell 2025</dt><dd>Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4</dd>', $blocks);
     },
+    'maps bounded biblatex number of volumes aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{compact-numberofvolumes,
+  author          = {Ng, Nia},
+  title           = {Compact Number Of Volumes Packet},
+  date            = {2026},
+  numberofvolumes = {4},
+  pagetotal       = {320}
+}
+
+@book{hyphen-volume-count,
+  author            = {Roe, Rae},
+  title             = {Hyphen Volume Count Packet},
+  date              = {2025},
+  number-of-volumes = {3},
+  number-of-pages   = {240}
+}
+
+@book{volume-count-alias,
+  author       = {Kim, Kai},
+  title        = {Volume Count Alias Packet},
+  date         = {2024},
+  volume-count = {2},
+  numpages     = {128}
+}
+
+@book{numvolumes-alias,
+  author     = {Diaz, Dara},
+  title      = {NumVolumes Alias Packet},
+  date       = {2023},
+  numvolumes = {5},
+  pages      = {1--12}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('4', $items[0]['number-of-volumes'] ?? null);
+        $t->same('3', $items[1]['number-of-volumes'] ?? null);
+        $t->same('2', $items[2]['number-of-volumes'] ?? null);
+        $t->same('5', $items[3]['number-of-volumes'] ?? null);
+        $t->same('320', $items[0]['number-of-pages'] ?? null);
+        $t->same('240', $items[1]['number-of-pages'] ?? null);
+        $t->same('128', $items[2]['number-of-pages'] ?? null);
+        $t->same('1-12', $items[3]['page'] ?? null);
+        $t->same('4', $items[0]['rawBibtex']['fields']['numberofvolumes'] ?? null);
+        $t->same('3', $items[1]['rawBibtex']['fields']['number-of-volumes'] ?? null);
+        $t->same('2', $items[2]['rawBibtex']['fields']['volume-count'] ?? null);
+        $t->same('5', $items[3]['rawBibtex']['fields']['numvolumes'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('compact-numberofvolumes');
+        $hyphen = $processor->item('hyphen-volume-count');
+        $volumeCount = $processor->item('volume-count-alias');
+        $numVolumes = $processor->item('numvolumes-alias');
+        $t->same('4', $compact['numberOfVolumes'] ?? null);
+        $t->same('3', $hyphen['numberOfVolumes'] ?? null);
+        $t->same('2', $volumeCount['numberOfVolumes'] ?? null);
+        $t->same('5', $numVolumes['numberOfVolumes'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Number Of Volumes Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-number-of-volumes-alias-review</id>
+    <updated>2026-06-12T01:17:26+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="number-of-volumes"/>
+        <text variable="number-of-pages"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <number variable="number-of-volumes"/>
+      <text variable="number-of-pages"/>
+      <text variable="page"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Number Of Volumes Alias Review', $summary['title'] ?? null);
+        $t->same('number-of-volumes', $citationChildren[1]['variable'] ?? null);
+        $t->same('number-of-pages', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | 4 | 320; Roe | 3 | 240; Kim | 2 | 128; Diaz | 5 | 1-12]', $styled->renderCitationCluster([
+            $citation('compact-numberofvolumes', '[@compact-numberofvolumes]'),
+            $citation('hyphen-volume-count', '[@hyphen-volume-count]'),
+            $citation('volume-count-alias', '[@volume-count-alias]'),
+            $citation('numvolumes-alias', '[@numvolumes-alias]'),
+        ]));
+        $t->same('Compact Number Of Volumes Packet :: 4 :: 320', $styled->renderBibliographyEntry('compact-numberofvolumes'));
+        $t->same('Hyphen Volume Count Packet :: 3 :: 240', $styled->renderBibliographyEntry('hyphen-volume-count'));
+        $t->same('Volume Count Alias Packet :: 2 :: 128', $styled->renderBibliographyEntry('volume-count-alias'));
+        $t->same('NumVolumes Alias Packet :: 5 :: 1-12', $styled->renderBibliographyEntry('numvolumes-alias'));
+
+        $document = (new MarkdownReader())->read('Volume count aliases [@compact-numberofvolumes; @hyphen-volume-count; @volume-count-alias; @numvolumes-alias] keep CSL volume totals visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Volume count aliases [Ng | 4 | 320; Roe | 3 | 240; Kim | 2 | 128; Diaz | 5 | 1-12] keep CSL volume totals visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Compact Number Of Volumes Packet :: 4 :: 320</dd>', $blocks);
+        $t->contains('<dt>Diaz 2023</dt><dd>NumVolumes Alias Packet :: 5 :: 1-12</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,

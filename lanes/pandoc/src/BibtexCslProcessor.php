@@ -423,7 +423,7 @@ final class BibtexCslProcessor
             'event-type' => ['eventtype', 'event-type'],
             'edition' => ['edition'],
             'volume' => ['volume'],
-            'number-of-volumes' => ['volumes'],
+            'number-of-volumes' => ['volumes', 'numberofvolumes', 'number-of-volumes', 'volume-count', 'volumecount', 'numvolumes', 'num-volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
