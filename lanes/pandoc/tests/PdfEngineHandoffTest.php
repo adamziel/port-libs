@@ -806,6 +806,175 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst environment boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $timestamp = '1700000000';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/env-boundary.typ',
+            'outputPath' => 'build/env-boundary.pdf',
+            'source' => '= Typst Environment Boundary Packet',
+            'engineEnvironment' => [
+                'TYPST_ROOT' => 'workspace',
+                'TYPST_FONT_PATHS' => 'fonts/local' . PATH_SEPARATOR . '/usr/share/fonts',
+                'TYPST_PACKAGE_PATH' => 'vendor/typst',
+                'TYPST_PACKAGE_CACHE_PATH' => 'cache/typst',
+                'TYPST_IGNORE_SYSTEM_FONTS' => 'true',
+                'TYPST_IGNORE_EMBEDDED_FONTS' => '1',
+                'TYPST_FEATURES' => 'html,a11y-extras',
+                'SOURCE_DATE_EPOCH' => $timestamp,
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst environment boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => [
+                'raw' => 'workspace',
+                'path' => 'workspace',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_ROOT',
+            ],
+            'fontPaths' => [
+                [
+                    'raw' => 'fonts/local',
+                    'path' => 'fonts/local',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                    'source' => 'environment',
+                    'environmentVariable' => 'TYPST_FONT_PATHS',
+                ],
+                [
+                    'raw' => '/usr/share/fonts',
+                    'path' => '/usr/share/fonts',
+                    'kind' => 'absolute',
+                    'safe' => false,
+                    'issues' => ['font-path-external-boundary'],
+                    'source' => 'environment',
+                    'environmentVariable' => 'TYPST_FONT_PATHS',
+                ],
+            ],
+            'packagePath' => [
+                'raw' => 'vendor/typst',
+                'path' => 'vendor/typst',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_PACKAGE_PATH',
+            ],
+            'packageCache' => [
+                'raw' => 'cache/typst',
+                'path' => 'cache/typst',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_PACKAGE_CACHE_PATH',
+            ],
+            'inputVariables' => [],
+            'issues' => ['font-path-external-boundary'],
+            'environmentVariables' => [
+                'TYPST_ROOT',
+                'TYPST_FONT_PATHS',
+                'TYPST_PACKAGE_PATH',
+                'TYPST_PACKAGE_CACHE_PATH',
+                'SOURCE_DATE_EPOCH',
+                'TYPST_FEATURES',
+                'TYPST_IGNORE_SYSTEM_FONTS',
+                'TYPST_IGNORE_EMBEDDED_FONTS',
+            ],
+            'fontPathPolicy' => [
+                'reviewStatus' => 'review',
+                'fontPathCount' => 2,
+                'safeFontPathCount' => 1,
+                'unsafeFontPathCount' => 1,
+                'relativeFontPathCount' => 1,
+                'workspaceFontPathCount' => 0,
+                'absoluteFontPathCount' => 1,
+                'uriFontPathCount' => 0,
+                'invalidFontPathCount' => 0,
+                'issues' => ['font-path-external-boundary'],
+            ],
+            'creationTimestamp' => [
+                'raw' => $timestamp,
+                'value' => $timestamp,
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000000,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+                'source' => 'environment',
+                'environmentVariable' => 'SOURCE_DATE_EPOCH',
+            ],
+            'featureGates' => [
+                'raw' => 'html,a11y-extras',
+                'value' => 'html,a11y-extras',
+                'features' => ['html', 'a11y-extras'],
+                'featureCount' => 2,
+                'safe' => true,
+                'issues' => [],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_FEATURES',
+            ],
+            'systemFonts' => [
+                'ignoreSystemFonts' => true,
+                'systemFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'fontPathCount' => 2,
+                'issues' => [],
+                'environmentVariable' => 'TYPST_IGNORE_SYSTEM_FONTS',
+                'environmentValue' => 'true',
+            ],
+            'embeddedFonts' => [
+                'ignoreEmbeddedFonts' => true,
+                'embeddedFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'issues' => [],
+                'environmentVariable' => 'TYPST_IGNORE_EMBEDDED_FONTS',
+                'environmentValue' => '1',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/env-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/env-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('workspace', $plan['engineBoundaryRoot']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(5, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['unsafePathEntryCount']);
+        $t->same(2, $plan['typstBoundarySummary']['featureGateCount']);
+        $t->same(2, $plan['typstBoundarySummary']['fontAccessControlCount']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-environment:8', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-access:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-embedded-font-access:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:1700000000', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst open output side effect provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
