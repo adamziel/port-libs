@@ -1982,6 +1982,154 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'reports docx embedded font package provenance as metadata only' => static function (TestRunner $t): void {
+        $fontRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
+        $themeRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont; profile=embedded"/>' . "\n" .
+            '  <Default Extension="ttf" ContentType="font/ttf"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fontTable.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Review Serif">
+    <w:embedRegular r:id="rFontRegular" w:fontKey="{00112233445566778899AABBCCDDEEFF}" w:subsetted="1"/>
+    <w:embedBold r:id="rFontBoldMissing" w:fontKey="{11112222333344445555666677778888}" w:subsetted="0"/>
+    <w:embedItalic r:id="rFontWrongType"/>
+    <w:embedBoldItalic r:id="rThemeUnexpected"/>
+  </w:font>
+  <w:font w:name="Remote Face">
+    <w:embedRegular r:id="rFontExternal"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/_rels/fontTable.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFontRegular" Type="{$fontRel}" Target="fonts/review-regular.odttf?subset=latin#font"/>
+  <Relationship Id="rFontBoldMissing" Type="{$fontRel}" Target="fonts/missing-bold.odttf"/>
+  <Relationship Id="rFontWrongType" Type="{$fontRel}" Target="fonts/plain.ttf"/>
+  <Relationship Id="rThemeUnexpected" Type="{$themeRel}" Target="theme/theme1.xml"/>
+  <Relationship Id="rFontExternal" Type="{$fontRel}" Target="https://example.test/fonts/remote.odttf?download=1#remote" TargetMode="External"/>
+  <Relationship Id="rFontUnreferenced" Type="{$fontRel}" Target="fonts/unreferenced.odttf"/>
+</Relationships>
+XML;
+        $parts['word/fonts/review-regular.odttf'] = 'obfuscated regular font bytes';
+        $parts['word/fonts/plain.ttf'] = 'plain ttf font bytes';
+        $parts['word/fonts/unreferenced.odttf'] = 'unreferenced font bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $embeddedFonts = $docx['embeddedFonts'];
+        $regular = $embeddedFonts['byRelationshipId']['rFontRegular'];
+        $missing = $embeddedFonts['byRelationshipId']['rFontBoldMissing'];
+        $wrongType = $embeddedFonts['byRelationshipId']['rFontWrongType'];
+        $unexpected = $embeddedFonts['byRelationshipId']['rThemeUnexpected'];
+        $external = $embeddedFonts['byRelationshipId']['rFontExternal'];
+        $unreferenced = $embeddedFonts['byRelationshipId']['rFontUnreferenced'];
+        $package = $docx['packageProvenance'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+
+        $t->same('word/fontTable.xml', $docx['fontTablePart']);
+        $t->same('word/_rels/fontTable.xml.rels', $docx['fontTableRelationshipsPart']);
+        $t->same($fontRel, $docx['fontTableRelationships']['rFontRegular']['type']);
+        $t->same(2, $docx['fontTable']['fontCount']);
+        $t->same(['Review Serif', 'Remote Face'], $docx['fontTable']['declaredNames']);
+
+        $t->same(6, $embeddedFonts['count']);
+        $t->same(5, $embeddedFonts['relationshipCount']);
+        $t->same(5, $embeddedFonts['referencedCount']);
+        $t->same(1, $embeddedFonts['unreferencedRelationshipCount']);
+        $t->same(3, $embeddedFonts['existingCount']);
+        $t->same(1, $embeddedFonts['missingCount']);
+        $t->same(1, $embeddedFonts['externalCount']);
+        $t->same(1, $embeddedFonts['unexpectedRelationshipTypeCount']);
+        $t->same(1, $embeddedFonts['unexpectedContentTypeCount']);
+        $t->same(0, $embeddedFonts['missingContentTypeCount']);
+        $t->same(4, $embeddedFonts['issueCount']);
+        $t->same(['missing-in-package', 'unexpected-content-type', 'unexpected-relationship-type', 'external-embedded-font'], $embeddedFonts['issueCodes']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedfont', $embeddedFonts['expectedContentType']);
+        $t->same('embedded-font-bytes-blocked', $embeddedFonts['byteExposurePolicy']);
+        $t->same('embedded-font-metadata-only', $embeddedFonts['reviewPolicy']);
+        $t->same(['rFontRegular', 'rFontBoldMissing', 'rFontWrongType', 'rThemeUnexpected', 'rFontExternal', 'rFontUnreferenced'], $embeddedFonts['relationshipIds']);
+        $t->same(['rFontUnreferenced'], $embeddedFonts['unreferencedRelationshipIds']);
+        $t->same(['Review Serif', 'Remote Face'], $embeddedFonts['fontNames']);
+
+        $t->same('Review Serif', $regular['fontName']);
+        $t->same('embedRegular', $regular['sourceElement']);
+        $t->same('regular', $regular['variant']);
+        $t->same('{00112233445566778899AABBCCDDEEFF}', $regular['fontKey']);
+        $t->same(true, $regular['subsetted']);
+        $t->same('fonts/review-regular.odttf?subset=latin#font', $regular['target']);
+        $t->same('word/fonts/review-regular.odttf?subset=latin#font', $regular['resolvedTarget']);
+        $t->same('word/fonts/review-regular.odttf', $regular['targetPart']);
+        $t->same('subset=latin', $regular['targetQuery']);
+        $t->same('font', $regular['targetFragment']);
+        $t->same('?subset=latin#font', $regular['targetReferenceSuffix']);
+        $t->same(true, $regular['exists']);
+        $t->same(strlen('obfuscated regular font bytes'), $regular['bytes']);
+        $t->same(sprintf('%08x', crc32('obfuscated regular font bytes')), $regular['crc32']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont; profile=embedded', $regular['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedfont', $regular['contentTypeBase']);
+        $t->same(true, $regular['contentTypeHasParameters']);
+        $t->same(['profile' => 'embedded'], $regular['contentTypeParameterMap']);
+        $t->same('default', $regular['contentTypeSource']);
+        $t->same('odttf', $regular['defaultExtension']);
+        $t->same('embedded-font-bytes-blocked', $regular['byteExposurePolicy']);
+        $t->same('embedded-font-metadata-only', $regular['reviewPolicy']);
+        $t->same([], $regular['issues']);
+
+        $t->same('bold', $missing['variant']);
+        $t->same(false, $missing['subsetted']);
+        $t->same('word/fonts/missing-bold.odttf', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-in-package'], $missing['issues']);
+        $t->same(['unexpected-content-type'], $wrongType['issues']);
+        $t->same('font/ttf', $wrongType['contentTypeBase']);
+        $t->same(['unexpected-relationship-type'], $unexpected['issues']);
+        $t->same($themeRel, $unexpected['relationshipType']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(['external-embedded-font'], $external['issues']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(null, $unreferenced['fontName']);
+        $t->same('word/fonts/unreferenced.odttf', $unreferenced['targetPart']);
+        $t->same(true, $unreferenced['exists']);
+
+        $t->same(6, $package['summary']['embeddedFontCount']);
+        $t->same(5, $package['summary']['embeddedFontRelationshipCount']);
+        $t->same(3, $package['summary']['embeddedFontExistingCount']);
+        $t->same(1, $package['summary']['embeddedFontMissingCount']);
+        $t->same(1, $package['summary']['embeddedFontExternalCount']);
+        $t->same(1, $package['summary']['embeddedFontUnexpectedContentTypeCount']);
+        $t->same(4, $package['summary']['embeddedFontIssueCount']);
+        $t->same($embeddedFonts['issueCodes'], $package['summary']['embeddedFontIssueCodes']);
+        $t->same('font', $relationshipTypes[$fontRel]['label']);
+        $t->same(5, $relationshipTypes[$fontRel]['count']);
+        $t->same(4, $relationshipTypes[$fontRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$fontRel]['externalCount']);
+        $t->same(3, $relationshipTypes[$fontRel]['existingTargetCount']);
+        $t->same(1, $relationshipTypes[$fontRel]['missingTargetCount']);
+        $t->true(in_array('word/fonts/review-regular.odttf', $relationshipTypes[$fontRel]['existingTargetParts'], true), 'font relationship existing target missing');
+        $t->true(in_array('word/fonts/missing-bold.odttf', $relationshipTypes[$fontRel]['missingTargetParts'], true), 'font relationship missing target missing');
+        $t->true(in_array('word/fonts/review-regular.odttf', $embeddedFonts['partNames'], true), 'embedded font part missing from rollup');
+        $t->true(in_array('embedded-font', $inventory['word/fonts/review-regular.odttf']['roles'], true), 'embedded font inventory role missing');
+        $t->true(in_array('relationship-target', $inventory['word/fonts/review-regular.odttf']['roles'], true), 'relationship target role missing for embedded font');
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont; profile=embedded', $inventory['word/fonts/review-regular.odttf']['contentType']);
+        $t->same(['profile' => 'embedded'], $inventory['word/fonts/review-regular.odttf']['contentTypeParameterMap']);
+        $t->true(!isset($docx['media']['word/fonts/review-regular.odttf']), 'embedded font bytes should not be exposed as document media');
+    },
     'summarizes docx attached template relationships from settings part' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
