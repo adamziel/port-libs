@@ -26938,6 +26938,113 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-booktitle-alias',
+                'type' => 'chapter',
+                'title' => 'Direct Booktitle Alias Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'bookTitle' => 'Migration Handbook',
+                'bookSubtitle' => 'Reviewer Appendix',
+                'bookTitleAddon' => 'chapter packet',
+                'shortBookTitle' => 'Mig. Hdbk.',
+            ],
+            [
+                'id' => 'direct-journaltitle-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Journaltitle Alias Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'journalTitle' => 'Journal of Source Imports',
+                'journalSubtitle' => 'Audit Notes',
+                'journalTitleAddon' => 'online supplement',
+                'journalAbbreviation' => 'J. Source Import.',
+            ],
+            [
+                'id' => 'direct-publication-title-alias',
+                'type' => 'article-magazine',
+                'title' => 'Direct Publication Alias Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'publicationTitle' => 'Migration Monthly',
+                'publicationSubtitle' => 'Review Channel',
+                'publicationTitleAddon' => 'field note',
+                'containerTitleShort' => 'Migr. Mon.',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $book = $processor->item('direct-booktitle-alias');
+        $journal = $processor->item('direct-journaltitle-alias');
+        $publication = $processor->item('direct-publication-title-alias');
+        $t->same('Migration Handbook: Reviewer Appendix', $book['containerTitle'] ?? null);
+        $t->same('Mig. Hdbk.', $book['containerTitleShort'] ?? null);
+        $t->same('chapter packet', $book['containerTitleAddon'] ?? null);
+        $t->same('Journal of Source Imports: Audit Notes', $journal['containerTitle'] ?? null);
+        $t->same('J. Source Import.', $journal['journalAbbreviation'] ?? null);
+        $t->same('online supplement', $journal['containerTitleAddon'] ?? null);
+        $t->same('Migration Monthly: Review Channel', $publication['containerTitle'] ?? null);
+        $t->same('Migr. Mon.', $publication['containerTitleShort'] ?? null);
+        $t->same('field note', $publication['containerTitleAddon'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Container Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-container-alias-review</id>
+    <updated>2026-06-12T00:01:41+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="book-title"/>
+        <text variable="journal-title" form="short"/>
+        <text variable="publication-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="booktitle"/>
+      <text variable="journaltitle" form="short"/>
+      <text variable="publication-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Container Alias Review', $summary['title'] ?? null);
+        $t->same('book-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('publication-title-addon', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ng | Migration Handbook: Reviewer Appendix | Mig. Hdbk. | chapter packet; Ames | Journal of Source Imports: Audit Notes | J. Source Import. | online supplement; Roe | Migration Monthly: Review Channel | Migr. Mon. | field note]', $styled->renderCitationCluster([
+            $citation('direct-booktitle-alias', '[@direct-booktitle-alias]'),
+            $citation('direct-journaltitle-alias', '[@direct-journaltitle-alias]'),
+            $citation('direct-publication-title-alias', '[@direct-publication-title-alias]'),
+        ]));
+        $t->same('Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet', $styled->renderBibliographyEntry('direct-booktitle-alias'));
+        $t->same('Direct Journaltitle Alias Packet :: Journal of Source Imports: Audit Notes :: J. Source Import. :: online supplement', $styled->renderBibliographyEntry('direct-journaltitle-alias'));
+        $t->same('Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note', $styled->renderBibliographyEntry('direct-publication-title-alias'));
+
+        $document = (new MarkdownReader())->read('Container aliases [@direct-booktitle-alias; @direct-journaltitle-alias; @direct-publication-title-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Container aliases [Ng | Migration Handbook: Reviewer Appendix | Mig. Hdbk. | chapter packet; Ames | Journal of Source Imports: Audit Notes | J. Source Import. | online supplement; Roe | Migration Monthly: Review Channel | Migr. Mon. | field note] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
