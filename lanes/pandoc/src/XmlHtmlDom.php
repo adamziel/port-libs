@@ -55,6 +55,18 @@ final class XmlHtmlDom
         'selected' => true,
     ];
 
+    /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
+    private const ARIA_ID_REFERENCE_ATTRIBUTES = [
+        'aria-activedescendant' => false,
+        'aria-controls' => true,
+        'aria-describedby' => true,
+        'aria-details' => false,
+        'aria-errormessage' => false,
+        'aria-flowto' => true,
+        'aria-labelledby' => true,
+        'aria-owns' => true,
+    ];
+
     /** @var array<string, true> */
     private const HTML5_RAW_TEXT_ELEMENTS = [
         'script' => true,
@@ -2080,6 +2092,12 @@ final class XmlHtmlDom
         $ariaAttributes = self::ariaAttributeSummary($attributes);
         if ($ariaAttributes !== []) {
             $summary['ariaAttributes'] = $ariaAttributes;
+            $ariaReferences = self::ariaReferenceSummary($element, $ariaAttributes);
+            if ($ariaReferences !== []) {
+                $summary['ariaReferences'] = $ariaReferences;
+                $summary['ariaReferenceAttributes'] = array_keys($ariaReferences);
+                $summary['ariaReferenceCount'] = count($ariaReferences);
+            }
         }
 
         if (array_key_exists('role', $attributes)) {
@@ -2709,6 +2727,95 @@ final class XmlHtmlDom
         }
 
         return $aria;
+    }
+
+    /**
+     * @param array<string, string> $ariaAttributes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function ariaReferenceSummary(\DOMElement $element, array $ariaAttributes): array
+    {
+        $knownIds = self::htmlDocumentElementIds($element);
+        $references = [];
+        foreach (self::ARIA_ID_REFERENCE_ATTRIBUTES as $attribute => $multiple) {
+            if (!array_key_exists($attribute, $ariaAttributes)) {
+                continue;
+            }
+
+            $tokens = self::spaceSeparatedTokens($ariaAttributes[$attribute]);
+            $ids = [];
+            $duplicates = [];
+            $invalid = [];
+            foreach ($tokens as $token) {
+                if (!self::isHtmlReferenceToken($token)) {
+                    $invalid[] = $token;
+                    continue;
+                }
+
+                if (in_array($token, $ids, true)) {
+                    if (!in_array($token, $duplicates, true)) {
+                        $duplicates[] = $token;
+                    }
+                    continue;
+                }
+
+                $ids[] = $token;
+            }
+
+            $present = [];
+            $missing = [];
+            foreach ($ids as $id) {
+                if (isset($knownIds[$id])) {
+                    $present[] = $id;
+                } else {
+                    $missing[] = $id;
+                }
+            }
+
+            $valid = $tokens !== []
+                && $invalid === []
+                && ($multiple || count($ids) <= 1);
+            $references[$attribute] = [
+                'raw' => $ariaAttributes[$attribute],
+                'multiple' => $multiple,
+                'tokens' => $tokens,
+                'ids' => $ids,
+                'duplicateIds' => $duplicates,
+                'invalidTokens' => $invalid,
+                'presentIds' => $present,
+                'missingIds' => $missing,
+                'valid' => $valid,
+                'resolved' => $valid && $missing === [],
+            ];
+        }
+        ksort($references);
+
+        return $references;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function htmlDocumentElementIds(\DOMElement $element): array
+    {
+        $document = $element->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('id')) {
+                continue;
+            }
+
+            $id = trim($candidate->getAttribute('id'));
+            if ($id !== '' && self::isHtmlReferenceToken($id)) {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     private static function inputType(\DOMElement $input): string

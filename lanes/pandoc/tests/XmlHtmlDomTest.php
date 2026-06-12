@@ -266,6 +266,75 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/microdata-attribute-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html aria reference attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="region" role="region" aria-labelledby="title missing title" aria-describedby="desc help" aria-controls="panel,ghost" aria-owns="row1 row1 row2" aria-details="details">'
+                . '<h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section>'
+                . '<button id="active" aria-activedescendant="item-1 item-2" aria-errormessage="error" aria-flowto="next-step missing-flow">Next</button><span id="item-1"></span><p id="next-step"></p>',
+            'ARIA reference review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/aria-reference-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $region = $summary[0];
+        $button = $summary[1];
+
+        $t->same('region', $region['elementId']);
+        $t->same(['region'], $region['roles']);
+        $t->same([
+            'aria-controls' => 'panel,ghost',
+            'aria-describedby' => 'desc help',
+            'aria-details' => 'details',
+            'aria-labelledby' => 'title missing title',
+            'aria-owns' => 'row1 row1 row2',
+        ], $region['ariaAttributes']);
+        $t->same(['aria-controls', 'aria-describedby', 'aria-details', 'aria-labelledby', 'aria-owns'], $region['ariaReferenceAttributes']);
+        $t->same(5, $region['ariaReferenceCount']);
+        $t->same([
+            'raw' => 'title missing title',
+            'multiple' => true,
+            'tokens' => ['title', 'missing', 'title'],
+            'ids' => ['title', 'missing'],
+            'duplicateIds' => ['title'],
+            'invalidTokens' => [],
+            'presentIds' => ['title'],
+            'missingIds' => ['missing'],
+            'valid' => true,
+            'resolved' => false,
+        ], $region['ariaReferences']['aria-labelledby']);
+        $t->same(['desc', 'help'], $region['ariaReferences']['aria-describedby']['presentIds']);
+        $t->same([], $region['ariaReferences']['aria-describedby']['missingIds']);
+        $t->same(true, $region['ariaReferences']['aria-describedby']['resolved']);
+        $t->same(['panel,ghost'], $region['ariaReferences']['aria-controls']['invalidTokens']);
+        $t->same([], $region['ariaReferences']['aria-controls']['ids']);
+        $t->same(false, $region['ariaReferences']['aria-controls']['valid']);
+        $t->same(['details'], $region['ariaReferences']['aria-details']['presentIds']);
+        $t->same(true, $region['ariaReferences']['aria-details']['resolved']);
+        $t->same(['row1', 'row2'], $region['ariaReferences']['aria-owns']['ids']);
+        $t->same(['row1'], $region['ariaReferences']['aria-owns']['duplicateIds']);
+        $t->same(['row2'], $region['ariaReferences']['aria-owns']['missingIds']);
+
+        $t->same('active', $button['elementId']);
+        $t->same(['aria-activedescendant', 'aria-errormessage', 'aria-flowto'], $button['ariaReferenceAttributes']);
+        $t->same(['item-1', 'item-2'], $button['ariaReferences']['aria-activedescendant']['ids']);
+        $t->same(['item-1'], $button['ariaReferences']['aria-activedescendant']['presentIds']);
+        $t->same(['item-2'], $button['ariaReferences']['aria-activedescendant']['missingIds']);
+        $t->same(false, $button['ariaReferences']['aria-activedescendant']['valid']);
+        $t->same(false, $button['ariaReferences']['aria-activedescendant']['resolved']);
+        $t->same(['error'], $button['ariaReferences']['aria-errormessage']['missingIds']);
+        $t->same(true, $button['ariaReferences']['aria-errormessage']['valid']);
+        $t->same(['next-step'], $button['ariaReferences']['aria-flowto']['presentIds']);
+        $t->same(['missing-flow'], $button['ariaReferences']['aria-flowto']['missingIds']);
+        $t->same(false, $button['ariaReferences']['aria-flowto']['resolved']);
+
+        $t->same('<section aria-controls="panel,ghost" aria-describedby="desc help" aria-details="details" aria-labelledby="title missing title" aria-owns="row1 row1 row2" id="region" role="region"><h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section><button aria-activedescendant="item-1 item-2" aria-errormessage="error" aria-flowto="next-step missing-flow" id="active">Next</button><span id="item-1"></span><p id="next-step"></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/aria-reference-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'
