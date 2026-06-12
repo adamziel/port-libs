@@ -269,6 +269,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['fontPaths'] ?? []) !== []) {
                 $diagnostics[] = 'typst-font-paths:' . count($typstBoundaryProvenance['fontPaths']);
             }
+            if (($typstBoundaryProvenance['fontPathPolicy'] ?? []) !== []) {
+                $fontPathPolicy = $typstBoundaryProvenance['fontPathPolicy'];
+                if (is_array($fontPathPolicy) && is_string($fontPathPolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-font-path-policy:' . $fontPathPolicy['reviewStatus'];
+                }
+                if (is_array($fontPathPolicy) && is_int($fontPathPolicy['unsafeFontPathCount'] ?? null) && $fontPathPolicy['unsafeFontPathCount'] > 0) {
+                    $diagnostics[] = 'typst-font-path-unsafe:' . $fontPathPolicy['unsafeFontPathCount'];
+                }
+            }
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
@@ -5962,6 +5971,7 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'font-path'),
             $fontPathValues
         );
+        $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
         $certificates = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
             $certificateValues
@@ -6097,6 +6107,9 @@ final class PdfEngineHandoff
         ];
         if ($certificates !== []) {
             $provenance['certificates'] = $certificates;
+        }
+        if ($fontPathPolicy !== []) {
+            $provenance['fontPathPolicy'] = $fontPathPolicy;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -6286,6 +6299,65 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}> $fontPaths
+     * @return array{reviewStatus:string, fontPathCount:int, safeFontPathCount:int, unsafeFontPathCount:int, relativeFontPathCount:int, workspaceFontPathCount:int, absoluteFontPathCount:int, uriFontPathCount:int, invalidFontPathCount:int, issues:list<string>}|array{}
+     */
+    private function typstFontPathPolicy(array $fontPaths): array
+    {
+        if ($fontPaths === []) {
+            return [];
+        }
+
+        $safeCount = 0;
+        $unsafeCount = 0;
+        $kindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'invalid' => 0,
+        ];
+        $issues = [];
+        foreach ($fontPaths as $fontPath) {
+            $kind = is_string($fontPath['kind'] ?? null) ? $fontPath['kind'] : 'invalid';
+            if (array_key_exists($kind, $kindCounts)) {
+                ++$kindCounts[$kind];
+            } else {
+                ++$kindCounts['invalid'];
+            }
+
+            if (($fontPath['safe'] ?? false) === true) {
+                ++$safeCount;
+            } else {
+                ++$unsafeCount;
+            }
+
+            foreach (($fontPath['issues'] ?? []) as $issue) {
+                if (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        if ($unsafeCount === 0 || ($kindCounts['absolute'] === 0 && $kindCounts['uri'] === 0)) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'fontPathCount' => count($fontPaths),
+            'safeFontPathCount' => $safeCount,
+            'unsafeFontPathCount' => $unsafeCount,
+            'relativeFontPathCount' => $kindCounts['relative'],
+            'workspaceFontPathCount' => $kindCounts['workspace'],
+            'absoluteFontPathCount' => $kindCounts['absolute'],
+            'uriFontPathCount' => $kindCounts['uri'],
+            'invalidFontPathCount' => $kindCounts['invalid'],
+            'issues' => array_values(array_unique($issues)),
+        ];
     }
 
     /**
