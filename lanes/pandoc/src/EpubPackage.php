@@ -659,6 +659,8 @@ final class EpubPackage
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
                 'manifestExternalItems' => $validationReport['manifest']['externalItems'],
                 'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
+                'manifestByteExposurePolicyCounts' => $validationReport['manifest']['byteExposurePolicyCounts'],
+                'manifestByteExposurePolicyItems' => $validationReport['manifest']['byteExposurePolicyItems'],
                 'manifestMissingRequiredAttributeItems' => $validationReport['manifest']['missingRequiredAttributeItems'],
                 'manifestMissingRequiredAttributeNames' => $validationReport['manifest']['missingRequiredAttributeNames'],
                 'manifestInvalidHrefItems' => $validationReport['manifest']['invalidHrefItems'],
@@ -1039,6 +1041,8 @@ final class EpubPackage
         $mediaTypeParameterCount = 0;
         $mediaTypeDiagnostics = [];
         $itemDiagnostics = [];
+        $byteExposurePolicyCounts = [];
+        $byteExposurePolicyItems = [];
         $missingRequiredAttributeItems = [];
         $missingRequiredAttributeNames = [];
         $missingRequiredAttributeCount = 0;
@@ -1050,6 +1054,34 @@ final class EpubPackage
             $partName = is_string($item['partName'] ?? null) ? $item['partName'] : '';
             $mediaTypeReport = self::manifestMediaTypeItemReport($item, $index);
             $mediaType = $mediaTypeReport['baseMediaType'];
+            $byteExposurePolicy = is_string($item['byteExposurePolicy'] ?? null)
+                ? $item['byteExposurePolicy']
+                : (
+                    is_array($item['encryption'] ?? null) && is_string($item['encryption']['byteExposurePolicy'] ?? null)
+                        ? $item['encryption']['byteExposurePolicy']
+                        : self::packageManifestByteExposurePolicy(
+                            is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                            ($item['external'] ?? false) === true,
+                            ($item['exists'] ?? false) === true,
+                            ($item['compressionSupported'] ?? false) === true,
+                        )
+                );
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            $byteExposurePolicyItems[] = [
+                'index' => $index,
+                'id' => $id === '' ? null : $id,
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => (string) ($item['target'] ?? ''),
+                'partName' => $partName === '' ? null : $partName,
+                'external' => ($item['external'] ?? false) === true,
+                'exists' => ($item['exists'] ?? false) === true,
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'mediaTypeBase' => $mediaType,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'diagnostics' => is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [],
+            ];
             $mediaTypeItems[] = $mediaTypeReport;
             $mediaTypeParameterCount += $mediaTypeReport['parameterCount'];
             if ($mediaTypeReport['parameterCount'] > 0) {
@@ -1290,6 +1322,8 @@ final class EpubPackage
             ];
         }
 
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
         return [
             'valid' => $diagnostics === [],
             'itemCount' => count($manifestItems),
@@ -1309,6 +1343,8 @@ final class EpubPackage
             'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
             'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
             'itemDiagnosticCount' => count($itemDiagnostics),
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'byteExposurePolicyItems' => $byteExposurePolicyItems,
             'missingRequiredAttributeItemCount' => count($missingRequiredAttributeItems),
             'missingRequiredAttributeCount' => $missingRequiredAttributeCount,
             'missingRequiredAttributeNames' => array_keys($missingRequiredAttributeNames),
@@ -4928,6 +4964,28 @@ final class EpubPackage
         };
     }
 
+    private static function packageManifestByteExposurePolicy(
+        ?string $partName,
+        bool $external,
+        bool $exists,
+        bool $compressionSupported
+    ): string {
+        if ($external) {
+            return 'external-resource-bytes-blocked';
+        }
+        if ($partName === null || $partName === '') {
+            return 'manifest-target-no-package-part';
+        }
+        if (!$exists) {
+            return 'missing-package-part';
+        }
+        if (!$compressionSupported) {
+            return 'unsupported-compression-bytes-blocked';
+        }
+
+        return 'package-bytes-exposable';
+    }
+
     /**
      * @return array{
      *     0:array<string, array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
@@ -5011,6 +5069,7 @@ final class EpubPackage
                 ];
             }
 
+            $provenance = self::zipEntryProvenance($entry);
             $item = [
                 'id' => $id,
                 'href' => $href,
@@ -5038,7 +5097,13 @@ final class EpubPackage
                 'hrefQuery' => $hrefSuffix['query'],
                 'hrefHasFragment' => $hrefSuffix['hasFragment'],
                 'hrefFragment' => $hrefSuffix['fragment'],
-            ] + self::zipEntryProvenance($entry);
+            ] + $provenance;
+            $item['byteExposurePolicy'] = self::packageManifestByteExposurePolicy(
+                $partName,
+                $external,
+                $exists,
+                ($provenance['compressionSupported'] ?? false) === true
+            );
 
             if (trim($id) !== '') {
                 $manifestIdIndexes[$id][] = count($items);
@@ -7974,8 +8039,12 @@ final class EpubPackage
         }
 
         $obfuscatedFont = self::containsObfuscatedFont($entries);
+        $reviewPolicy = $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review';
+        $byteExposurePolicy = $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked';
         $item['encrypted'] = true;
         $item['canExposeBytes'] = false;
+        $item['reviewPolicy'] = $reviewPolicy;
+        $item['byteExposurePolicy'] = $byteExposurePolicy;
         $item['encryption'] = [
             'items' => $entries,
             'algorithm' => $entries[0]['algorithm'] ?? null,
@@ -7986,8 +8055,8 @@ final class EpubPackage
             ),
             'obfuscatedFont' => $obfuscatedFont,
             'canExposeBytes' => false,
-            'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
-            'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+            'reviewPolicy' => $reviewPolicy,
+            'byteExposurePolicy' => $byteExposurePolicy,
             'attachmentCandidateBlocked' => count(array_filter(
                 $entries,
                 static fn (array $entry): bool => ($entry['attachmentCandidateBlocked'] ?? false) === true,

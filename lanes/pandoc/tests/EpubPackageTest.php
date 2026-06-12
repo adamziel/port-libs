@@ -506,6 +506,83 @@ return [
         $t->same($link, $summary['packageLinks'][0]);
     },
 
+    'summarizes EPUB manifest byte exposure policy buckets for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $opfWithPolicyItems = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="remote-preview" href="https://cdn.example.invalid/previews/cover.jpg" media-type="image/jpeg"/>
+    <item id="missing-asset" href="assets/missing.bin" media-type="application/octet-stream"/>
+    <item id="bad-href" href="../../outside.bin" media-type="application/octet-stream"/>
+    <item id="unsupported-asset" href="assets/source.bin" media-type="application/octet-stream"/>
+    <item id="locked-style" href="styles/locked.css" media-type="text/css"/>
+    <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $epub3OpfXml
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/styles/locked.css"/></CipherData>
+  </EncryptedData>
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/source.otf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPolicyItems, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG', 'method' => 0],
+            ['name' => 'EPUB/assets/source.bin', 'data' => 'UNSUPPORTED-RAW-REVIEW-PACKET', 'method' => 12],
+            ['name' => 'EPUB/styles/locked.css', 'data' => 'body { color: red; }', 'method' => 8],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT', 'method' => 8],
+        ]));
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+        $itemsById = [];
+        foreach ($manifest['byteExposurePolicyItems'] as $item) {
+            if (is_string($item['id'])) {
+                $itemsById[$item['id']] = $item;
+            }
+        }
+
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'external-resource-bytes-blocked' => 1,
+            'manifest-target-no-package-part' => 1,
+            'missing-package-part' => 1,
+            'obfuscated-font-bytes-blocked' => 1,
+            'package-bytes-exposable' => 5,
+            'unsupported-compression-bytes-blocked' => 1,
+        ], $manifest['byteExposurePolicyCounts']);
+        $t->same(11, count($manifest['byteExposurePolicyItems']));
+        $t->same($manifest['byteExposurePolicyCounts'], $summary['wordpressImport']['manifestByteExposurePolicyCounts']);
+        $t->same($manifest['byteExposurePolicyItems'], $summary['wordpressImport']['manifestByteExposurePolicyItems']);
+        $t->same('package-bytes-exposable', $epub->manifestItem('chapter1')['byteExposurePolicy']);
+        $t->same('external-resource-bytes-blocked', $epub->manifestItem('remote-preview')['byteExposurePolicy']);
+        $t->same('missing-package-part', $epub->manifestItem('missing-asset')['byteExposurePolicy']);
+        $t->same('manifest-target-no-package-part', $epub->manifestItem('bad-href')['byteExposurePolicy']);
+        $t->same('unsupported-compression-bytes-blocked', $epub->manifestItem('unsupported-asset')['byteExposurePolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $epub->manifestItem('locked-style')['byteExposurePolicy']);
+        $t->same('obfuscated-font-bytes-blocked', $epub->manifestItem('font-main')['byteExposurePolicy']);
+        $t->same(false, $itemsById['remote-preview']['canExposeBytes']);
+        $t->same(true, $itemsById['remote-preview']['external']);
+        $t->same(false, $itemsById['missing-asset']['exists']);
+        $t->same(null, $itemsById['bad-href']['partName']);
+        $t->same(false, $itemsById['unsupported-asset']['canExposeBytes']);
+        $t->same(true, $itemsById['locked-style']['encrypted']);
+        $t->same(false, $itemsById['font-main']['canExposeBytes']);
+    },
+
     'preserves OCF metadata link ZIP provenance for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
         $containerMetadataXml = <<<'XML'
 <metadata xmlns="http://www.idpf.org/2013/metadata">
