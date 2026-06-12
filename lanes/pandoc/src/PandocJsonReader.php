@@ -1357,7 +1357,8 @@ final class PandocJsonReader
             throw new \InvalidArgumentException(ucfirst($type) . ' must have 2 or 3 entries');
         }
 
-        $target = $this->tuple($targetContent, 2, ucfirst($type) . ' target');
+        $targetNative = $targetContent;
+        $target = $this->tuple($this->constructorContent($targetContent, 'Target', ucfirst($type) . ' target', false), 2, ucfirst($type) . ' target');
         if (!is_string($target[0]) || !is_string($target[1])) {
             throw new \InvalidArgumentException(ucfirst($type) . ' target entries must be strings');
         }
@@ -1366,7 +1367,8 @@ final class PandocJsonReader
         $attrs = array_merge($attrs, [
             'url' => $target[0],
             'title' => $target[1],
-            'targetNative' => [$target[0], $target[1]],
+            'targetConstructor' => 'Target',
+            'targetNative' => $targetNative,
         ]);
         if ($type === 'image') {
             $alt = trim($this->plainText($label));

@@ -2024,6 +2024,69 @@ return [
         $t->same($linkTarget, $nativePacket['blocks'][0]['c'][0]['c'][2]);
         $t->same($imageTarget, $nativePacket['blocks'][0]['c'][2]['c'][2]);
     },
+    'preserves tagged pandoc target helper constructors on json and native ast nodes' => static function (TestRunner $t): void {
+        $linkTarget = ['t' => 'Target', 'c' => ['https://example.test/source', 'Source title']];
+        $imageTarget = ['t' => 'Target', 'c' => ['media/cover.png', 'Cover title']];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        ['', ['target-link'], []],
+                        [['t' => 'Str', 'c' => 'source']],
+                        $linkTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['', ['target-image'], []],
+                        [['t' => 'Str', 'c' => 'cover']],
+                        $imageTarget,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $link = $paragraph->children[0];
+            $image = $paragraph->children[2];
+
+            $t->same('Target', $link->attr('targetConstructor'), "{$source} link target constructor");
+            $t->same($linkTarget, $link->attr('targetNative'), "{$source} link target native");
+            $t->same($linkTarget['c'][0], $link->attr('url'), "{$source} link url");
+            $t->same($linkTarget['c'][1], $link->attr('title'), "{$source} link title");
+            $t->same('Target', $image->attr('targetConstructor'), "{$source} image target constructor");
+            $t->same($imageTarget, $image->attr('targetNative'), "{$source} image target native");
+            $t->same($imageTarget['c'][0], $image->attr('url'), "{$source} image url");
+            $t->same($imageTarget['c'][1], $image->attr('title'), "{$source} image title");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($linkTarget, $jsonPacket['blocks'][0]['c'][0]['c'][2]);
+        $t->same($imageTarget, $jsonPacket['blocks'][0]['c'][2]['c'][2]);
+        $t->same($linkTarget, $nativePacket['blocks'][0]['c'][0]['c'][2]);
+        $t->same($imageTarget, $nativePacket['blocks'][0]['c'][2]['c'][2]);
+
+        $link = $documents['json']->children[0]->children[0];
+        $edited = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('paragraph', [], [
+                new AstNode('link', array_replace($link->attrs, ['title' => 'Edited title']), $link->children),
+            ]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($edited);
+        $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['https://example.test/source', 'Edited title'], $editedJson['blocks'][0]['c'][0]['c'][2]);
+        $t->same(['https://example.test/source', 'Edited title'], $editedNative['blocks'][0]['c'][0]['c'][2]);
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],

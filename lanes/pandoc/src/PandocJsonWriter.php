@@ -998,8 +998,8 @@ final class PandocJsonWriter
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
-            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
-            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
+            'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
+            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
             'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
             'native_inline' => $this->nativeTaggedConstructor($node, 'inline'),
@@ -1365,6 +1365,42 @@ final class PandocJsonWriter
     }
 
     /**
+     * @return array<string, mixed>|array{0:string, 1:string}
+     */
+    private function targetTuple(AstNode $node): array
+    {
+        $generated = [(string) $node->attr('url', ''), (string) $node->attr('title', '')];
+        $native = $this->reusableTargetNative($node, $generated);
+
+        return $native ?? $generated;
+    }
+
+    /**
+     * @param array{0:string, 1:string} $generated
+     * @return array<string, mixed>|array{0:string, 1:string}|null
+     */
+    private function reusableTargetNative(AstNode $node, array $generated): ?array
+    {
+        $native = $node->attr('targetNative');
+        $tuple = $this->validTargetTuple($native);
+        if ($tuple !== null) {
+            return $tuple === $generated ? $native : null;
+        }
+
+        $tagged = $this->taggedNative($native, 'Target');
+        if ($tagged === null) {
+            return null;
+        }
+
+        $content = $this->validTargetTuple($tagged['c'] ?? null);
+        if ($content === null) {
+            return null;
+        }
+
+        return $content === $generated ? $tagged : null;
+    }
+
+    /**
      * @param list<AstNode> $citations
      * @param list<AstNode> $sourceInlines
      * @return array<string, mixed>
@@ -1701,6 +1737,18 @@ final class PandocJsonWriter
         }
 
         return [$value[0], $classes, $attributes];
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function validTargetTuple(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 2 || !is_string($value[0]) || !is_string($value[1])) {
+            return null;
+        }
+
+        return [$value[0], $value[1]];
     }
 
     /**

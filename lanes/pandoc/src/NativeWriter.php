@@ -976,7 +976,7 @@ final class NativeWriter
                 'c' => [
                     $this->attrTuple($node),
                     $this->inlines($node->children),
-                    [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
+                    $this->targetTuple($node),
                 ],
             ]],
             'image' => [[
@@ -984,7 +984,7 @@ final class NativeWriter
                 'c' => [
                     $this->attrTuple($node),
                     $this->inlines($this->imageLabelInlines($node)),
-                    [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
+                    $this->targetTuple($node),
                 ],
             ]],
             'note' => [[
@@ -1142,6 +1142,42 @@ final class NativeWriter
         }
 
         return $this->textInlineNodes((string) $node->attr('alt', ''));
+    }
+
+    /**
+     * @return array<string, mixed>|array{0:string, 1:string}
+     */
+    private function targetTuple(AstNode $node): array
+    {
+        $generated = [(string) $node->attr('url', ''), (string) $node->attr('title', '')];
+        $native = $this->reusableTargetNative($node, $generated);
+
+        return $native ?? $generated;
+    }
+
+    /**
+     * @param array{0:string, 1:string} $generated
+     * @return array<string, mixed>|array{0:string, 1:string}|null
+     */
+    private function reusableTargetNative(AstNode $node, array $generated): ?array
+    {
+        $native = $node->attr('targetNative');
+        $tuple = $this->validTargetTuple($native);
+        if ($tuple !== null) {
+            return $tuple === $generated ? $native : null;
+        }
+
+        $tagged = $this->taggedNative($native, 'Target');
+        if ($tagged === null) {
+            return null;
+        }
+
+        $content = $this->validTargetTuple($tagged['c'] ?? null);
+        if ($content === null) {
+            return null;
+        }
+
+        return $content === $generated ? $tagged : null;
     }
 
     /**
@@ -1519,6 +1555,18 @@ final class NativeWriter
         }
 
         return [$value[0], $classes, $attributes];
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function validTargetTuple(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 2 || !is_string($value[0]) || !is_string($value[1])) {
+            return null;
+        }
+
+        return [$value[0], $value[1]];
     }
 
     /**
