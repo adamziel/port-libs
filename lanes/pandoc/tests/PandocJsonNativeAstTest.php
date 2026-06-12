@@ -2637,6 +2637,143 @@ return [
             return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
         }, $editedCite['c'][1])));
     },
+    'preserves current inline wrapper native payloads through pandoc json and native writers until edited' => static function (TestRunner $t): void {
+        $strongInline = [
+            't' => 'Strong',
+            'c' => [
+                ['t' => 'Str', 'c' => 'wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Quoted', 'c' => [
+                    ['t' => 'DoubleQuote', 'reviewQueue' => 'quote-kind'],
+                    [['t' => 'Str', 'c' => 'quote']],
+                ]],
+            ],
+            'reviewQueue' => 'strong-source',
+            'sourceOrdinal' => 61,
+        ];
+        $spanAttr = [
+            'source-span',
+            ['review'],
+            [
+                ['data-review', 'first'],
+                ['data-review', 'second'],
+            ],
+        ];
+        $spanInline = [
+            't' => 'Span',
+            'c' => [
+                $spanAttr,
+                [
+                    ['t' => 'SmallCaps', 'c' => [
+                        ['t' => 'Str', 'c' => 'span'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'span-source',
+        ];
+        $noteInline = [
+            't' => 'Note',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'note'],
+                ]],
+            ],
+            'reviewQueue' => 'note-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    $strongInline,
+                    ['t' => 'Space'],
+                    $spanInline,
+                    ['t' => 'Space'],
+                    $noteInline,
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $standalone = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+                new AstNode('paragraph', [], [
+                    $document->children[0]->children[0],
+                    $document->children[0]->children[2],
+                    $document->children[0]->children[4],
+                ]),
+            ]);
+            $jsonPacket = (new PandocJsonWriter())->toArray($standalone);
+            $nativePacket = json_decode((new NativeWriter())->write($standalone), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same([$strongInline, $spanInline, $noteInline], $jsonPacket['blocks'][0]['c'], "{$source} JSON writer preserves current wrapper payloads");
+            $t->same([$strongInline, $spanInline, $noteInline], $nativePacket['blocks'][0]['c'], "{$source} native writer preserves current wrapper payloads");
+        }
+
+        $strong = $documents['json']->children[0]->children[0];
+        $quoted = $strong->children[2];
+        $editedStrong = new AstNode('strong', $strong->attrs, [
+            $strong->children[0],
+            $strong->children[1],
+            new AstNode('quoted', $quoted->attrs, [
+                new AstNode('text', ['text' => 'changed']),
+            ]),
+        ]);
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('paragraph', [], [$editedStrong]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJson, 'native' => $editedNative] as $source => $encoded) {
+            $encodedStrong = $encoded['blocks'][0]['c'][0];
+
+            $t->same('Strong', $encodedStrong['t'], "{$source} edited wrapper constructor");
+            $t->same('changed', $encodedStrong['c'][2]['c'][1][0]['c'], "{$source} edited wrapper regenerates child content");
+            $t->same(false, array_key_exists('reviewQueue', $encodedStrong), "{$source} edited wrapper drops stale root provenance");
+            $t->same(false, array_key_exists('sourceOrdinal', $encodedStrong), "{$source} edited wrapper drops stale source ordinal");
+        }
+
+        $legacyStrongInline = [
+            't' => 'Strong',
+            'c' => [
+                ['t' => 'Link', 'c' => [
+                    [['t' => 'Str', 'c' => 'legacy']],
+                    ['https://example.test/legacy', 'Legacy title'],
+                ]],
+            ],
+            'reviewQueue' => 'legacy-strong-source',
+        ];
+        $legacyPacket = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$legacyStrongInline]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($legacyPacket),
+            'native' => (new NativeReader())->read(json_encode($legacyPacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $standalone = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+                new AstNode('paragraph', [], [$document->children[0]->children[0]]),
+            ]);
+            $jsonStrong = (new PandocJsonWriter())->toArray($standalone)['blocks'][0]['c'][0];
+            $nativeStrong = json_decode((new NativeWriter())->write($standalone), true, 512, JSON_THROW_ON_ERROR)['blocks'][0]['c'][0];
+
+            foreach (['json' => $jsonStrong, 'native' => $nativeStrong] as $writer => $encodedStrong) {
+                $t->same('Strong', $encodedStrong['t'], "{$source} {$writer} legacy wrapper constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedStrong), "{$source} {$writer} legacy-nested wrapper regenerates root");
+                $t->same(3, count($encodedStrong['c'][0]['c']), "{$source} {$writer} legacy target regenerates current payload shape");
+                $t->same(['', [], []], $encodedStrong['c'][0]['c'][0], "{$source} {$writer} legacy target receives empty attr tuple");
+            }
+        }
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];

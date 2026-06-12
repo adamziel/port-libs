@@ -1032,6 +1032,33 @@ final class PandocJsonWriter
             return is_array($content) && array_is_list($content) && count($content) === 3;
         }
 
+        if (in_array($tag, [
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+        ], true)) {
+            return $this->isCurrentNativeInlineList($native['c'] ?? null);
+        }
+
+        if ($tag === 'Quoted' || $tag === 'Span') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content)
+                && array_is_list($content)
+                && count($content) === 2
+                && $this->isCurrentNativeInlineList($content[1] ?? null);
+        }
+
+        if ($tag === 'Note') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
+        }
+
         return in_array($tag, [
             'Str',
             'Space',
@@ -1042,6 +1069,11 @@ final class PandocJsonWriter
             'RawInline',
             'Cite',
         ], true);
+    }
+
+    private function isCurrentNativeInlineList(mixed $content): bool
+    {
+        return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool

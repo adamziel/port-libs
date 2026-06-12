@@ -921,22 +921,101 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
-        try {
-            $packet = [
-                'pandoc-api-version' => [1, 23, 1],
-                'meta' => [],
-                'blocks' => [
-                    ['t' => 'Plain', 'c' => [$native]],
-                ],
-            ];
-            $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
-        } catch (\Throwable) {
+        if (!$this->isCurrentNativeInlinePayload($native)) {
             return false;
         }
 
-        $freshNode = $document->children[0]->children[0] ?? null;
+        foreach ($this->inlinePayloadReaders($native) as $freshNode) {
+            if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
+                return true;
+            }
+        }
 
-        return $freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode);
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function inlinePayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$native]],
+            ],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isCurrentNativeInlinePayload(array $native): bool
+    {
+        $tag = $native['t'];
+        if ($tag === 'Link' || $tag === 'Image') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && count($content) === 3;
+        }
+
+        if (in_array($tag, [
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+        ], true)) {
+            return $this->isCurrentNativeInlineList($native['c'] ?? null);
+        }
+
+        if ($tag === 'Quoted' || $tag === 'Span') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content)
+                && array_is_list($content)
+                && count($content) === 2
+                && $this->isCurrentNativeInlineList($content[1] ?? null);
+        }
+
+        if ($tag === 'Note') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
+        }
+
+        return in_array($tag, [
+            'Str',
+            'Space',
+            'SoftBreak',
+            'LineBreak',
+            'Code',
+            'Math',
+            'RawInline',
+            'Cite',
+        ], true);
+    }
+
+    private function isCurrentNativeInlineList(mixed $content): bool
+    {
+        return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
