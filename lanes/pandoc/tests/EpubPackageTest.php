@@ -203,6 +203,30 @@ return [
         $t->same(['/EPUB/text/chapter1.xhtml', '/EPUB/text/chapter2.xhtml'], $summary['wordpressImport']['readingOrderParts']);
     },
 
+    'exposes EPUB mimetype stored-first provenance for compact import' => static function (TestRunner $t) use ($epub3Package): void {
+        $epub = EpubPackage::fromPackage($epub3Package());
+        $mimetype = $epub->mimetypeEntry();
+        $summary = $epub->summary();
+
+        $t->same('mimetype', $mimetype['entryName']);
+        $t->same(true, $mimetype['exists']);
+        $t->same('mimetype', $mimetype['firstLocalEntryName']);
+        $t->same(true, $mimetype['isFirstLocalEntry']);
+        $t->same(0, $mimetype['compressionMethod']);
+        $t->same('stored', $mimetype['compressionMethodName']);
+        $t->same(false, $mimetype['usesDataDescriptor']);
+        $t->same(true, $mimetype['isStored']);
+        $t->same([], $mimetype['centralExtraFieldIds']);
+        $t->same([], $mimetype['localExtraFieldIds']);
+        $t->same(strlen(EpubPackage::EPUB_MIMETYPE), $mimetype['expectedBytes']);
+        $t->same(strlen(EpubPackage::EPUB_MIMETYPE), $mimetype['contentBytes']);
+        $t->same(true, $mimetype['contentsMatch']);
+        $t->same(true, $mimetype['isValid']);
+        $t->same([], $mimetype['diagnostics']);
+        $t->same($mimetype, $summary['mimetypeEntry']);
+        $t->same($mimetype, $summary['wordpressImport']['mimetypeEntry']);
+    },
+
     'falls back to NCX navigation and legacy cover metadata' => static function (TestRunner $t) use ($epubContainerXml, $epub2OpfXml, $epub2NcxXml): void {
         $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],

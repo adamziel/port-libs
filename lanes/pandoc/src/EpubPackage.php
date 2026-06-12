@@ -85,6 +85,7 @@ final class EpubPackage
 
     /**
      * @param list<array<string, mixed>> $rootfiles
+     * @param array<string, mixed> $mimetypeEntry
      * @param array<string, mixed> $renditions
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $containerLinks
@@ -106,6 +107,7 @@ final class EpubPackage
      */
     private function __construct(
         private readonly ZipPackage $package,
+        private readonly array $mimetypeEntry,
         private readonly array $rootfiles,
         private readonly array $renditions,
         private readonly array $containerLinks,
@@ -136,7 +138,7 @@ final class EpubPackage
 
     public static function fromPackage(ZipPackage $package): self
     {
-        self::assertEpubMimetype($package);
+        $mimetypeEntry = self::assertEpubMimetype($package);
 
         if (!$package->has('META-INF/container.xml')) {
             throw new \RuntimeException('EPUB package is missing META-INF/container.xml');
@@ -170,6 +172,7 @@ final class EpubPackage
 
         return new self(
             $package,
+            $mimetypeEntry,
             $rootfiles,
             $renditions,
             $containerLinks,
@@ -196,6 +199,14 @@ final class EpubPackage
     public function package(): ZipPackage
     {
         return $this->package;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function mimetypeEntry(): array
+    {
+        return $this->mimetypeEntry;
     }
 
     /**
@@ -498,6 +509,7 @@ final class EpubPackage
 
         return [
             'opfPart' => $this->opfPartName,
+            'mimetypeEntry' => $this->mimetypeEntry,
             'rootfiles' => $this->rootfiles,
             'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
@@ -534,6 +546,7 @@ final class EpubPackage
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'validation' => $validationReport,
             'wordpressImport' => [
+                'mimetypeEntry' => $this->mimetypeEntry,
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
                 'language' => $this->metadata['language'],
@@ -1972,25 +1985,12 @@ final class EpubPackage
         ];
     }
 
-    private static function assertEpubMimetype(ZipPackage $package): void
+    /**
+     * @return array<string, mixed>
+     */
+    private static function assertEpubMimetype(ZipPackage $package): array
     {
-        if (!$package->has('mimetype')) {
-            throw new \RuntimeException('EPUB package is missing the required mimetype entry');
-        }
-
-        $names = $package->names();
-        if (($names[0] ?? null) !== 'mimetype') {
-            throw new \RuntimeException('EPUB mimetype entry must be the first ZIP package entry');
-        }
-
-        $entry = $package->entry('mimetype');
-        if ($entry->compressionMethod !== 0) {
-            throw new \RuntimeException('EPUB mimetype entry must be stored without compression');
-        }
-
-        if ($package->read('mimetype') !== self::EPUB_MIMETYPE) {
-            throw new \RuntimeException('EPUB mimetype entry must contain application/epub+zip');
-        }
+        return $package->assertStoredFirstEntry('mimetype', self::EPUB_MIMETYPE, 'EPUB mimetype entry');
     }
 
     /**
