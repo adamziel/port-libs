@@ -2132,6 +2132,69 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current container inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $inlinePayloads = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'sourcepos' => [['review', 'emph']]],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'sourcepos' => [['review', 'strong']]],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']], 'sourcepos' => [['review', 'underline']]],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'strike']], 'sourcepos' => [['review', 'strikeout']]],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => 'super']], 'sourcepos' => [['review', 'superscript']]],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'sub']], 'sourcepos' => [['review', 'subscript']]],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'sourcepos' => [['review', 'smallcaps']]],
+            ['t' => 'Quoted', 'c' => [
+                ['t' => 'DoubleQuote', 'sourcepos' => [['review', 'quote-type']]],
+                [['t' => 'Str', 'c' => 'quoted']],
+            ], 'sourcepos' => [['review', 'quoted']]],
+            ['t' => 'Note', 'c' => [
+                ['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]],
+            ], 'sourcepos' => [['review', 'note']]],
+            ['t' => 'Span', 'c' => [
+                ['span-id', ['review-span'], [['data-source', 'native']]],
+                [['t' => 'Str', 'c' => 'span']],
+            ], 'sourcepos' => [['review', 'span']]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $inlinePayloads],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('emph', $paragraph->children[0]->type, "{$source} emph shared AST type");
+            $t->same('quoted', $paragraph->children[7]->type, "{$source} quoted shared AST type");
+            $t->same('note', $paragraph->children[8]->type, "{$source} note shared AST type");
+            $t->same('span', $paragraph->children[9]->type, "{$source} span shared AST type");
+            $t->same($inlinePayloads[0], $paragraph->children[0]->attr('native'), "{$source} emph native payload");
+            $t->same($inlinePayloads[7], $paragraph->children[7]->attr('native'), "{$source} quoted native payload");
+            $t->same($inlinePayloads[8], $paragraph->children[8]->attr('native'), "{$source} note native payload");
+            $t->same($inlinePayloads[9], $paragraph->children[9]->attr('native'), "{$source} span native payload");
+            $t->same($inlinePayloads, $jsonPacket['blocks'][0]['c'], "{$source} JSON writer preserves unchanged container inline payloads");
+            $t->same($inlinePayloads, $nativePacket['blocks'][0]['c'], "{$source} native writer preserves unchanged container inline payloads");
+        }
+
+        $emph = $documents['json']->children[0]->children[0];
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', $emph->attrs, [
+                    new AstNode('text', ['text' => 'edited']),
+                ]),
+            ]),
+        ]));
+
+        $t->same(['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'edited']]], $editedPacket['blocks'][0]['c'][0]);
+        $t->same(false, array_key_exists('sourcepos', $editedPacket['blocks'][0]['c'][0]));
+    },
     'preserves current plain and paragraph native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $plainBlock = [
             't' => 'Plain',
