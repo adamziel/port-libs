@@ -3005,6 +3005,14 @@ final class DocxOpenXmlReader
             }
         }
 
+        $contentTypeIssueCounts = is_array($contentTypesPart['issueCounts'] ?? null) ? $contentTypesPart['issueCounts'] : [];
+        ksort($contentTypeIssueCounts);
+        $contentTypeRecordIssueCount = 0;
+        foreach ($contentTypeIssueCounts as $count) {
+            $contentTypeRecordIssueCount += (int) $count;
+        }
+        $invalidContentTypeRecords = $this->invalidContentTypeRecordSummary($contentTypesPart);
+
         ksort($relationshipTypeCounts);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
@@ -3045,6 +3053,14 @@ final class DocxOpenXmlReader
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
+            'contentTypeRecordCount' => (int) ($contentTypesPart['recordCount'] ?? 0),
+            'contentTypeInvalidRecordCount' => (int) ($contentTypesPart['invalidRecordCount'] ?? 0),
+            'contentTypeRecordIssueCount' => $contentTypeRecordIssueCount,
+            'contentTypeRecordIssueCodes' => array_keys($contentTypeIssueCounts),
+            'contentTypeDuplicateDefaultExtensionCount' => (int) ($contentTypesPart['duplicateDefaultExtensionCount'] ?? 0),
+            'contentTypeDuplicateOverridePartNameCount' => (int) ($contentTypesPart['duplicateOverridePartNameCount'] ?? 0),
+            'contentTypeDuplicateDefaultExtensions' => $contentTypesPart['duplicateDefaultExtensions'] ?? [],
+            'contentTypeDuplicateOverridePartNames' => $contentTypesPart['duplicateOverridePartNames'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
@@ -3070,7 +3086,44 @@ final class DocxOpenXmlReader
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
+            'invalidContentTypeRecords' => $invalidContentTypeRecords,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypesPart
+     * @return list<array<string, mixed>>
+     */
+    private function invalidContentTypeRecordSummary(array $contentTypesPart): array
+    {
+        $records = $contentTypesPart['preflight']['records'] ?? [];
+        if (!is_array($records)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($records as $record) {
+            if (!is_array($record) || ($record['valid'] ?? true) === true) {
+                continue;
+            }
+
+            $issues = is_array($record['issues'] ?? null)
+                ? array_values(array_map('strval', $record['issues']))
+                : [];
+            $items[] = [
+                'recordIndex' => is_int($record['recordIndex'] ?? null) ? $record['recordIndex'] : null,
+                'kind' => is_string($record['kind'] ?? null) ? $record['kind'] : '',
+                'extension' => is_string($record['extension'] ?? null) ? $record['extension'] : null,
+                'normalizedExtension' => is_string($record['normalizedExtension'] ?? null) ? $record['normalizedExtension'] : null,
+                'partName' => is_string($record['partName'] ?? null) ? $record['partName'] : null,
+                'normalizedPartName' => is_string($record['normalizedPartName'] ?? null) ? $record['normalizedPartName'] : null,
+                'contentType' => is_string($record['contentType'] ?? null) ? $record['contentType'] : null,
+                'equivalenceKey' => is_string($record['equivalenceKey'] ?? null) ? $record['equivalenceKey'] : null,
+                'issues' => $issues,
+            ];
+        }
+
+        return $items;
     }
 
     /**
