@@ -539,6 +539,77 @@ return [
         $t->same('duplicate-default-extension', $preflight['records'][1]['issues'][0]);
         $t->same('duplicate-override-part-name', $preflight['records'][4]['issues'][0]);
     },
+    'summarizes docx content type override declarations for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/override-source.xml" ContentType="application/xml; profile=exact-review"/>' . "\n" .
+            '  <Override PartName="/word/missing-preview.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/_rels/missing-preview.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' . "\n" .
+            '  <Override PartName="/word/not-relationships.xml" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' . "\n" .
+            '  <Override PartName="/[Content_Types].xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/override-source.xml'] = '<review/>';
+        $parts['word/not-relationships.xml'] = '<not-rels/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
+        $declarations = [];
+        foreach ($contentTypesPart['overrideDeclarations'] as $declaration) {
+            $declarations[$declaration['partName']] = $declaration;
+        }
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same(7, $contentTypesPart['overrideDeclarationCount']);
+        $t->same(5, $contentTypesPart['usedOverrideDeclarationCount']);
+        $t->same(2, $contentTypesPart['unusedOverrideDeclarationCount']);
+        $t->same(4, $contentTypesPart['invalidOverrideDeclarationCount']);
+        $t->same(['word/_rels/missing-preview.xml.rels', 'word/missing-preview.xml'], $contentTypesPart['unusedOverridePartNames']);
+        $t->same([
+            'content-types-override-target' => 1,
+            'override-target-missing-part' => 2,
+            'relationship-content-type-on-non-relationship-part' => 1,
+            'relationship-override-source-missing' => 1,
+        ], $contentTypesPart['overrideDeclarationIssueCounts']);
+        $t->same([
+            'content-types-override-target',
+            'override-target-missing-part',
+            'relationship-content-type-on-non-relationship-part',
+            'relationship-override-source-missing',
+        ], $contentTypesPart['overrideDeclarationIssues']);
+
+        $t->same(7, $summary['contentTypeOverrideDeclarationCount']);
+        $t->same(5, $summary['contentTypeUsedOverrideDeclarationCount']);
+        $t->same(2, $summary['contentTypeUnusedOverrideDeclarationCount']);
+        $t->same(4, $summary['contentTypeInvalidOverrideDeclarationCount']);
+        $t->same($contentTypesPart['unusedOverridePartNames'], $summary['contentTypeUnusedOverridePartNames']);
+        $t->same($contentTypesPart['overrideDeclarationIssueCounts'], $summary['contentTypeOverrideDeclarationIssueCounts']);
+
+        $t->same('exact', $declarations['word/override-source.xml']['matchKind']);
+        $t->same(true, $declarations['word/override-source.xml']['exists']);
+        $t->same('application/xml', $declarations['word/override-source.xml']['contentTypeBase']);
+        $t->same([], $declarations['word/override-source.xml']['issues']);
+
+        $t->same('missing', $declarations['word/missing-preview.xml']['matchKind']);
+        $t->same(false, $declarations['word/missing-preview.xml']['exists']);
+        $t->same(['override-target-missing-part'], $declarations['word/missing-preview.xml']['issues']);
+
+        $t->same(true, $declarations['word/_rels/missing-preview.xml.rels']['relationshipPart']);
+        $t->same('word/missing-preview.xml', $declarations['word/_rels/missing-preview.xml.rels']['relationshipSource']);
+        $t->same(false, $declarations['word/_rels/missing-preview.xml.rels']['relationshipSourceExists']);
+        $t->same([
+            'override-target-missing-part',
+            'relationship-override-source-missing',
+        ], $declarations['word/_rels/missing-preview.xml.rels']['issues']);
+
+        $t->same(false, $declarations['word/not-relationships.xml']['relationshipPart']);
+        $t->same(['relationship-content-type-on-non-relationship-part'], $declarations['word/not-relationships.xml']['issues']);
+        $t->same(['content-types-override-target'], $declarations['[Content_Types].xml']['issues']);
+    },
     'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';

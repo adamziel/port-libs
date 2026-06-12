@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3246,
-        "latestSlice": "pandoc-xml-html-link-resource-review maps one native XML/HTML5 DOM case for link resource hint and preload reviewer provenance, including normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation. phpPass moves 3267 -> 3268, phpFail remains 0, mappedXmlHtmlDomLinkResourceReviewCases is 1, xmlHtmlDomLinkResourceReviewAssertions is 38. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php, focused XmlHtmlDomTest.php (1 file, 1727 assertions, 0 failures), DOM family tests (5 files, 4662 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73145 assertions, 0 failures) on current main 5cdf8aebd without running Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3247,
+        "latestSlice": "pandoc-docx-content-type-override-declarations maps one native DOCX/OpenXML package-ingestion case for [Content_Types].xml Override declaration provenance in DocxOpenXmlReader packageProvenance, including used and missing override targets, relationship override source existence, content-types self-target diagnostics, relationship content-type misuse, and summary issue rollups. Mapped denominator is now 3247 after preserving mappedXmlHtmlDomLinkResourceReviewCases from current main, mappedDocxContentTypeOverrideDeclarationCases is 1, docxContentTypeOverrideDeclarationAssertions is 28. Verification passed focused DocxOpenXmlReaderTest.php (1 test file, 2253 assertions, 0 failures) and full lanes/pandoc/tests (44 test files, 73209 assertions, 0 failures) after final rebase onto current main 924240d9ff without running Pandoc, Cabal/Haskell runners, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -113,7 +113,9 @@
         "mappedZipRawLocalHeaderExtraFieldRecordCases": 1,
         "zipRawLocalHeaderExtraFieldRecordAssertions": 31,
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
-        "xmlHtmlDomLinkResourceReviewAssertions": 38
+        "xmlHtmlDomLinkResourceReviewAssertions": 38,
+        "mappedDocxContentTypeOverrideDeclarationCases": 1,
+        "docxContentTypeOverrideDeclarationAssertions": 28
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -986,7 +988,7 @@
     "status": "XML/HTML5 DOM link resource hint/preload provenance is verified over current main 5cdf8aebd.",
     "mapping": "Accounts for one bounded native PHP XML/HTML5 DOM mapping for link resource hint/preload review provenance on current main 5cdf8aebd.",
     "audit": "updated 2026-06-12: XmlHtmlDom linkResourceReviewSummary preserves normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation. Verified on current main 5cdf8aebd with php -l lanes/pandoc/src/XmlHtmlDom.php, php -l lanes/pandoc/tests/XmlHtmlDomTest.php, php tools/run-tests.php lanes/pandoc/tests/XmlHtmlDomTest.php (1 test file, 1727 assertions, 0 failures), DOM family tests (5 test files, 4662 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73145 assertions, 0 failures).",
-    "latestSlice": "pandoc-xml-html-link-resource-review maps one native XML/HTML5 DOM case for link resource hint and preload reviewer provenance, including normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation. phpPass moves 3267 -> 3268, phpFail remains 0, mappedXmlHtmlDomLinkResourceReviewCases is 1, xmlHtmlDomLinkResourceReviewAssertions is 38. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php, focused XmlHtmlDomTest.php (1 file, 1727 assertions, 0 failures), DOM family tests (5 files, 4662 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73145 assertions, 0 failures) on current main 5cdf8aebd without running Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "latestSlice": "pandoc-docx-content-type-override-declarations maps one native DOCX/OpenXML package-ingestion case for [Content_Types].xml Override declaration provenance in DocxOpenXmlReader packageProvenance, including used and missing override targets, relationship override source existence, content-types self-target diagnostics, relationship content-type misuse, and summary issue rollups. Mapped denominator is now 3247 after preserving mappedXmlHtmlDomLinkResourceReviewCases from current main, mappedDocxContentTypeOverrideDeclarationCases is 1, docxContentTypeOverrideDeclarationAssertions is 28. Verification passed focused DocxOpenXmlReaderTest.php (1 test file, 2253 assertions, 0 failures) and full lanes/pandoc/tests (44 test files, 73209 assertions, 0 failures) after final rebase onto current main 924240d9ff without running Pandoc, Cabal/Haskell runners, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1296,5 +1298,7 @@
     "mappedXmlHtmlDomTemplateContentReviewCases": 1,
     "xmlHtmlDomTemplateContentReviewAssertions": 25,
     "mappedXmlHtmlDomLinkResourceReviewCases": 1,
-    "xmlHtmlDomLinkResourceReviewAssertions": 38
+    "xmlHtmlDomLinkResourceReviewAssertions": 38,
+    "mappedDocxContentTypeOverrideDeclarationCases": 1,
+    "docxContentTypeOverrideDeclarationAssertions": 28
 }
