@@ -1518,6 +1518,114 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst dash-prefixed scalar boundary values without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/dash-prefixed-boundary.pdf',
+            'source' => '= Typst Dash Prefixed Boundary Packet',
+            'engineOptions' => [
+                '--creation-timestamp',
+                '-1',
+                '--jobs',
+                '-2',
+                '--pages',
+                '-3',
+                '--ppi',
+                '-4',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dash-prefixed boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'creation-timestamp-invalid-boundary',
+                'pages-invalid-segment-boundary:-3',
+                'ppi-invalid-boundary',
+                'jobs-invalid-boundary',
+            ],
+            'creationTimestamp' => [
+                'raw' => '-1',
+                'value' => '-1',
+                'kind' => 'invalid',
+                'timestamp' => null,
+                'iso8601' => null,
+                'deterministic' => false,
+                'safe' => false,
+                'issues' => ['creation-timestamp-invalid-boundary'],
+            ],
+            'executionPolicy' => [
+                'jobs' => [
+                    'raw' => '-2',
+                    'value' => '-2',
+                    'mode' => 'invalid',
+                    'jobCount' => null,
+                    'safe' => false,
+                    'issues' => ['jobs-invalid-boundary'],
+                ],
+                'issues' => ['jobs-invalid-boundary'],
+            ],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '-3',
+                    'value' => '-3',
+                    'segments' => [
+                        [
+                            'raw' => '-3',
+                            'kind' => 'invalid',
+                            'start' => null,
+                            'end' => null,
+                            'issues' => ['pages-invalid-segment-boundary:-3'],
+                        ],
+                    ],
+                    'safe' => false,
+                    'issues' => ['pages-invalid-segment-boundary:-3'],
+                ],
+                'issues' => [
+                    'pages-invalid-segment-boundary:-3',
+                    'ppi-invalid-boundary',
+                ],
+                'ppi' => [
+                    'raw' => '-4',
+                    'value' => '-4',
+                    'ppi' => null,
+                    'safe' => false,
+                    'issues' => ['ppi-invalid-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/dash-prefixed-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/dash-prefixed-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-execution-jobs:-2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:-3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-ppi:invalid', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

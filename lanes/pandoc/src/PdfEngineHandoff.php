@@ -5803,7 +5803,8 @@ final class PdfEngineHandoff
         array $engineOptions,
         array $names,
         bool $preserveMissing = false,
-        bool $allowSingleDashValue = false
+        bool $allowSingleDashValue = false,
+        ?string $dashPrefixedValuePattern = null
     ): array
     {
         $values = [];
@@ -5817,7 +5818,10 @@ final class PdfEngineHandoff
                         $index + 1 < $count
                         && is_string($next)
                         && $next !== ''
-                        && ($next === '-' ? $allowSingleDashValue : !str_starts_with($next, '-'))
+                        && ($next === '-'
+                            ? $allowSingleDashValue
+                            : (!str_starts_with($next, '-')
+                                || ($dashPrefixedValuePattern !== null && preg_match($dashPrefixedValuePattern, $next) === 1)))
                     ) {
                         $values[] = $next;
                         continue;
@@ -5969,12 +5973,12 @@ final class PdfEngineHandoff
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
-        $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
-        $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
-        $ppiValues = $this->engineOptionValues($engineOptions, ['--ppi'], true);
+        $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true, false, '/\A-[0-9]/');
+        $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true, false, '/\A-[0-9]/');
+        $ppiValues = $this->engineOptionValues($engineOptions, ['--ppi'], true, false, '/\A-[0-9]/');
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
-        $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true);
+        $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true, false, '/\A-[0-9]/');
         $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true, true);
         $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings', '-t'], true);
         $diagnosticFormatValues = $this->engineOptionValues($engineOptions, ['--diagnostic-format'], true);
