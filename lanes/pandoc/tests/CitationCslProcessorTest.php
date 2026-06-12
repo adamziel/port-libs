@@ -2588,6 +2588,96 @@ XML);
         $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
     },
+    'normalizes bounded direct csl json language aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-langid-alias',
+                'type' => 'book',
+                'title' => 'Direct LangID Alias Packet',
+                'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                'issued' => ['date-parts' => [[2026]]],
+                'langid' => 'ngerman',
+            ],
+            [
+                'id' => 'direct-hyphenation-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Hyphenation Alias Packet',
+                'author' => [['family' => 'Roe', 'given' => 'Rae']],
+                'issued' => ['date-parts' => [[2025]]],
+                'hyphenation' => 'spanish',
+            ],
+            [
+                'id' => 'direct-langid-list-alias',
+                'type' => 'report',
+                'title' => 'Direct LangID List Packet',
+                'author' => [['family' => 'Kim', 'given' => 'Kai']],
+                'issued' => ['date-parts' => [[2024]]],
+                'langidList' => ['english', 'french'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $langid = $processor->item('direct-langid-alias');
+        $hyphenation = $processor->item('direct-hyphenation-alias');
+        $list = $processor->item('direct-langid-list-alias');
+        $t->same('ngerman', $langid['language'] ?? null);
+        $t->same(['ngerman'], $langid['languageList'] ?? null);
+        $t->same('spanish', $hyphenation['language'] ?? null);
+        $t->same(['spanish'], $hyphenation['languageList'] ?? null);
+        $t->same('english; french', $list['language'] ?? null);
+        $t->same(['english', 'french'], $list['languageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Language Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-language-alias-review</id>
+    <updated>2026-06-12T01:54:36+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="langid"/>
+        <text variable="hyphenation"/>
+        <text variable="langid-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Language Alias Review', $summary['title'] ?? null);
+        $t->same('language', $citationChildren[1]['variable'] ?? null);
+        $t->same('langid', $citationChildren[2]['variable'] ?? null);
+        $t->same('hyphenation', $citationChildren[3]['variable'] ?? null);
+        $t->same('langid-list', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Ng | ngerman | ngerman | ngerman | ngerman; Roe | spanish | spanish | spanish | spanish; Kim | english; french | english; french | english; french | english; french]', $styled->renderCitationCluster([
+            $citation('direct-langid-alias', '[@direct-langid-alias]'),
+            $citation('direct-hyphenation-alias', '[@direct-hyphenation-alias]'),
+            $citation('direct-langid-list-alias', '[@direct-langid-list-alias]'),
+        ]));
+        $t->same('Direct LangID Alias Packet :: ngerman :: ngerman', $styled->renderBibliographyEntry('direct-langid-alias'));
+        $t->same('Direct Hyphenation Alias Packet :: spanish :: spanish', $styled->renderBibliographyEntry('direct-hyphenation-alias'));
+        $t->same('Direct LangID List Packet :: english; french :: english; french', $styled->renderBibliographyEntry('direct-langid-list-alias'));
+
+        $document = (new MarkdownReader())->read('Direct language aliases [@direct-langid-alias; @direct-hyphenation-alias; @direct-langid-list-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct language aliases [Ng | ngerman | ngerman | ngerman | ngerman; Roe | spanish | spanish | spanish | spanish; Kim | english; french | english; french | english; french | english; french] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct LangID Alias Packet :: ngerman :: ngerman</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>Direct LangID List Packet :: english; french :: english; french</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
