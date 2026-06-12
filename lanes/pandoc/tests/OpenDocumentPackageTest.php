@@ -389,6 +389,72 @@ XML,
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/secret.png'], $summary['encryptedParts']);
     },
+    'reports compact ODT manifest entries missing media types without exposing bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sidecarBytes = 'BINARYPAYLOAD';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/nameless.bin" manifest:size="' . strlen($sidecarBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Configurations2/"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/nameless.bin', 'data' => $sidecarBytes, 'compressionMethod' => 0]],
+        ));
+        $summary = $odt->summarize();
+        $nameless = $odt->manifestEntry('Pictures/nameless.bin');
+        $directory = $odt->manifestEntry('Configurations2/');
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $item) {
+            $mediaByPath[$item['path']] = $item;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same('', $nameless['mediaType']);
+        $t->same('', $nameless['mediaTypeBase']);
+        $t->same(true, $nameless['missingMediaType']);
+        $t->same(true, $nameless['exists']);
+        $t->same(strlen($sidecarBytes), $nameless['storedByteLength']);
+        $t->same(null, $nameless['byteLength']);
+        $t->same(null, $nameless['crc32']);
+        $t->same(false, $nameless['canExposeBytes']);
+        $t->same('missing-media-type-bytes-blocked', $nameless['byteExposurePolicy']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $nameless['diagnostics']);
+
+        $t->same(false, $directory['missingMediaType']);
+        $t->same(true, $directory['isDirectory']);
+        $t->same('directory-entry-no-bytes', $directory['byteExposurePolicy']);
+        $t->same(['odf-manifest-directory-entry'], $directory['diagnostics']);
+
+        $t->same(['Pictures/hero.png', 'Pictures/nameless.bin'], array_column($summary['mediaParts'], 'path'));
+        $t->same(false, $mediaByPath['Pictures/nameless.bin']['canExposeBytes']);
+        $t->same('missing-media-type-bytes-blocked', $mediaByPath['Pictures/nameless.bin']['byteExposurePolicy']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $mediaByPath['Pictures/nameless.bin']['diagnostics']);
+        $t->same(1, $summary['exposableMediaPartCount']);
+        $t->same(0, $summary['missingMediaPartCount']);
+
+        $t->same(1, $summary['manifestReview']['missingMediaTypeCount']);
+        $t->same('Pictures/nameless.bin', $summary['manifestReview']['missingMediaTypeItems'][0]['path']);
+        $t->same(2, $summary['manifestReview']['diagnosticCount']);
+        $t->same([
+            'odf-manifest-directory-entry' => 1,
+            'odf-manifest-file-entry-missing-media-type' => 1,
+        ], $summary['manifestReview']['diagnosticCodeCounts']);
+        $t->same('odf-manifest-file-entry-missing-media-type', $summary['manifestReview']['diagnostics'][0]['code']);
+        $t->same(false, $summary['manifestReview']['diagnostics'][0]['canExposeBytes']);
+        $t->same(true, $reviewByPath['Pictures/nameless.bin']['missingMediaType']);
+        $t->same(false, $reviewByPath['Pictures/nameless.bin']['canExposeBytes']);
+
+        $t->same(true, $inventory['Pictures/nameless.bin']['manifestMissingMediaType']);
+        $t->same(['odf-manifest-file-entry-missing-media-type'], $inventory['Pictures/nameless.bin']['manifestDiagnostics']);
+        $t->same(false, $inventory['Pictures/nameless.bin']['canExposeBytes']);
+    },
     'reports compact ODT audio and video manifest media resources' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $audioBytes = 'AUDIODATA';
         $videoBytes = 'VIDEODATA!';

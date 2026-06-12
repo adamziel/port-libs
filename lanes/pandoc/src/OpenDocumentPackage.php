@@ -268,6 +268,7 @@ final class OpenDocumentPackage
                     'storedCrc32' => $entry['storedCrc32'],
                     'declaredSize' => $entry['size'],
                     'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
+                    'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
                     'encrypted' => $entry['encrypted'],
                     'encryption' => $entry['encryption'],
                     'encryptionRecordCount' => is_array($entry['encryption']) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
@@ -404,6 +405,8 @@ final class OpenDocumentPackage
                 'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestEntry) ? $manifestEntry['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestEntry) ? $manifestEntry['preferredViewMode'] : null,
+                'manifestMissingMediaType' => is_array($manifestEntry) && ($manifestEntry['missingMediaType'] ?? false) === true,
+                'manifestDiagnostics' => is_array($manifestEntry) ? ($manifestEntry['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestEntry) ? $manifestEntry['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
                     ? ($manifestEntry['encryption']['recordCount'] ?? 0)
@@ -567,16 +570,17 @@ final class OpenDocumentPackage
                 : null;
             $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = is_array($entry['encryption']);
+            $missingMediaType = ($entry['missingMediaType'] ?? false) === true;
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$missingMediaType && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
                 && !$isDirectory
                 && $declaredSize !== $storedByteLength;
-            $diagnostics = [];
+            $diagnostics = is_array($entry['diagnostics'] ?? null) ? array_values($entry['diagnostics']) : [];
 
             if (!$exists) {
                 $diagnostics[] = 'odf-manifest-missing-package-part';
@@ -594,7 +598,7 @@ final class OpenDocumentPackage
                 $diagnostics[] = 'odf-manifest-unsupported-compression-method';
             }
 
-            $hydrated[] = $entry + [
+            $hydrated[] = array_merge($entry, [
                 'exists' => $exists,
                 'isDirectory' => $isDirectory,
                 'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
@@ -614,10 +618,11 @@ final class OpenDocumentPackage
                     $isDirectory,
                     $encrypted,
                     $scriptPackagePart,
+                    $missingMediaType,
                     $hasSupportedCompression
                 ),
                 'diagnostics' => $diagnostics,
-            ];
+            ]);
         }
 
         return $hydrated;
@@ -629,6 +634,7 @@ final class OpenDocumentPackage
         bool $isDirectory,
         bool $encrypted,
         bool $scriptPackagePart,
+        bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
         if ($isRoot) {
@@ -642,6 +648,9 @@ final class OpenDocumentPackage
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($missingMediaType) {
+            return 'missing-media-type-bytes-blocked';
         }
         if (!$hasSupportedCompression) {
             return 'unsupported-compression-bytes-blocked';
@@ -1021,6 +1030,11 @@ final class OpenDocumentPackage
             'manifestPartReferenceSuffixItems' => [],
             'scriptPackagePartCount' => 0,
             'scriptPackageItems' => [],
+            'missingMediaTypeCount' => 0,
+            'missingMediaTypeItems' => [],
+            'diagnosticCount' => 0,
+            'diagnosticCodeCounts' => [],
+            'diagnostics' => [],
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'items' => [],
@@ -1046,6 +1060,23 @@ final class OpenDocumentPackage
             if (($entry['scriptPackagePart'] ?? false) === true) {
                 ++$summary['scriptPackagePartCount'];
                 $summary['scriptPackageItems'][] = $item;
+            }
+            if (($entry['missingMediaType'] ?? false) === true) {
+                ++$summary['missingMediaTypeCount'];
+                $summary['missingMediaTypeItems'][] = $item;
+            }
+            foreach (is_array($entry['diagnostics'] ?? null) ? $entry['diagnostics'] : [] as $diagnostic) {
+                if (!is_string($diagnostic) || $diagnostic === '') {
+                    continue;
+                }
+
+                $summary['diagnostics'][] = [
+                    'code' => $diagnostic,
+                    'path' => (string) ($entry['path'] ?? ''),
+                    'packagePath' => is_string($entry['packagePath'] ?? null) ? $entry['packagePath'] : null,
+                    'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                ];
+                $summary['diagnosticCodeCounts'][$diagnostic] = ($summary['diagnosticCodeCounts'][$diagnostic] ?? 0) + 1;
             }
             if (($entry['exists'] ?? false) === true) {
                 ++$summary['existsCount'];
@@ -1086,6 +1117,8 @@ final class OpenDocumentPackage
             }
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
+        $summary['diagnosticCount'] = count($summary['diagnostics']);
+        ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
     }
@@ -1135,6 +1168,7 @@ final class OpenDocumentPackage
             'storedCrc32' => $entry['storedCrc32'] ?? null,
             'declaredSize' => $entry['declaredSize'] ?? null,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+            'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
@@ -1160,6 +1194,7 @@ final class OpenDocumentPackage
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
     }
@@ -1243,9 +1278,8 @@ final class OpenDocumentPackage
             $pathReference = $packageReference['pathReference'];
             $packagePath = $packageReference['packagePath'];
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
-            if ($mediaType === '' && !str_ends_with($pathReference ?? $path, '/')) {
-                throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
-            }
+            $missingMediaType = $mediaType === '' && !str_ends_with($pathReference ?? $path, '/');
+            $diagnostics = $missingMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
             $mediaTypeReport = self::mediaTypeReport($mediaType);
 
             $size = self::manifestSize(
@@ -1270,8 +1304,10 @@ final class OpenDocumentPackage
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size,
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
+                'missingMediaType' => $missingMediaType,
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
+                'diagnostics' => $diagnostics,
             ];
             ++$manifestIndex;
         }
