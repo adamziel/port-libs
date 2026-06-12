@@ -10032,6 +10032,37 @@ XML;
         $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
         $t->same('Pictures/hero.png', $signature['references'][1]['part']);
     },
+    'classifies ODT signature sidecars in package provenance roles' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSignature = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignature, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>'],
+            ['name' => 'META-INF/orphan-signatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>', 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(8, $provenance['entryCount']);
+        $t->same(5, $provenance['manifestDeclaredPartCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(2, $provenance['packageSignaturePartCount']);
+        $t->same(1, $provenance['roleCounts']['media-resource']);
+        $t->same(2, $provenance['roleCounts']['package-signature']);
+        $t->same(1, $provenance['undeclaredRoleCounts']['package-signature']);
+        $t->same(['package-signature', 'manifest-declared'], $parts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-signature', 'undeclared-package-entry'], $parts['META-INF/orphan-signatures.xml']['roles']);
+        $t->same(true, $parts['META-INF/documentsignatures.xml']['declaredInManifest']);
+        $t->same(false, $parts['META-INF/orphan-signatures.xml']['declaredInManifest']);
+        $t->same(true, $parts['META-INF/orphan-signatures.xml']['undeclared']);
+        $t->same(2, $result['signatureMetadata']['partCount']);
+        $t->same(1, count($result['media']), 'signature sidecars must stay out of document media handoff');
+    },
     'maps ODT XML signature reference target package diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $encryptedBytes = 'ENCRYPTEDPNG';
         $thumbnailBytes = 'THUMBNAIL';
