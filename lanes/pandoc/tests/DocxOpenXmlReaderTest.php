@@ -4227,6 +4227,65 @@ XML;
         $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
         $t->same(false, $replyNote->attr('commentResolved'));
     },
+    'classifies docx note package inventory roles from document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/review-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments-extended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="notes/review-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="notes/review-endnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="comments/review-comments-extended.xml?thread=2#commentsEx"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="3"><w:p><w:r><w:t>Footnote inventory packet.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/notes/review-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="4"><w:p><w:r><w:t>Endnote inventory packet.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="5"><w:p><w:r><w:t>Comment inventory packet.</w:t></w:r></w:p></w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/review-comments-extended.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+</w15:commentsEx>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $inventory = $package['parts'];
+        $roleCounts = $package['summary']['roleCounts'];
+
+        $t->true(in_array('footnotes', $inventory['word/notes/review-footnotes.xml']['roles'], true), 'footnotes inventory role missing');
+        $t->true(in_array('endnotes', $inventory['word/notes/review-endnotes.xml']['roles'], true), 'endnotes inventory role missing');
+        $t->true(in_array('comments', $inventory['word/comments/review-comments.xml']['roles'], true), 'comments inventory role missing');
+        $t->true(in_array('comments-extended', $inventory['word/comments/review-comments-extended.xml']['roles'], true), 'commentsExtended inventory role missing');
+        $t->same(1, $roleCounts['footnotes']);
+        $t->same(1, $roleCounts['endnotes']);
+        $t->same(1, $roleCounts['comments']);
+        $t->same(1, $roleCounts['comments-extended']);
+    },
     'summarizes docx alternative format import chunks from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
