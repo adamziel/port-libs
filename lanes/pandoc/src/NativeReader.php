@@ -32,6 +32,11 @@ final class NativeReader
         ]);
         $attrs = array_replace($attrs, $this->metadataConstructorAttrs($rawMeta, $normalizedMeta));
 
+        $metaConstructorProvenance = $this->metaConstructorProvenance($rawMeta);
+        if ($metaConstructorProvenance !== []) {
+            $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
+        }
+
         if (isset($native['pandoc-api-version'])) {
             $attrs['pandocApiVersion'] = $this->apiVersion($native['pandoc-api-version']);
         }
@@ -319,6 +324,96 @@ final class NativeReader
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<string, array{constructor:string, native:array<string, mixed>}>
+     */
+    private function metaConstructorProvenance(mixed $metadata): array
+    {
+        $provenance = [];
+        if ($this->isMetaConstructor($metadata)) {
+            $this->collectMetaConstructorProvenance($metadata, [], $provenance);
+
+            return $provenance;
+        }
+
+        if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
+            return [];
+        }
+
+        foreach ($metadata as $key => $value) {
+            $this->collectMetaConstructorProvenance($value, [(string) $key], $provenance);
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @param list<string> $path
+     * @param array<string, array{constructor:string, native:array<string, mixed>}> $provenance
+     */
+    private function collectMetaConstructorProvenance(mixed $value, array $path, array &$provenance): void
+    {
+        if ($this->isMetaConstructor($value)) {
+            $constructor = $value['t'];
+            $provenance[$this->metaProvenancePath($path)] = [
+                'constructor' => $constructor,
+                'native' => $value,
+            ];
+
+            if ($constructor === 'MetaMap') {
+                foreach ($this->metaMapContent($value['c'] ?? []) as $key => $item) {
+                    $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
+                }
+            } elseif ($constructor === 'MetaList') {
+                foreach ($this->listContent($value['c'] ?? [], 'Pandoc native JSON MetaList provenance') as $index => $item) {
+                    $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
+                }
+            }
+
+            return;
+        }
+
+        if (!is_array($value)) {
+            return;
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $index => $item) {
+                $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
+            }
+
+            return;
+        }
+
+        foreach ($value as $key => $item) {
+            $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
+        }
+    }
+
+    private function isMetaConstructor(mixed $value): bool
+    {
+        return is_array($value)
+            && !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], self::META_CONSTRUCTORS, true);
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
     }
 
     /**
