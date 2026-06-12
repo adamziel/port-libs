@@ -5849,6 +5849,7 @@ final class DocxOpenXmlReader
                 $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : '';
                 $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
                 $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
+                $resolvedTarget = is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : '';
                 $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
                 $contentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null) ? $relationship['contentTypeParameters'] : [];
                 $contentTypeParameterMap = is_array($relationship['contentTypeParameterMap'] ?? null) ? $relationship['contentTypeParameterMap'] : [];
@@ -5887,6 +5888,7 @@ final class DocxOpenXmlReader
                     'relationshipsPart' => $relationshipsPart,
                     'target' => $target,
                     'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
+                    'resolvedTarget' => $resolvedTarget,
                     'external' => $external,
                     'targetPart' => $targetPart,
                     'exists' => $exists,
