@@ -9651,6 +9651,10 @@ return [
         $t->same(2, $summary['selectedUniqueEntryCount']);
         $t->same($totalSelectedBytes, $summary['selectedCompressedBytes']);
         $t->same($totalSelectedBytes, $summary['selectedUncompressedBytes']);
+        $t->same(1.0, $summary['selectedExpansionRatio']);
+        $t->same(0, $summary['selectedUnknownExpansionRatioEntryCount']);
+        $t->same(false, $summary['selectedHasUnknownExpansionRatioEntries']);
+        $t->same([], $summary['selectedUnknownExpansionRatioEntries']);
         $t->same(1024, $summary['maxEntryUncompressedBytes']);
         $t->same($totalSelectedBytes - 1, $summary['maxTotalUncompressedBytes']);
         $t->same(0, $summary['handoffEntryCount']);
@@ -9677,12 +9681,78 @@ return [
         $t->same([], $safeSummary['issues']);
         $t->same(2, $safeSummary['selectedUniqueEntryCount']);
         $t->same($totalSelectedBytes, $safeSummary['selectedUncompressedBytes']);
+        $t->same(1.0, $safeSummary['selectedExpansionRatio']);
+        $t->same(0, $safeSummary['selectedUnknownExpansionRatioEntryCount']);
+        $t->same(false, $safeSummary['selectedHasUnknownExpansionRatioEntries']);
+        $t->same([], $safeSummary['selectedUnknownExpansionRatioEntries']);
         $t->same(3, $safeSummary['handoffEntryCount']);
         $t->same(3, $safeSummary['readableEntryCount']);
         $t->same(0, $safeSummary['totalUncompressedSizeExceedsLimitEntryCount']);
         $t->same(strlen($documentXml), $safeSummary['entries'][0]['bytesRead']);
         $t->same(hash('sha256', $documentXml), $safeSummary['entries'][1]['contentSha256']);
         $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
+    },
+
+    'preflights selected zip package expansion before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected expansion review</w:p></w:body></w:document>';
+        $zeroCompressedName = 'word/media/zero-compressed.bin';
+        $zeroUncompressedSize = 37;
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => $zeroCompressedName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $zeroUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $zeroUncompressedSize,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $zeroCompressedName, 'required' => false, 'kind' => 'file', 'role' => 'media-review'],
+        ], 1024);
+
+        $expectedUnknownEntry = [
+            'name' => $zeroCompressedName,
+            'compressionMethod' => 12,
+            'isDirectory' => false,
+            'compressedSize' => 0,
+            'uncompressedSize' => $zeroUncompressedSize,
+            'expansionRatio' => null,
+        ];
+
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same($documentCompressed, $summary['selectedCompressedBytes']);
+        $t->same(strlen($documentXml) + $zeroUncompressedSize, $summary['selectedUncompressedBytes']);
+        $t->same((strlen($documentXml) + $zeroUncompressedSize) / $documentCompressed, $summary['selectedExpansionRatio']);
+        $t->same(1, $summary['selectedUnknownExpansionRatioEntryCount']);
+        $t->same(true, $summary['selectedHasUnknownExpansionRatioEntries']);
+        $t->same([$expectedUnknownEntry], $summary['selectedUnknownExpansionRatioEntries']);
+        $t->same(1, $summary['handoffEntryCount']);
+        $t->same(1, $summary['readableEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(['unreadable-entry'], $summary['issues']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same(strlen($documentXml) / $documentCompressed, $documentEntry['expansionRatio']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
+
+        $zeroCompressedEntry = $summary['entries'][1];
+        $t->same($zeroCompressedName, $zeroCompressedEntry['name']);
+        $t->same('unsupported', $zeroCompressedEntry['compressionMethodName']);
+        $t->same(null, $zeroCompressedEntry['expansionRatio']);
+        $t->same(false, $zeroCompressedEntry['isReadable']);
+        $t->same(['unreadable-entry'], $zeroCompressedEntry['issues']);
+        $t->contains('Unsupported ZIP compression method 12', $zeroCompressedEntry['error']);
     },
 
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

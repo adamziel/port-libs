@@ -4719,6 +4719,9 @@ final class ZipPackage
      *     selectedUniqueEntryCount:int,
      *     selectedCompressedBytes:int,
      *     selectedUncompressedBytes:int,
+     *     selectedExpansionRatio:?float,
+     *     selectedUnknownExpansionRatioEntryCount:int,
+     *     selectedHasUnknownExpansionRatioEntries:bool,
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
@@ -4740,6 +4743,7 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
@@ -4860,6 +4864,7 @@ final class ZipPackage
 
         $selectedCompressedBytes = 0;
         $selectedUncompressedBytes = 0;
+        $selectedUnknownExpansionRatioEntries = [];
         $selectedRawNameProvenanceEntries = [];
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
@@ -4867,6 +4872,17 @@ final class ZipPackage
         foreach ($selectedEntriesByName as $entry) {
             $selectedCompressedBytes += $entry->compressedSize;
             $selectedUncompressedBytes += $entry->uncompressedSize;
+            $selectedExpansionRatio = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
+            if ($selectedExpansionRatio === null) {
+                $selectedUnknownExpansionRatioEntries[] = [
+                    'name' => $entry->name,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'isDirectory' => $entry->isDirectory(),
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                    'expansionRatio' => $selectedExpansionRatio,
+                ];
+            }
             $rawNameProvenance = self::entryRawNameHandoffProvenance($entry);
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
                 $selectedDecodedNameDiffersFromRawNameEntryCount++;
@@ -5052,6 +5068,9 @@ final class ZipPackage
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedCompressedBytes' => $selectedCompressedBytes,
             'selectedUncompressedBytes' => $selectedUncompressedBytes,
+            'selectedExpansionRatio' => self::expansionRatio($selectedUncompressedBytes, $selectedCompressedBytes),
+            'selectedUnknownExpansionRatioEntryCount' => count($selectedUnknownExpansionRatioEntries),
+            'selectedHasUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries !== [],
             'missingEntryCount' => count($missingEntries),
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
@@ -5073,6 +5092,7 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
+            'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
