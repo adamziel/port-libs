@@ -9,7 +9,7 @@
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
         "mapped": 3249,
-        "latestSlice": "pandoc-docx-content-type-override-declarations maps one native DOCX/OpenXML package-ingestion case for [Content_Types].xml Override declaration provenance in DocxOpenXmlReader packageProvenance, including used and missing override targets, relationship override source existence, content-types self-target diagnostics, relationship content-type misuse, and summary issue rollups. Mapped denominator moves 3248 -> 3249 after preserving current main counters, mappedDocxContentTypeOverrideDeclarationCases is 1, docxContentTypeOverrideDeclarationAssertions is 28, mappedPandocJsonNativeMetaConstructorProvenanceCases from current main remains 1, mappedJsonNativeCaptionMaybeConstructorCases from current main remains 1, and mappedDocxOpenXmlContentTypeParameterCases from current main remains 1. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php, focused DocxOpenXmlReaderTest.php (1 file, 2266 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73608 assertions, 0 failures) after final rebase onto current main d987e849d without running Pandoc, Cabal/Haskell runners, Word, LibreOffice, office suites, zip/unzip, external validators, online services, live provider tests, or live-service provider tests.",
+        "latestSlice": "pandoc-json-native-meta-inline-fallbacks maps one native JSON/native AST constructor completeness case for native_inline fallback constructors in metadata inline fields, preserving opaque VendorInline payloads through PandocJsonWriter and NativeWriter MetaInlines output plus JSON reader round-trip. mappedPandocJsonNativeMetaInlineFallbackCases is 1, pandocJsonNativeMetaInlineFallbackAssertions is 10. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1944 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 73699 assertions, 0 failures) after final rebase onto current main ee4a10566 without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "DOCX/OpenXML content-type override declaration provenance is verified over current main d987e849d with focused and full Pandoc lane PHP verification passing.",
-        "latestFocusedSource": "2026-06-12 DOCX/OpenXML package ingestion slice inspected content-type override declaration provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main d987e849d; focused DocxOpenXmlReaderTest.php passed 1 file, 2266 assertions, 0 failures.",
+        "status": "Pandoc JSON/native metadata inline fallback constructor preservation is verified over current main ee4a10566.",
+        "latestFocusedSource": "2026-06-12 JSON/native AST slice inspected metadata native_inline fallback constructor preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main ee4a10566; focused PandocJsonNativeAstTest.php passed 1 file, 1944 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -119,7 +119,9 @@
         "mappedPandocJsonNativeMetaConstructorProvenanceCases": 1,
         "pandocJsonNativeMetaConstructorProvenanceAssertions": 39,
         "mappedDocxContentTypeOverrideDeclarationCases": 1,
-        "docxContentTypeOverrideDeclarationAssertions": 28
+        "docxContentTypeOverrideDeclarationAssertions": 28,
+        "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
+        "pandocJsonNativeMetaInlineFallbackAssertions": 10
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -987,12 +989,12 @@
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
         "xmlHtmlDomLinkResourceReviewAssertions": 38
     },
-    "wordpressScenario": "XML/HTML5 DOM handoff now preserves link resource hint/preload reviewer provenance, including normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "Pandoc JSON/native AST handoff now preserves native inline fallback constructors in metadata inline fields, including titleInlines normalization and opaque VendorInline payloads through JSON and native writers, without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "XML/HTML5 DOM link resource hint/preload provenance is verified over current main 5cdf8aebd.",
-    "mapping": "Accounts for one bounded native PHP XML/HTML5 DOM mapping for link resource hint/preload review provenance on current main 5cdf8aebd.",
-    "audit": "updated 2026-06-12: XmlHtmlDom linkResourceReviewSummary preserves normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation. Verified on current main 5cdf8aebd with php -l lanes/pandoc/src/XmlHtmlDom.php, php -l lanes/pandoc/tests/XmlHtmlDomTest.php, php tools/run-tests.php lanes/pandoc/tests/XmlHtmlDomTest.php (1 test file, 1727 assertions, 0 failures), DOM family tests (5 test files, 4662 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73145 assertions, 0 failures).",
-    "latestSlice": "pandoc-xml-html-link-resource-review maps one native XML/HTML5 DOM case for link resource hint and preload reviewer provenance, including normalized rel-token counts, duplicate/invalid rel diagnostics, resource kind and resource-hint classification, href/as policy checks, deterministic serialization, and WordPress raw block propagation. phpPass moves 3267 -> 3268, phpFail remains 0, mappedXmlHtmlDomLinkResourceReviewCases is 1, xmlHtmlDomLinkResourceReviewAssertions is 38. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php, focused XmlHtmlDomTest.php (1 file, 1727 assertions, 0 failures), DOM family tests (5 files, 4662 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73145 assertions, 0 failures) on current main 5cdf8aebd without running Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "Pandoc JSON/native metadata inline fallback constructor preservation is verified over current main ee4a10566.",
+    "mapping": "Accounts for one bounded native PHP JSON/native AST mapping for native_inline fallback constructors in metadata inline fields on current main ee4a10566.",
+    "audit": "updated 2026-06-12: PandocJsonWriter and NativeWriter classify native_inline as an inline metadata child so metadata fields emit opaque fallback constructors as MetaInlines and round-trip through PandocJsonReader. Verified on current main ee4a10566 with php -l lanes/pandoc/src/PandocJsonWriter.php, php -l lanes/pandoc/src/NativeWriter.php, php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php, php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php (1 test file, 1944 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73699 assertions, 0 failures).",
+    "latestSlice": "pandoc-json-native-meta-inline-fallbacks maps one native JSON/native AST constructor completeness case for native_inline fallback constructors in metadata inline fields, preserving opaque VendorInline payloads through PandocJsonWriter and NativeWriter MetaInlines output plus JSON reader round-trip. mappedPandocJsonNativeMetaInlineFallbackCases is 1, pandocJsonNativeMetaInlineFallbackAssertions is 10. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1944 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 73699 assertions, 0 failures) after final rebase onto current main ee4a10566 without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1302,5 +1304,7 @@
     "mappedXmlHtmlDomTemplateContentReviewCases": 1,
     "xmlHtmlDomTemplateContentReviewAssertions": 25,
     "mappedXmlHtmlDomLinkResourceReviewCases": 1,
-    "xmlHtmlDomLinkResourceReviewAssertions": 38
+    "xmlHtmlDomLinkResourceReviewAssertions": 38,
+    "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
+    "pandocJsonNativeMetaInlineFallbackAssertions": 10
 }

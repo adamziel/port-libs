@@ -1993,6 +1993,7 @@ final class PandocJsonWriter
             'image',
             'note',
             'span',
+            'native_inline',
         ], true);
     }
 }
