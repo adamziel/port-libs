@@ -4740,6 +4740,7 @@ final class ZipPackage
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
+     *     statusSummaryCount:int,
      *     selectedRawNameProvenanceEntryCount:int,
      *     selectedLegacyEncodedNameEntryCount:int,
      *     selectedUnicodePathExtraEntryCount:int,
@@ -4749,6 +4750,7 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     statusSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
@@ -5100,6 +5102,7 @@ final class ZipPackage
         }
 
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $statusSummaries = self::entryHandoffStatusSummaries($entries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -5131,6 +5134,7 @@ final class ZipPackage
             'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
             'requestedRoleCount' => count($roleSummaries),
+            'statusSummaryCount' => count($statusSummaries),
             'selectedRawNameProvenanceEntryCount' => count($selectedRawNameProvenanceEntries),
             'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
             'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
@@ -5141,6 +5145,7 @@ final class ZipPackage
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
             'roleSummaries' => $roleSummaries,
+            'statusSummaries' => $statusSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
@@ -5227,6 +5232,79 @@ final class ZipPackage
                     if (!in_array($issue, $summaries[$key]['issues'], true)) {
                         $summaries[$key]['issues'][] = $issue;
                     }
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffStatusSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $status = is_string($entry['status'] ?? null) && $entry['status'] !== ''
+                ? $entry['status']
+                : 'unknown';
+            if (!isset($summaries[$status])) {
+                $summaries[$status] = [
+                    'status' => $status,
+                    'entryCount' => 0,
+                    'requiredCount' => 0,
+                    'optionalCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'handoffEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'issues' => [],
+                ];
+            }
+
+            ++$summaries[$status]['entryCount'];
+            if (($entry['required'] ?? false) === true) {
+                ++$summaries[$status]['requiredCount'];
+            } else {
+                ++$summaries[$status]['optionalCount'];
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$status]['presentEntryCount'];
+            } else {
+                ++$summaries[$status]['missingEntryCount'];
+            }
+
+            if ($status === 'ready' && ($entry['exists'] ?? false) === true) {
+                ++$summaries[$status]['handoffEntryCount'];
+            }
+
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            if ($issues !== []) {
+                ++$summaries[$status]['failedEntryCount'];
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$status]['entryNames'][] = $name;
+            }
+
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== ''
+                ? $entry['role']
+                : null;
+            if (!in_array($role, $summaries[$status]['roles'], true)) {
+                $summaries[$status]['roles'][] = $role;
+            }
+
+            foreach ($issues as $issue) {
+                if (!in_array($issue, $summaries[$status]['issues'], true)) {
+                    $summaries[$status]['issues'][] = $issue;
                 }
             }
         }

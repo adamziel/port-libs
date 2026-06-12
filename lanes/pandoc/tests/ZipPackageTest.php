@@ -9945,6 +9945,74 @@ return [
         $t->same(['missing-required-entry'], $byRole['required-sidecar']['issues']);
     },
 
+    'summarizes selected zip handoff statuses for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>status handoff</w:p></w:body></w:document>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/', 'required' => true, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/missing.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
+            ['name' => 'word/optional.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $byStatus = [];
+        foreach ($summary['statusSummaries'] as $statusSummary) {
+            $byStatus[$statusSummary['status']] = $statusSummary;
+        }
+
+        $t->same(4, $summary['statusSummaryCount']);
+        $t->same(['blocked', 'missing-optional', 'missing-required', 'ready'], array_keys($byStatus));
+
+        $t->same(1, $byStatus['ready']['entryCount']);
+        $t->same(1, $byStatus['ready']['requiredCount']);
+        $t->same(1, $byStatus['ready']['presentEntryCount']);
+        $t->same(1, $byStatus['ready']['handoffEntryCount']);
+        $t->same(0, $byStatus['ready']['failedEntryCount']);
+        $t->same(['main-document'], $byStatus['ready']['roles']);
+        $t->same(['word/document.xml'], $byStatus['ready']['entryNames']);
+        $t->same([], $byStatus['ready']['issues']);
+
+        $t->same(1, $byStatus['blocked']['entryCount']);
+        $t->same(1, $byStatus['blocked']['requiredCount']);
+        $t->same(1, $byStatus['blocked']['presentEntryCount']);
+        $t->same(0, $byStatus['blocked']['handoffEntryCount']);
+        $t->same(1, $byStatus['blocked']['failedEntryCount']);
+        $t->same(['attachment'], $byStatus['blocked']['roles']);
+        $t->same(['word/media/'], $byStatus['blocked']['entryNames']);
+        $t->same(['directory-entry-not-file'], $byStatus['blocked']['issues']);
+
+        $t->same(1, $byStatus['missing-required']['entryCount']);
+        $t->same(1, $byStatus['missing-required']['requiredCount']);
+        $t->same(1, $byStatus['missing-required']['missingEntryCount']);
+        $t->same(0, $byStatus['missing-required']['handoffEntryCount']);
+        $t->same(1, $byStatus['missing-required']['failedEntryCount']);
+        $t->same(['required-sidecar'], $byStatus['missing-required']['roles']);
+        $t->same(['word/missing.xml'], $byStatus['missing-required']['entryNames']);
+        $t->same(['missing-required-entry'], $byStatus['missing-required']['issues']);
+
+        $t->same(1, $byStatus['missing-optional']['entryCount']);
+        $t->same(0, $byStatus['missing-optional']['requiredCount']);
+        $t->same(1, $byStatus['missing-optional']['optionalCount']);
+        $t->same(1, $byStatus['missing-optional']['missingEntryCount']);
+        $t->same(0, $byStatus['missing-optional']['handoffEntryCount']);
+        $t->same(0, $byStatus['missing-optional']['failedEntryCount']);
+        $t->same(['optional-sidecar'], $byStatus['missing-optional']['roles']);
+        $t->same(['word/optional.xml'], $byStatus['missing-optional']['entryNames']);
+        $t->same([], $byStatus['missing-optional']['issues']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
