@@ -28522,6 +28522,97 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf</dd>', $blocks);
     },
+    'normalizes bounded direct csl json langid aliases into language metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-langid-source',
+                'type' => 'book',
+                'title' => 'Direct Langid Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'langid' => 'ngerman',
+            ],
+            [
+                'id' => 'direct-hyphenation-source',
+                'type' => 'book',
+                'title' => 'Direct Hyphenation Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'hyphenation' => 'french',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $langid = $processor->item('direct-langid-source');
+        $hyphenation = $processor->item('direct-hyphenation-source');
+        $t->same('ngerman', $langid['language'] ?? null);
+        $t->same(['ngerman'], $langid['languageList'] ?? null);
+        $t->same('french', $hyphenation['language'] ?? null);
+        $t->same(['french'], $hyphenation['languageList'] ?? null);
+        $t->same('ngerman', $langid['raw']['langid'] ?? null);
+        $t->same('french', $hyphenation['raw']['hyphenation'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL LangID Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-langid-alias-review</id>
+    <updated>2026-06-12T12:02:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="langid"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="langid"/>
+        <text variable="hyphenation"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="langid"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="langid"/>
+      <text variable="hyphenation"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $sortKey = $summary['citationSort'][0] ?? [];
+        $t->same('Bounded Direct CSL LangID Alias Review', $summary['title'] ?? null);
+        $t->same('langid', $sortKey['variable'] ?? null);
+        $t->same('langid', $citationChildren[1]['variable'] ?? null);
+        $t->same('hyphenation', $citationChildren[2]['variable'] ?? null);
+        $t->same('language-list', $citationChildren[3]['variable'] ?? null);
+
+        $t->same('[Roe | french | french | french; Ng | ngerman | ngerman | ngerman]', $styled->renderCitationCluster([
+            $citation('direct-langid-source', '[@direct-langid-source]'),
+            $citation('direct-hyphenation-source', '[@direct-hyphenation-source]'),
+        ]));
+        $t->same('Direct Langid Packet :: ngerman :: ngerman :: ngerman', $styled->renderBibliographyEntry('direct-langid-source'));
+        $t->same('Direct Hyphenation Packet :: french :: french :: french', $styled->renderBibliographyEntry('direct-hyphenation-source'));
+
+        $document = (new MarkdownReader())->read('Direct language aliases [@direct-langid-source; @direct-hyphenation-source] remain reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct language aliases [Roe | french | french | french; Ng | ngerman | ngerman | ngerman] remain reviewable.</p>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

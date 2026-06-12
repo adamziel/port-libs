@@ -1073,8 +1073,8 @@ final class CitationCslProcessor
         }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
-        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
-        $language = self::stringField($item, 'language');
+        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList', 'languagelist']);
+        $language = self::firstStringField($item, ['language', 'langid', 'language-id', 'languageId', 'languageid', 'hyphenation']);
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
         }
@@ -5243,6 +5243,7 @@ final class CitationCslProcessor
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
+            'language', 'langid', 'language-id', 'languageid', 'hyphenation', 'language-list', 'languagelist' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'source', 'source-title', 'sourcetitle' => $this->normalizeSortText((string) ($item['source'] ?? '')),
             'archive', 'archive-place', 'archiveplace', 'archive_collection', 'archive-collection', 'archivecollection',
             'archive_location', 'archive-location', 'archivelocation', 'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
@@ -9410,8 +9411,8 @@ final class CitationCslProcessor
             'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
-            'language' => (string) $item['language'],
-            'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
+            'language', 'langid', 'language-id', 'languageid', 'hyphenation' => (string) $item['language'],
+            'language-list', 'languagelist' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
             'abstract' => (string) $item['abstract'],
             'annotation', 'annote' => (string) ($item['annotation'] ?? ''),
             'medium', 'howpublished', 'how-published' => (string) $item['medium'],
