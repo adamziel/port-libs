@@ -1399,6 +1399,54 @@ XML;
         $t->same(false, $result['document']->children[0]->attr('linearValid'));
         $t->same($result['spine'][0]['spineItemDiagnostics'], $result['document']->children[0]->attr('spineItemDiagnostics'));
     },
+    'reports duplicate OPF spine itemref ids without dropping reading order' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithDuplicateSpineIds = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="spine-review" idref="chapter-1"/>',
+            $opfXml
+        );
+        $opfWithDuplicateSpineIds = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref id="spine-review" idref="chapter-2" linear="no"/>',
+            $opfWithDuplicateSpineIds
+        );
+        $opfWithDuplicateSpineIds = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#spine-review" property="rendition:viewport">width=640,height=480</meta>',
+            $opfWithDuplicateSpineIds
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithDuplicateSpineIds));
+        $spineProperties = $result['spineProperties'];
+
+        $t->same(2, count($result['spine']));
+        $t->same('spine-review', $result['spine'][0]['id']);
+        $t->same('spine-review', $result['spine'][1]['id']);
+        $t->same('width=640,height=480', $result['spine'][0]['refinements']['rendition:viewport'][0]['text']);
+        $t->same('width=640,height=480', $result['spine'][1]['refinements']['rendition:viewport'][0]['text']);
+        $t->same(1, $spineProperties['duplicateItemIdCount']);
+        $t->same(['spine-review'], $spineProperties['duplicateItemIds']);
+        $t->same(2, $spineProperties['duplicateItemIdItemCount']);
+        $t->same(2, count($spineProperties['itemDiagnostics']));
+        $t->same('duplicate-spine-itemref-id', $spineProperties['itemDiagnostics'][0]['type']);
+        $t->same(0, $spineProperties['itemDiagnostics'][0]['index']);
+        $t->same('spine-review', $spineProperties['itemDiagnostics'][0]['id']);
+        $t->same('chapter-1', $spineProperties['itemDiagnostics'][0]['idref']);
+        $t->same([0, 1], $spineProperties['itemDiagnostics'][0]['indexes']);
+        $t->same(['chapter-1', 'chapter-2'], $spineProperties['itemDiagnostics'][0]['idrefs']);
+        $t->same('duplicate-spine-itemref-id', $spineProperties['itemDiagnostics'][1]['type']);
+        $t->same(1, $spineProperties['itemDiagnostics'][1]['index']);
+        $t->same('chapter-2', $spineProperties['itemDiagnostics'][1]['idref']);
+        $t->same($spineProperties['itemDiagnostics'], $spineProperties['diagnostics']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+        $t->same($spineProperties, $result['document']->attr('spineProperties'));
+        $t->same(2, count($result['document']->children));
+        $t->same('chapter-1', $result['document']->children[0]->attr('id'));
+        $t->same('spine-review', $result['document']->children[0]->attr('spineItemId'));
+        $t->same('chapter-2', $result['document']->children[1]->attr('id'));
+        $t->same('spine-review', $result['document']->children[1]->attr('spineItemId'));
+    },
     'reports all non-linear OPF spine itemrefs as empty primary reading order' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithNonLinearSpine = str_replace(
             '<itemref idref="chapter-1"/>',

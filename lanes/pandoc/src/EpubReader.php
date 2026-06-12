@@ -7414,11 +7414,19 @@ final class EpubReader
     {
         $itemDiagnostics = [];
         $idrefs = [];
+        $itemIds = [];
         $linearItemCount = 0;
         foreach ($spine as $item) {
             $idref = (string) ($item['idref'] ?? '');
             if ($idref !== '') {
                 $idrefs[] = $idref;
+            }
+            $itemId = is_string($item['id'] ?? null) ? (string) $item['id'] : '';
+            if ($itemId !== '') {
+                $itemIds[$itemId][] = [
+                    'index' => (int) ($item['index'] ?? 0),
+                    'idref' => $idref,
+                ];
             }
             if (($item['linear'] ?? true) === true) {
                 ++$linearItemCount;
@@ -7433,6 +7441,31 @@ final class EpubReader
                     'index' => (int) ($item['index'] ?? 0),
                     'idref' => $idref,
                 ] + $diagnostic;
+            }
+        }
+
+        ksort($itemIds, SORT_STRING);
+        $duplicateItemIds = [];
+        $duplicateItemIdItemCount = 0;
+        foreach ($itemIds as $itemId => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $indexes = array_map(static fn (array $item): int => (int) $item['index'], $items);
+            $duplicateIdrefs = array_map(static fn (array $item): string => (string) $item['idref'], $items);
+            $duplicateItemIds[] = $itemId;
+            $duplicateItemIdItemCount += count($items);
+            foreach ($items as $item) {
+                $itemDiagnostics[] = [
+                    'type' => 'duplicate-spine-itemref-id',
+                    'index' => (int) $item['index'],
+                    'id' => $itemId,
+                    'idref' => (string) $item['idref'],
+                    'indexes' => $indexes,
+                    'idrefs' => $duplicateIdrefs,
+                    'message' => 'EPUB spine contains multiple itemref elements with the same id; metadata refinements for that id are ambiguous',
+                ];
             }
         }
 
@@ -7454,6 +7487,9 @@ final class EpubReader
         $spineProperties['nonLinearItemCount'] = $nonLinearItemCount;
         $spineProperties['hasLinearItems'] = $linearItemCount > 0;
         $spineProperties['primaryReadingOrderEmpty'] = $emptyPrimaryReadingOrder;
+        $spineProperties['duplicateItemIdCount'] = count($duplicateItemIds);
+        $spineProperties['duplicateItemIds'] = $duplicateItemIds;
+        $spineProperties['duplicateItemIdItemCount'] = $duplicateItemIdItemCount;
         $spineProperties['itemDiagnostics'] = $itemDiagnostics;
         $spineProperties['diagnostics'] = array_merge(
             $diagnostics,
