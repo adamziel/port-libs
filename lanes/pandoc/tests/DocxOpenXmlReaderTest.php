@@ -3518,6 +3518,8 @@ XML;
         $t->same(['application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks'], $relationshipType['contentTypes']);
         $t->same('?source=building-blocks#glossary', $relationshipType['relationships'][0]['targetReferenceSuffix']);
         $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'glossary document inventory role missing');
+        $t->true(in_array('glossary-document', $inventory['roles'], true), 'glossary document semantic inventory role missing');
+        $t->same(1, $package['summary']['roleCounts']['glossary-document']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $inventory['contentTypeBase']);
         $t->same(['profile' => 'building-blocks'], $inventory['contentTypeParameterMap']);
 

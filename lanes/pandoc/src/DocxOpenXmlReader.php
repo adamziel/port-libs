@@ -6408,6 +6408,7 @@ final class DocxOpenXmlReader
             self::HEADER_REL => 'header-part',
             self::FOOTER_REL => 'footer-part',
             self::ALT_CHUNK_REL => 'alternative-format-import',
+            self::GLOSSARY_DOCUMENT_REL => 'glossary-document',
             self::OLE_OBJECT_REL => 'embedded-object',
             self::EMBEDDED_PACKAGE_REL => 'embedded-package',
             self::CHART_REL => 'chart-part',
