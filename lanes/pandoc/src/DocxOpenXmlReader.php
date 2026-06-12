@@ -302,6 +302,7 @@ final class DocxOpenXmlReader
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
+        $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
@@ -3252,6 +3253,7 @@ final class DocxOpenXmlReader
             )),
             'validRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === true)),
             'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === false)),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
             'issueCount' => $issueCount,
@@ -3303,6 +3305,7 @@ final class DocxOpenXmlReader
             'rootNamespace' => null,
             'rootLocalName' => null,
             'validRoot' => null,
+            'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
             'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
             'relationshipId' => null,
@@ -3352,6 +3355,14 @@ final class DocxOpenXmlReader
         }
 
         $root = $this->xmlRootProvenance($xml, $partName);
+        if ($root['validXml'] === false) {
+            $item['validRoot'] = false;
+            $item['xmlParseError'] = $root['xmlParseError'];
+            $item['issues'][] = 'invalid-xml';
+
+            return $item;
+        }
+
         $item['rootNamespace'] = $root['namespace'];
         $item['rootLocalName'] = $root['localName'];
         $item['validRoot'] = $root['namespace'] === $expectedRootNamespace && $root['localName'] === $expectedRootLocalName;
@@ -3363,17 +3374,33 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{namespace:?string, localName:?string}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
-        $dom = $this->loadXml($xml, $partName);
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'validXml' => false,
+                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                'namespace' => null,
+                'localName' => null,
+            ];
+        }
+
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement) {
-            return ['namespace' => null, 'localName' => null];
+            return [
+                'validXml' => false,
+                'xmlParseError' => 'missing XML document element',
+                'namespace' => null,
+                'localName' => null,
+            ];
         }
 
         return [
+            'validXml' => true,
+            'xmlParseError' => null,
             'namespace' => $root->namespaceURI,
             'localName' => $root->localName,
         ];
