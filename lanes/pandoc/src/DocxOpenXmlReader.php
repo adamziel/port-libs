@@ -2296,6 +2296,7 @@ final class DocxOpenXmlReader
         ksort($roleCounts);
         ksort($contentTypeSourceCounts);
 
+        $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -2418,6 +2419,7 @@ final class DocxOpenXmlReader
 
         return [
             'partCount' => count($partInventory),
+            'partDirectoryCount' => count($partDirectories),
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
@@ -2441,6 +2443,7 @@ final class DocxOpenXmlReader
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
+            'partDirectories' => $partDirectories,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2454,6 +2457,61 @@ final class DocxOpenXmlReader
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartDirectorySummary(array $partInventory): array
+    {
+        $directories = [];
+        foreach ($partInventory as $partName => $part) {
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory((string) $partName);
+            if (!isset($directories[$directory])) {
+                $directories[$directory] = [
+                    'directory' => $directory,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$directories[$directory]['partCount'];
+            $directories[$directory]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $directories[$directory]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$directories[$directory]['relationshipPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$directories[$directory]['missingContentTypePartCount'];
+            }
+            $directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $directories[$directory]['roleCounts'][$role] =
+                    ($directories[$directory]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($directories, SORT_STRING);
+        foreach ($directories as $directory => $summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $directories[$directory] = $summary;
+        }
+
+        return array_values($directories);
     }
 
     /**
@@ -3268,6 +3326,8 @@ final class DocxOpenXmlReader
 
             $entry = [
                 'partName' => $partName,
+                'directory' => $this->packagePartDirectory($partName),
+                'baseName' => $this->packagePartBaseName($partName),
                 'bytes' => strlen($contents),
                 'crc32' => sprintf('%08x', crc32($contents)),
                 'contentType' => $contentTypeResolution['contentType'],
@@ -3291,6 +3351,20 @@ final class DocxOpenXmlReader
         }
 
         return $inventory;
+    }
+
+    private function packagePartDirectory(string $partName): string
+    {
+        $position = strrpos($partName, '/');
+
+        return $position === false ? '/' : substr($partName, 0, $position);
+    }
+
+    private function packagePartBaseName(string $partName): string
+    {
+        $position = strrpos($partName, '/');
+
+        return $position === false ? $partName : substr($partName, $position + 1);
     }
 
     /**

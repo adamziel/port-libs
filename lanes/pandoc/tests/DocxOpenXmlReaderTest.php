@@ -166,6 +166,60 @@ return [
         $t->same(strlen($parts['customXml/raw-review.bin']), $summary['partsWithoutContentType'][0]['bytes']);
         $t->same($inventory['customXml/raw-review.bin']['crc32'], $summary['partsWithoutContentType'][0]['crc32']);
     },
+    'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $directories = $summary['partDirectories'];
+        $byDirectory = [];
+        foreach ($directories as $directory) {
+            $byDirectory[$directory['directory']] = $directory;
+        }
+
+        $t->same(7, $summary['partDirectoryCount']);
+        $t->same(['/', '_rels', 'customXml', 'docProps', 'word', 'word/_rels', 'word/media'], array_column($directories, 'directory'));
+        $t->same('/', $inventory['[Content_Types].xml']['directory']);
+        $t->same('[Content_Types].xml', $inventory['[Content_Types].xml']['baseName']);
+        $t->same('word', $inventory['word/document.xml']['directory']);
+        $t->same('document.xml', $inventory['word/document.xml']['baseName']);
+        $t->same('customXml', $inventory['customXml/raw-review.bin']['directory']);
+        $t->same('raw-review.bin', $inventory['customXml/raw-review.bin']['baseName']);
+
+        $t->same(1, $byDirectory['/']['partCount']);
+        $t->same(['[Content_Types].xml'], $byDirectory['/']['partNames']);
+        $t->same(['content-types' => 1], $byDirectory['/']['roleCounts']);
+        $t->same(['default' => 1], $byDirectory['/']['contentTypeSourceCounts']);
+
+        $t->same(1, $byDirectory['_rels']['partCount']);
+        $t->same(1, $byDirectory['_rels']['relationshipPartCount']);
+        $t->same(['package-relationships' => 1, 'relationship-part' => 1], $byDirectory['_rels']['roleCounts']);
+
+        $t->same(3, $byDirectory['word']['partCount']);
+        $t->same(
+            strlen($parts['word/styles.xml']) + strlen($parts['word/numbering.xml']) + strlen($parts['word/document.xml']),
+            $byDirectory['word']['byteLength']
+        );
+        $t->same(['word/styles.xml', 'word/numbering.xml', 'word/document.xml'], $byDirectory['word']['partNames']);
+        $t->same(['default' => 2, 'override' => 1], $byDirectory['word']['contentTypeSourceCounts']);
+        $t->same(['office-document' => 1, 'package-part' => 2, 'root-relationship-target' => 1], $byDirectory['word']['roleCounts']);
+
+        $t->same(1, $byDirectory['word/_rels']['partCount']);
+        $t->same(1, $byDirectory['word/_rels']['relationshipPartCount']);
+        $t->same(['office-document-relationships' => 1, 'relationship-part' => 1], $byDirectory['word/_rels']['roleCounts']);
+
+        $t->same(1, $byDirectory['word/media']['partCount']);
+        $t->same(['document-relationship-target' => 1], $byDirectory['word/media']['roleCounts']);
+        $t->same(['default' => 1], $byDirectory['word/media']['contentTypeSourceCounts']);
+
+        $t->same(1, $byDirectory['customXml']['partCount']);
+        $t->same(1, $byDirectory['customXml']['missingContentTypePartCount']);
+        $t->same(['missing' => 1], $byDirectory['customXml']['contentTypeSourceCounts']);
+        $t->same(['package-part' => 1], $byDirectory['customXml']['roleCounts']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
