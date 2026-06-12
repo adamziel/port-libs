@@ -939,6 +939,78 @@ return [
         $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][0]['c'][0]);
         $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][2]['c'][0]);
     },
+    'regenerates legacy target inline constructor sidecars through native writer' => static function (TestRunner $t): void {
+        $legacyLink = [
+            't' => 'Link',
+            'c' => [
+                [['t' => 'Str', 'c' => 'source']],
+                ['https://example.test/source', 'Legacy source'],
+            ],
+            'reviewQueue' => 'legacy-link-source',
+            'sourceOrdinal' => 71,
+        ];
+        $legacyImage = [
+            't' => 'Image',
+            'c' => [
+                [['t' => 'Str', 'c' => 'diagram']],
+                ['media/diagram.png', 'Diagram title'],
+            ],
+            'reviewQueue' => 'legacy-image-source',
+            'sourceOrdinal' => 72,
+        ];
+        $legacyPara = [
+            't' => 'Para',
+            'c' => [
+                $legacyLink,
+                ['t' => 'Space'],
+                $legacyImage,
+            ],
+            'reviewQueue' => 'legacy-paragraph-source',
+            'sourceOrdinal' => 70,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyPara],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $link = $paragraph->children[0];
+            $image = $paragraph->children[2];
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $encodedPara = $nativePacket['blocks'][0];
+            $encodedLink = $encodedPara['c'][0];
+            $encodedImage = $encodedPara['c'][2];
+
+            $t->same($legacyLink, $link->attr('native'), "{$source} source link native payload");
+            $t->same($legacyImage, $image->attr('native'), "{$source} source image native payload");
+            $t->same($legacyLink['c'][1], $link->attr('targetNative'), "{$source} link target tuple");
+            $t->same($legacyImage['c'][1], $image->attr('targetNative'), "{$source} image target tuple");
+            $t->same('Para', $encodedPara['t'], "{$source} regenerated paragraph constructor");
+            $t->same(false, array_key_exists('reviewQueue', $encodedPara), "{$source} paragraph sidecar dropped");
+            $t->same(false, array_key_exists('sourceOrdinal', $encodedPara), "{$source} paragraph ordinal dropped");
+            $t->same('Link', $encodedLink['t'], "{$source} regenerated link constructor");
+            $t->same(3, count($encodedLink['c']), "{$source} current link payload shape");
+            $t->same(['', [], []], $encodedLink['c'][0], "{$source} generated link attr tuple");
+            $t->same($legacyLink['c'][0], $encodedLink['c'][1], "{$source} generated link label");
+            $t->same($legacyLink['c'][1], $encodedLink['c'][2], "{$source} generated link target");
+            $t->same(false, array_key_exists('reviewQueue', $encodedLink), "{$source} link sidecar dropped");
+            $t->same(false, array_key_exists('sourceOrdinal', $encodedLink), "{$source} link ordinal dropped");
+            $t->same('Image', $encodedImage['t'], "{$source} regenerated image constructor");
+            $t->same(3, count($encodedImage['c']), "{$source} current image payload shape");
+            $t->same(['', [], []], $encodedImage['c'][0], "{$source} generated image attr tuple");
+            $t->same($legacyImage['c'][0], $encodedImage['c'][1], "{$source} generated image label");
+            $t->same($legacyImage['c'][1], $encodedImage['c'][2], "{$source} generated image target");
+            $t->same(false, array_key_exists('reviewQueue', $encodedImage), "{$source} image sidecar dropped");
+            $t->same(false, array_key_exists('sourceOrdinal', $encodedImage), "{$source} image ordinal dropped");
+        }
+    },
     'records legacy table column helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $legacyTable = [
             't' => 'Table',
