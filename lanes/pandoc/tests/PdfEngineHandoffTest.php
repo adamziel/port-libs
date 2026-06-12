@@ -91,6 +91,76 @@ return [
         $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
     },
 
+    'plans typst stdin source boundary provenance without staging a pseudo file' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = '= Typst Stdin Source Packet';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => '-',
+            'outputPath' => 'build/stdin-source.pdf',
+            'source' => $source,
+            'engineOptions' => [
+                '--root=workspace',
+                '--deps=build/stdin-source.d',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst stdin source packet\n%%EOF\n";
+        $depfile = "build/stdin-source.pdf: - workspace/data/review.yml\n";
+        $expectedSourceInput = [
+            'mode' => 'stdin',
+            'sourceFile' => '-',
+            'path' => null,
+            'stagedAsFile' => false,
+            'reviewStatus' => 'review',
+            'issues' => ['source-stdin-boundary'],
+        ];
+        $expectedReadPolicy = [
+            'reviewStatus' => 'ok',
+            'root' => 'workspace',
+            'sourceFile' => '-',
+            'inputFiles' => ['workspace/data/review.yml'],
+            'insideRootFiles' => ['workspace/data/review.yml'],
+            'outsideRootFiles' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/stdin-source.d' => $depfile,
+                'build/stdin-source.pdf' => $pdfBytes,
+                'workspace/data/review.yml' => "title: Review\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/stdin-source.d' => $depfile,
+                'build/stdin-source.pdf' => $pdfBytes,
+                'workspace/data/review.yml' => "title: Review\n",
+            ],
+        ]]);
+
+        $t->same('-', $plan['sourceFile']);
+        $t->same(['typst', 'compile', '--root=workspace', '--deps=build/stdin-source.d', '-', 'build/stdin-source.pdf'], $plan['argv']);
+        $t->same($expectedSourceInput, $plan['sourceInput']);
+        $t->contains('typst-source-input:stdin', implode(',', $plan['diagnostics']));
+        $t->contains('typst-source-input-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(hash('sha256', $source), $result['sourceSha256']);
+        $t->same($expectedSourceInput, $result['sourceInput']);
+        $t->same($expectedSourceInput, $result['artifactProvenanceReview']['sourceInput']);
+        $t->same($expectedReadPolicy, $result['typstReadBoundaryPolicy']);
+        $t->same(['workspace/data/review.yml'], $result['engineInputFiles']);
+        $t->same([], $result['engineBoundaryViolations']);
+        $t->same([], $result['missingEngineInputFiles']);
+        $t->same(false, array_key_exists('-', $result['producedArtifactsSha256']));
+        $t->contains('staged-source-from-stdin', implode(',', $result['diagnostics']));
+        $t->contains('typst-source-input-dependency-stdin', implode(',', $result['diagnostics']));
+        $t->contains('typst-source-input:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expectedSourceInput, $sequence['finalSourceInput']);
+        $t->same($expectedReadPolicy, $sequence['finalTypstReadBoundaryPolicy']);
+    },
+
     'plans typst boundary option provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
