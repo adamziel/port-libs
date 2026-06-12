@@ -9945,6 +9945,108 @@ return [
         $t->same(['missing-required-entry'], $byRole['required-sidecar']['issues']);
     },
 
+    'summarizes selected zip handoff role compression provenance for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>role compression handoff</w:p></w:body></w:document>';
+        $stylesCss = "body { color: #111; }\n";
+        $zeroCompressedName = 'word/media/role-unsupported.bin';
+        $zeroUncompressedSize = 29;
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/styles.css',
+                'data' => $stylesCss,
+                'method' => 0,
+            ],
+            [
+                'name' => $zeroCompressedName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $zeroUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $zeroUncompressedSize,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/styles.css', 'required' => false, 'kind' => 'file', 'role' => 'supporting-part'],
+            ['name' => $zeroCompressedName, 'required' => false, 'kind' => 'file', 'role' => 'supporting-part'],
+        ], 1024);
+        $byRole = [];
+        foreach ($summary['roleSummaries'] as $roleSummary) {
+            $byRole[$roleSummary['role'] ?? '(none)'] = $roleSummary;
+        }
+
+        $unknownSupportingEntry = [
+            'name' => $zeroCompressedName,
+            'compressionMethod' => 12,
+            'isDirectory' => false,
+            'compressedSize' => 0,
+            'uncompressedSize' => $zeroUncompressedSize,
+            'expansionRatio' => null,
+        ];
+
+        $t->same(['main-document', 'supporting-part'], array_keys($byRole));
+        $t->same(1, $byRole['main-document']['selectedUniqueEntryCount']);
+        $t->same($documentCompressed, $byRole['main-document']['selectedCompressedBytes']);
+        $t->same(strlen($documentXml), $byRole['main-document']['selectedUncompressedBytes']);
+        $t->same(strlen($documentXml) / $documentCompressed, $byRole['main-document']['selectedExpansionRatio']);
+        $t->same(0, $byRole['main-document']['selectedStoredEntryCount']);
+        $t->same(1, $byRole['main-document']['selectedDeflatedEntryCount']);
+        $t->same(0, $byRole['main-document']['selectedUnsupportedCompressionMethodCount']);
+        $t->same(1, $byRole['main-document']['selectedSupportedCompressionMethodEntryCount']);
+        $t->same(false, $byRole['main-document']['selectedHasUnknownExpansionRatioEntries']);
+        $t->same([
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $documentCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+        ], $byRole['main-document']['selectedCompressionMethodBuckets']);
+
+        $t->same(2, $byRole['supporting-part']['selectedUniqueEntryCount']);
+        $t->same(strlen($stylesCss), $byRole['supporting-part']['selectedCompressedBytes']);
+        $t->same(strlen($stylesCss) + $zeroUncompressedSize, $byRole['supporting-part']['selectedUncompressedBytes']);
+        $t->same((strlen($stylesCss) + $zeroUncompressedSize) / strlen($stylesCss), $byRole['supporting-part']['selectedExpansionRatio']);
+        $t->same(1, $byRole['supporting-part']['selectedStoredEntryCount']);
+        $t->same(0, $byRole['supporting-part']['selectedDeflatedEntryCount']);
+        $t->same(1, $byRole['supporting-part']['selectedUnsupportedCompressionMethodCount']);
+        $t->same(1, $byRole['supporting-part']['selectedSupportedCompressionMethodEntryCount']);
+        $t->same(1, $byRole['supporting-part']['selectedUnknownExpansionRatioEntryCount']);
+        $t->same(true, $byRole['supporting-part']['selectedHasUnknownExpansionRatioEntries']);
+        $t->same([$unknownSupportingEntry], $byRole['supporting-part']['selectedUnknownExpansionRatioEntries']);
+        $t->same([
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($stylesCss),
+                'uncompressedBytes' => strlen($stylesCss),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => $zeroUncompressedSize,
+                'isSupported' => false,
+            ],
+        ], $byRole['supporting-part']['selectedCompressionMethodBuckets']);
+        $t->same(1, $byRole['supporting-part']['handoffEntryCount']);
+        $t->same(1, $byRole['supporting-part']['failedEntryCount']);
+        $t->same(['unreadable-entry'], $byRole['supporting-part']['issues']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
