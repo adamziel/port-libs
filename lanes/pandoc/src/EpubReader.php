@@ -264,6 +264,8 @@ final class EpubReader
 
             $part = OpcPackagePath::canonicalPartName($path);
             $mediaTypeReport = self::rootfileMediaTypeReport($mediaType);
+            $exists = $package->has($part);
+            $provenance = self::zipEntryProvenance($exists ? $package->entry($part) : null);
             $rootfiles[] = [
                 'index' => $index,
                 'path' => $part,
@@ -276,7 +278,14 @@ final class EpubReader
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
                 'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
-                'exists' => $package->has($part),
+                'exists' => $exists,
+                'byteLength' => $provenance['byteLength'],
+                'compressedByteLength' => $provenance['compressedByteLength'],
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'compressionSupported' => $provenance['compressionSupported'],
+                'crc32' => $provenance['crc32'],
+                'canExposeBytes' => $provenance['canExposeBytes'],
                 'selected' => false,
             ];
         }
@@ -325,6 +334,58 @@ final class EpubReader
             'linksByRel' => self::linksByRel($links['items']),
             'linkDiagnostics' => $links['diagnostics'],
         ];
+    }
+
+    /**
+     * @return array{
+     *     byteLength:?int,
+     *     compressedByteLength:?int,
+     *     compressionMethod:?int,
+     *     compressionMethodName:?string,
+     *     compressionSupported:?bool,
+     *     crc32:?string,
+     *     canExposeBytes:bool
+     * }
+     */
+    private static function zipEntryProvenance(?ZipPackageEntry $entry): array
+    {
+        if (!$entry instanceof ZipPackageEntry) {
+            return [
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
+            ];
+        }
+
+        $compressionSupported = self::zipEntryCompressionSupported($entry);
+
+        return [
+            'byteLength' => $entry->uncompressedSize,
+            'compressedByteLength' => $entry->compressedSize,
+            'compressionMethod' => $entry->compressionMethod,
+            'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+            'compressionSupported' => $compressionSupported,
+            'crc32' => $entry->crc32Hex(),
+            'canExposeBytes' => $compressionSupported,
+        ];
+    }
+
+    private static function zipEntryCompressionSupported(ZipPackageEntry $entry): bool
+    {
+        return $entry->compressionMethod === 0 || $entry->compressionMethod === 8;
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     /**

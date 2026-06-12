@@ -1483,6 +1483,59 @@ XML;
         $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
         $t->same(2, count($result['document']->children));
     },
+    'preserves EPUB container rootfile ZIP provenance in reader handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $opfXml, $alternateOpfXml): void {
+        $multiRootContainer = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml"/>' . "\n"
+            . '    <rootfile full-path="OEBPS/missing/package.opf" media-type="application/oebps-package+xml"/>' . "\n"
+            . '  </rootfiles>',
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $multiRootContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml, 'compressionMethod' => 0],
+            ]
+        ));
+
+        $rootfiles = $result['container']['rootfiles'];
+        $t->same(3, count($rootfiles));
+        $t->same('/OEBPS/package.opf', $rootfiles[0]['path']);
+        $t->same(true, $rootfiles[0]['exists']);
+        $t->same(true, $rootfiles[0]['selected']);
+        $t->same(strlen($opfXml), $rootfiles[0]['byteLength']);
+        $t->same(strlen(gzdeflate($opfXml)), $rootfiles[0]['compressedByteLength']);
+        $t->same(8, $rootfiles[0]['compressionMethod']);
+        $t->same('deflated', $rootfiles[0]['compressionMethodName']);
+        $t->same(true, $rootfiles[0]['compressionSupported']);
+        $t->same(hash('crc32b', $opfXml), $rootfiles[0]['crc32']);
+        $t->same(true, $rootfiles[0]['canExposeBytes']);
+
+        $t->same('/OEBPS/fixed/package.opf', $rootfiles[1]['path']);
+        $t->same(true, $rootfiles[1]['exists']);
+        $t->same(false, $rootfiles[1]['selected']);
+        $t->same(strlen($alternateOpfXml), $rootfiles[1]['byteLength']);
+        $t->same(strlen($alternateOpfXml), $rootfiles[1]['compressedByteLength']);
+        $t->same(0, $rootfiles[1]['compressionMethod']);
+        $t->same('stored', $rootfiles[1]['compressionMethodName']);
+        $t->same(true, $rootfiles[1]['compressionSupported']);
+        $t->same(hash('crc32b', $alternateOpfXml), $rootfiles[1]['crc32']);
+        $t->same(true, $rootfiles[1]['canExposeBytes']);
+
+        $t->same('/OEBPS/missing/package.opf', $rootfiles[2]['path']);
+        $t->same(false, $rootfiles[2]['exists']);
+        $t->same(false, $rootfiles[2]['selected']);
+        $t->same(null, $rootfiles[2]['byteLength']);
+        $t->same(null, $rootfiles[2]['compressedByteLength']);
+        $t->same(null, $rootfiles[2]['compressionMethod']);
+        $t->same(null, $rootfiles[2]['compressionMethodName']);
+        $t->same(null, $rootfiles[2]['compressionSupported']);
+        $t->same(null, $rootfiles[2]['crc32']);
+        $t->same(false, $rootfiles[2]['canExposeBytes']);
+        $t->same($result['container'], $result['importReport']['container']);
+    },
     'preserves EPUB container rootfile media-type parameters in reader rendition handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
         $parameterizedContainer = str_replace(
             'media-type="application/oebps-package+xml"/>',
