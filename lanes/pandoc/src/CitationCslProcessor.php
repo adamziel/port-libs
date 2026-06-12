@@ -1073,7 +1073,7 @@ final class CitationCslProcessor
         }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
-        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
+        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList', 'languagelist']);
         $language = self::stringField($item, 'language');
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
@@ -9411,7 +9411,7 @@ final class CitationCslProcessor
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language' => (string) $item['language'],
-            'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
+            'language-list', 'languagelist' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
             'abstract' => (string) $item['abstract'],
             'annotation', 'annote' => (string) ($item['annotation'] ?? ''),
             'medium', 'howpublished', 'how-published' => (string) $item['medium'],
