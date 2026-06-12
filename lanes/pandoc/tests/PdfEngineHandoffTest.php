@@ -9304,6 +9304,89 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
     },
 
+    'fake runner extracts bounded pdf structure namespace provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/structure-namespaces.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 7 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R] /Namespaces [8 0 R << /Type /Namespace /NS (https://example.test/ns/review) /Schema 12 0 R /RoleMap << /ReviewNote /Note >> >>] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Namespace /NS (https://www.w3.org/1999/xhtml) /RoleMap << /XhtmlFigure /Figure /XhtmlSection /Sect >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /XhtmlSection /NS 8 0 R /P 7 0 R /K 0 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /NamespaceSchema /Schema (WordPress Review Namespace) /Version (1.0) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/structure-namespaces.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/structure-namespaces.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '8 0 R',
+                'type' => 'Namespace',
+                'namespace' => 'https://www.w3.org/1999/xhtml',
+                'schemaObject' => null,
+                'schemaType' => null,
+                'roleMap' => [
+                    'XhtmlFigure' => 'Figure',
+                    'XhtmlSection' => 'Sect',
+                ],
+                'keys' => ['NS', 'RoleMap', 'Type'],
+            ],
+            [
+                'object' => 'inline',
+                'type' => 'Namespace',
+                'namespace' => 'https://example.test/ns/review',
+                'schemaObject' => '12 0 R',
+                'schemaType' => 'NamespaceSchema',
+                'roleMap' => [
+                    'ReviewNote' => 'Note',
+                ],
+                'keys' => ['NS', 'RoleMap', 'Schema', 'Type'],
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureNamespaces']);
+        $t->contains('pdf-byte-structure-namespaces:2', $diagnostics);
+        $t->contains('pdf-byte-structure-namespace:https://example.test/ns/review', $diagnostics);
+        $t->contains('pdf-byte-structure-namespace:https://www.w3.org/1999/xhtml', $diagnostics);
+        $t->contains('pdf-byte-structure-namespace-role-maps:3', $diagnostics);
+        $t->contains('pdf-byte-structure-namespace-schemas:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureNamespaces']);
+    },
+
     'fake runner summarizes bounded pdf structure role map usage from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/role-map.pdf']);
