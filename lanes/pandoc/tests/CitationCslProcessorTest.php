@@ -28342,6 +28342,104 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin</dd>', $blocks);
     },
+    'normalizes bounded direct csl json title subtitle family aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-title-subtitle-camel',
+                'type' => 'chapter',
+                'title' => 'Direct Title Subtitle Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'mainTitle' => 'Migration Source Set',
+                'mainSubtitle' => 'Reviewer Annex',
+                'volume-title' => 'Review Volume',
+                'volumeSubtitle' => 'Packet Appendix',
+                'parttitle' => 'Archive Part',
+                'partsubtitle' => 'Field Notes',
+            ],
+            [
+                'id' => 'direct-title-subtitle-compact',
+                'type' => 'chapter',
+                'title' => 'Direct Title Subtitle Compact Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'maintitle' => 'Compact Source Set',
+                'mainsubtitle' => 'Annex Notes',
+                'volumeTitle' => 'Camel Volume',
+                'volumesubtitle' => 'Source Supplement',
+                'part-title' => 'Hyphen Part',
+                'part-subtitle' => 'Archive Leaf',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-title-subtitle-camel');
+        $compact = $processor->item('direct-title-subtitle-compact');
+        $t->same('Migration Source Set: Reviewer Annex', $camel['mainTitle'] ?? null);
+        $t->same('Review Volume: Packet Appendix', $camel['volumeTitle'] ?? null);
+        $t->same('Archive Part: Field Notes', $camel['partTitle'] ?? null);
+        $t->same('Compact Source Set: Annex Notes', $compact['mainTitle'] ?? null);
+        $t->same('Camel Volume: Source Supplement', $compact['volumeTitle'] ?? null);
+        $t->same('Hyphen Part: Archive Leaf', $compact['partTitle'] ?? null);
+        $t->same('Reviewer Annex', $camel['raw']['mainSubtitle'] ?? null);
+        $t->same('Packet Appendix', $camel['raw']['volumeSubtitle'] ?? null);
+        $t->same('Field Notes', $camel['raw']['partsubtitle'] ?? null);
+        $t->same('Annex Notes', $compact['raw']['mainsubtitle'] ?? null);
+        $t->same('Source Supplement', $compact['raw']['volumesubtitle'] ?? null);
+        $t->same('Archive Leaf', $compact['raw']['part-subtitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Title Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-title-subtitle-alias-review</id>
+    <updated>2026-06-12T14:16:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="volume-title"/>
+        <text variable="part-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Title Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('part-title', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ng | Migration Source Set: Reviewer Annex | Review Volume: Packet Appendix | Archive Part: Field Notes; Roe | Compact Source Set: Annex Notes | Camel Volume: Source Supplement | Hyphen Part: Archive Leaf]', $styled->renderCitationCluster([
+            $citation('direct-title-subtitle-camel', '[@direct-title-subtitle-camel]'),
+            $citation('direct-title-subtitle-compact', '[@direct-title-subtitle-compact]'),
+        ]));
+        $t->same('Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes', $styled->renderBibliographyEntry('direct-title-subtitle-camel'));
+        $t->same('Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf', $styled->renderBibliographyEntry('direct-title-subtitle-compact'));
+
+        $document = (new MarkdownReader())->read('Title subtitle aliases [@direct-title-subtitle-camel; @direct-title-subtitle-compact] remain composed.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Title subtitle aliases [Ng | Migration Source Set: Reviewer Annex | Review Volume: Packet Appendix | Archive Part: Field Notes; Roe | Compact Source Set: Annex Notes | Camel Volume: Source Supplement | Hyphen Part: Archive Leaf] remain composed.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
