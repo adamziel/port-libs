@@ -527,6 +527,7 @@ final class EpubPackage
                 'metadataDetails' => [
                     'package' => $this->metadata['package'] ?? [],
                     'packageId' => $this->metadata['packageId'] ?? null,
+                    'packageBase' => $this->metadata['packageBase'] ?? null,
                     'packageLanguage' => $this->metadata['packageLanguage'] ?? null,
                     'packageDirection' => $this->metadata['packageDirection'] ?? null,
                     'titleDetails' => $this->metadata['titleDetails'] ?? [],
@@ -2750,6 +2751,7 @@ final class EpubPackage
         $prefixBindings = self::metadataVocabularyPrefixBindings($prefixReport['bindingsByPrefix']);
         $packageId = $packageElement->hasAttribute('id') ? self::emptyToNull($packageElement->getAttribute('id')) : null;
         $packageVersion = $packageElement->hasAttribute('version') ? $packageElement->getAttribute('version') : '';
+        $packageBase = self::metadataElementBase($packageElement);
         $packageLanguage = self::metadataElementLanguage($packageElement);
         $packageDirection = self::metadataElementDirection($packageElement);
 
@@ -2862,6 +2864,7 @@ final class EpubPackage
                 'id' => $packageId,
                 'version' => $packageVersion,
                 'uniqueIdentifierId' => $uniqueIdentifierId,
+                'base' => $packageBase,
                 'language' => $packageLanguage,
                 'direction' => $packageDirection,
                 'prefix' => $prefixReport['raw'],
@@ -2870,6 +2873,7 @@ final class EpubPackage
                 'refinements' => $packageRefinements,
             ],
             'packageId' => $packageId,
+            'packageBase' => $packageBase,
             'packageLanguage' => $packageLanguage,
             'packageDirection' => $packageDirection,
             'version' => $packageVersion,
@@ -4535,6 +4539,15 @@ final class EpubPackage
         }
 
         return self::emptyToNull($element->getAttribute('xml:lang'));
+    }
+
+    private static function metadataElementBase(\DOMElement $element): ?string
+    {
+        if ($element->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'base')) {
+            return self::emptyToNull($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        }
+
+        return self::emptyToNull($element->getAttribute('xml:base'));
     }
 
     private static function metadataElementDirection(\DOMElement $element): ?string

@@ -577,6 +577,40 @@ XML;
         $t->same('rtl', $summary['wordpressImport']['metadataDetails']['packageDirection']);
     },
 
+    'preserves OPF package xml base provenance for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPackageBase = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="base-package" version="3.0" unique-identifier="bookid" xml:base="https://publisher.example.invalid/books/migration/" xml:lang="en">',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPackageBase],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $package = $metadata['package'];
+
+        $t->same('base-package', $metadata['packageId']);
+        $t->same('https://publisher.example.invalid/books/migration/', $metadata['packageBase']);
+        $t->same('base-package', $package['id']);
+        $t->same('3.0', $package['version']);
+        $t->same('bookid', $package['uniqueIdentifierId']);
+        $t->same('https://publisher.example.invalid/books/migration/', $package['base']);
+        $t->same($package, $summary['metadata']['package']);
+        $t->same($package, $summary['wordpressImport']['metadataDetails']['package']);
+        $t->same('https://publisher.example.invalid/books/migration/', $summary['wordpressImport']['metadataDetails']['packageBase']);
+        $t->same('/EPUB/package.opf', $summary['opfPart']);
+        $t->same(['/EPUB/text/chapter1.xhtml', '/EPUB/text/chapter2.xhtml'], $summary['wordpressImport']['readingOrderParts']);
+    },
+
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSpineRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
