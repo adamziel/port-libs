@@ -1037,6 +1037,45 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'reports compact ODT object replacement parts as metadata-only package previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $replacementBytes = 'PREVIEWPNG';
+        $orphanBytes = 'ORPHAN-OBJECT';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/object1.png" manifest:size="' . strlen($replacementBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'ObjectReplacements/object1.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+                ['name' => 'ObjectReplacements/orphan.bin', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $replacement = $odt->manifestEntry('ObjectReplacements/object1.png');
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(2, $inventory['objectReplacementPartCount']);
+        $t->same(2, $inventory['roleCounts']['object-replacement']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['object-replacement']);
+        $t->same(['object-replacement', 'manifest-declared'], $parts['ObjectReplacements/object1.png']['roles']);
+        $t->same('image/png', $parts['ObjectReplacements/object1.png']['manifestMediaType']);
+        $t->same(false, $parts['ObjectReplacements/object1.png']['canExposeBytes']);
+        $t->same(['object-replacement', 'undeclared-package-entry'], $parts['ObjectReplacements/orphan.bin']['roles']);
+        $t->same(true, $parts['ObjectReplacements/orphan.bin']['undeclared']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('ObjectReplacements/orphan.bin', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same('object-replacement-bytes-blocked', $replacement['byteExposurePolicy']);
+        $t->same(false, $replacement['canExposeBytes']);
+        $t->same(null, $replacement['byteLength']);
+        $t->same(strlen($replacementBytes), $replacement['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($replacementBytes)), $replacement['storedCrc32']);
+    },
     'reports compact ODT package signatures as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $documentSignatureBytes = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
         $encryptedBytes = '<encrypted-signatures/>';

@@ -364,6 +364,7 @@ final class OpenDocumentPackage
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $objectReplacementPartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -433,6 +434,9 @@ final class OpenDocumentPackage
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
             }
+            if (in_array('object-replacement', $roles, true)) {
+                ++$objectReplacementPartCount;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -454,6 +458,7 @@ final class OpenDocumentPackage
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'objectReplacementPartCount' => $objectReplacementPartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -492,6 +497,9 @@ final class OpenDocumentPackage
         if (self::isSignaturePackagePartName($entry->name)) {
             $roles[] = 'package-signature';
         }
+        if (self::isObjectReplacementPackagePartName($entry->name)) {
+            $roles[] = 'object-replacement';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -518,6 +526,9 @@ final class OpenDocumentPackage
             return false;
         }
         if (is_string($packagePath) && self::isSignaturePackagePartName($packagePath)) {
+            return false;
+        }
+        if (is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath)) {
             return false;
         }
 
@@ -552,7 +563,13 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && $hasSupportedCompression;
+            $objectReplacementPackagePart = is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath);
+            $canExposeBytes = !$isRoot
+                && $exists
+                && !$isDirectory
+                && !$encrypted
+                && !$objectReplacementPackagePart
+                && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -595,7 +612,9 @@ final class OpenDocumentPackage
                         ? 'directory-entry-no-bytes'
                         : ($encrypted
                             ? 'encrypted-resource-bytes-blocked'
-                            : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part')))),
+                            : ($objectReplacementPackagePart
+                                ? 'object-replacement-bytes-blocked'
+                                : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part'))))),
                 'diagnostics' => $diagnostics,
             ];
         }
@@ -799,6 +818,14 @@ final class OpenDocumentPackage
             'tif', 'tiff' => 'image/tiff',
             default => null,
         };
+    }
+
+    private static function isObjectReplacementPackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'objectreplacements/')
+            && !str_ends_with($normalized, '/');
     }
 
     /**

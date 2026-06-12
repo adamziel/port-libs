@@ -460,9 +460,11 @@ final class OdfReader
                 && $declaredSize !== $storedByteLength;
 
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
+            $objectReplacementPackagePart = is_string($part) && $this->isObjectReplacementPackagePartName($part);
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$scriptPackagePart
+                && !$objectReplacementPackagePart
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
@@ -472,6 +474,7 @@ final class OdfReader
                 $isDirectory,
                 $encrypted,
                 $scriptPackagePart,
+                $objectReplacementPackagePart,
                 $missingFileMediaType,
                 $hasSupportedCompression
             );
@@ -706,6 +709,7 @@ final class OdfReader
         bool $isDirectory,
         bool $encrypted,
         bool $scriptPackagePart,
+        bool $objectReplacementPackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -720,6 +724,9 @@ final class OdfReader
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($objectReplacementPackagePart) {
+            return 'object-replacement-bytes-blocked';
         }
         if ($missingFileMediaType) {
             return 'missing-media-type-bytes-blocked';
@@ -757,6 +764,7 @@ final class OdfReader
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $objectReplacementPartCount = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -884,6 +892,9 @@ final class OdfReader
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
             }
+            if (in_array('object-replacement', $roles, true)) {
+                ++$objectReplacementPartCount;
+            }
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
@@ -906,6 +917,7 @@ final class OdfReader
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'objectReplacementPartCount' => $objectReplacementPartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -941,6 +953,9 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if ($this->isObjectReplacementPackagePartName($entry->name)) {
+            $roles[] = 'object-replacement';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -948,7 +963,10 @@ final class OdfReader
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
             $part = (string) ($manifestItem['part'] ?? '');
-            if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
+            if (
+                !$this->isObjectReplacementPackagePartName($part)
+                && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))
+            ) {
                 $roles[] = 'media-resource';
             }
             if ($this->isScriptPackagePartName($part)) {
@@ -12059,6 +12077,9 @@ final class OdfReader
             if ($this->isThumbnailPackagePartName($part)) {
                 continue;
             }
+            if ($this->isObjectReplacementPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -12238,6 +12259,14 @@ final class OdfReader
         }
 
         return $this->thumbnailMediaTypeFromPart($normalized) !== null;
+    }
+
+    private function isObjectReplacementPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'objectreplacements/')
+            && !str_ends_with($normalized, '/');
     }
 
     private function thumbnailMediaTypeFromPart(string $part): ?string

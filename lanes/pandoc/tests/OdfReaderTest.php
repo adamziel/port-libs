@@ -9153,6 +9153,49 @@ XML;
         $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
         $t->same('Thumbnails/orphan.jpg', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
     },
+    'reports ODT object replacement package parts as metadata-only previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $replacementBytes = 'PREVIEWPNG';
+        $orphanBytes = 'ORPHAN-OBJECT';
+        $manifestWithObjectReplacements = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="ObjectReplacements/object1.png" manifest:media-type="image/png" manifest:size="' . strlen($replacementBytes) . '"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithObjectReplacements, null, null, [
+            ['name' => 'ObjectReplacements/object1.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/orphan.bin', 'data' => $orphanBytes, 'compressionMethod' => 0],
+        ]));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+        $undeclared = $result['importReport']['manifest']['undeclaredEntries'][0];
+
+        $t->same(2, $provenance['objectReplacementPartCount']);
+        $t->same(2, $provenance['roleCounts']['object-replacement']);
+        $t->same(1, $provenance['undeclaredRoleCounts']['object-replacement']);
+        $t->same(['object-replacement', 'manifest-declared'], $parts['ObjectReplacements/object1.png']['roles']);
+        $t->same('image/png', $parts['ObjectReplacements/object1.png']['manifestMediaType']);
+        $t->same(false, $parts['ObjectReplacements/object1.png']['canExposeBytes']);
+        $t->same('object-replacement-bytes-blocked', $parts['ObjectReplacements/object1.png']['byteExposurePolicy']);
+        $t->same('object-replacement-bytes-blocked', $manifestByPart['ObjectReplacements/object1.png']['byteExposurePolicy']);
+        $t->same(false, $manifestByPart['ObjectReplacements/object1.png']['canExposeBytes']);
+        $t->same(null, $manifestByPart['ObjectReplacements/object1.png']['byteLength']);
+        $t->same(strlen($replacementBytes), $manifestByPart['ObjectReplacements/object1.png']['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($replacementBytes)), $manifestByPart['ObjectReplacements/object1.png']['storedCrc32']);
+        $t->same(['object-replacement', 'undeclared-package-entry'], $parts['ObjectReplacements/orphan.bin']['roles']);
+        $t->same(true, $parts['ObjectReplacements/orphan.bin']['undeclared']);
+        $t->same('ObjectReplacements/orphan.bin', $undeclared['part']);
+        $t->same('undeclared-package-entry-no-bytes', $undeclared['byteExposurePolicy']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'), 'ODT object replacement previews must not become document media handoff items');
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+    },
     'treats ODT manifest directory declarations as logical package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithDirectories = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
