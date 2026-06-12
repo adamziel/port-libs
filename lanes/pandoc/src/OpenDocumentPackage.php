@@ -371,6 +371,7 @@ final class OpenDocumentPackage
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
         $scriptPackagePartCount = 0;
+        $configurationPackagePartCount = 0;
         $fontPackagePartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
@@ -424,6 +425,7 @@ final class OpenDocumentPackage
                     ? ($manifestEntry['encryption']['issueCodes'] ?? [])
                     : [],
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
+                'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
@@ -451,6 +453,9 @@ final class OpenDocumentPackage
             if (in_array('script-package', $roles, true)) {
                 ++$scriptPackagePartCount;
             }
+            if (in_array('configuration-package', $roles, true)) {
+                ++$configurationPackagePartCount;
+            }
             if (in_array('font-package', $roles, true)) {
                 ++$fontPackagePartCount;
             }
@@ -476,6 +481,7 @@ final class OpenDocumentPackage
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
             'scriptPackagePartCount' => $scriptPackagePartCount,
+            'configurationPackagePartCount' => $configurationPackagePartCount,
             'fontPackagePartCount' => $fontPackagePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
@@ -518,6 +524,9 @@ final class OpenDocumentPackage
         if (self::isScriptPackagePartName($entry->name)) {
             $roles[] = 'script-package';
         }
+        if (self::isConfigurationPackagePartName($entry->name)) {
+            $roles[] = 'configuration-package';
+        }
         if (self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null)) {
             $roles[] = 'font-package';
         }
@@ -543,6 +552,11 @@ final class OpenDocumentPackage
 
         return str_starts_with($normalized, 'basic/')
             || str_starts_with($normalized, 'scripts/');
+    }
+
+    private static function isConfigurationPackagePartName(string $path): bool
+    {
+        return str_starts_with(strtolower(ltrim($path, '/')), 'configurations2/');
     }
 
     private static function isFontPackagePart(string $path, ?string $mediaType = null): bool
@@ -600,6 +614,9 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isSignaturePackagePartName($packagePath)) {
             return false;
         }
+        if (is_string($packagePath) && self::isConfigurationPackagePartName($packagePath)) {
+            return false;
+        }
         if (is_string($packagePath) && self::isFontPackagePart($packagePath, is_string($entry['mediaType'] ?? null) ? $entry['mediaType'] : null)) {
             return false;
         }
@@ -628,6 +645,7 @@ final class OpenDocumentPackage
             $packagePath = $entry['packagePath'];
             $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
+            $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
             $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
@@ -638,7 +656,7 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$fontPackagePart && !$missingMediaType && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$configurationPackagePart && !$fontPackagePart && !$missingMediaType && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -675,6 +693,7 @@ final class OpenDocumentPackage
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'scriptPackagePart' => $scriptPackagePart,
+                'configurationPackagePart' => $configurationPackagePart,
                 'fontPackagePart' => $fontPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
@@ -683,6 +702,7 @@ final class OpenDocumentPackage
                     $isDirectory,
                     $encrypted,
                     $scriptPackagePart,
+                    $configurationPackagePart,
                     $fontPackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
@@ -700,6 +720,7 @@ final class OpenDocumentPackage
         bool $isDirectory,
         bool $encrypted,
         bool $scriptPackagePart,
+        bool $configurationPackagePart,
         bool $fontPackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
@@ -715,6 +736,9 @@ final class OpenDocumentPackage
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($configurationPackagePart) {
+            return 'configuration-package-bytes-blocked';
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
@@ -755,6 +779,7 @@ final class OpenDocumentPackage
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
+                'configurationPackagePart' => self::isConfigurationPackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
@@ -1262,6 +1287,8 @@ final class OpenDocumentPackage
             'uriEncodedPackageReferenceItems' => [],
             'scriptPackagePartCount' => 0,
             'scriptPackageItems' => [],
+            'configurationPackagePartCount' => 0,
+            'configurationPackageItems' => [],
             'fontPackagePartCount' => 0,
             'fontPackageItems' => [],
             'missingMediaTypeCount' => 0,
@@ -1298,6 +1325,10 @@ final class OpenDocumentPackage
             if (($entry['scriptPackagePart'] ?? false) === true) {
                 ++$summary['scriptPackagePartCount'];
                 $summary['scriptPackageItems'][] = $item;
+            }
+            if (($entry['configurationPackagePart'] ?? false) === true) {
+                ++$summary['configurationPackagePartCount'];
+                $summary['configurationPackageItems'][] = $item;
             }
             if (($entry['fontPackagePart'] ?? false) === true) {
                 ++$summary['fontPackagePartCount'];
@@ -1433,6 +1464,7 @@ final class OpenDocumentPackage
             'encryptionRecordCount' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
             'encryptionIssueCodes' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['issueCodes'] ?? []) : [],
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
+            'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,

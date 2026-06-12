@@ -1106,6 +1106,75 @@ XML;
         $t->same(1, $summary['packageSignatures']['count']);
         $t->same(1, $summary['packageThumbnails']['count']);
     },
+    'blocks compact ODT configuration package sidecars from document media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
+        $configIconBytes = 'CONFIGPNG';
+        $statusbarXml = '<statusbar:statusbar xmlns:statusbar="http://openoffice.org/2001/statusbar"/>';
+        $configurationEntries =
+            '  <manifest:file-entry manifest:media-type="" manifest:full-path="Configurations2/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($acceleratorXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Configurations2/images/Bitmaps/review.png" manifest:size="' . strlen($configIconBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/toolbar/missing.xml"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $configurationEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/images/Bitmaps/review.png', 'data' => $configIconBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/statusbar/standardbar.xml', 'data' => $statusbarXml, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(4, $summary['manifestReview']['configurationPackagePartCount']);
+        $t->same([
+            'Configurations2/',
+            'Configurations2/accelerator/current.xml',
+            'Configurations2/images/Bitmaps/review.png',
+            'Configurations2/toolbar/missing.xml',
+        ], array_column($summary['manifestReview']['configurationPackageItems'], 'path'));
+        $t->same(4, $inventory['configurationPackagePartCount']);
+        $t->same(4, $inventory['roleCounts']['configuration-package']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['configuration-package']);
+        $t->same(['configuration-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Configurations2/']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $inventory['parts']['Configurations2/accelerator/current.xml']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $inventory['parts']['Configurations2/images/Bitmaps/review.png']['roles']);
+        $t->same(['configuration-package', 'undeclared-package-entry'], $inventory['parts']['Configurations2/statusbar/standardbar.xml']['roles']);
+
+        $accelerator = $reviewByPath['Configurations2/accelerator/current.xml'];
+        $t->same(true, $accelerator['configurationPackagePart']);
+        $t->same(true, $accelerator['exists']);
+        $t->same(false, $accelerator['canExposeBytes']);
+        $t->same(null, $accelerator['byteLength']);
+        $t->same(strlen($acceleratorXml), $accelerator['storedByteLength']);
+        $t->same(null, $accelerator['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
+        $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
+
+        $configIcon = $reviewByPath['Configurations2/images/Bitmaps/review.png'];
+        $t->same(true, $configIcon['configurationPackagePart']);
+        $t->same(false, $configIcon['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $configIcon['byteExposurePolicy']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+
+        $missing = $reviewByPath['Configurations2/toolbar/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $missing['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
+
+        $orphan = $summary['undeclaredPackageEntries'][0];
+        $t->same('Configurations2/statusbar/standardbar.xml', $orphan['path']);
+        $t->same(true, $orphan['configurationPackagePart']);
+        $t->same(false, $orphan['canExposeBytes']);
+        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+    },
     'blocks compact ODT script package bytes in package review summaries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
         $javaScript = 'function ReviewLinkClick() { return false; }';
