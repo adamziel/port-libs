@@ -6658,6 +6658,9 @@ final class EpubReader
 
             $handlerPart = is_array($handler) ? (string) $handler['part'] : null;
             $entry = $handlerPart !== null && $package->has($handlerPart) ? $package->entry($handlerPart) : null;
+            $handlerCanExposeBytes = is_array($handler)
+                && ($handler['exists'] ?? false) === true
+                && (bool) ($handler['canExposeBytes'] ?? true);
             $items[] = [
                 'index' => $index,
                 'mediaType' => $mediaType === '' ? null : $mediaType,
@@ -6669,10 +6672,11 @@ final class EpubReader
                 'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
                 'handlerExists' => is_array($handler) && ($handler['exists'] ?? false) === true,
                 'handlerEncrypted' => is_array($handler) && self::isEncryptedManifestItem($handler),
-                'handlerCanExposeBytes' => is_array($handler)
-                    && ($handler['exists'] ?? false) === true
-                    && (bool) ($handler['canExposeBytes'] ?? true),
+                'handlerCanExposeBytes' => $handlerCanExposeBytes,
                 'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'handlerByteSha256' => $handlerCanExposeBytes && $handlerPart !== null
+                    ? hash('sha256', $package->read($handlerPart))
+                    : null,
                 'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'diagnostics' => $itemDiagnostics,
             ];

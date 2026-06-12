@@ -9962,6 +9962,9 @@ final class EpubPackage
             if ($handlerEncrypted) {
                 $handlerProvenance['canExposeBytes'] = false;
             }
+            $handlerByteSha256 = ($handlerProvenance['canExposeBytes'] ?? false) === true && $handlerPartName !== null
+                ? hash('sha256', $package->read($handlerPartName))
+                : null;
 
             $items[] = [
                 'index' => $index,
@@ -9987,6 +9990,7 @@ final class EpubPackage
                 'handlerCompressionMethod' => $handlerProvenance['compressionMethod'],
                 'handlerCompressionMethodName' => $handlerProvenance['compressionMethodName'],
                 'handlerCompressionSupported' => $handlerProvenance['compressionSupported'],
+                'handlerByteSha256' => $handlerByteSha256,
                 'handlerCrc32' => $handlerProvenance['crc32'],
                 'diagnostics' => $itemDiagnostics,
             ];

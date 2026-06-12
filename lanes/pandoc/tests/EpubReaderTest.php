@@ -3972,11 +3972,13 @@ XML;
         $t->same(true, $bindings['items'][0]['handlerExists']);
         $t->same(true, $bindings['items'][0]['handlerCanExposeBytes']);
         $t->same(strlen($slideshowFallbackXhtml), $bindings['items'][0]['handlerByteLength']);
+        $t->same(hash('sha256', $slideshowFallbackXhtml), $bindings['items'][0]['handlerByteSha256']);
         $t->same([], $bindings['items'][0]['diagnostics']);
         $t->same('application/x-review-widget', $bindings['items'][1]['mediaType']);
         $t->same('missing-handler', $bindings['items'][1]['handlerId']);
         $t->same(false, $bindings['items'][1]['handlerExists']);
         $t->same(null, $bindings['items'][1]['handlerPart']);
+        $t->same(null, $bindings['items'][1]['handlerByteSha256']);
         $t->same('missing-binding-handler-manifest-item', $bindings['items'][1]['diagnostics'][0]['type']);
         $t->same('missing-binding-handler-manifest-item', $bindings['diagnostics'][0]['type']);
         $t->same(1, $bindings['diagnostics'][0]['index']);
@@ -3987,6 +3989,53 @@ XML;
         $t->same($bindings['items'][0], $result['document']->children[1]->attr('binding'));
         $t->same('epub3-spine-fallback', $result['document']->children[1]->attr('source'));
         $t->contains('Scripted slideshow fallback remains reviewable.', $result['document']->children[1]->attr('html'));
+    },
+    'blocks encrypted OPF binding handler byte digests for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $lockedHandlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked widget fallback</h1></body></html>';
+        $opfWithEncryptedBinding = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/><item id="locked-widget" href="widgets/locked-widget.bin" media-type="application/x-locked-widget"/><item id="locked-handler" href="text/locked-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfXml
+        );
+        $opfWithEncryptedBinding = str_replace(
+            '</package>',
+            '<bindings><mediaType media-type="application/x-locked-widget" handler="locked-handler"/></bindings></package>',
+            $opfWithEncryptedBinding
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/text/locked-handler.xhtml"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithEncryptedBinding,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/widgets/locked-widget.bin', 'data' => 'LOCKED-WIDGET'],
+                ['name' => 'OEBPS/text/locked-handler.xhtml', 'data' => $lockedHandlerXhtml],
+            ]
+        ));
+
+        $bindings = $result['bindings'];
+        $handler = $bindings['items'][0];
+
+        $t->same(true, $bindings['present']);
+        $t->same('application/x-locked-widget', $handler['mediaType']);
+        $t->same('locked-handler', $handler['handlerId']);
+        $t->same('/OEBPS/text/locked-handler.xhtml', $handler['handlerPart']);
+        $t->same(true, $handler['handlerExists']);
+        $t->same(true, $handler['handlerEncrypted']);
+        $t->same(false, $handler['handlerCanExposeBytes']);
+        $t->same(strlen($lockedHandlerXhtml), $handler['handlerByteLength']);
+        $t->same(null, $handler['handlerByteSha256']);
+        $t->same('encrypted-binding-handler', $handler['diagnostics'][0]['type']);
+        $t->same($bindings, $result['importReport']['bindings']);
+        $t->same($bindings, $result['document']->attr('bindings'));
     },
     'uses OPF bindings as XHTML fallback handlers for custom spine media' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $tourFallbackXhtml = <<<'XML'
@@ -4025,6 +4074,7 @@ XML;
         $t->same('application/x-review-tour', $binding['mediaType']);
         $t->same('tour-handler', $binding['handlerId']);
         $t->same('/OEBPS/text/tour-fallback.xhtml', $binding['handlerPart']);
+        $t->same(hash('sha256', $tourFallbackXhtml), $binding['handlerByteSha256']);
         $t->same([], $binding['diagnostics']);
 
         $t->same('interactive-tour', $boundSpine['idref']);
