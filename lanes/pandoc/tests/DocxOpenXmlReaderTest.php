@@ -975,6 +975,137 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'reports docx vba project package provenance as metadata only' => static function (TestRunner $t): void {
+        $vbaProjectType = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $vbaBytes = 'bounded macro project bytes';
+        $badBytes = 'not actually vba';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject; profile=review-macro"/>' . "\n" .
+            '  <Override PartName="/word/macros/not-vba.bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rVbaProject" Type="' . $vbaProjectType . '" Target="vbaProject.bin?audit=1#project"/>' . "\n" .
+            '  <Relationship Id="rMissingVba" Type="' . $vbaProjectType . '" Target="macros/missing.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalVba" Type="' . $vbaProjectType . '" Target="https://example.test/vbaProject.bin?remote=1#project" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rBadVba" Type="' . $vbaProjectType . '" Target="macros/not-vba.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/vbaProject.bin'] = $vbaBytes;
+        $parts['word/macros/not-vba.bin'] = $badBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $macroProjects = $docx['macroProjects'];
+        $macroProject = $macroProjects['byRelationshipId']['rVbaProject'];
+        $missingMacroProject = $macroProjects['byRelationshipId']['rMissingVba'];
+        $externalMacroProject = $macroProjects['byRelationshipId']['rExternalVba'];
+        $badMacroProject = $macroProjects['byRelationshipId']['rBadVba'];
+        $relationshipType = $package['relationshipTypes'][$vbaProjectType];
+
+        $t->same($macroProjects, $package['macroProjects']);
+        $t->same(true, $macroProjects['present']);
+        $t->same(4, $macroProjects['count']);
+        $t->same(2, $macroProjects['existingCount']);
+        $t->same(1, $macroProjects['missingCount']);
+        $t->same(1, $macroProjects['externalCount']);
+        $t->same(1, $macroProjects['missingContentTypeCount']);
+        $t->same(1, $macroProjects['unexpectedContentTypeCount']);
+        $t->same(3, $macroProjects['issueCount']);
+        $t->same([
+            'external-macro-project',
+            'missing-macro-project',
+            'missing-macro-project-content-type',
+            'unexpected-macro-project-content-type',
+        ], $macroProjects['issueCodes']);
+        $t->same(['rVbaProject', 'rMissingVba', 'rExternalVba', 'rBadVba'], $macroProjects['relationshipIds']);
+        $t->same(['word/vbaProject.bin', 'word/macros/missing.bin', 'word/macros/not-vba.bin'], $macroProjects['partNames']);
+        $t->same(['https://example.test/vbaProject.bin?remote=1#project'], $macroProjects['externalTargets']);
+        $t->same(['application/vnd.ms-office.vbaProject; profile=review-macro', 'application/octet-stream'], $macroProjects['contentTypes']);
+        $t->same('macro-project-bytes-blocked', $macroProjects['byteExposurePolicy']);
+        $t->same('macro-project-metadata-only', $macroProjects['reviewPolicy']);
+
+        $t->same('word/document.xml', $macroProject['source']);
+        $t->same($vbaProjectType, $macroProject['type']);
+        $t->same('vbaProject.bin?audit=1#project', $macroProject['target']);
+        $t->same('word/vbaProject.bin?audit=1#project', $macroProject['resolvedTarget']);
+        $t->same('word/vbaProject.bin', $macroProject['targetPart']);
+        $t->same('?audit=1#project', $macroProject['targetReferenceSuffix']);
+        $t->same('audit=1', $macroProject['targetQuery']);
+        $t->same('project', $macroProject['targetFragment']);
+        $t->same('application/vnd.ms-office.vbaProject; profile=review-macro', $macroProject['contentType']);
+        $t->same('application/vnd.ms-office.vbaproject', $macroProject['contentTypeBase']);
+        $t->same(true, $macroProject['contentTypeHasParameters']);
+        $t->same(1, $macroProject['contentTypeParameterCount']);
+        $t->same(['profile' => 'review-macro'], $macroProject['contentTypeParameterMap']);
+        $t->same('override', $macroProject['contentTypeSource']);
+        $t->same('application/vnd.ms-office.vbaproject', $macroProject['expectedContentTypeBase']);
+        $t->same(true, $macroProject['exists']);
+        $t->same(strlen($vbaBytes), $macroProject['byteLength']);
+        $t->same(sprintf('%08x', crc32($vbaBytes)), $macroProject['crc32']);
+        $t->same('word/_rels/document.xml.rels', $macroProject['relationshipsPart']);
+        $t->same('word/_rels/vbaProject.bin.rels', $macroProject['targetRelationshipsPart']);
+        $t->same(0, $macroProject['targetRelationshipCount']);
+        $t->same(false, $macroProject['targetHasRelationships']);
+        $t->same('macro-project-bytes-blocked', $macroProject['byteExposurePolicy']);
+        $t->same('macro-project-metadata-only', $macroProject['reviewPolicy']);
+        $t->same(true, $macroProject['valid']);
+        $t->same([], $macroProject['issues']);
+        $t->same('word/vbaProject.bin', $macroProject['relationship']['targetPart']);
+
+        $t->same('word/macros/missing.bin', $missingMacroProject['targetPart']);
+        $t->same(false, $missingMacroProject['exists']);
+        $t->same('', $missingMacroProject['contentType']);
+        $t->same('missing', $missingMacroProject['contentTypeSource']);
+        $t->same('bin', $missingMacroProject['defaultExtension']);
+        $t->same(false, $missingMacroProject['valid']);
+        $t->same(['missing-macro-project', 'missing-macro-project-content-type'], $missingMacroProject['issues']);
+
+        $t->same(true, $externalMacroProject['external']);
+        $t->same(null, $externalMacroProject['targetPart']);
+        $t->same('remote=1', $externalMacroProject['targetQuery']);
+        $t->same('project', $externalMacroProject['targetFragment']);
+        $t->same(null, $externalMacroProject['byteLength']);
+        $t->same(['external-macro-project'], $externalMacroProject['issues']);
+
+        $t->same('word/macros/not-vba.bin', $badMacroProject['targetPart']);
+        $t->same(true, $badMacroProject['exists']);
+        $t->same(strlen($badBytes), $badMacroProject['byteLength']);
+        $t->same('application/octet-stream', $badMacroProject['contentTypeBase']);
+        $t->same(false, $badMacroProject['valid']);
+        $t->same(['unexpected-macro-project-content-type'], $badMacroProject['issues']);
+
+        $t->same(4, $summary['macroProjectCount']);
+        $t->same(2, $summary['macroProjectExistingCount']);
+        $t->same(1, $summary['macroProjectMissingCount']);
+        $t->same(1, $summary['macroProjectExternalCount']);
+        $t->same(1, $summary['macroProjectMissingContentTypeCount']);
+        $t->same(1, $summary['macroProjectUnexpectedContentTypeCount']);
+        $t->same(3, $summary['macroProjectIssueCount']);
+        $t->same($macroProjects['issueCodes'], $summary['macroProjectIssueCodes']);
+        $t->same(4, $summary['relationshipTypeCounts'][$vbaProjectType]);
+        $t->same(2, $summary['roleCounts']['macro-project']);
+
+        $t->same('vbaProject', $relationshipType['label']);
+        $t->same(4, $relationshipType['count']);
+        $t->same(3, $relationshipType['internalCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(2, $relationshipType['existingTargetCount']);
+        $t->same(1, $relationshipType['missingTargetCount']);
+        $t->same(['word/vbaProject.bin', 'word/macros/not-vba.bin'], $relationshipType['existingTargetParts']);
+        $t->same(['word/macros/missing.bin'], $relationshipType['missingTargetParts']);
+        $t->same(['https://example.test/vbaProject.bin?remote=1#project'], $relationshipType['externalTargets']);
+        $t->true(in_array('macro-project', $package['parts']['word/vbaProject.bin']['roles'], true), 'vba project role missing');
+        $t->true(in_array('document-relationship-target', $package['parts']['word/vbaProject.bin']['roles'], true), 'vba relationship target role missing');
+        $t->true(!isset($docx['media']['word/vbaProject.bin']), 'vba project should not be exposed as document media');
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

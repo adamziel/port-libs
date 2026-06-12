@@ -45,6 +45,7 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -65,6 +66,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
+    private const CT_VBA_PROJECT = 'application/vnd.ms-office.vbaproject';
     private const CT_DIGITAL_SIGNATURE_ORIGIN = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const CT_DIGITAL_SIGNATURE_XMLSIGNATURE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
@@ -264,6 +266,12 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $macroProjects = $this->readMacroProjects(
+            $parts,
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $customXmlParts = $this->readCustomXmlParts(
             $parts,
             $documentPart,
@@ -315,6 +323,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['macroProjects'] = $macroProjects;
+        $packageProvenance['summary']['macroProjectCount'] = $macroProjects['count'];
+        $packageProvenance['summary']['macroProjectExistingCount'] = $macroProjects['existingCount'];
+        $packageProvenance['summary']['macroProjectMissingCount'] = $macroProjects['missingCount'];
+        $packageProvenance['summary']['macroProjectExternalCount'] = $macroProjects['externalCount'];
+        $packageProvenance['summary']['macroProjectMissingContentTypeCount'] = $macroProjects['missingContentTypeCount'];
+        $packageProvenance['summary']['macroProjectUnexpectedContentTypeCount'] = $macroProjects['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['macroProjectIssueCount'] = $macroProjects['issueCount'];
+        $packageProvenance['summary']['macroProjectIssueCodes'] = $macroProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -357,6 +374,7 @@ final class DocxOpenXmlReader
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
+                'macroProjects' => $macroProjects,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
@@ -1427,6 +1445,154 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readMacroProjects(
+        array $parts,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::VBA_PROJECT_REL) {
+                continue;
+            }
+
+            $item = $this->macroProjectItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                $issueCodes[(string) $issue] = true;
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-macro-project-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-macro-project-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'macro-project-bytes-blocked',
+            'reviewPolicy' => 'macro-project-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function macroProjectItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $targetRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $targetRelationships = $targetRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $targetRelationshipsPart);
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-macro-project';
+        } elseif (!$exists) {
+            $issues[] = 'missing-macro-project';
+        }
+        if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+            $issues[] = 'missing-macro-project-content-type';
+        } elseif (!$external && $contentTypeBase !== '' && $contentTypeBase !== self::CT_VBA_PROJECT) {
+            $issues[] = 'unexpected-macro-project-content-type';
+        }
+
+        return [
+            'index' => $index,
+            'source' => $documentPart,
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_VBA_PROJECT,
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'targetRelationshipsPart' => $targetRelationshipsPart,
+            'targetRelationshipCount' => count($targetRelationships),
+            'targetHasRelationships' => $targetRelationships !== [],
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'byteExposurePolicy' => 'macro-project-bytes-blocked',
+            'reviewPolicy' => 'macro-project-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
     }
 
     /**
@@ -3864,7 +4030,11 @@ final class DocxOpenXmlReader
             if ($this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
-            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'document-relationship-target');
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $this->addPartRole($rolesByPart, $targetPart, 'document-relationship-target');
+            if ($relationship['type'] === self::VBA_PROJECT_REL) {
+                $this->addPartRole($rolesByPart, $targetPart, 'macro-project');
+            }
         }
         foreach ($parts as $relationshipPart => $_contents) {
             if (
