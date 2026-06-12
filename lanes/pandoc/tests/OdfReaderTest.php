@@ -153,8 +153,10 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
 
     foreach ($parts as $part) {
         $name = $part['name'];
+        $rawName = $part['rawName'] ?? $name;
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $flags = $part['generalPurposeFlags'] ?? 0x0800;
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
@@ -163,38 +165,38 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             'VvvvvvVVVvv',
             0x04034b50,
             20,
-            0x0800,
+            $flags,
             $method,
             0,
             0,
             $crc,
             strlen($compressed),
             strlen($data),
-            strlen($name),
+            strlen($rawName),
             0
         );
-        $body .= $name . $compressed;
+        $body .= $rawName . $compressed;
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
             20,
-            0x0800,
+            $flags,
             $method,
             0,
             0,
             $crc,
             strlen($compressed),
             strlen($data),
-            strlen($name),
+            strlen($rawName),
             0,
             0,
             0,
             0,
             str_ends_with($name, '/') ? 0x10 : 0,
             $offset
-        ) . $name;
+        ) . $rawName;
     }
 
     $central = '';
@@ -10423,6 +10425,64 @@ XML;
         $t->same(false, $inventory['Thumbnails/thumbnail.png']['declaredInManifest']);
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'preserves ODT raw ZIP entry name provenance in package review' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $decodedName = "Pictures/caf\xc3\xa9.png";
+        $rawName = "Pictures/caf\x82.png";
+        $legacyBytes = 'CAFEPNG';
+        $manifestWithLegacyName = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/caf%C3%A9.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithLegacyName],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            [
+                'name' => $decodedName,
+                'rawName' => $rawName,
+                'generalPurposeFlags' => 0,
+                'data' => $legacyBytes,
+                'compressionMethod' => 0,
+            ],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $legacy = $provenance['parts'][$decodedName];
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(1, $provenance['rawNameProvenanceEntryCount']);
+        $t->same(1, $provenance['legacyEncodedNameEntryCount']);
+        $t->same(0, $provenance['unicodePathExtraEntryCount']);
+        $t->same(1, $provenance['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($decodedName, $provenance['rawNameProvenanceEntries'][0]['part']);
+        $t->same(bin2hex($rawName), $provenance['rawNameProvenanceEntries'][0]['rawNameHex']);
+        $t->same('cp437', $provenance['rawNameProvenanceEntries'][0]['nameEncoding']);
+        $t->same(false, $provenance['rawNameProvenanceEntries'][0]['rawNameMatchesDecodedName']);
+
+        $t->same($decodedName, $legacy['part']);
+        $t->same('Pictures/caf%C3%A9.png', $legacy['manifestFullPath']);
+        $t->same('Pictures/caf%C3%A9.png', $legacy['manifestPartReference']);
+        $t->same(bin2hex($rawName), $legacy['rawNameHex']);
+        $t->same('cp437', $legacy['nameEncoding']);
+        $t->same(false, $legacy['rawNameMatchesDecodedName']);
+        $t->same(true, $legacy['usesLegacyNameEncoding']);
+        $t->same(false, $legacy['usesUnicodePathExtraField']);
+        $t->same(true, $legacy['hasRawNameProvenance']);
+        $t->same(true, $legacy['declaredInManifest']);
+        $t->same(['manifest-declared', 'media-resource'], $legacy['roles']);
+        $t->same(strlen($legacyBytes), $mediaByPart[$decodedName]['byteLength']);
+        $t->same('image/png', $mediaByPart[$decodedName]['mediaType']);
     },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
