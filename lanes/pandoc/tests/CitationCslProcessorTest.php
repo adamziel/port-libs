@@ -7914,6 +7914,88 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.</dd>', $blocks);
     },
+    'normalizes direct csl biblatex bookauthor aliases into container author metadata' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-bookauthor',
+                'type' => 'chapter',
+                'title' => 'Direct Bookauthor Chapter',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'bookauthor' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                    ['literal' => 'Source Volume Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'hyphen-book-author',
+                'type' => 'chapter',
+                'title' => 'Hyphen Book Author Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'book-author' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'camel-book-author',
+                'type' => 'chapter',
+                'title' => 'Camel Book Author Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'bookAuthor' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="container-author"/>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $direct = $processor->item('direct-bookauthor');
+        $hyphen = $processor->item('hyphen-book-author');
+        $camel = $processor->item('camel-book-author');
+        $t->same('Smith', $direct['containerAuthors'][0]['family'] ?? null);
+        $t->same('Source Volume Desk', $direct['containerAuthors'][1]['literal'] ?? null);
+        $t->same('Curator', $hyphen['containerAuthors'][0]['family'] ?? null);
+        $t->same('Review Desk', $camel['containerAuthors'][0]['literal'] ?? null);
+        $t->same('[Smith and Source Volume Desk | Direct Bookauthor Chapter; Curator | Hyphen Book Author Packet; Review Desk | Camel Book Author Packet]', $processor->renderCitationCluster([
+            $citation('direct-bookauthor', '[@direct-bookauthor]'),
+            $citation('hyphen-book-author', '[@hyphen-book-author]'),
+            $citation('camel-book-author', '[@camel-book-author]'),
+        ]));
+        $t->same('Direct Bookauthor Chapter :: Smith, Ada; Source Volume Desk', $processor->renderBibliographyEntry('direct-bookauthor'));
+        $t->same('Hyphen Book Author Packet :: Curator, Eli', $processor->renderBibliographyEntry('hyphen-book-author'));
+        $t->same('Camel Book Author Packet :: Review Desk', $processor->renderBibliographyEntry('camel-book-author'));
+
+        $document = (new MarkdownReader())->read('Direct aliases @direct-bookauthor and [@hyphen-book-author; @camel-book-author] preserve source volume authors.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct aliases Ng (2026) and [Curator | Hyphen Book Author Packet; Review Desk | Camel Book Author Packet] preserve source volume authors.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Bookauthor Chapter :: Smith, Ada; Source Volume Desk</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Book Author Packet :: Curator, Eli</dd>', $blocks);
+        $t->contains('<dt>Archive Team 2024</dt><dd>Camel Book Author Packet :: Review Desk</dd>', $blocks);
+    },
     'maps bounded biblatex author type qualifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{compiled-source-manual,
