@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3235,
-        "latestSlice": "pandoc-opc-zip-manifest-largest-payload-ranking maps one native OpenPackagingConventions case for ranked largest OPC ZIP manifest payload entries across instantiated package and raw central-directory preflights. Mapped denominator is now 3235, mappedOpcZipManifestLargestPayloadRankCases is 1, opcZipManifestLargestPayloadRankAssertions is 25, focused OpenPackagingConventionsTest.php passed 1 test file, 4241 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 70384 assertions, 0 failures after refresh onto origin/main 87a2e8b8e2, without running Pandoc, office suites, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3236,
+        "latestSlice": "pandoc-xml-html-dom-form-owner maps one native XmlHtmlDom case for HTML form owner associations across ancestor controls, remote form-attribute controls, missing/empty form targets, owner submission metadata, and form-level owned-control inventories. Mapped denominator is now 3236, mappedXmlHtmlDomFormOwnerCases is 1, xmlHtmlDomFormOwnerAssertions is 37, focused XmlHtmlDomTest.php passed 1 test file, 1373 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 70516 assertions, 0 failures after refresh onto origin/main 39b7b38bf6, without running Pandoc, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc shared ZIP/OPC OPC manifest largest payload ranking is verified over origin/main 87a2e8b8e2.",
-        "latestFocusedSource": "2026-06-12 Pandoc shared ZIP/OPC package slice inspected OPC ZIP manifest payload ranking against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 87a2e8b8e2.",
+        "status": "Pandoc XML/HTML5 DOM form owner associations are verified over origin/main 39b7b38bf6.",
+        "latestFocusedSource": "2026-06-12 Pandoc XML/HTML5 DOM slice inspected form owner associations against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 39b7b38bf6.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -93,7 +93,9 @@
         "mappedTypstBoundarySummaryCases": 1,
         "typstBoundarySummaryAssertions": 16,
         "mappedOpcZipManifestLargestPayloadRankCases": 1,
-        "opcZipManifestLargestPayloadRankAssertions": 25
+        "opcZipManifestLargestPayloadRankAssertions": 25,
+        "mappedXmlHtmlDomFormOwnerCases": 1,
+        "xmlHtmlDomFormOwnerAssertions": 37
     },
     "benchmarkDenominator": {
         "status": "Pandoc shared ZIP/OPC OPC manifest largest payload ranking is verified over origin/main 87a2e8b8e2.",
@@ -947,12 +949,12 @@
         "mappedTypstBoundarySummaryCases": 1,
         "typstBoundarySummaryAssertions": 16
     },
-    "wordpressScenario": "PDF/Typst handoff now summarizes Typst boundary provenance for package review, including safe and unsafe path buckets, font/certificate/package storage counts, input variables, dependency and timing sidecar outputs, diagnostic output controls, PDF export controls, feature gates, execution policy, open-output side effects, overrides, histories, and issue rollups without invoking Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "XML/HTML5 DOM handoff now exposes HTML form owner associations for remote controls, including ancestor-owned controls, form-attribute controls outside the form subtree, missing and empty form targets, owner submission metadata, form-level owned-control inventories, labels, selected values, deterministic raw HTML, and WordPress raw-block propagation without invoking Pandoc, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "Typst boundary summary provenance is verified over origin/main 8bffa9f302.",
-    "mapping": "pandoc-typst-boundary-summary-8bffa9f302",
-    "audit": "updated 2026-06-12: PdfEngineHandoff summarizes Typst boundary provenance for compact package validation and WordPress review handoff. Verified on current main 8bffa9f302; php -l passed for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 test file, 2059 assertions, 0 failures; full lanes/pandoc/tests passed 44 test files, 70252 assertions, 0 failures.",
-    "latestSlice": "pandoc-typst-boundary-summary maps one native PdfEngineHandoff case for compact Typst boundary provenance summary across safe and unsafe path buckets, package/certificate/font boundaries, dependency and timing sidecars, PDF export controls, feature gates, execution policy, open-output side effects, overrides, histories, and issue rollups. Mapped denominator is now 3234, mappedTypstBoundarySummaryCases is 1, typstBoundarySummaryAssertions is 16, focused PdfEngineHandoffTest.php passed 1 test file, 2059 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 70252 assertions, 0 failures after refresh onto origin/main 8bffa9f302, without running Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "XML/HTML5 DOM form owner associations are verified over origin/main 39b7b38bf6.",
+    "mapping": "pandoc-xml-html-dom-form-owner-39b7b38bf6",
+    "audit": "updated 2026-06-12: XmlHtmlDom summarizes HTML form owner associations for remote controls and WordPress review handoff. Verified on current main 39b7b38bf6; php -l passed for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 test file, 1373 assertions, 0 failures; full lanes/pandoc/tests passed 44 test files, 70516 assertions, 0 failures.",
+    "latestSlice": "pandoc-xml-html-dom-form-owner maps one native XmlHtmlDom case for HTML form owner associations across ancestor controls, remote form-attribute controls, missing/empty form targets, owner submission metadata, and form-level owned-control inventories. Mapped denominator is now 3236, mappedXmlHtmlDomFormOwnerCases is 1, xmlHtmlDomFormOwnerAssertions is 37, focused XmlHtmlDomTest.php passed 1 test file, 1373 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 70516 assertions, 0 failures after refresh onto origin/main 39b7b38bf6, without running Pandoc, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1246,5 +1248,7 @@
     "mappedTypstAttachedShortFormatBoundaryCases": 1,
     "typstAttachedShortFormatBoundaryAssertions": 13,
     "mappedTypstBoundarySummaryCases": 1,
-    "typstBoundarySummaryAssertions": 16
+    "typstBoundarySummaryAssertions": 16,
+    "mappedXmlHtmlDomFormOwnerCases": 1,
+    "xmlHtmlDomFormOwnerAssertions": 37
 }

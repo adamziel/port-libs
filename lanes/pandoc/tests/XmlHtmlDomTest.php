@@ -1293,6 +1293,103 @@ XML, 'package reader XML');
         ], $defaultButton['submitter']);
         $t->same('<form accept-charset="UTF-8 ISO-8859-1" action="https://forms.example.invalid/submit" autocomplete="off" enctype="multipart/form-data" id="remote-review" method="POST" novalidate target="_blank"><input name="title" value="Packet"><input formaction="/image-submit" formenctype="multipart/form-data" formmethod="POST" formnovalidate formtarget="_parent" src="submit.png" type="image"><button formaction="/local-submit" formenctype="text/plain" formmethod="dialog" formnovalidate formtarget="_self" type="submit">Send</button></form><form autocomplete="maybe" enctype="application/json" id="invalid-method" method="TRACE"><button>Default</button></form>', $html);
     },
+    'summarizes html form owner associations for remote controls' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="primary" action="/save" method="POST" enctype="multipart/form-data" target="_blank"><input id="inside" name="title" value="Draft"></form>'
+                . '<label for="remote-title">Remote title</label><input id="remote-title" name="title" form="primary" value="Remote">'
+                . '<select id="state" name="state" form="primary"><option value="draft">Draft<option selected value="review">Review</select>'
+                . '<textarea id="orphan" name="notes" form="missing">Lost</textarea><button id="empty" form="">No form</button>'
+                . '<form id="fallback"><button id="fallback-button" name="fallback" value="1">Fallback</button></form>',
+            'remote form owner review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/form-owner-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $primary = $summary[0];
+        $inside = $primary['children'][0];
+        $remote = $summary[2];
+        $select = $summary[3];
+        $orphan = $summary[4];
+        $empty = $summary[5];
+        $fallback = $summary[6];
+        $fallbackButton = $fallback['children'][0];
+
+        $t->same('form', $primary['formSubmission']);
+        $t->same(3, $primary['controlCount']);
+        $t->same(2, $primary['externalControlCount']);
+        $t->same(['title', 'state'], $primary['controlNames']);
+        $t->same([
+            [
+                'tag' => 'input',
+                'id' => 'inside',
+                'controlName' => 'title',
+                'formOwnerSource' => 'ancestor',
+                'effectiveDisabled' => false,
+                'type' => 'text',
+                'value' => 'Draft',
+                'checked' => false,
+            ],
+            [
+                'tag' => 'input',
+                'id' => 'remote-title',
+                'controlName' => 'title',
+                'formOwnerSource' => 'form-attribute',
+                'effectiveDisabled' => false,
+                'type' => 'text',
+                'value' => 'Remote',
+                'checked' => false,
+            ],
+            [
+                'tag' => 'select',
+                'id' => 'state',
+                'controlName' => 'state',
+                'formOwnerSource' => 'form-attribute',
+                'effectiveDisabled' => false,
+                'selectedValues' => ['review'],
+            ],
+        ], $primary['controls']);
+
+        $t->same('ancestor', $inside['formOwnerSource']);
+        $t->same(null, $inside['formOwnerRaw']);
+        $t->same('primary', $inside['formOwnerId']);
+        $t->same(true, $inside['formOwnerFound']);
+        $t->same('/save', $inside['formOwnerAction']);
+        $t->same('post', $inside['formOwnerMethod']);
+        $t->same('multipart/form-data', $inside['formOwnerEnctype']);
+        $t->same('_blank', $inside['formOwnerTarget']);
+
+        $t->same('form-attribute', $remote['formOwnerSource']);
+        $t->same('primary', $remote['formOwnerRaw']);
+        $t->same('primary', $remote['formOwnerTargetId']);
+        $t->same('primary', $remote['formOwnerId']);
+        $t->same(['Remote title'], $remote['labels']);
+        $t->same('/save', $remote['formOwnerAction']);
+
+        $t->same('select', $select['formControl']);
+        $t->same('form-attribute', $select['formOwnerSource']);
+        $t->same(['review'], $select['selectedValues']);
+        $t->same('post', $select['formOwnerMethod']);
+
+        $t->same('missing-form-attribute', $orphan['formOwnerSource']);
+        $t->same('missing', $orphan['formOwnerTargetId']);
+        $t->same(false, $orphan['formOwnerFound']);
+        $t->same(null, $orphan['formOwnerAction']);
+        $t->same('missing-form-attribute', $empty['formOwnerSource']);
+        $t->same(null, $empty['formOwnerTargetId']);
+        $t->same(false, $empty['formOwnerFound']);
+
+        $t->same(1, $fallback['controlCount']);
+        $t->same(['fallback'], $fallback['controlNames']);
+        $t->same('ancestor', $fallbackButton['formOwnerSource']);
+        $t->same('fallback', $fallbackButton['formOwnerId']);
+        $t->same('<form action="/save" enctype="multipart/form-data" id="primary" method="POST" target="_blank"><input id="inside" name="title" value="Draft"></form><label for="remote-title">Remote title</label><input form="primary" id="remote-title" name="title" value="Remote"><select form="primary" id="state" name="state"><option value="draft">Draft</option><option selected value="review">Review</option></select><textarea form="missing" id="orphan" name="notes">Lost</textarea><button form="" id="empty">No form</button><form id="fallback"><button id="fallback-button" name="fallback" value="1">Fallback</button></form>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/form-owner-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html output control state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output id="checksum" name="checksum" for="source-a  source-b missing">Ready <strong>hash</strong></output></label></form>',
