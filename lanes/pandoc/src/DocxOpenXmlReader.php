@@ -141,6 +141,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureExternalSignatureCount'] = $digitalSignatures['externalSignatureCount'];
         $packageProvenance['summary']['digitalSignatureInvalidXmlCount'] = $digitalSignatures['invalidSignatureXmlCount'];
         $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceCount'] = $digitalSignatures['referenceCount'];
+        $packageProvenance['summary']['digitalSignatureSignedInfoReferenceCount'] = $digitalSignatures['signedInfoReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureManifestReferenceCount'] = $digitalSignatures['manifestReferenceCount'];
+        $packageProvenance['summary']['digitalSignatureTransformCount'] = $digitalSignatures['transformCount'];
+        $packageProvenance['summary']['digitalSignatureDigestValueCount'] = $digitalSignatures['digestValueCount'];
+        $packageProvenance['summary']['digitalSignatureObjectCount'] = $digitalSignatures['objectCount'];
+        $packageProvenance['summary']['digitalSignatureManifestCount'] = $digitalSignatures['manifestCount'];
+        $packageProvenance['summary']['digitalSignatureKeyInfoCount'] = $digitalSignatures['keyInfoCount'];
+        $packageProvenance['summary']['digitalSignatureX509CertificateCount'] = $digitalSignatures['x509CertificateCount'];
         $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
         $packageProvenance['summary']['digitalSignatureIssueCodes'] = $digitalSignatures['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
@@ -2787,6 +2796,29 @@ final class DocxOpenXmlReader
 
         ksort($issueCodes, SORT_STRING);
 
+        $referenceCount = 0;
+        $signedInfoReferenceCount = 0;
+        $manifestReferenceCount = 0;
+        $transformCount = 0;
+        $digestValueCount = 0;
+        $objectCount = 0;
+        $manifestCount = 0;
+        $keyInfoCount = 0;
+        $x509CertificateCount = 0;
+        foreach ($signatures as $signature) {
+            $referenceCount += (int) ($signature['referenceCount'] ?? 0);
+            $signedInfoReferenceCount += (int) ($signature['signedInfoReferenceCount'] ?? 0);
+            $manifestReferenceCount += (int) ($signature['manifestReferenceCount'] ?? 0);
+            $transformCount += (int) ($signature['transformCount'] ?? 0);
+            $digestValueCount += (int) ($signature['digestValueCount'] ?? 0);
+            $objectCount += (int) ($signature['objectCount'] ?? 0);
+            $manifestCount += (int) ($signature['manifestCount'] ?? 0);
+            if (($signature['keyInfoPresent'] ?? false) === true) {
+                ++$keyInfoCount;
+            }
+            $x509CertificateCount += (int) ($signature['x509CertificateCount'] ?? 0);
+        }
+
         return [
             'present' => $origins !== [],
             'originCount' => count($origins),
@@ -2809,6 +2841,15 @@ final class DocxOpenXmlReader
                 static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === false,
             )),
             'externalSignatureCount' => count(array_filter($signatures, static fn (array $signature): bool => $signature['external'] === true)),
+            'referenceCount' => $referenceCount,
+            'signedInfoReferenceCount' => $signedInfoReferenceCount,
+            'manifestReferenceCount' => $manifestReferenceCount,
+            'transformCount' => $transformCount,
+            'digestValueCount' => $digestValueCount,
+            'objectCount' => $objectCount,
+            'manifestCount' => $manifestCount,
+            'keyInfoCount' => $keyInfoCount,
+            'x509CertificateCount' => $x509CertificateCount,
             'invalidSignatureXmlCount' => count(array_filter(
                 $signatures,
                 static fn (array $signature): bool => in_array('invalid-signature-xml', $signature['issues'], true),
@@ -3089,10 +3130,28 @@ final class DocxOpenXmlReader
             'rootLocalName' => $metadata['rootLocalName'],
             'validRoot' => $metadata['validRoot'],
             'referenceCount' => $metadata['referenceCount'],
+            'signedInfoReferenceCount' => $metadata['signedInfoReferenceCount'],
+            'manifestReferenceCount' => $metadata['manifestReferenceCount'],
+            'referenceItems' => $metadata['referenceItems'],
             'referenceUris' => $metadata['referenceUris'],
+            'signedInfoReferenceUris' => $metadata['signedInfoReferenceUris'],
+            'manifestReferenceUris' => $metadata['manifestReferenceUris'],
+            'transformCount' => $metadata['transformCount'],
+            'transformAlgorithms' => $metadata['transformAlgorithms'],
             'digestMethodAlgorithms' => $metadata['digestMethodAlgorithms'],
+            'digestValueCount' => $metadata['digestValueCount'],
+            'digestValueSha256s' => $metadata['digestValueSha256s'],
             'signatureMethodAlgorithms' => $metadata['signatureMethodAlgorithms'],
             'canonicalizationMethodAlgorithms' => $metadata['canonicalizationMethodAlgorithms'],
+            'objectCount' => $metadata['objectCount'],
+            'objectIds' => $metadata['objectIds'],
+            'manifestCount' => $metadata['manifestCount'],
+            'manifestIds' => $metadata['manifestIds'],
+            'keyInfoPresent' => $metadata['keyInfoPresent'],
+            'keyInfoClauseNames' => $metadata['keyInfoClauseNames'],
+            'keyNameValues' => $metadata['keyNameValues'],
+            'x509CertificateCount' => $metadata['x509CertificateCount'],
+            'x509CertificateSha256s' => $metadata['x509CertificateSha256s'],
             'hasSignatureValue' => $metadata['hasSignatureValue'],
             'cryptographicValidation' => false,
             'reviewPolicy' => 'digital-signature-metadata-only',
@@ -3114,10 +3173,28 @@ final class DocxOpenXmlReader
             'rootLocalName' => null,
             'validRoot' => null,
             'referenceCount' => 0,
+            'signedInfoReferenceCount' => 0,
+            'manifestReferenceCount' => 0,
+            'referenceItems' => [],
             'referenceUris' => [],
+            'signedInfoReferenceUris' => [],
+            'manifestReferenceUris' => [],
+            'transformCount' => 0,
+            'transformAlgorithms' => [],
             'digestMethodAlgorithms' => [],
+            'digestValueCount' => 0,
+            'digestValueSha256s' => [],
             'signatureMethodAlgorithms' => [],
             'canonicalizationMethodAlgorithms' => [],
+            'objectCount' => 0,
+            'objectIds' => [],
+            'manifestCount' => 0,
+            'manifestIds' => [],
+            'keyInfoPresent' => null,
+            'keyInfoClauseNames' => [],
+            'keyNameValues' => [],
+            'x509CertificateCount' => 0,
+            'x509CertificateSha256s' => [],
             'hasSignatureValue' => null,
         ];
     }
@@ -3149,13 +3226,31 @@ final class DocxOpenXmlReader
             return $metadata;
         }
 
-        $metadata['referenceCount'] = 0;
+        $metadata['keyInfoPresent'] = false;
         foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'Reference') as $reference) {
             if (!$reference instanceof \DOMElement) {
                 continue;
             }
             ++$metadata['referenceCount'];
+            $referenceItem = $this->digitalSignatureReferenceMetadata($reference);
+            $metadata['referenceItems'][] = $referenceItem;
             $this->appendUniqueString($metadata['referenceUris'], $reference->getAttribute('URI'));
+            if ($referenceItem['parentLocalName'] === 'SignedInfo') {
+                ++$metadata['signedInfoReferenceCount'];
+                $this->appendUniqueString($metadata['signedInfoReferenceUris'], $referenceItem['uri']);
+            }
+            if ($referenceItem['parentLocalName'] === 'Manifest') {
+                ++$metadata['manifestReferenceCount'];
+                $this->appendUniqueString($metadata['manifestReferenceUris'], $referenceItem['uri']);
+            }
+            $metadata['transformCount'] += (int) $referenceItem['transformCount'];
+            foreach ($referenceItem['transformAlgorithms'] as $algorithm) {
+                $this->appendUniqueString($metadata['transformAlgorithms'], $algorithm);
+            }
+            if ($referenceItem['digestValuePresent'] === true) {
+                ++$metadata['digestValueCount'];
+                $this->appendUniqueString($metadata['digestValueSha256s'], $referenceItem['digestValueSha256']);
+            }
         }
 
         foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'DigestMethod') as $digestMethod) {
@@ -3176,6 +3271,44 @@ final class DocxOpenXmlReader
             }
         }
 
+        foreach ($this->xmlDsigChildElements($root, 'Object') as $object) {
+            ++$metadata['objectCount'];
+            $this->appendUniqueString($metadata['objectIds'], $object->getAttribute('Id'));
+        }
+
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'Manifest') as $manifest) {
+            if ($manifest instanceof \DOMElement) {
+                ++$metadata['manifestCount'];
+                $this->appendUniqueString($metadata['manifestIds'], $manifest->getAttribute('Id'));
+            }
+        }
+
+        $keyInfo = $this->xmlDsigChildElement($root, 'KeyInfo');
+        if ($keyInfo instanceof \DOMElement) {
+            $metadata['keyInfoPresent'] = true;
+            foreach ($keyInfo->childNodes as $child) {
+                if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_XMLDSIG) {
+                    $this->appendUniqueString($metadata['keyInfoClauseNames'], $child->localName);
+                }
+            }
+            foreach ($keyInfo->getElementsByTagNameNS(self::NS_XMLDSIG, 'KeyName') as $keyName) {
+                if ($keyName instanceof \DOMElement) {
+                    $this->appendUniqueString($metadata['keyNameValues'], trim($keyName->textContent));
+                }
+            }
+            foreach ($keyInfo->getElementsByTagNameNS(self::NS_XMLDSIG, 'X509Certificate') as $certificate) {
+                if (!$certificate instanceof \DOMElement) {
+                    continue;
+                }
+                $certificateBytes = preg_replace('/\s+/', '', $certificate->textContent) ?? '';
+                if ($certificateBytes === '') {
+                    continue;
+                }
+                ++$metadata['x509CertificateCount'];
+                $this->appendUniqueString($metadata['x509CertificateSha256s'], hash('sha256', $certificateBytes));
+            }
+        }
+
         $metadata['hasSignatureValue'] = false;
         foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'SignatureValue') as $signatureValue) {
             if ($signatureValue instanceof \DOMElement && trim($signatureValue->textContent) !== '') {
@@ -3185,6 +3318,66 @@ final class DocxOpenXmlReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureReferenceMetadata(\DOMElement $reference): array
+    {
+        $parent = $reference->parentNode instanceof \DOMElement ? $reference->parentNode : null;
+        $transforms = $this->xmlDsigChildElement($reference, 'Transforms');
+        $transformAlgorithms = [];
+        $transformCount = 0;
+        if ($transforms instanceof \DOMElement) {
+            foreach ($this->xmlDsigChildElements($transforms, 'Transform') as $transform) {
+                ++$transformCount;
+                $this->appendUniqueString($transformAlgorithms, $transform->getAttribute('Algorithm'));
+            }
+        }
+
+        $digestMethod = $this->xmlDsigChildElement($reference, 'DigestMethod');
+        $digestValue = $this->xmlDsigChildElement($reference, 'DigestValue');
+        $digestValueText = $digestValue instanceof \DOMElement ? trim($digestValue->textContent) : '';
+
+        return [
+            'id' => $this->emptyStringToNull($reference->getAttribute('Id')),
+            'uri' => $reference->getAttribute('URI'),
+            'type' => $this->emptyStringToNull($reference->getAttribute('Type')),
+            'parentNamespace' => $parent instanceof \DOMElement ? $parent->namespaceURI : null,
+            'parentLocalName' => $parent instanceof \DOMElement ? $parent->localName : null,
+            'transformCount' => $transformCount,
+            'transformAlgorithms' => $transformAlgorithms,
+            'digestMethodAlgorithm' => $digestMethod instanceof \DOMElement ? $this->emptyStringToNull($digestMethod->getAttribute('Algorithm')) : null,
+            'digestValuePresent' => $digestValueText !== '',
+            'digestValueSha256' => $digestValueText === '' ? null : hash('sha256', $digestValueText),
+        ];
+    }
+
+    private function xmlDsigChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_XMLDSIG && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function xmlDsigChildElements(\DOMElement $parent, string $localName): array
+    {
+        $elements = [];
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_XMLDSIG && $child->localName === $localName) {
+                $elements[] = $child;
+            }
+        }
+
+        return $elements;
     }
 
     /**

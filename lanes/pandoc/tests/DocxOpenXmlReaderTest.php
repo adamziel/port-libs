@@ -975,6 +975,138 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'extracts docx XML signature metadata for package review' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $relationshipTransform = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
+        $exclusiveC14n = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+        $sha256 = 'http://www.w3.org/2001/04/xmlenc#sha256';
+        $sha1 = 'http://www.w3.org/2000/09/xmldsig#sha1';
+        $signatureXml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="package-signature">
+  <ds:SignedInfo>
+    <ds:CanonicalizationMethod Algorithm="{$exclusiveC14n}"/>
+    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+    <ds:Reference Id="rDocRef" URI="/word/document.xml" Type="{$relationshipTransform}">
+      <ds:Transforms>
+        <ds:Transform Algorithm="{$relationshipTransform}"/>
+        <ds:Transform Algorithm="{$exclusiveC14n}"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="{$sha256}"/>
+      <ds:DigestValue>abc=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:Object Id="manifest-object">
+    <ds:Manifest Id="package-manifest">
+      <ds:Reference URI="/docProps/core.xml">
+        <ds:DigestMethod Algorithm="{$sha1}"/>
+        <ds:DigestValue>def=</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+  </ds:Object>
+  <ds:KeyInfo>
+    <ds:KeyName>review-key</ds:KeyName>
+    <ds:X509Data><ds:X509Certificate>MIIBreview==</ds:X509Certificate></ds:X509Data>
+  </ds:KeyInfo>
+  <ds:SignatureValue>signed</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig-review.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignatureOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin.sigs'] = 'signature origin bytes';
+        $parts['_xmlsignatures/_rels/origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignatureReview" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-review.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig-review.xml'] = $signatureXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $signature = $signatures['bySignatureRelationshipId']['rSignatureReview'];
+        $signedInfoReference = $signature['referenceItems'][0];
+        $manifestReference = $signature['referenceItems'][1];
+
+        $t->same(1, $signatures['signatureCount']);
+        $t->same(2, $signatures['referenceCount']);
+        $t->same(1, $signatures['signedInfoReferenceCount']);
+        $t->same(1, $signatures['manifestReferenceCount']);
+        $t->same(2, $signatures['transformCount']);
+        $t->same(2, $signatures['digestValueCount']);
+        $t->same(1, $signatures['objectCount']);
+        $t->same(1, $signatures['manifestCount']);
+        $t->same(1, $signatures['keyInfoCount']);
+        $t->same(1, $signatures['x509CertificateCount']);
+
+        $t->same(true, $signature['validXml']);
+        $t->same(true, $signature['validRoot']);
+        $t->same(2, $signature['referenceCount']);
+        $t->same(1, $signature['signedInfoReferenceCount']);
+        $t->same(1, $signature['manifestReferenceCount']);
+        $t->same(['/word/document.xml', '/docProps/core.xml'], $signature['referenceUris']);
+        $t->same(['/word/document.xml'], $signature['signedInfoReferenceUris']);
+        $t->same(['/docProps/core.xml'], $signature['manifestReferenceUris']);
+        $t->same(2, $signature['transformCount']);
+        $t->same([$relationshipTransform, $exclusiveC14n], $signature['transformAlgorithms']);
+        $t->same([$sha256, $sha1], $signature['digestMethodAlgorithms']);
+        $t->same(2, $signature['digestValueCount']);
+        $t->same([hash('sha256', 'abc='), hash('sha256', 'def=')], $signature['digestValueSha256s']);
+        $t->same(['http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'], $signature['signatureMethodAlgorithms']);
+        $t->same([$exclusiveC14n], $signature['canonicalizationMethodAlgorithms']);
+
+        $t->same('rDocRef', $signedInfoReference['id']);
+        $t->same($relationshipTransform, $signedInfoReference['type']);
+        $t->same('SignedInfo', $signedInfoReference['parentLocalName']);
+        $t->same(2, $signedInfoReference['transformCount']);
+        $t->same($sha256, $signedInfoReference['digestMethodAlgorithm']);
+        $t->same(hash('sha256', 'abc='), $signedInfoReference['digestValueSha256']);
+        $t->same('Manifest', $manifestReference['parentLocalName']);
+        $t->same(0, $manifestReference['transformCount']);
+        $t->same($sha1, $manifestReference['digestMethodAlgorithm']);
+        $t->same(hash('sha256', 'def='), $manifestReference['digestValueSha256']);
+
+        $t->same(1, $signature['objectCount']);
+        $t->same(['manifest-object'], $signature['objectIds']);
+        $t->same(1, $signature['manifestCount']);
+        $t->same(['package-manifest'], $signature['manifestIds']);
+        $t->same(true, $signature['keyInfoPresent']);
+        $t->same(['KeyName', 'X509Data'], $signature['keyInfoClauseNames']);
+        $t->same(['review-key'], $signature['keyNameValues']);
+        $t->same(1, $signature['x509CertificateCount']);
+        $t->same([hash('sha256', 'MIIBreview==')], $signature['x509CertificateSha256s']);
+        $t->same(true, $signature['hasSignatureValue']);
+        $t->same(false, $signature['cryptographicValidation']);
+        $t->same('digital-signature-metadata-only', $signature['reviewPolicy']);
+        $t->same([], $signature['issues']);
+
+        $t->same(2, $summary['digitalSignatureReferenceCount']);
+        $t->same(1, $summary['digitalSignatureSignedInfoReferenceCount']);
+        $t->same(1, $summary['digitalSignatureManifestReferenceCount']);
+        $t->same(2, $summary['digitalSignatureTransformCount']);
+        $t->same(2, $summary['digitalSignatureDigestValueCount']);
+        $t->same(1, $summary['digitalSignatureObjectCount']);
+        $t->same(1, $summary['digitalSignatureManifestCount']);
+        $t->same(1, $summary['digitalSignatureKeyInfoCount']);
+        $t->same(1, $summary['digitalSignatureX509CertificateCount']);
+        $t->same(1, $summary['relationshipTypeCounts'][$signatureType]);
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
