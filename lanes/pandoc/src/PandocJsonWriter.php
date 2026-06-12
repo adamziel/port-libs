@@ -966,8 +966,14 @@ final class PandocJsonWriter
             'Header',
             'CodeBlock',
             'RawBlock',
+            'BlockQuote',
+            'OrderedList',
+            'BulletList',
+            'DefinitionList',
+            'LineBlock',
             'HorizontalRule',
             'Null',
+            'Div',
         ], true);
     }
 

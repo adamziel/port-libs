@@ -2276,6 +2276,152 @@ return [
             $t->same(false, array_key_exists('sourceOrdinal', $encoded['blocks'][0]), "{$source} edited header drops stale source ordinal");
         }
     },
+    'preserves current structural block native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $blockquoteBlock = [
+            't' => 'BlockQuote',
+            'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Quoted'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ]],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 51,
+        ];
+        $bulletItem = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Bullet'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ]],
+        ];
+        $bulletListBlock = [
+            't' => 'BulletList',
+            'c' => [$bulletItem],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 52,
+        ];
+        $orderedItem = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ordered'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ]],
+        ];
+        $orderedListBlock = [
+            't' => 'OrderedList',
+            'c' => [
+                [7, ['t' => 'UpperAlpha', 'c' => []], ['t' => 'TwoParens', 'c' => []]],
+                [$orderedItem],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 53,
+        ];
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Source'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'term'],
+        ];
+        $definitionBodies = [
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Primary'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'definition'],
+                ]],
+            ],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alias'],
+                ]],
+            ],
+        ];
+        $definitionListBlock = [
+            't' => 'DefinitionList',
+            'c' => [
+                [$definitionTerm, $definitionBodies],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 54,
+        ];
+        $lineBlock = [
+            't' => 'LineBlock',
+            'c' => [
+                [
+                    ['t' => 'Str', 'c' => 'Line'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 55,
+        ];
+        $divAttr = [
+            'source-div',
+            ['review'],
+            [
+                ['data-source', 'first'],
+                ['data-source', 'second'],
+            ],
+        ];
+        $divBlock = [
+            't' => 'Div',
+            'c' => [
+                $divAttr,
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 56,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $blockquoteBlock,
+                $bulletListBlock,
+                $orderedListBlock,
+                $definitionListBlock,
+                $lineBlock,
+                $divBlock,
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} JSON writer preserves unchanged structural block payloads");
+        }
+
+        $blockquote = $documents['json']->children[0];
+        $paragraph = $blockquote->children[0];
+        $editedText = new AstNode('text', array_replace($paragraph->children[0]->attrs, [
+            'text' => 'Edited',
+        ]));
+        $editedParagraph = new AstNode('paragraph', $paragraph->attrs, [
+            $editedText,
+            $paragraph->children[1],
+            $paragraph->children[2],
+        ]);
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('blockquote', $blockquote->attrs, [$editedParagraph]),
+        ]);
+        $editedPacket = (new PandocJsonWriter())->toArray($editedDocument);
+
+        $t->same('BlockQuote', $editedPacket['blocks'][0]['t'], 'edited structural block constructor regenerates');
+        $t->same('Edited', $editedPacket['blocks'][0]['c'][0]['c'][0]['c'], 'edited structural child content regenerates');
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited structural block drops stale review provenance');
+        $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][0]), 'edited structural block drops stale source ordinal');
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
