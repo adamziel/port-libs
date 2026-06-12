@@ -27962,6 +27962,97 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note</dd>', $blocks);
     },
+    'normalizes bounded direct csl json howpublished medium aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-howpublished-camel',
+                'type' => 'webpage',
+                'title' => 'Direct HowPublished Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'howPublished' => 'reviewer archive packet',
+            ],
+            [
+                'id' => 'direct-howpublished-hyphen',
+                'type' => 'document',
+                'title' => 'Direct How Published Hyphen Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'how-published' => 'institutional handout',
+            ],
+            [
+                'id' => 'direct-howpublished-flat',
+                'type' => 'manuscript',
+                'title' => 'Direct Howpublished Flat Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'howpublished' => 'field notebook scan',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-howpublished-camel');
+        $hyphen = $processor->item('direct-howpublished-hyphen');
+        $flat = $processor->item('direct-howpublished-flat');
+        $t->same('reviewer archive packet', $camel['medium'] ?? null);
+        $t->same('institutional handout', $hyphen['medium'] ?? null);
+        $t->same('field notebook scan', $flat['medium'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Howpublished Medium Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-howpublished-medium-alias-review</id>
+    <updated>2026-06-12T10:52:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="medium"/>
+        <text variable="howpublished"/>
+        <text variable="how-published"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="medium"/>
+      <text variable="howpublished"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Howpublished Medium Alias Review', $summary['title'] ?? null);
+        $t->same('medium', $citationChildren[1]['variable'] ?? null);
+        $t->same('howpublished', $citationChildren[2]['variable'] ?? null);
+        $t->same('how-published', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | reviewer archive packet | reviewer archive packet | reviewer archive packet; Bell | institutional handout | institutional handout | institutional handout; Chen | field notebook scan | field notebook scan | field notebook scan]', $styled->renderCitationCluster([
+            $citation('direct-howpublished-camel', '[@direct-howpublished-camel]'),
+            $citation('direct-howpublished-hyphen', '[@direct-howpublished-hyphen]'),
+            $citation('direct-howpublished-flat', '[@direct-howpublished-flat]'),
+        ]));
+        $t->same('Direct HowPublished Camel Packet :: reviewer archive packet :: reviewer archive packet', $styled->renderBibliographyEntry('direct-howpublished-camel'));
+        $t->same('Direct How Published Hyphen Packet :: institutional handout :: institutional handout', $styled->renderBibliographyEntry('direct-howpublished-hyphen'));
+        $t->same('Direct Howpublished Flat Packet :: field notebook scan :: field notebook scan', $styled->renderBibliographyEntry('direct-howpublished-flat'));
+
+        $document = (new MarkdownReader())->read('Howpublished aliases [@direct-howpublished-camel; @direct-howpublished-hyphen; @direct-howpublished-flat] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Howpublished aliases [Ames | reviewer archive packet | reviewer archive packet | reviewer archive packet; Bell | institutional handout | institutional handout | institutional handout; Chen | field notebook scan | field notebook scan | field notebook scan] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct HowPublished Camel Packet :: reviewer archive packet :: reviewer archive packet</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Howpublished Flat Packet :: field notebook scan :: field notebook scan</dd>', $blocks);
+    },
     'normalizes bounded direct csl json issue number aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
