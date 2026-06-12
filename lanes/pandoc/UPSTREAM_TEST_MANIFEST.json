@@ -9,7 +9,7 @@
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
         "mapped": 3249,
-        "latestSlice": "pandoc-json-native-meta-inline-fallbacks maps one native JSON/native AST constructor completeness case for native_inline fallback constructors in metadata inline fields, preserving opaque VendorInline payloads through PandocJsonWriter and NativeWriter MetaInlines output plus JSON reader round-trip. mappedPandocJsonNativeMetaInlineFallbackCases is 1, pandocJsonNativeMetaInlineFallbackAssertions is 10. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1944 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 73699 assertions, 0 failures) after final rebase onto current main ee4a10566 without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "latestSlice": "pandoc-odf-compact-manifest-inventory-uri maps one ODF/ODT package ingestion coverage slice for URI-encoded manifest full-paths in compact OpenDocumentPackage inventory, preserving raw manifestPath and resolved manifestPackagePath while decoded ZIP package parts remain manifest-declared. mappedOdfCompactManifestInventoryUriCases is 1, odfCompactManifestInventoryUriAssertions is 12. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php (1 file, 1066 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73731 assertions, 0 failures) after final rebase onto current main 48e2a2b0 without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc JSON/native metadata inline fallback constructor preservation is verified over current main ee4a10566.",
-        "latestFocusedSource": "2026-06-12 JSON/native AST slice inspected metadata native_inline fallback constructor preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main ee4a10566; focused PandocJsonNativeAstTest.php passed 1 file, 1944 assertions, 0 failures.",
+        "status": "ODF compact manifest inventory URI package-path provenance is verified over current main 48e2a2b0.",
+        "latestFocusedSource": "2026-06-12 ODF/ODT package ingestion slice inspected compact OpenDocumentPackage inventory provenance for URI-encoded manifest full-paths against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 48e2a2b0; focused OpenDocumentPackageTest.php passed 1 file, 1066 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -121,7 +121,9 @@
         "mappedDocxContentTypeOverrideDeclarationCases": 1,
         "docxContentTypeOverrideDeclarationAssertions": 28,
         "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
-        "pandocJsonNativeMetaInlineFallbackAssertions": 10
+        "pandocJsonNativeMetaInlineFallbackAssertions": 10,
+        "mappedOdfCompactManifestInventoryUriCases": 1,
+        "odfCompactManifestInventoryUriAssertions": 12
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -989,12 +991,12 @@
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
         "xmlHtmlDomLinkResourceReviewAssertions": 38
     },
-    "wordpressScenario": "Pandoc JSON/native AST handoff now preserves native inline fallback constructors in metadata inline fields, including titleInlines normalization and opaque VendorInline payloads through JSON and native writers, without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "ODF/ODT compact package inventory now preserves raw URI-encoded manifest full-paths alongside resolved ZIP package paths as manifestPackagePath, so encoded manifest parts remain declared in compact inventory review packets without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "Pandoc JSON/native metadata inline fallback constructor preservation is verified over current main ee4a10566.",
-    "mapping": "Accounts for one bounded native PHP JSON/native AST mapping for native_inline fallback constructors in metadata inline fields on current main ee4a10566.",
-    "audit": "updated 2026-06-12: PandocJsonWriter and NativeWriter classify native_inline as an inline metadata child so metadata fields emit opaque fallback constructors as MetaInlines and round-trip through PandocJsonReader. Verified on current main ee4a10566 with php -l lanes/pandoc/src/PandocJsonWriter.php, php -l lanes/pandoc/src/NativeWriter.php, php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php, php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php (1 test file, 1944 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73699 assertions, 0 failures).",
-    "latestSlice": "pandoc-json-native-meta-inline-fallbacks maps one native JSON/native AST constructor completeness case for native_inline fallback constructors in metadata inline fields, preserving opaque VendorInline payloads through PandocJsonWriter and NativeWriter MetaInlines output plus JSON reader round-trip. mappedPandocJsonNativeMetaInlineFallbackCases is 1, pandocJsonNativeMetaInlineFallbackAssertions is 10. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1944 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 73699 assertions, 0 failures) after final rebase onto current main ee4a10566 without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "ODF compact manifest inventory URI package-path provenance is verified over current main 48e2a2b0.",
+    "mapping": "Accounts for one bounded native PHP ODF/ODT compact package inventory mapping for URI-encoded manifest full-path package-path provenance on current main 48e2a2b0.",
+    "audit": "updated 2026-06-12: OpenDocumentPackage compact package inventory now exposes manifestPackagePath beside raw manifestPath for URI-encoded ODF manifest entries and verifies decoded ZIP parts stay declared. Verified on current main 48e2a2b0 with php -l lanes/pandoc/src/OpenDocumentPackage.php, php -l lanes/pandoc/tests/OpenDocumentPackageTest.php, php tools/run-tests.php lanes/pandoc/tests/OpenDocumentPackageTest.php (1 test file, 1066 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73731 assertions, 0 failures).",
+    "latestSlice": "pandoc-odf-compact-manifest-inventory-uri maps one ODF/ODT package ingestion coverage slice for URI-encoded manifest full-paths in compact OpenDocumentPackage inventory, preserving raw manifestPath and resolved manifestPackagePath while decoded ZIP package parts remain manifest-declared. mappedOdfCompactManifestInventoryUriCases is 1, odfCompactManifestInventoryUriAssertions is 12. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php (1 file, 1066 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73731 assertions, 0 failures) after final rebase onto current main 48e2a2b0 without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1306,5 +1308,7 @@
     "mappedXmlHtmlDomLinkResourceReviewCases": 1,
     "xmlHtmlDomLinkResourceReviewAssertions": 38,
     "mappedPandocJsonNativeMetaInlineFallbackCases": 1,
-    "pandocJsonNativeMetaInlineFallbackAssertions": 10
+    "pandocJsonNativeMetaInlineFallbackAssertions": 10,
+    "mappedOdfCompactManifestInventoryUriCases": 1,
+    "odfCompactManifestInventoryUriAssertions": 12
 }
