@@ -761,6 +761,9 @@ final class XmlHtmlDom
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
         }
+        if ($name === 'label') {
+            $summary += self::labelSummary($node);
+        }
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
@@ -2280,6 +2283,105 @@ final class XmlHtmlDom
         $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
 
         return $autocomplete === 'off' ? 'off' : 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function labelSummary(\DOMElement $label): array
+    {
+        $forRaw = self::attributeOrNull($label, 'for');
+        $forId = $forRaw === null ? null : trim($forRaw);
+        $nestedControls = self::descendantLabelableElements($label);
+        $control = null;
+        $source = 'missing';
+        if ($forRaw !== null) {
+            $source = 'for-attribute';
+            $candidate = $forId === '' ? null : self::htmlElementById($label, $forId);
+            $control = $candidate instanceof \DOMElement && self::isLabelableElement($candidate) ? $candidate : null;
+        } elseif ($nestedControls !== []) {
+            $source = 'descendant';
+            $control = $nestedControls[0];
+        }
+
+        return [
+            'formLabel' => 'label',
+            'labelText' => self::normalizedText($label),
+            'forRaw' => $forRaw,
+            'forId' => $forId === '' ? null : $forId,
+            'labeledControlSource' => $control instanceof \DOMElement ? $source : ($source === 'for-attribute' ? 'missing-for-target' : 'missing'),
+            'labeledControl' => $control instanceof \DOMElement ? self::labelableElementSummary($control) : null,
+            'nestedControlCount' => count($nestedControls),
+            'nestedControls' => array_map(
+                static fn (\DOMElement $control): array => self::labelableElementSummary($control),
+                $nestedControls
+            ),
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function descendantLabelableElements(\DOMElement $element): array
+    {
+        $controls = [];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement && self::isLabelableElement($descendant)) {
+                $controls[] = $descendant;
+            }
+        }
+
+        return $controls;
+    }
+
+    private static function htmlElementById(\DOMElement $context, string $id): ?\DOMElement
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->getAttribute('id') === $id) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isLabelableElement(\DOMElement $element): bool
+    {
+        $name = self::htmlElementName($element);
+        if ($name === 'input' && self::inputType($element) === 'hidden') {
+            return false;
+        }
+
+        return in_array($name, ['button', 'input', 'meter', 'output', 'progress', 'select', 'textarea'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function labelableElementSummary(\DOMElement $control): array
+    {
+        $name = self::htmlElementName($control);
+        $summary = [
+            'tag' => $name,
+            'id' => self::attributeOrNull($control, 'id'),
+            'controlName' => self::attributeOrNull($control, 'name'),
+        ];
+
+        if (in_array($name, ['button', 'input', 'output', 'select', 'textarea'], true)) {
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($control);
+        }
+        if ($name === 'input') {
+            $summary['type'] = self::inputType($control);
+        } elseif ($name === 'button') {
+            $summary['type'] = self::buttonType($control);
+        }
+
+        return $summary;
     }
 
     /**

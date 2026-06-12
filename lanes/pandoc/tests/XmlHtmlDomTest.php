@@ -1064,6 +1064,79 @@ XML, 'package reader XML');
         $t->same(['source-a', 'source-b', 'missing'], $output['forIds']);
         $t->same('<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output for="source-a  source-b missing" id="checksum" name="checksum">Ready <strong>hash</strong></output></label></form>', $html);
     },
+    'summarizes html label control associations for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="labels"><label for="title">Title <span>required</span></label><input id="title" name="title" value="Draft"><label>Wrapped <textarea id="notes" name="notes">Note</textarea></label><label for="missing">Missing</label><label for="save">Explicit <button id="ignored" name="ignored">Ignored</button></label><button id="save" name="save" disabled>Save</button><label><input type="hidden" id="secret" name="secret" value="x"> Hidden</label></form>',
+            'label association review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $explicitLabel = $form['children'][0];
+        $wrappedLabel = $form['children'][2];
+        $missingLabel = $form['children'][3];
+        $overrideLabel = $form['children'][4];
+        $hiddenLabel = $form['children'][6];
+
+        $t->same('label', $explicitLabel['formLabel']);
+        $t->same('Title required', $explicitLabel['labelText']);
+        $t->same('title', $explicitLabel['forRaw']);
+        $t->same('title', $explicitLabel['forId']);
+        $t->same('for-attribute', $explicitLabel['labeledControlSource']);
+        $t->same([
+            'tag' => 'input',
+            'id' => 'title',
+            'controlName' => 'title',
+            'effectiveDisabled' => false,
+            'type' => 'text',
+        ], $explicitLabel['labeledControl']);
+        $t->same(0, $explicitLabel['nestedControlCount']);
+        $t->same([], $explicitLabel['nestedControls']);
+
+        $t->same('label', $wrappedLabel['formLabel']);
+        $t->same('Wrapped Note', $wrappedLabel['labelText']);
+        $t->same(null, $wrappedLabel['forRaw']);
+        $t->same(null, $wrappedLabel['forId']);
+        $t->same('descendant', $wrappedLabel['labeledControlSource']);
+        $t->same([
+            'tag' => 'textarea',
+            'id' => 'notes',
+            'controlName' => 'notes',
+            'effectiveDisabled' => false,
+        ], $wrappedLabel['labeledControl']);
+        $t->same(1, $wrappedLabel['nestedControlCount']);
+        $t->same([$wrappedLabel['labeledControl']], $wrappedLabel['nestedControls']);
+
+        $t->same('missing-for-target', $missingLabel['labeledControlSource']);
+        $t->same('missing', $missingLabel['forId']);
+        $t->same(null, $missingLabel['labeledControl']);
+
+        $t->same('for-attribute', $overrideLabel['labeledControlSource']);
+        $t->same([
+            'tag' => 'button',
+            'id' => 'save',
+            'controlName' => 'save',
+            'effectiveDisabled' => true,
+            'type' => 'submit',
+        ], $overrideLabel['labeledControl']);
+        $t->same(1, $overrideLabel['nestedControlCount']);
+        $t->same([
+            [
+                'tag' => 'button',
+                'id' => 'ignored',
+                'controlName' => 'ignored',
+                'effectiveDisabled' => false,
+                'type' => 'submit',
+            ],
+        ], $overrideLabel['nestedControls']);
+
+        $t->same('Hidden', $hiddenLabel['labelText']);
+        $t->same('missing', $hiddenLabel['labeledControlSource']);
+        $t->same(null, $hiddenLabel['labeledControl']);
+        $t->same(0, $hiddenLabel['nestedControlCount']);
+        $t->same('<form id="labels"><label for="title">Title <span>required</span></label><input id="title" name="title" value="Draft"><label>Wrapped <textarea id="notes" name="notes">Note</textarea></label><label for="missing">Missing</label><label for="save">Explicit <button id="ignored" name="ignored">Ignored</button></label><button disabled id="save" name="save">Save</button><label><input id="secret" name="secret" type="hidden" value="x"> Hidden</label></form>', $html);
+    },
     'summarizes html form labels datalist and inherited disabled state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="import-form"><label for="format">Format</label><input id="format" name="format" list="format-options" required placeholder="Choose format"><datalist id="format-options"><option value="docx" label="Word"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input id="confirm" name="confirm" type="checkbox" checked></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" type="submit" name="save" value="1">Save</button></fieldset></form>',
