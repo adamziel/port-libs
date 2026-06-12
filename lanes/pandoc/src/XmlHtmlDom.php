@@ -911,6 +911,9 @@ final class XmlHtmlDom
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
+        if ($name === 'template') {
+            $summary += self::templateSummary($node);
+        }
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
@@ -1260,6 +1263,24 @@ final class XmlHtmlDom
         }
 
         return $fallbackTexts;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateSummary(\DOMElement $element): array
+    {
+        $text = $element->textContent;
+
+        return [
+            'template' => 'inert-source',
+            'templateText' => $text,
+            'templateTextLength' => strlen($text),
+            'templateTextSha256' => hash('sha256', $text),
+            'templateContainsMarkupLikeText' => preg_match('/<\s*[A-Za-z!\/?]/', $text) === 1,
+            'templateContainsActiveLikeText' => preg_match('/<\s*(script|style|iframe|object|embed|link|meta)\b|<!doctype|<\?/i', $text) === 1,
+            'templateReviewPolicy' => 'template-inert-escaped-source',
+        ];
     }
 
     /**
