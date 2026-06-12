@@ -4014,6 +4014,7 @@ final class XmlHtmlDom
     private static function objectSummary(\DOMElement $object): array
     {
         $fallbackText = self::normalizedText($object);
+        $paramDetails = self::objectParamSummaries($object);
         $summary = [
             'embeddedResource' => 'object',
             'data' => self::attributeOrNull($object, 'data'),
@@ -4021,8 +4022,10 @@ final class XmlHtmlDom
             'nameAttribute' => self::attributeOrNull($object, 'name'),
             'width' => self::attributeOrNull($object, 'width'),
             'height' => self::attributeOrNull($object, 'height'),
-            'params' => self::objectParamSummaries($object),
+            'params' => self::legacyObjectParamSummaries($paramDetails),
+            'paramDetails' => $paramDetails,
         ];
+        $summary += self::objectParamReviewSummary($paramDetails);
 
         if ($fallbackText !== '') {
             $summary['fallbackText'] = $fallbackText;
@@ -4032,21 +4035,35 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{embeddedResource:string, paramName:?string, value:?string, valueType:?string, mimeType:?string}
+     * @return array<string, mixed>
      */
     private static function paramElementSummary(\DOMElement $param): array
     {
+        $nameRaw = self::attributeOrNull($param, 'name');
+        $name = self::normalizedNonEmptyAttribute($nameRaw);
+        $valueTypeRaw = self::attributeOrNull($param, 'valuetype');
+        $valueType = self::paramValueTypeSummary($valueTypeRaw);
+
         return [
             'embeddedResource' => 'param',
-            'paramName' => self::attributeOrNull($param, 'name'),
+            'paramName' => $nameRaw,
+            'paramNameRaw' => $nameRaw,
+            'paramNameNormalized' => $name,
+            'paramNameKey' => $name === null ? null : strtolower($name),
+            'paramNameValid' => $name !== null && self::isSafeHtmlParamName($name),
             'value' => self::attributeOrNull($param, 'value'),
-            'valueType' => self::attributeOrNull($param, 'valuetype'),
+            'valueRaw' => self::attributeOrNull($param, 'value'),
+            'valueType' => $valueTypeRaw,
+            'valueTypeRaw' => $valueTypeRaw,
+            'valueTypeState' => $valueType['state'],
+            'valueTypeExplicit' => $valueType['explicit'],
+            'valueTypeValid' => $valueType['valid'],
             'mimeType' => self::attributeOrNull($param, 'type'),
         ];
     }
 
     /**
-     * @return list<array{paramName:?string, value:?string, valueType:?string, mimeType:?string}>
+     * @return list<array<string, mixed>>
      */
     private static function objectParamSummaries(\DOMElement $object): array
     {
@@ -4062,6 +4079,147 @@ final class XmlHtmlDom
         }
 
         return $params;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $paramDetails
+     * @return list<array{paramName:?string, value:?string, valueType:?string, mimeType:?string}>
+     */
+    private static function legacyObjectParamSummaries(array $paramDetails): array
+    {
+        return array_map(
+            static fn (array $summary): array => [
+                'paramName' => $summary['paramName'],
+                'value' => $summary['value'],
+                'valueType' => $summary['valueType'],
+                'mimeType' => $summary['mimeType'],
+            ],
+            $paramDetails
+        );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $params
+     * @return array<string, mixed>
+     */
+    private static function objectParamReviewSummary(array $params): array
+    {
+        $names = [];
+        $firstNames = [];
+        $nameCounts = [];
+        $duplicateNames = [];
+        $refParams = [];
+        $objectReferenceParams = [];
+        $issues = [];
+        $unnamedCount = 0;
+        $invalidNameCount = 0;
+        $invalidValueTypeCount = 0;
+
+        foreach ($params as $index => $param) {
+            $key = $param['paramNameKey'] ?? null;
+            $name = $param['paramNameNormalized'] ?? null;
+            if (!is_string($key) || !is_string($name)) {
+                ++$unnamedCount;
+                $issues[] = [
+                    'code' => 'missing-param-name',
+                    'paramIndex' => $index,
+                    'value' => $param['value'] ?? null,
+                ];
+            } elseif (($param['paramNameValid'] ?? false) !== true) {
+                ++$invalidNameCount;
+                $issues[] = [
+                    'code' => 'invalid-param-name',
+                    'paramIndex' => $index,
+                    'paramNameRaw' => $param['paramNameRaw'] ?? null,
+                ];
+            } else {
+                if (!isset($nameCounts[$key])) {
+                    $names[] = $name;
+                    $firstNames[$key] = $name;
+                    $nameCounts[$key] = 0;
+                }
+                ++$nameCounts[$key];
+                if ($nameCounts[$key] === 2) {
+                    $duplicateNames[] = $firstNames[$key];
+                    $issues[] = [
+                        'code' => 'duplicate-param-name',
+                        'paramName' => $firstNames[$key],
+                        'paramNameKey' => $key,
+                    ];
+                }
+            }
+
+            if (($param['valueTypeValid'] ?? true) !== true) {
+                ++$invalidValueTypeCount;
+                $issues[] = [
+                    'code' => 'invalid-param-valuetype',
+                    'paramIndex' => $index,
+                    'paramName' => $name,
+                    'valueTypeRaw' => $param['valueTypeRaw'] ?? null,
+                ];
+            }
+
+            $record = self::objectParamReferenceRecord($param, $index);
+            if (($param['valueTypeState'] ?? 'data') === 'ref') {
+                $refParams[] = $record;
+            }
+            if (($param['valueTypeState'] ?? 'data') === 'object') {
+                $objectReferenceParams[] = $record;
+            }
+        }
+
+        return [
+            'paramCount' => count($params),
+            'paramNames' => $names,
+            'duplicateParamNames' => $duplicateNames,
+            'unnamedParamCount' => $unnamedCount,
+            'invalidParamNameCount' => $invalidNameCount,
+            'invalidParamValueTypeCount' => $invalidValueTypeCount,
+            'refParamCount' => count($refParams),
+            'refParams' => $refParams,
+            'objectReferenceParamCount' => count($objectReferenceParams),
+            'objectReferenceParams' => $objectReferenceParams,
+            'paramIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $param
+     * @return array{index:int, paramName:?string, value:?string, mimeType:?string, valueType:string}
+     */
+    private static function objectParamReferenceRecord(array $param, int $index): array
+    {
+        return [
+            'index' => $index,
+            'paramName' => is_string($param['paramNameNormalized'] ?? null) ? $param['paramNameNormalized'] : null,
+            'value' => is_string($param['value'] ?? null) ? $param['value'] : null,
+            'mimeType' => is_string($param['mimeType'] ?? null) ? $param['mimeType'] : null,
+            'valueType' => is_string($param['valueTypeState'] ?? null) ? $param['valueTypeState'] : 'data',
+        ];
+    }
+
+    /**
+     * @return array{state:string, explicit:bool, valid:bool}
+     */
+    private static function paramValueTypeSummary(?string $valueType): array
+    {
+        if ($valueType === null || trim($valueType) === '') {
+            return ['state' => 'data', 'explicit' => false, 'valid' => true];
+        }
+
+        $normalized = strtolower(trim($valueType));
+        if (in_array($normalized, ['data', 'ref', 'object'], true)) {
+            return ['state' => $normalized, 'explicit' => true, 'valid' => true];
+        }
+
+        return ['state' => 'data', 'explicit' => true, 'valid' => false];
+    }
+
+    private static function isSafeHtmlParamName(string $name): bool
+    {
+        return $name !== ''
+            && strlen($name) <= 128
+            && preg_match('/[\x00-\x1F\x7F<>"`]/', $name) !== 1;
     }
 
     /**

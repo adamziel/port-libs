@@ -2274,6 +2274,86 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html object param review provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<object id="player" data="player.swf" type="application/x-shockwave-flash">'
+                . '<param name="Movie" value="movie.swf" valuetype="ref" type="application/x-shockwave-flash">'
+                . '<param name="movie" value="override.swf" valuetype="REF">'
+                . '<param name="controller" value="control-panel" valuetype="object">'
+                . '<param value="loose"><param name=" " value="blank">'
+                . '<param name="bad&lt;tag" value="bad" valuetype="bogus">Fallback</object>',
+            'object param review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/object-param-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $object = $summary[0];
+        $firstParam = $object['paramDetails'][0];
+        $implicitParam = $object['paramDetails'][3];
+        $invalidParam = $object['paramDetails'][5];
+        $childParam = $object['children'][0];
+
+        $t->same('object', $object['embeddedResource']);
+        $t->same(6, $object['paramCount']);
+        $t->same(['Movie', 'controller'], $object['paramNames']);
+        $t->same(['Movie'], $object['duplicateParamNames']);
+        $t->same(2, $object['unnamedParamCount']);
+        $t->same(1, $object['invalidParamNameCount']);
+        $t->same(1, $object['invalidParamValueTypeCount']);
+        $t->same(2, $object['refParamCount']);
+        $t->same(1, $object['objectReferenceParamCount']);
+        $t->same([
+            ['index' => 0, 'paramName' => 'Movie', 'value' => 'movie.swf', 'mimeType' => 'application/x-shockwave-flash', 'valueType' => 'ref'],
+            ['index' => 1, 'paramName' => 'movie', 'value' => 'override.swf', 'mimeType' => null, 'valueType' => 'ref'],
+        ], $object['refParams']);
+        $t->same([
+            ['index' => 2, 'paramName' => 'controller', 'value' => 'control-panel', 'mimeType' => null, 'valueType' => 'object'],
+        ], $object['objectReferenceParams']);
+        $t->same([
+            ['code' => 'duplicate-param-name', 'paramName' => 'Movie', 'paramNameKey' => 'movie'],
+            ['code' => 'missing-param-name', 'paramIndex' => 3, 'value' => 'loose'],
+            ['code' => 'missing-param-name', 'paramIndex' => 4, 'value' => 'blank'],
+            ['code' => 'invalid-param-name', 'paramIndex' => 5, 'paramNameRaw' => 'bad<tag'],
+            ['code' => 'invalid-param-valuetype', 'paramIndex' => 5, 'paramName' => 'bad<tag', 'valueTypeRaw' => 'bogus'],
+        ], $object['paramIssues']);
+
+        $t->same('Movie', $firstParam['paramNameRaw']);
+        $t->same('Movie', $firstParam['paramNameNormalized']);
+        $t->same('movie', $firstParam['paramNameKey']);
+        $t->same(true, $firstParam['paramNameValid']);
+        $t->same('movie.swf', $firstParam['valueRaw']);
+        $t->same('ref', $firstParam['valueTypeRaw']);
+        $t->same('ref', $firstParam['valueTypeState']);
+        $t->same(true, $firstParam['valueTypeExplicit']);
+        $t->same(true, $firstParam['valueTypeValid']);
+        $t->same('application/x-shockwave-flash', $firstParam['mimeType']);
+
+        $t->same(null, $implicitParam['paramNameNormalized']);
+        $t->same(null, $implicitParam['paramNameKey']);
+        $t->same(false, $implicitParam['paramNameValid']);
+        $t->same('data', $implicitParam['valueTypeState']);
+        $t->same(false, $implicitParam['valueTypeExplicit']);
+        $t->same(true, $implicitParam['valueTypeValid']);
+
+        $t->same('bad<tag', $invalidParam['paramNameNormalized']);
+        $t->same(false, $invalidParam['paramNameValid']);
+        $t->same('bogus', $invalidParam['valueTypeRaw']);
+        $t->same('data', $invalidParam['valueTypeState']);
+        $t->same(true, $invalidParam['valueTypeExplicit']);
+        $t->same(false, $invalidParam['valueTypeValid']);
+
+        $t->same('param', $childParam['embeddedResource']);
+        $t->same('Movie', $childParam['paramNameNormalized']);
+        $t->same('ref', $childParam['valueTypeState']);
+        $t->same('Fallback', $object['fallbackText']);
+        $t->same('<object data="player.swf" id="player" type="application/x-shockwave-flash"><param name="Movie" type="application/x-shockwave-flash" value="movie.swf" valuetype="ref"></param><param name="movie" value="override.swf" valuetype="REF"></param><param name="controller" value="control-panel" valuetype="object"></param><param value="loose"></param><param name=" " value="blank"></param><param name="bad&lt;tag" value="bad" valuetype="bogus"></param>Fallback</object>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/object-param-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes iframe srcdoc as inert parsed review provenance' => static function (TestRunner $t): void {
         $srcdoc = implode("\n", [
             '<article data-review="srcdoc">',
