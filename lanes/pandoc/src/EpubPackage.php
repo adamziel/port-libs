@@ -593,6 +593,9 @@ final class EpubPackage
                     'sourcesByType' => $this->metadata['sourcesByType'] ?? [],
                     'sourceSummary' => $this->metadata['sourceSummary'] ?? [],
                     'subjects' => $this->metadata['subjects'] ?? [],
+                    'rights' => $this->metadata['rights'] ?? [],
+                    'rightsDetails' => $this->metadata['rightsDetails'] ?? [],
+                    'rightsSummary' => $this->metadata['rightsSummary'] ?? self::metadataRightsSummary([]),
                     'description' => $this->metadata['description'] ?? null,
                     'publisher' => $this->metadata['publisher'] ?? null,
                     'bibliographicDetails' => $this->metadata['bibliographicDetails'] ?? [],
@@ -3028,6 +3031,7 @@ final class EpubPackage
         $metadata['linkRelCounts'] = $packageLinkReport['relCounts'];
         $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
         $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($packageLinks);
+        $metadata = self::attachPackageLinksToMetadata($metadata, $packageLinks);
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata, $packageLinks);
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $spineMetadata = self::parseSpineMetadata($spineElement);
@@ -3182,6 +3186,9 @@ final class EpubPackage
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
         $bibliographicDetails = self::metadataBibliographicDetails($dc);
+        $bibliographicDetailsByKind = self::metadataBibliographicDetailsByKind($bibliographicDetails);
+        $rightsDetails = $bibliographicDetailsByKind['rights'] ?? [];
+        $rightsSummary = self::metadataRightsSummary($rightsDetails);
         $renditionLayout = self::metadataRenditionLayoutReport($metaProperties);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
         $packageRefinements = $packageId !== null && isset($refinementsById[$packageId]) && is_array($refinementsById[$packageId])
@@ -3246,10 +3253,13 @@ final class EpubPackage
             'sourcesByType' => self::metadataSourcesByType($sourceDetails),
             'sourceSummary' => self::metadataSourceSummary($sourceDetails),
             'subjects' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['subject'] ?? []),
+            'rights' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['rights'] ?? []),
+            'rightsDetails' => $rightsDetails,
+            'rightsSummary' => $rightsSummary,
             'description' => $dc['description'][0]['text'] ?? null,
             'publisher' => $dc['publisher'][0]['text'] ?? null,
             'bibliographicDetails' => $bibliographicDetails,
-            'bibliographicDetailsByKind' => self::metadataBibliographicDetailsByKind($bibliographicDetails),
+            'bibliographicDetailsByKind' => $bibliographicDetailsByKind,
             'bibliographicSummary' => self::metadataBibliographicSummary($bibliographicDetails),
             'renditionLayout' => $renditionLayout,
             'modified' => $propertyValues['dcterms:modified'][0] ?? null,
@@ -4445,6 +4455,166 @@ final class EpubPackage
             'termCount' => $termCount,
             'linkedResourceCount' => $linkedResourceCount,
             'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $packageLinks
+     *
+     * @return array<string, mixed>
+     */
+    private static function attachPackageLinksToMetadata(array $metadata, array $packageLinks): array
+    {
+        $linksBySubjectId = [];
+        foreach ($packageLinks as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $subjectId = is_string($link['subjectId'] ?? null) ? trim($link['subjectId']) : '';
+            if ($subjectId === '') {
+                continue;
+            }
+
+            $linksBySubjectId[$subjectId][] = $link;
+        }
+
+        if (is_array($metadata['bibliographicDetails'] ?? null)) {
+            $metadata['bibliographicDetails'] = self::attachLinkedResourcesToMetadataDetails(
+                $metadata['bibliographicDetails'],
+                $linksBySubjectId,
+            );
+            $metadata['bibliographicDetailsByKind'] = self::metadataBibliographicDetailsByKind($metadata['bibliographicDetails']);
+            $metadata['bibliographicSummary'] = self::metadataBibliographicSummary($metadata['bibliographicDetails']);
+            $metadata['rightsDetails'] = $metadata['bibliographicDetailsByKind']['rights'] ?? [];
+            $metadata['rightsSummary'] = self::metadataRightsSummary($metadata['rightsDetails']);
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     * @param array<string, list<array<string, mixed>>> $linksBySubjectId
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function attachLinkedResourcesToMetadataDetails(array $details, array $linksBySubjectId): array
+    {
+        foreach ($details as $index => $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $id = is_string($detail['id'] ?? null) ? trim($detail['id']) : '';
+            $linkedResources = $id !== '' && isset($linksBySubjectId[$id])
+                ? array_values($linksBySubjectId[$id])
+                : [];
+
+            $details[$index]['linkedResources'] = $linkedResources;
+            $details[$index]['linkedResourceCount'] = count($linkedResources);
+            $details[$index]['localLinkedResourceCount'] = count(array_filter(
+                $linkedResources,
+                static fn (array $link): bool => ($link['external'] ?? false) !== true
+                    && is_string($link['partName'] ?? null),
+            ));
+            $details[$index]['externalLinkedResourceCount'] = count(array_filter(
+                $linkedResources,
+                static fn (array $link): bool => ($link['external'] ?? false) === true,
+            ));
+            $details[$index]['missingLinkedResourceCount'] = count(array_filter(
+                $linkedResources,
+                static fn (array $link): bool => ($link['external'] ?? false) !== true
+                    && ($link['exists'] ?? false) !== true,
+            ));
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rightsDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataRightsSummary(array $rightsDetails): array
+    {
+        $authorities = [];
+        $terms = [];
+        $relCounts = [];
+        $diagnostics = [];
+        $linkedResourceCount = 0;
+        $localLinkedResourceCount = 0;
+        $externalLinkedResourceCount = 0;
+        $missingLinkedResourceCount = 0;
+
+        foreach ($rightsDetails as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            if (is_string($detail['authority'] ?? null) && $detail['authority'] !== '') {
+                $authorities[$detail['authority']] = $detail['authority'];
+            }
+            if (is_string($detail['term'] ?? null) && $detail['term'] !== '') {
+                $terms[$detail['term']] = $detail['term'];
+            }
+
+            $linkedResources = is_array($detail['linkedResources'] ?? null) ? $detail['linkedResources'] : [];
+            $linkedResourceCount += count($linkedResources);
+            foreach ($linkedResources as $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                if (($link['external'] ?? false) === true) {
+                    ++$externalLinkedResourceCount;
+                } elseif (is_string($link['partName'] ?? null)) {
+                    ++$localLinkedResourceCount;
+                }
+
+                if (($link['external'] ?? false) !== true && ($link['exists'] ?? false) !== true) {
+                    ++$missingLinkedResourceCount;
+                }
+
+                foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
+                    if (!is_string($rel) || $rel === '') {
+                        continue;
+                    }
+
+                    $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                }
+
+                foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'rightsIndex' => is_int($detail['index'] ?? null) ? $detail['index'] : null,
+                        'rightsId' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                        'linkIndex' => is_int($link['index'] ?? null) ? $link['index'] : null,
+                        'linkId' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                    ] + $diagnostic;
+                }
+            }
+        }
+
+        return [
+            'present' => $rightsDetails !== [],
+            'count' => count($rightsDetails),
+            'authorityCount' => count($authorities),
+            'authorities' => array_values($authorities),
+            'termCount' => count($terms),
+            'terms' => array_values($terms),
+            'linkedResourceCount' => $linkedResourceCount,
+            'localLinkedResourceCount' => $localLinkedResourceCount,
+            'externalLinkedResourceCount' => $externalLinkedResourceCount,
+            'missingLinkedResourceCount' => $missingLinkedResourceCount,
+            'linkedResourceRelCounts' => $relCounts,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

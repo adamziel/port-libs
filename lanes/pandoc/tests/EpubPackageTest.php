@@ -1543,6 +1543,106 @@ XML;
         $t->same($bibliographicSummary, $summary['wordpressImport']['metadataDetails']['bibliographicSummary']);
     },
 
+    'links OPF rights metadata to license resources for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithRightsLinks = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:rights id="license-json" xml:lang="en">Creative Commons Attribution 4.0</dc:rights>
+    <dc:rights id="license-url">Publisher migration rights page</dc:rights>
+    <dc:language>en-US</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithRightsLinks = str_replace(
+            '</metadata>',
+            '    <meta refines="#license-json" property="authority">Creative Commons</meta>
+    <meta refines="#license-json" property="term">CC-BY-4.0</meta>
+    <link id="license-record" rel="license record" refines="#license-json" href="meta/license.json?profile=review#license" media-type="application/ld+json" properties="schema-org"/>
+    <link id="remote-license" rel="license" refines="#license-url" href="https://creativecommons.org/licenses/by/4.0/" media-type="text/html"/>
+  </metadata>',
+            $opfWithRightsLinks
+        );
+        $opfWithRightsLinks = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="license-record" href="meta/license.json" media-type="application/ld+json"/>',
+            $opfWithRightsLinks
+        );
+
+        $licenseJson = '{"license":"CC-BY-4.0","source":"publisher"}';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithRightsLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/license.json', 'data' => $licenseJson],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $rightsDetails = $metadata['rightsDetails'];
+        $rightsSummary = $metadata['rightsSummary'];
+        $localRights = $rightsDetails[0];
+        $remoteRights = $rightsDetails[1];
+        $localLicense = $localRights['linkedResources'][0];
+        $remoteLicense = $remoteRights['linkedResources'][0];
+
+        $t->same(['Creative Commons Attribution 4.0', 'Publisher migration rights page'], $metadata['rights']);
+        $t->same(2, count($rightsDetails));
+        $t->same('license-json', $localRights['id']);
+        $t->same('Creative Commons Attribution 4.0', $localRights['text']);
+        $t->same('Creative Commons', $localRights['authority']);
+        $t->same('CC-BY-4.0', $localRights['term']);
+        $t->same(1, $localRights['linkedResourceCount']);
+        $t->same(1, $localRights['localLinkedResourceCount']);
+        $t->same(0, $localRights['externalLinkedResourceCount']);
+
+        $t->same('license-record', $localLicense['id']);
+        $t->same(['license', 'record'], $localLicense['rel']);
+        $t->same('/EPUB/meta/license.json?profile=review#license', $localLicense['target']);
+        $t->same('/EPUB/meta/license.json', $localLicense['partName']);
+        $t->same(true, $localLicense['hrefHasQuery']);
+        $t->same('profile=review', $localLicense['hrefQuery']);
+        $t->same(true, $localLicense['hrefHasFragment']);
+        $t->same('license', $localLicense['hrefFragment']);
+        $t->same('license-record', $localLicense['manifestId']);
+        $t->same('application/ld+json', $localLicense['manifestMediaType']);
+        $t->same(true, $localLicense['exists']);
+        $t->same(strlen($licenseJson), $localLicense['byteLength']);
+        $t->same(hash('crc32b', $licenseJson), $localLicense['crc32']);
+        $t->same(true, $localLicense['canExposeBytes']);
+
+        $t->same('license-url', $remoteRights['id']);
+        $t->same(1, $remoteRights['linkedResourceCount']);
+        $t->same(0, $remoteRights['localLinkedResourceCount']);
+        $t->same(1, $remoteRights['externalLinkedResourceCount']);
+        $t->same('remote-license', $remoteLicense['id']);
+        $t->same(true, $remoteLicense['external']);
+        $t->same('https://creativecommons.org/licenses/by/4.0/', $remoteLicense['target']);
+        $t->same('external-package-link-target', $remoteLicense['diagnostics'][0]['type']);
+
+        $t->same(true, $rightsSummary['present']);
+        $t->same(2, $rightsSummary['count']);
+        $t->same(['Creative Commons'], $rightsSummary['authorities']);
+        $t->same(['CC-BY-4.0'], $rightsSummary['terms']);
+        $t->same(2, $rightsSummary['linkedResourceCount']);
+        $t->same(1, $rightsSummary['localLinkedResourceCount']);
+        $t->same(1, $rightsSummary['externalLinkedResourceCount']);
+        $t->same(0, $rightsSummary['missingLinkedResourceCount']);
+        $t->same(['license' => 2, 'record' => 1], $rightsSummary['linkedResourceRelCounts']);
+        $t->same(1, $rightsSummary['diagnosticCount']);
+        $t->same('external-package-link-target', $rightsSummary['diagnostics'][0]['type']);
+        $t->same('remote-license', $rightsSummary['diagnostics'][0]['linkId']);
+
+        $t->same(2, $metadata['bibliographicSummary']['linkedResourceCount']);
+        $t->same($rightsDetails, $metadata['bibliographicDetailsByKind']['rights']);
+        $t->same($rightsDetails, $summary['wordpressImport']['metadataDetails']['rightsDetails']);
+        $t->same($rightsSummary, $summary['wordpressImport']['metadataDetails']['rightsSummary']);
+        $t->same($metadata['bibliographicSummary'], $summary['wordpressImport']['metadataDetails']['bibliographicSummary']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',
