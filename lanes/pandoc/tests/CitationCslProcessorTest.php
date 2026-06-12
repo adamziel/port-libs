@@ -26206,6 +26206,120 @@ XML);
         $t->contains('<dt>Rios 2024</dt><dd>Address Publisher Place Packet :: Madrid :: Madrid :: Field Press</dd>', $blocks);
         $t->contains('<dt>Nolan 2023</dt><dd>Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press</dd>', $blocks);
     },
+    'normalizes bounded direct csl json institutional publisher aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-institution-publisher',
+                'type' => 'report',
+                'title' => 'Institutional Publisher Packet',
+                'author' => [
+                    ['family' => 'Lane', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'institution' => 'Migration Review Institute',
+            ],
+            [
+                'id' => 'direct-organization-publisher',
+                'type' => 'book',
+                'title' => 'Organization Publisher Packet',
+                'author' => [
+                    ['family' => 'Mora', 'given' => 'Max'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'organizationName' => 'Archive Review Board',
+            ],
+            [
+                'id' => 'direct-school-list-publisher',
+                'type' => 'thesis',
+                'title' => 'School List Publisher Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'schoolList' => ['Source University', 'Field Lab'],
+            ],
+            [
+                'id' => 'direct-sponsor-list-publisher',
+                'type' => 'document',
+                'title' => 'Sponsor List Publisher Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'sponsor-list' => 'Public Records Office; Civic Lab',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $institution = $processor->item('direct-institution-publisher');
+        $organization = $processor->item('direct-organization-publisher');
+        $schoolList = $processor->item('direct-school-list-publisher');
+        $sponsorList = $processor->item('direct-sponsor-list-publisher');
+        $t->same('Migration Review Institute', $institution['publisher'] ?? null);
+        $t->same(['Migration Review Institute'], $institution['publisherList'] ?? null);
+        $t->same('Archive Review Board', $organization['publisher'] ?? null);
+        $t->same(['Archive Review Board'], $organization['publisherList'] ?? null);
+        $t->same('Source University; Field Lab', $schoolList['publisher'] ?? null);
+        $t->same(['Source University', 'Field Lab'], $schoolList['publisherList'] ?? null);
+        $t->same('Public Records Office; Civic Lab', $sponsorList['publisher'] ?? null);
+        $t->same(['Public Records Office', 'Civic Lab'], $sponsorList['publisherList'] ?? null);
+        $t->same('Lane, Lia. Institutional Publisher Packet. Migration Review Institute, 2026.', $processor->renderBibliographyEntry('direct-institution-publisher'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Institutional Publisher Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-institutional-publisher-alias-review</id>
+    <updated>2026-06-12T00:49:42+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter=" || ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher"/>
+        <text variable="institution"/>
+        <text variable="organization"/>
+        <text variable="institution-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="institution" form="short"/>
+      <text variable="organization-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML)->withCslAbbreviations([
+            'default' => [
+                'institution' => [
+                    'Migration Review Institute' => 'MRI',
+                ],
+            ],
+        ]);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Institutional Publisher Alias Review', $summary['title'] ?? null);
+        $t->same('[Lane | Migration Review Institute | Migration Review Institute | Migration Review Institute | Migration Review Institute || Mora | Archive Review Board | Archive Review Board | Archive Review Board | Archive Review Board || Ng | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab || Roe | Public Records Office; Civic Lab | Public Records Office; Civic Lab | Public Records Office; Civic Lab | Public Records Office; Civic Lab]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-institution-publisher', 'text' => '[@direct-institution-publisher]']),
+            new AstNode('citation', ['id' => 'direct-organization-publisher', 'text' => '[@direct-organization-publisher]']),
+            new AstNode('citation', ['id' => 'direct-school-list-publisher', 'text' => '[@direct-school-list-publisher]']),
+            new AstNode('citation', ['id' => 'direct-sponsor-list-publisher', 'text' => '[@direct-sponsor-list-publisher]']),
+        ]));
+        $t->same('Institutional Publisher Packet :: Migration Review Institute :: MRI :: Migration Review Institute', $styled->renderBibliographyEntry('direct-institution-publisher'));
+        $t->same('Organization Publisher Packet :: Archive Review Board :: Archive Review Board :: Archive Review Board', $styled->renderBibliographyEntry('direct-organization-publisher'));
+        $t->same('School List Publisher Packet :: Source University; Field Lab :: Source University; Field Lab :: Source University; Field Lab', $styled->renderBibliographyEntry('direct-school-list-publisher'));
+        $t->same('Sponsor List Publisher Packet :: Public Records Office; Civic Lab :: Public Records Office; Civic Lab :: Public Records Office; Civic Lab', $styled->renderBibliographyEntry('direct-sponsor-list-publisher'));
+
+        $document = (new MarkdownReader())->read('Institutional publisher aliases [@direct-institution-publisher; @direct-organization-publisher; @direct-school-list-publisher; @direct-sponsor-list-publisher] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Institutional publisher aliases [Lane | Migration Review Institute | Migration Review Institute | Migration Review Institute | Migration Review Institute || Mora | Archive Review Board | Archive Review Board | Archive Review Board | Archive Review Board || Ng | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab || Roe | Public Records Office; Civic Lab | Public Records Office; Civic Lab | Public Records Office; Civic Lab | Public Records Office; Civic Lab] remain visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Institutional Publisher Packet :: Migration Review Institute :: MRI :: Migration Review Institute</dd>', $blocks);
+        $t->contains('<dt>Roe 2023</dt><dd>Sponsor List Publisher Packet :: Public Records Office; Civic Lab :: Public Records Office; Civic Lab :: Public Records Office; Civic Lab</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
