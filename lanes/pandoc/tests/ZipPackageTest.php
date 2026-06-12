@@ -5543,6 +5543,74 @@ return [
         $t->same(false, str_contains($diagnostics, 'raw-local-header-variable-fields-preflight-failed'));
     },
 
+    'preflights raw zip local header extra field record provenance before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentExtra = pack('vva*', 0xcafe, strlen('local-record'), 'local-record')
+            . pack('vva*', 0xbeef, strlen('audit'), 'audit');
+        $mediaExtra = pack('vva*', 0x1234, strlen('media'), 'media');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local extra record provenance</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $documentExtra,
+                'centralExtra' => $documentExtra,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => "local extra record media bytes\n",
+                'method' => 0,
+                'localExtra' => $mediaExtra,
+                'centralExtra' => $mediaExtra,
+            ],
+        ]);
+
+        $summary = ZipPackage::localHeaderVariableFieldsPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $package = ZipPackage::fromString($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $localHeaders = $package->localHeaderPreflight();
+        $first = $summary['entries'][0];
+        $second = $summary['entries'][1];
+        $firstRecord = $first['localExtraFieldRecords'][0];
+        $secondRecord = $first['localExtraFieldRecords'][1];
+        $mediaRecord = $second['localExtraFieldRecords'][0];
+
+        $t->same(2, $summary['localExtraFieldEntryCount']);
+        $t->same(3, $summary['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef, 0x1234], $summary['localExtraFieldRecordIds']);
+        $t->same($first, $summary['largestLocalExtraFieldEntry']);
+        $t->same($summary, $rawStrict['localHeaderVariableFields']);
+        $t->same($summary, $strict['localHeaderVariableFields']);
+
+        $t->same('word/document.xml', $first['name']);
+        $t->same(strlen($documentExtra), $first['localExtraFieldLength']);
+        $t->same(2, $first['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $first['localExtraFieldIds']);
+        $t->same([], $first['localExtraFieldStructureIssues']);
+        $t->same(0xcafe, $firstRecord['id']);
+        $t->same('cafe', $firstRecord['idHex']);
+        $t->same(strlen('local-record'), $firstRecord['declaredDataLength']);
+        $t->same($first['localExtraFieldOffset'], $firstRecord['localExtraFieldRecordOffset']);
+        $t->same($firstRecord['localExtraFieldRecordOffset'] + 4, $firstRecord['localExtraFieldDataOffset']);
+        $t->same($firstRecord['localExtraFieldDataOffset'] + strlen('local-record'), $firstRecord['localExtraFieldRecordEnd']);
+        $t->same(false, $firstRecord['isTruncated']);
+        $t->same(null, $firstRecord['issue']);
+        $t->same(0xbeef, $secondRecord['id']);
+        $t->same($firstRecord['localExtraFieldRecordEnd'], $secondRecord['localExtraFieldRecordOffset']);
+        $t->same($first['dataStart'], $secondRecord['localExtraFieldRecordEnd']);
+
+        $t->same('word/media/review.bin', $second['name']);
+        $t->same(1, $second['localExtraFieldRecordCount']);
+        $t->same([0x1234], $second['localExtraFieldIds']);
+        $t->same('1234', $mediaRecord['idHex']);
+        $t->same($second['localExtraFieldOffset'], $mediaRecord['localExtraFieldRecordOffset']);
+        $t->same($second['dataStart'], $mediaRecord['localExtraFieldRecordEnd']);
+
+        $t->same($summary['localExtraFieldRecordIds'], $localHeaders['localExtraFieldRecordIds']);
+        $t->same($first['localExtraFieldRecords'], $localHeaders['entries'][0]['localExtraFieldRecords']);
+        $t->same($second['localExtraFieldRecords'], $localHeaders['entries'][1]['localExtraFieldRecords']);
+    },
+
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [
