@@ -2317,6 +2317,12 @@ return [
             'source' => '= Typst Format Boundary Packet',
             'engineOptions' => ['--format=svg'],
         ]);
+        $shortPlan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/short-format-boundary.pdf',
+            'source' => '= Typst Short Format Boundary Packet',
+            'engineOptions' => ['-f', 'png'],
+        ]);
         $pdfBytes = "%PDF-1.7\n% fake Typst format boundary packet\n%%EOF\n";
         $expectedPolicy = [
             'reviewStatus' => 'review',
@@ -2326,10 +2332,23 @@ return [
             'formatOptions' => ['svg'],
             'issues' => ['explicit-format-not-pdf:svg'],
         ];
+        $shortExpectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/short-format-boundary.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'png',
+            'formatOptions' => ['png'],
+            'issues' => ['explicit-format-not-pdf:png'],
+        ];
 
         $result = $handoff->fakeRun($plan, [
             'files' => [
                 'build/format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $shortResult = $handoff->fakeRun($shortPlan, [
+            'files' => [
+                'build/short-format-boundary.pdf' => $pdfBytes,
             ],
         ]);
         $sequence = $handoff->fakeRunSequence($plan, [
@@ -2339,18 +2358,34 @@ return [
                 ],
             ],
         ]);
+        $shortSequence = $handoff->fakeRunSequence($shortPlan, [
+            [
+                'files' => [
+                    'build/short-format-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
 
         $t->same('ok', $okPlan['typstOutputFormatPolicy']['reviewStatus']);
         $t->same([], $okPlan['typstOutputFormatPolicy']['issues']);
         $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
         $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-output-format-explicit:svg', implode(',', $plan['diagnostics']));
+        $t->same($shortExpectedPolicy, $shortPlan['typstOutputFormatPolicy']);
+        $t->contains('typst-output-format-policy:review', implode(',', $shortPlan['diagnostics']));
+        $t->contains('typst-output-format-explicit:png', implode(',', $shortPlan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
         $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+        $t->same(true, $shortResult['ok']);
+        $t->same($shortExpectedPolicy, $shortResult['typstOutputFormatPolicy']);
+        $t->same($shortExpectedPolicy, $shortResult['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same('review', $shortResult['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $shortResult['artifactProvenanceReview']['issues']));
+        $t->same($shortExpectedPolicy, $shortSequence['finalTypstOutputFormatPolicy']);
     },
 
     'fake runner preserves typst output format history boundary provenance' => static function (TestRunner $t) use ($document): void {
