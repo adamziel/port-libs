@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3241,
-        "latestSlice": "pandoc-zip-package-byte-layout maps one native shared ZIP/OPC package case for raw ZIP package byte layout accounting before package construction. Mapped denominator is now 3241, mappedZipPackageByteLayoutCases is 1, zipPackageByteLayoutAssertions is 108, focused ZipPackageTest.php passed 1 test file, 4205 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 71612 assertions, 0 failures after rebase onto current main 708a43ee83, without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3242,
+        "latestSlice": "pandoc-pdf-typst-font-path-list-boundary maps one native PdfEngineHandoff case for Typst --font-path list boundary provenance, splitting platform path-separator lists into individual safe relative and external font directory entries before review classification. Mapped denominator is now 3242, mappedTypstFontPathListBoundaryProvenanceCases is 1, typstFontPathListBoundaryProvenanceAssertions is 10, focused PdfEngineHandoffTest.php passed 1 test file, 2118 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 71931 assertions, 0 failures after rebase onto current main daca348385, without running Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "ZIP package byte layout provenance is verified over current main 708a43ee83.",
-        "latestFocusedSource": "2026-06-12 shared ZIP/OPC package slice inspected raw ZIP byte layout accounting against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after rebase onto current main 708a43ee83.",
+        "status": "PDF/Typst font path list boundary provenance is verified over current main daca348385.",
+        "latestFocusedSource": "2026-06-12 PDF/Typst boundary provenance slice inspected Typst --font-path list handling in native PdfEngineHandoff after rebase onto current main daca348385.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -103,7 +103,9 @@
         "mappedOdtEmbeddedObjectPackageCases": 1,
         "odtEmbeddedObjectPackageAssertions": 77,
         "mappedZipPackageByteLayoutCases": 1,
-        "zipPackageByteLayoutAssertions": 108
+        "zipPackageByteLayoutAssertions": 108,
+        "mappedTypstFontPathListBoundaryProvenanceCases": 1,
+        "typstFontPathListBoundaryProvenanceAssertions": 10
     },
     "benchmarkDenominator": {
         "status": "ODF/ODT embedded object package provenance is verified over current main 25bec327.",
@@ -963,12 +965,12 @@
         "mappedOdtEmbeddedObjectPackageCases": 1,
         "odtEmbeddedObjectPackageAssertions": 77
     },
-    "wordpressScenario": "ODF/ODT compact package handoff now preserves embedded object package provenance, including encoded object roots, chart/spreadsheet object type buckets, declared/missing/undeclared contained-part counts, embedded-object-root and embedded-object-part inventory roles, and metadata-only byte exposure policy while keeping object preview images out of media handoff without invoking Pandoc, office suites, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "PDF/Typst handoff now splits Typst --font-path list values by the platform path separator before boundary classification, preserving per-directory relative/external provenance, fontPathPolicy summaries, diagnostics, fake-run artifact review, and sequence summaries without invoking Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "ZIP package byte layout provenance is verified over current main 708a43ee83.",
-    "mapping": "Adds one native OpenDocumentPackage compact ODT package-ingestion case for manifest-declared size review inventories and largest declared-size provenance without invoking external archive tools, office suites, or validators.",
-    "audit": "2026-06-12 shared ZIP/OPC package slice inspected raw ZIP byte layout accounting against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after rebase onto current main 708a43ee83.",
-    "latestSlice": "pandoc-zip-package-byte-layout maps one native shared ZIP/OPC package case for raw ZIP package byte layout accounting before package construction. Mapped denominator is now 3241, mappedZipPackageByteLayoutCases is 1, zipPackageByteLayoutAssertions is 108, focused ZipPackageTest.php passed 1 test file, 4205 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 71612 assertions, 0 failures after rebase onto current main 708a43ee83, without running Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "PDF/Typst font path list boundary provenance is verified over current main daca348385.",
+    "mapping": "Accounts for one bounded native PHP PdfEngineHandoff mapping for Typst --font-path list boundary provenance on current main daca348385.",
+    "audit": "updated 2026-06-12: PdfEngineHandoff splits Typst --font-path list values on the platform path separator before boundary classification, preserving per-directory relative/external provenance, fontPathPolicy summaries, diagnostics, fake-run artifact review, and run sequence summaries. Verified on current main daca348385 with php -l lanes/pandoc/src/PdfEngineHandoff.php, php -l lanes/pandoc/tests/PdfEngineHandoffTest.php, php tools/run-tests.php lanes/pandoc/tests/PdfEngineHandoffTest.php (1 test file, 2118 assertions, 0 failures), and php tools/run-tests.php lanes/pandoc/tests (44 test files, 71931 assertions, 0 failures).",
+    "latestSlice": "pandoc-pdf-typst-font-path-list-boundary maps one native PdfEngineHandoff case for Typst --font-path list boundary provenance, splitting platform path-separator lists into individual safe relative and external font directory entries before review classification. Mapped denominator is now 3242, mappedTypstFontPathListBoundaryProvenanceCases is 1, typstFontPathListBoundaryProvenanceAssertions is 10, focused PdfEngineHandoffTest.php passed 1 test file, 2118 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 71931 assertions, 0 failures after rebase onto current main daca348385, without running Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1108,7 +1110,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-12 shared ZIP/OPC package slice inspected raw ZIP byte layout accounting against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after rebase onto current main 708a43ee83.",
+    "latestFocusedSource": "2026-06-12 PDF/Typst boundary provenance slice inspected Typst --font-path list handling in native PdfEngineHandoff after rebase onto current main daca348385.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1270,5 +1272,7 @@
     "mappedOdtEmbeddedObjectPackageCases": 1,
     "odtEmbeddedObjectPackageAssertions": 77,
     "mappedZipPackageByteLayoutCases": 1,
-    "zipPackageByteLayoutAssertions": 108
+    "zipPackageByteLayoutAssertions": 108,
+    "mappedTypstFontPathListBoundaryProvenanceCases": 1,
+    "typstFontPathListBoundaryProvenanceAssertions": 10
 }

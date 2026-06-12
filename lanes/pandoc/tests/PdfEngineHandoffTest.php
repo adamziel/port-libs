@@ -284,6 +284,69 @@ return [
         $t->same($expectedSummary, $sequence['finalTypstBoundarySummary']);
     },
 
+    'plans typst font path list boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-path-list.pdf',
+            'source' => '= Typst Font Path List Packet',
+            'engineOptions' => [
+                '--font-path=fonts' . PATH_SEPARATOR . 'vendor/fonts',
+                '--font-path',
+                '/srv/shared-fonts' . PATH_SEPARATOR . 'review fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font path list packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'fonts', 'path' => 'fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'vendor/fonts', 'path' => 'vendor/fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => '/srv/shared-fonts', 'path' => '/srv/shared-fonts', 'kind' => 'absolute', 'safe' => false, 'issues' => ['font-path-external-boundary']],
+                ['raw' => 'review fonts', 'path' => 'review fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['font-path-external-boundary'],
+            'fontPathPolicy' => [
+                'reviewStatus' => 'review',
+                'fontPathCount' => 4,
+                'safeFontPathCount' => 3,
+                'unsafeFontPathCount' => 1,
+                'relativeFontPathCount' => 3,
+                'workspaceFontPathCount' => 0,
+                'absoluteFontPathCount' => 1,
+                'uriFontPathCount' => 0,
+                'invalidFontPathCount' => 0,
+                'issues' => ['font-path-external-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-path-list.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-path-list.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst package cache path alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
