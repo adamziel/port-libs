@@ -1319,6 +1319,14 @@ final class ZipPackage
      *     centralDirectorySize:int,
      *     unexpectedPrefixBytes:int,
      *     hasUnexpectedPrefixBytes:bool,
+     *     availableLocalHeaderEntryCount:int,
+     *     localHeaderBytes:int,
+     *     compressedDataBytes:int,
+     *     dataDescriptorBytes:int,
+     *     claimedRecordBytes:int,
+     *     unclaimedBytes:int,
+     *     unclaimedByteEntryCount:int,
+     *     contiguousEntryCount:int,
      *     issueEntryCount:int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
@@ -1416,6 +1424,14 @@ final class ZipPackage
 
         $entries = [];
         $issueEntries = [];
+        $availableLocalHeaderEntryCount = 0;
+        $localHeaderBytes = 0;
+        $compressedDataBytes = 0;
+        $dataDescriptorBytes = 0;
+        $claimedRecordBytes = 0;
+        $unclaimedBytesTotal = 0;
+        $unclaimedByteEntryCount = 0;
+        $contiguousEntryCount = 0;
         foreach ($centralEntries as $centralEntry) {
             $offsetIssue = self::localHeaderOffsetIssue(
                 $bytes,
@@ -1565,6 +1581,19 @@ final class ZipPackage
                 }
             }
 
+            $availableLocalHeaderEntryCount++;
+            $localHeaderBytes += $localHeader['localHeaderLength'];
+            $compressedDataBytes += $centralEntry['compressedSize'];
+            $dataDescriptorBytes += $descriptorLength ?? 0;
+            $claimedRecordBytes += max(0, $recordEnd - $centralEntry['localHeaderOffset']);
+            $unclaimedBytesTotal += $unclaimedBytes;
+            if ($unclaimedBytes > 0) {
+                $unclaimedByteEntryCount++;
+            }
+            if ($recordEnd === $nextOffset) {
+                $contiguousEntryCount++;
+            }
+
             $summary = [
                 'name' => $centralEntry['name'],
                 'rawName' => $centralEntry['rawName'],
@@ -1607,6 +1636,14 @@ final class ZipPackage
             'centralDirectorySize' => $archive['centralDirectorySize'],
             'unexpectedPrefixBytes' => $unexpectedPrefixBytes,
             'hasUnexpectedPrefixBytes' => $unexpectedPrefixBytes > 0,
+            'availableLocalHeaderEntryCount' => $availableLocalHeaderEntryCount,
+            'localHeaderBytes' => $localHeaderBytes,
+            'compressedDataBytes' => $compressedDataBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'claimedRecordBytes' => $claimedRecordBytes,
+            'unclaimedBytes' => $unclaimedBytesTotal,
+            'unclaimedByteEntryCount' => $unclaimedByteEntryCount,
+            'contiguousEntryCount' => $contiguousEntryCount,
             'issueEntryCount' => count($issueEntries),
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
