@@ -619,6 +619,9 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'rootfileMediaTypeParameterItems' => $validationReport['rootfiles']['mediaTypeParameterItems'],
+                'rootfileMediaTypeParameterNames' => $validationReport['rootfiles']['mediaTypeParameterNames'],
+                'rootfileMediaTypeDiagnostics' => $validationReport['rootfiles']['mediaTypeDiagnostics'],
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
@@ -858,12 +861,14 @@ final class EpubPackage
                     continue;
                 }
 
-                $rootfileMediaTypeDiagnostics[] = [
+                $diagnostic = [
                     'index' => $item['index'],
                     'fullPath' => $item['fullPath'],
                     'partName' => $item['partName'],
                     'mediaType' => $item['mediaType'],
-                ] + $mediaTypeDiagnostic;
+                ] + self::rootfileMediaTypeDiagnostic($mediaTypeDiagnostic);
+                $rootfileMediaTypeDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
             }
         }
 
@@ -7546,6 +7551,36 @@ final class EpubPackage
     private static function mediaTypeBase(string $mediaType): string
     {
         return self::mediaTypeReport($mediaType)['mediaTypeBase'];
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     *
+     * @return array<string, mixed>
+     */
+    private static function rootfileMediaTypeDiagnostic(array $diagnostic): array
+    {
+        $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+        $diagnostic['type'] = match ($type) {
+            'invalid-manifest-media-type' => 'invalid-rootfile-media-type',
+            'invalid-manifest-media-type-parameter' => 'invalid-rootfile-media-type-parameter',
+            'invalid-manifest-media-type-parameter-name' => 'invalid-rootfile-media-type-parameter-name',
+            'duplicate-manifest-media-type-parameter' => 'duplicate-rootfile-media-type-parameter',
+            default => $type,
+        };
+
+        $message = match ($diagnostic['type']) {
+            'invalid-rootfile-media-type' => 'EPUB container rootfile media-type must be a MIME type in type/subtype form',
+            'invalid-rootfile-media-type-parameter' => 'EPUB container rootfile media-type parameters must use name=value syntax',
+            'invalid-rootfile-media-type-parameter-name' => 'EPUB container rootfile media-type parameter names must be MIME tokens',
+            'duplicate-rootfile-media-type-parameter' => 'EPUB container rootfile media-type parameter repeats a name; later value is retained for package review',
+            default => is_string($diagnostic['message'] ?? null) ? $diagnostic['message'] : '',
+        };
+        if ($message !== '') {
+            $diagnostic['message'] = $message;
+        }
+
+        return $diagnostic;
     }
 
     /**
