@@ -2529,6 +2529,7 @@ final class DocxOpenXmlReader
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
+            'sha256' => null,
             'contentType' => '',
             'contentTypeBase' => '',
             'contentTypeHasParameters' => false,
@@ -2584,6 +2585,7 @@ final class DocxOpenXmlReader
         $item['exists'] = $exists;
         $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
         $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
         $item['contentType'] = $summary['contentType'];
         $item['contentTypeBase'] = $summary['contentTypeBase'];
         $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
@@ -2789,6 +2791,7 @@ final class DocxOpenXmlReader
             'relationshipsPart' => $relationshipsPart,
             'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
             'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
             'byteExposurePolicy' => 'activex-binary-bytes-blocked',
             'reviewPolicy' => 'activex-metadata-only',
             'valid' => $issues === [],
@@ -2983,6 +2986,7 @@ final class DocxOpenXmlReader
             'exists' => $exists,
             'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
             'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
@@ -3166,6 +3170,7 @@ final class DocxOpenXmlReader
             'relationshipsPart' => $relationshipsPart,
             'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
             'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
             'byteExposurePolicy' => 'vba-' . $kind . '-bytes-blocked',
             'reviewPolicy' => 'vba-project-metadata-only',
             'valid' => $issues === [],
