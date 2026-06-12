@@ -3269,6 +3269,82 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'fake runner preserves typst attached short output format provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/format-attached-short.pdf',
+            'source' => '= Typst Attached Short Format Packet',
+            'engineOptions' => [
+                '-fsvg',
+                '-f=pdf',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst attached short format packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/format-attached-short.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'pdf',
+            'formatOptions' => ['svg', 'pdf'],
+            'issues' => [
+                'explicit-format-not-pdf:svg',
+                'conflicting-format-options:2',
+                'format-boundary-overridden',
+            ],
+            'formatHistory' => [
+                [
+                    'raw' => 'svg',
+                    'value' => 'svg',
+                    'format' => 'svg',
+                    'safe' => false,
+                    'issues' => ['explicit-format-not-pdf:svg'],
+                ],
+                [
+                    'raw' => 'pdf',
+                    'value' => 'pdf',
+                    'format' => 'pdf',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'format',
+                    'count' => 2,
+                    'values' => ['svg', 'pdf'],
+                    'selected' => 'pdf',
+                    'issue' => 'format-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/format-attached-short.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/format-attached-short.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(['typst', 'compile', '-fsvg', '-f=pdf', 'build/format-attached-short.typ', 'build/format-attached-short.pdf'], $plan['argv']);
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-explicit:pdf', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-history:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+    },
+
     'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
