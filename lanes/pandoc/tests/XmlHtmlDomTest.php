@@ -555,6 +555,42 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/ruby-annotations-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html data element value provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>SKU <data id="sku" value=" SKU-42 ">Packet <strong>42</strong></data> <data data-review="missing">No value</data></p>',
+            'data element review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/data-element-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $valued = $paragraph['children'][1];
+        $missing = $paragraph['children'][3];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('SKU Packet 42 No value', $paragraph['text']);
+        $t->same('data', $valued['name']);
+        $t->same('data', $valued['dataElement']);
+        $t->same('sku', $valued['elementId']);
+        $t->same('Packet 42', $valued['dataText']);
+        $t->same(' SKU-42 ', $valued['dataValueRaw']);
+        $t->same('SKU-42', $valued['dataValue']);
+        $t->same('value-attribute', $valued['dataValueSource']);
+        $t->same('strong', $valued['children'][1]['name']);
+        $t->same('data', $missing['dataElement']);
+        $t->same('No value', $missing['dataText']);
+        $t->same(null, $missing['dataValueRaw']);
+        $t->same(null, $missing['dataValue']);
+        $t->same('missing', $missing['dataValueSource']);
+        $t->same(['review' => 'missing'], $missing['dataset']);
+        $t->same('<p>SKU <data id="sku" value=" SKU-42 ">Packet <strong>42</strong></data> <data data-review="missing">No value</data></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/data-element-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'

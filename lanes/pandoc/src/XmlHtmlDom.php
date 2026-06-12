@@ -914,6 +914,9 @@ final class XmlHtmlDom
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
+        if ($name === 'data') {
+            $summary += self::dataElementSummary($node);
+        }
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
@@ -1299,6 +1302,22 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dataElementSummary(\DOMElement $element): array
+    {
+        $value = self::attributeOrNull($element, 'value');
+
+        return [
+            'dataElement' => 'data',
+            'dataText' => self::normalizedText($element),
+            'dataValueRaw' => $value,
+            'dataValue' => $value === null ? null : trim($value),
+            'dataValueSource' => $value === null ? 'missing' : 'value-attribute',
+        ];
     }
 
     /**
