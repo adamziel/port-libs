@@ -14174,6 +14174,149 @@ MARKDOWN);
         $t->same($expectedPagePolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
     },
 
+    'fake runner surfaces bounded pdf embedded goto active actions from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/embedded-goto-actions.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /C << /S /GoToE /T << /R /C /N (supplement.pdf) >> /D (appendix) >> >> /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /FileAttachment /FS 9 0 R /A << /S /GoToE /F << /F (legacy-attachment.pdf) >> /D /Chapter2 >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /GoToE /F 9 0 R /D (chapter-one) >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Filespec /F (review-source.pdf) /UF (attachments/review-source.pdf) /EF << /F 10 0 R >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /EmbeddedFile /Length 11 >>',
+            'stream',
+            'source bytes',
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/embedded-goto-actions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/embedded-goto-actions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedActiveActions = [
+            [
+                'source' => 'annotation:4 0 R.A',
+                'type' => 'GoToE',
+                'target' => 'F=legacy-attachment.pdf;D=target=Chapter2',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'GoToE',
+                'target' => 'F=attachments/review-source.pdf;D=target=chapter-one',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.AA.C',
+                'type' => 'GoToE',
+                'target' => 'T=R=C,N=supplement.pdf;D=target=appendix',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+        $expectedActivePolicy = [
+            'reviewStatus' => 'review',
+            'actionCount' => 3,
+            'sourceCount' => 3,
+            'sourceCategories' => [
+                'annotation' => 1,
+                'catalog' => 1,
+                'page' => 1,
+            ],
+            'actionTypes' => ['GoToE' => 3],
+            'chainedActionCount' => 0,
+            'maxNextDepth' => 0,
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 0,
+            'launchActionCount' => 0,
+            'formActionCount' => 0,
+            'embeddedFileActionCount' => 3,
+            'issues' => ['embedded-file-action'],
+        ];
+        $expectedPageActions = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'trigger' => 'C',
+                'triggerLabel' => 'page-close',
+                'source' => 'page:3 0 R.AA.C',
+                'actionType' => 'GoToE',
+                'actionTarget' => 'T=R=C,N=supplement.pdf;D=target=appendix',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+        $expectedPagePolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 1,
+            'actionCount' => 1,
+            'pagesWithActions' => [1],
+            'openActionPages' => [],
+            'closeActionPages' => [1],
+            'triggerCounts' => ['C' => 1],
+            'actionTypes' => ['GoToE' => 1],
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 0,
+            'launchActionCount' => 0,
+            'embeddedFileActionCount' => 1,
+            'issues' => [
+                'embedded-file-action',
+                'page-close-action',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same(['type' => 'GoToE'], $result['pdfOpenAction']);
+        $t->same($expectedActiveActions, $result['pdfActiveActions']);
+        $t->same(['GoToE' => 3], $result['pdfActiveActionTypes']);
+        $t->same($expectedActivePolicy, $result['pdfActiveActionPolicy'] ?? null);
+        $t->same($expectedPageActions, $result['pdfPageActions'] ?? null);
+        $t->same($expectedPagePolicy, $result['pdfPageActionPolicy'] ?? null);
+        $t->contains('pdf-byte-active-action-type:GoToE:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-embedded-file-actions:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-issue:embedded-file-action:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-type:GoToE:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-embedded-file-actions:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-issue:embedded-file-action:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedActiveActions, $sequence['finalPdfActiveActions']);
+        $t->same($expectedActivePolicy, $sequence['finalPdfActiveActionPolicy'] ?? null);
+        $t->same($expectedPageActions, $sequence['finalPdfPageActions'] ?? null);
+        $t->same($expectedPagePolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf page lifecycle actions from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-actions.pdf']);
