@@ -826,6 +826,7 @@ final class OpenDocumentPackage
                 && !$scriptPackagePart
                 && !$configurationPackagePart
                 && !$fontPackagePart
+                && !$rdfMetadataPart
                 && !$missingMediaType
                 && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
@@ -884,6 +885,7 @@ final class OpenDocumentPackage
                     $scriptPackagePart,
                     $configurationPackagePart,
                     $fontPackagePart,
+                    $rdfMetadataPart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -903,6 +905,7 @@ final class OpenDocumentPackage
         bool $scriptPackagePart,
         bool $configurationPackagePart,
         bool $fontPackagePart,
+        bool $rdfMetadataPart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -926,6 +929,9 @@ final class OpenDocumentPackage
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
+        }
+        if ($rdfMetadataPart) {
+            return 'rdf-metadata-bytes-blocked';
         }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';

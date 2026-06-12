@@ -1851,6 +1851,8 @@ XML;
 
         $t->same(4, $summary['manifestReview']['rdfMetadataPartCount']);
         $t->same(['manifest.rdf', 'metadata/invalid.rdf', 'metadata/missing.rdf', 'metadata/encrypted.rdf'], array_column($summary['manifestReview']['rdfMetadataItems'], 'path'));
+        $t->same(false, $reviewByPath['manifest.rdf']['canExposeBytes']);
+        $t->same('rdf-metadata-bytes-blocked', $reviewByPath['manifest.rdf']['byteExposurePolicy']);
         $t->same(true, $reviewByPath['metadata/missing.rdf']['rdfMetadataPart']);
         $t->same(true, $reviewByPath['metadata/encrypted.rdf']['rdfMetadataPart']);
         $t->same(4, $inventory['rdfMetadataPartCount']);
