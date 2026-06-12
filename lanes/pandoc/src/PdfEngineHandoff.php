@@ -310,6 +310,15 @@ final class PdfEngineHandoff
                 if (is_array($openOutput) && is_int($openOutput['flagCount'] ?? null) && $openOutput['flagCount'] > 0) {
                     $diagnostics[] = 'typst-open-output-flags:' . $openOutput['flagCount'];
                 }
+                if (is_array($openOutput) && is_array($openOutput['viewer'] ?? null)) {
+                    $viewer = $openOutput['viewer'];
+                    if (is_string($viewer['viewer'] ?? null)) {
+                        $diagnostics[] = 'typst-open-output-viewer:' . $viewer['viewer'];
+                    }
+                }
+                if (is_array($openOutput) && is_array($openOutput['viewers'] ?? null) && count($openOutput['viewers']) > 1) {
+                    $diagnostics[] = 'typst-open-output-viewers:' . count($openOutput['viewers']);
+                }
             }
             if (($typstBoundaryProvenance['featureGates'] ?? null) !== null) {
                 $featureGates = $typstBoundaryProvenance['featureGates'];
@@ -5811,6 +5820,63 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<string> $engineOptions
+     * @return list<array{raw:string|null, viewer:string|null, mode:string, safe:bool, issues:list<string>}>
+     */
+    private function typstOpenOutputEntries(array $engineOptions): array
+    {
+        $entries = [];
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            if ($option === '--open') {
+                $next = $engineOptions[$index + 1] ?? null;
+                $raw = is_string($next) && $next !== '' && !str_starts_with($next, '-')
+                    ? $next
+                    : null;
+                $entries[] = $this->typstOpenOutputEntry($raw);
+                continue;
+            }
+            if (str_starts_with($option, '--open=')) {
+                $entries[] = $this->typstOpenOutputEntry(substr($option, strlen('--open=')));
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{raw:string|null, viewer:string|null, mode:string, safe:bool, issues:list<string>}
+     */
+    private function typstOpenOutputEntry(?string $raw): array
+    {
+        if ($raw === null) {
+            return [
+                'raw' => null,
+                'viewer' => null,
+                'mode' => 'default-viewer',
+                'safe' => false,
+                'issues' => [],
+            ];
+        }
+
+        $viewer = trim($raw);
+        $issues = [];
+        if ($viewer === '') {
+            $issues[] = 'open-output-viewer-empty-boundary';
+        } elseif (str_contains($raw, "\0") || preg_match('/[[:cntrl:]]/', $raw) === 1) {
+            $issues[] = 'open-output-viewer-invalid-boundary';
+        }
+
+        return [
+            'raw' => $raw,
+            'viewer' => $viewer,
+            'mode' => 'specific-viewer',
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
      * @param array<string, list<string>> $optionValues
      * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
      */
@@ -5880,7 +5946,8 @@ final class PdfEngineHandoff
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
-        $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
+        $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
+        $openOutputCount = count($openOutputEntries);
         if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
@@ -5991,6 +6058,11 @@ final class PdfEngineHandoff
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
         }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
+        foreach ($openOutputEntries as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $openOutputIssues[] = $issue;
+            }
+        }
 
         foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
@@ -6102,11 +6174,19 @@ final class PdfEngineHandoff
             ];
         }
         if ($openOutputCount > 0) {
+            $openOutputViewers = array_values(array_filter(
+                $openOutputEntries,
+                fn (array $entry): bool => ($entry['viewer'] ?? null) !== null
+            ));
             $provenance['openOutput'] = [
                 'enabled' => true,
                 'flagCount' => $openOutputCount,
-                'issues' => $openOutputIssues,
+                'issues' => array_values(array_unique($openOutputIssues)),
             ];
+            if ($openOutputViewers !== []) {
+                $provenance['openOutput']['viewer'] = $openOutputViewers[count($openOutputViewers) - 1];
+                $provenance['openOutput']['viewers'] = $openOutputViewers;
+            }
         }
         if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
