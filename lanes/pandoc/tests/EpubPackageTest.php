@@ -4089,6 +4089,94 @@ XML;
         $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
     },
 
+    'preserves EPUB container rootfile full-path suffix provenance' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithRootfileSuffixes = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf?rendition=screen#package-record" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/alternate.opf?rendition=print" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML;
+        $alternateOpf = str_replace('WordPress Migration Guide', 'Alternate Rendition', $epub3OpfXml);
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithRootfileSuffixes],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/alternate.opf', 'data' => $alternateOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $declaredRootfiles = $epub->rootfiles();
+        $validation = $epub->validationReport();
+        $rootfiles = $validation['rootfiles'];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/package.opf', $epub->opfPartName());
+        $t->same(false, $validation['valid']);
+        $t->same(3, $validation['diagnosticCount']);
+        $t->same([
+            'rootfile-full-path-query-component',
+            'rootfile-full-path-fragment-component',
+            'rootfile-full-path-query-component',
+        ], array_column($validation['diagnostics'], 'type'));
+        $t->same(2, $rootfiles['rootfileCount']);
+        $t->same(2, $rootfiles['opfRootfileCount']);
+        $t->same(2, $rootfiles['existingRootfileCount']);
+        $t->same(1, $rootfiles['alternateRootfileCount']);
+        $t->same(2, $rootfiles['fullPathSuffixCount']);
+        $t->same(2, $rootfiles['fullPathQueryCount']);
+        $t->same(1, $rootfiles['fullPathFragmentCount']);
+        $t->same(['/EPUB/package.opf', '/EPUB/alternate.opf'], $rootfiles['rootfileParts']);
+        $t->same(['/EPUB/package.opf', '/EPUB/alternate.opf'], $rootfiles['opfRootfileParts']);
+        $t->same(['/EPUB/alternate.opf'], $rootfiles['alternateRootfileParts']);
+        $t->same('/EPUB/package.opf?rendition=screen#package-record', $declaredRootfiles[0]['target']);
+        $t->same('/EPUB/package.opf?rendition=screen#package-record', $rootfiles['items'][0]['target']);
+        $t->same('/EPUB/package.opf', $rootfiles['items'][0]['partName']);
+        $t->same(true, $rootfiles['items'][0]['selected']);
+        $t->same(true, $rootfiles['items'][0]['fullPathHasQuery']);
+        $t->same('rendition=screen', $rootfiles['items'][0]['fullPathQuery']);
+        $t->same(true, $rootfiles['items'][0]['fullPathHasFragment']);
+        $t->same('package-record', $rootfiles['items'][0]['fullPathFragment']);
+        $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);
+        $t->same(hash('crc32b', $epub3OpfXml), $rootfiles['items'][0]['crc32']);
+        $t->same('/EPUB/alternate.opf?rendition=print', $rootfiles['items'][1]['target']);
+        $t->same('/EPUB/alternate.opf', $rootfiles['items'][1]['partName']);
+        $t->same(false, $rootfiles['items'][1]['selected']);
+        $t->same(true, $rootfiles['items'][1]['fullPathHasQuery']);
+        $t->same('rendition=print', $rootfiles['items'][1]['fullPathQuery']);
+        $t->same(false, $rootfiles['items'][1]['fullPathHasFragment']);
+        $t->same(null, $rootfiles['items'][1]['fullPathFragment']);
+        $t->same(strlen($alternateOpf), $rootfiles['items'][1]['byteLength']);
+        $t->same(hash('crc32b', $alternateOpf), $rootfiles['items'][1]['crc32']);
+        $t->same([
+            [
+                'index' => 0,
+                'fullPath' => 'EPUB/package.opf?rendition=screen#package-record',
+                'target' => '/EPUB/package.opf?rendition=screen#package-record',
+                'partName' => '/EPUB/package.opf',
+                'mediaType' => 'application/oebps-package+xml',
+                'query' => 'rendition=screen',
+                'fragment' => 'package-record',
+            ],
+            [
+                'index' => 1,
+                'fullPath' => 'EPUB/alternate.opf?rendition=print',
+                'target' => '/EPUB/alternate.opf?rendition=print',
+                'partName' => '/EPUB/alternate.opf',
+                'mediaType' => 'application/oebps-package+xml',
+                'query' => 'rendition=print',
+                'fragment' => null,
+            ],
+        ], $rootfiles['fullPathSuffixItems']);
+        $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'reports compact EPUB container rootfile diagnostics for validation handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
         $containerWithAlternateRootfiles = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
