@@ -902,7 +902,7 @@ final class XmlHtmlDom
                 }
             }
         }
-        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
+        if (in_array($name, ['picture', 'img', 'canvas', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
         if (in_array($name, ['a', 'area'], true)) {
@@ -2164,6 +2164,7 @@ final class XmlHtmlDom
         return match ($name) {
             'picture' => self::pictureSummary($element),
             'img' => self::imageSummary($element),
+            'canvas' => self::canvasSummary($element),
             'audio', 'video' => self::mediaElementSummary($element, $name),
             'source' => ['embeddedResource' => 'source'] + self::sourceElementSummary($element),
             'track' => ['embeddedResource' => 'track'] + self::trackElementSummary($element),
@@ -2209,6 +2210,28 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function canvasSummary(\DOMElement $canvas): array
+    {
+        $summary = [
+            'embeddedResource' => 'canvas',
+            'canvas' => 'canvas',
+            'widthRaw' => self::attributeOrNull($canvas, 'width'),
+            'heightRaw' => self::attributeOrNull($canvas, 'height'),
+            'width' => self::nonNegativeIntegerAttribute($canvas, 'width', 300, 100000),
+            'height' => self::nonNegativeIntegerAttribute($canvas, 'height', 150, 100000),
+        ];
+
+        $fallbackText = self::normalizedText($canvas);
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
     }
 
     /**

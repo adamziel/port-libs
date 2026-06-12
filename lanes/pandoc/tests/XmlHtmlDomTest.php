@@ -1306,6 +1306,56 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html canvas fallback dimensions for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<canvas id="signature" width="640" height="360" data-package-part="word/media/signature.bin"><p>Static fallback</p><img src="signature.png" alt="Signature preview"></canvas>'
+                . '<canvas id="default-canvas"></canvas>'
+                . '<canvas id="bad-canvas" width="-1" height="bogus">Fallback text</canvas>',
+            'canvas fallback review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/canvas-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $canvas = $summary[0];
+        $fallbackParagraph = $canvas['children'][0];
+        $fallbackImage = $canvas['children'][1];
+        $defaultCanvas = $summary[1];
+        $invalidCanvas = $summary[2];
+
+        $t->same('canvas', $canvas['name']);
+        $t->same('canvas', $canvas['embeddedResource']);
+        $t->same('canvas', $canvas['canvas']);
+        $t->same('640', $canvas['widthRaw']);
+        $t->same(640, $canvas['width']);
+        $t->same('360', $canvas['heightRaw']);
+        $t->same(360, $canvas['height']);
+        $t->same('Static fallback', $canvas['fallbackText']);
+        $t->same(['packagePart' => 'word/media/signature.bin'], $canvas['dataset']);
+        $t->same('p', $fallbackParagraph['name']);
+        $t->same('Static fallback', $fallbackParagraph['text']);
+        $t->same('image', $fallbackImage['embeddedResource']);
+        $t->same('signature.png', $fallbackImage['src']);
+        $t->same('Signature preview', $fallbackImage['alt']);
+
+        $t->same(null, $defaultCanvas['widthRaw']);
+        $t->same(300, $defaultCanvas['width']);
+        $t->same(null, $defaultCanvas['heightRaw']);
+        $t->same(150, $defaultCanvas['height']);
+        $t->true(!isset($defaultCanvas['fallbackText']));
+
+        $t->same('-1', $invalidCanvas['widthRaw']);
+        $t->same(300, $invalidCanvas['width']);
+        $t->same('bogus', $invalidCanvas['heightRaw']);
+        $t->same(150, $invalidCanvas['height']);
+        $t->same('Fallback text', $invalidCanvas['fallbackText']);
+        $t->same('<canvas data-package-part="word/media/signature.bin" height="360" id="signature" width="640"><p>Static fallback</p><img alt="Signature preview" src="signature.png"></canvas><canvas id="default-canvas"></canvas><canvas height="bogus" id="bad-canvas" width="-1">Fallback text</canvas>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/canvas-fallback-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
