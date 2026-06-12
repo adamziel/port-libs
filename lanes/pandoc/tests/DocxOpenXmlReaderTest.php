@@ -3446,6 +3446,125 @@ XML;
         $t->true(in_array('relationship-target', $logoInventory['roles'], true), 'glossary local image inventory role missing');
         $t->same(strlen('GLOSSARYPNG'), $logoInventory['bytes']);
     },
+    'summarizes docx glossary document building block metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Review Boilerplate"/>
+        <w:style w:val="Heading1"/>
+        <w:category><w:name w:val="WordPress"/><w:gallery w:val="quickParts"/></w:category>
+        <w:description w:val="Reusable review intro"/>
+        <w:guid w:val="{11111111-2222-3333-4444-555555555555}"/>
+        <w:types><w:type w:val="bbPlcHdr"/></w:types>
+        <w:behaviors><w:behavior w:val="content"/></w:behaviors>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Reusable Review Heading</w:t></w:r></w:p>
+        <w:p>
+          <w:r><w:t xml:space="preserve">Use the </w:t></w:r>
+          <w:hyperlink r:id="rGlossarySource"><w:r><w:t>source note</w:t></w:r></w:hyperlink>
+          <w:r><w:t xml:space="preserve"> and logo </w:t></w:r>
+          <w:r><w:drawing><wp:inline><wp:docPr id="9" name="Glossary logo" descr="Glossary logo"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rGlossaryLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+        </w:p>
+      </w:docPartBody>
+    </w:docPart>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Disclosure Snippet"/>
+        <w:category><w:name w:val="Legal"/><w:gallery w:val="custom1"/></w:category>
+        <w:types><w:type w:val="bbPlcHdr"/><w:type w:val="formField"/></w:types>
+        <w:behaviors><w:behavior w:val="p"/></w:behaviors>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:tbl>
+          <w:tr><w:tc><w:p><w:r><w:t>Disclosure</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Required</w:t></w:r></w:p></w:tc></w:tr>
+        </w:tbl>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossarySource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-source" TargetMode="External"/>
+  <Relationship Id="rGlossaryLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png"/>
+</Relationships>
+XML;
+        $parts['word/glossary/media/glossary-logo.png'] = 'GLOSSARYPNG';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $glossary = $docx['glossaryDocument'];
+        $packageGlossary = $docx['packageProvenance']['glossaryDocument'];
+        $summary = $docx['packageProvenance']['summary'];
+        $boilerplate = $glossary['byName']['Review Boilerplate'];
+        $disclosure = $glossary['byName']['Disclosure Snippet'];
+
+        $t->same($glossary, $packageGlossary);
+        $t->same('word/glossary/document.xml', $glossary['partName']);
+        $t->same(true, $glossary['exists']);
+        $t->same(true, $glossary['validXml']);
+        $t->same(true, $glossary['validRoot']);
+        $t->same('glossaryDocument', $glossary['rootLocalName']);
+        $t->same(2, $glossary['relationshipCount']);
+        $t->same(2, $glossary['count']);
+        $t->same(3, $glossary['bodyBlockCount']);
+        $t->same(['Review Boilerplate', 'Disclosure Snippet'], $glossary['names']);
+        $t->same(['quickParts', 'custom1'], $glossary['galleries']);
+        $t->same(['WordPress', 'Legal'], $glossary['categories']);
+        $t->same(['bbPlcHdr', 'formField'], $glossary['types']);
+        $t->same(['content', 'p'], $glossary['behaviors']);
+        $t->same(['rGlossaryLogo', 'rGlossarySource'], $glossary['relationshipIds']);
+        $t->same(0, $glossary['issueCount']);
+        $t->same([], $glossary['issueCodes']);
+        $t->same('glossary-document-metadata-only', $glossary['reviewPolicy']);
+
+        $t->same(0, $boilerplate['index']);
+        $t->same('Heading1', $boilerplate['styleId']);
+        $t->same('WordPress', $boilerplate['category']);
+        $t->same('quickParts', $boilerplate['gallery']);
+        $t->same('Reusable review intro', $boilerplate['description']);
+        $t->same('{11111111-2222-3333-4444-555555555555}', $boilerplate['guid']);
+        $t->same(['bbPlcHdr'], $boilerplate['types']);
+        $t->same(['content'], $boilerplate['behaviors']);
+        $t->same(['rGlossaryLogo', 'rGlossarySource'], $boilerplate['relationshipIds']);
+        $t->same(2, $boilerplate['bodyBlockCount']);
+        $t->same('Reusable Review Heading Use the source note and logo Glossary logo', $boilerplate['text']);
+        $t->same([], $boilerplate['issues']);
+
+        $t->same(1, $disclosure['index']);
+        $t->same(null, $disclosure['styleId']);
+        $t->same('Legal', $disclosure['category']);
+        $t->same('custom1', $disclosure['gallery']);
+        $t->same(['bbPlcHdr', 'formField'], $disclosure['types']);
+        $t->same(['p'], $disclosure['behaviors']);
+        $t->same([], $disclosure['relationshipIds']);
+        $t->same(1, $disclosure['bodyBlockCount']);
+        $t->same('DisclosureRequired', $disclosure['text']);
+
+        $t->same(2, $summary['glossaryDocumentRelationshipCount']);
+        $t->same(2, $summary['glossaryDocumentBuildingBlockCount']);
+        $t->same(3, $summary['glossaryDocumentBodyBlockCount']);
+        $t->same(0, $summary['glossaryDocumentIssueCount']);
+        $t->same([], $summary['glossaryDocumentIssueCodes']);
+    },
     'reports malformed docx selected xml sidecars without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

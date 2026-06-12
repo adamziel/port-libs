@@ -192,6 +192,8 @@ final class DocxOpenXmlReader
             self::GLOSSARY_DOCUMENT_REL,
             'glossary/document.xml',
         );
+        $glossaryRelationshipsPart = $this->relationshipsPartFor($glossaryDocumentPart['partName']);
+        $glossaryRelationships = $this->readRelationshipsPart($parts, $glossaryRelationshipsPart);
         $footnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FOOTNOTES_REL, 'footnotes.xml');
         $footnoteRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($footnotesPart['partName']));
         $footnotes = $this->readNotes(
@@ -243,6 +245,17 @@ final class DocxOpenXmlReader
             'endnote' => $endnotes['nodes'],
             'comment' => $comments['nodes'],
         ];
+        $glossaryDocument = $this->readGlossaryDocument(
+            $glossaryDocumentPart['xml'],
+            $glossaryDocumentPart['partName'],
+            $glossaryDocumentPart['exists'],
+            $glossaryRelationshipsPart,
+            $glossaryRelationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes,
+        );
         $headerFooterReferences = $this->readHeaderFooterReferences($parts[$documentPart], $documentPart);
         $headers = $this->readHeaderFooterParts(
             $parts,
@@ -384,6 +397,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
+        $packageProvenance['glossaryDocument'] = $glossaryDocument;
+        $packageProvenance['summary']['glossaryDocumentRelationshipCount'] = $glossaryDocument['relationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentBuildingBlockCount'] = $glossaryDocument['count'];
+        $packageProvenance['summary']['glossaryDocumentBodyBlockCount'] = $glossaryDocument['bodyBlockCount'];
+        $packageProvenance['summary']['glossaryDocumentIssueCount'] = $glossaryDocument['issueCount'];
+        $packageProvenance['summary']['glossaryDocumentIssueCodes'] = $glossaryDocument['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
@@ -460,6 +479,7 @@ final class DocxOpenXmlReader
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
                 'glossaryDocumentPart' => $glossaryDocumentPart['partName'],
+                'glossaryDocument' => $glossaryDocument,
                 'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
                 'extendedProperties' => $extendedProperties,
                 'customPropertiesPart' => $customPropertiesPart['partName'],
@@ -7274,6 +7294,208 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array<string, mixed>
+     */
+    private function readGlossaryDocument(
+        string $xml,
+        string $partName,
+        bool $exists,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $summary = [
+            'partName' => $partName,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($relationships),
+            'validXml' => null,
+            'xmlParseError' => null,
+            'validRoot' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'count' => 0,
+            'bodyBlockCount' => 0,
+            'names' => [],
+            'galleries' => [],
+            'categories' => [],
+            'types' => [],
+            'behaviors' => [],
+            'relationshipIds' => [],
+            'byName' => [],
+            'items' => [],
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'reviewPolicy' => 'glossary-document-metadata-only',
+        ];
+
+        if (!$exists || $xml === '') {
+            return $summary;
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            $summary['validXml'] = false;
+            $summary['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+            $summary['issueCount'] = 1;
+            $summary['issueCodes'] = ['invalid-xml'];
+
+            return $summary;
+        }
+
+        $root = $dom->documentElement;
+        $summary['validXml'] = $root instanceof \DOMElement;
+        $summary['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $summary['rootLocalName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $summary['validRoot'] = $root instanceof \DOMElement
+            && $root->namespaceURI === self::NS_W
+            && $root->localName === 'glossaryDocument';
+
+        if ($summary['validRoot'] !== true) {
+            $summary['issueCount'] = 1;
+            $summary['issueCodes'] = ['unexpected-root'];
+
+            return $summary;
+        }
+
+        $xpath = $this->xpath($dom);
+        $issueCodes = [];
+        foreach ($this->elements($xpath, '/w:glossaryDocument/w:docParts/w:docPart') as $docPart) {
+            $item = $this->glossaryDocPartItem(
+                $docPart,
+                $xpath,
+                $relationships,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes,
+                count($summary['items']),
+            );
+            $summary['items'][] = $item;
+            $summary['bodyBlockCount'] += $item['bodyBlockCount'];
+
+            $this->appendUniqueString($summary['names'], $item['name']);
+            $this->appendUniqueString($summary['galleries'], $item['gallery']);
+            $this->appendUniqueString($summary['categories'], $item['category']);
+            foreach ($item['types'] as $type) {
+                $this->appendUniqueString($summary['types'], $type);
+            }
+            foreach ($item['behaviors'] as $behavior) {
+                $this->appendUniqueString($summary['behaviors'], $behavior);
+            }
+            foreach ($item['relationshipIds'] as $relationshipId) {
+                $this->appendUniqueString($summary['relationshipIds'], $relationshipId);
+            }
+            foreach ($item['issues'] as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            if (is_string($item['name']) && $item['name'] !== '' && !isset($summary['byName'][$item['name']])) {
+                $summary['byName'][$item['name']] = $item;
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        $summary['count'] = count($summary['items']);
+        $summary['issueCount'] = count(array_filter($summary['items'], static fn (array $item): bool => $item['issues'] !== []));
+        $summary['issueCodes'] = array_keys($issueCodes);
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array<string, mixed>
+     */
+    private function glossaryDocPartItem(
+        \DOMElement $docPart,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes,
+        int $index
+    ): array {
+        $properties = $this->childElement($docPart, 'docPartPr');
+        $body = $this->childElement($docPart, 'docPartBody');
+        $types = $this->glossaryDocPartValues($xpath, 'w:types/w:type', $properties);
+        $behaviors = $this->glossaryDocPartValues($xpath, 'w:behaviors/w:behavior', $properties);
+        $blocks = $body instanceof \DOMElement
+            ? $this->readWordBlockChildren($body->childNodes, $xpath, $relationships, $contentTypes, $styles, $numbering, $referencedNotes)
+            : [];
+        $relationshipIds = $body instanceof \DOMElement ? $this->relationshipIdsInElement($body) : [];
+        $issues = [];
+        if (!$body instanceof \DOMElement) {
+            $issues[] = 'missing-body';
+        }
+
+        return [
+            'index' => $index,
+            'name' => $this->glossaryDocPartValue('name', $properties),
+            'styleId' => $this->glossaryDocPartValue('style', $properties),
+            'category' => $this->glossaryDocPartNestedValue('category', 'name', $properties),
+            'gallery' => $this->glossaryDocPartNestedValue('category', 'gallery', $properties),
+            'description' => $this->glossaryDocPartValue('description', $properties),
+            'guid' => $this->glossaryDocPartValue('guid', $properties),
+            'types' => $types,
+            'behaviors' => $behaviors,
+            'relationshipIds' => $relationshipIds,
+            'bodyBlockCount' => count($blocks),
+            'text' => $this->plainBlockText($blocks),
+            'issues' => $issues,
+        ];
+    }
+
+    private function glossaryDocPartValue(string $childLocalName, ?\DOMElement $properties): ?string
+    {
+        if (!$properties instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->emptyStringToNull($this->childAttr($properties, $childLocalName, 'val'));
+    }
+
+    private function glossaryDocPartNestedValue(string $parentLocalName, string $childLocalName, ?\DOMElement $properties): ?string
+    {
+        $parent = $this->childElement($properties, $parentLocalName);
+        if (!$parent instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->glossaryDocPartValue($childLocalName, $parent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function glossaryDocPartValues(\DOMXPath $xpath, string $query, ?\DOMElement $properties): array
+    {
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($this->elements($xpath, $query, $properties) as $element) {
+            $this->appendUniqueString($values, $this->emptyStringToNull($element->getAttributeNS(self::NS_W, 'val')));
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
      * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string}>}, nodes:array<string, AstNode>}
      */
     private function readNotes(
@@ -7644,10 +7866,33 @@ final class DocxOpenXmlReader
     {
         $dom = $this->loadXml($xml, 'word/document.xml');
         $xpath = $this->xpath($dom);
+        $body = $this->firstElement($xpath, '/w:document/w:body', $dom);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->readWordBlockChildren($body->childNodes, $xpath, $relationships, $contentTypes, $styles, $numbering, $referencedNotes);
+    }
+
+    /**
+     * @param iterable<\DOMNode> $children
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function readWordBlockChildren(iterable $children, \DOMXPath $xpath, array $relationships, array $contentTypes, array $styles, array $numbering, array $referencedNotes): array
+    {
         $blocks = [];
         $currentList = null;
 
-        foreach ($this->elements($xpath, '/w:document/w:body/*') as $bodyChild) {
+        foreach ($children as $bodyChild) {
+            if (!$bodyChild instanceof \DOMElement) {
+                continue;
+            }
+
             if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'p') {
                 $paragraph = $this->readParagraph($bodyChild, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                 if ($paragraph === null) {
@@ -7699,6 +7944,35 @@ final class DocxOpenXmlReader
         $this->flushCurrentList($currentList, $blocks);
 
         return $blocks;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function relationshipIdsInElement(\DOMElement $element): array
+    {
+        $relationshipIds = [];
+        $stack = [$element];
+        while ($stack !== []) {
+            $current = array_pop($stack);
+            if (!$current instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach (['id', 'embed', 'link'] as $attribute) {
+                $this->appendUniqueString($relationshipIds, $this->emptyStringToNull($current->getAttributeNS(self::NS_R, $attribute)));
+            }
+
+            foreach ($current->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        sort($relationshipIds, SORT_STRING);
+
+        return $relationshipIds;
     }
 
     /**
