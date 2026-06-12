@@ -2090,6 +2090,63 @@ XML, 'package reader XML');
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes html media text track provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<video id="review" controls>'
+                . '<track default kind="CAPTIONS" srclang="EN-us" label="English captions" src="captions-en.vtt">'
+                . '<track default kind="subtitles" label="No language" src="captions-missing.vtt">'
+                . '<track kind="transcript" srclang="bad&lt;tag&gt;" label="" src="bad.vtt">'
+                . '<track kind="metadata" srclang="x-review" label="Cue data" src="metadata.vtt">'
+                . '</video>',
+            'media text track review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/media-text-track-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $video = $summary[0];
+        $tracks = $video['textTracks'];
+
+        $t->same(4, $video['textTrackCount']);
+        $t->same(['captions' => 1, 'metadata' => 1, 'subtitles' => 2], $video['textTrackKinds']);
+        $t->same(['en-US', 'x-review'], $video['textTrackLanguages']);
+        $t->same(['en-US'], $video['subtitleTextTrackLanguages']);
+        $t->same(2, $video['defaultTextTrackCount']);
+        $t->same(['English captions', 'No language'], $video['defaultTextTrackLabels']);
+        $t->same(true, $video['defaultTextTrackConflict']);
+        $t->same(1, $video['invalidTextTrackKindCount']);
+        $t->same(1, $video['invalidTextTrackLanguageCount']);
+        $t->same(2, $video['missingSubtitleLanguageCount']);
+        $t->same([
+            ['code' => 'multiple-default-tracks', 'count' => 2],
+            ['code' => 'missing-text-track-language', 'trackIndex' => 1, 'kind' => 'subtitles', 'label' => 'No language', 'src' => 'captions-missing.vtt'],
+            ['code' => 'invalid-text-track-kind', 'trackIndex' => 2, 'kindRaw' => 'transcript', 'normalizedKind' => 'subtitles'],
+            ['code' => 'invalid-text-track-language', 'trackIndex' => 2, 'srclangRaw' => 'bad<tag>'],
+            ['code' => 'missing-text-track-language', 'trackIndex' => 2, 'kind' => 'subtitles', 'label' => '', 'src' => 'bad.vtt'],
+        ], $video['textTrackIssues']);
+        $t->same([
+            'index' => 0,
+            'src' => 'captions-en.vtt',
+            'kindRaw' => 'CAPTIONS',
+            'kind' => 'captions',
+            'kindValid' => true,
+            'srclangRaw' => 'EN-us',
+            'srclang' => 'en-US',
+            'srclangValid' => true,
+            'label' => 'English captions',
+            'default' => true,
+            'languageRequired' => true,
+            'languageMissing' => false,
+        ], $tracks[0]);
+        $t->same(false, $tracks[2]['kindValid']);
+        $t->same(false, $tracks[2]['srclangValid']);
+        $t->same(true, $tracks[2]['languageMissing']);
+        $t->contains($html, $blocks);
+        $t->same('/migration/media-text-track-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html canvas fallback state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<canvas id="chart" width="640" height="360"><p>Quarterly <a href="chart-data.csv">data table</a></p><img src="chart.png" alt="Static chart"></canvas>'

@@ -3685,6 +3685,7 @@ final class XmlHtmlDom
             ),
             'tracks' => self::mediaTrackSummaries($element),
         ];
+        $summary += self::mediaTextTrackReviewSummary($element);
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
@@ -3726,6 +3727,133 @@ final class XmlHtmlDom
             'srclang' => self::attributeOrNull($track, 'srclang'),
             'label' => self::attributeOrNull($track, 'label'),
             'default' => $track->hasAttribute('default'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaTextTrackReviewSummary(\DOMElement $media): array
+    {
+        $tracks = [];
+        $kindCounts = [];
+        $languages = [];
+        $subtitleLanguages = [];
+        $defaultLabels = [];
+        $issues = [];
+        $defaultCount = 0;
+        $invalidKindCount = 0;
+        $invalidLanguageCount = 0;
+        $missingLanguageCount = 0;
+
+        foreach (self::mediaResourceElements($media, 'track') as $index => $track) {
+            $summary = self::textTrackReviewSummary($track, $index);
+            $tracks[] = $summary;
+
+            $kind = (string) $summary['kind'];
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+
+            if (($summary['default'] ?? false) === true) {
+                ++$defaultCount;
+                $label = $summary['label'] ?? null;
+                if ($label !== null && $label !== '') {
+                    $defaultLabels[] = (string) $label;
+                }
+            }
+
+            $language = $summary['srclang'] ?? null;
+            if ($language !== null) {
+                if (!in_array($language, $languages, true)) {
+                    $languages[] = (string) $language;
+                }
+                if (($summary['languageRequired'] ?? false) === true && !in_array($language, $subtitleLanguages, true)) {
+                    $subtitleLanguages[] = (string) $language;
+                }
+            }
+
+            if (($summary['kindValid'] ?? true) !== true) {
+                ++$invalidKindCount;
+                $issues[] = [
+                    'code' => 'invalid-text-track-kind',
+                    'trackIndex' => $index,
+                    'kindRaw' => $summary['kindRaw'],
+                    'normalizedKind' => $kind,
+                ];
+            }
+
+            if (($summary['srclangRaw'] ?? null) !== null && ($summary['srclangValid'] ?? false) !== true) {
+                ++$invalidLanguageCount;
+                $issues[] = [
+                    'code' => 'invalid-text-track-language',
+                    'trackIndex' => $index,
+                    'srclangRaw' => $summary['srclangRaw'],
+                ];
+            }
+
+            if (($summary['languageMissing'] ?? false) === true) {
+                ++$missingLanguageCount;
+                $issues[] = [
+                    'code' => 'missing-text-track-language',
+                    'trackIndex' => $index,
+                    'kind' => $kind,
+                    'label' => $summary['label'],
+                    'src' => $summary['src'],
+                ];
+            }
+        }
+
+        if ($tracks === []) {
+            return [];
+        }
+
+        ksort($kindCounts);
+        if ($defaultCount > 1) {
+            array_unshift($issues, [
+                'code' => 'multiple-default-tracks',
+                'count' => $defaultCount,
+            ]);
+        }
+
+        return [
+            'textTrackCount' => count($tracks),
+            'textTracks' => $tracks,
+            'textTrackKinds' => $kindCounts,
+            'textTrackLanguages' => $languages,
+            'subtitleTextTrackLanguages' => $subtitleLanguages,
+            'defaultTextTrackCount' => $defaultCount,
+            'defaultTextTrackLabels' => $defaultLabels,
+            'defaultTextTrackConflict' => $defaultCount > 1,
+            'invalidTextTrackKindCount' => $invalidKindCount,
+            'invalidTextTrackLanguageCount' => $invalidLanguageCount,
+            'missingSubtitleLanguageCount' => $missingLanguageCount,
+            'textTrackIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function textTrackReviewSummary(\DOMElement $track, int $index): array
+    {
+        $kindRaw = self::attributeOrNull($track, 'kind');
+        $kind = self::trackKind($track);
+        $srclangRaw = self::attributeOrNull($track, 'srclang');
+        $srclang = $srclangRaw === null ? null : self::normalizeHtmlTrackLanguageTag($srclangRaw);
+        $languageRequired = in_array($kind, ['captions', 'subtitles'], true);
+
+        return [
+            'index' => $index,
+            'src' => self::attributeOrNull($track, 'src'),
+            'kindRaw' => $kindRaw,
+            'kind' => $kind,
+            'kindValid' => $kindRaw === null || self::isHtmlTrackKind(strtolower(trim($kindRaw))),
+            'srclangRaw' => $srclangRaw,
+            'srclang' => $srclang,
+            'srclangValid' => $srclangRaw !== null && $srclang !== null,
+            'label' => self::attributeOrNull($track, 'label'),
+            'default' => $track->hasAttribute('default'),
+            'languageRequired' => $languageRequired,
+            'languageMissing' => $languageRequired && $srclang === null,
         ];
     }
 
@@ -4039,9 +4167,58 @@ final class XmlHtmlDom
     {
         $kind = strtolower(trim($track->getAttribute('kind')));
 
-        return in_array($kind, ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'], true)
+        return self::isHtmlTrackKind($kind)
             ? $kind
             : 'subtitles';
+    }
+
+    private static function isHtmlTrackKind(string $kind): bool
+    {
+        return in_array($kind, ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'], true);
+    }
+
+    private static function normalizeHtmlTrackLanguageTag(string $value): ?string
+    {
+        $language = trim($value);
+        if ($language === '') {
+            return null;
+        }
+
+        $canonical = [];
+        foreach (explode('-', $language) as $index => $part) {
+            if (preg_match('/^[A-Za-z0-9]{1,8}$/', $part) !== 1) {
+                return null;
+            }
+
+            if ($index === 0) {
+                if (preg_match('/^(?:[A-Za-z]{2,8}|x)$/', $part) !== 1) {
+                    return null;
+                }
+
+                $canonical[] = strtolower($part);
+                continue;
+            }
+
+            if (strlen($part) === 4 && preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $canonical[] = ucfirst(strtolower($part));
+                continue;
+            }
+            if (
+                (strlen($part) === 2 && preg_match('/^[A-Za-z]{2}$/', $part) === 1)
+                || (strlen($part) === 3 && preg_match('/^[0-9]{3}$/', $part) === 1)
+            ) {
+                $canonical[] = strtoupper($part);
+                continue;
+            }
+
+            $canonical[] = strtolower($part);
+        }
+
+        if ($canonical[0] === 'x' && count($canonical) === 1) {
+            return null;
+        }
+
+        return implode('-', $canonical);
     }
 
     private static function normalizedTextWithoutMediaResourceChildren(\DOMElement $media): string
