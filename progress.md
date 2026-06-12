@@ -13,32 +13,58 @@
 | [esbuild](lanes/esbuild/lane-status.json) | Backlog | Needs catch-up | 77.0% | 259 pass / 0 fail | [259 / 2,567 (10.1%)](lanes/esbuild/UPSTREAM_TEST_MANIFEST.json) | 2,308 | Release-extra upstream `make test-all` coverage remains static-only. | cd2e8a0 |
 | [dolt](lanes/dolt/lane-status.json) | Parked | Parked | 69.0% | 249 pass / 0 fail | [315 / 613 (51.4%)](lanes/dolt/UPSTREAM_TEST_MANIFEST.json) | 298 | Parked | cd2e8a0 |
 
-## Pandoc Format Pass-Rate Matrix
+## Pandoc Input Format Shipping Matrix
 
-These rows use the inspected static upstream inventory and current local mapped case counters. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that format family; they do not claim upstream runner parity.
+Shipping target: native PHP input/import support. Pandoc output format parity is out of scope for this burn-down.
+IPYNB/notebook input is explicitly skipped for this phase and is not counted below.
+PDF import is not an upstream Pandoc input token, so it is tracked as an adjacent PDF ingestion target instead of part of the 51-format Pandoc denominator.
 
-| Pandoc format family | Count basis | Local passing | Upstream denominator | Pass % |
-| --- | --- | ---: | ---: | ---: |
-| Markdown/CommonMark/GFM | `test/` Markdown fixture files and mapped Markdown cases | 439 | 1,096 | 40.1% |
-| HTML/XML/JATS DOM | HTML/XML/JATS fixture files plus DOM mapped cases | 272 | 29 | 937.9% |
-| JSON/native AST | `.native` expected artifacts and JSON/native mapped cases | 43 | 252 | 17.1% |
-| DOCX/OpenXML | `docxOpenXmlCoreCases` and DOCX/OpenXML mapped cases | 89 | 35 | 254.3% |
-| EPUB/EPUB3 | `epub3PackageCoreCases` and EPUB mapped cases | 57 | 9 | 633.3% |
-| ODF/ODT/OpenDocument | `odfOpenDocumentCoreCases` and ODF/ODT mapped cases | 69 | 16 | 431.3% |
-| Shared ZIP/OPC package | ZIP, OPC, and archive-compression upstream case counters | 104 | 67 | 155.2% |
-| CSL/BibTeX/BibLaTeX/csljson citations | citation/BibTeX/CSL mapped cases and upstream citation counters | 75 | 8 | 937.5% |
-| PDF/Typst boundary/provenance | PDF engine and Typst boundary counters | 45 | 17 | 264.7% |
-| LaTeX/TeX/math | TeX/math reader-writer counters | 20 | 14 | 142.9% |
-| DocBook/table geometry | DocBook command fixtures and table-geometry mapped cases | 16 | 16 | 100.0% |
-| Legacy DOC/CFB | `legacyDocCfbCoreCases` | 7 | 7 | 100.0% |
-| RTF | `rtfReaderCoreCases` | 4 | 3 | 133.3% |
-| IPYNB/notebook | notebook package mapped case floor | 1 | 1 | 100.0% |
-| Plain text | PlainWriter mapped case floor | 2 | 2 | 100.0% |
-| Templates/YAML metadata | doctemplate/YAML mapped case floor | 35 | 35 | 100.0% |
-| Unicode/charset/syntax highlighting | charset and syntax-highlighting counters | 9 | 9 | 100.0% |
-| Media bag/resources | media-bag mapped case floor | 5 | 5 | 100.0% |
-| Format registry/wiki/roff/rich package evidence | registry evidence counters, not direct conversion parity | 20 | 20 | 100.0% |
-| Unsupported input format surfaces | registry format-direction count with no native PHP reader parity | 0 | 33 | 0.0% |
-| Unsupported output format surfaces | registry format-direction count with no native PHP writer parity | 0 | 61 | 0.0% |
+Input scope after skipping IPYNB:
 
-Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, whose inventory records the pinned static Pandoc source inventory from `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. Local passing counters merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane status JSON to list case counters, a local PHP aggregation pass to group `mapped*Cases` by format family, `git diff --check -- progress.md`, and `php tools/run-tests.php lanes/pandoc/tests`. No Pandoc binary, office suite, TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
+| Scope | Count |
+| --- | ---: |
+| Upstream Pandoc input tokens in scope | 50 |
+| Partial native PHP input support to finish | 17 |
+| Unsupported native PHP input tokens to implement | 33 |
+
+Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
+
+| Input family | In-scope input tokens | Current input status | Local passing | Upstream denominator | Remaining input work |
+| --- | --- | --- | ---: | ---: | --- |
+| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 439 | 1,096 | Complete extension and variant parity. |
+| HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 272 | 29 | Finish HTML5 tree construction and implement XML/JATS readers. |
+| JSON/native AST | `json`, `native` | partial | 43 | 252 | Complete JSON/native AST constructor coverage. |
+| DOCX/OpenXML | `docx` | partial | 89 | 35 | Finish direct WordprocessingML/package reader parity. |
+| EPUB/EPUB3 | `epub` | partial | 57 | 9 | Finish EPUB package reader parity. |
+| ODF/ODT/OpenDocument | `odt` | partial | 69 | 16 | Finish OpenDocument package reader parity. |
+| Shared ZIP/OPC package | dependency for package readers | partial dependency | 104 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
+| CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | unsupported | 75 | 8 | Implement native bibliography and citation readers. |
+| LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
+| DocBook/table geometry | `docbook` | partial | 16 | 16 | Finish DocBook XML reader parity. |
+| RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
+| Typst | `typst` | unsupported | 45 | 17 | Implement Typst reader; current evidence is boundary/provenance only. |
+| PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
+| Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
+| Tabular/data readers | `csv`, `tsv` | unsupported | 0 | 2 | Implement CSV/TSV table readers. |
+| Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 33 | Close the remaining unsupported input registry rows. |
+
+Adjacent import targets outside the Pandoc input denominator:
+
+| Target | Current evidence | Scope note | Remaining input work |
+| --- | ---: | --- | --- |
+| PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
+| Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
+| IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
+`lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
+`lanes/pandoc/src/PandocFormatRegistry.php`, which records 51 upstream Pandoc
+input tokens from the 2026-06-03 manual and upstream source commit
+`jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. Local passing counters
+merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
+`lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
+`lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
+status JSON to list case counters, PHP registry inspection for input support
+status, `git diff --check -- progress.md`, and `php tools/run-tests.php
+lanes/pandoc/tests`. No Pandoc binary, office suite, TeX/Typst engine, browser
+engine, Node tooling, or external validator was invoked.
