@@ -160,6 +160,61 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst duplicate font path boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-path-duplicate-boundary.pdf',
+            'source' => '= Typst Duplicate Font Path Boundary Packet',
+            'engineOptions' => [
+                '--font-path=fonts/review',
+                '--font-path',
+                'fonts/review',
+                '--font-path=fonts/body',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst duplicate font path boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'fonts/review', 'path' => 'fonts/review', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'fonts/review', 'path' => 'fonts/review', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'fonts/body', 'path' => 'fonts/body', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['font-path-duplicate-boundary'],
+            'fontPathDuplicates' => [
+                ['path' => 'fonts/review', 'count' => 2, 'issue' => 'font-path-duplicate-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-path-duplicate-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-path-duplicate-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-path-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst package cache path alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

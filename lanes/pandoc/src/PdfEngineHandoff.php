@@ -278,6 +278,9 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-font-path-unsafe:' . $fontPathPolicy['unsafeFontPathCount'];
                 }
             }
+            if (($typstBoundaryProvenance['fontPathDuplicates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-font-path-duplicates:' . count($typstBoundaryProvenance['fontPathDuplicates']);
+            }
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
@@ -5981,6 +5984,10 @@ final class PdfEngineHandoff
             $fontPathValues
         );
         $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
+        $fontPathDuplicates = $this->typstDuplicateBoundaryPathEntries(
+            $fontPaths,
+            'font-path-duplicate-boundary'
+        );
         $certificates = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
             $certificateValues
@@ -6098,6 +6105,9 @@ final class PdfEngineHandoff
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
+        foreach ($fontPathDuplicates as $duplicate) {
+            $issues[] = $duplicate['issue'];
+        }
         foreach ($overrides as $override) {
             $issues[] = $override['issue'];
         }
@@ -6123,6 +6133,9 @@ final class PdfEngineHandoff
         }
         if ($fontPathPolicy !== []) {
             $provenance['fontPathPolicy'] = $fontPathPolicy;
+        }
+        if ($fontPathDuplicates !== []) {
+            $provenance['fontPathDuplicates'] = $fontPathDuplicates;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -6499,6 +6512,38 @@ final class PdfEngineHandoff
         }
 
         return $path === $typstRoot || str_starts_with($path, $typstRoot . '/');
+    }
+
+    /**
+     * @param list<array{path:string, kind:string, issues:list<string>}> $entries
+     * @return list<array{path:string, count:int, issue:string}>
+     */
+    private function typstDuplicateBoundaryPathEntries(array $entries, string $issue): array
+    {
+        $counts = [];
+        foreach ($entries as $entry) {
+            if (($entry['issues'] ?? []) !== [] || ($entry['path'] ?? '') === '') {
+                continue;
+            }
+
+            $counts[$entry['path']] = ($counts[$entry['path']] ?? 0) + 1;
+        }
+
+        ksort($counts);
+        $duplicates = [];
+        foreach ($counts as $path => $count) {
+            if ($count < 2) {
+                continue;
+            }
+
+            $duplicates[] = [
+                'path' => $path,
+                'count' => $count,
+                'issue' => $issue,
+            ];
+        }
+
+        return $duplicates;
     }
 
     /**
