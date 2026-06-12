@@ -3962,6 +3962,67 @@ return [
         $t->same($regeneratedAttr, $editedAttrJson['blocks'][0]['c'][0], 'json writer regenerates stale tagged Attr sidecar after attr edit');
         $t->same($regeneratedAttr, $editedAttrNative['blocks'][0]['c'][0], 'native writer regenerates stale tagged Attr sidecar after attr edit');
     },
+    'preserves pandoc json tagged attr sidecars when regenerating edited constructors' => static function (TestRunner $t): void {
+        $codeBlockAttr = ['t' => 'Attr', 'c' => [
+            'json-code',
+            ['php'],
+            [['data-source', 'json-reader']],
+            ['reviewQueue' => 'code-attr-sidecar', 'sourceOrdinal' => 9],
+        ]];
+        $codeBlock = [
+            't' => 'CodeBlock',
+            'c' => [$codeBlockAttr, 'echo 1;'],
+            'reviewQueue' => 'code-block-source',
+            'sourceOrdinal' => 8,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$codeBlock],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $code = $document->children[0];
+        $unchanged = (new PandocJsonWriter())->toArray($document);
+
+        $t->same('code_block', $code->type);
+        $t->same('json-code', $code->attr('id'));
+        $t->same(['php'], $code->attr('classes'));
+        $t->same(['data-source' => 'json-reader'], $code->attr('attributes'));
+        $t->same($codeBlockAttr, $code->attr('attrNative'));
+        $t->same($codeBlock, $unchanged['blocks'][0], 'json writer preserves unchanged tagged Attr sidecar payload');
+
+        $editedTextDocument = new AstNode('document', $document->attrs, [
+            new AstNode('code_block', array_replace($code->attrs, [
+                'text' => 'echo 2;',
+            ])),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($editedTextDocument),
+            'native' => json_decode((new NativeWriter())->write($editedTextDocument), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $encodedCode = $encoded['blocks'][0];
+
+            $t->same('CodeBlock', $encodedCode['t'], "{$writer} writer regenerates edited code block constructor");
+            $t->same($codeBlockAttr, $encodedCode['c'][0], "{$writer} writer preserves json-reader tagged Attr sidecar");
+            $t->same('echo 2;', $encodedCode['c'][1], "{$writer} writer emits edited code text");
+            $t->same(false, array_key_exists('reviewQueue', $encodedCode), "{$writer} writer drops stale code block sidecar");
+            $t->same(false, array_key_exists('sourceOrdinal', $encodedCode), "{$writer} writer drops stale code block ordinal");
+        }
+
+        $editedAttrDocument = new AstNode('document', $document->attrs, [
+            new AstNode('code_block', array_replace($code->attrs, [
+                'id' => 'edited-json-code',
+            ])),
+        ]);
+        $editedAttrJson = (new PandocJsonWriter())->toArray($editedAttrDocument);
+        $editedAttrNative = json_decode((new NativeWriter())->write($editedAttrDocument), true, 512, JSON_THROW_ON_ERROR);
+        $regeneratedAttr = ['edited-json-code', ['php'], [['data-source', 'json-reader']]];
+
+        $t->same($regeneratedAttr, $editedAttrJson['blocks'][0]['c'][0], 'json writer regenerates json-reader tagged Attr sidecar after attr edit');
+        $t->same($regeneratedAttr, $editedAttrNative['blocks'][0]['c'][0], 'native writer regenerates json-reader tagged Attr sidecar after attr edit');
+    },
     'emits text-only shared ast block constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

@@ -1391,7 +1391,8 @@ final class PandocJsonReader
     private function readAttrTuple(mixed $value): array
     {
         $native = $value;
-        $tuple = $this->tuple($this->constructorContent($value, 'Attr', 'Attr', false), 3, 'Attr');
+        $content = $this->constructorContent($value, 'Attr', 'Attr', false);
+        $tuple = $this->tuplePrefix($content, 3, 'Attr');
         if (!is_string($tuple[0])) {
             throw new \InvalidArgumentException('Attr identifier must be a string');
         }
@@ -1415,7 +1416,7 @@ final class PandocJsonReader
 
         $attrs = [
             'attrConstructor' => 'Attr',
-            'attrNative' => $native,
+            'attrNative' => $this->isTaggedConstructor($native, 'Attr') ? $native : $tuple,
         ];
         if ($tuple[0] !== '') {
             $attrs['id'] = $tuple[0];
@@ -1501,6 +1502,19 @@ final class PandocJsonReader
         }
 
         return $tuple;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tuplePrefix(mixed $value, int $size, string $context): array
+    {
+        $tuple = $this->listContent($value, $context);
+        if (count($tuple) < $size) {
+            throw new \InvalidArgumentException("{$context} must have at least {$size} entries");
+        }
+
+        return array_slice($tuple, 0, $size);
     }
 
     private function listStyleFromConstructor(string $constructor): string
