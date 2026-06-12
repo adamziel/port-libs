@@ -4147,6 +4147,87 @@ XML;
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 
+    'preserves malformed OPF manifest items for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $malformedManifestOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:malformed-manifest-review</dc:identifier>
+    <dc:title>Malformed manifest review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T00:30:15Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item href="assets/orphan.xhtml" media-type="application/xhtml+xml"/>
+    <item id="missing-href" media-type="image/png"/>
+    <item id="bad-href" href="../../outside.xhtml" media-type="application/xhtml+xml"/>
+    <item id="missing-type" href="assets/review.bin"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $malformedManifestOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/assets/orphan.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Orphan</body></html>'],
+            ['name' => 'EPUB/assets/review.bin', 'data' => 'REVIEW'],
+        ]));
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+        $manifestItems = $epub->manifestItems();
+
+        $t->same('/EPUB/chapter.xhtml', $epub->readingOrder()[0]['partName']);
+        $t->same('nav', $epub->navigation()['type']);
+        $t->same(6, $manifest['itemCount']);
+        $t->same(false, $validation['valid']);
+        $t->same(false, $manifest['valid']);
+        $t->same(1, $manifest['missingIdCount']);
+        $t->same(1, $manifest['missingHrefCount']);
+        $t->same(1, $manifest['invalidHrefCount']);
+        $t->same(1, $manifest['missingMediaTypeCount']);
+        $t->same(4, $manifest['itemDiagnosticCount']);
+        $t->same(1, $manifest['invalidMediaTypeCount']);
+        $t->same([
+            'missing-manifest-item-id',
+            'missing-manifest-item-href',
+            'invalid-manifest-item-href',
+            'invalid-manifest-media-type',
+            'missing-manifest-item-media-type',
+        ], array_column($validation['diagnostics'], 'type'));
+
+        $t->same(null, $epub->manifestItem(''));
+        $t->same('/EPUB/assets/orphan.xhtml', $manifestItems[2]['partName']);
+        $t->same('missing-manifest-item-id', $manifestItems[2]['diagnostics'][0]['type']);
+        $t->same(false, $manifestItems[3]['exists']);
+        $t->same(null, $manifestItems[3]['target']);
+        $t->same('missing-manifest-item-href', $manifestItems[3]['diagnostics'][0]['type']);
+        $t->same(null, $epub->manifestItem('bad-href')['partName']);
+        $t->same('invalid-manifest-item-href', $epub->manifestItem('bad-href')['diagnostics'][0]['type']);
+        $t->same('/EPUB/assets/review.bin', $epub->manifestItem('missing-type')['partName']);
+        $t->same('', $epub->manifestItem('missing-type')['mediaType']);
+        $t->same('invalid-manifest-media-type', $manifest['invalidMediaTypeItems'][0]['diagnostics'][0]['type']);
+        $t->same('missing-manifest-item-media-type', $manifest['missingMediaTypeItems'][0]['type']);
+        $t->same($manifest['itemDiagnostics'], $summary['wordpressImport']['manifestItemDiagnostics']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

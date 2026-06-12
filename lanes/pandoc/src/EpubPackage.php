@@ -994,6 +994,10 @@ final class EpubPackage
         $duplicateMediaTypeParameterItems = [];
         $missingItems = [];
         $externalItems = [];
+        $missingIdItems = [];
+        $missingHrefItems = [];
+        $invalidHrefItems = [];
+        $missingMediaTypeItems = [];
         $parts = [];
         $ids = [];
         $mediaTypeParameterItems = [];
@@ -1035,12 +1039,22 @@ final class EpubPackage
                 $diagnostic = [
                     'id' => $id,
                     'href' => (string) ($item['href'] ?? ''),
-                    'target' => (string) ($item['target'] ?? ''),
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
                     'partName' => $partName === '' ? null : $partName,
                     'mediaType' => (string) ($item['mediaType'] ?? ''),
                 ] + $itemDiagnostic;
                 $itemDiagnostics[] = $diagnostic;
                 $diagnostics[] = $diagnostic;
+
+                if (($diagnostic['type'] ?? null) === 'missing-manifest-item-id') {
+                    $missingIdItems[] = $diagnostic;
+                } elseif (($diagnostic['type'] ?? null) === 'missing-manifest-item-href') {
+                    $missingHrefItems[] = $diagnostic;
+                } elseif (($diagnostic['type'] ?? null) === 'invalid-manifest-item-href') {
+                    $invalidHrefItems[] = $diagnostic;
+                } elseif (($diagnostic['type'] ?? null) === 'missing-manifest-item-media-type') {
+                    $missingMediaTypeItems[] = $diagnostic;
+                }
             }
 
             if ($id !== '') {
@@ -1222,6 +1236,10 @@ final class EpubPackage
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
             'externalItemCount' => count($externalItems),
+            'missingIdCount' => count($missingIdItems),
+            'missingHrefCount' => count($missingHrefItems),
+            'invalidHrefCount' => count($invalidHrefItems),
+            'missingMediaTypeCount' => count($missingMediaTypeItems),
             'duplicateIdCount' => count($duplicateIdItems),
             'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
@@ -1240,6 +1258,10 @@ final class EpubPackage
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
             'externalItems' => $externalItems,
+            'missingIdItems' => $missingIdItems,
+            'missingHrefItems' => $missingHrefItems,
+            'invalidHrefItems' => $invalidHrefItems,
+            'missingMediaTypeItems' => $missingMediaTypeItems,
             'duplicateIdItems' => $duplicateIdItems,
             'duplicateManifestIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
@@ -4532,18 +4554,63 @@ final class EpubPackage
             $id = $itemElement->getAttribute('id');
             $href = $itemElement->getAttribute('href');
             $mediaType = $itemElement->getAttribute('media-type');
-            if ($id === '' || $href === '' || $mediaType === '') {
-                throw new \RuntimeException('EPUB manifest items must include id, href, and media-type');
+            $diagnostics = [];
+            $target = null;
+            $external = false;
+            $partName = null;
+            $hrefSuffix = [
+                'hasQuery' => false,
+                'query' => null,
+                'hasFragment' => false,
+                'fragment' => null,
+            ];
+
+            if ($id === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-manifest-item-id',
+                    'href' => $href === '' ? null : $href,
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'message' => 'EPUB OPF manifest item is missing id; it is preserved for package review but cannot be referenced by id',
+                ];
             }
 
-            $target = self::resolvePackageHref($opfPartName, $href);
-            $external = self::isAbsoluteUri($target);
-            $partName = $external ? null : OpcPackagePath::stripQueryAndFragment($target);
-            $hrefSuffix = self::packageHrefSuffixReport($target);
+            if ($href === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-manifest-item-href',
+                    'id' => $id === '' ? null : $id,
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'message' => 'EPUB OPF manifest item is missing href; compact package ingestion cannot load a package part',
+                ];
+            } else {
+                try {
+                    $target = self::resolvePackageHref($opfPartName, $href);
+                    $external = self::isAbsoluteUri($target);
+                    $partName = $external ? null : OpcPackagePath::stripQueryAndFragment($target);
+                    $hrefSuffix = self::packageHrefSuffixReport($target);
+                } catch (\InvalidArgumentException $exception) {
+                    $diagnostics[] = [
+                        'type' => 'invalid-manifest-item-href',
+                        'id' => $id === '' ? null : $id,
+                        'href' => $href,
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $exists = $partName !== null && $package->has($partName);
             $entry = $exists ? $package->entry($partName) : null;
-            $diagnostics = [];
+            if ($mediaType === '') {
+                $diagnostics[] = [
+                    'type' => 'missing-manifest-item-media-type',
+                    'id' => $id === '' ? null : $id,
+                    'href' => $href === '' ? null : $href,
+                    'partName' => $partName,
+                    'message' => 'EPUB OPF manifest item is missing media-type',
+                ];
+            }
+
             if ($external) {
                 $diagnostics[] = [
                     'type' => 'external-manifest-href-target',
@@ -4581,8 +4648,10 @@ final class EpubPackage
                 'hrefFragment' => $hrefSuffix['fragment'],
             ] + self::zipEntryProvenance($entry);
 
-            $manifestIdIndexes[$id][] = count($items);
-            $byId[$id] ??= $item;
+            if ($id !== '') {
+                $manifestIdIndexes[$id][] = count($items);
+                $byId[$id] ??= $item;
+            }
             $items[] = $item;
         }
 

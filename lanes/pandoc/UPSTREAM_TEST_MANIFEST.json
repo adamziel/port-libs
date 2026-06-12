@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3225,
-        "latestSlice": "pandoc-epub-ocf-manifest-sidecar maps one native EPUB3 package ingestion case for META-INF/manifest.xml OCF manifest sidecar ZIP provenance, ODF manifest root validation, declared/missing/encrypted reference provenance, size mismatch diagnostics, byte hashes, manifestPresent accounting, and WordPress package-review propagation. Mapped denominator is now 3225, mappedEpubOcfManifestSidecarCases is 1, epubOcfManifestSidecarAssertions is 54, focused EpubPackageTest.php passed 1 test file, 1660 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 67639 assertions, 0 failures after refresh onto origin/main 67f05ca4d2, without running Pandoc, EPUBCheck, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3226,
+        "latestSlice": "pandoc-epub-malformed-manifest-items maps one native EPUB3 package ingestion case for malformed OPF manifest item continuation and diagnostics. Mapped denominator is now 3226, mappedEpubMalformedManifestItemCases is 1, epubMalformedManifestItemAssertions is 27, focused EpubPackageTest.php passed 1 test file, 1687 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 67888 assertions, 0 failures after refresh onto origin/main 8881a8911c, without running Pandoc, EPUBCheck, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB OCF manifest sidecar provenance is verified in native PHP over origin/main 67f05ca4d2 with focused and full Pandoc lane PHP verification passing.",
-        "latestFocusedSource": "2026-06-12 EPUB3 package slice inspected META-INF/manifest.xml OCF manifest sidecar provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 67f05ca4d2d96f2b395bafddeec72196622ef38d.",
+        "status": "EPUB malformed OPF manifest item provenance is verified in native PHP over refreshed main 8881a8911c with focused and full Pandoc lane PHP verification passing.",
+        "latestFocusedSource": "2026-06-12 EPUB3 package slice inspected malformed OPF manifest item package ingestion against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 8881a8911c1141801535d307eccbd10f4df63f55.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -73,7 +73,9 @@
         "mappedJsonNativeHeaderPayloadCases": 1,
         "jsonNativeHeaderPayloadAssertions": 24,
         "mappedEpubOcfManifestSidecarCases": 1,
-        "epubOcfManifestSidecarAssertions": 54
+        "epubOcfManifestSidecarAssertions": 54,
+        "mappedEpubMalformedManifestItemCases": 1,
+        "epubMalformedManifestItemAssertions": 27
     },
     "benchmarkDenominator": {
         "status": "EPUB OCF manifest sidecar provenance is verified over origin/main 67f05ca4d2.",
@@ -907,8 +909,8 @@
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
     "status": "EPUB OCF manifest sidecar provenance is verified over origin/main 67f05ca4d2.",
     "mapping": "Accounts for one bounded native PHP EpubPackage mapping for META-INF/manifest.xml OCF manifest sidecar provenance on current main 67f05ca4d2.",
-    "audit": "updated 2026-06-12: EpubPackage reports META-INF/manifest.xml as an OCF manifest sidecar with ZIP provenance, ODF root validation, reference diagnostics, byte hashes, manifestPresent accounting, and metadata-only byte exposure policy. Verified on current main 67f05ca4d2; php -l passed for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 test file, 1660 assertions, 0 failures; full Pandoc PHP gate passed 44 test files, 67639 assertions, 0 failures.",
-    "latestSlice": "pandoc-epub-ocf-manifest-sidecar maps one native EPUB3 package ingestion case for META-INF/manifest.xml OCF manifest sidecar ZIP provenance, ODF manifest root validation, declared/missing/encrypted reference provenance, size mismatch diagnostics, byte hashes, manifestPresent accounting, and WordPress package-review propagation. Mapped denominator is now 3225, mappedEpubOcfManifestSidecarCases is 1, epubOcfManifestSidecarAssertions is 54, focused EpubPackageTest.php passed 1 test file, 1660 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 67639 assertions, 0 failures after refresh onto origin/main 67f05ca4d2, without running Pandoc, EPUBCheck, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "audit": "2026-06-12 UTC plib-ma0e1 verified on refreshed base 8881a8911c1141801535d307eccbd10f4df63f55: php -l passed for EpubPackage.php and EpubPackageTest.php; focused php tools/run-tests.php lanes/pandoc/tests/EpubPackageTest.php passed 1 test file, 1687 assertions, 0 failures; full php tools/run-tests.php lanes/pandoc/tests passed 44 test files, 67888 assertions, 0 failures. No Pandoc, EPUBCheck, office suites, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
+    "latestSlice": "pandoc-epub-malformed-manifest-items maps one native EPUB3 package ingestion case for malformed OPF manifest item continuation and diagnostics. Mapped denominator is now 3226, mappedEpubMalformedManifestItemCases is 1, epubMalformedManifestItemAssertions is 27, focused EpubPackageTest.php passed 1 test file, 1687 assertions, 0 failures, and full lanes/pandoc/tests passed 44 test files, 67888 assertions, 0 failures after refresh onto origin/main 8881a8911c, without running Pandoc, EPUBCheck, zip/unzip, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1184,5 +1186,7 @@
     "mappedJsonNativeHeaderPayloadCases": 1,
     "jsonNativeHeaderPayloadAssertions": 24,
     "mappedEpubOcfManifestSidecarCases": 1,
-    "epubOcfManifestSidecarAssertions": 54
+    "epubOcfManifestSidecarAssertions": 54,
+    "mappedEpubMalformedManifestItemCases": 1,
+    "epubMalformedManifestItemAssertions": 27
 }
