@@ -2319,6 +2319,8 @@ final class DocxOpenXmlReader
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
+        $largestParts = $this->largestPackagePartSummary($partInventory);
+        $largestPart = $largestParts[0] ?? null;
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -2469,6 +2471,9 @@ final class DocxOpenXmlReader
             'partDirectoryCount' => count($partDirectories),
             'partExtensionCount' => count($partExtensions),
             'packageByteLength' => $packageByteLength,
+            'largestPartCount' => count($largestParts),
+            'largestPartName' => $largestPart['partName'] ?? null,
+            'largestPartBytes' => $largestPart['bytes'] ?? 0,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
             'relationshipRecordCount' => $relationshipRecordCount,
@@ -2497,6 +2502,8 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
             'partExtensions' => $partExtensions,
+            'largestPart' => $largestPart,
+            'largestParts' => $largestParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2512,6 +2519,40 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function largestPackagePartSummary(array $partInventory, int $limit = 5): array
+    {
+        $items = [];
+        foreach ($partInventory as $partName => $part) {
+            $items[] = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'defaultExtension' => is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+                'overridePartName' => is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+        }
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => ($right['bytes'] <=> $left['bytes'])
+                ?: strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return array_slice($items, 0, max(0, $limit));
     }
 
     /**

@@ -166,6 +166,48 @@ return [
         $t->same(strlen($parts['customXml/raw-review.bin']), $summary['partsWithoutContentType'][0]['bytes']);
         $t->same($inventory['customXml/raw-review.bin']['crc32'], $summary['partsWithoutContentType'][0]['crc32']);
     },
+    'summarizes largest docx package parts for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/media/full-resolution-review.png'] = str_repeat('P', 20000);
+        $parts['customXml/raw-review.bin'] = str_repeat('B', 15000);
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $largestParts = $summary['largestParts'];
+
+        $t->same(array_sum(array_map('strlen', $parts)), $summary['packageByteLength']);
+        $t->same(5, $summary['largestPartCount']);
+        $t->same('word/media/full-resolution-review.png', $summary['largestPartName']);
+        $t->same(20000, $summary['largestPartBytes']);
+        $t->same($largestParts[0], $summary['largestPart']);
+
+        $t->same('word/media/full-resolution-review.png', $largestParts[0]['partName']);
+        $t->same('word/media', $largestParts[0]['directory']);
+        $t->same('full-resolution-review.png', $largestParts[0]['baseName']);
+        $t->same('png', $largestParts[0]['partExtension']);
+        $t->same(20000, $largestParts[0]['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['word/media/full-resolution-review.png'])), $largestParts[0]['crc32']);
+        $t->same('image/png', $largestParts[0]['contentType']);
+        $t->same('image/png', $largestParts[0]['contentTypeBase']);
+        $t->same('default', $largestParts[0]['contentTypeSource']);
+        $t->same('png', $largestParts[0]['defaultExtension']);
+        $t->same(null, $largestParts[0]['overridePartName']);
+        $t->same(false, $largestParts[0]['isRelationshipPart']);
+        $t->same(['package-part'], $largestParts[0]['roles']);
+
+        $t->same('customXml/raw-review.bin', $largestParts[1]['partName']);
+        $t->same('customXml', $largestParts[1]['directory']);
+        $t->same('raw-review.bin', $largestParts[1]['baseName']);
+        $t->same('bin', $largestParts[1]['partExtension']);
+        $t->same(15000, $largestParts[1]['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/raw-review.bin'])), $largestParts[1]['crc32']);
+        $t->same('', $largestParts[1]['contentType']);
+        $t->same('', $largestParts[1]['contentTypeBase']);
+        $t->same('missing', $largestParts[1]['contentTypeSource']);
+        $t->same('bin', $largestParts[1]['defaultExtension']);
+        $t->same(['package-part'], $largestParts[1]['roles']);
+    },
     'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
