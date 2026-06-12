@@ -1963,6 +1963,7 @@ final class NativeWriter
             'image',
             'note',
             'span',
+            'native_inline',
         ], true);
     }
 }

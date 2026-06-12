@@ -1185,6 +1185,43 @@ return [
         $t->same($packet['blocks'][1]['c'][2], $nativeInline->attr('native'));
         $t->same($packet['blocks'], $encoded['blocks']);
     },
+    'writes native inline fallback constructors as metadata inlines' => static function (TestRunner $t): void {
+        $reviewInline = ['t' => 'VendorInline', 'c' => ['name' => 'review-anchor', 'value' => 42]];
+        $titleInline = ['t' => 'VendorTitleInline', 'c' => ['label' => 'opaque-title']];
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'reviewInline' => [
+                    new AstNode('native_inline', [
+                        'constructor' => 'VendorInline',
+                        'native' => $reviewInline,
+                    ]),
+                ],
+                'titleInlines' => [
+                    new AstNode('native_inline', [
+                        'constructor' => 'VendorTitleInline',
+                        'native' => $titleInline,
+                    ]),
+                ],
+            ],
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $roundTripMeta = $roundTrip->attr('meta');
+
+        $t->same('MetaInlines', $jsonPacket['meta']['reviewInline']['t']);
+        $t->same($reviewInline, $jsonPacket['meta']['reviewInline']['c'][0]);
+        $t->same('MetaInlines', $jsonPacket['meta']['title']['t']);
+        $t->same($titleInline, $jsonPacket['meta']['title']['c'][0]);
+        $t->same($jsonPacket['meta'], $nativePacket['meta']);
+        $t->same('native_inline', $roundTripMeta['reviewInline']['children'][0]->type);
+        $t->same('VendorInline', $roundTripMeta['reviewInline']['children'][0]->attr('constructor'));
+        $t->same($reviewInline, $roundTripMeta['reviewInline']['children'][0]->attr('native'));
+        $t->same('native_inline', $roundTripMeta['titleInlines'][0]->type);
+        $t->same($titleInline, $roundTripMeta['titleInlines'][0]->attr('native'));
+    },
     'records native str and space constructor provenance on coalesced text nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
