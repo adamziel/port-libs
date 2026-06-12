@@ -61,6 +61,8 @@ final class DocxOpenXmlReader
     private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
+    private const CT_WORD_HEADER = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+    private const CT_WORD_FOOTER = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
 
     public function readFile(string $path): AstNode
@@ -231,6 +233,7 @@ final class DocxOpenXmlReader
             $numbering,
             $referencedNotes,
         );
+        $headerFooterXmlParts = $this->headerFooterXmlPartProvenance($headers, $footers, $contentTypes);
         $alternativeFormats = $this->readAlternativeFormatImports(
             $parts,
             $parts[$documentPart],
@@ -284,6 +287,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
+        $packageProvenance['headerFooterXmlParts'] = $headerFooterXmlParts;
+        $packageProvenance['summary']['headerFooterXmlPartCount'] = $headerFooterXmlParts['count'];
+        $packageProvenance['summary']['headerFooterXmlPartIssueCount'] = $headerFooterXmlParts['issueCount'];
+        $packageProvenance['summary']['headerFooterXmlPartIssueCodes'] = $headerFooterXmlParts['issueCodes'];
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
@@ -872,6 +879,105 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, mixed> $headers
+     * @param array<string, mixed> $footers
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function headerFooterXmlPartProvenance(array $headers, array $footers, array $contentTypes): array
+    {
+        $items = [];
+        $byRelationshipId = [];
+        $issueCodes = [];
+        $issueCount = 0;
+
+        foreach ([
+            [$headers, 'header', 'hdr', self::CT_WORD_HEADER],
+            [$footers, 'footer', 'ftr', self::CT_WORD_FOOTER],
+        ] as [$group, $sourceType, $expectedRootLocalName, $expectedContentTypeBase]) {
+            foreach ($group['items'] ?? [] as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+
+                $partName = (string) ($part['partName'] ?? '');
+                $exists = (bool) ($part['exists'] ?? false);
+                $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+                $contentTypeMatchesExpected = $contentTypeResolution['contentTypeBase'] === $expectedContentTypeBase;
+                $validRoot = $exists ? (bool) ($part['validRoot'] ?? false) : null;
+                $issues = [];
+
+                if (!$contentTypeMatchesExpected) {
+                    $issues[] = $contentTypeResolution['contentTypeSource'] === 'missing'
+                        ? 'missing-content-type'
+                        : 'unexpected-content-type';
+                }
+                if (!$exists) {
+                    $issues[] = 'missing-relationship-target';
+                } elseif ($validRoot !== true) {
+                    $issues[] = 'unexpected-root';
+                }
+
+                foreach ($issues as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+                $issueCount += count($issues);
+
+                $item = [
+                    'sourceType' => $sourceType,
+                    'relationshipId' => (string) ($part['relationshipId'] ?? ''),
+                    'partName' => $partName,
+                    'exists' => $exists,
+                    'referenced' => (bool) ($part['referenced'] ?? false),
+                    'referenceTypes' => is_array($part['referenceTypes'] ?? null) ? $part['referenceTypes'] : [],
+                    'expectedRootNamespace' => self::NS_W,
+                    'expectedRootLocalName' => $expectedRootLocalName,
+                    'rootNamespace' => $part['rootNamespace'] ?? null,
+                    'rootLocalName' => $part['rootName'] ?? null,
+                    'validRoot' => $validRoot,
+                    'expectedContentTypeBase' => $expectedContentTypeBase,
+                    'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
+                    'relationshipsPart' => (string) ($part['relationshipsPart'] ?? ''),
+                    'relationshipCount' => (int) ($part['relationshipCount'] ?? 0),
+                    'blockCount' => (int) ($part['blockCount'] ?? 0),
+                    'text' => (string) ($part['text'] ?? ''),
+                    'relationship' => $part['relationship'] ?? null,
+                    'relationshipTarget' => $part['relationship']['target'] ?? null,
+                    'relationshipTargetMode' => $part['relationship']['targetMode'] ?? null,
+                    'relationshipResolvedTarget' => $part['relationship']['resolvedTarget'] ?? null,
+                    'targetReferenceSuffix' => $part['relationship']['targetReferenceSuffix'] ?? '',
+                    'targetQuery' => $part['relationship']['targetQuery'] ?? null,
+                    'targetFragment' => $part['relationship']['targetFragment'] ?? null,
+                    'issues' => $issues,
+                ] + $contentTypeResolution;
+
+                $items[] = $item;
+                $byRelationshipId[$item['relationshipId']] = $item;
+            }
+        }
+
+        $issueCodes = array_keys($issueCodes);
+        sort($issueCodes);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === false)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'validRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === true)),
+            'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === false)),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'issueCodes' => $issueCodes,
+            'relationshipIds' => array_column($items, 'relationshipId'),
+            'partNames' => array_column($items, 'partName'),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array<string, list<string>> $referencesByRelationshipId
@@ -913,7 +1019,7 @@ final class DocxOpenXmlReader
             $partRelationships = $this->readRelationshipsPart($parts, $partRelationshipsPart);
             $part = $exists
                 ? $this->readHeaderFooterPart($parts[$partName], $partName, $rootName, $partRelationships, $contentTypes, $styles, $numbering, $referencedNotes)
-                : ['validRoot' => false, 'rootName' => null, 'blocks' => []];
+                : ['validRoot' => false, 'rootNamespace' => null, 'rootName' => null, 'blocks' => []];
             $referenceTypes = $referencesByRelationshipId[$relationshipId] ?? [];
 
             if ($exists) {
@@ -933,6 +1039,7 @@ final class DocxOpenXmlReader
                 'referenced' => $referenceTypes !== [],
                 'referenceTypes' => $referenceTypes,
                 'validRoot' => $part['validRoot'],
+                'rootNamespace' => $part['rootNamespace'],
                 'rootName' => $part['rootName'],
                 'relationshipsPart' => $partRelationshipsPart,
                 'relationshipCount' => count($partRelationships),
@@ -2168,22 +2275,24 @@ final class DocxOpenXmlReader
         array $referencedNotes
     ): array {
         if ($xml === '') {
-            return ['validRoot' => false, 'rootName' => null, 'blocks' => []];
+            return ['validRoot' => false, 'rootNamespace' => null, 'rootName' => null, 'blocks' => []];
         }
 
         $dom = $this->loadXml($xml, $partName);
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement) {
-            return ['validRoot' => false, 'rootName' => null, 'blocks' => []];
+            return ['validRoot' => false, 'rootNamespace' => null, 'rootName' => null, 'blocks' => []];
         }
 
+        $rootNamespace = $root->namespaceURI;
         $rootName = $root->localName;
-        if ($root->namespaceURI !== self::NS_W || $rootName !== $expectedRootName) {
-            return ['validRoot' => false, 'rootName' => $rootName, 'blocks' => []];
+        if ($rootNamespace !== self::NS_W || $rootName !== $expectedRootName) {
+            return ['validRoot' => false, 'rootNamespace' => $rootNamespace, 'rootName' => $rootName, 'blocks' => []];
         }
 
         return [
             'validRoot' => true,
+            'rootNamespace' => $rootNamespace,
             'rootName' => $rootName,
             'blocks' => $this->readNoteBlocks($root, $this->xpath($dom), $relationships, $contentTypes, $styles, $numbering, $referencedNotes),
         ];
