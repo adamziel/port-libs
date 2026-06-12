@@ -770,6 +770,9 @@ final class XmlHtmlDom
         if (self::isHtmlHeadingElementName($name)) {
             $summary += self::headingSummary($node, $name);
         }
+        if ($name === 'hgroup') {
+            $summary += self::headingGroupSummary($node);
+        }
         if (self::isHtmlOutlineElementName($name)) {
             $summary += self::outlineSummary($node, $name);
         }
@@ -998,6 +1001,89 @@ final class XmlHtmlDom
         return (int) substr($name, 1);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private static function headingGroupSummary(\DOMElement $element): array
+    {
+        $headings = [];
+        foreach (self::htmlHeadingGroupHeadingElements($element) as $heading) {
+            $name = self::htmlElementName($heading);
+            $headings[] = [
+                'tag' => $name,
+                'level' => self::htmlHeadingLevel($name),
+                'text' => self::normalizedText($heading),
+            ];
+        }
+
+        $mainHeading = self::htmlHeadingGroupMainHeadingElement($element);
+        $mainHeadingName = $mainHeading instanceof \DOMElement ? self::htmlElementName($mainHeading) : null;
+        $subtitleTexts = self::htmlHeadingGroupSubtitleTexts($element);
+
+        return [
+            'documentOutline' => 'heading-group',
+            'headingGroup' => 'hgroup',
+            'headingGroupText' => self::normalizedText($element),
+            'headingGroupHeadingText' => $mainHeading instanceof \DOMElement ? self::normalizedText($mainHeading) : null,
+            'headingGroupHeadingTag' => $mainHeadingName,
+            'headingGroupHeadingLevel' => $mainHeadingName === null ? null : self::htmlHeadingLevel($mainHeadingName),
+            'headingGroupHeadingCount' => count($headings),
+            'headingGroupHeadingTexts' => array_values(array_map(
+                static fn (array $heading): string => (string) $heading['text'],
+                $headings
+            )),
+            'headingGroupHeadings' => $headings,
+            'headingGroupSubtitleCount' => count($subtitleTexts),
+            'headingGroupSubtitleTexts' => $subtitleTexts,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlHeadingGroupHeadingElements(\DOMElement $element): array
+    {
+        $headings = [];
+        foreach (self::childElements($element) as $child) {
+            if (self::isHtmlHeadingElementName(self::htmlElementName($child))) {
+                $headings[] = $child;
+            }
+        }
+
+        return $headings;
+    }
+
+    private static function htmlHeadingGroupMainHeadingElement(\DOMElement $element): ?\DOMElement
+    {
+        $mainHeading = null;
+        $mainLevel = PHP_INT_MAX;
+        foreach (self::htmlHeadingGroupHeadingElements($element) as $heading) {
+            $level = self::htmlHeadingLevel(self::htmlElementName($heading));
+            if ($level < $mainLevel) {
+                $mainHeading = $heading;
+                $mainLevel = $level;
+            }
+        }
+
+        return $mainHeading;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlHeadingGroupSubtitleTexts(\DOMElement $element): array
+    {
+        $subtitles = [];
+        foreach (self::childElements($element, 'p') as $paragraph) {
+            $text = self::normalizedText($paragraph);
+            if ($text !== '') {
+                $subtitles[] = $text;
+            }
+        }
+
+        return $subtitles;
+    }
+
     private static function isHtmlOutlineElementName(string $name): bool
     {
         return in_array($name, ['article', 'aside', 'main', 'nav', 'section'], true);
@@ -1107,6 +1193,14 @@ final class XmlHtmlDom
             }
 
             $name = self::htmlElementName($child);
+            if ($name === 'hgroup') {
+                $heading = self::htmlHeadingGroupMainHeadingElement($child);
+                if ($heading instanceof \DOMElement) {
+                    return $heading;
+                }
+
+                continue;
+            }
             if (self::isHtmlHeadingElementName($name)) {
                 return $child;
             }

@@ -612,6 +612,52 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/outline-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html hgroup heading metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="packet"><hgroup id="title-group"><p class="eyebrow">Review packet</p><h2>Draft ingestion summary</h2><h1>Migration <em>Plan</em></h1><p>ODT and HTML checkpoints</p></hgroup><p>Body</p></section>',
+            'hgroup outline review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/hgroup-outline-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $section = $summary[0];
+        $hgroup = $section['children'][0];
+        $secondaryHeading = $hgroup['children'][1];
+        $mainHeading = $hgroup['children'][2];
+
+        $t->same('section', $section['documentOutline']);
+        $t->same('Migration Plan', $section['sectionHeadingText']);
+        $t->same('h1', $section['sectionHeadingTag']);
+        $t->same(1, $section['sectionHeadingLevel']);
+
+        $t->same('hgroup', $hgroup['name']);
+        $t->same('heading-group', $hgroup['documentOutline']);
+        $t->same('hgroup', $hgroup['headingGroup']);
+        $t->same('Review packetDraft ingestion summaryMigration PlanODT and HTML checkpoints', $hgroup['headingGroupText']);
+        $t->same('Migration Plan', $hgroup['headingGroupHeadingText']);
+        $t->same('h1', $hgroup['headingGroupHeadingTag']);
+        $t->same(1, $hgroup['headingGroupHeadingLevel']);
+        $t->same(2, $hgroup['headingGroupHeadingCount']);
+        $t->same(['Draft ingestion summary', 'Migration Plan'], $hgroup['headingGroupHeadingTexts']);
+        $t->same([
+            ['tag' => 'h2', 'level' => 2, 'text' => 'Draft ingestion summary'],
+            ['tag' => 'h1', 'level' => 1, 'text' => 'Migration Plan'],
+        ], $hgroup['headingGroupHeadings']);
+        $t->same(2, $hgroup['headingGroupSubtitleCount']);
+        $t->same(['Review packet', 'ODT and HTML checkpoints'], $hgroup['headingGroupSubtitleTexts']);
+
+        $t->same('heading', $secondaryHeading['documentOutline']);
+        $t->same(2, $secondaryHeading['headingLevel']);
+        $t->same('heading', $mainHeading['documentOutline']);
+        $t->same(1, $mainHeading['headingLevel']);
+        $t->same('<section id="packet"><hgroup id="title-group"><p class="eyebrow">Review packet</p><h2>Draft ingestion summary</h2><h1>Migration <em>Plan</em></h1><p>ODT and HTML checkpoints</p></hgroup><p>Body</p></section>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/hgroup-outline-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html search and address landmark metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<search id="site-search" aria-label="Site search"><form id="search-form" role="search" action="/find" method="post">'
