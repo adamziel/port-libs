@@ -3301,6 +3301,63 @@ XML, 'package reader XML');
         $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
         $t->contains('document type', $unsafe['templateContentError']);
     },
+    'summarizes html noscript fallback review provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $noscriptSource = '<article id="fallback"><h2>Fallback</h2><a href="/static">Static</a><img src="fallback.png" alt="Fallback"><form action="/offline"><input name="q" value="term"></form><script>blocked()</script><iframe src="fallback-frame.html"></iframe></article>';
+        $unsafeSource = '<!doctype html><p>Blocked</p>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<noscript id="fallback-source">' . $noscriptSource . '</noscript>'
+                . '<noscript id="unsafe-source">' . $unsafeSource . '</noscript>',
+            'noscript fallback review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', ['source' => 'xml-html5-dom'], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/noscript-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $fallback = $summary[0];
+        $unsafe = $summary[1];
+
+        $t->same(2, count($summary));
+        $t->same('noscript', $fallback['name']);
+        $t->same('fallback-source', $fallback['noscript']);
+        $t->same($noscriptSource, $fallback['noscriptText']);
+        $t->same(strlen($noscriptSource), $fallback['noscriptTextLength']);
+        $t->same(hash('sha256', $noscriptSource), $fallback['noscriptTextSha256']);
+        $t->same(true, $fallback['noscriptContainsMarkupLikeText']);
+        $t->same(true, $fallback['noscriptContainsActiveLikeText']);
+        $t->same('noscript-inert-escaped-source', $fallback['noscriptReviewPolicy']);
+        $t->same('noscript-content-inert-fragment-review', $fallback['noscriptContentReviewPolicy']);
+        $t->same(strlen($noscriptSource), $fallback['noscriptContentByteLength']);
+        $t->same(hash('sha256', $noscriptSource), $fallback['noscriptContentSha256']);
+        $t->same(true, $fallback['noscriptContentParsed']);
+        $t->same([], $fallback['noscriptContentDiagnostics']);
+        $t->same(['article'], $fallback['noscriptContentTopLevelElementNames']);
+        $t->same(1, $fallback['noscriptContentTopLevelElementCount']);
+        $t->same('FallbackStaticblocked()', $fallback['noscriptContentText']);
+        $t->same(strlen('FallbackStaticblocked()'), $fallback['noscriptContentTextLength']);
+        $t->same(hash('sha256', 'FallbackStaticblocked()'), $fallback['noscriptContentTextSha256']);
+        $t->same(['/static'], $fallback['noscriptContentLinkHrefs']);
+        $t->same(['fallback.png'], $fallback['noscriptContentImageSources']);
+        $t->same(1, $fallback['noscriptContentFormCount']);
+        $t->same(['/offline'], $fallback['noscriptContentFormActions']);
+        $t->same(['script'], $fallback['noscriptContentActiveElementNames']);
+        $t->same(['iframe'], $fallback['noscriptContentEmbeddedElementNames']);
+
+        $t->same('noscript', $unsafe['name']);
+        $t->same($unsafeSource, $unsafe['noscriptText']);
+        $t->same('noscript-content-inert-fragment-review', $unsafe['noscriptContentReviewPolicy']);
+        $t->same(false, $unsafe['noscriptContentParsed']);
+        $t->same(['noscript-content-unsafe-or-unparseable'], $unsafe['noscriptContentDiagnostics']);
+        $t->contains('document type', $unsafe['noscriptContentError']);
+
+        $t->contains('&lt;article id="fallback"&gt;', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/noscript-fallback-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<script>blocked()</script>'), 'Expected noscript script source to stay escaped in raw handoff');
+        $t->true(!str_contains($html, '<iframe src="fallback-frame.html">'), 'Expected noscript iframe source to stay escaped in raw handoff');
+    },
     'foster-parents invalid table children before deterministic html serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>',
