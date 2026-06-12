@@ -55,10 +55,14 @@ final class PandocJsonReader
         }
 
         $rawMeta = $packet['meta'] ?? [];
+        $metaConstructorProvenance = $this->metaConstructorProvenance($rawMeta, $apiVersion, $legacyTuplePacket);
         $meta = $this->normalizeMeta($rawMeta, $apiVersion, $legacyTuplePacket);
         if ($meta !== []) {
             $attrs['meta'] = $this->withStandardMetaHelpers($this->readMetaMap($meta));
             $attrs = array_replace($attrs, $this->metaConstructorAttrs($rawMeta, $meta));
+        }
+        if ($metaConstructorProvenance !== []) {
+            $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
         }
 
         return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
@@ -432,6 +436,106 @@ final class PandocJsonReader
         }
 
         return $unMeta;
+    }
+
+    /**
+     * @return array<string, array{constructor:string, native:array<string, mixed>}>
+     * @param list<int>|null $apiVersion
+     */
+    private function metaConstructorProvenance(mixed $metadata, ?array $apiVersion, bool $legacyTuplePacket): array
+    {
+        $provenance = [];
+        if ($this->looksLikeMetaConstructor($metadata)) {
+            $this->collectMetaConstructorProvenance($metadata, [], $provenance);
+
+            return $provenance;
+        }
+
+        if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
+            return [];
+        }
+
+        if ($this->taggedMetaConstructor($metadata) === 'MetaMap') {
+            $this->collectMetaConstructorProvenance($metadata, [], $provenance);
+
+            return $provenance;
+        }
+
+        if (
+            count($metadata) === 1
+            && array_key_exists('unMeta', $metadata)
+            && !$this->isTaggedObject($metadata['unMeta'])
+            && $this->shouldUnwrapLegacyMetaEnvelope($apiVersion, $legacyTuplePacket)
+        ) {
+            $metadata = $metadata['unMeta'];
+            if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
+                return [];
+            }
+        }
+
+        foreach ($metadata as $key => $value) {
+            $this->collectMetaConstructorProvenance($value, [(string) $key], $provenance);
+        }
+
+        return $provenance;
+    }
+
+    /**
+     * @param list<string> $path
+     * @param array<string, array{constructor:string, native:array<string, mixed>}> $provenance
+     */
+    private function collectMetaConstructorProvenance(mixed $value, array $path, array &$provenance): void
+    {
+        if ($this->looksLikeMetaConstructor($value)) {
+            $constructor = $value['t'];
+            $provenance[$this->metaProvenancePath($path)] = [
+                'constructor' => $constructor,
+                'native' => $value,
+            ];
+
+            if ($constructor === 'MetaMap') {
+                foreach ($this->metaMapContent($value['c'] ?? []) as $key => $item) {
+                    $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
+                }
+            } elseif ($constructor === 'MetaList') {
+                foreach ($this->listContent($value['c'] ?? [], 'MetaList provenance') as $index => $item) {
+                    $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
+                }
+            }
+
+            return;
+        }
+
+        if (!is_array($value)) {
+            return;
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $index => $item) {
+                $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
+            }
+
+            return;
+        }
+
+        foreach ($value as $key => $item) {
+            $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
+        }
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
     }
 
     /**
