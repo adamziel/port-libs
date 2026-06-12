@@ -1527,6 +1527,182 @@ XML;
         $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
+    'reports docx activex control package provenance as metadata only' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+        $binaryRel = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
+        $controlXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:classid="{11111111-2222-3333-4444-555555555555}" ax:persistence="persistPropertyBag"/>
+XML;
+        $unreferencedControlXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:classid="{22222222-3333-4444-5555-666666666666}" ax:persistence="persistStream"/>
+XML;
+        $badControlXml = '<notOcx xmlns="urn:example:activex-review"/>';
+        $binaryBytes = 'activex binary state bytes';
+        $badBinaryBytes = 'bad activex binary bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/activeX/activeX1.xml" ContentType="application/vnd.ms-office.activeX+xml; profile=control"/>' . "\n" .
+            '  <Override PartName="/word/activeX/missing.xml" ContentType="application/vnd.ms-office.activeX+xml"/>' . "\n" .
+            '  <Override PartName="/word/activeX/bad.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/activeX/unreferenced.xml" ContentType="application/vnd.ms-office.activeX+xml"/>' . "\n" .
+            '  <Override PartName="/word/activeX/activeX1.bin" ContentType="application/vnd.ms-office.activeX; profile=state"/>' . "\n" .
+            '  <Override PartName="/word/activeX/bad.bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rActiveX" Type="' . $controlRel . '" Target="activeX/activeX1.xml?control=1#ocx"/>' . "\n" .
+            '  <Relationship Id="rMissingActiveX" Type="' . $controlRel . '" Target="activeX/missing.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalActiveX" Type="' . $controlRel . '" Target="https://example.test/activeX.xml?remote=1#control" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rBadActiveX" Type="' . $controlRel . '" Target="activeX/bad.xml"/>' . "\n" .
+            '  <Relationship Id="rUnreferencedActiveX" Type="' . $controlRel . '" Target="activeX/unreferenced.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><w:control r:id="rActiveX" w:name="ReviewButton" w:shapeid="_x0000_s2048"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><w:control r:id="rMissingActiveX" w:name="MissingControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><w:control r:id="rExternalActiveX" w:name="RemoteControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><w:control r:id="rBadActiveX" w:name="BadControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><w:control r:id="rUnknownActiveX" w:name="UnknownControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/activeX/activeX1.xml'] = $controlXml;
+        $parts['word/activeX/unreferenced.xml'] = $unreferencedControlXml;
+        $parts['word/activeX/bad.xml'] = $badControlXml;
+        $parts['word/activeX/_rels/activeX1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rActiveXBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="activeX1.bin?payload=1#bin"/>
+  <Relationship Id="rMissingActiveXBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="missing.bin"/>
+  <Relationship Id="rExternalActiveXBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="https://example.test/activeX.bin" TargetMode="External"/>
+  <Relationship Id="rBadActiveXBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="bad.bin"/>
+</Relationships>
+XML;
+        $parts['word/activeX/activeX1.bin'] = $binaryBytes;
+        $parts['word/activeX/bad.bin'] = $badBinaryBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $activeX = $docx['activeXControls'];
+        $packageActiveX = $docx['packageProvenance']['activeXControls'];
+        $summary = $docx['packageProvenance']['summary'];
+        $control = $activeX['byRelationshipId']['rActiveX'];
+        $missing = $activeX['byRelationshipId']['rMissingActiveX'];
+        $external = $activeX['byRelationshipId']['rExternalActiveX'];
+        $bad = $activeX['byRelationshipId']['rBadActiveX'];
+        $unknown = $activeX['byRelationshipId']['rUnknownActiveX'];
+        $unreferenced = $activeX['byRelationshipId']['rUnreferencedActiveX'];
+        $binary = $control['binaries']['byRelationshipId']['rActiveXBinary'];
+        $missingBinary = $control['binaries']['byRelationshipId']['rMissingActiveXBinary'];
+        $externalBinary = $control['binaries']['byRelationshipId']['rExternalActiveXBinary'];
+        $badBinary = $control['binaries']['byRelationshipId']['rBadActiveXBinary'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $inventory = $docx['packageProvenance']['parts'];
+
+        $t->same($activeX, $packageActiveX);
+        $t->same(6, $activeX['count']);
+        $t->same(5, $activeX['relationshipCount']);
+        $t->same(5, $activeX['referencedCount']);
+        $t->same(1, $activeX['unreferencedRelationshipCount']);
+        $t->same(3, $activeX['existingCount']);
+        $t->same(1, $activeX['missingCount']);
+        $t->same(1, $activeX['externalCount']);
+        $t->same(1, $activeX['unresolvedCount']);
+        $t->same(1, $activeX['unexpectedRootCount']);
+        $t->same(1, $activeX['unexpectedContentTypeCount']);
+        $t->same(4, $activeX['binaryCount']);
+        $t->same(2, $activeX['existingBinaryCount']);
+        $t->same(1, $activeX['missingBinaryCount']);
+        $t->same(1, $activeX['externalBinaryCount']);
+        $t->same(1, $activeX['unexpectedBinaryContentTypeCount']);
+        $t->same(5, $activeX['issueCount']);
+        $t->same([
+            'external-activex-binary',
+            'external-activex-control',
+            'missing-activex-binary',
+            'missing-binary-content-type',
+            'missing-control-part',
+            'unexpected-binary-content-type',
+            'unexpected-control-content-type',
+            'unexpected-control-root',
+            'unknown-relationship',
+        ], $activeX['issueCodes']);
+        $t->same(['rActiveX', 'rMissingActiveX', 'rExternalActiveX', 'rBadActiveX', 'rUnknownActiveX', 'rUnreferencedActiveX'], $activeX['relationshipIds']);
+        $t->same(['word/activeX/activeX1.xml', 'word/activeX/missing.xml', 'word/activeX/bad.xml', 'word/activeX/unreferenced.xml'], $activeX['partNames']);
+        $t->same(['word/activeX/activeX1.bin', 'word/activeX/missing.bin', 'word/activeX/bad.bin'], $activeX['binaryPartNames']);
+        $t->same('activex-bytes-blocked', $activeX['byteExposurePolicy']);
+        $t->same('activex-metadata-only', $activeX['reviewPolicy']);
+
+        $t->same('ReviewButton', $control['controlName']);
+        $t->same('_x0000_s2048', $control['shapeId']);
+        $t->same('activeX/activeX1.xml?control=1#ocx', $control['target']);
+        $t->same('word/activeX/activeX1.xml?control=1#ocx', $control['resolvedTarget']);
+        $t->same('word/activeX/activeX1.xml', $control['targetPart']);
+        $t->same('control=1', $control['targetQuery']);
+        $t->same('ocx', $control['targetFragment']);
+        $t->same('?control=1#ocx', $control['targetReferenceSuffix']);
+        $t->same(strlen($controlXml), $control['byteLength']);
+        $t->same(sprintf('%08x', crc32($controlXml)), $control['crc32']);
+        $t->same('application/vnd.ms-office.activeX+xml; profile=control', $control['contentType']);
+        $t->same('application/vnd.ms-office.activex+xml', $control['contentTypeBase']);
+        $t->same(['profile' => 'control'], $control['contentTypeParameterMap']);
+        $t->same(true, $control['validXml']);
+        $t->same(true, $control['validRoot']);
+        $t->same('http://schemas.microsoft.com/office/2006/activeX', $control['rootNamespace']);
+        $t->same('ocx', $control['rootLocalName']);
+        $t->same('word/activeX/_rels/activeX1.xml.rels', $control['controlRelationshipsPart']);
+        $t->same(4, $control['controlRelationshipCount']);
+        $t->same([], $control['issues']);
+        $t->same(false, $control['valid']);
+
+        $t->same(4, $control['binaries']['count']);
+        $t->same(['rActiveXBinary', 'rMissingActiveXBinary', 'rExternalActiveXBinary', 'rBadActiveXBinary'], $control['binaries']['relationshipIds']);
+        $t->same('word/activeX/activeX1.bin?payload=1#bin', $binary['resolvedTarget']);
+        $t->same('?payload=1#bin', $binary['targetReferenceSuffix']);
+        $t->same(strlen($binaryBytes), $binary['byteLength']);
+        $t->same(sprintf('%08x', crc32($binaryBytes)), $binary['crc32']);
+        $t->same('application/vnd.ms-office.activeX; profile=state', $binary['contentType']);
+        $t->same('application/vnd.ms-office.activex', $binary['contentTypeBase']);
+        $t->same(['profile' => 'state'], $binary['contentTypeParameterMap']);
+        $t->same('activex-binary-bytes-blocked', $binary['byteExposurePolicy']);
+        $t->same([], $binary['issues']);
+        $t->same(['missing-activex-binary', 'missing-binary-content-type'], $missingBinary['issues']);
+        $t->same(['external-activex-binary'], $externalBinary['issues']);
+        $t->same(['unexpected-binary-content-type'], $badBinary['issues']);
+
+        $t->same(['missing-control-part'], $missing['issues']);
+        $t->same(['external-activex-control'], $external['issues']);
+        $t->same(['unexpected-control-content-type', 'unexpected-control-root'], $bad['issues']);
+        $t->same('notOcx', $bad['rootLocalName']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same([], $unreferenced['issues']);
+
+        $t->same(6, $summary['activeXControlCount']);
+        $t->same(5, $summary['activeXControlRelationshipCount']);
+        $t->same(4, $summary['activeXBinaryCount']);
+        $t->same($activeX['issueCodes'], $summary['activeXIssueCodes']);
+        $t->same('control', $relationshipTypes[$controlRel]['label']);
+        $t->same(5, $relationshipTypes[$controlRel]['count']);
+        $t->same(4, $relationshipTypes[$controlRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$controlRel]['externalCount']);
+        $t->same(['word/activeX/activeX1.xml', 'word/activeX/bad.xml', 'word/activeX/unreferenced.xml'], $relationshipTypes[$controlRel]['existingTargetParts']);
+        $t->same('activeXControlBinary', $relationshipTypes[$binaryRel]['label']);
+        $t->same(4, $relationshipTypes[$binaryRel]['count']);
+        $t->same(['word/activeX/activeX1.bin', 'word/activeX/bad.bin'], $relationshipTypes[$binaryRel]['existingTargetParts']);
+        $t->true(in_array('activex-control', $inventory['word/activeX/activeX1.xml']['roles'], true), 'ActiveX control inventory role missing');
+        $t->true(in_array('activex-binary', $inventory['word/activeX/activeX1.bin']['roles'], true), 'ActiveX binary inventory role missing');
+        $t->true(!isset($docx['media']['word/activeX/activeX1.bin']), 'ActiveX binary should not be exposed as document media');
+    },
     'summarizes docx custom xml data store package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

@@ -22,6 +22,7 @@ final class DocxOpenXmlReader
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
     private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
+    private const NS_ACTIVEX = 'http://schemas.microsoft.com/office/2006/activeX';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
@@ -45,6 +46,8 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const ACTIVEX_CONTROL_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+    private const ACTIVEX_BINARY_REL = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -65,6 +68,8 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
+    private const CT_ACTIVEX_XML = 'application/vnd.ms-office.activex+xml';
+    private const CT_ACTIVEX_BINARY = 'application/vnd.ms-office.activex';
     private const CT_DIGITAL_SIGNATURE_ORIGIN = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const CT_DIGITAL_SIGNATURE_XMLSIGNATURE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
@@ -264,6 +269,13 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $activeXControls = $this->readActiveXControls(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $customXmlParts = $this->readCustomXmlParts(
             $parts,
             $documentPart,
@@ -315,6 +327,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['activeXControls'] = $activeXControls;
+        $packageProvenance['summary']['activeXControlCount'] = $activeXControls['count'];
+        $packageProvenance['summary']['activeXControlRelationshipCount'] = $activeXControls['relationshipCount'];
+        $packageProvenance['summary']['activeXControlExistingCount'] = $activeXControls['existingCount'];
+        $packageProvenance['summary']['activeXControlMissingCount'] = $activeXControls['missingCount'];
+        $packageProvenance['summary']['activeXControlExternalCount'] = $activeXControls['externalCount'];
+        $packageProvenance['summary']['activeXBinaryCount'] = $activeXControls['binaryCount'];
+        $packageProvenance['summary']['activeXBinaryExistingCount'] = $activeXControls['existingBinaryCount'];
+        $packageProvenance['summary']['activeXBinaryMissingCount'] = $activeXControls['missingBinaryCount'];
+        $packageProvenance['summary']['activeXIssueCount'] = $activeXControls['issueCount'];
+        $packageProvenance['summary']['activeXIssueCodes'] = $activeXControls['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -357,6 +380,7 @@ final class DocxOpenXmlReader
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
+                'activeXControls' => $activeXControls,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
@@ -1427,6 +1451,477 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readActiveXControls(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedActiveXRelationshipIds = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        if ($xml !== '') {
+            $dom = $this->loadXml($xml, $documentPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '//w:control') as $control) {
+                $relationshipId = $control->getAttributeNS(self::NS_R, 'id');
+                $item = $this->activeXControlItem(
+                    $parts,
+                    $relationships[$relationshipId] ?? null,
+                    $documentPart,
+                    $relationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                    $this->activeXControlDescriptor($control),
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($item['relationshipType'] === self::ACTIVEX_CONTROL_REL) {
+                    $this->appendUniqueString($referencedActiveXRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::ACTIVEX_CONTROL_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedActiveXRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->activeXControlItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+                null,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        $binaryPartNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+            foreach (($item['binaries']['items'] ?? []) as $binary) {
+                if (!is_array($binary)) {
+                    continue;
+                }
+                $this->appendUniqueString($binaryPartNames, is_string($binary['targetPart'] ?? null) ? $binary['targetPart'] : null);
+                $this->appendUniqueString($contentTypesSeen, is_string($binary['contentType'] ?? null) ? $binary['contentType'] : null);
+                if (($binary['external'] ?? false) === true) {
+                    $this->appendUniqueString($externalTargets, is_string($binary['target'] ?? null) ? $binary['target'] : null);
+                }
+                foreach (($binary['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::ACTIVEX_CONTROL_REL)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ACTIVEX_CONTROL_REL && $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-control-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ACTIVEX_CONTROL_REL && $item['external'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-control-xml', $item['issues'], true))),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-control-root', $item['issues'], true))),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-control-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-control-content-type', $item['issues'], true))),
+            'binaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['count'] ?? 0), $items)),
+            'existingBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['existingCount'] ?? 0), $items)),
+            'missingBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['missingCount'] ?? 0), $items)),
+            'externalBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['externalCount'] ?? 0), $items)),
+            'unexpectedBinaryContentTypeCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['unexpectedContentTypeCount'] ?? 0), $items)),
+            'issueCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['issues'] !== [] || (int) ($item['binaries']['issueCount'] ?? 0) > 0,
+            )),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'binaryPartNames' => $binaryPartNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'activex-bytes-blocked',
+            'reviewPolicy' => 'activex-metadata-only',
+        ];
+    }
+
+    /**
+     * @return array{controlName:?string, shapeId:?string}
+     */
+    private function activeXControlDescriptor(\DOMElement $control): array
+    {
+        return [
+            'controlName' => $this->emptyStringToNull($control->getAttributeNS(self::NS_W, 'name')),
+            'shapeId' => $this->emptyStringToNull($control->getAttributeNS(self::NS_W, 'shapeid')),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array{controlName:?string, shapeId:?string}|null $descriptor
+     * @return array<string, mixed>
+     */
+    private function activeXControlItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced,
+        ?array $descriptor
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'controlName' => $descriptor['controlName'] ?? null,
+            'shapeId' => $descriptor['shapeId'] ?? null,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'expectedContentTypeBase' => self::CT_ACTIVEX_XML,
+            'relationshipsPart' => null,
+            'controlRelationshipsPart' => null,
+            'controlRelationshipCount' => 0,
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'binaries' => $this->emptyActiveXBinaryParts(),
+            'byteExposurePolicy' => 'activex-control-bytes-blocked',
+            'reviewPolicy' => 'activex-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $controlRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $controlRelationships = $controlRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $controlRelationshipsPart);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationshipsPart'] = $relationshipsPart;
+        $item['controlRelationshipsPart'] = $controlRelationshipsPart;
+        $item['controlRelationshipCount'] = count($controlRelationships);
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::ACTIVEX_CONTROL_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-activex-control';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-control-part';
+        }
+
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-control-content-type';
+        } elseif ($contentTypeBase !== self::CT_ACTIVEX_XML) {
+            $item['issues'][] = 'unexpected-control-content-type';
+        }
+
+        if ($exists && $targetPart !== null) {
+            $root = $this->xmlRootProvenance($parts[$targetPart], $targetPart);
+            $item['validXml'] = $root['validXml'];
+            $item['xmlParseError'] = $root['xmlParseError'];
+            $item['rootNamespace'] = $root['namespace'];
+            $item['rootLocalName'] = $root['localName'];
+            $item['validRoot'] = $root['namespace'] === self::NS_ACTIVEX && $root['localName'] === 'ocx';
+            if ($root['validXml'] === false) {
+                $item['issues'][] = 'invalid-control-xml';
+            } elseif ($item['validRoot'] === false) {
+                $item['issues'][] = 'unexpected-control-root';
+            }
+        }
+
+        $item['binaries'] = $this->activeXBinaryParts(
+            $parts,
+            $targetPart,
+            $controlRelationshipsPart,
+            $controlRelationships,
+            $contentTypes,
+        );
+        $item['valid'] = $item['issues'] === [] && (int) $item['binaries']['issueCount'] === 0;
+
+        return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyActiveXBinaryParts(): array
+    {
+        return [
+            'count' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'unexpectedContentTypeCount' => 0,
+            'issueCount' => 0,
+            'relationshipIds' => [],
+            'partNames' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'issueCodes' => [],
+            'byRelationshipId' => [],
+            'items' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function activeXBinaryParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+    ): array {
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return $this->emptyActiveXBinaryParts();
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::ACTIVEX_BINARY_REL) {
+                continue;
+            }
+
+            $item = $this->activeXBinaryPartItem($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes, count($items));
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-activex-binary', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-binary-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function activeXBinaryPartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-activex-binary';
+        } elseif (!$exists) {
+            $issues[] = 'missing-activex-binary';
+        }
+        if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+            $issues[] = 'missing-binary-content-type';
+        } elseif (!$external && $contentTypeBase !== '' && $contentTypeBase !== self::CT_ACTIVEX_BINARY) {
+            $issues[] = 'unexpected-binary-content-type';
+        }
+
+        return [
+            'index' => $index,
+            'source' => $sourcePart,
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_ACTIVEX_BINARY,
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'byteExposurePolicy' => 'activex-binary-bytes-blocked',
+            'reviewPolicy' => 'activex-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
     }
 
     /**
@@ -4056,13 +4551,17 @@ final class DocxOpenXmlReader
             if ($this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
-            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'root-relationship-target');
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $this->addPartRole($rolesByPart, $targetPart, 'root-relationship-target');
+            $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
         }
         foreach ($documentRelationships as $relationship) {
             if ($this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
-            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'document-relationship-target');
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $this->addPartRole($rolesByPart, $targetPart, 'document-relationship-target');
+            $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
         }
         foreach ($parts as $relationshipPart => $_contents) {
             if (
@@ -4077,7 +4576,9 @@ final class DocxOpenXmlReader
                 if ($this->isExternalRelationshipTarget($relationship)) {
                     continue;
                 }
-                $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'relationship-target');
+                $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+                $this->addPartRole($rolesByPart, $targetPart, 'relationship-target');
+                $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
             }
         }
 
@@ -4153,6 +4654,28 @@ final class DocxOpenXmlReader
         }
 
         $rolesByPart[$partName][$role] = true;
+    }
+
+    /**
+     * @param array<string, array<string, true>> $rolesByPart
+     */
+    private function addRelationshipTargetInventoryRole(array &$rolesByPart, string $partName, string $relationshipType): void
+    {
+        $role = $this->relationshipTargetInventoryRole($relationshipType);
+        if ($role === null) {
+            return;
+        }
+
+        $this->addPartRole($rolesByPart, $partName, $role);
+    }
+
+    private function relationshipTargetInventoryRole(string $relationshipType): ?string
+    {
+        return match ($relationshipType) {
+            self::ACTIVEX_CONTROL_REL => 'activex-control',
+            self::ACTIVEX_BINARY_REL => 'activex-binary',
+            default => null,
+        };
     }
 
     /**
