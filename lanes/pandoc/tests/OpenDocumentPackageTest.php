@@ -978,6 +978,107 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'reports compact ODT package signatures as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $documentSignatureBytes = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
+        $encryptedBytes = '<encrypted-signatures/>';
+        $invalidBytes = 'PNG-SIGNATURE-SIDECAR';
+        $orphanBytes = '<orphan-signatures/>';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="META-INF/encrypted-signatures.xml" manifest:size="21">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="signature-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="signature-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="META-INF/documentsignatures.xml" manifest:size="' . strlen($documentSignatureBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/xml" manifest:full-path="META-INF/macrosignatures.xml"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="META-INF/packagesignatures.xml"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'META-INF/documentsignatures.xml', 'data' => $documentSignatureBytes, 'compressionMethod' => 0],
+                ['name' => 'META-INF/encrypted-signatures.xml', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+                ['name' => 'META-INF/packagesignatures.xml', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'META-INF/orphan-signatures.xml', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ]
+        ))->summarize();
+        $signatures = $summary['packageSignatures'];
+        $itemsByPath = [];
+        foreach ($signatures['items'] as $item) {
+            $itemsByPath[$item['packagePath']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(5, $signatures['count']);
+        $t->same(3, $signatures['readableCount']);
+        $t->same(4, $signatures['declaredCount']);
+        $t->same(1, $signatures['undeclaredCount']);
+        $t->same(1, $signatures['missingCount']);
+        $t->same(1, $signatures['encryptedCount']);
+        $t->same(1, $signatures['invalidMediaTypeCount']);
+        $t->same(4, $signatures['issueCount']);
+        $t->same([
+            'odf-signature-encrypted-package-part',
+            'odf-signature-invalid-media-type',
+            'odf-signature-missing-package-part',
+            'odf-signature-undeclared-package-part',
+        ], $signatures['issueCodes']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+
+        $declared = $itemsByPath['META-INF/documentsignatures.xml'];
+        $t->same('META-INF/documentsignatures.xml', $declared['fullPath']);
+        $t->same('text/xml', $declared['mediaType']);
+        $t->same(['text/xml', 'application/xml'], $declared['expectedMediaTypes']);
+        $t->same(true, $declared['declared']);
+        $t->same(true, $declared['valid']);
+        $t->same(strlen($documentSignatureBytes), $declared['byteLength']);
+        $t->same(sprintf('%08x', crc32($documentSignatureBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('package-signature-metadata-only', $declared['reviewPolicy']);
+        $t->same([], $declared['issues']);
+
+        $missing = $itemsByPath['META-INF/macrosignatures.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same('application/xml', $missing['mediaType']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(['odf-signature-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPath['META-INF/encrypted-signatures.xml'];
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedBytes), $encrypted['storedByteLength']);
+        $t->same(null, $encrypted['crc32']);
+        $t->same(sprintf('%08x', crc32($encryptedBytes)), $encrypted['storedCrc32']);
+        $t->same(['odf-signature-encrypted-package-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPath['META-INF/packagesignatures.xml'];
+        $t->same('image/png', $invalid['mediaType']);
+        $t->same('image/png', $invalid['mediaTypeBase']);
+        $t->same(false, $invalid['valid']);
+        $t->same(strlen($invalidBytes), $invalid['byteLength']);
+        $t->same(['odf-signature-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPath['META-INF/orphan-signatures.xml'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(null, $orphan['mediaType']);
+        $t->same(strlen($orphanBytes), $orphan['byteLength']);
+        $t->same(['odf-signature-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(['package-signature', 'manifest-declared'], $inventory['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $inventory['META-INF/packagesignatures.xml']['roles']);
+        $t->same(['package-signature', 'undeclared-package-entry'], $inventory['META-INF/orphan-signatures.xml']['roles']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));

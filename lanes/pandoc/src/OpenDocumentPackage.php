@@ -224,6 +224,7 @@ final class OpenDocumentPackage
      *     undeclaredPackageEntryCount:int,
      *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
+     *     packageSignatures:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
      *     styleNames:list<string>,
@@ -239,6 +240,7 @@ final class OpenDocumentPackage
         $encryptedParts = [];
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         $packageThumbnails = self::packageThumbnailMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageSignatures = self::packageSignatureMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -305,6 +307,7 @@ final class OpenDocumentPackage
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'packageThumbnails' => $packageThumbnails,
+            'packageSignatures' => $packageSignatures,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
@@ -452,6 +455,9 @@ final class OpenDocumentPackage
         if (self::isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if (self::isSignaturePackagePartName($entry->name)) {
+            $roles[] = 'package-signature';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -475,6 +481,9 @@ final class OpenDocumentPackage
     {
         $packagePath = $entry['packagePath'] ?? $entry['path'] ?? '';
         if (is_string($packagePath) && self::isThumbnailPackagePartName($packagePath)) {
+            return false;
+        }
+        if (is_string($packagePath) && self::isSignaturePackagePartName($packagePath)) {
             return false;
         }
 
@@ -756,6 +765,149 @@ final class OpenDocumentPackage
             'tif', 'tiff' => 'image/tiff',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return array{count:int, readableCount:int, declaredCount:int, undeclaredCount:int, missingCount:int, encryptedCount:int, invalidMediaTypeCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     */
+    private static function packageSignatureMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
+    {
+        $candidatesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isSignaturePackagePartName($packagePath)) {
+                continue;
+            }
+
+            $entry['declared'] = true;
+            $candidatesByPath[$packagePath] = $entry;
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $packagePath = $entry['path'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isSignaturePackagePartName($packagePath)) {
+                continue;
+            }
+
+            $candidatesByPath[$packagePath] = [
+                'path' => $packagePath,
+                'packagePath' => $packagePath,
+                'pathReference' => $packagePath,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+                'mediaType' => null,
+                'mediaTypeBase' => '',
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+            ];
+        }
+
+        ksort($candidatesByPath, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        foreach ($candidatesByPath as $packagePath => $entry) {
+            $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $mediaType = is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null;
+            $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $mediaTypeValid = $mediaType === null
+                || $mediaTypeReport['mediaTypeBase'] === 'text/xml'
+                || $mediaTypeReport['mediaTypeBase'] === 'application/xml';
+            $issues = [];
+            if (!$zipEntry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-signature-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-signature-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-signature-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-signature-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $entry['path'] ?? $packagePath,
+                'path' => $entry['path'] ?? $packagePath,
+                'packagePath' => $packagePath,
+                'part' => $packagePath,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'expectedMediaTypes' => ['text/xml', 'application/xml'],
+                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-signature-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaType'] !== null
+                    && !in_array($item['mediaTypeBase'], ['text/xml', 'application/xml'], true),
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+        ];
+    }
+
+    private static function isSignaturePackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/')
+            && str_ends_with($normalized, 'signatures.xml')
+            && !str_ends_with($normalized, '/');
     }
 
     /**
