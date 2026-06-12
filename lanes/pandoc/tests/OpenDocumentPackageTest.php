@@ -724,10 +724,13 @@ XML;
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
         }
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory']['parts'];
 
         $t->same($encoded, $decoded);
         $t->same('Pictures/source%20hero.png', $encoded['path']);
         $t->same('Pictures/source hero.png', $encoded['packagePath']);
+        $t->same(true, $encoded['uriEncodedPackageReference']);
         $t->same(true, $encoded['exists']);
         $t->same(strlen($sourceBytes), $encoded['byteLength']);
         $t->same(strlen($sourceBytes), $encoded['storedByteLength']);
@@ -737,10 +740,18 @@ XML;
 
         $t->same(2, count($summary['mediaParts']));
         $t->same('Pictures/source hero.png', $mediaByPath['Pictures/source%20hero.png']['packagePath']);
+        $t->same(true, $mediaByPath['Pictures/source%20hero.png']['uriEncodedPackageReference']);
         $t->same(strlen($sourceBytes), $mediaByPath['Pictures/source%20hero.png']['byteLength']);
+        $t->same(1, $review['uriEncodedPackageReferenceCount']);
+        $t->same('Pictures/source%20hero.png', $review['uriEncodedPackageReferenceItems'][0]['path']);
+        $t->same('Pictures/source hero.png', $review['uriEncodedPackageReferenceItems'][0]['packagePath']);
+        $t->same(true, $review['items'][5]['uriEncodedPackageReference']);
+        $t->same(false, $review['items'][4]['uriEncodedPackageReference']);
+        $t->same(true, $review['manifestFileEntryOrder'][5]['uriEncodedPackageReference']);
+        $t->same(true, $inventory['Pictures/source hero.png']['manifestUriEncodedPackageReference']);
         $t->same(0, $summary['undeclaredPackageEntryCount']);
-        $t->same(0, $summary['manifestReview']['undeclaredPackageEntryCount']);
-        $t->same('Pictures/source hero.png', $summary['manifestReview']['items'][5]['packagePath']);
+        $t->same(0, $review['undeclaredPackageEntryCount']);
+        $t->same('Pictures/source hero.png', $review['items'][5]['packagePath']);
 
         $duplicateDecodedManifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',

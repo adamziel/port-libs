@@ -250,6 +250,7 @@ final class OpenDocumentPackage
                     'pathSuffix' => $entry['pathSuffix'],
                     'pathQuery' => $entry['pathQuery'],
                     'pathFragment' => $entry['pathFragment'],
+                    'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
                     'mediaType' => $entry['mediaType'],
                     'mediaTypeBase' => $entry['mediaTypeBase'],
                     'mediaTypeHasParameters' => $entry['mediaTypeHasParameters'],
@@ -397,6 +398,7 @@ final class OpenDocumentPackage
                 'manifestPathSuffix' => is_array($manifestEntry) ? $manifestEntry['pathSuffix'] : null,
                 'manifestPathQuery' => is_array($manifestEntry) ? $manifestEntry['pathQuery'] : null,
                 'manifestPathFragment' => is_array($manifestEntry) ? $manifestEntry['pathFragment'] : null,
+                'manifestUriEncodedPackageReference' => is_array($manifestEntry) && ($manifestEntry['uriEncodedPackageReference'] ?? false) === true,
                 'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestEntry) ? $manifestEntry['mediaTypeBase'] : null,
                 'manifestMediaTypeHasParameters' => is_array($manifestEntry) ? $manifestEntry['mediaTypeHasParameters'] : false,
@@ -1031,6 +1033,8 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'uriEncodedPackageReferenceCount' => 0,
+            'uriEncodedPackageReferenceItems' => [],
             'scriptPackagePartCount' => 0,
             'scriptPackageItems' => [],
             'missingMediaTypeCount' => 0,
@@ -1059,6 +1063,10 @@ final class OpenDocumentPackage
             }
             if (is_string($entry['pathFragment'] ?? null)) {
                 ++$summary['manifestPartReferenceFragmentCount'];
+            }
+            if (($entry['uriEncodedPackageReference'] ?? false) === true) {
+                ++$summary['uriEncodedPackageReferenceCount'];
+                $summary['uriEncodedPackageReferenceItems'][] = $item;
             }
             if (($entry['scriptPackagePart'] ?? false) === true) {
                 ++$summary['scriptPackagePartCount'];
@@ -1146,6 +1154,7 @@ final class OpenDocumentPackage
             'pathSuffix' => $entry['pathSuffix'] ?? null,
             'pathQuery' => $entry['pathQuery'] ?? null,
             'pathFragment' => $entry['pathFragment'] ?? null,
+            'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'mediaType' => $entry['mediaType'],
             'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
             'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
@@ -1192,6 +1201,7 @@ final class OpenDocumentPackage
             'partSuffix' => $entry['pathSuffix'] ?? null,
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
+            'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'mediaType' => $entry['mediaType'],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
@@ -1217,6 +1227,7 @@ final class OpenDocumentPackage
             'partSuffix' => $entry['pathSuffix'] ?? null,
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
+            'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'mediaType' => $entry['mediaType'],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
@@ -1280,6 +1291,7 @@ final class OpenDocumentPackage
             $packageReference = self::manifestPackageReference($path);
             $pathReference = $packageReference['pathReference'];
             $packagePath = $packageReference['packagePath'];
+            $uriEncodedPackageReference = is_string($pathReference) && is_string($packagePath) && $pathReference !== $packagePath;
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
             $missingMediaType = $mediaType === '' && !str_ends_with($pathReference ?? $path, '/');
             $diagnostics = $missingMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
@@ -1298,6 +1310,7 @@ final class OpenDocumentPackage
                 'pathSuffix' => $packageReference['pathSuffix'],
                 'pathQuery' => $packageReference['pathQuery'],
                 'pathFragment' => $packageReference['pathFragment'],
+                'uriEncodedPackageReference' => $uriEncodedPackageReference,
                 'mediaType' => $mediaType,
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
                 'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
