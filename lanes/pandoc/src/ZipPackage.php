@@ -4738,6 +4738,10 @@ final class ZipPackage
      *     selectedLegacyEncodedNameEntryCount:int,
      *     selectedUnicodePathExtraEntryCount:int,
      *     selectedDecodedNameDiffersFromRawNameEntryCount:int,
+     *     selectedEntryCommentCount:int,
+     *     selectedCommentControlByteEntryCount:int,
+     *     selectedCommentUnicodeFormatControlEntryCount:int,
+     *     selectedCommentBidiControlEntryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -4745,6 +4749,11 @@ final class ZipPackage
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
+     *     selectedCommentedEntryNames:list<string>,
+     *     selectedCommentedEntries:list<array<string, mixed>>,
+     *     selectedCommentControlByteEntries:list<array<string, mixed>>,
+     *     selectedCommentUnicodeFormatControlEntries:list<array<string, mixed>>,
+     *     selectedCommentBidiControlEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4869,6 +4878,10 @@ final class ZipPackage
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
         $selectedDecodedNameDiffersFromRawNameEntryCount = 0;
+        $selectedCommentedEntries = [];
+        $selectedCommentControlByteEntries = [];
+        $selectedCommentUnicodeFormatControlEntries = [];
+        $selectedCommentBidiControlEntries = [];
         foreach ($selectedEntriesByName as $entry) {
             $selectedCompressedBytes += $entry->compressedSize;
             $selectedUncompressedBytes += $entry->uncompressedSize;
@@ -4897,6 +4910,28 @@ final class ZipPackage
                 $selectedRawNameProvenanceEntries[] = [
                     'name' => $entry->name,
                 ] + $rawNameProvenance;
+            }
+
+            $commentProvenance = self::entryCommentHandoffProvenance($entry);
+            if ($commentProvenance['hasEntryComment']) {
+                $selectedCommentedEntries[] = [
+                    'name' => $entry->name,
+                ] + $commentProvenance;
+            }
+            if ($commentProvenance['hasEntryCommentControlBytes']) {
+                $selectedCommentControlByteEntries[] = [
+                    'name' => $entry->name,
+                ] + $commentProvenance;
+            }
+            if ($commentProvenance['hasEntryCommentUnicodeFormatControls']) {
+                $selectedCommentUnicodeFormatControlEntries[] = [
+                    'name' => $entry->name,
+                ] + $commentProvenance;
+            }
+            if ($commentProvenance['hasEntryCommentBidiControls']) {
+                $selectedCommentBidiControlEntries[] = [
+                    'name' => $entry->name,
+                ] + $commentProvenance;
             }
         }
 
@@ -4942,6 +4977,18 @@ final class ZipPackage
                 'usesLegacyNameEncoding' => false,
                 'usesUnicodePathExtraField' => false,
                 'hasRawNameProvenance' => false,
+                'comment' => null,
+                'rawComment' => null,
+                'commentEncoding' => null,
+                'commentLength' => null,
+                'hasEntryComment' => false,
+                'hasEntryCommentControlBytes' => false,
+                'entryCommentControlByteOffsets' => [],
+                'hasEntryCommentUnicodeFormatControls' => false,
+                'hasEntryCommentBidiControls' => false,
+                'entryCommentUnicodeFormatControlNames' => [],
+                'entryCommentBidiControlNames' => [],
+                'entryCommentIssues' => [],
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'expansionRatio' => null,
@@ -4991,6 +5038,7 @@ final class ZipPackage
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
+            $summary = array_merge($summary, self::entryCommentHandoffProvenance($entry));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5087,6 +5135,10 @@ final class ZipPackage
             'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
             'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
             'selectedDecodedNameDiffersFromRawNameEntryCount' => $selectedDecodedNameDiffersFromRawNameEntryCount,
+            'selectedEntryCommentCount' => count($selectedCommentedEntries),
+            'selectedCommentControlByteEntryCount' => count($selectedCommentControlByteEntries),
+            'selectedCommentUnicodeFormatControlEntryCount' => count($selectedCommentUnicodeFormatControlEntries),
+            'selectedCommentBidiControlEntryCount' => count($selectedCommentBidiControlEntries),
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5094,10 +5146,53 @@ final class ZipPackage
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
+            'selectedCommentedEntryNames' => array_map(
+                static fn (array $entry): string => $entry['name'],
+                $selectedCommentedEntries
+            ),
+            'selectedCommentedEntries' => $selectedCommentedEntries,
+            'selectedCommentControlByteEntries' => $selectedCommentControlByteEntries,
+            'selectedCommentUnicodeFormatControlEntries' => $selectedCommentUnicodeFormatControlEntries,
+            'selectedCommentBidiControlEntries' => $selectedCommentBidiControlEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasEntryComment:bool, hasEntryCommentControlBytes:bool, entryCommentControlByteOffsets:list<int>, hasEntryCommentUnicodeFormatControls:bool, hasEntryCommentBidiControls:bool, entryCommentUnicodeFormatControlNames:list<string>, entryCommentBidiControlNames:list<string>, entryCommentIssues:list<string>}
+     */
+    private static function entryCommentHandoffProvenance(ZipPackageEntry $entry): array
+    {
+        $controlByteOffsets = self::rawControlByteOffsets($entry->rawComment);
+        $formatControlNames = self::unicodeFormatControlNames($entry->comment);
+        $bidiControlNames = self::unicodeBidiControlNames($entry->comment);
+        $issues = [];
+        if ($controlByteOffsets !== []) {
+            $issues[] = 'entry-comment-control-bytes';
+        }
+        if ($formatControlNames !== []) {
+            $issues[] = 'entry-comment-unicode-format-control';
+        }
+        if ($bidiControlNames !== []) {
+            $issues[] = 'entry-comment-bidi-format-control';
+        }
+
+        return [
+            'comment' => $entry->comment,
+            'rawComment' => $entry->rawComment,
+            'commentEncoding' => $entry->commentEncoding,
+            'commentLength' => strlen($entry->rawComment),
+            'hasEntryComment' => $entry->comment !== '',
+            'hasEntryCommentControlBytes' => $controlByteOffsets !== [],
+            'entryCommentControlByteOffsets' => $controlByteOffsets,
+            'hasEntryCommentUnicodeFormatControls' => $formatControlNames !== [],
+            'hasEntryCommentBidiControls' => $bidiControlNames !== [],
+            'entryCommentUnicodeFormatControlNames' => $formatControlNames,
+            'entryCommentBidiControlNames' => $bidiControlNames,
+            'entryCommentIssues' => $issues,
         ];
     }
 

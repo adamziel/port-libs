@@ -9621,6 +9621,110 @@ return [
         $t->same("legacy encoded media placeholder\n", $package->read('/' . $cp437Name));
     },
 
+    'preflights selected zip entry comment provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected comment provenance</w:p></w:body></w:document>';
+        $commentedBytes = "commented selected media\n";
+        $controlBytes = "control comment selected media\n";
+        $bidiBytes = "bidi comment selected media\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/commented.txt',
+                'data' => $commentedBytes,
+                'method' => 0,
+                'comment' => 'selected reviewer comment',
+            ],
+            [
+                'name' => 'word/media/control.txt',
+                'data' => $controlBytes,
+                'method' => 0,
+                'comment' => "entry\x7fcomment",
+            ],
+            [
+                'name' => 'word/media/bidi.txt',
+                'data' => $bidiBytes,
+                'method' => 0,
+                'comment' => "entry\u{202e}comment",
+            ],
+            [
+                'name' => 'word/media/unselected-comment.txt',
+                'data' => "unselected comment should stay out of selected summary\n",
+                'method' => 0,
+                'comment' => 'unselected reviewer comment',
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/commented.txt', 'required' => false, 'kind' => 'file', 'role' => 'commented-media'],
+            ['name' => 'word/media/control.txt', 'required' => false, 'kind' => 'file', 'role' => 'control-comment-media'],
+            ['name' => 'word/media/bidi.txt', 'required' => false, 'kind' => 'file', 'role' => 'bidi-comment-media'],
+        ], 1024);
+
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same(4, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedEntryCommentCount']);
+        $t->same(1, $summary['selectedCommentControlByteEntryCount']);
+        $t->same(1, $summary['selectedCommentUnicodeFormatControlEntryCount']);
+        $t->same(1, $summary['selectedCommentBidiControlEntryCount']);
+        $t->same([
+            'word/media/commented.txt',
+            'word/media/control.txt',
+            'word/media/bidi.txt',
+        ], $summary['selectedCommentedEntryNames']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same('', $documentEntry['comment']);
+        $t->same('', $documentEntry['rawComment']);
+        $t->same(false, $documentEntry['hasEntryComment']);
+        $t->same([], $documentEntry['entryCommentIssues']);
+
+        $commentedEntry = $summary['entries'][1];
+        $t->same('selected reviewer comment', $commentedEntry['comment']);
+        $t->same('selected reviewer comment', $commentedEntry['rawComment']);
+        $t->same('utf-8', $commentedEntry['commentEncoding']);
+        $t->same(strlen('selected reviewer comment'), $commentedEntry['commentLength']);
+        $t->same(true, $commentedEntry['hasEntryComment']);
+        $t->same(false, $commentedEntry['hasEntryCommentControlBytes']);
+        $t->same([], $commentedEntry['entryCommentControlByteOffsets']);
+        $t->same([], $commentedEntry['entryCommentIssues']);
+        $t->same(strlen($commentedBytes), $commentedEntry['bytesRead']);
+
+        $controlEntry = $summary['entries'][2];
+        $t->same("entry\x7fcomment", $controlEntry['comment']);
+        $t->same(true, $controlEntry['hasEntryCommentControlBytes']);
+        $t->same([5], $controlEntry['entryCommentControlByteOffsets']);
+        $t->same(['entry-comment-control-bytes'], $controlEntry['entryCommentIssues']);
+        $t->same('word/media/control.txt', $summary['selectedCommentControlByteEntries'][0]['name']);
+        $t->same("entry\x7fcomment", $summary['selectedCommentControlByteEntries'][0]['comment']);
+        $t->same([5], $summary['selectedCommentControlByteEntries'][0]['entryCommentControlByteOffsets']);
+        $t->same(['entry-comment-control-bytes'], $summary['selectedCommentControlByteEntries'][0]['entryCommentIssues']);
+
+        $bidiEntry = $summary['entries'][3];
+        $t->same("entry\u{202e}comment", $bidiEntry['comment']);
+        $t->same(true, $bidiEntry['hasEntryCommentUnicodeFormatControls']);
+        $t->same(true, $bidiEntry['hasEntryCommentBidiControls']);
+        $t->same(['right-to-left-override'], $bidiEntry['entryCommentUnicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $bidiEntry['entryCommentBidiControlNames']);
+        $t->same([
+            'entry-comment-unicode-format-control',
+            'entry-comment-bidi-format-control',
+        ], $bidiEntry['entryCommentIssues']);
+        $t->same('word/media/bidi.txt', $summary['selectedCommentUnicodeFormatControlEntries'][0]['name']);
+        $t->same(['right-to-left-override'], $summary['selectedCommentUnicodeFormatControlEntries'][0]['entryCommentUnicodeFormatControlNames']);
+        $t->same('word/media/bidi.txt', $summary['selectedCommentBidiControlEntries'][0]['name']);
+        $t->same(['right-to-left-override'], $summary['selectedCommentBidiControlEntries'][0]['entryCommentBidiControlNames']);
+        $t->same('word/media/commented.txt', $summary['selectedCommentedEntries'][0]['name']);
+        $t->same('word/media/control.txt', $summary['selectedCommentedEntries'][1]['name']);
+        $t->same('word/media/bidi.txt', $summary['selectedCommentedEntries'][2]['name']);
+        $t->same([$documentEntry, $commentedEntry, $controlEntry, $bidiEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";
