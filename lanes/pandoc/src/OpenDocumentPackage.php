@@ -225,6 +225,7 @@ final class OpenDocumentPackage
      *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
      *     packageSignatures:array<string, mixed>,
+     *     packageFonts:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
      *     styleNames:list<string>,
@@ -241,6 +242,7 @@ final class OpenDocumentPackage
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         $packageThumbnails = self::packageThumbnailMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageSignatures = self::packageSignatureMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -310,6 +312,7 @@ final class OpenDocumentPackage
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'packageThumbnails' => $packageThumbnails,
             'packageSignatures' => $packageSignatures,
+            'packageFonts' => $packageFonts,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
@@ -367,6 +370,7 @@ final class OpenDocumentPackage
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
         $scriptPackagePartCount = 0;
+        $fontPackagePartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -417,6 +421,7 @@ final class OpenDocumentPackage
                     ? ($manifestEntry['encryption']['issueCodes'] ?? [])
                     : [],
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
+                'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -443,6 +448,9 @@ final class OpenDocumentPackage
             if (in_array('script-package', $roles, true)) {
                 ++$scriptPackagePartCount;
             }
+            if (in_array('font-package', $roles, true)) {
+                ++$fontPackagePartCount;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -465,6 +473,7 @@ final class OpenDocumentPackage
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
             'scriptPackagePartCount' => $scriptPackagePartCount,
+            'fontPackagePartCount' => $fontPackagePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -506,6 +515,9 @@ final class OpenDocumentPackage
         if (self::isScriptPackagePartName($entry->name)) {
             $roles[] = 'script-package';
         }
+        if (self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null)) {
+            $roles[] = 'font-package';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -530,6 +542,46 @@ final class OpenDocumentPackage
             || str_starts_with($normalized, 'scripts/');
     }
 
+    private static function isFontPackagePart(string $path, ?string $mediaType = null): bool
+    {
+        if (self::isFontPackagePartName($path)) {
+            return true;
+        }
+
+        return $mediaType !== null && self::isFontMediaType($mediaType);
+    }
+
+    private static function isFontPackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+        if (str_ends_with($normalized, '/')) {
+            return false;
+        }
+
+        return str_starts_with($normalized, 'fonts/');
+    }
+
+    private static function isFontMediaType(string $mediaType): bool
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return str_starts_with($base, 'font/')
+            || in_array($base, [
+                'application/font-woff',
+                'application/font-woff2',
+                'application/vnd.ms-fontobject',
+                'application/vnd.ms-opentype',
+                'application/x-font-opentype',
+                'application/x-font-otf',
+                'application/x-font-ttf',
+                'application/x-font-type1',
+                'application/x-font-woff',
+                'application/x-font-woff2',
+                'application/x-opentype',
+                'application/x-truetype-font',
+            ], true);
+    }
+
     /**
      * @param array<string, mixed> $entry
      */
@@ -543,6 +595,9 @@ final class OpenDocumentPackage
             return false;
         }
         if (is_string($packagePath) && self::isSignaturePackagePartName($packagePath)) {
+            return false;
+        }
+        if (is_string($packagePath) && self::isFontPackagePart($packagePath, is_string($entry['mediaType'] ?? null) ? $entry['mediaType'] : null)) {
             return false;
         }
 
@@ -570,6 +625,7 @@ final class OpenDocumentPackage
             $packagePath = $entry['packagePath'];
             $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
+            $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -579,7 +635,7 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$missingMediaType && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$fontPackagePart && !$missingMediaType && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -616,6 +672,7 @@ final class OpenDocumentPackage
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'scriptPackagePart' => $scriptPackagePart,
+                'fontPackagePart' => $fontPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -623,6 +680,7 @@ final class OpenDocumentPackage
                     $isDirectory,
                     $encrypted,
                     $scriptPackagePart,
+                    $fontPackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -639,6 +697,7 @@ final class OpenDocumentPackage
         bool $isDirectory,
         bool $encrypted,
         bool $scriptPackagePart,
+        bool $fontPackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -653,6 +712,9 @@ final class OpenDocumentPackage
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($fontPackagePart) {
+            return 'font-package-bytes-blocked';
         }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';
@@ -690,6 +752,7 @@ final class OpenDocumentPackage
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
+                'fontPackagePart' => self::isFontPackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -697,6 +760,160 @@ final class OpenDocumentPackage
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return array{count:int, readableCount:int, declaredCount:int, undeclaredCount:int, missingCount:int, encryptedCount:int, invalidMediaTypeCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     */
+    private static function packageFontMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
+    {
+        $candidatesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''))) {
+                continue;
+            }
+
+            $entry['declared'] = true;
+            $candidatesByPath[$packagePath] = $entry;
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $packagePath = $entry['path'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isFontPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $mediaType = self::fontMediaTypeFromPart($packagePath);
+            $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $candidatesByPath[$packagePath] = [
+                'path' => $packagePath,
+                'packagePath' => $packagePath,
+                'pathReference' => $packagePath,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+                'mediaType' => $mediaType ?? '',
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+            ];
+        }
+
+        ksort($candidatesByPath, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        foreach ($candidatesByPath as $packagePath => $entry) {
+            $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $mediaType = (string) ($entry['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = self::fontMediaTypeFromPart($packagePath) ?? '';
+            }
+
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeValid = $mediaType === '' || self::isFontMediaType($mediaType);
+            $issues = [];
+            if (!$zipEntry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-font-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-font-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-font-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-font-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $entry['path'] ?? $packagePath,
+                'path' => $entry['path'] ?? $packagePath,
+                'packagePath' => $packagePath,
+                'part' => $packagePath,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'expectedMediaTypeRole' => 'font',
+                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-font-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaType'] !== null
+                    && !self::isFontMediaType((string) $item['mediaType']),
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+        ];
+    }
+
+    private static function fontMediaTypeFromPart(string $path): ?string
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'eot' => 'application/vnd.ms-fontobject',
+            'otf' => 'font/otf',
+            'pfb', 'pfa' => 'application/x-font-type1',
+            'ttc' => 'font/collection',
+            'ttf' => 'font/ttf',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            default => null,
+        };
     }
 
     /**
@@ -1037,6 +1254,8 @@ final class OpenDocumentPackage
             'uriEncodedPackageReferenceItems' => [],
             'scriptPackagePartCount' => 0,
             'scriptPackageItems' => [],
+            'fontPackagePartCount' => 0,
+            'fontPackageItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'diagnosticCount' => 0,
@@ -1071,6 +1290,10 @@ final class OpenDocumentPackage
             if (($entry['scriptPackagePart'] ?? false) === true) {
                 ++$summary['scriptPackagePartCount'];
                 $summary['scriptPackageItems'][] = $item;
+            }
+            if (($entry['fontPackagePart'] ?? false) === true) {
+                ++$summary['fontPackagePartCount'];
+                $summary['fontPackageItems'][] = $item;
             }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
@@ -1170,6 +1393,7 @@ final class OpenDocumentPackage
             'encryptionRecordCount' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
             'encryptionIssueCodes' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['issueCodes'] ?? []) : [],
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
+            'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -1206,6 +1430,7 @@ final class OpenDocumentPackage
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'diagnostics' => $entry['diagnostics'] ?? [],

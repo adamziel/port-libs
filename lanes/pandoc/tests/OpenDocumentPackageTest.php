@@ -1132,6 +1132,129 @@ XML;
         $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
     },
+    'reports compact ODT package fonts as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewSansBytes = 'WOFF2DAT';
+        $sourceBytes = 'WOFFDATA';
+        $invalidBytes = 'NOTFONT';
+        $encryptedBytes = 'ENCFONT';
+        $orphanBytes = 'TTFORPHAN';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="font/ttf" manifest:full-path="Fonts/encrypted.ttf" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="font-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="font-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="font/woff2" manifest:full-path="Fonts/ReviewSans.woff2" manifest:size="' . strlen($reviewSansBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.ms-opentype" manifest:full-path="Fonts/Missing.otf"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Fonts/not-font.bin" manifest:size="' . strlen($invalidBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="font/woff; technology=variations" manifest:full-path="Assets/source.woff" manifest:size="' . strlen($sourceBytes) . '"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Fonts/ReviewSans.woff2', 'data' => $reviewSansBytes, 'compressionMethod' => 0],
+                ['name' => 'Fonts/not-font.bin', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'Fonts/encrypted.ttf', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+                ['name' => 'Fonts/orphan.ttf', 'data' => $orphanBytes, 'compressionMethod' => 0],
+                ['name' => 'Assets/source.woff', 'data' => $sourceBytes, 'compressionMethod' => 0],
+            ],
+        ));
+        $summary = $odt->summarize();
+        $fonts = $summary['packageFonts'];
+        $fontByPath = [];
+        foreach ($fonts['items'] as $item) {
+            $fontByPath[$item['packagePath']] = $item;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+
+        $t->same(6, $fonts['count']);
+        $t->same(4, $fonts['readableCount']);
+        $t->same(5, $fonts['declaredCount']);
+        $t->same(1, $fonts['undeclaredCount']);
+        $t->same(1, $fonts['missingCount']);
+        $t->same(1, $fonts['encryptedCount']);
+        $t->same(1, $fonts['invalidMediaTypeCount']);
+        $t->same(4, $fonts['issueCount']);
+        $t->same([
+            'odf-font-encrypted-package-part',
+            'odf-font-invalid-media-type',
+            'odf-font-missing-package-part',
+            'odf-font-undeclared-package-part',
+        ], $fonts['issueCodes']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(5, $summary['manifestReview']['fontPackagePartCount']);
+        $t->same(5, $inventory['fontPackagePartCount']);
+        $t->same(5, $inventory['roleCounts']['font-package']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['font-package']);
+
+        $declared = $fontByPath['Fonts/ReviewSans.woff2'];
+        $manifestDeclared = $odt->manifestEntry('Fonts/ReviewSans.woff2');
+        $t->same('font/woff2', $declared['mediaType']);
+        $t->same('font/woff2', $declared['mediaTypeBase']);
+        $t->same(true, $declared['declared']);
+        $t->same(true, $declared['valid']);
+        $t->same(strlen($reviewSansBytes), $declared['byteLength']);
+        $t->same(sprintf('%08x', crc32($reviewSansBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('package-font-metadata-only', $declared['reviewPolicy']);
+        $t->same([], $declared['issues']);
+        $t->same(true, $manifestDeclared['fontPackagePart']);
+        $t->same(false, $manifestDeclared['canExposeBytes']);
+        $t->same(null, $manifestDeclared['byteLength']);
+        $t->same(strlen($reviewSansBytes), $manifestDeclared['storedByteLength']);
+        $t->same('font-package-bytes-blocked', $manifestDeclared['byteExposurePolicy']);
+        $t->same(false, $reviewByPath['Fonts/ReviewSans.woff2']['canExposeBytes']);
+        $t->same('font-package-bytes-blocked', $reviewByPath['Fonts/ReviewSans.woff2']['byteExposurePolicy']);
+
+        $asset = $fontByPath['Assets/source.woff'];
+        $t->same('font/woff; technology=variations', $asset['mediaType']);
+        $t->same('font/woff', $asset['mediaTypeBase']);
+        $t->same(['technology' => 'variations'], $asset['mediaTypeParameterMap']);
+        $t->same(['font-package', 'manifest-declared'], $inventory['parts']['Assets/source.woff']['roles']);
+
+        $missing = $fontByPath['Fonts/Missing.otf'];
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(['odf-font-missing-package-part'], $missing['issues']);
+
+        $invalid = $fontByPath['Fonts/not-font.bin'];
+        $t->same('application/octet-stream', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(strlen($invalidBytes), $invalid['byteLength']);
+        $t->same(['odf-font-invalid-media-type'], $invalid['issues']);
+
+        $encrypted = $fontByPath['Fonts/encrypted.ttf'];
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedBytes), $encrypted['storedByteLength']);
+        $t->same(true, $encrypted['declaredSizeMismatch']);
+        $t->same(['odf-font-encrypted-package-part'], $encrypted['issues']);
+
+        $orphan = $fontByPath['Fonts/orphan.ttf'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same('font/ttf', $orphan['mediaType']);
+        $t->same(strlen($orphanBytes), $orphan['byteLength']);
+        $t->same(['odf-font-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(['font-package', 'manifest-declared'], $inventory['parts']['Fonts/ReviewSans.woff2']['roles']);
+        $t->same(['font-package', 'manifest-declared'], $inventory['parts']['Fonts/not-font.bin']['roles']);
+        $t->same(['font-package', 'undeclared-package-entry'], $inventory['parts']['Fonts/orphan.ttf']['roles']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('Fonts/orphan.ttf', $summary['undeclaredPackageEntries'][0]['path']);
+    },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $encryptedBytes = 'ENCRYPTEDPNG';
