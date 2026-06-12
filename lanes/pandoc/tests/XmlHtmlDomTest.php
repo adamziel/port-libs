@@ -671,6 +671,52 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/search-address-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html preformatted code block provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<pre id="snippet"><code class="language-php review-code" data-package-part="word/code.xml">echo &quot;hi&quot;;&#10;  exit;</code></pre>'
+                . '<pre id="plain">line 1&#10;  line 2</pre>',
+            'preformatted code block review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/preformatted-code-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $codeText = "echo \"hi\";\n  exit;";
+        $plainText = "line 1\n  line 2";
+
+        $snippet = $summary[0];
+        $code = $snippet['children'][0];
+        $plain = $summary[1];
+
+        $t->same('pre', $snippet['name']);
+        $t->same('pre', $snippet['preformatted']);
+        $t->same(true, $snippet['codeBlock']);
+        $t->same($codeText, $snippet['preformattedText']);
+        $t->same($codeText, $snippet['codeBlockText']);
+        $t->same(2, $snippet['preformattedLineCount']);
+        $t->same(strlen($codeText), $snippet['preformattedTextLength']);
+        $t->same(hash('sha256', $codeText), $snippet['preformattedTextSha256']);
+        $t->same('language-php review-code', $snippet['codeBlockClassRaw']);
+        $t->same(['language-php', 'review-code'], $snippet['codeBlockClasses']);
+        $t->same('php', $snippet['codeBlockLanguage']);
+        $t->same('language-php', $snippet['codeBlockLanguageClass']);
+        $t->same('code', $code['name']);
+        $t->same('code', $code['textSemantic']);
+        $t->same(['language-php', 'review-code'], $code['classList']);
+        $t->same(['packagePart' => 'word/code.xml'], $code['dataset']);
+        $t->same('echo "hi"; exit;', $code['semanticText']);
+
+        $t->same('pre', $plain['name']);
+        $t->same(false, $plain['codeBlock']);
+        $t->same($plainText, $plain['preformattedText']);
+        $t->same(2, $plain['preformattedLineCount']);
+        $t->same('line 1 line 2', $plain['text']);
+        $t->same('<pre id="snippet"><code class="language-php review-code" data-package-part="word/code.xml">echo "hi";' . "\n" . '  exit;</code></pre><pre id="plain">line 1' . "\n" . '  line 2</pre>', $html);
+        $t->contains('<code class="language-php review-code" data-package-part="word/code.xml">', $blocks);
+        $t->same('/migration/preformatted-code-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html text-level semantic elements for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><abbr title="HyperText Markup Language">HTML</abbr> <dfn title="Review term">term</dfn> <mark>note</mark> '

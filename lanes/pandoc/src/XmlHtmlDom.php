@@ -779,6 +779,9 @@ final class XmlHtmlDom
         if ($name === 'address') {
             $summary += self::addressSummary($node);
         }
+        if ($name === 'pre') {
+            $summary += self::preformattedTextSummary($node);
+        }
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
         }
@@ -1096,6 +1099,63 @@ final class XmlHtmlDom
                 array_map(static fn (array $link): ?string => $link['href'], $links),
                 static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'mailto:')
             )),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function preformattedTextSummary(\DOMElement $element): array
+    {
+        $text = $element->textContent ?? '';
+        $normalizedLines = str_replace(["\r\n", "\r"], "\n", $text);
+        $code = self::firstChildHtmlElement($element, 'code');
+        $summary = [
+            'preformatted' => 'pre',
+            'preformattedText' => $text,
+            'preformattedTextLength' => strlen($text),
+            'preformattedLineCount' => $text === '' ? 0 : substr_count($normalizedLines, "\n") + 1,
+            'preformattedTextSha256' => hash('sha256', $text),
+            'codeBlock' => $code instanceof \DOMElement,
+        ];
+
+        if (!$code instanceof \DOMElement) {
+            return $summary;
+        }
+
+        $classRaw = self::attributeOrNull($code, 'class');
+        $classTokens = $classRaw === null ? [] : self::spaceSeparatedTokens($classRaw);
+        $language = self::codeLanguageFromClassTokens($classTokens);
+        $codeText = $code->textContent ?? '';
+
+        return $summary + [
+            'codeBlockText' => $codeText,
+            'codeBlockTextLength' => strlen($codeText),
+            'codeBlockClassRaw' => $classRaw,
+            'codeBlockClasses' => $classTokens,
+            'codeBlockLanguage' => $language['language'],
+            'codeBlockLanguageClass' => $language['class'],
+        ];
+    }
+
+    /**
+     * @param list<string> $classTokens
+     * @return array{language:?string, class:?string}
+     */
+    private static function codeLanguageFromClassTokens(array $classTokens): array
+    {
+        foreach ($classTokens as $class) {
+            if (preg_match('/^(?:language|lang)-(.+)$/', $class, $matches) === 1) {
+                return [
+                    'language' => (string) $matches[1],
+                    'class' => $class,
+                ];
+            }
+        }
+
+        return [
+            'language' => null,
+            'class' => null,
         ];
     }
 
