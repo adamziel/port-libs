@@ -473,6 +473,7 @@ final class EpubPackage
         $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
             ? $this->metadata['linkVocabulary']
             : self::metadataLinkVocabularySummary($this->packageLinks);
+        $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
@@ -507,6 +508,7 @@ final class EpubPackage
             'guide' => $this->guideReferences,
             'guideReport' => $guideReport,
             'collections' => $this->collections,
+            'collectionLinkVocabulary' => $collectionLinkVocabulary,
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
@@ -589,6 +591,8 @@ final class EpubPackage
                 'collectionTitles' => self::collectionTitles($this->collections),
                 'collectionLinkTargets' => self::collectionLinkTargets($this->collections),
                 'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
+                'collectionLinkVocabulary' => $collectionLinkVocabulary,
+                'collectionLinkVocabularyDiagnostics' => $collectionLinkVocabulary['diagnostics'],
                 'packageLinks' => $this->packageLinks,
                 'packageLinksByRel' => $packageLinkReport['linksByRel'],
                 'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
@@ -2601,12 +2605,13 @@ final class EpubPackage
         $manifestById = self::attachEncryptionToManifest($manifestById, $encryption);
         $manifestItems = self::attachEncryptionToManifestItems($manifestItems, $encryption);
         $manifestByPart = self::manifestByPart($manifestById);
+        $prefixBindings = is_array($metadata['prefixBindings'] ?? null) ? $metadata['prefixBindings'] : [];
         $packageLinks = self::parsePackageLinks(
             $metadataElement,
             $opfPartName,
             $package,
             $manifestByPart,
-            is_array($metadata['prefixBindings'] ?? null) ? $metadata['prefixBindings'] : [],
+            $prefixBindings,
         );
         $packageLinkReport = self::collectionLinkReport($packageLinks);
         $metadata['links'] = $packageLinks;
@@ -2624,7 +2629,7 @@ final class EpubPackage
             $package,
             $manifestByPart,
         );
-        $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
+        $collections = self::parseCollections($root, $opfPartName, $package, $manifestById, $prefixBindings);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
         $mediaOverlays = self::parseMediaOverlays($manifestById, $metadata, $package);
         $manifestFallbacks = self::manifestFallbackPreflight($manifestById, $package);
@@ -5536,12 +5541,13 @@ final class EpubPackage
         \DOMElement $packageElement,
         string $opfPartName,
         ZipPackage $package,
-        array $manifestById
+        array $manifestById,
+        array $prefixBindings = []
     ): array {
         $manifestByPart = self::manifestByPart($manifestById);
         $collections = [];
         foreach (self::childElements($packageElement, 'collection', self::OPF_NAMESPACE) as $index => $collectionElement) {
-            $collections[] = self::parseCollection($collectionElement, $index, $opfPartName, $package, $manifestByPart);
+            $collections[] = self::parseCollection($collectionElement, $index, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
 
         return $collections;
@@ -5557,16 +5563,17 @@ final class EpubPackage
         int $index,
         string $opfPartName,
         ZipPackage $package,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings = []
     ): array {
         $links = [];
         foreach (self::childElements($collectionElement, 'link', self::OPF_NAMESPACE) as $linkIndex => $linkElement) {
-            $links[] = self::parseCollectionLink($linkElement, $linkIndex, $opfPartName, $package, $manifestByPart);
+            $links[] = self::parseCollectionLink($linkElement, $linkIndex, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
 
         $children = [];
         foreach (self::childElements($collectionElement, 'collection', self::OPF_NAMESPACE) as $childIndex => $childElement) {
-            $children[] = self::parseCollection($childElement, $childIndex, $opfPartName, $package, $manifestByPart);
+            $children[] = self::parseCollection($childElement, $childIndex, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
 
         $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NAMESPACE);
@@ -5575,7 +5582,7 @@ final class EpubPackage
             : [];
         $role = self::emptyToNull($collectionElement->getAttribute('role'));
         $roleTokens = self::splitTokens($role ?? '');
-        $report = self::collectionLinkReport($links);
+        $report = self::collectionLinkReport($links, true);
 
         return [
             'index' => $index,
@@ -5610,9 +5617,12 @@ final class EpubPackage
         int $index,
         string $opfPartName,
         ZipPackage $package,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings = []
     ): array {
         $href = self::emptyToNull($linkElement->getAttribute('href'));
+        $rel = self::splitTokens($linkElement->getAttribute('rel'));
+        $properties = self::splitTokens($linkElement->getAttribute('properties'));
         $target = null;
         $partName = null;
         $external = false;
@@ -5674,7 +5684,7 @@ final class EpubPackage
         return [
             'index' => $index,
             'id' => self::emptyToNull($linkElement->getAttribute('id')),
-            'rel' => self::splitTokens($linkElement->getAttribute('rel')),
+            'rel' => $rel,
             'href' => $href,
             'target' => $target,
             'partName' => $partName,
@@ -5683,7 +5693,9 @@ final class EpubPackage
             'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
-            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'properties' => $properties,
+            'relVocabulary' => self::collectionLinkTokenReport($rel, $prefixBindings, 'rel', $index),
+            'propertyVocabulary' => self::collectionLinkTokenReport($properties, $prefixBindings, 'properties', $index),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
             'hrefHasQuery' => $hrefSuffix['hasQuery'],
@@ -5699,7 +5711,7 @@ final class EpubPackage
      *
      * @return array<string, mixed>
      */
-    private static function collectionLinkReport(array $links): array
+    private static function collectionLinkReport(array $links, bool $includeVocabularyDiagnostics = false): array
     {
         $relCounts = [];
         $linksByRel = [];
@@ -5728,6 +5740,15 @@ final class EpubPackage
             foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
                 $diagnostics[] = ['index' => $linkIndex, 'id' => $link['id'] ?? null] + $diagnostic;
             }
+
+            if ($includeVocabularyDiagnostics) {
+                foreach (['relVocabulary', 'propertyVocabulary'] as $field) {
+                    $report = is_array($link[$field] ?? null) ? $link[$field] : [];
+                    foreach (is_array($report['diagnostics'] ?? null) ? $report['diagnostics'] : [] as $diagnostic) {
+                        $diagnostics[] = ['index' => $linkIndex, 'id' => $link['id'] ?? null] + $diagnostic;
+                    }
+                }
+            }
         }
 
         return [
@@ -5749,6 +5770,49 @@ final class EpubPackage
      * @return array<string, mixed>
      */
     private static function metadataLinkTokenReport(array $tokens, array $prefixBindings, string $kind, int $linkIndex): array
+    {
+        return self::linkVocabularyTokenReport(
+            $tokens,
+            $prefixBindings,
+            $kind,
+            $linkIndex,
+            'metadata-link',
+            'EPUB OPF metadata link',
+        );
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionLinkTokenReport(array $tokens, array $prefixBindings, string $kind, int $linkIndex): array
+    {
+        return self::linkVocabularyTokenReport(
+            $tokens,
+            $prefixBindings,
+            $kind,
+            $linkIndex,
+            'collection-link',
+            'EPUB OPF collection link',
+        );
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function linkVocabularyTokenReport(
+        array $tokens,
+        array $prefixBindings,
+        string $kind,
+        int $linkIndex,
+        string $diagnosticSource,
+        string $messageSubject
+    ): array
     {
         $prefixBindings = self::metadataVocabularyPrefixBindings($prefixBindings);
         $items = [];
@@ -5785,13 +5849,13 @@ final class EpubPackage
                     ++$resolvedCount;
                 } else {
                     $diagnosticsForToken[] = [
-                        'type' => 'unknown-metadata-link-' . $kind . '-prefix',
+                        'type' => 'unknown-' . $diagnosticSource . '-' . $kind . '-prefix',
                         'kind' => $kind,
                         'linkIndex' => $linkIndex,
                         'index' => (int) $index,
                         'value' => $value,
                         'prefix' => $prefix,
-                        'message' => 'EPUB OPF metadata link vocabulary token uses a prefix that is not declared on the package element',
+                        'message' => $messageSubject . ' vocabulary token uses a prefix that is not declared on the package element',
                     ];
                 }
             } elseif ($absoluteUrlWithFragment) {
@@ -5802,36 +5866,36 @@ final class EpubPackage
                 $tokenKind = 'absolute-url';
                 $valid = false;
                 $diagnosticsForToken[] = [
-                    'type' => 'invalid-metadata-link-' . $kind . '-url-fragment',
+                    'type' => 'invalid-' . $diagnosticSource . '-' . $kind . '-url-fragment',
                     'kind' => $kind,
                     'linkIndex' => $linkIndex,
                     'index' => (int) $index,
                     'value' => $value,
-                    'message' => 'EPUB OPF metadata link vocabulary URLs must include a fragment identifier',
+                    'message' => $messageSubject . ' vocabulary URLs must include a fragment identifier',
                 ];
             } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $value) !== 1) {
                 $tokenKind = 'invalid';
                 $valid = false;
                 $diagnosticsForToken[] = [
-                    'type' => 'invalid-metadata-link-' . $kind . '-token',
+                    'type' => 'invalid-' . $diagnosticSource . '-' . $kind . '-token',
                     'kind' => $kind,
                     'linkIndex' => $linkIndex,
                     'index' => (int) $index,
                     'value' => $value,
-                    'message' => 'EPUB OPF metadata link vocabulary values must be NMTOKENs, prefixed names, or absolute URLs with fragments',
+                    'message' => $messageSubject . ' vocabulary values must be NMTOKENs, prefixed names, or absolute URLs with fragments',
                 ];
             }
 
             if (isset($seen[$value])) {
                 ++$duplicateCount;
                 $diagnosticsForToken[] = [
-                    'type' => 'duplicate-metadata-link-' . $kind . '-token',
+                    'type' => 'duplicate-' . $diagnosticSource . '-' . $kind . '-token',
                     'kind' => $kind,
                     'linkIndex' => $linkIndex,
                     'index' => (int) $index,
                     'previousIndex' => $seen[$value],
                     'value' => $value,
-                    'message' => 'EPUB OPF metadata link vocabulary value is repeated',
+                    'message' => $messageSubject . ' vocabulary value is repeated',
                 ];
             } else {
                 $seen[$value] = (int) $index;
@@ -5936,6 +6000,43 @@ final class EpubPackage
             'properties' => $properties,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionLinkVocabularySummary(array $collections): array
+    {
+        $links = [];
+        self::appendCollectionLinks($collections, $links);
+
+        return self::metadataLinkVocabularySummary($links);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<array<string, mixed>> $links
+     */
+    private static function appendCollectionLinks(array $collections, array &$links): void
+    {
+        foreach ($collections as $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $link) {
+                if (is_array($link)) {
+                    $links[] = $link;
+                }
+            }
+
+            self::appendCollectionLinks(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                $links,
+            );
+        }
     }
 
     /**
