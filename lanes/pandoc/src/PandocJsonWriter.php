@@ -956,6 +956,12 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
+        if ($tag === 'Plain' || $tag === 'Para') {
+            $content = $native['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
+        }
+
         return in_array($tag, [
             'Header',
             'CodeBlock',
@@ -963,6 +969,27 @@ final class PandocJsonWriter
             'HorizontalRule',
             'Null',
         ], true);
+    }
+
+    private function hasLegacyTargetInlinePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (!array_is_list($value) && (($value['t'] ?? null) === 'Link' || ($value['t'] ?? null) === 'Image')) {
+            $content = $value['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && count($content) === 2;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasLegacyTargetInlinePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

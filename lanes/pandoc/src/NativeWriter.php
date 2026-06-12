@@ -877,7 +877,10 @@ final class NativeWriter
         ];
 
         $nodes = [];
-        if (($native['t'] ?? null) === 'Header') {
+        if (
+            ($native['t'] ?? null) === 'Header'
+            || (in_array($native['t'] ?? null, ['Plain', 'Para'], true) && !$this->hasLegacyTargetInlinePayload($native['c'] ?? null))
+        ) {
             try {
                 $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0] ?? null;
             } catch (\Throwable) {
@@ -890,6 +893,27 @@ final class NativeWriter
         }
 
         return $nodes;
+    }
+
+    private function hasLegacyTargetInlinePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (!array_is_list($value) && (($value['t'] ?? null) === 'Link' || ($value['t'] ?? null) === 'Image')) {
+            $content = $value['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) && count($content) === 2;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasLegacyTargetInlinePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
