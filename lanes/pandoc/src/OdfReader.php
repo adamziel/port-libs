@@ -941,6 +941,9 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if ($this->isSignaturePartName($entry->name)) {
+            $roles[] = 'package-signature';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -948,7 +951,7 @@ final class OdfReader
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
             $part = (string) ($manifestItem['part'] ?? '');
-            if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
+            if (!$this->isSignaturePartName($part) && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))) {
                 $roles[] = 'media-resource';
             }
             if ($this->isScriptPackagePartName($part)) {
@@ -12057,6 +12060,9 @@ final class OdfReader
                 continue;
             }
             if ($this->isThumbnailPackagePartName($part)) {
+                continue;
+            }
+            if ($this->isSignaturePartName($part)) {
                 continue;
             }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
