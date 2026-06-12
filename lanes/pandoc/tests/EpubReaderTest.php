@@ -4278,6 +4278,61 @@ XML;
         $t->same('rtl', $result['document']->children[0]->attr('manifestDirection'));
         $t->same($chapter['attributes'], $result['document']->children[0]->attr('manifestAttributes'));
     },
+    'preserves OPF spine itemref authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithSpineAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            $opfXml
+        );
+        $opfWithSpineAuthoring = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-one-spine" idref="chapter-1" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
+            $opfWithSpineAuthoring
+        );
+        $opfWithSpineAuthoring = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="chapter-2" linear="no" dir="ltr" data-review="appendix"/>',
+            $opfWithSpineAuthoring
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithSpineAuthoring));
+        $first = $result['spine'][0];
+        $second = $result['spine'][1];
+
+        $t->same('chapter-one-spine', $first['id']);
+        $t->same('fr', $first['language']);
+        $t->same('rtl', $first['direction']);
+        $t->same('chapter-1', $first['attributes']['idref']);
+        $t->same('fr', $first['attributes']['xml:lang']);
+        $t->same('wp-import', $first['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $first['customAttributes']);
+        $t->same('ltr', $second['direction']);
+        $t->same(['data-review' => 'appendix'], $second['customAttributes']);
+
+        $authoring = $result['spineProperties']['authoring'];
+        $t->same(2, $authoring['itemCount']);
+        $t->same(1, $authoring['languageItemCount']);
+        $t->same(['chapter-one-spine'], array_map(static fn (array $item): string => (string) $item['id'], $authoring['languageItems']));
+        $t->same(2, $authoring['directionItemCount']);
+        $t->same([0, 1], array_map(static fn (array $item): int => $item['index'], $authoring['directionItems']));
+        $t->same(2, $authoring['customAttributeItemCount']);
+        $t->same('primary', $authoring['itemsByIndex'][0]['customAttributes']['data-review']);
+        $t->same('wp-import', $authoring['itemsByIndex'][0]['customAttributes']['review:source']);
+        $t->same('appendix', $authoring['itemsByIndex'][1]['customAttributes']['data-review']);
+        $t->same($authoring, $result['importReport']['spine']['properties']['authoring']);
+
+        $contentProvenance = $result['spineContentProvenance']['itemsByIdref']['chapter-1'];
+        $t->same('fr', $contentProvenance['spineItemLanguage']);
+        $t->same('rtl', $contentProvenance['spineItemDirection']);
+        $t->same($first['attributes'], $contentProvenance['spineItemAttributes']);
+        $t->same($first['customAttributes'], $contentProvenance['spineItemCustomAttributes']);
+
+        $t->same($result['spineProperties'], $result['document']->attr('spineProperties'));
+        $t->same('fr', $result['document']->children[0]->attr('spineItemLanguage'));
+        $t->same('rtl', $result['document']->children[0]->attr('spineItemDirection'));
+        $t->same($first['attributes'], $result['document']->children[0]->attr('spineItemAttributes'));
+        $t->same($first['customAttributes'], $result['document']->children[0]->attr('spineItemCustomAttributes'));
+    },
     'reports duplicate OPF manifest package parts for import preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithDuplicateTargets = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
