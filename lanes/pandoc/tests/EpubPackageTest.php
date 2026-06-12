@@ -1941,6 +1941,111 @@ XML;
         $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
     },
 
+    'summarizes OCF manifest sidecar entries for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $chapter1Xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>';
+        $styleCss = 'body { font-family: serif; }';
+        $unmanifestedBytes = 'UNMANIFESTED-PNG';
+        $privateBytes = 'PRIVATE-DATA';
+        $ocfManifestXml = sprintf(<<<XML
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/epub+zip"/>
+  <manifest:file-entry manifest:full-path="EPUB/package.opf" manifest:media-type="application/oebps-package+xml"/>
+  <manifest:file-entry manifest:full-path="EPUB/text/chapter1.xhtml" manifest:media-type="application/xhtml+xml" manifest:size="%d"/>
+  <manifest:file-entry manifest:full-path="EPUB/styles/book.css" manifest:media-type="text/css" manifest:size="4"/>
+  <manifest:file-entry manifest:full-path="EPUB/images/unmanifested-review.png" manifest:media-type="image/png" manifest:size="%d"/>
+  <manifest:file-entry manifest:full-path="EPUB/images/missing-review.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="../outside.txt" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:full-path="EPUB/private.bin" manifest:media-type="application/octet-stream"><manifest:encryption-data/></manifest:file-entry>
+</manifest:manifest>
+XML, strlen($chapter1Xhtml), strlen($unmanifestedBytes));
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/manifest.xml', 'data' => $ocfManifestXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1Xhtml],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => $styleCss],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/images/unmanifested-review.png', 'data' => $unmanifestedBytes, 'compressionMethod' => 0],
+            ['name' => 'EPUB/private.bin', 'data' => $privateBytes],
+        ]));
+
+        $sidecars = $epub->ocfSidecars();
+        $summary = $epub->summary();
+        $manifest = $sidecars['itemsByKind']['manifest'];
+
+        $t->same(true, $sidecars['present']);
+        $t->same(1, $sidecars['sidecarCount']);
+        $t->same(true, $sidecars['manifestPresent']);
+        $t->same(false, $sidecars['rightsPresent']);
+        $t->same(false, $sidecars['signaturesPresent']);
+        $t->same(['manifest'], $sidecars['kinds']);
+        $t->same(8, $sidecars['referenceCount']);
+        $t->same(6, $sidecars['localReferenceCount']);
+        $t->same(0, $sidecars['externalReferenceCount']);
+        $t->same(2, $sidecars['missingReferenceCount']);
+
+        $t->same('manifest', $manifest['kind']);
+        $t->same('/META-INF/manifest.xml', $manifest['partName']);
+        $t->same('manifest', $manifest['rootName']);
+        $t->same(EpubPackage::ODF_MANIFEST_NAMESPACE, $manifest['rootNamespace']);
+        $t->same(true, $manifest['rootValid']);
+        $t->same('odf-manifest', $manifest['format']);
+        $t->same(true, $manifest['odfCompatible']);
+        $t->same('1.3', $manifest['version']);
+        $t->same('ocf-manifest-sidecar-review', $manifest['reviewPolicy']);
+        $t->same('ocf-sidecar-metadata-only', $manifest['byteExposurePolicy']);
+        $t->same(false, $manifest['canExposeBytes']);
+        $t->same(strlen($ocfManifestXml), $manifest['byteLength']);
+        $t->same(hash('crc32b', $ocfManifestXml), $manifest['crc32']);
+        $t->same(9, $manifest['itemCount']);
+        $t->same(8, $manifest['declaredPartCount']);
+        $t->same(3, $manifest['missingItemCount']);
+        $t->same(1, $manifest['sizeMismatchCount']);
+        $t->same(['ocf-manifest-size-mismatch', 'ocf-manifest-missing-reference', 'ocf-manifest-invalid-reference', 'missing-ocf-manifest-full-path'], array_column($manifest['diagnostics'], 'type'));
+
+        $root = $manifest['items'][0];
+        $t->same('/', $root['fullPath']);
+        $t->same('/', $root['target']);
+        $t->same(null, $root['part']);
+        $t->same(true, $root['root']);
+        $t->same(true, $root['directory']);
+        $t->same(true, $root['exists']);
+        $t->same(false, $root['canExposeBytes']);
+
+        $chapter = $manifest['itemsByPart']['/EPUB/text/chapter1.xhtml'];
+        $t->same(strlen($chapter1Xhtml), $chapter['declaredSize']);
+        $t->same(strlen($chapter1Xhtml), $chapter['byteLength']);
+        $t->same(hash('sha256', $chapter1Xhtml), $chapter['byteSha256']);
+        $t->same(true, $chapter['sizeMatches']);
+        $t->same(true, $chapter['canExposeBytes']);
+
+        $style = $manifest['itemsByPart']['/EPUB/styles/book.css'];
+        $t->same(false, $style['sizeMatches']);
+        $t->same(4, $style['declaredSize']);
+        $t->same(strlen($styleCss), $style['byteLength']);
+
+        $unmanifested = $manifest['itemsByPart']['/EPUB/images/unmanifested-review.png'];
+        $t->same(true, $unmanifested['exists']);
+        $t->same(strlen($unmanifestedBytes), $unmanifested['byteLength']);
+        $t->same(0, $unmanifested['compressionMethod']);
+        $t->same('stored', $unmanifested['compressionMethodName']);
+
+        $private = $manifest['itemsByPart']['/EPUB/private.bin'];
+        $t->same(true, $private['encrypted']);
+        $t->same(true, $private['exists']);
+        $t->same(false, $private['canExposeBytes']);
+        $t->same(null, $private['byteSha256']);
+
+        $t->same($sidecars, $summary['ocfSidecars']);
+        $t->same($sidecars, $summary['wordpressImport']['ocfSidecars']);
+        $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
+    },
+
     'reports OCF sidecar XML root diagnostics without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $rightsXml = '<license xmlns="urn:oasis:names:tc:opendocument:xmlns:container">Review license</license>';
         $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><Signature></signatures>';
