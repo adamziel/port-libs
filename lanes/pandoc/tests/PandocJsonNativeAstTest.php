@@ -2637,6 +2637,73 @@ return [
             return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
         }, $editedCite['c'][1])));
     },
+    'preserves current wrapper inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $currentInlines = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'inline-emph'],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'reviewQueue' => 'inline-strong'],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']], 'reviewQueue' => 'inline-under'],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'old']], 'reviewQueue' => 'inline-strike'],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => '2']], 'reviewQueue' => 'inline-super'],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'n']], 'reviewQueue' => 'inline-sub'],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'reviewQueue' => 'inline-caps'],
+            ['t' => 'Quoted', 'c' => [['t' => 'DoubleQuote', 'c' => []], [['t' => 'Str', 'c' => 'quoted']]], 'reviewQueue' => 'inline-quote'],
+            ['t' => 'Note', 'c' => [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]]], 'reviewQueue' => 'inline-note'],
+            ['t' => 'Span', 'c' => [['source-span', ['review'], [['data-source', 'json-native']]], [['t' => 'Str', 'c' => 'span']]], 'reviewQueue' => 'inline-span'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $currentInlines],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same(['emph', 'strong', 'underline', 'strikeout', 'superscript', 'subscript', 'small_caps', 'quoted', 'note', 'span'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} wrapper inline node types");
+            $t->same($currentInlines, $encoded['blocks'][0]['c'], "{$source} unchanged wrapper inline payloads");
+        }
+
+        $emph = $documents['json']->children[0]->children[0];
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', $emph->attrs, [
+                    new AstNode('text', ['text' => 'edited']),
+                ]),
+            ]),
+        ]));
+        $editedEmph = $editedPacket['blocks'][0]['c'][0];
+
+        $t->same('Emph', $editedEmph['t']);
+        $t->same('edited', $editedEmph['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedEmph), 'edited wrapper inline drops stale inert provenance');
+
+        $legacyWrapped = ['t' => 'Emph', 'c' => [
+            ['t' => 'Link', 'c' => [
+                [['t' => 'Str', 'c' => 'legacy']],
+                ['https://example.test/legacy', 'Legacy target'],
+            ]],
+        ], 'reviewQueue' => 'legacy-target-shape'];
+        $legacyPacket = (new PandocJsonWriter())->toArray((new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$legacyWrapped]],
+            ],
+        ]));
+        $legacyEmph = $legacyPacket['blocks'][0]['c'][0];
+
+        $t->same('Emph', $legacyEmph['t']);
+        $t->same(false, array_key_exists('reviewQueue', $legacyEmph), 'legacy target wrapper regenerates instead of reusing stale payload');
+        $t->same(3, count($legacyEmph['c'][0]['c']));
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];

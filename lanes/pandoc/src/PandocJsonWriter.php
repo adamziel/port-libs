@@ -1026,6 +1026,10 @@ final class PandocJsonWriter
     private function isCurrentNativeInlinePayload(array $native): bool
     {
         $tag = $native['t'];
+        if ($this->hasLegacyTargetInlinePayload($native)) {
+            return false;
+        }
+
         if ($tag === 'Link' || $tag === 'Image') {
             $content = $native['c'] ?? null;
 
@@ -1037,10 +1041,20 @@ final class PandocJsonWriter
             'Space',
             'SoftBreak',
             'LineBreak',
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Quoted',
             'Code',
             'Math',
             'RawInline',
             'Cite',
+            'Note',
+            'Span',
         ], true);
     }
 
