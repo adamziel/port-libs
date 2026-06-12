@@ -6428,6 +6428,15 @@ final class PdfEngineHandoff
                 'issues' => [$kind . '-empty'],
             ];
         }
+        if ($kind === 'dependency-output' && $value === '-') {
+            return [
+                'raw' => $raw,
+                'path' => '-',
+                'kind' => 'stdout',
+                'safe' => false,
+                'issues' => [$kind . '-stdout-boundary'],
+            ];
+        }
         if (
             str_starts_with($value, '/')
             || preg_match('/\A[A-Za-z]:\//', $value) === 1
