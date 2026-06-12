@@ -978,6 +978,96 @@ XML;
         $t->same(0, $rawManifest['missingContentTypePartCount']);
         $t->same(true, $rawManifest['valid']);
     },
+    'summarizes OPC ZIP entry manifest content type byte buckets before graph construction' => static function (TestRunner $t): void {
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $embeddedPackageContentType = 'application/vnd.openxmlformats-officedocument.package';
+        $relationshipsContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipsContentType}"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+  <Override PartName="/word/embeddings/package1.docx" ContentType="{$embeddedPackageContentType}"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $stylesXml = '<w:styles/>';
+        $imageBytes = 'PNGDATA';
+        $embeddedPackageBytes = 'DOCXDATA';
+        $customXml = '<audit/>';
+        $binaryBytes = 'PAYLOAD';
+        $missingBytes = 'RAW';
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/image.PNG', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
+            ['name' => 'word/payload.bin', 'data' => $binaryBytes, 'compressionMethod' => 0],
+            ['name' => 'word/media/source', 'data' => $missingBytes, 'compressionMethod' => 0],
+        ]));
+
+        $t->same(false, $summary['valid']);
+        $t->same(7, $summary['contentTypeResolvedPartCount']);
+        $t->same(5, $summary['contentTypeDefaultResolvedPartCount']);
+        $t->same(2, $summary['contentTypeOverrideResolvedPartCount']);
+        $t->same(1, $summary['missingContentTypePartCount']);
+        $t->same([
+            'default' => [
+                'entryCount' => 5,
+                'compressedBytes' => strlen($rootRelationshipsXml) + strlen($stylesXml) + strlen($imageBytes) + strlen($customXml) + strlen($binaryBytes),
+                'uncompressedBytes' => strlen($rootRelationshipsXml) + strlen($stylesXml) + strlen($imageBytes) + strlen($customXml) + strlen($binaryBytes),
+            ],
+            'missing' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($missingBytes),
+                'uncompressedBytes' => strlen($missingBytes),
+            ],
+            'override' => [
+                'entryCount' => 2,
+                'compressedBytes' => strlen($documentXml) + strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($documentXml) + strlen($embeddedPackageBytes),
+            ],
+        ], $summary['byteCountsByContentTypeSource']);
+        $t->same([
+            'application/octet-stream' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($binaryBytes),
+                'uncompressedBytes' => strlen($binaryBytes),
+            ],
+            $embeddedPackageContentType => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($embeddedPackageBytes),
+            ],
+            $documentContentType => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+            ],
+            $relationshipsContentType => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($rootRelationshipsXml),
+                'uncompressedBytes' => strlen($rootRelationshipsXml),
+            ],
+            'application/xml' => [
+                'entryCount' => 2,
+                'compressedBytes' => strlen($stylesXml) + strlen($customXml),
+                'uncompressedBytes' => strlen($stylesXml) + strlen($customXml),
+            ],
+            'image/png' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+            ],
+        ], $summary['byteCountsByContentType']);
+    },
     'preflights OPC ZIP manifest content type override declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
