@@ -287,7 +287,9 @@ final class PandocJsonWriter
             throw new \InvalidArgumentException('Unable to normalize tagged Pandoc JSON metadata value');
         }
 
-        return $this->writeMetaValue($meta['__value']);
+        return $this->canReuseMetaNativeValue($meta['__value'], $value)
+            ? $value
+            : $this->writeMetaValue($meta['__value']);
     }
 
     private function canReuseMetaNativeValue(mixed $value, mixed $sourceNative): bool

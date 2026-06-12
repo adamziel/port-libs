@@ -770,6 +770,62 @@ return [
         $t->same(['json-filter', 'legacy-packet'], $meta['review']['items']['aliases']['items']);
         $t->same('paragraph', $meta['review']['items']['body']['children'][0]->type);
     },
+    'preserves direct pre-tagged metadata payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $titleNative = ['t' => 'MetaString', 'c' => 'Direct title', 'reviewQueue' => 'title-direct'];
+        $reviewNative = ['t' => 'MetaMap', 'c' => [
+            'status' => ['t' => 'MetaString', 'c' => 'queued', 'reviewQueue' => 'status-direct'],
+            'draft' => ['t' => 'MetaBool', 'c' => false],
+        ], 'reviewQueue' => 'review-direct'];
+        $bodyNative = ['t' => 'MetaBlocks', 'c' => [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Direct'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'body'],
+            ], 'reviewQueue' => 'body-plain-direct'],
+        ], 'reviewQueue' => 'body-direct'];
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => $titleNative,
+                'review' => $reviewNative,
+                'body' => $bodyNative,
+            ],
+        ]);
+
+        $packets = [
+            'json' => (new PandocJsonWriter())->toArray($document),
+            'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($packets as $writer => $packet) {
+            $t->same($titleNative, $packet['meta']['title'], "{$writer} writer preserves direct title metadata payload");
+            $t->same($reviewNative, $packet['meta']['review'], "{$writer} writer preserves direct map metadata payload");
+            $t->same($bodyNative, $packet['meta']['body'], "{$writer} writer preserves direct block metadata payload");
+        }
+
+        $roundTrip = (new PandocJsonReader())->readPacket($packets['json'])->attr('meta');
+        $t->same('Direct title', $roundTrip['title']);
+        $t->same('queued', $roundTrip['review']['items']['status']);
+        $t->same('Direct', $roundTrip['body']['children'][0]->children[0]->attr('text'));
+
+        $editedDocument = new AstNode('document', [
+            'meta' => [
+                'title' => 'Edited title',
+                'review' => $reviewNative,
+                'body' => $bodyNative,
+            ],
+        ]);
+        $editedPackets = [
+            'json' => (new PandocJsonWriter())->toArray($editedDocument),
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($editedPackets as $writer => $packet) {
+            $t->same(['t' => 'MetaString', 'c' => 'Edited title'], $packet['meta']['title'], "{$writer} writer regenerates edited direct title metadata");
+            $t->same(false, array_key_exists('reviewQueue', $packet['meta']['title']), "{$writer} writer drops stale direct title sidecar");
+            $t->same($reviewNative, $packet['meta']['review'], "{$writer} writer keeps unchanged direct map metadata payload");
+            $t->same($bodyNative, $packet['meta']['body'], "{$writer} writer keeps unchanged direct block metadata payload");
+        }
+    },
     'round trips core inline constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
