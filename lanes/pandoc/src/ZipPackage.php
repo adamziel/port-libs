@@ -5001,6 +5001,15 @@ final class ZipPackage
      *     selectedExtraFieldRecordCount:int,
      *     selectedCentralExtraFieldRecordCount:int,
      *     selectedLocalExtraFieldRecordCount:int,
+     *     selectedPlatformAttributeProvenanceEntryCount:int,
+     *     selectedExternalAttributeEntryCount:int,
+     *     selectedInternalAttributeEntryCount:int,
+     *     selectedDosAttributeEntryCount:int,
+     *     selectedUnixModeEntryCount:int,
+     *     selectedExecutableFileEntryCount:int,
+     *     selectedWritablePermissionEntryCount:int,
+     *     selectedPlatformAttributeIssueEntryCount:int,
+     *     selectedPlatformAttributeIssues:list<string>,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -5013,6 +5022,8 @@ final class ZipPackage
      *     selectedCommentedEntries:list<array<string, mixed>>,
      *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
+     *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
+     *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5155,6 +5166,15 @@ final class ZipPackage
         $selectedLocalExtraFieldEntryCount = 0;
         $selectedCentralExtraFieldRecordCount = 0;
         $selectedLocalExtraFieldRecordCount = 0;
+        $selectedPlatformAttributeProvenanceEntries = [];
+        $selectedPlatformAttributeIssueEntries = [];
+        $selectedExternalAttributeEntryCount = 0;
+        $selectedInternalAttributeEntryCount = 0;
+        $selectedDosAttributeEntryCount = 0;
+        $selectedUnixModeEntryCount = 0;
+        $selectedExecutableFileEntryCount = 0;
+        $selectedWritablePermissionEntryCount = 0;
+        $selectedPlatformAttributeIssues = [];
         $selectedLocalHeaderFixedFieldEntries = [];
         $selectedLocalHeaderFixedFieldIssueEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
@@ -5254,6 +5274,38 @@ final class ZipPackage
                 $selectedExtraFieldProvenanceEntries[] = [
                     'name' => $entry->name,
                 ] + $extraFieldProvenance;
+            }
+            $platformAttributeProvenance = self::entryPlatformAttributeHandoffProvenance($entry);
+            if ($platformAttributeProvenance['hasExternalAttributes']) {
+                $selectedExternalAttributeEntryCount++;
+            }
+            if ($platformAttributeProvenance['hasInternalFileAttributes']) {
+                $selectedInternalAttributeEntryCount++;
+            }
+            if ($platformAttributeProvenance['hasDosAttributes']) {
+                $selectedDosAttributeEntryCount++;
+            }
+            if ($platformAttributeProvenance['hasUnixMode']) {
+                $selectedUnixModeEntryCount++;
+            }
+            if ($platformAttributeProvenance['isUnixExecutableFile']) {
+                $selectedExecutableFileEntryCount++;
+            }
+            if ($platformAttributeProvenance['hasWritablePermissions']) {
+                $selectedWritablePermissionEntryCount++;
+            }
+            foreach ($platformAttributeProvenance['platformAttributeIssues'] as $attributeIssue) {
+                self::appendUniqueIssue($selectedPlatformAttributeIssues, $attributeIssue);
+            }
+            if ($platformAttributeProvenance['hasPlatformAttributeProvenance']) {
+                $selectedPlatformAttributeProvenanceEntries[] = [
+                    'name' => $entry->name,
+                ] + $platformAttributeProvenance;
+            }
+            if ($platformAttributeProvenance['platformAttributeIssues'] !== []) {
+                $selectedPlatformAttributeIssueEntries[] = [
+                    'name' => $entry->name,
+                ] + $platformAttributeProvenance;
             }
             $localHeaderFixedFieldProvenance = self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader);
             $selectedLocalHeaderFixedFieldEntries[] = [
@@ -5355,6 +5407,42 @@ final class ZipPackage
                 'hasLocalExtraFields' => false,
                 'centralLocalExtraFieldIdsMatch' => null,
                 'hasExtraFieldProvenance' => false,
+                'madeByHostSystem' => null,
+                'madeByHostSystemName' => null,
+                'madeByVersion' => null,
+                'versionMadeBy' => null,
+                'versionNeededToExtract' => null,
+                'creatorVersionMeetsNeeded' => null,
+                'externalAttributes' => null,
+                'externalAttributesHex' => null,
+                'hasExternalAttributes' => false,
+                'dosAttributes' => null,
+                'dosAttributeNames' => [],
+                'hasDosAttributes' => false,
+                'hasDosHiddenAttribute' => false,
+                'hasDosSystemAttribute' => false,
+                'hasDosVolumeLabelAttribute' => false,
+                'hasDosArchiveAttribute' => false,
+                'internalFileAttributes' => null,
+                'internalFileAttributesHex' => null,
+                'internalAttributeNames' => [],
+                'hasInternalFileAttributes' => false,
+                'hasTextInternalAttribute' => false,
+                'hasUnknownInternalAttributeBits' => false,
+                'unknownInternalAttributeBits' => null,
+                'unixMode' => null,
+                'unixModeOctal' => null,
+                'unixPermissions' => null,
+                'unixPermissionsOctal' => null,
+                'hasUnixMode' => false,
+                'unixFileType' => null,
+                'unixFileTypeName' => null,
+                'isUnixExecutableFile' => false,
+                'isGroupWritable' => false,
+                'isWorldWritable' => false,
+                'hasWritablePermissions' => false,
+                'hasPlatformAttributeProvenance' => false,
+                'platformAttributeIssues' => [],
                 'localFixedHeaderOffset' => null,
                 'localFixedHeaderLength' => null,
                 'localFixedHeaderEnd' => null,
@@ -5465,6 +5553,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryRawCommentHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
+            $summary = array_merge($summary, self::entryPlatformAttributeHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, $this->entryDataDescriptorHandoffProvenance($entry, $localHeader));
             $summary['compressedSize'] = $entry->compressedSize;
@@ -5583,6 +5672,15 @@ final class ZipPackage
             'selectedExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount + $selectedLocalExtraFieldRecordCount,
             'selectedCentralExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount,
             'selectedLocalExtraFieldRecordCount' => $selectedLocalExtraFieldRecordCount,
+            'selectedPlatformAttributeProvenanceEntryCount' => count($selectedPlatformAttributeProvenanceEntries),
+            'selectedExternalAttributeEntryCount' => $selectedExternalAttributeEntryCount,
+            'selectedInternalAttributeEntryCount' => $selectedInternalAttributeEntryCount,
+            'selectedDosAttributeEntryCount' => $selectedDosAttributeEntryCount,
+            'selectedUnixModeEntryCount' => $selectedUnixModeEntryCount,
+            'selectedExecutableFileEntryCount' => $selectedExecutableFileEntryCount,
+            'selectedWritablePermissionEntryCount' => $selectedWritablePermissionEntryCount,
+            'selectedPlatformAttributeIssueEntryCount' => count($selectedPlatformAttributeIssueEntries),
+            'selectedPlatformAttributeIssues' => $selectedPlatformAttributeIssues,
             'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
@@ -5606,6 +5704,8 @@ final class ZipPackage
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
+            'selectedPlatformAttributeProvenanceEntries' => $selectedPlatformAttributeProvenanceEntries,
+            'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
@@ -5962,6 +6062,92 @@ final class ZipPackage
             'hasLocalExtraFields' => $localExtraFields !== [],
             'centralLocalExtraFieldIdsMatch' => $centralExtraFieldIds === $localExtraFieldIds,
             'hasExtraFieldProvenance' => $centralExtraFields !== [] || $localExtraFields !== [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function entryPlatformAttributeHandoffProvenance(ZipPackageEntry $entry): array
+    {
+        $madeByHostSystem = $entry->madeByHostSystem();
+        $madeByVersion = $entry->madeByVersion();
+        $versionNeededToExtract = $entry->neededToExtractVersion();
+        $dosAttributes = $entry->externalFileAttributes & 0xff;
+        $unixMode = $entry->unixMode();
+        $unixPermissions = $entry->unixPermissionBits();
+        $isGroupWritable = $unixPermissions !== null && ($unixPermissions & 0020) !== 0;
+        $isWorldWritable = $unixPermissions !== null && ($unixPermissions & 0002) !== 0;
+        $hasWritablePermissions = $isGroupWritable || $isWorldWritable;
+        $unknownInternalAttributeBits = $entry->unknownInternalAttributeBits();
+        $hasExternalAttributes = $entry->externalFileAttributes !== 0;
+        $hasInternalFileAttributes = $entry->internalFileAttributes !== 0;
+        $hasDosAttributes = $dosAttributes !== 0;
+        $hasUnixMode = $unixMode !== null;
+        $issues = [];
+
+        if ($entry->hasDosHiddenAttribute()) {
+            $issues[] = 'dos-hidden-attribute';
+        }
+        if ($entry->hasDosSystemAttribute()) {
+            $issues[] = 'dos-system-attribute';
+        }
+        if ($entry->hasDosVolumeLabelAttribute()) {
+            $issues[] = 'dos-volume-label-attribute';
+        }
+        if ($entry->isUnixExecutableFile()) {
+            $issues[] = 'unix-executable-file';
+        }
+        if ($isGroupWritable) {
+            $issues[] = 'unix-group-writable-permission';
+        }
+        if ($isWorldWritable) {
+            $issues[] = 'unix-world-writable-permission';
+        }
+        if ($entry->hasTextInternalAttribute()) {
+            $issues[] = 'internal-text-attribute';
+        }
+        if ($unknownInternalAttributeBits !== 0) {
+            $issues[] = 'unknown-internal-file-attribute-bits';
+        }
+
+        return [
+            'madeByHostSystem' => $madeByHostSystem,
+            'madeByHostSystemName' => self::creatorHostSystemName($madeByHostSystem),
+            'madeByVersion' => $madeByVersion,
+            'versionMadeBy' => $entry->versionMadeBy,
+            'versionNeededToExtract' => $versionNeededToExtract,
+            'creatorVersionMeetsNeeded' => $madeByVersion >= $versionNeededToExtract,
+            'externalAttributes' => $entry->externalFileAttributes,
+            'externalAttributesHex' => sprintf('%08x', $entry->externalFileAttributes),
+            'hasExternalAttributes' => $hasExternalAttributes,
+            'dosAttributes' => $dosAttributes,
+            'dosAttributeNames' => $entry->dosAttributeNames(),
+            'hasDosAttributes' => $hasDosAttributes,
+            'hasDosHiddenAttribute' => $entry->hasDosHiddenAttribute(),
+            'hasDosSystemAttribute' => $entry->hasDosSystemAttribute(),
+            'hasDosVolumeLabelAttribute' => $entry->hasDosVolumeLabelAttribute(),
+            'hasDosArchiveAttribute' => $entry->hasDosArchiveAttribute(),
+            'internalFileAttributes' => $entry->internalFileAttributes,
+            'internalFileAttributesHex' => sprintf('%04x', $entry->internalFileAttributes),
+            'internalAttributeNames' => $entry->internalAttributeNames(),
+            'hasInternalFileAttributes' => $hasInternalFileAttributes,
+            'hasTextInternalAttribute' => $entry->hasTextInternalAttribute(),
+            'hasUnknownInternalAttributeBits' => $unknownInternalAttributeBits !== 0,
+            'unknownInternalAttributeBits' => $unknownInternalAttributeBits,
+            'unixMode' => $unixMode,
+            'unixModeOctal' => $unixMode === null ? null : sprintf('%06o', $unixMode),
+            'unixPermissions' => $unixPermissions,
+            'unixPermissionsOctal' => $unixPermissions === null ? null : sprintf('%04o', $unixPermissions),
+            'hasUnixMode' => $hasUnixMode,
+            'unixFileType' => $entry->unixFileType(),
+            'unixFileTypeName' => $entry->unixFileTypeName(),
+            'isUnixExecutableFile' => $entry->isUnixExecutableFile(),
+            'isGroupWritable' => $isGroupWritable,
+            'isWorldWritable' => $isWorldWritable,
+            'hasWritablePermissions' => $hasWritablePermissions,
+            'hasPlatformAttributeProvenance' => $hasExternalAttributes || $hasInternalFileAttributes,
+            'platformAttributeIssues' => $issues,
         ];
     }
 
