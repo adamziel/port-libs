@@ -1419,7 +1419,7 @@ final class NativeWriter
     }
 
     /**
-     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}
+     * @return array<string, mixed>|array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}
      */
     private function attrTuple(AstNode $node): array
     {
@@ -1458,17 +1458,30 @@ final class NativeWriter
     }
 
     /**
-     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}|null
+     * @return array<string, mixed>|array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}|null
      */
     private function reusableAttrNative(AstNode $node): ?array
     {
-        $native = $this->validAttrTuple($node->attr('attrNative'));
-        if ($native === null) {
+        $native = $node->attr('attrNative');
+        $tuple = $this->validAttrTuple($native);
+        if ($tuple !== null) {
+            return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+                ? $native
+                : null;
+        }
+
+        $tagged = $this->taggedNative($native, 'Attr');
+        if ($tagged === null) {
             return null;
         }
 
-        return $this->normalizedAttrTuple($native) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
-            ? $native
+        $content = $this->validAttrTuple($tagged['c'] ?? null);
+        if ($content === null) {
+            return null;
+        }
+
+        return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+            ? $tagged
             : null;
     }
 

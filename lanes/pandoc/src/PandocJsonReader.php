@@ -1367,7 +1367,8 @@ final class PandocJsonReader
      */
     private function readAttrTuple(mixed $value): array
     {
-        $tuple = $this->tuple($value, 3, 'Attr');
+        $native = $value;
+        $tuple = $this->tuple($this->constructorContent($value, 'Attr', 'Attr', false), 3, 'Attr');
         if (!is_string($tuple[0])) {
             throw new \InvalidArgumentException('Attr identifier must be a string');
         }
@@ -1385,7 +1386,7 @@ final class PandocJsonReader
 
         $attrs = [
             'attrConstructor' => 'Attr',
-            'attrNative' => $tuple,
+            'attrNative' => $native,
         ];
         if ($tuple[0] !== '') {
             $attrs['id'] = $tuple[0];

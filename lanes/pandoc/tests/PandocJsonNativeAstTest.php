@@ -3291,6 +3291,115 @@ return [
             $t->same($colSpanNative, $cell[3], "{$source} native writer colspan native payload");
         }
     },
+    'preserves tagged attr helper constructors through json and native writers' => static function (TestRunner $t): void {
+        $headingAttr = ['t' => 'Attr', 'c' => ['attr-heading', ['review'], [['data-source', 'json']]]];
+        $linkAttr = ['t' => 'Attr', 'c' => ['attr-link', ['external'], [['data-link', 'source']]]];
+        $spanAttr = ['t' => 'Attr', 'c' => ['attr-span', ['inline'], [['data-span', 'source']]]];
+        $codeBlockAttr = ['t' => 'Attr', 'c' => ['attr-code', ['block'], [['data-code', 'source']]]];
+        $tableAttr = ['t' => 'Attr', 'c' => ['attr-table', ['wide'], [['data-table', 'source']]]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Tagged attr']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'See'],
+                    ['t' => 'Space'],
+                    ['t' => 'Link', 'c' => [
+                        $linkAttr,
+                        [['t' => 'Str', 'c' => 'source']],
+                        ['https://example.test/source', 'Source'],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Span', 'c' => [
+                        $spanAttr,
+                        [['t' => 'Str', 'c' => 'span']],
+                    ]],
+                ]],
+                ['t' => 'CodeBlock', 'c' => [
+                    $codeBlockAttr,
+                    'echo tagged',
+                ]],
+                ['t' => 'Table', 'c' => [
+                    $tableAttr,
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [[['t' => 'AlignDefault', 'c' => []], ['t' => 'ColWidthDefault', 'c' => []]]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+        $childByType = static function (AstNode $parent, string $type): AstNode {
+            foreach ($parent->children as $child) {
+                if ($child->type === $type) {
+                    return $child;
+                }
+            }
+
+            throw new \RuntimeException("Missing {$type} child");
+        };
+        $inlineByConstructor = static function (array $inlines, string $constructor): array {
+            foreach ($inlines as $inline) {
+                if (is_array($inline) && ($inline['t'] ?? null) === $constructor) {
+                    return $inline;
+                }
+            }
+
+            throw new \RuntimeException("Missing {$constructor} inline constructor");
+        };
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $paragraph = $document->children[1];
+            $link = $childByType($paragraph, 'link');
+            $span = $childByType($paragraph, 'span');
+            $codeBlock = $document->children[2];
+            $table = $document->children[3];
+
+            $t->same('attr-heading', $heading->attr('id'), "{$source} reads tagged header attr id");
+            $t->same(['review'], $heading->attr('classes'), "{$source} reads tagged header classes");
+            $t->same(['data-source' => 'json'], $heading->attr('attributes'), "{$source} reads tagged header key-values");
+            $t->same($headingAttr, $heading->attr('attrNative'), "{$source} retains tagged header attr native");
+            $t->same($linkAttr, $link->attr('attrNative'), "{$source} retains tagged link attr native");
+            $t->same($spanAttr, $span->attr('attrNative'), "{$source} retains tagged span attr native");
+            $t->same($codeBlockAttr, $codeBlock->attr('attrNative'), "{$source} retains tagged code block attr native");
+            $t->same($tableAttr, $table->attr('attrNative'), "{$source} retains tagged table attr native");
+
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $writer => $encoded) {
+                $linkInline = $inlineByConstructor($encoded['blocks'][1]['c'], 'Link');
+                $spanInline = $inlineByConstructor($encoded['blocks'][1]['c'], 'Span');
+
+                $t->same($headingAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} writer preserves header Attr constructor");
+                $t->same($linkAttr, $linkInline['c'][0], "{$source} {$writer} writer preserves link Attr constructor");
+                $t->same($spanAttr, $spanInline['c'][0], "{$source} {$writer} writer preserves span Attr constructor");
+                $t->same($codeBlockAttr, $encoded['blocks'][2]['c'][0], "{$source} {$writer} writer preserves code block Attr constructor");
+                $t->same($tableAttr, $encoded['blocks'][3]['c'][0], "{$source} {$writer} writer preserves table Attr constructor");
+            }
+
+            $editedHeading = new AstNode('heading', array_replace($heading->attrs, [
+                'id' => 'edited-heading',
+            ]), $heading->children);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedHeading]);
+            $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+            $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(['edited-heading', ['review'], [['data-source', 'json']]], $editedJson['blocks'][0]['c'][1], "{$source} json writer regenerates edited Attr tuple");
+            $t->same(['edited-heading', ['review'], [['data-source', 'json']]], $editedNative['blocks'][0]['c'][1], "{$source} native writer regenerates edited Attr tuple");
+        }
+    },
     'emits text-only shared ast block constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

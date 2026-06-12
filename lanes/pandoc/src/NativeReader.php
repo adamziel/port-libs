@@ -1604,14 +1604,17 @@ final class NativeReader
      */
     private function attrsFromTuple(mixed $attr): array
     {
+        $native = $attr;
+        $attr = $this->constructorContent($attr, 'Attr', 'Pandoc native JSON Attr', false);
         if (!is_array($attr)) {
             return [];
         }
 
         $attrs = [];
         if (array_is_list($attr) && count($attr) >= 3) {
+            $attr = array_slice($attr, 0, 3);
             $attrs['attrConstructor'] = 'Attr';
-            $attrs['attrNative'] = array_slice($attr, 0, 3);
+            $attrs['attrNative'] = $this->isTaggedConstructor($native, 'Attr') ? $native : $attr;
         }
 
         if (is_string($attr[0] ?? null) && $attr[0] !== '') {
