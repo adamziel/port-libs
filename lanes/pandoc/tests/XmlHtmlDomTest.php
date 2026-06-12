@@ -658,6 +658,77 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/hgroup-outline-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html header and footer landmark regions for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<header id="site-head"><h1>Archive Review</h1><nav aria-label="Primary"><a href="/docs">Docs</a></nav></header>'
+                . '<main id="main"><article id="entry"><header id="entry-head"><h2>Entry Title</h2><p>Deck</p></header><p>Body</p><footer id="entry-foot"><p>Entry foot</p></footer></article></main>'
+                . '<footer id="site-foot"><h2>Contact</h2><address>Ops</address></footer>',
+            'header footer landmark review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/header-footer-landmarks.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $siteHeader = $summary[0];
+        $nav = $siteHeader['children'][1];
+        $main = $summary[1];
+        $article = $main['children'][0];
+        $entryHeader = $article['children'][0];
+        $entryFooter = $article['children'][2];
+        $siteFooter = $summary[2];
+        $siteFooterAddress = $siteFooter['children'][1];
+
+        $t->same('header', $siteHeader['name']);
+        $t->same('header', $siteHeader['landmarkRegion']);
+        $t->same('banner', $siteHeader['landmark']);
+        $t->same('document', $siteHeader['landmarkScope']);
+        $t->same(null, $siteHeader['landmarkScopeId']);
+        $t->same(false, $siteHeader['landmarkScoped']);
+        $t->same('Archive ReviewDocs', $siteHeader['landmarkText']);
+        $t->same('Archive Review', $siteHeader['landmarkHeadingText']);
+        $t->same('h1', $siteHeader['landmarkHeadingTag']);
+        $t->same(1, $siteHeader['landmarkHeadingLevel']);
+        $t->same('navigation', $nav['documentOutline']);
+
+        $t->same('main', $main['documentOutline']);
+        $t->same('article', $article['documentOutline']);
+        $t->same('Entry Title', $article['sectionHeadingText']);
+        $t->same('header', $entryHeader['landmarkRegion']);
+        $t->same(null, $entryHeader['landmark']);
+        $t->same('article', $entryHeader['landmarkScope']);
+        $t->same('entry', $entryHeader['landmarkScopeId']);
+        $t->same(true, $entryHeader['landmarkScoped']);
+        $t->same('Entry TitleDeck', $entryHeader['landmarkText']);
+        $t->same('Entry Title', $entryHeader['landmarkHeadingText']);
+        $t->same('h2', $entryHeader['landmarkHeadingTag']);
+        $t->same(2, $entryHeader['landmarkHeadingLevel']);
+
+        $t->same('footer', $entryFooter['landmarkRegion']);
+        $t->same(null, $entryFooter['landmark']);
+        $t->same('article', $entryFooter['landmarkScope']);
+        $t->same('entry', $entryFooter['landmarkScopeId']);
+        $t->same(true, $entryFooter['landmarkScoped']);
+        $t->same('Entry foot', $entryFooter['landmarkText']);
+        $t->same(null, $entryFooter['landmarkHeadingText']);
+        $t->same(null, $entryFooter['landmarkHeadingLevel']);
+
+        $t->same('footer', $siteFooter['name']);
+        $t->same('footer', $siteFooter['landmarkRegion']);
+        $t->same('contentinfo', $siteFooter['landmark']);
+        $t->same('document', $siteFooter['landmarkScope']);
+        $t->same(false, $siteFooter['landmarkScoped']);
+        $t->same('ContactOps', $siteFooter['landmarkText']);
+        $t->same('Contact', $siteFooter['landmarkHeadingText']);
+        $t->same('h2', $siteFooter['landmarkHeadingTag']);
+        $t->same(2, $siteFooter['landmarkHeadingLevel']);
+        $t->same('address', $siteFooterAddress['contactInfo']);
+        $t->same('<header id="site-head"><h1>Archive Review</h1><nav aria-label="Primary"><a href="/docs">Docs</a></nav></header><main id="main"><article id="entry"><header id="entry-head"><h2>Entry Title</h2><p>Deck</p></header><p>Body</p><footer id="entry-foot"><p>Entry foot</p></footer></article></main><footer id="site-foot"><h2>Contact</h2><address>Ops</address></footer>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/header-footer-landmarks.html', $document->children[0]->attr('part'));
+    },
     'summarizes html search and address landmark metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<search id="site-search" aria-label="Site search"><form id="search-form" role="search" action="/find" method="post">'

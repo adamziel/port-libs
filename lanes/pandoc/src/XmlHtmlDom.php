@@ -776,6 +776,9 @@ final class XmlHtmlDom
         if (self::isHtmlOutlineElementName($name)) {
             $summary += self::outlineSummary($node, $name);
         }
+        if ($name === 'header' || $name === 'footer') {
+            $summary += self::landmarkRegionSummary($node, $name);
+        }
         if ($name === 'search') {
             $summary += self::searchSummary($node);
         }
@@ -991,6 +994,31 @@ final class XmlHtmlDom
         ];
     }
 
+    /**
+     * @return array{landmarkRegion:string, landmark:?string, landmarkScope:string, landmarkScopeId:?string, landmarkScoped:bool, landmarkText:string, landmarkHeadingText:?string, landmarkHeadingTag:?string, landmarkHeadingLevel:?int}
+     */
+    private static function landmarkRegionSummary(\DOMElement $element, string $name): array
+    {
+        $scope = self::nearestHtmlOutlineAncestor($element);
+        $heading = self::firstScopedHeadingElement($element);
+        $headingName = $heading instanceof \DOMElement ? self::htmlElementName($heading) : null;
+
+        return [
+            'landmarkRegion' => $name,
+            'landmark' => $scope === null ? match ($name) {
+                'header' => 'banner',
+                default => 'contentinfo',
+            } : null,
+            'landmarkScope' => $scope instanceof \DOMElement ? self::htmlElementName($scope) : 'document',
+            'landmarkScopeId' => $scope instanceof \DOMElement ? self::attributeOrNull($scope, 'id') : null,
+            'landmarkScoped' => $scope instanceof \DOMElement,
+            'landmarkText' => self::normalizedText($element),
+            'landmarkHeadingText' => $heading instanceof \DOMElement ? self::normalizedText($heading) : null,
+            'landmarkHeadingTag' => $headingName,
+            'landmarkHeadingLevel' => $headingName === null ? null : self::htmlHeadingLevel($headingName),
+        ];
+    }
+
     private static function isHtmlHeadingElementName(string $name): bool
     {
         return in_array($name, ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true);
@@ -1087,6 +1115,20 @@ final class XmlHtmlDom
     private static function isHtmlOutlineElementName(string $name): bool
     {
         return in_array($name, ['article', 'aside', 'main', 'nav', 'section'], true);
+    }
+
+    private static function nearestHtmlOutlineAncestor(\DOMElement $element): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::isHtmlOutlineElementName(self::htmlElementName($parent))) {
+                return $parent;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
     }
 
     /**
