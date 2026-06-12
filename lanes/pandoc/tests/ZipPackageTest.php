@@ -4675,6 +4675,75 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($interEntryRecordZip));
     },
 
+    'preflights central directory inventory across inter-entry archive extra records' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $archiveExtraData = 'inventory-archive-extra-data';
+        $archiveExtraRecord = "PK\x06\x08" . pack('V', strlen($archiveExtraData)) . $archiveExtraData;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>inventory archive extra metadata</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "review media bytes\n",
+                'method' => 0,
+            ],
+        ]);
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+        $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+        $firstCentralNameLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 28, 2))['value'];
+        $firstCentralExtraLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 30, 2))['value'];
+        $firstCentralCommentLength = unpack('vvalue', substr($zip, $centralDirectoryOffset + 32, 2))['value'];
+        $interEntryOffset = $centralDirectoryOffset
+            + 46
+            + $firstCentralNameLength
+            + $firstCentralExtraLength
+            + $firstCentralCommentLength;
+        $interEntryRecordZip = substr($zip, 0, $interEntryOffset)
+            . $archiveExtraRecord
+            . substr($zip, $interEntryOffset);
+        $interEntryRecordZip = $rewriteEndOfCentralDirectory($interEntryRecordZip, [
+            'centralDirectorySize' => $centralDirectorySize + strlen($archiveExtraRecord),
+        ]);
+
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($interEntryRecordZip);
+        $archiveExtraSummary = ZipPackage::archiveExtraDataRecordPreflight($interEntryRecordZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($interEntryRecordZip, 4096, 100.0, 4096);
+        $skippedRecord = $summary['skippedArchiveExtraDataRecords'][0];
+        $diagnostics = implode(',', $rawStrict['diagnostics']);
+
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(2, $summary['scannedEntryCount']);
+        $t->same(2, $summary['entryCount']);
+        $t->same(true, $summary['scanCompletedCentralDirectory']);
+        $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(0, $summary['entryCountDelta']);
+        $t->same(0, $summary['centralDirectoryTailBytes']);
+        $t->same(1, $summary['skippedArchiveExtraDataRecordCount']);
+        $t->same(strlen($archiveExtraRecord), $summary['skippedArchiveExtraDataRecordBytes']);
+        $t->same($interEntryOffset, $skippedRecord['offset']);
+        $t->same($interEntryOffset + 8, $skippedRecord['dataOffset']);
+        $t->same(strlen($archiveExtraData), $skippedRecord['dataLength']);
+        $t->same($interEntryOffset + strlen($archiveExtraRecord), $skippedRecord['endOffset']);
+        $t->same('before-central-directory-entry', $skippedRecord['location']);
+        $t->same(['archive-extra-data-record'], $skippedRecord['issues']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($summary['entries'], 'name'));
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $t->same($archiveExtraSummary['archiveExtraDataRecords'], $summary['skippedArchiveExtraDataRecords']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->contains('archive-extra-data-records', $diagnostics);
+        $t->contains('zip-package-instantiation-failed', $diagnostics);
+        $t->same(false, str_contains($diagnostics, 'central-directory-inventory-issues'));
+    },
+
     'preflights zip end of central directory archive layout before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [
@@ -5310,21 +5379,26 @@ return [
         $tailRaw = ZipPackage::rawStrictImportPreflight($tailZip, 2048, 100.0, 2048);
 
         $t->same(2, $tailSummary['scannedEntryCount']);
-        $t->same(false, $tailSummary['scanCompletedCentralDirectory']);
-        $t->same($base['centralDirectoryEnd'], $tailSummary['scanStoppedOffset']);
-        $t->same(true, $tailSummary['hasUnexpectedCentralDirectoryTail']);
-        $t->same(strlen($tailBytes), $tailSummary['centralDirectoryTailBytes']);
-        $t->same($base['centralDirectoryEnd'], $tailSummary['unexpectedRecordOffset']);
-        $t->same(bin2hex(substr($tailBytes, 0, 4)), $tailSummary['unexpectedRecordSignatureHex']);
+        $t->same(true, $tailSummary['scanCompletedCentralDirectory']);
+        $t->same($tailSummary['centralDirectoryEnd'], $tailSummary['scanStoppedOffset']);
+        $t->same(false, $tailSummary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(0, $tailSummary['centralDirectoryTailBytes']);
+        $t->same(null, $tailSummary['unexpectedRecordOffset']);
+        $t->same(null, $tailSummary['unexpectedRecordSignatureHex']);
         $t->same(false, $tailSummary['hasCentralDirectoryEocdGap']);
         $t->same(null, $tailSummary['centralDirectoryEocdGapOffset']);
         $t->same(0, $tailSummary['centralDirectoryEocdGapBytes']);
         $t->same(false, $tailSummary['isCentralDirectoryEocdGapExplainedBySignature']);
-        $t->same(['central-directory-unexpected-record', 'central-directory-unexpected-tail'], $tailSummary['issues']);
+        $t->same(1, $tailSummary['skippedArchiveExtraDataRecordCount']);
+        $t->same(strlen($tailBytes), $tailSummary['skippedArchiveExtraDataRecordBytes']);
+        $t->same($base['centralDirectoryEnd'], $tailSummary['skippedArchiveExtraDataRecords'][0]['offset']);
+        $t->same('central-directory-tail', $tailSummary['skippedArchiveExtraDataRecords'][0]['location']);
+        $t->same(['archive-extra-data-record'], $tailSummary['skippedArchiveExtraDataRecords'][0]['issues']);
+        $t->same([], $tailSummary['issues']);
         $t->same(false, $tailRaw['isValid']);
         $t->same(false, $tailRaw['canInstantiate']);
         $t->same($tailSummary, $tailRaw['centralDirectoryInventory']);
-        $t->contains('central-directory-unexpected-tail', implode(',', $tailRaw['diagnostics']));
+        $t->contains('archive-extra-data-records', implode(',', $tailRaw['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailZip));
     },
 

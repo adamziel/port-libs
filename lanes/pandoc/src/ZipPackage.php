@@ -7494,6 +7494,9 @@ final class ZipPackage
      *     hasRecoverableCentralDirectoryGapEntries:bool,
      *     recoverableGapEntryCount:int,
      *     recoverableGapEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>,
+     *     skippedArchiveExtraDataRecordCount:int,
+     *     skippedArchiveExtraDataRecordBytes:int,
+     *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
      *     hasEntryCountMismatch:bool,
      *     entryCountDelta:int,
      *     extraScannedEntryCount:int,
@@ -7540,8 +7543,30 @@ final class ZipPackage
         $centralDirectorySignature = null;
         $unexpectedRecordOffset = null;
         $unexpectedRecordSignatureHex = null;
+        $skippedArchiveExtraDataRecords = [];
+        $skippedArchiveExtraDataRecordBytes = 0;
         $index = 0;
         while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $location = $index === 0
+                    ? 'central-directory-prefix'
+                    : (
+                        $archiveExtraDataRecord['endOffset'] >= $archive['centralDirectoryEnd']
+                            ? 'central-directory-tail'
+                            : 'before-central-directory-entry'
+                    );
+                $skippedArchiveExtraDataRecords[] = self::archiveExtraDataRecordSummary(
+                    $archiveExtraDataRecord,
+                    $location,
+                    $archive['eocdOffset'],
+                    $archive['centralDirectoryEnd']
+                );
+                $skippedArchiveExtraDataRecordBytes += $archiveExtraDataRecord['endOffset'] - $archiveExtraDataRecord['offset'];
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
             $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
             if ($signature !== null) {
                 $centralDirectorySignature = [
@@ -7696,6 +7721,9 @@ final class ZipPackage
             'hasRecoverableCentralDirectoryGapEntries' => $recoverableGapEntries !== [],
             'recoverableGapEntryCount' => count($recoverableGapEntries),
             'recoverableGapEntries' => $recoverableGapEntries,
+            'skippedArchiveExtraDataRecordCount' => count($skippedArchiveExtraDataRecords),
+            'skippedArchiveExtraDataRecordBytes' => $skippedArchiveExtraDataRecordBytes,
+            'skippedArchiveExtraDataRecords' => $skippedArchiveExtraDataRecords,
             'hasEntryCountMismatch' => $entryCountMismatch,
             'entryCountDelta' => $entryCountDelta,
             'extraScannedEntryCount' => $extraScannedEntryCount,
