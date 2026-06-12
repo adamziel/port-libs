@@ -5709,6 +5709,105 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
         $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
     },
+    'normalizes bounded pubmed compact aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{pubmed-compact,
+  author       = {Lane, Lia},
+  title        = {Compact PubMed Alias Packet},
+  journaltitle = {Journal of Medical Imports},
+  date         = {2026},
+  pubmedid     = {34567890},
+  pmc          = {PMC3456789}
+}
+
+@online{pubmed-hyphen,
+  author     = {Mora, Max},
+  title      = {Hyphen PubMed Alias Packet},
+  date       = {2025},
+  pubmed-id  = {45678901},
+  pmc-id     = {PMC4567890},
+  url        = {https://example.test/pubmed-hyphen}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('34567890', $items[0]['PMID'] ?? null);
+        $t->same('PMC3456789', $items[0]['PMCID'] ?? null);
+        $t->same('45678901', $items[1]['PMID'] ?? null);
+        $t->same('PMC4567890', $items[1]['PMCID'] ?? null);
+        $t->same('34567890', $items[0]['rawBibtex']['fields']['pubmedid'] ?? null);
+        $t->same('PMC4567890', $items[1]['rawBibtex']['fields']['pmc-id'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('pubmed-compact');
+        $hyphen = $processor->item('pubmed-hyphen');
+        $t->same('34567890', $compact['pmid'] ?? null);
+        $t->same('PMC3456789', $compact['pmcid'] ?? null);
+        $t->same('45678901', $hyphen['pmid'] ?? null);
+        $t->same('PMC4567890', $hyphen['pmcid'] ?? null);
+        $t->same('Lane, Lia. Compact PubMed Alias Packet. Journal of Medical Imports. 2026. PMID 34567890. PMCID PMC3456789.', $processor->renderBibliographyEntry('pubmed-compact'));
+        $t->same('Mora, Max. Hyphen PubMed Alias Packet. 2025. https://example.test/pubmed-hyphen. PMID 45678901. PMCID PMC4567890.', $processor->renderBibliographyEntry('pubmed-hyphen'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded PubMed Alias Review</title>
+    <id>https://example.test/styles/bounded-pubmed-alias-review</id>
+    <updated>2026-06-12T00:34:45+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="pubmed-id"/>
+        <text variable="pmc-id"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pubmed"/>
+      <text variable="pmcid-id"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded PubMed Alias Review', $summary['title'] ?? null);
+        $t->same('pubmed-id', $citationChildren[1]['variable'] ?? null);
+        $t->same('pmc-id', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Lane | 34567890 | PMC3456789; Mora | 45678901 | PMC4567890]', $styled->renderCitationCluster([
+            $citation('pubmed-compact', '[@pubmed-compact]'),
+            $citation('pubmed-hyphen', '[@pubmed-hyphen]'),
+        ]));
+        $t->same('Compact PubMed Alias Packet :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('pubmed-compact'));
+        $t->same('Hyphen PubMed Alias Packet :: 45678901 :: PMC4567890', $styled->renderBibliographyEntry('pubmed-hyphen'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-pubmed-alias',
+            'title' => 'Direct PubMed Alias Packet',
+            'author' => [
+                ['family' => 'Chen', 'given' => 'Cy'],
+            ],
+            'issued' => ['date-parts' => [[2024]]],
+            'pubmedId' => '56789012',
+            'pmcId' => 'PMC5678901',
+        ]]);
+        $directItem = $direct->item('direct-pubmed-alias');
+        $t->same('56789012', $directItem['pmid'] ?? null);
+        $t->same('PMC5678901', $directItem['pmcid'] ?? null);
+        $t->same('Chen, Cy. Direct PubMed Alias Packet. 2024. PMID 56789012. PMCID PMC5678901.', $direct->renderBibliographyEntry('direct-pubmed-alias'));
+
+        $document = (new MarkdownReader())->read('Compact PubMed aliases [@pubmed-compact; @pubmed-hyphen] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact PubMed aliases [Lane | 34567890 | PMC3456789; Mora | 45678901 | PMC4567890] remain visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Compact PubMed Alias Packet :: 34567890 :: PMC3456789</dd>', $blocks);
+        $t->contains('<dt>Mora 2025</dt><dd>Hyphen PubMed Alias Packet :: 45678901 :: PMC4567890</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
