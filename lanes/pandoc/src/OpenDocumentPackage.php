@@ -385,7 +385,10 @@ final class OpenDocumentPackage
         $undeclaredEntries = [];
         $packageDirectoryCount = 0;
         $roleCounts = [];
+        $roleByteLengths = [];
+        $roleCompressedByteLengths = [];
         $undeclaredRoleCounts = [];
+        $unsupportedCompressionPartNames = [];
         $corePackagePartCount = 0;
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
@@ -396,6 +399,17 @@ final class OpenDocumentPackage
         $configurationPackagePartCount = 0;
         $fontPackagePartCount = 0;
         $rdfMetadataPartCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $exposableEntryCount = 0;
+        $blockedEntryCount = 0;
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
+        $blockedByteLength = 0;
+        $blockedCompressedByteLength = 0;
+        $unsupportedCompressionByteLength = 0;
+        $unsupportedCompressionCompressedByteLength = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -469,9 +483,28 @@ final class OpenDocumentPackage
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
+                $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
                 if ($isUndeclared) {
                     $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
                 }
+            }
+            $totalByteLength += $entry->uncompressedSize;
+            $totalCompressedByteLength += $entry->compressedSize;
+            if (($entry->compressionMethod !== 0 && $entry->compressionMethod !== 8)) {
+                ++$unsupportedCompressionMethodCount;
+                $unsupportedCompressionPartNames[$entry->name] = true;
+                $unsupportedCompressionByteLength += $entry->uncompressedSize;
+                $unsupportedCompressionCompressedByteLength += $entry->compressedSize;
+            }
+            if (($item['canExposeBytes'] ?? false) === true) {
+                ++$exposableEntryCount;
+                $exposableByteLength += $entry->uncompressedSize;
+                $exposableCompressedByteLength += $entry->compressedSize;
+            } else {
+                ++$blockedEntryCount;
+                $blockedByteLength += $entry->uncompressedSize;
+                $blockedCompressedByteLength += $entry->compressedSize;
             }
             if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
                 ++$corePackagePartCount;
@@ -510,6 +543,8 @@ final class OpenDocumentPackage
             }
         }
         ksort($roleCounts, SORT_STRING);
+        ksort($roleByteLengths, SORT_STRING);
+        ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
 
         return [
@@ -530,7 +565,24 @@ final class OpenDocumentPackage
             'configurationPackagePartCount' => $configurationPackagePartCount,
             'fontPackagePartCount' => $fontPackagePartCount,
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'exposableEntryCount' => $exposableEntryCount,
+            'blockedEntryCount' => $blockedEntryCount,
+            'exposableByteLength' => $exposableByteLength,
+            'exposableCompressedByteLength' => $exposableCompressedByteLength,
+            'blockedByteLength' => $blockedByteLength,
+            'blockedCompressedByteLength' => $blockedCompressedByteLength,
+            'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
+            'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
+            'byteExposurePolicy' => 'odf-package-inventory-metadata-only',
+            'canExposeBytes' => false,
+            'roles' => array_keys($roleCounts),
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'roleByteLengths' => $roleByteLengths,
+            'roleCompressedByteLengths' => $roleCompressedByteLengths,
+            'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
             'parts' => $parts,
