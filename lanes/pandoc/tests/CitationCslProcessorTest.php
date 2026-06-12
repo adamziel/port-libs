@@ -20174,6 +20174,88 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Plain Issue Source. Migration Notes. Issue title: Archive Review Number. 2025. 7-9.</dd>', $blocks);
     },
+    'normalizes direct csl issue subtitle aliases into issue title metadata' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-issue-subtitle',
+                'type' => 'article-journal',
+                'author' => [['family' => 'Doe', 'given' => 'Jane']],
+                'title' => 'Direct Issue Source',
+                'container-title' => 'Journal of Direct Alias',
+                'issue-title' => 'Direct Special Issue',
+                'issue-subtitle' => 'Source Reports',
+                'issue-title-addon' => 'Direct supplement',
+                'issued' => ['date-parts' => [[2026]]],
+                'page' => '11-13',
+            ],
+            [
+                'id' => 'camel-issue-subtitle',
+                'type' => 'article-journal',
+                'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                'title' => 'Camel Issue Source',
+                'containerTitle' => 'Journal of Camel Alias',
+                'issueTitle' => 'Camel Issue',
+                'issueSubtitle' => 'Desk Notes',
+                'issueTitleAddon' => 'Camel supplement',
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ]);
+        $direct = $processor->item('direct-issue-subtitle');
+        $camel = $processor->item('camel-issue-subtitle');
+
+        $t->same('Direct Special Issue: Source Reports', $direct['issueTitle'] ?? null);
+        $t->same('Direct supplement', $direct['issueTitleAddon'] ?? null);
+        $t->same('Camel Issue: Desk Notes', $camel['issueTitle'] ?? null);
+        $t->same('Camel supplement', $camel['issueTitleAddon'] ?? null);
+        $t->same('(Doe 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('direct-issue-subtitle', '[@direct-issue-subtitle]'),
+            $citation('camel-issue-subtitle', '[@camel-issue-subtitle]'),
+        ]));
+        $t->same('Doe, Jane. Direct Issue Source. Journal of Direct Alias. Issue title: Direct Special Issue: Source Reports. Issue title addendum: Direct supplement. 2026. 11-13.', $processor->renderBibliographyEntry('direct-issue-subtitle'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Issue Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-issue-subtitle-alias-review</id>
+    <updated>2026-06-12T00:44:32+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Issue Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('issue-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('issue-title-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Doe | Direct Special Issue: Source Reports | Direct supplement; Ng | Camel Issue: Desk Notes | Camel supplement]', $styled->renderCitationCluster([
+            $citation('direct-issue-subtitle', '[@direct-issue-subtitle]'),
+            $citation('camel-issue-subtitle', '[@camel-issue-subtitle]'),
+        ]));
+        $t->same('Direct Issue Source :: Direct Special Issue: Source Reports :: Direct supplement', $styled->renderBibliographyEntry('direct-issue-subtitle'));
+
+        $document = (new MarkdownReader())->read('Direct issue aliases [@direct-issue-subtitle; @camel-issue-subtitle] keep issue subtitles visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct issue aliases [Doe | Direct Special Issue: Source Reports | Direct supplement; Ng | Camel Issue: Desk Notes | Camel supplement] keep issue subtitles visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Direct Issue Source :: Direct Special Issue: Source Reports :: Direct supplement</dd>', $blocks);
+    },
     'maps bounded biblatex article number fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{article-number-source,

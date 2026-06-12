@@ -1303,7 +1303,11 @@ final class CitationCslProcessor
             'number' => self::stringField($item, 'number'),
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::stringField($item, 'issue'),
-            'issueTitle' => self::firstStringField($item, ['issue-title', 'issueTitle', 'issuetitle']),
+            'issueTitle' => self::composedStringField(
+                $item,
+                ['issue-title', 'issueTitle', 'issuetitle'],
+                ['issue-subtitle', 'issueSubtitle', 'issuesubtitle']
+            ),
             'issueTitleAddon' => self::firstStringField($item, ['issue-title-addon', 'issueTitleAddon', 'issuetitleaddon']),
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle', 'collectiontitle']),
