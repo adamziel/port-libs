@@ -490,6 +490,7 @@ final class EpubPackage
     {
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
+        $ncxAudioLabelReport = self::ncxAudioLabelReport($this->navigation);
         $containerLinkReport = self::collectionLinkReport($this->containerLinks);
         $containerLinkVocabulary = self::metadataLinkVocabularySummary($this->containerLinks);
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
@@ -550,6 +551,8 @@ final class EpubPackage
             'encryption' => $this->encryption,
             'resourceProperties' => $resourceProperties,
             'navigation' => $this->navigation,
+            'ncxAudioLabelReport' => $ncxAudioLabelReport,
+            'ncxAudioLabelDiagnostics' => $ncxAudioLabelReport['diagnostics'],
             'navigationSections' => $this->navigationSections,
             'auxiliaryNavigation' => $auxiliaryNavigation,
             'assets' => $assetSummary,
@@ -619,6 +622,9 @@ final class EpubPackage
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
                 )),
+                'ncxAudioLabels' => $ncxAudioLabelReport['items'],
+                'ncxAudioLabelReport' => $ncxAudioLabelReport,
+                'ncxAudioLabelDiagnostics' => $ncxAudioLabelReport['diagnostics'],
                 'guideReferences' => $this->guideReferences,
                 'guideReferenceReport' => $guideReport,
                 'guideReferenceTargets' => $guideReport['targets'],
@@ -6099,7 +6105,12 @@ final class EpubPackage
                 ];
             }
 
-            $entries = self::parseNcxDocument($package->read($ncxItem['partName']), $ncxItem['partName']);
+            $entries = self::parseNcxDocument(
+                $package,
+                $package->read($ncxItem['partName']),
+                $ncxItem['partName'],
+                self::manifestByPart($manifestById),
+            );
 
             return [
                 'navigation' => [
@@ -9701,9 +9712,16 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
      */
-    private static function parseNcxDocument(string $xml, string $ncxPartName): array
+    private static function parseNcxDocument(
+        ZipPackage $package,
+        string $xml,
+        string $ncxPartName,
+        array $manifestByPart
+    ): array
     {
         $dom = self::loadXml($xml, 'EPUB NCX document');
         $root = $dom->documentElement;
@@ -9716,7 +9734,7 @@ final class EpubPackage
             return [];
         }
 
-        return self::parseNcxNavPoints($navMap, $ncxPartName, 1);
+        return self::parseNcxNavPoints($package, $navMap, $ncxPartName, $manifestByPart, 1);
     }
 
     /**
@@ -9857,9 +9875,17 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
      */
-    private static function parseNcxNavPoints(\DOMElement $parent, string $ncxPartName, int $depth): array
+    private static function parseNcxNavPoints(
+        ZipPackage $package,
+        \DOMElement $parent,
+        string $ncxPartName,
+        array $manifestByPart,
+        int $depth
+    ): array
     {
         $entries = [];
         foreach (self::childElements($parent, 'navPoint') as $navPoint) {
@@ -9867,6 +9893,7 @@ final class EpubPackage
             $labelElement = $labelContainer instanceof \DOMElement
                 ? self::firstDescendantElement($labelContainer, 'text')
                 : null;
+            $labelAudio = self::parseNcxLabelAudio($package, $labelContainer, $ncxPartName, $manifestByPart);
             $contentElement = self::firstChildElement($navPoint, 'content');
             $href = $contentElement instanceof \DOMElement && $contentElement->hasAttribute('src')
                 ? $contentElement->getAttribute('src')
@@ -9876,17 +9903,390 @@ final class EpubPackage
                 : null;
 
             $entries[] = [
+                'id' => self::emptyToNull($navPoint->getAttribute('id')),
                 'label' => $labelElement instanceof \DOMElement ? self::normalizeText($labelElement->textContent) : '',
                 'href' => $href,
                 'target' => $href === null || $href === '' ? null : self::resolveReadingHref($ncxPartName, $href),
                 'depth' => $depth,
                 'playOrder' => $playOrder,
+                'labelAudio' => $labelAudio,
+                'labelAudioCount' => count($labelAudio),
+                'labelAudioDiagnostics' => self::ncxAudioDiagnostics($labelAudio),
             ];
 
-            array_push($entries, ...self::parseNcxNavPoints($navPoint, $ncxPartName, $depth + 1));
+            array_push(
+                $entries,
+                ...self::parseNcxNavPoints($package, $navPoint, $ncxPartName, $manifestByPart, $depth + 1),
+            );
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function parseNcxLabelAudio(
+        ZipPackage $package,
+        ?\DOMElement $labelContainer,
+        string $ncxPartName,
+        array $manifestByPart
+    ): array {
+        if (!$labelContainer instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        foreach (self::childElements($labelContainer, 'audio') as $index => $audio) {
+            $src = self::emptyToNull($audio->getAttribute('src'));
+            $reference = self::ncxAudioReference($package, $ncxPartName, $src, $manifestByPart);
+            $clipBegin = self::emptyToNull($audio->getAttribute('clipBegin'));
+            $clipEnd = self::emptyToNull($audio->getAttribute('clipEnd'));
+            $clip = self::ncxAudioClipTiming($clipBegin, $clipEnd);
+            $diagnostics = array_merge($reference['diagnostics'], $clip['diagnostics']);
+            $mediaType = is_string($reference['manifestMediaType'] ?? null) ? (string) $reference['manifestMediaType'] : null;
+
+            if ($mediaType !== null && !str_starts_with(self::mediaTypeBase($mediaType), 'audio/')) {
+                $diagnostics[] = [
+                    'type' => 'unexpected-ncx-audio-media-type',
+                    'src' => $src,
+                    'partName' => $reference['partName'],
+                    'mediaType' => $mediaType,
+                    'message' => 'EPUB NCX label audio points at a non-audio manifest item',
+                ];
+            }
+
+            $items[] = [
+                'index' => $index,
+                'id' => self::emptyToNull($audio->getAttribute('id')),
+                'src' => $src,
+                'clipBegin' => $clipBegin,
+                'clipEnd' => $clipEnd,
+                'clipBeginSeconds' => $clip['clipBeginSeconds'],
+                'clipEndSeconds' => $clip['clipEndSeconds'],
+                'clipDurationSeconds' => $clip['clipDurationSeconds'],
+                'clipValid' => $clip['valid'],
+                'clipDiagnostics' => $clip['diagnostics'],
+                'diagnostics' => $diagnostics,
+                'diagnosticCount' => count($diagnostics),
+            ] + $reference;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function ncxAudioReference(
+        ZipPackage $package,
+        string $ncxPartName,
+        ?string $src,
+        array $manifestByPart
+    ): array {
+        if ($src === null) {
+            return [
+                'target' => null,
+                'partName' => null,
+                'part' => null,
+                'exists' => false,
+                'external' => false,
+                'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'missing-ncx-audio-src',
+                    'message' => 'EPUB NCX label audio is missing src',
+                ]],
+            ];
+        }
+
+        try {
+            $target = self::resolvePackageHref($ncxPartName, $src);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'partName' => null,
+                'part' => null,
+                'exists' => false,
+                'external' => false,
+                'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'invalid-ncx-audio-reference',
+                    'src' => $src,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $hrefSuffix = self::packageHrefSuffixReport($target);
+        if (self::isAbsoluteUri($target)) {
+            return [
+                'target' => $target,
+                'partName' => null,
+                'part' => null,
+                'exists' => false,
+                'external' => true,
+                'manifestId' => null,
+                'manifestMediaType' => null,
+                'hrefHasQuery' => $hrefSuffix['hasQuery'],
+                'hrefQuery' => $hrefSuffix['query'],
+                'hrefHasFragment' => $hrefSuffix['hasFragment'],
+                'hrefFragment' => $hrefSuffix['fragment'],
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'external-ncx-audio-reference',
+                    'src' => $src,
+                    'target' => $target,
+                    'message' => 'EPUB NCX label audio points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        $partName = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($partName);
+        $entry = $exists ? $package->entry($partName) : null;
+        $manifestItem = $manifestByPart[$partName] ?? null;
+        $provenance = self::zipEntryProvenance($entry);
+        $canExposeBytes = $exists && $provenance['canExposeBytes'];
+        if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
+            $canExposeBytes = false;
+        }
+        $provenance['canExposeBytes'] = $canExposeBytes;
+        $diagnostics = [];
+        if (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-ncx-audio-reference',
+                'src' => $src,
+                'partName' => $partName,
+                'message' => 'EPUB NCX label audio target is missing from the package',
+            ];
+        } elseif (!$canExposeBytes) {
+            $diagnostics[] = [
+                'type' => 'ncx-audio-reference-bytes-unavailable',
+                'src' => $src,
+                'partName' => $partName,
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'message' => 'EPUB NCX label audio bytes are not exposed by compact package review policy',
+            ];
+        }
+
+        return [
+            'target' => $target,
+            'partName' => $partName,
+            'part' => $partName,
+            'exists' => $exists,
+            'external' => false,
+            'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+            'manifestMediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null,
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
+            'byteSha256' => $canExposeBytes ? hash('sha256', $package->read($partName)) : null,
+            'diagnostics' => $diagnostics,
+        ] + $provenance;
+    }
+
+    /**
+     * @return array{clipBeginSeconds:?float, clipEndSeconds:?float, clipDurationSeconds:?float, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function ncxAudioClipTiming(?string $clipBegin, ?string $clipEnd): array
+    {
+        $beginSeconds = $clipBegin === null ? null : self::smilClockSeconds($clipBegin);
+        $endSeconds = $clipEnd === null ? null : self::smilClockSeconds($clipEnd);
+        $diagnostics = [];
+
+        if ($clipBegin !== null && $beginSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-ncx-audio-clip-begin',
+                'clipBegin' => $clipBegin,
+                'message' => 'EPUB NCX audio clipBegin must be a bounded SMIL clock value',
+            ];
+        }
+        if ($clipEnd !== null && $endSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-ncx-audio-clip-end',
+                'clipEnd' => $clipEnd,
+                'message' => 'EPUB NCX audio clipEnd must be a bounded SMIL clock value',
+            ];
+        }
+        if ($beginSeconds !== null && $endSeconds !== null && $endSeconds < $beginSeconds) {
+            $diagnostics[] = [
+                'type' => 'ncx-audio-clip-end-before-begin',
+                'clipBegin' => $clipBegin,
+                'clipEnd' => $clipEnd,
+                'clipBeginSeconds' => $beginSeconds,
+                'clipEndSeconds' => $endSeconds,
+                'message' => 'EPUB NCX audio clipEnd must not be earlier than clipBegin',
+            ];
+        }
+
+        return [
+            'clipBeginSeconds' => $beginSeconds,
+            'clipEndSeconds' => $endSeconds,
+            'clipDurationSeconds' => $beginSeconds !== null && $endSeconds !== null && $endSeconds >= $beginSeconds
+                ? $endSeconds - $beginSeconds
+                : null,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $audioItems
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function ncxAudioDiagnostics(array $audioItems): array
+    {
+        $diagnostics = [];
+        foreach ($audioItems as $item) {
+            if (!is_array($item['diagnostics'] ?? null)) {
+                continue;
+            }
+            array_push($diagnostics, ...$item['diagnostics']);
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed>|null $navigation
+     *
+     * @return array<string, mixed>
+     */
+    private static function ncxAudioLabelReport(?array $navigation): array
+    {
+        $items = [];
+        $targets = [];
+        $localTargets = [];
+        $externalTargets = [];
+        $missingTargets = [];
+        $diagnostics = [];
+        $localCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+        $blockedCount = 0;
+
+        if (!is_array($navigation) || ($navigation['type'] ?? null) !== 'ncx') {
+            return [
+                'present' => false,
+                'count' => 0,
+                'localCount' => 0,
+                'externalCount' => 0,
+                'missingCount' => 0,
+                'blockedCount' => 0,
+                'diagnosticCount' => 0,
+                'targets' => [],
+                'localTargets' => [],
+                'externalTargets' => [],
+                'missingTargets' => [],
+                'items' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        foreach (is_array($navigation['entries'] ?? null) ? $navigation['entries'] : [] as $entryIndex => $entry) {
+            if (!is_array($entry) || !is_array($entry['labelAudio'] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry['labelAudio'] as $audioIndex => $audio) {
+                if (!is_array($audio)) {
+                    continue;
+                }
+
+                $item = [
+                    'entryIndex' => $entryIndex,
+                    'audioIndex' => $audioIndex,
+                    'entryId' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'entryLabel' => is_string($entry['label'] ?? null) ? $entry['label'] : '',
+                    'entryTarget' => is_string($entry['target'] ?? null) ? $entry['target'] : null,
+                ] + $audio;
+                $items[] = $item;
+
+                $target = is_string($audio['target'] ?? null) ? $audio['target'] : null;
+                if ($target !== null) {
+                    $targets[] = $target;
+                }
+                if (($audio['external'] ?? false) === true) {
+                    ++$externalCount;
+                    if ($target !== null) {
+                        $externalTargets[] = $target;
+                    }
+                } elseif (($audio['exists'] ?? false) === true) {
+                    ++$localCount;
+                    if ($target !== null) {
+                        $localTargets[] = $target;
+                    }
+                    if (($audio['canExposeBytes'] ?? false) !== true) {
+                        ++$blockedCount;
+                    }
+                } else {
+                    ++$missingCount;
+                    if ($target !== null) {
+                        $missingTargets[] = $target;
+                    }
+                }
+
+                if (is_array($audio['diagnostics'] ?? null)) {
+                    array_push($diagnostics, ...$audio['diagnostics']);
+                }
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'localCount' => $localCount,
+            'externalCount' => $externalCount,
+            'missingCount' => $missingCount,
+            'blockedCount' => $blockedCount,
+            'diagnosticCount' => count($diagnostics),
+            'targets' => array_values(array_unique($targets)),
+            'localTargets' => array_values(array_unique($localTargets)),
+            'externalTargets' => array_values(array_unique($externalTargets)),
+            'missingTargets' => array_values(array_unique($missingTargets)),
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     private static function resolvePackageHref(string $sourcePartName, string $href): string

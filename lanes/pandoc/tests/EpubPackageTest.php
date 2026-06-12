@@ -249,6 +249,101 @@ return [
         $t->same(2, $epub->navigation()['entries'][1]['depth']);
     },
 
+    'preserves compact NCX label audio provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub2OpfXml): void {
+        $audioBytes = 'NCX-AUDIO-BYTES';
+        $opfWithAudio = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="nav-audio" href="audio/nav-label.mp3" media-type="audio/mpeg"/>',
+            $epub2OpfXml
+        );
+        $ncxWithAudio = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="intro-point" playOrder="1">
+      <navLabel>
+        <text>Audio introduction</text>
+        <audio id="intro-clip" src="audio/nav-label.mp3?clip=1#t=1,3" clipBegin="0:00:01.000" clipEnd="0:00:03.500"/>
+      </navLabel>
+      <content src="chapter.xhtml"/>
+      <navPoint id="missing-point" playOrder="2">
+        <navLabel>
+          <text>Missing audio label</text>
+          <audio src="audio/missing-label.mp3" clipBegin="bad-clock" clipEnd="0:00:04.000"/>
+        </navLabel>
+        <content src="chapter.xhtml#missing"/>
+      </navPoint>
+    </navPoint>
+    <navPoint id="remote-point" playOrder="3">
+      <navLabel>
+        <text>Remote audio label</text>
+        <audio src="https://audio.example.invalid/nav-label.mp3"/>
+      </navLabel>
+      <content src="chapter.xhtml#remote"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithAudio],
+            ['name' => 'EPUB/toc.ncx', 'data' => $ncxWithAudio],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Legacy</body></html>'],
+            ['name' => 'EPUB/cover.jpg', 'data' => 'JPG'],
+            ['name' => 'EPUB/audio/nav-label.mp3', 'data' => $audioBytes],
+        ]));
+        $navigation = $epub->navigation();
+        $summary = $epub->summary();
+        $report = $summary['ncxAudioLabelReport'];
+        $localAudio = $navigation['entries'][0]['labelAudio'][0];
+        $missingAudio = $navigation['entries'][1]['labelAudio'][0];
+        $remoteAudio = $navigation['entries'][2]['labelAudio'][0];
+
+        $t->same('ncx', $navigation['type']);
+        $t->same('/EPUB/toc.ncx', $navigation['partName']);
+        $t->same(3, count($navigation['entries']));
+        $t->same(1, $navigation['entries'][0]['labelAudioCount']);
+        $t->same('intro-clip', $localAudio['id']);
+        $t->same('/EPUB/audio/nav-label.mp3?clip=1#t=1,3', $localAudio['target']);
+        $t->same('/EPUB/audio/nav-label.mp3', $localAudio['partName']);
+        $t->same('nav-audio', $localAudio['manifestId']);
+        $t->same('audio/mpeg', $localAudio['manifestMediaType']);
+        $t->same(true, $localAudio['exists']);
+        $t->same(strlen($audioBytes), $localAudio['byteLength']);
+        $t->same(hash('crc32b', $audioBytes), $localAudio['crc32']);
+        $t->same(hash('sha256', $audioBytes), $localAudio['byteSha256']);
+        $t->same(true, $localAudio['hrefHasQuery']);
+        $t->same('clip=1', $localAudio['hrefQuery']);
+        $t->same(true, $localAudio['hrefHasFragment']);
+        $t->same('t=1,3', $localAudio['hrefFragment']);
+        $t->same(1.0, $localAudio['clipBeginSeconds']);
+        $t->same(3.5, $localAudio['clipEndSeconds']);
+        $t->same(2.5, $localAudio['clipDurationSeconds']);
+        $t->same([], $localAudio['diagnostics']);
+
+        $t->same(false, $missingAudio['exists']);
+        $t->same('/EPUB/audio/missing-label.mp3', $missingAudio['partName']);
+        $t->same('missing-ncx-audio-reference', $missingAudio['diagnostics'][0]['type']);
+        $t->same('invalid-ncx-audio-clip-begin', $missingAudio['clipDiagnostics'][0]['type']);
+        $t->same(true, $remoteAudio['external']);
+        $t->same('external-ncx-audio-reference', $remoteAudio['diagnostics'][0]['type']);
+
+        $t->same(true, $report['present']);
+        $t->same(3, $report['count']);
+        $t->same(1, $report['localCount']);
+        $t->same(1, $report['externalCount']);
+        $t->same(1, $report['missingCount']);
+        $t->same(3, $report['diagnosticCount']);
+        $t->same(['/EPUB/audio/nav-label.mp3?clip=1#t=1,3'], $report['localTargets']);
+        $t->same(['https://audio.example.invalid/nav-label.mp3'], $report['externalTargets']);
+        $t->same(['/EPUB/audio/missing-label.mp3'], $report['missingTargets']);
+        $t->same($report['items'], $summary['wordpressImport']['ncxAudioLabels']);
+        $t->same($report, $summary['wordpressImport']['ncxAudioLabelReport']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['ncxAudioLabelDiagnostics']);
+    },
+
     'exposes OPF manifest items by id and preserves non-spine assets' => static function (TestRunner $t) use ($epub3Package): void {
         $epub = EpubPackage::fromPackage($epub3Package());
 
