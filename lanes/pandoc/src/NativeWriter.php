@@ -1021,7 +1021,7 @@ final class NativeWriter
     }
 
     /**
-     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     * @return array<string, mixed>
      */
     private function citationRecord(AstNode $citation): array
     {
@@ -1034,7 +1034,7 @@ final class NativeWriter
             throw new \InvalidArgumentException('Native writer citation nodes must contain an id');
         }
 
-        return [
+        $record = [
             'citationId' => $id,
             'citationPrefix' => $this->inlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->inlines($this->citationSuffixInlines($citation)),
@@ -1042,6 +1042,28 @@ final class NativeWriter
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
+
+        return $this->reusableCitationNative($citation, $record) ?? $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>|null
+     */
+    private function reusableCitationNative(AstNode $citation, array $record): ?array
+    {
+        $native = $citation->attr('citationNative');
+        if (!is_array($native) || array_is_list($native)) {
+            return null;
+        }
+
+        foreach (['citationId', 'citationPrefix', 'citationSuffix', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
+            if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
+                return null;
+            }
+        }
+
+        return $native;
     }
 
     /**

@@ -2637,6 +2637,95 @@ return [
             return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
         }, $editedCite['c'][1])));
     },
+    'preserves citation record native payloads when rebuilding cite wrappers' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'reviewQueue' => 'wp-import',
+            'sourceOrdinal' => 17,
+            'citationHash' => 3002,
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '9'],
+            ],
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationNoteNum' => 3,
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationId' => 'source-3002',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$citationRecord],
+                        [
+                            ['t' => 'Str', 'c' => 'see'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@source-3002,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'p.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '9'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $citation = $document->children[0]->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', ['text' => '[see @source-3002, p. 9; @source-extra]'], [
+                        $citation,
+                        new AstNode('citation', [
+                            'id' => 'source-extra',
+                            'mode' => 'author_in_text',
+                            'citationHash' => 55,
+                        ]),
+                    ]),
+                ]),
+            ]);
+            $jsonPacket = (new PandocJsonWriter())->toArray($rebuilt);
+            $nativePacket = json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR);
+
+            foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $writer => $encoded) {
+                $records = $encoded['blocks'][0]['c'][0]['c'][0];
+                $t->same($citationRecord, $records[0], "{$source} {$writer} writer preserves moved citation record native payload");
+                $t->same('wp-import', $records[0]['reviewQueue'], "{$source} {$writer} writer keeps inert citation record sidecar");
+                $t->same('source-extra', $records[1]['citationId'], "{$source} {$writer} writer appends generated citation record");
+                $t->same(false, array_key_exists('reviewQueue', $records[1]), "{$source} {$writer} writer does not invent sidecars");
+            }
+
+            $editedCitation = new AstNode('citation', array_replace($citation->attrs, [
+                'suffix' => [
+                    new AstNode('text', ['text' => 'p.']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '10']),
+                ],
+                'text' => 'see @source-3002, p. 10',
+            ]), $citation->children);
+            $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', ['text' => '[see @source-3002, p. 10]'], [$editedCitation]),
+                ]),
+            ]));
+            $editedRecord = $editedPacket['blocks'][0]['c'][0]['c'][0][0];
+
+            $t->same('source-3002', $editedRecord['citationId'], "{$source} edited citation keeps id");
+            $t->same('10', $editedRecord['citationSuffix'][2]['c'], "{$source} edited citation regenerates suffix");
+            $t->same(false, array_key_exists('reviewQueue', $editedRecord), "{$source} edited citation drops stale record sidecar");
+            $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} edited citation drops stale record ordinal");
+        }
+    },
     'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $structuralInlines = [
             ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],
