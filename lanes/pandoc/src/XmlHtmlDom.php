@@ -60,6 +60,18 @@ final class XmlHtmlDom
         'style' => true,
     ];
 
+    /** @var array<string, bool> */
+    private const ARIA_REFERENCE_ATTRIBUTES = [
+        'aria-activedescendant' => false,
+        'aria-controls' => true,
+        'aria-describedby' => true,
+        'aria-details' => false,
+        'aria-errormessage' => false,
+        'aria-flowto' => true,
+        'aria-labelledby' => true,
+        'aria-owns' => true,
+    ];
+
     /** @var array<string, string> */
     private const HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES = [
         'ApplyFunction' => '&#x2061;',
@@ -1751,6 +1763,7 @@ final class XmlHtmlDom
         $ariaAttributes = self::ariaAttributeSummary($attributes);
         if ($ariaAttributes !== []) {
             $summary['ariaAttributes'] = $ariaAttributes;
+            $summary += self::ariaReferenceSummary($element, $ariaAttributes);
         }
 
         if (array_key_exists('role', $attributes)) {
@@ -2205,6 +2218,122 @@ final class XmlHtmlDom
         }
 
         return $aria;
+    }
+
+    /**
+     * @param array<string, string> $ariaAttributes
+     * @return array<string, mixed>
+     */
+    private static function ariaReferenceSummary(\DOMElement $element, array $ariaAttributes): array
+    {
+        $references = [];
+        $referencedIds = [];
+        $missingIds = [];
+        $allValid = true;
+        foreach (self::ARIA_REFERENCE_ATTRIBUTES as $attribute => $allowsMultiple) {
+            if (!array_key_exists($attribute, $ariaAttributes)) {
+                continue;
+            }
+
+            $raw = $ariaAttributes[$attribute];
+            $tokens = self::spaceSeparatedTokens($raw);
+            $ids = [];
+            $invalidIds = [];
+            foreach ($tokens as $token) {
+                if (!self::isHtmlReferenceToken($token)) {
+                    $invalidIds[] = $token;
+                    continue;
+                }
+                if (!in_array($token, $ids, true)) {
+                    $ids[] = $token;
+                }
+            }
+
+            $targets = [];
+            $missing = [];
+            foreach ($ids as $id) {
+                $target = self::elementByHtmlId($element, $id);
+                if (!$target instanceof \DOMElement) {
+                    $missing[] = $id;
+                    if (!in_array($id, $missingIds, true)) {
+                        $missingIds[] = $id;
+                    }
+                    continue;
+                }
+
+                $targets[] = [
+                    'id' => $id,
+                    'name' => self::htmlElementName($target),
+                    'text' => self::normalizedText($target),
+                ];
+                if (!in_array($id, $referencedIds, true)) {
+                    $referencedIds[] = $id;
+                }
+            }
+
+            $valid = $tokens !== []
+                && $invalidIds === []
+                && $missing === []
+                && ($allowsMultiple || count($ids) === 1);
+            if (!$valid) {
+                $allValid = false;
+            }
+
+            $references[$attribute] = [
+                'raw' => $raw,
+                'multiple' => $allowsMultiple,
+                'tokens' => $tokens,
+                'ids' => $ids,
+                'invalidIds' => $invalidIds,
+                'missingIds' => $missing,
+                'targets' => $targets,
+                'valid' => $valid,
+            ];
+        }
+
+        if ($references === []) {
+            return [];
+        }
+
+        return [
+            'ariaReferenceAttributes' => array_keys($references),
+            'ariaReferences' => $references,
+            'ariaReferencedIds' => $referencedIds,
+            'ariaMissingReferenceIds' => $missingIds,
+            'ariaReferenceValid' => $allValid,
+        ];
+    }
+
+    private static function elementByHtmlId(\DOMElement $context, string $id): ?\DOMElement
+    {
+        $document = $context->ownerDocument;
+        $root = $document instanceof \DOMDocument ? self::fragmentRoot($document) : null;
+        $root ??= $document instanceof \DOMDocument ? $document->documentElement : null;
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        return self::firstElementWithId($root, $id);
+    }
+
+    private static function firstElementWithId(\DOMElement $element, string $id): ?\DOMElement
+    {
+        if ($element->getAttribute('id') === $id) {
+            return $element;
+        }
+
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $match = self::firstElementWithId($child, $id);
+            if ($match instanceof \DOMElement) {
+                return $match;
+            }
+        }
+
+        return null;
     }
 
     private static function inputType(\DOMElement $input): string
