@@ -400,7 +400,7 @@ final class PandocJsonWriter
             'paragraph' => ['t' => 'Para', 'c' => $this->writeInlines($this->inlineChildrenOrText($node))],
             'heading' => ['t' => 'Header', 'c' => [(int) $node->attr('level', 1), $this->attrTuple($node), $this->writeInlines($this->inlineChildrenOrText($node))]],
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
-            'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
+            'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 [
@@ -1019,7 +1019,7 @@ final class PandocJsonWriter
                 $this->enumFromNative($node, 'mathTypeNative', $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'),
                 (string) $node->attr('text', ''),
             ]],
-            'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
+            'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
@@ -1874,6 +1874,22 @@ final class PandocJsonWriter
             'raw_markdown' => 'markdown',
             default => 'plain',
         };
+    }
+
+    private function rawFormatPayload(AstNode $node): mixed
+    {
+        $format = $this->rawFormat($node);
+        $native = $this->taggedNative($node->attr('formatNative'), 'Format');
+        if ($native === null) {
+            return $format;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return $content === $format ? $native : $format;
     }
 
     private function rawText(AstNode $node): string

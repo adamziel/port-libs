@@ -2201,6 +2201,103 @@ return [
             $t->same(['t' => 'DisplayMath'], $displayMath->attr('mathTypeNative'), "{$source} display math native payload");
         }
     },
+    'preserves tagged raw format helper payloads through json and native writers' => static function (TestRunner $t): void {
+        $rawBlockFormat = ['t' => 'Format', 'c' => ['html'], 'reviewQueue' => 'raw-block-format'];
+        $rawInlineFormat = ['t' => 'Format', 'c' => 'latex', 'reviewQueue' => 'raw-inline-format'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => [
+                    $rawBlockFormat,
+                    '<section data-review="yes">Source</section>',
+                ], 'reviewQueue' => 'raw-block-source'],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Inline'],
+                    ['t' => 'Space'],
+                    ['t' => 'RawInline', 'c' => [$rawInlineFormat, '\\alpha'], 'reviewQueue' => 'raw-inline-source'],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $rawBlock = $document->children[0];
+            $rawInline = null;
+            foreach ($document->children[1]->children as $inline) {
+                if ($inline->type === 'raw_tex') {
+                    $rawInline = $inline;
+                    break;
+                }
+            }
+            if (!$rawInline instanceof AstNode) {
+                throw new \RuntimeException("{$source} raw inline not found");
+            }
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('raw_html', $rawBlock->type, "{$source} raw block type");
+            $t->same('RawBlock', $rawBlock->attr('constructor'), "{$source} raw block constructor");
+            $t->same('Format', $rawBlock->attr('formatConstructor'), "{$source} raw block format constructor");
+            $t->same($rawBlockFormat, $rawBlock->attr('formatNative'), "{$source} raw block format native payload");
+            $t->same('html', $rawBlock->attr('format'), "{$source} raw block format");
+            $t->same('<section data-review="yes">Source</section>', $rawBlock->attr('text'), "{$source} raw block text");
+            $t->same('raw_tex', $rawInline->type, "{$source} raw inline type");
+            $t->same('Format', $rawInline->attr('formatConstructor'), "{$source} raw inline format constructor");
+            $t->same($rawInlineFormat, $rawInline->attr('formatNative'), "{$source} raw inline format native payload");
+            $t->same('latex', $rawInline->attr('format'), "{$source} raw inline format");
+            $t->same('\\alpha', $rawInline->attr('text'), "{$source} raw inline text");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer preserves raw format payloads");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer preserves raw format payloads");
+
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('raw_html', array_replace($rawBlock->attrs, [
+                    'text' => '<aside>Edited</aside>',
+                    'html' => '<aside>Edited</aside>',
+                ])),
+                new AstNode('paragraph', [], [
+                    new AstNode('raw_tex', array_replace($rawInline->attrs, [
+                        'text' => '\\beta',
+                        'tex' => '\\beta',
+                    ])),
+                ]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $editedPacket) {
+                $editedBlock = $editedPacket['blocks'][0];
+                $editedInline = $editedPacket['blocks'][1]['c'][0];
+
+                $t->same($rawBlockFormat, $editedBlock['c'][0], "{$source} {$writer} writer preserves edited raw block format helper");
+                $t->same('<aside>Edited</aside>', $editedBlock['c'][1], "{$source} {$writer} writer regenerates edited raw block text");
+                $t->same(false, array_key_exists('reviewQueue', $editedBlock), "{$source} {$writer} writer drops stale raw block sidecar");
+                $t->same($rawInlineFormat, $editedInline['c'][0], "{$source} {$writer} writer preserves edited raw inline format helper");
+                $t->same('\\beta', $editedInline['c'][1], "{$source} {$writer} writer regenerates edited raw inline text");
+                $t->same(false, array_key_exists('reviewQueue', $editedInline), "{$source} {$writer} writer drops stale raw inline sidecar");
+            }
+        }
+
+        $rawBlock = $documents['json']->children[0];
+        $retaggedDocument = new AstNode('document', [], [
+            new AstNode('raw_block', array_replace($rawBlock->attrs, [
+                'format' => 'markdown',
+                'text' => '**edited**',
+            ])),
+        ]);
+        $retaggedJson = (new PandocJsonWriter())->toArray($retaggedDocument);
+        $retaggedNative = json_decode((new NativeWriter())->write($retaggedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('markdown', $retaggedJson['blocks'][0]['c'][0]);
+        $t->same('**edited**', $retaggedJson['blocks'][0]['c'][1]);
+        $t->same('markdown', $retaggedNative['blocks'][0]['c'][0]);
+        $t->same('**edited**', $retaggedNative['blocks'][0]['c'][1]);
+    },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
         $styles = [
             ['DefaultStyle', 'default'],

@@ -724,16 +724,13 @@ final class NativeReader
     private function rawBlock(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawBlock content');
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+        if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON RawBlock content must contain format and text strings');
         }
 
-        $format = $tuple[0];
+        [$format, $formatNative] = $this->formatValue($tuple[0], 'Pandoc native JSON RawBlock format');
         $text = $tuple[1];
-        $attrs = array_replace($attrs, [
-            'format' => $format,
-            'text' => $text,
-        ]);
+        $attrs = array_replace($attrs, $this->rawFormatAttrs($format, $formatNative), ['text' => $text]);
 
         $normalizedFormat = strtolower($format);
         if ($this->isMarkdownRawFormat($normalizedFormat)) {
@@ -1300,16 +1297,13 @@ final class NativeReader
     private function rawInline(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawInline content');
-        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+        if (!is_string($tuple[1])) {
             throw new \InvalidArgumentException('Pandoc native JSON RawInline content must contain format and text strings');
         }
 
-        $format = $tuple[0];
+        [$format, $formatNative] = $this->formatValue($tuple[0], 'Pandoc native JSON RawInline format');
         $text = $tuple[1];
-        $attrs = array_replace($attrs, [
-            'format' => $format,
-            'text' => $text,
-        ]);
+        $attrs = array_replace($attrs, $this->rawFormatAttrs($format, $formatNative), ['text' => $text]);
 
         $normalizedFormat = strtolower($format);
         if ($this->isMarkdownRawFormat($normalizedFormat)) {
@@ -1580,6 +1574,43 @@ final class NativeReader
         }
 
         return $value['c'] ?? null;
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>|null}
+     */
+    private function formatValue(mixed $value, string $context): array
+    {
+        if (is_string($value)) {
+            return [$value, null];
+        }
+
+        $content = $this->constructorContent($value, 'Format', $context);
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_string($content)) {
+            throw new \InvalidArgumentException("{$context} must contain a string");
+        }
+        if (!is_array($value) || array_is_list($value)) {
+            return [$content, null];
+        }
+
+        return [$content, $value];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rawFormatAttrs(string $format, ?array $native): array
+    {
+        $attrs = ['format' => $format];
+        if ($native !== null) {
+            $attrs['formatConstructor'] = 'Format';
+            $attrs['formatNative'] = $native;
+        }
+
+        return $attrs;
     }
 
     private function quoteTypeFromConstructor(string $constructor): string
