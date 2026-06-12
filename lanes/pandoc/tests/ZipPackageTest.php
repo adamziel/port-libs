@@ -9507,6 +9507,70 @@ return [
         $t->same(2, $safeSummary['readableEntryCount']);
     },
 
+    'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
+        $mediaBytes = "selected media handoff bytes\n";
+        $totalSelectedBytes = strlen($documentXml) + strlen($mediaBytes);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]));
+
+        $requests = [
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'duplicate-main-document'],
+            ['name' => 'word/media/review.txt', 'required' => false, 'kind' => 'file', 'role' => 'media-review'],
+        ];
+
+        $summary = $package->entryHandoffPreflight($requests, 1024, $totalSelectedBytes - 1);
+
+        $t->same(3, $summary['requestedEntryCount']);
+        $t->same(2, $summary['presentEntryCount']);
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same($totalSelectedBytes, $summary['selectedCompressedBytes']);
+        $t->same($totalSelectedBytes, $summary['selectedUncompressedBytes']);
+        $t->same(1024, $summary['maxEntryUncompressedBytes']);
+        $t->same($totalSelectedBytes - 1, $summary['maxTotalUncompressedBytes']);
+        $t->same(0, $summary['handoffEntryCount']);
+        $t->same(0, $summary['readableEntryCount']);
+        $t->same(3, $summary['failedEntryCount']);
+        $t->same(3, $summary['totalUncompressedSizeExceedsLimitEntryCount']);
+        $t->same(2, $summary['duplicateRequestedEntryCount']);
+        $t->same(1, $summary['duplicateRequestedEntryGroupCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['total-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same([], $summary['handoffEntries']);
+
+        foreach ($summary['entries'] as $entry) {
+            $t->same(['total-uncompressed-size-exceeds-limit'], $entry['issues']);
+            $t->same('blocked', $entry['status']);
+            $t->same(false, $entry['isReadable']);
+            $t->same(null, $entry['bytesRead']);
+            $t->same(null, $entry['contentSha256']);
+        }
+
+        $safeSummary = $package->entryHandoffPreflight($requests, 1024, $totalSelectedBytes);
+
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same([], $safeSummary['issues']);
+        $t->same(2, $safeSummary['selectedUniqueEntryCount']);
+        $t->same($totalSelectedBytes, $safeSummary['selectedUncompressedBytes']);
+        $t->same(3, $safeSummary['handoffEntryCount']);
+        $t->same(3, $safeSummary['readableEntryCount']);
+        $t->same(0, $safeSummary['totalUncompressedSizeExceedsLimitEntryCount']);
+        $t->same(strlen($documentXml), $safeSummary['entries'][0]['bytesRead']);
+        $t->same(hash('sha256', $documentXml), $safeSummary['entries'][1]['contentSha256']);
+        $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
+    },
+
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";

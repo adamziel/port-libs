@@ -4716,6 +4716,9 @@ final class ZipPackage
      *     requiredEntryCount:int,
      *     optionalEntryCount:int,
      *     presentEntryCount:int,
+     *     selectedUniqueEntryCount:int,
+     *     selectedCompressedBytes:int,
+     *     selectedUncompressedBytes:int,
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
@@ -4724,10 +4727,12 @@ final class ZipPackage
      *     failedEntryCount:int,
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
+     *     totalUncompressedSizeExceedsLimitEntryCount:int,
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
      *     maxEntryUncompressedBytes:?int,
+     *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
@@ -4737,9 +4742,14 @@ final class ZipPackage
      *     entries:list<array<string, mixed>>
      * }
      */
-    public function entryHandoffPreflight(array $requests, ?int $maxEntryUncompressedBytes = null): array
+    public function entryHandoffPreflight(
+        array $requests,
+        ?int $maxEntryUncompressedBytes = null,
+        ?int $maxTotalUncompressedBytes = null
+    ): array
     {
         self::assertReadLimit($maxEntryUncompressedBytes, 'selected package entry handoff preflight');
+        self::assertReadLimit($maxTotalUncompressedBytes, 'selected package entry handoff total preflight');
 
         $entries = [];
         $missingEntries = [];
@@ -4753,6 +4763,7 @@ final class ZipPackage
         $missingOptionalEntryCount = 0;
         $directoryMismatchEntryCount = 0;
         $oversizedEntryCount = 0;
+        $totalUncompressedSizeExceedsLimitEntryCount = 0;
         $unreadableEntryCount = 0;
         $normalizedRequests = [];
         $requestGroups = [];
@@ -4833,6 +4844,27 @@ final class ZipPackage
             ];
         }
         $duplicateRequestedEntryCount = count($duplicateRequestIndexes);
+
+        $selectedEntriesByName = [];
+        foreach ($normalizedRequests as $normalizedRequest) {
+            $entry = $this->entriesByName[$normalizedRequest['name']] ?? null;
+            if ($entry instanceof ZipPackageEntry && !isset($selectedEntriesByName[$entry->name])) {
+                $selectedEntriesByName[$entry->name] = $entry;
+            }
+        }
+
+        $selectedCompressedBytes = 0;
+        $selectedUncompressedBytes = 0;
+        foreach ($selectedEntriesByName as $entry) {
+            $selectedCompressedBytes += $entry->compressedSize;
+            $selectedUncompressedBytes += $entry->uncompressedSize;
+        }
+
+        $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
+            && $selectedUncompressedBytes > $maxTotalUncompressedBytes;
+        if ($totalUncompressedSizeExceedsLimit) {
+            self::appendUniqueIssue($issues, 'total-uncompressed-size-exceeds-limit');
+        }
 
         foreach ($normalizedRequests as $normalizedRequest) {
             $requestIndex = $normalizedRequest['requestIndex'];
@@ -4942,6 +4974,11 @@ final class ZipPackage
                 self::appendUniqueIssue($issues, 'entry-uncompressed-size-exceeds-limit');
             }
 
+            if ($totalUncompressedSizeExceedsLimit && !$isDirectory) {
+                $entryIssues[] = 'total-uncompressed-size-exceeds-limit';
+                $totalUncompressedSizeExceedsLimitEntryCount++;
+            }
+
             if ($entryIssues === []) {
                 try {
                     $contents = $this->read($entry->name, $entryMaxUncompressedBytes);
@@ -4980,6 +5017,9 @@ final class ZipPackage
             'requiredEntryCount' => $requiredEntryCount,
             'optionalEntryCount' => $optionalEntryCount,
             'presentEntryCount' => count($presentNames),
+            'selectedUniqueEntryCount' => count($selectedEntriesByName),
+            'selectedCompressedBytes' => $selectedCompressedBytes,
+            'selectedUncompressedBytes' => $selectedUncompressedBytes,
             'missingEntryCount' => count($missingEntries),
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
@@ -4988,10 +5028,12 @@ final class ZipPackage
             'failedEntryCount' => count($failedEntries),
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
+            'totalUncompressedSizeExceedsLimitEntryCount' => $totalUncompressedSizeExceedsLimitEntryCount,
             'unreadableEntryCount' => $unreadableEntryCount,
             'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
