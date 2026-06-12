@@ -258,6 +258,10 @@ final class OpenDocumentPackage
                     'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'],
                     'version' => $entry['version'],
                     'preferredViewMode' => $entry['preferredViewMode'],
+                    'manifestChildCount' => $entry['manifestChildCount'],
+                    'manifestChildren' => $entry['manifestChildren'],
+                    'manifestUnknownChildCount' => $entry['manifestUnknownChildCount'],
+                    'manifestUnknownChildren' => $entry['manifestUnknownChildren'],
                     'exists' => $entry['exists'],
                     'byteLength' => $entry['byteLength'],
                     'storedByteLength' => $entry['storedByteLength'],
@@ -403,6 +407,10 @@ final class OpenDocumentPackage
                 'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestEntry) ? $manifestEntry['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestEntry) ? $manifestEntry['preferredViewMode'] : null,
+                'manifestChildCount' => is_array($manifestEntry) ? $manifestEntry['manifestChildCount'] : 0,
+                'manifestChildren' => is_array($manifestEntry) ? $manifestEntry['manifestChildren'] : [],
+                'manifestUnknownChildCount' => is_array($manifestEntry) ? $manifestEntry['manifestUnknownChildCount'] : 0,
+                'manifestUnknownChildren' => is_array($manifestEntry) ? $manifestEntry['manifestUnknownChildren'] : [],
                 'manifestEncryption' => is_array($manifestEntry) ? $manifestEntry['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
                     ? ($manifestEntry['encryption']['recordCount'] ?? 0)
@@ -574,6 +582,9 @@ final class OpenDocumentPackage
             }
             if (!$hasSupportedCompression) {
                 $diagnostics[] = 'odf-manifest-unsupported-compression-method';
+            }
+            if (($entry['manifestUnknownChildCount'] ?? 0) > 0) {
+                $diagnostics[] = 'odf-manifest-file-entry-unknown-child';
             }
 
             $hydrated[] = $entry + [
@@ -971,6 +982,9 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'manifestFileEntryChildCount' => 0,
+            'manifestFileEntryUnknownChildCount' => 0,
+            'manifestFileEntryUnknownChildItems' => [],
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'items' => [],
@@ -992,6 +1006,19 @@ final class OpenDocumentPackage
             }
             if (is_string($entry['pathFragment'] ?? null)) {
                 ++$summary['manifestPartReferenceFragmentCount'];
+            }
+            $summary['manifestFileEntryChildCount'] += (int) ($entry['manifestChildCount'] ?? 0);
+            $unknownChildCount = (int) ($entry['manifestUnknownChildCount'] ?? 0);
+            if ($unknownChildCount > 0) {
+                $summary['manifestFileEntryUnknownChildCount'] += $unknownChildCount;
+                $summary['manifestFileEntryUnknownChildItems'][] = [
+                    'manifestIndex' => $entry['manifestIndex'] ?? null,
+                    'fullPath' => $entry['path'],
+                    'path' => $entry['path'],
+                    'packagePath' => $entry['packagePath'] ?? null,
+                    'unknownChildCount' => $unknownChildCount,
+                    'unknownChildren' => $entry['manifestUnknownChildren'] ?? [],
+                ];
             }
             if (($entry['exists'] ?? false) === true) {
                 ++$summary['existsCount'];
@@ -1064,6 +1091,10 @@ final class OpenDocumentPackage
             'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
             'version' => $entry['version'] ?? null,
             'preferredViewMode' => $entry['preferredViewMode'] ?? null,
+            'manifestChildCount' => $entry['manifestChildCount'] ?? 0,
+            'manifestChildren' => $entry['manifestChildren'] ?? [],
+            'manifestUnknownChildCount' => $entry['manifestUnknownChildCount'] ?? 0,
+            'manifestUnknownChildren' => $entry['manifestUnknownChildren'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -1099,6 +1130,8 @@ final class OpenDocumentPackage
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
             'mediaType' => $entry['mediaType'],
+            'manifestChildCount' => $entry['manifestChildCount'] ?? 0,
+            'manifestUnknownChildCount' => $entry['manifestUnknownChildCount'] ?? 0,
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -1159,7 +1192,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
-     *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, manifestChildCount:int, manifestChildren:list<array<string, mixed>>, manifestUnknownChildCount:int, manifestUnknownChildren:list<array<string, mixed>>, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -1196,6 +1229,11 @@ final class OpenDocumentPackage
                 $path
             );
             $encryption = self::manifestEncryption($child);
+            $manifestChildren = self::manifestFileEntryChildren($child);
+            $manifestUnknownChildren = array_values(array_filter(
+                $manifestChildren,
+                static fn (array $manifestChild): bool => ($manifestChild['known'] ?? false) !== true
+            ));
             $entries[] = [
                 'manifestIndex' => $manifestIndex,
                 'path' => $path,
@@ -1213,6 +1251,10 @@ final class OpenDocumentPackage
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size,
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
+                'manifestChildCount' => count($manifestChildren),
+                'manifestChildren' => $manifestChildren,
+                'manifestUnknownChildCount' => count($manifestUnknownChildren),
+                'manifestUnknownChildren' => $manifestUnknownChildren,
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
             ];
@@ -1223,6 +1265,58 @@ final class OpenDocumentPackage
             'version' => $manifestVersion,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function manifestFileEntryChildren(\DOMElement $entry): array
+    {
+        $children = [];
+        foreach (self::childElements($entry) as $child) {
+            $known = $child->namespaceURI === self::MANIFEST_NAMESPACE && $child->localName === 'encryption-data';
+            $attributes = self::elementAttributes($child);
+            $children[] = self::withoutNulls([
+                'name' => self::qualifiedElementName($child),
+                'namespaceUri' => self::optionalString($child->namespaceURI),
+                'localName' => $child->localName,
+                'known' => $known,
+                'role' => $known ? 'encryption-data' : 'unknown',
+                'attributeCount' => count($attributes),
+                'attributes' => $attributes,
+            ]);
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<array{name:string, namespaceUri:string|null, localName:string, value:string}>
+     */
+    private static function elementAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $attributes[] = [
+                'name' => self::qualifiedAttributeName($attribute),
+                'namespaceUri' => self::optionalString($attribute->namespaceURI),
+                'localName' => $attribute->localName,
+                'value' => $attribute->value,
+            ];
+        }
+
+        return $attributes;
+    }
+
+    private static function qualifiedAttributeName(\DOMAttr $attribute): string
+    {
+        return $attribute->prefix === null || $attribute->prefix === ''
+            ? $attribute->localName
+            : $attribute->prefix . ':' . $attribute->localName;
     }
 
     /**
@@ -1385,7 +1479,9 @@ final class OpenDocumentPackage
 
     private static function qualifiedElementName(\DOMElement $element): string
     {
-        return $element->prefix === '' ? $element->localName : $element->prefix . ':' . $element->localName;
+        return $element->prefix === null || $element->prefix === ''
+            ? $element->localName
+            : $element->prefix . ':' . $element->localName;
     }
 
     /**

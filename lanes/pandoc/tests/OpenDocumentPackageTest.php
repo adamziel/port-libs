@@ -1138,6 +1138,79 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'preserves compact ODT manifest file-entry child provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $loextNamespace = 'urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0';
+        $manifest = str_replace(
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="' . $loextNamespace . '" manifest:version="1.3">',
+            str_replace(
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+                <<<'XML'
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64"/>
+    <loext:review-state loext:source="migration-desk" loext:stage="preflight"/>
+  </manifest:file-entry>
+XML,
+                $manifestXml
+            )
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $review = $summary['manifestReview'];
+        $media = $summary['mediaParts'][0];
+        $inventoryHero = $summary['packageInventory']['parts']['Pictures/hero.png'];
+        $reviewHero = null;
+        foreach ($review['items'] as $item) {
+            if ($item['path'] === 'Pictures/hero.png') {
+                $reviewHero = $item;
+                break;
+            }
+        }
+
+        $expectedUnknownChild = [
+            'name' => 'loext:review-state',
+            'namespaceUri' => $loextNamespace,
+            'localName' => 'review-state',
+            'known' => false,
+            'role' => 'unknown',
+            'attributeCount' => 2,
+            'attributes' => [
+                ['name' => 'loext:source', 'namespaceUri' => $loextNamespace, 'localName' => 'source', 'value' => 'migration-desk'],
+                ['name' => 'loext:stage', 'namespaceUri' => $loextNamespace, 'localName' => 'stage', 'value' => 'preflight'],
+            ],
+        ];
+
+        $t->same(2, $hero['manifestChildCount']);
+        $t->same('manifest:encryption-data', $hero['manifestChildren'][0]['name']);
+        $t->same(true, $hero['manifestChildren'][0]['known']);
+        $t->same('encryption-data', $hero['manifestChildren'][0]['role']);
+        $t->same(1, $hero['manifestUnknownChildCount']);
+        $t->same([$expectedUnknownChild], $hero['manifestUnknownChildren']);
+        $t->same(['odf-manifest-encrypted-package-part', 'odf-manifest-file-entry-unknown-child'], $hero['diagnostics']);
+
+        $t->same(2, $media['manifestChildCount']);
+        $t->same(1, $media['manifestUnknownChildCount']);
+        $t->same([$expectedUnknownChild], $media['manifestUnknownChildren']);
+        $t->same(false, $media['canExposeBytes']);
+        $t->same(['odf-manifest-encrypted-package-part', 'odf-manifest-file-entry-unknown-child'], $media['diagnostics']);
+
+        $t->same(2, $review['manifestFileEntryChildCount']);
+        $t->same(1, $review['manifestFileEntryUnknownChildCount']);
+        $t->same('Pictures/hero.png', $review['manifestFileEntryUnknownChildItems'][0]['path']);
+        $t->same([$expectedUnknownChild], $review['manifestFileEntryUnknownChildItems'][0]['unknownChildren']);
+        $t->same(2, $reviewHero['manifestChildCount']);
+        $t->same(1, $reviewHero['manifestUnknownChildCount']);
+        $t->same([$expectedUnknownChild], $reviewHero['manifestUnknownChildren']);
+        $t->same(2, $review['manifestFileEntryOrder'][4]['manifestChildCount']);
+        $t->same(1, $review['manifestFileEntryOrder'][4]['manifestUnknownChildCount']);
+
+        $t->same(2, $inventoryHero['manifestChildCount']);
+        $t->same(1, $inventoryHero['manifestUnknownChildCount']);
+        $t->same([$expectedUnknownChild], $inventoryHero['manifestUnknownChildren']);
+        $t->same(1, $inventoryHero['manifestEncryptionRecordCount']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
