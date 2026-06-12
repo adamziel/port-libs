@@ -3085,6 +3085,47 @@ XML, 'package reader XML');
         $t->true(!str_contains($html, '<script>drop()</script>'), 'Expected script-looking template source to stay escaped');
         $t->true(!str_contains($html, '<b>note</b>'), 'Expected inline tag-looking template source to stay escaped');
     },
+    'summarizes html template content review provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $templateSource = '<article id="card"><h2>Title</h2><a href="/more">More</a><img src="cover.png" alt="Cover"><form action="/submit"><input name="q" value="search"></form><script>ignored()</script><iframe src="frame.html"></iframe></article>';
+        $unsafeSource = '<!doctype html><p>Blocked</p>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<template id="card-template">' . $templateSource . '</template>'
+                . '<template id="unsafe-template">' . $unsafeSource . '</template>',
+            'template content review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $card = $summary[0];
+        $unsafe = $summary[1];
+
+        $t->same(2, count($summary));
+        $t->same('template', $card['name']);
+        $t->same('template-content-inert-fragment-review', $card['templateContentReviewPolicy']);
+        $t->same(strlen($templateSource), $card['templateContentByteLength']);
+        $t->same(hash('sha256', $templateSource), $card['templateContentSha256']);
+        $t->same(true, $card['templateContentParsed']);
+        $t->same([], $card['templateContentDiagnostics']);
+        $t->same(['article'], $card['templateContentTopLevelElementNames']);
+        $t->same(1, $card['templateContentTopLevelElementCount']);
+        $t->same('TitleMoreignored()', $card['templateContentText']);
+        $t->same(strlen('TitleMoreignored()'), $card['templateContentTextLength']);
+        $t->same(hash('sha256', 'TitleMoreignored()'), $card['templateContentTextSha256']);
+        $t->same(['/more'], $card['templateContentLinkHrefs']);
+        $t->same(['cover.png'], $card['templateContentImageSources']);
+        $t->same(1, $card['templateContentFormCount']);
+        $t->same(['/submit'], $card['templateContentFormActions']);
+        $t->same(['script'], $card['templateContentActiveElementNames']);
+        $t->same(['iframe'], $card['templateContentEmbeddedElementNames']);
+        $t->true(!str_contains($html, '<script>ignored()</script>'), 'Expected template script source to stay escaped in raw handoff');
+
+        $t->same('template', $unsafe['name']);
+        $t->same($unsafeSource, $unsafe['templateText']);
+        $t->same('template-content-inert-fragment-review', $unsafe['templateContentReviewPolicy']);
+        $t->same(false, $unsafe['templateContentParsed']);
+        $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
+        $t->contains('document type', $unsafe['templateContentError']);
+    },
     'foster-parents invalid table children before deterministic html serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>',
