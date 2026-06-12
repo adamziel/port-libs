@@ -3722,6 +3722,24 @@ XML;
         $t->same($guide, $result['importReport']['guide']);
         $t->same($guide, $result['document']->attr('guide'));
     },
+    'preserves OPF guide and collection link SHA-256 provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $chapter1Xhtml, $chapter2Xhtml): void {
+        $result = (new EpubReader())->readPackage($buildEpubPackage());
+        $guide = $result['guide'];
+        $collection = $result['collections'][0];
+
+        $t->same(hash('sha256', 'PNGDATA'), $guide['items'][0]['byteSha256']);
+        $t->same(hash('sha256', $chapter1Xhtml), $guide['items'][1]['byteSha256']);
+        $t->same(null, $guide['items'][2]['byteSha256']);
+        $t->same($guide['items'][0], $guide['itemsByType']['cover'][0]);
+        $t->same($guide, $result['importReport']['guide']);
+
+        $t->same(hash('sha256', $chapter1Xhtml), $collection['links'][0]['byteSha256']);
+        $t->same(null, $collection['links'][1]['byteSha256']);
+        $t->same(hash('sha256', $chapter2Xhtml), $collection['children'][0]['links'][0]['byteSha256']);
+        $t->same($collection['links'][0], $collection['linkReport']['linksByRel']['first'][0]);
+        $t->same($result['collections'], $result['importReport']['collections']);
+        $t->same($result['collections'], $result['document']->attr('collections'));
+    },
     'reports OPF collection role tokens for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCollectionRoles = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',

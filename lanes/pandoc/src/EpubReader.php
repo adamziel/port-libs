@@ -8347,6 +8347,7 @@ final class EpubReader
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
                 'crc32' => $reference['crc32'],
+                'byteSha256' => $reference['byteSha256'],
                 'manifestId' => $reference['manifestId'],
                 'mediaType' => $reference['mediaType'],
                 'encrypted' => $reference['encrypted'],
@@ -8715,6 +8716,7 @@ final class EpubReader
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
             'crc32' => $reference['crc32'],
+            'byteSha256' => $reference['byteSha256'],
             'mediaType' => $declaredMediaType ?? $reference['mediaType'],
             'manifestId' => $reference['manifestId'],
             'manifestMediaType' => $reference['mediaType'],
@@ -8741,6 +8743,7 @@ final class EpubReader
      *     exists:bool,
      *     byteLength:?int,
      *     crc32:?string,
+     *     byteSha256:?string,
      *     manifestId:?string,
      *     mediaType:?string,
      *     encrypted:bool,
@@ -8770,6 +8773,7 @@ final class EpubReader
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
+                'byteSha256' => null,
                 'manifestId' => null,
                 'mediaType' => null,
                 'encrypted' => false,
@@ -8795,6 +8799,7 @@ final class EpubReader
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
+                'byteSha256' => null,
                 'manifestId' => null,
                 'mediaType' => null,
                 'encrypted' => false,
@@ -8823,6 +8828,7 @@ final class EpubReader
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
+                'byteSha256' => null,
                 'manifestId' => null,
                 'mediaType' => null,
                 'encrypted' => false,
@@ -8840,6 +8846,7 @@ final class EpubReader
         $exists = $package->has($part);
         $entry = $exists ? $package->entry($part) : null;
         $manifestItem = $manifestByPart[$part] ?? null;
+        $canExposeBytes = is_array($manifestItem) ? (bool) ($manifestItem['canExposeBytes'] ?? true) : $exists;
 
         $diagnostics = [];
         if (!$exists) {
@@ -8849,6 +8856,21 @@ final class EpubReader
                 'part' => $part,
                 'message' => 'EPUB OPF ' . $context . ' reference target is missing from the package',
             ];
+        }
+
+        $byteSha256 = is_array($manifestItem) && is_string($manifestItem['byteSha256'] ?? null)
+            ? $manifestItem['byteSha256']
+            : null;
+        if ($byteSha256 === null && $exists && $canExposeBytes) {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => $context . '-reference-bytes-unavailable',
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
         }
 
         return [
@@ -8862,10 +8884,11 @@ final class EpubReader
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'byteSha256' => $byteSha256,
             'manifestId' => is_array($manifestItem) ? (string) $manifestItem['id'] : null,
             'mediaType' => is_array($manifestItem) ? (string) $manifestItem['mediaType'] : null,
             'encrypted' => is_array($manifestItem) && self::isEncryptedManifestItem($manifestItem),
-            'canExposeBytes' => is_array($manifestItem) ? (bool) ($manifestItem['canExposeBytes'] ?? true) : $exists,
+            'canExposeBytes' => $canExposeBytes,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -8882,6 +8905,7 @@ final class EpubReader
      *     exists:false,
      *     byteLength:null,
      *     crc32:null,
+     *     byteSha256:null,
      *     manifestId:null,
      *     mediaType:null,
      *     encrypted:false,
@@ -8902,6 +8926,7 @@ final class EpubReader
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
+            'byteSha256' => null,
             'manifestId' => null,
             'mediaType' => null,
             'encrypted' => false,
