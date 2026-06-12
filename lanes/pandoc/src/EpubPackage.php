@@ -658,6 +658,7 @@ final class EpubPackage
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
                 'manifestExternalItems' => $validationReport['manifest']['externalItems'],
+                'manifestByteProvenance' => $validationReport['manifest']['byteProvenance'],
                 'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
                 'manifestMissingRequiredAttributeItems' => $validationReport['manifest']['missingRequiredAttributeItems'],
                 'manifestMissingRequiredAttributeNames' => $validationReport['manifest']['missingRequiredAttributeNames'],
@@ -1023,6 +1024,7 @@ final class EpubPackage
      */
     private static function packageManifestValidationReport(array $manifestItems, bool $epub3): array
     {
+        $byteProvenance = self::manifestByteProvenanceReport($manifestItems);
         $navItems = [];
         $usableNavItems = [];
         $invalidNavItems = [];
@@ -1298,6 +1300,10 @@ final class EpubPackage
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
             'externalItemCount' => count($externalItems),
+            'byteProvenanceExposableItemCount' => $byteProvenance['exposableItemCount'],
+            'byteProvenanceEncryptedItemCount' => $byteProvenance['encryptedItemCount'],
+            'byteProvenanceMissingItemCount' => $byteProvenance['missingItemCount'],
+            'byteProvenanceExternalItemCount' => $byteProvenance['externalItemCount'],
             'duplicateIdCount' => count($duplicateIdItems),
             'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
@@ -1320,6 +1326,7 @@ final class EpubPackage
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
             'externalItems' => $externalItems,
+            'byteProvenance' => $byteProvenance,
             'duplicateIdItems' => $duplicateIdItems,
             'duplicateManifestIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
@@ -1335,6 +1342,123 @@ final class EpubPackage
             'duplicateMediaTypeParameterItems' => $duplicateMediaTypeParameterItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestByteProvenanceReport(array $manifestItems): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByPart = [];
+        $exposableItems = [];
+        $encryptedItems = [];
+        $missingItems = [];
+        $externalItems = [];
+        $compressionMethodCounts = [];
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
+
+        foreach ($manifestItems as $index => $item) {
+            $id = (string) ($item['id'] ?? '');
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $byteLength = is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null;
+            $compressedByteLength = is_int($item['compressedByteLength'] ?? null) ? $item['compressedByteLength'] : null;
+            $compressionMethodName = is_string($item['compressionMethodName'] ?? null) ? $item['compressionMethodName'] : null;
+            $external = ($item['external'] ?? false) === true;
+            $exists = ($item['exists'] ?? false) === true;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $encryption = is_array($item['encryption'] ?? null) ? $item['encryption'] : null;
+
+            $summary = [
+                'index' => $index,
+                'id' => $id,
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'partName' => $partName,
+                'external' => $external,
+                'exists' => $exists,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'compressionMethod' => is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null,
+                'compressionMethodName' => $compressionMethodName,
+                'compressionSupported' => is_bool($item['compressionSupported'] ?? null) ? $item['compressionSupported'] : null,
+                'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => is_array($encryption) && is_string($encryption['byteExposurePolicy'] ?? null)
+                    ? $encryption['byteExposurePolicy']
+                    : null,
+                'diagnosticCount' => count(is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : []),
+            ];
+
+            $items[] = $summary;
+            if ($id !== '') {
+                $itemsById[$id] = $summary;
+            }
+            if ($partName !== null && $partName !== '' && !isset($itemsByPart[$partName])) {
+                $itemsByPart[$partName] = $summary;
+            }
+            if ($compressionMethodName !== null) {
+                $compressionMethodCounts[$compressionMethodName] = ($compressionMethodCounts[$compressionMethodName] ?? 0) + 1;
+            }
+            if ($byteLength !== null) {
+                $totalByteLength += $byteLength;
+                if ($canExposeBytes) {
+                    $exposableByteLength += $byteLength;
+                }
+            }
+            if ($compressedByteLength !== null) {
+                $totalCompressedByteLength += $compressedByteLength;
+                if ($canExposeBytes) {
+                    $exposableCompressedByteLength += $compressedByteLength;
+                }
+            }
+            if ($canExposeBytes) {
+                $exposableItems[] = $summary;
+            }
+            if ($encrypted) {
+                $encryptedItems[] = $summary;
+            }
+            if (!$external && !$exists) {
+                $missingItems[] = $summary;
+            }
+            if ($external) {
+                $externalItems[] = $summary;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+        ksort($itemsByPart, SORT_STRING);
+        ksort($compressionMethodCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'exposableItemCount' => count($exposableItems),
+            'encryptedItemCount' => count($encryptedItems),
+            'missingItemCount' => count($missingItems),
+            'externalItemCount' => count($externalItems),
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'exposableByteLength' => $exposableByteLength,
+            'exposableCompressedByteLength' => $exposableCompressedByteLength,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByPart' => $itemsByPart,
+            'exposableItems' => $exposableItems,
+            'encryptedItems' => $encryptedItems,
+            'missingItems' => $missingItems,
+            'externalItems' => $externalItems,
         ];
     }
 

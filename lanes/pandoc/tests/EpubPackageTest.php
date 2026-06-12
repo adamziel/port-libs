@@ -4685,6 +4685,89 @@ XML;
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 
+    'summarizes OPF manifest byte provenance for compact package review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $chapterXml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>';
+        $coverBytes = 'PNG-COVER';
+        $fontBytes = 'LOCKED-FONT';
+        $opfWithByteProvenance = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:manifest-byte-provenance-review</dc:identifier>
+    <dc:title>Manifest byte provenance</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T03:23:01Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="font-main" href="fonts/locked.ttf" media-type="font/ttf"/>
+    <item id="missing-audio" href="audio/missing.mp3" media-type="audio/mpeg"/>
+    <item id="remote-record" href="https://records.example.invalid/source.json" media-type="application/json"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData><CipherReference URI="EPUB/fonts/locked.ttf"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithByteProvenance],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => $chapterXml],
+            ['name' => 'EPUB/images/cover.png', 'data' => $coverBytes, 'compressionMethod' => 0],
+            ['name' => 'EPUB/fonts/locked.ttf', 'data' => $fontBytes],
+        ]));
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $byteProvenance = $validation['manifest']['byteProvenance'];
+        $itemsById = $byteProvenance['itemsById'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(6, $byteProvenance['itemCount']);
+        $t->same(3, $byteProvenance['exposableItemCount']);
+        $t->same(1, $byteProvenance['encryptedItemCount']);
+        $t->same(1, $byteProvenance['missingItemCount']);
+        $t->same(1, $byteProvenance['externalItemCount']);
+        $t->same(strlen($navXml) + strlen($chapterXml) + strlen($coverBytes) + strlen($fontBytes), $byteProvenance['totalByteLength']);
+        $t->same(strlen($navXml) + strlen($chapterXml) + strlen($coverBytes), $byteProvenance['exposableByteLength']);
+        $t->same(1, $byteProvenance['compressionMethodCounts']['stored']);
+        $t->same(3, $byteProvenance['compressionMethodCounts']['deflated']);
+
+        $t->same('/EPUB/images/cover.png', $itemsById['cover']['partName']);
+        $t->same('stored', $itemsById['cover']['compressionMethodName']);
+        $t->same(true, $itemsById['cover']['canExposeBytes']);
+        $t->same('font-main', $byteProvenance['itemsByPart']['/EPUB/fonts/locked.ttf']['id']);
+        $t->same(true, $itemsById['font-main']['encrypted']);
+        $t->same(false, $itemsById['font-main']['canExposeBytes']);
+        $t->same('obfuscated-font-bytes-blocked', $itemsById['font-main']['byteExposurePolicy']);
+        $t->same('missing-audio', $byteProvenance['missingItems'][0]['id']);
+        $t->same(false, $itemsById['missing-audio']['exists']);
+        $t->same('remote-record', $byteProvenance['externalItems'][0]['id']);
+        $t->same(true, $itemsById['remote-record']['external']);
+        $t->same($byteProvenance, $summary['wordpressImport']['manifestByteProvenance']);
+        $t->same($byteProvenance, $summary['wordpressImport']['packageValidation']['manifest']['byteProvenance']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',
