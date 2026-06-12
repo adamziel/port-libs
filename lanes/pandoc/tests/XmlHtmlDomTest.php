@@ -559,6 +559,42 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html emphasis and importance semantics for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><em>Stress</em><strong>Important</strong><b>Keyword</b><i>Taxon</i></p>',
+            'emphasis importance semantic review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/emphasis-semantics-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $emphasis = $paragraph['children'][0];
+        $strong = $paragraph['children'][1];
+        $attention = $paragraph['children'][2];
+        $offset = $paragraph['children'][3];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('StressImportantKeywordTaxon', $paragraph['text']);
+        $t->same('em', $emphasis['semanticTag']);
+        $t->same('stress-emphasis', $emphasis['textSemantic']);
+        $t->same('Stress', $emphasis['semanticText']);
+        $t->same('strong', $strong['semanticTag']);
+        $t->same('strong-importance', $strong['textSemantic']);
+        $t->same('Important', $strong['semanticText']);
+        $t->same('b', $attention['semanticTag']);
+        $t->same('bring-attention', $attention['textSemantic']);
+        $t->same('Keyword', $attention['semanticText']);
+        $t->same('i', $offset['semanticTag']);
+        $t->same('idiomatic-offset', $offset['textSemantic']);
+        $t->same('Taxon', $offset['semanticText']);
+        $t->same('<p><em>Stress</em><strong>Important</strong><b>Keyword</b><i>Taxon</i></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/emphasis-semantics-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html ruby annotation provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ruby id="term">base<rp>(</rp><rt>annotation</rt><rp>)</rp><rtc><rt>alternate</rt><rt>source</rt></rtc><rb>tail</rb><rt>tail-note</rt></ruby></p>',

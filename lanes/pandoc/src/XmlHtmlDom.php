@@ -938,7 +938,7 @@ final class XmlHtmlDom
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
-        if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
+        if (in_array($name, ['abbr', 'b', 'bdi', 'bdo', 'code', 'dfn', 'em', 'i', 'kbd', 'mark', 's', 'samp', 'small', 'strong', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
         if (in_array($name, ['br', 'hr', 'wbr'], true)) {
@@ -1358,15 +1358,19 @@ final class XmlHtmlDom
         $summary = [
             'textSemantic' => match ($name) {
                 'abbr' => 'abbreviation',
+                'b' => 'bring-attention',
                 'bdi' => 'bidirectional-isolate',
                 'bdo' => 'bidirectional-override',
                 'code' => 'code',
                 'dfn' => 'definition',
+                'em' => 'stress-emphasis',
+                'i' => 'idiomatic-offset',
                 'kbd' => 'keyboard-input',
                 'mark' => 'mark',
                 's' => 'struck-text',
                 'samp' => 'sample-output',
                 'small' => 'side-comment',
+                'strong' => 'strong-importance',
                 'sub' => 'subscript',
                 'sup' => 'superscript',
                 'u' => 'unarticulated-annotation',
