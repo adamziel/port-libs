@@ -86,6 +86,7 @@ final class OdfReader
      *     media:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
+     *     packageConfigurations:array<string, mixed>,
      *     packageObjectReplacements:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
@@ -122,6 +123,7 @@ final class OdfReader
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
         $packageFonts = $this->packageFontMetadata($package, $manifest, $undeclaredEntries);
+        $packageConfigurations = $this->packageConfigurationMetadata($package, $manifest, $undeclaredEntries);
         $packageObjectReplacements = $this->packageObjectReplacementMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
         if ($packageThumbnails['count'] > 0) {
@@ -129,6 +131,9 @@ final class OdfReader
         }
         if ($packageFonts['count'] > 0) {
             $metadata['odfPackageFonts'] = $packageFonts;
+        }
+        if ($packageConfigurations['count'] > 0) {
+            $metadata['odfPackageConfigurations'] = $packageConfigurations;
         }
         if ($packageObjectReplacements['count'] > 0) {
             $metadata['odfPackageObjectReplacements'] = $packageObjectReplacements;
@@ -184,6 +189,7 @@ final class OdfReader
             'scriptMetadata' => $scriptMetadata,
             'packageThumbnails' => $packageThumbnails,
             'packageFonts' => $packageFonts,
+            'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
@@ -207,6 +213,7 @@ final class OdfReader
             'media' => $media,
             'packageThumbnails' => $packageThumbnails,
             'packageFonts' => $packageFonts,
+            'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
@@ -274,6 +281,7 @@ final class OdfReader
                 ],
                 'packageThumbnails' => $packageThumbnails,
                 'packageFonts' => $packageFonts,
+                'packageConfigurations' => $packageConfigurations,
                 'packageObjectReplacements' => $packageObjectReplacements,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
@@ -12595,6 +12603,213 @@ final class OdfReader
         }
 
         return $media;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array<string, mixed>
+     */
+    private function packageConfigurationMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !self::isConfigurationPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $part = $entry['part'] ?? null;
+            if (!is_string($part) || $part === '' || !self::isConfigurationPackagePartName($part)) {
+                continue;
+            }
+
+            $mediaType = $this->configurationMediaTypeFromPart($part) ?? '';
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'partReference' => $part,
+                'partSuffix' => null,
+                'partQuery' => null,
+                'partFragment' => null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'isDirectory' => false,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'configuration-package-bytes-blocked',
+            ];
+        }
+
+        ksort($candidatesByPart, SORT_STRING);
+        $items = [];
+        $issueCodes = [];
+        $kindCounts = [];
+        $groupCounts = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $isDirectory = str_ends_with($part, '/');
+            $exists = $isDirectory || $entry instanceof ZipPackageEntry;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declared = ($item['declared'] ?? false) === true;
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            if ($mediaType === '' && !$declared) {
+                $mediaType = $this->configurationMediaTypeFromPart($part) ?? '';
+            }
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $missingMediaType = $mediaType === '' && !$isDirectory;
+            $mediaTypeValid = $mediaType === '' || $this->isConfigurationMediaType($mediaType);
+            $kind = $this->configurationPartKind($part, $mediaType, $isDirectory);
+            $group = self::configurationPartGroup($part);
+            $issues = [];
+            if (!$exists) {
+                $issues[] = 'odf-configuration-package-missing-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-configuration-package-undeclared-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-configuration-package-encrypted-part';
+            }
+            if ($missingMediaType) {
+                $issues[] = 'odf-configuration-package-missing-media-type';
+            } elseif (!$mediaTypeValid) {
+                $issues[] = 'odf-configuration-package-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            if ($group !== null) {
+                $groupCounts[$group] = ($groupCounts[$group] ?? 0) + 1;
+            }
+
+            $items[] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'kind' => $kind,
+                'group' => $group,
+                'packageRoot' => 'Configurations2',
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $exists && !$encrypted && !$missingMediaType && $mediaTypeValid,
+                'byteLength' => null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
+                'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'configuration-package-bytes-blocked'),
+                'reviewPolicy' => 'configuration-package-metadata-only',
+                'encryption' => $item['encryption'] ?? null,
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+        ksort($groupCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'partCount' => count($items),
+            'fileCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
+            'storedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['storedByteLength'] !== null)),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-configuration-package-missing-media-type', $item['issues'], true))),
+            'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-configuration-package-invalid-media-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'groupCounts' => $groupCounts,
+            'byteExposurePolicy' => 'configuration-package-bytes-blocked',
+            'reviewPolicy' => 'configuration-package-metadata-only',
+            'items' => $items,
+        ];
+    }
+
+    private function configurationMediaTypeFromPart(string $part): ?string
+    {
+        $imageMediaType = $this->thumbnailMediaTypeFromPart($part);
+        if ($imageMediaType !== null) {
+            return $imageMediaType;
+        }
+
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+        return in_array($extension, ['xml', 'xcu', 'xcs', 'xdl'], true) ? 'text/xml' : null;
+    }
+
+    private function configurationPartKind(string $part, string $mediaType, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'configuration-directory';
+        }
+
+        $group = self::configurationPartGroup($part);
+        if ($group === 'images') {
+            return 'image-configuration-resource';
+        }
+        if (in_array($group, ['accelerator', 'toolbar', 'statusbar', 'menubar', 'popupmenu', 'floater', 'progressbar'], true)) {
+            return $group . '-configuration';
+        }
+        if ($mediaType !== '' && str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/')) {
+            return 'image-configuration-resource';
+        }
+        if (($mediaType !== '' && $this->isXmlMediaType($mediaType)) || str_ends_with(strtolower($part), '.xml')) {
+            return 'xml-configuration';
+        }
+
+        return 'configuration-resource';
+    }
+
+    private static function configurationPartGroup(string $part): ?string
+    {
+        $segments = explode('/', trim($part, '/'));
+        $group = strtolower($segments[1] ?? '');
+
+        return $group === '' ? null : $group;
+    }
+
+    private function isConfigurationMediaType(string $mediaType): bool
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return $this->isXmlMediaType($mediaType) || str_starts_with($base, 'image/');
     }
 
     /**
