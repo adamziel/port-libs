@@ -109,6 +109,7 @@ final class EpubReader
      *     cssResourceReport:array<string, mixed>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>,
+     *     packageInventory:array<string, mixed>,
      *     importReport:array<string, mixed>
      * }
      */
@@ -121,6 +122,7 @@ final class EpubReader
 
         $opf = $this->readOpf($package, $opfPart);
         $renditions = $this->readRenditions($package, $container, $opfPart, $opf);
+        $packageInventory = $this->packageInventoryReport($package, $opfPart, $opf['manifest']);
         $document = $this->documentNode(
             $opf['metadata'],
             $opfPart,
@@ -144,7 +146,8 @@ final class EpubReader
             $opf['cssResourceReport'],
             $opf['assetReport'],
             $renditions,
-            $ocf
+            $ocf,
+            $packageInventory
         );
 
         return [
@@ -180,11 +183,13 @@ final class EpubReader
             'cssResourceReport' => $opf['cssResourceReport'],
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
+            'packageInventory' => $packageInventory,
             'importReport' => [
                 'container' => $container,
                 'metadata' => $opf['metadata'],
                 'package' => $opf['package'],
                 'manifest' => self::importManifestReport($opf['manifest']),
+                'packageInventory' => $packageInventory,
                 'spine' => [
                     'count' => count($opf['spine']),
                     'items' => $opf['spine'],
@@ -19460,6 +19465,286 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private function packageInventoryReport(ZipPackage $package, string $opfPart, array $manifest): array
+    {
+        $manifestByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $manifestByPart[$part][] = $item;
+        }
+
+        $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $localOrderByName = [];
+        foreach ($localHeaderOrder['entries'] as $entry) {
+            if (is_array($entry) && is_string($entry['name'] ?? null)) {
+                $localOrderByName[$entry['name']] = $entry;
+            }
+        }
+
+        $compressionMethods = $package->compressionMethodPreflight();
+        $parts = [];
+        $roleCounts = [];
+        $unmanifestedRoleCounts = [];
+        $structuralPackagePartCount = 0;
+        $opfManifestDeclaredPartCount = 0;
+        $ocfSidecarPartCount = 0;
+        $unmanifestedEntryCount = 0;
+        $xhtmlContentPartCount = 0;
+        $navigationPartCount = 0;
+        $mediaResourcePartCount = 0;
+        $packageDirectoryCount = 0;
+
+        foreach ($package->entries() as $centralDirectoryIndex => $entry) {
+            $part = self::entryPackagePartName($entry);
+            $manifestItems = $manifestByPart[$part] ?? [];
+            $roles = self::packageInventoryPartRoles($entry, $part, $opfPart, $manifestItems);
+            $localOrder = $localOrderByName[$entry->name] ?? null;
+            $manifestIds = array_values(array_map(
+                static fn (array $item): string => (string) ($item['id'] ?? ''),
+                $manifestItems
+            ));
+            $manifestHrefs = array_values(array_map(
+                static fn (array $item): string => (string) ($item['href'] ?? ''),
+                $manifestItems
+            ));
+            $manifestMediaTypes = array_values(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                    $manifestItems
+                ),
+                static fn (?string $mediaType): bool => $mediaType !== null && $mediaType !== ''
+            ));
+
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                if (in_array('unmanifested-package-entry', $roles, true)) {
+                    $unmanifestedRoleCounts[$role] = ($unmanifestedRoleCounts[$role] ?? 0) + 1;
+                }
+            }
+
+            if (array_intersect($roles, ['epub-mimetype', 'ocf-container', 'opf-package']) !== []) {
+                ++$structuralPackagePartCount;
+            }
+            if (in_array('opf-manifest-declared', $roles, true)) {
+                ++$opfManifestDeclaredPartCount;
+            }
+            if (array_intersect($roles, ['ocf-manifest-sidecar', 'ocf-metadata-sidecar', 'ocf-rights-sidecar', 'ocf-signatures-sidecar', 'ocf-encryption-sidecar']) !== []) {
+                ++$ocfSidecarPartCount;
+            }
+            if (in_array('unmanifested-package-entry', $roles, true)) {
+                ++$unmanifestedEntryCount;
+            }
+            if (in_array('epub-xhtml', $roles, true)) {
+                ++$xhtmlContentPartCount;
+            }
+            if (array_intersect($roles, ['epub-nav-document', 'epub-ncx']) !== []) {
+                ++$navigationPartCount;
+            }
+            if (array_intersect($roles, ['epub-image', 'epub-svg', 'epub-audio', 'epub-video', 'epub-font']) !== []) {
+                ++$mediaResourcePartCount;
+            }
+            if ($entry->isDirectory()) {
+                ++$packageDirectoryCount;
+            }
+
+            $parts[$part] = [
+                'part' => $part,
+                'name' => $entry->name,
+                'roles' => $roles,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
+                'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
+                'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'crc32' => $entry->crc32Hex(),
+                'directory' => $entry->isDirectory(),
+                'manifestDeclared' => $manifestItems !== [],
+                'manifestIds' => $manifestIds,
+                'manifestHrefs' => $manifestHrefs,
+                'manifestMediaTypes' => $manifestMediaTypes,
+                'unmanifested' => in_array('unmanifested-package-entry', $roles, true),
+            ];
+        }
+
+        ksort($parts, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($unmanifestedRoleCounts, SORT_STRING);
+
+        return [
+            'entryCount' => count($package->entries()),
+            'opfPart' => $opfPart,
+            'opfManifestDeclaredPartCount' => $opfManifestDeclaredPartCount,
+            'unmanifestedEntryCount' => $unmanifestedEntryCount,
+            'structuralPackagePartCount' => $structuralPackagePartCount,
+            'ocfSidecarPartCount' => $ocfSidecarPartCount,
+            'xhtmlContentPartCount' => $xhtmlContentPartCount,
+            'navigationPartCount' => $navigationPartCount,
+            'mediaResourcePartCount' => $mediaResourcePartCount,
+            'packageDirectoryCount' => $packageDirectoryCount,
+            'roles' => array_keys($roleCounts),
+            'roleCounts' => $roleCounts,
+            'unmanifestedRoleCounts' => $unmanifestedRoleCounts,
+            'parts' => $parts,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'localHeaderOrder' => $localHeaderOrder,
+            'compressionMethods' => $compressionMethods,
+        ];
+    }
+
+    private static function entryPackagePartName(ZipPackageEntry $entry): string
+    {
+        if ($entry->isDirectory()) {
+            return '/' . trim($entry->name, '/') . '/';
+        }
+
+        return OpcPackagePath::canonicalPartName($entry->name);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return list<string>
+     */
+    private static function packageInventoryPartRoles(
+        ZipPackageEntry $entry,
+        string $part,
+        string $opfPart,
+        array $manifestItems
+    ): array {
+        $roles = [];
+        if ($part === '/mimetype') {
+            $roles[] = 'epub-mimetype';
+        }
+        if ($part === '/META-INF/container.xml') {
+            $roles[] = 'ocf-container';
+        }
+        if ($part === $opfPart) {
+            $roles[] = 'opf-package';
+        }
+
+        $sidecarRole = self::ocfSidecarInventoryRole($part);
+        if ($sidecarRole !== null) {
+            $roles[] = $sidecarRole;
+        }
+
+        if ($manifestItems !== []) {
+            $roles[] = 'opf-manifest-declared';
+            foreach ($manifestItems as $item) {
+                foreach (self::manifestItemInventoryRoles($item, $part) as $role) {
+                    $roles[] = $role;
+                }
+            }
+        } elseif (!$entry->isDirectory() && !self::isEpubStructuralPart($part, $opfPart)) {
+            foreach (self::mediaTypeInventoryRoles(self::mediaTypeFromPart($part), $part) as $role) {
+                $roles[] = $role;
+            }
+            $roles[] = 'unmanifested-package-entry';
+        }
+
+        if ($entry->isDirectory()) {
+            $roles[] = 'zip-directory';
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    private static function ocfSidecarInventoryRole(string $part): ?string
+    {
+        return match ($part) {
+            '/META-INF/manifest.xml' => 'ocf-manifest-sidecar',
+            '/META-INF/metadata.xml' => 'ocf-metadata-sidecar',
+            '/META-INF/rights.xml' => 'ocf-rights-sidecar',
+            '/META-INF/signatures.xml' => 'ocf-signatures-sidecar',
+            '/META-INF/encryption.xml' => 'ocf-encryption-sidecar',
+            default => null,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function manifestItemInventoryRoles(array $item, string $part): array
+    {
+        $roles = [];
+        $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+        if (in_array('nav', $properties, true)) {
+            $roles[] = 'epub-nav-document';
+        }
+        if (in_array('cover-image', $properties, true)) {
+            $roles[] = 'epub-cover-image';
+        }
+
+        foreach (self::mediaTypeInventoryRoles(is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null, $part) as $role) {
+            $roles[] = $role;
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function mediaTypeInventoryRoles(?string $mediaType, string $part): array
+    {
+        if ($mediaType === null || trim($mediaType) === '') {
+            return [];
+        }
+
+        $baseMediaType = self::mediaTypeParts($mediaType)['base'];
+
+        if ($baseMediaType === self::XHTML_MEDIA_TYPE) {
+            return ['epub-xhtml'];
+        }
+        if ($baseMediaType === self::NCX_MEDIA_TYPE) {
+            return ['epub-ncx'];
+        }
+        if ($baseMediaType === self::SMIL_MEDIA_TYPE) {
+            return ['epub-media-overlay'];
+        }
+        if ($baseMediaType === 'text/css') {
+            return ['epub-stylesheet'];
+        }
+        if ($baseMediaType === 'image/svg+xml') {
+            return ['epub-svg'];
+        }
+        if (str_starts_with($baseMediaType, 'image/')) {
+            return ['epub-image'];
+        }
+        if (str_starts_with($baseMediaType, 'audio/')) {
+            return ['epub-audio'];
+        }
+        if (str_starts_with($baseMediaType, 'video/')) {
+            return ['epub-video'];
+        }
+        if (self::isFontResource($mediaType, $part)) {
+            return ['epub-font'];
+        }
+
+        return [];
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => "method-{$method}",
+        };
+    }
+
+    /**
      * @param list<array<string, mixed>> $coverImages
      *
      * @return array{count:int, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
@@ -20064,6 +20349,7 @@ final class EpubReader
      * @param array<string, mixed> $assetReport
      * @param array<string, mixed> $renditions
      * @param array<string, mixed> $ocf
+     * @param array<string, mixed> $packageInventory
      */
     private function documentNode(
         array $metadata,
@@ -20088,7 +20374,8 @@ final class EpubReader
         array $cssResourceReport,
         array $assetReport,
         array $renditions,
-        array $ocf
+        array $ocf,
+        array $packageInventory
     ): AstNode {
         $assetsByPart = [];
         foreach ($xhtmlAssets as $asset) {
@@ -20229,6 +20516,7 @@ final class EpubReader
             'spineContentProvenance' => $spineContentProvenance,
             'renditions' => $renditions,
             'ocf' => $ocf,
+            'packageInventory' => $packageInventory,
             'title' => $metadata['title'] ?? '',
         ], $children);
     }

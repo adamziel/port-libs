@@ -4110,6 +4110,75 @@ XML;
         $t->same($provenance['itemsById']['chapter-1'], $provenance['itemsByPart']['/OEBPS/text/chapter1.xhtml']);
         $t->same($result['manifest'], $result['importReport']['manifest']['items']);
     },
+    'summarizes EPUB ZIP package inventory role buckets for import review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithAudio = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="chapter-audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>';
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithAudio,
+            null,
+            [
+                ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+                ['name' => 'OEBPS/audio/chapter.mp3', 'data' => 'MP3-REVIEW'],
+                ['name' => 'OEBPS/images/orphan.png', 'data' => 'ORPHAN-PNG', 'compressionMethod' => 0],
+            ]
+        ));
+        $inventory = $result['packageInventory'];
+        $parts = $inventory['parts'];
+
+        $t->same($inventory, $result['importReport']['packageInventory']);
+        $t->same($inventory, $result['document']->attr('packageInventory'));
+        $t->same(12, $inventory['entryCount']);
+        $t->same('/OEBPS/package.opf', $inventory['opfPart']);
+        $t->same(7, $inventory['opfManifestDeclaredPartCount']);
+        $t->same(1, $inventory['unmanifestedEntryCount']);
+        $t->same(3, $inventory['structuralPackagePartCount']);
+        $t->same(1, $inventory['ocfSidecarPartCount']);
+        $t->same(3, $inventory['xhtmlContentPartCount']);
+        $t->same(2, $inventory['navigationPartCount']);
+        $t->same(3, $inventory['mediaResourcePartCount']);
+        $t->same([
+            'epub-audio' => 1,
+            'epub-cover-image' => 1,
+            'epub-image' => 2,
+            'epub-mimetype' => 1,
+            'epub-nav-document' => 1,
+            'epub-ncx' => 1,
+            'epub-stylesheet' => 1,
+            'epub-xhtml' => 3,
+            'ocf-container' => 1,
+            'ocf-signatures-sidecar' => 1,
+            'opf-manifest-declared' => 7,
+            'opf-package' => 1,
+            'unmanifested-package-entry' => 1,
+        ], $inventory['roleCounts']);
+        $t->same([
+            'epub-image' => 1,
+            'unmanifested-package-entry' => 1,
+        ], $inventory['unmanifestedRoleCounts']);
+
+        $t->same(['epub-mimetype'], $parts['/mimetype']['roles']);
+        $t->same(['ocf-container'], $parts['/META-INF/container.xml']['roles']);
+        $t->same(['opf-package'], $parts['/OEBPS/package.opf']['roles']);
+        $t->same(['opf-manifest-declared', 'epub-nav-document', 'epub-xhtml'], $parts['/OEBPS/nav.xhtml']['roles']);
+        $t->same(['opf-manifest-declared', 'epub-audio'], $parts['/OEBPS/audio/chapter.mp3']['roles']);
+        $t->same(['opf-manifest-declared', 'epub-ncx'], $parts['/OEBPS/toc.ncx']['roles']);
+        $t->same(['ocf-signatures-sidecar'], $parts['/META-INF/signatures.xml']['roles']);
+        $t->same(['epub-image', 'unmanifested-package-entry'], $parts['/OEBPS/images/orphan.png']['roles']);
+        $t->same(false, $parts['/META-INF/signatures.xml']['unmanifested']);
+        $t->same(true, $parts['/OEBPS/images/orphan.png']['unmanifested']);
+        $t->same(['chapter-audio'], $parts['/OEBPS/audio/chapter.mp3']['manifestIds']);
+        $t->same(['audio/chapter.mp3'], $parts['/OEBPS/audio/chapter.mp3']['manifestHrefs']);
+        $t->same('stored', $parts['/mimetype']['compressionMethodName']);
+        $t->same(true, $inventory['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(3, $inventory['compressionMethods']['storedEntryCount']);
+        $t->same(9, $inventory['compressionMethods']['deflatedEntryCount']);
+    },
     'reports duplicate OPF manifest package parts for import preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithDuplicateTargets = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
