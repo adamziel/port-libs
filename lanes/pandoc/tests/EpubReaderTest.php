@@ -4727,6 +4727,84 @@ XML;
         );
         $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
     },
+    'preserves OPF metadata link media type parameter provenance' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $reviewRecordBytes = '{"@context":"https://schema.org","name":"Parameterized EPUB review record"}';
+        $manifestedRecordBytes = '{"@context":"https://schema.org","name":"Manifest-declared EPUB review record"}';
+        $badRecordBytes = '{"@context":"https://schema.org","name":"Bad media type record"}';
+        $opfWithLinkMediaTypes = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="publication-record" href="meta/publication-record.json" media-type="application/ld+json; profile=manifested"/>'
+            . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithLinkMediaTypes = str_replace(
+            '</metadata>',
+            '<link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json; profile=review; charset=UTF-8" properties="schema-org reviewer"/>'
+            . '<link id="manifested-record" rel="record" href="meta/publication-record.json"/>'
+            . '<link id="bad-record" rel="record" href="meta/bad-record.json" media-type="application/x-review; profile"/>'
+            . '</metadata>',
+            $opfWithLinkMediaTypes
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithLinkMediaTypes,
+            null,
+            [
+                ['name' => 'OEBPS/meta/review-record.json', 'data' => $reviewRecordBytes],
+                ['name' => 'OEBPS/meta/publication-record.json', 'data' => $manifestedRecordBytes],
+                ['name' => 'OEBPS/meta/bad-record.json', 'data' => $badRecordBytes],
+            ]
+        ));
+
+        $links = $result['metadata']['links'];
+        $t->same('application/ld+json; profile=review; charset=UTF-8', $links[0]['declaredMediaType']);
+        $t->same('application/ld+json; profile=review; charset=UTF-8', $links[0]['effectiveMediaType']);
+        $t->same('declared', $links[0]['mediaTypeSource']);
+        $t->same('application/ld+json; profile=review; charset=utf-8', $links[0]['normalizedMediaType']);
+        $t->same('application/ld+json', $links[0]['baseMediaType']);
+        $t->same(['profile' => 'review', 'charset' => 'UTF-8'], $links[0]['mediaTypeParameters']);
+        $t->same(['profile', 'charset'], $links[0]['mediaTypeParameterNames']);
+        $t->same(2, $links[0]['mediaTypeParameterCount']);
+        $t->same(true, $links[0]['mediaTypeSyntaxValid']);
+        $t->same([], $links[0]['mediaTypeDiagnostics']);
+
+        $t->same(null, $links[1]['declaredMediaType']);
+        $t->same('application/ld+json; profile=manifested', $links[1]['effectiveMediaType']);
+        $t->same('manifest', $links[1]['mediaTypeSource']);
+        $t->same('application/ld+json; profile=manifested', $links[1]['normalizedMediaType']);
+        $t->same(['profile' => 'manifested'], $links[1]['mediaTypeParameters']);
+        $t->same('publication-record', $links[1]['manifestId']);
+
+        $t->same('application/x-review; profile', $links[2]['declaredMediaType']);
+        $t->same('application/x-review', $links[2]['baseMediaType']);
+        $t->same(false, $links[2]['mediaTypeSyntaxValid']);
+        $t->same([], $links[2]['mediaTypeParameters']);
+        $t->same('invalid-metadata-link-media-type-parameter', $links[2]['mediaTypeDiagnostics'][0]['type']);
+        $t->same('profile', $links[2]['mediaTypeDiagnostics'][0]['parameter']);
+        $t->same('bad-record', $links[2]['mediaTypeDiagnostics'][0]['id']);
+
+        $mediaTypes = $result['metadata']['linkMediaTypes'];
+        $t->same(true, $mediaTypes['present']);
+        $t->same(3, $mediaTypes['linkCount']);
+        $t->same(2, $mediaTypes['declaredLinkCount']);
+        $t->same(1, $mediaTypes['manifestInheritedLinkCount']);
+        $t->same(2, $mediaTypes['parameterizedLinkCount']);
+        $t->same(3, $mediaTypes['parameterCount']);
+        $t->same(['charset', 'profile'], $mediaTypes['parameterNames']);
+        $t->same(1, $mediaTypes['invalidMediaTypeCount']);
+        $t->same(['application/ld+json' => 2, 'application/x-review' => 1], $mediaTypes['baseMediaTypes']);
+        $t->same('invalid-metadata-link-media-type-parameter', $mediaTypes['diagnostics'][0]['type']);
+        $t->same($links[0]['mediaTypeParameters'], $mediaTypes['items'][0]['mediaTypeParameters']);
+        $t->same($links[1]['mediaTypeParameters'], $mediaTypes['items'][1]['mediaTypeParameters']);
+        $t->same($links[2]['mediaTypeDiagnostics'], $mediaTypes['items'][2]['diagnostics']);
+
+        $targetReport = $result['metadata']['linkTargetReport'];
+        $t->same($links[0]['mediaTypeParameters'], $targetReport['publicationItems'][0]['mediaTypeParameters']);
+        $t->same('manifest', $targetReport['publicationItems'][1]['mediaTypeSource']);
+        $t->same($links[2]['mediaTypeDiagnostics'], $targetReport['publicationItems'][2]['mediaTypeDiagnostics']);
+        $t->same($mediaTypes, $result['importReport']['metadata']['linkMediaTypes']);
+        $t->same($mediaTypes, $result['document']->attr('metadata')['linkMediaTypes']);
+    },
     'preserves OPF metadata link title provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"Titled publication record"}';
         $chapterRecordBytes = '{"@context":"https://schema.org","name":"Titled chapter record"}';
