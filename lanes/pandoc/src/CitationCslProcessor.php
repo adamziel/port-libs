@@ -1277,9 +1277,17 @@ final class CitationCslProcessor
                 'publicationTitleAddon',
                 'publicationtitleaddon',
             ]),
-            'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle', 'maintitle']),
+            'mainTitle' => self::composedStringField(
+                $item,
+                ['main-title', 'mainTitle', 'maintitle'],
+                ['main-subtitle', 'mainSubtitle', 'mainsubtitle']
+            ),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon', 'maintitleaddon']),
-            'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),
+            'volumeTitle' => self::composedStringField(
+                $item,
+                ['volume-title', 'volumeTitle', 'volumetitle'],
+                ['volume-subtitle', 'volumeSubtitle', 'volumesubtitle']
+            ),
             'volumeTitleShort' => self::firstStringField($item, ['volume-title-short', 'volumeTitleShort', 'volumetitleshort']),
             'partTitle' => self::firstStringField($item, ['part-title', 'partTitle', 'parttitle']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
@@ -1303,7 +1311,11 @@ final class CitationCslProcessor
             'number' => self::stringField($item, 'number'),
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::stringField($item, 'issue'),
-            'issueTitle' => self::firstStringField($item, ['issue-title', 'issueTitle', 'issuetitle']),
+            'issueTitle' => self::composedStringField(
+                $item,
+                ['issue-title', 'issueTitle', 'issuetitle'],
+                ['issue-subtitle', 'issueSubtitle', 'issuesubtitle']
+            ),
             'issueTitleAddon' => self::firstStringField($item, ['issue-title-addon', 'issueTitleAddon', 'issuetitleaddon']),
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle', 'collectiontitle']),

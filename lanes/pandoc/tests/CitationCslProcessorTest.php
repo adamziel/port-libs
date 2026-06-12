@@ -27031,6 +27031,98 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json title family subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-camel-title-subtitles',
+                'type' => 'chapter',
+                'title' => 'Camel Direct Title Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'mainTitle' => 'Migration Source Set',
+                'mainSubtitle' => 'Reviewer Annex',
+                'volumeTitle' => 'Review Volume',
+                'volumeSubtitle' => 'Packet Appendix',
+                'issueTitle' => 'Special Import Issue',
+                'issueSubtitle' => 'Field Notes',
+            ],
+            [
+                'id' => 'direct-compact-title-subtitles',
+                'type' => 'article-journal',
+                'title' => 'Compact Direct Title Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'maintitle' => 'Compact Source Set',
+                'mainsubtitle' => 'Audit Supplement',
+                'volumetitle' => 'Compact Review Volume',
+                'volumesubtitle' => 'Archive Packet',
+                'issuetitle' => 'Compact Special Issue',
+                'issuesubtitle' => 'Migration Notes',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-camel-title-subtitles');
+        $compact = $processor->item('direct-compact-title-subtitles');
+        $t->same('Migration Source Set: Reviewer Annex', $camel['mainTitle'] ?? null);
+        $t->same('Review Volume: Packet Appendix', $camel['volumeTitle'] ?? null);
+        $t->same('Special Import Issue: Field Notes', $camel['issueTitle'] ?? null);
+        $t->same('Compact Source Set: Audit Supplement', $compact['mainTitle'] ?? null);
+        $t->same('Compact Review Volume: Archive Packet', $compact['volumeTitle'] ?? null);
+        $t->same('Compact Special Issue: Migration Notes', $compact['issueTitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Title Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-title-subtitle-alias-review</id>
+    <updated>2026-06-12T01:04:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title"/>
+        <text variable="volume-title"/>
+        <text variable="issue-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="issue-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Title Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('main-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('issue-title', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | Migration Source Set: Reviewer Annex | Review Volume: Packet Appendix | Special Import Issue: Field Notes; Ng | Compact Source Set: Audit Supplement | Compact Review Volume: Archive Packet | Compact Special Issue: Migration Notes]', $styled->renderCitationCluster([
+            $citation('direct-camel-title-subtitles', '[@direct-camel-title-subtitles]'),
+            $citation('direct-compact-title-subtitles', '[@direct-compact-title-subtitles]'),
+        ]));
+        $t->same('Camel Direct Title Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Special Import Issue: Field Notes', $styled->renderBibliographyEntry('direct-camel-title-subtitles'));
+        $t->same('Compact Direct Title Packet :: Compact Source Set: Audit Supplement :: Compact Review Volume: Archive Packet :: Compact Special Issue: Migration Notes', $styled->renderBibliographyEntry('direct-compact-title-subtitles'));
+
+        $document = (new MarkdownReader())->read('Direct title subtitles [@direct-camel-title-subtitles; @direct-compact-title-subtitles] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct title subtitles [Ames | Migration Source Set: Reviewer Annex | Review Volume: Packet Appendix | Special Import Issue: Field Notes; Ng | Compact Source Set: Audit Supplement | Compact Review Volume: Archive Packet | Compact Special Issue: Migration Notes] remain visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Camel Direct Title Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Special Import Issue: Field Notes</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Compact Direct Title Packet :: Compact Source Set: Audit Supplement :: Compact Review Volume: Archive Packet :: Compact Special Issue: Migration Notes</dd>', $blocks);
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
