@@ -9995,9 +9995,12 @@ XML;
             ['name' => 'META-INF/macrosignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature'],
         ]));
         $signatures = $result['signatureMetadata'];
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $provenanceParts = $provenance['parts'];
 
         $t->same($signatures, $result['document']->attr('signatureMetadata'));
         $t->same($signatures, $result['importReport']['signatureMetadata']);
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(2, $signatures['partCount']);
         $t->same(1, $signatures['parsedPartCount']);
         $t->same(1, $signatures['parseErrorCount']);
@@ -10006,6 +10009,23 @@ XML;
         $t->same(['Pictures/hero.png', 'content.xml'], $signatures['signedParts']);
         $t->same(7, $result['importReport']['manifest']['count']);
         $t->same(1, count($result['media']), 'signature XML sidecars must stay out of media byte handoff');
+        $t->same(2, $provenance['packageSignaturePartCount']);
+        $t->same([
+            'manifest-declared' => 6,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-styles' => 1,
+            'package-signature' => 2,
+        ], $provenance['roleCounts']);
+        $t->same(['package-signature', 'manifest-declared'], $provenanceParts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $provenanceParts['META-INF/macrosignatures.xml']['roles']);
+        $t->same('text/xml', $provenanceParts['META-INF/documentsignatures.xml']['manifestMediaType']);
+        $t->same(true, $provenanceParts['META-INF/documentsignatures.xml']['canExposeBytes']);
+        $t->same('text/xml', $provenanceParts['META-INF/macrosignatures.xml']['manifestMediaType']);
+        $t->same(true, $provenanceParts['META-INF/macrosignatures.xml']['canExposeBytes']);
 
         $documentSignatures = $signatures['parts'][0];
         $macroSignatures = $signatures['parts'][1];
@@ -10031,6 +10051,52 @@ XML;
         $t->same(strlen('contentdigest'), $signature['references'][0]['digestValueLength']);
         $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
         $t->same('Pictures/hero.png', $signature['references'][1]['part']);
+    },
+    'classifies ODT XML signature sidecars in package provenance role buckets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithDeclaredSignature = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDeclaredSignature, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+            ['name' => 'META-INF/orphan-signatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(8, $provenance['entryCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(2, $provenance['packageSignaturePartCount']);
+        $t->same([
+            'manifest-declared' => 5,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-styles' => 1,
+            'package-signature' => 2,
+            'undeclared-package-entry' => 1,
+        ], $provenance['roleCounts']);
+        $t->same([
+            'package-signature' => 1,
+            'undeclared-package-entry' => 1,
+        ], $provenance['undeclaredRoleCounts']);
+        $t->same(['package-signature', 'manifest-declared'], $parts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(true, $parts['META-INF/documentsignatures.xml']['declaredInManifest']);
+        $t->same('text/xml', $parts['META-INF/documentsignatures.xml']['manifestMediaType']);
+        $t->same(true, $parts['META-INF/documentsignatures.xml']['canExposeBytes']);
+        $t->same(['package-signature', 'undeclared-package-entry'], $parts['META-INF/orphan-signatures.xml']['roles']);
+        $t->same(false, $parts['META-INF/orphan-signatures.xml']['declaredInManifest']);
+        $t->same(null, $parts['META-INF/orphan-signatures.xml']['manifestMediaType']);
+        $t->same(false, $parts['META-INF/orphan-signatures.xml']['canExposeBytes']);
+        $t->same(2, $result['signatureMetadata']['partCount']);
+        $t->same(1, count($result['media']), 'signature sidecars must stay out of document media handoff');
     },
     'maps ODT XML signature reference target package diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $encryptedBytes = 'ENCRYPTEDPNG';
