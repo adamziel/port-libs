@@ -5207,7 +5207,9 @@ return [
     },
 
     'preflights zip local header variable field byte provenance before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $localReviewExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $localAuditExtra = pack('vva*', 0xbeef, strlen('local-audit'), 'local-audit');
+        $localExtra = $localReviewExtra . $localAuditExtra;
         $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
@@ -5237,12 +5239,17 @@ return [
         $t->same(strlen('word/document.xml') + strlen('word/media/review.bin'), $summary['localHeaderNameBytes']);
         $t->same(strlen($localExtra), $summary['localHeaderExtraFieldBytes']);
         $t->same(strlen('word/document.xml') + strlen('word/media/review.bin') + strlen($localExtra), $summary['localHeaderVariableFieldBytes']);
+        $t->same(strlen($localExtra), $summary['localHeaderReviewFieldBytes']);
         $t->same(1, $summary['localExtraFieldEntryCount']);
+        $t->same(2, $summary['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $summary['localExtraFieldRecordIds']);
+        $t->same(['cafe', 'beef'], $summary['localExtraFieldRecordIdHexes']);
         $t->same(0, $summary['skippedArchiveExtraDataRecordCount']);
         $t->same(0, $summary['skippedArchiveExtraDataRecordBytes']);
         $t->same([], $summary['skippedArchiveExtraDataRecords']);
         $t->same(true, $summary['hasLocalHeaderVariableFields']);
         $t->same(true, $summary['hasLocalExtraFields']);
+        $t->same(true, $summary['hasLocalHeaderReviewFields']);
         $t->same(true, $summary['isSupportedByBoundedReader']);
         $t->same([], $summary['issues']);
 
@@ -5258,11 +5265,26 @@ return [
         $t->same($first['rawNameOffset'] + $first['rawNameLength'], $first['localExtraFieldOffset']);
         $t->same(strlen($localExtra), $first['localExtraFieldLength']);
         $t->same($first['localExtraFieldOffset'] + $first['localExtraFieldLength'], $first['dataStart']);
+        $t->same(strlen($localExtra), $first['localReviewFieldBytes']);
+        $t->same(2, $first['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $first['localExtraFieldIds']);
+        $t->same(['cafe', 'beef'], $first['localExtraFieldIdHexes']);
+        $t->same([], $first['localExtraFieldStructureIssues']);
+        $t->same($first['localExtraFieldOffset'], $first['localExtraFieldRecords'][0]['localExtraFieldRecordOffset']);
+        $t->same($first['localExtraFieldOffset'] + 4, $first['localExtraFieldRecords'][0]['localExtraFieldDataOffset']);
+        $t->same($first['localExtraFieldOffset'] + strlen($localReviewExtra), $first['localExtraFieldRecords'][0]['localExtraFieldRecordEnd']);
+        $t->same($first['localExtraFieldOffset'] + strlen($localReviewExtra), $first['localExtraFieldRecords'][1]['localExtraFieldRecordOffset']);
+        $t->same($first['dataStart'], $first['localExtraFieldRecords'][1]['localExtraFieldRecordEnd']);
         $t->same(true, $first['hasLocalExtraFields']);
+        $t->same($first, $summary['largestLocalExtraFieldEntry']);
 
         $t->same('word/media/review.bin', $second['name']);
         $t->same('word/media/review.bin', $second['centralName']);
         $t->same(0, $second['localExtraFieldLength']);
+        $t->same(0, $second['localReviewFieldBytes']);
+        $t->same(0, $second['localExtraFieldRecordCount']);
+        $t->same([], $second['localExtraFieldIds']);
+        $t->same([], $second['localExtraFieldRecords']);
         $t->same(false, $second['hasLocalExtraFields']);
         $t->same($second['localHeaderOffset'] + 30, $second['variableFieldsOffset']);
         $t->same(strlen('word/media/review.bin'), $second['variableFieldsLength']);
@@ -5271,6 +5293,7 @@ return [
         $t->same($summary, $rawStrict['localHeaderVariableFields']);
         $t->same($summary, $strict['localHeaderVariableFields']);
         $t->same($summary['localHeaderVariableFieldBytes'], $localHeaders['localHeaderVariableFieldBytes']);
+        $t->same($summary['localExtraFieldRecordIds'], $localHeaders['localExtraFieldRecordIds']);
         $t->same($first['dataStart'], $localHeaders['entries'][0]['dataStart']);
     },
 
