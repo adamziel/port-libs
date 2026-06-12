@@ -261,6 +261,68 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html inert and custom element export attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="widget-host" inert part="card title card" exportparts="title:review-title, icon, bad:mapping:extra, invalid name:alias" slot="primary-panel" is="review-widget"><button part="action primary" slot="controls" inert>Save</button></section>'
+                . '<p part="valid invalid=name" slot="bad slot" is="InvalidWidget">Fallback</p>',
+            'inert custom element review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/custom-element-attributes-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $host = $summary[0];
+        $button = $host['children'][0];
+        $fallback = $summary[1];
+
+        $t->same('widget-host', $host['elementId']);
+        $t->same('', $host['inertRaw']);
+        $t->same(true, $host['inert']);
+        $t->same('primary-panel', $host['slotRaw']);
+        $t->same('primary-panel', $host['slotName']);
+        $t->same(true, $host['slotValid']);
+        $t->same('card title card', $host['partRaw']);
+        $t->same(['card', 'title', 'card'], $host['partTokens']);
+        $t->same(['card', 'title'], $host['partNames']);
+        $t->same([], $host['invalidPartTokens']);
+        $t->same(true, $host['partValid']);
+        $t->same('title:review-title, icon, bad:mapping:extra, invalid name:alias', $host['exportPartsRaw']);
+        $t->same(['title', 'icon'], $host['exportPartNames']);
+        $t->same(['review-title', 'icon'], $host['exportPartAliases']);
+        $t->same(['bad:mapping:extra', 'invalid name:alias'], $host['invalidExportParts']);
+        $t->same(false, $host['exportPartsValid']);
+        $t->same([
+            ['raw' => 'title:review-title', 'source' => 'title', 'alias' => 'review-title', 'renamed' => true, 'valid' => true],
+            ['raw' => 'icon', 'source' => 'icon', 'alias' => 'icon', 'renamed' => false, 'valid' => true],
+            ['raw' => 'bad:mapping:extra', 'source' => 'bad', 'alias' => 'mapping', 'renamed' => false, 'valid' => false],
+            ['raw' => 'invalid name:alias', 'source' => 'invalid name', 'alias' => 'alias', 'renamed' => false, 'valid' => false],
+        ], $host['exportParts']);
+        $t->same('review-widget', $host['isRaw']);
+        $t->same('review-widget', $host['customElementName']);
+        $t->same(true, $host['customElementValid']);
+
+        $t->same(true, $button['inert']);
+        $t->same('controls', $button['slotName']);
+        $t->same(['action', 'primary'], $button['partNames']);
+        $t->same(true, $button['partValid']);
+
+        $t->same('bad slot', $fallback['slotRaw']);
+        $t->same('bad slot', $fallback['slotName']);
+        $t->same(false, $fallback['slotValid']);
+        $t->same(['valid', 'invalid=name'], $fallback['partTokens']);
+        $t->same(['invalid=name'], $fallback['invalidPartTokens']);
+        $t->same(false, $fallback['partValid']);
+        $t->same('InvalidWidget', $fallback['isRaw']);
+        $t->same('InvalidWidget', $fallback['customElementName']);
+        $t->same(false, $fallback['customElementValid']);
+
+        $t->same('<section exportparts="title:review-title, icon, bad:mapping:extra, invalid name:alias" id="widget-host" inert is="review-widget" part="card title card" slot="primary-panel"><button inert part="action primary" slot="controls">Save</button></section><p is="InvalidWidget" part="valid invalid=name" slot="bad slot">Fallback</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/custom-element-attributes-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html input hint attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="entry" autocapitalize="on"><input id="amount" inputmode="Decimal" enterkeyhint="Done" autocapitalize="characters">'

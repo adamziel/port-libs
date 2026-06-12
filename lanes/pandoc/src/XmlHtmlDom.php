@@ -1711,6 +1711,11 @@ final class XmlHtmlDom
             $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
         }
 
+        if (array_key_exists('inert', $attributes)) {
+            $summary['inertRaw'] = $attributes['inert'];
+            $summary['inert'] = true;
+        }
+
         if (array_key_exists('translate', $attributes)) {
             $translate = strtolower(trim($attributes['translate']));
             $summary['translateRaw'] = $attributes['translate'];
@@ -1750,6 +1755,39 @@ final class XmlHtmlDom
                 'false' => false,
                 default => null,
             };
+        }
+
+        if (array_key_exists('slot', $attributes)) {
+            $slot = self::slotAttributeSummary($attributes['slot']);
+            $summary['slotRaw'] = $attributes['slot'];
+            $summary['slotName'] = $slot['name'];
+            $summary['slotValid'] = $slot['valid'];
+        }
+
+        if (array_key_exists('part', $attributes)) {
+            $parts = self::partTokenListSummary($attributes['part']);
+            $summary['partRaw'] = $attributes['part'];
+            $summary['partTokens'] = $parts['tokens'];
+            $summary['partNames'] = $parts['names'];
+            $summary['invalidPartTokens'] = $parts['invalid'];
+            $summary['partValid'] = $parts['valid'];
+        }
+
+        if (array_key_exists('exportparts', $attributes)) {
+            $exportParts = self::exportPartsSummary($attributes['exportparts']);
+            $summary['exportPartsRaw'] = $attributes['exportparts'];
+            $summary['exportParts'] = $exportParts['items'];
+            $summary['exportPartNames'] = $exportParts['names'];
+            $summary['exportPartAliases'] = $exportParts['aliases'];
+            $summary['invalidExportParts'] = $exportParts['invalid'];
+            $summary['exportPartsValid'] = $exportParts['valid'];
+        }
+
+        if (array_key_exists('is', $attributes)) {
+            $custom = self::customElementNameSummary($attributes['is']);
+            $summary['isRaw'] = $attributes['is'];
+            $summary['customElementName'] = $custom['name'];
+            $summary['customElementValid'] = $custom['valid'];
         }
 
         if (array_key_exists('accesskey', $attributes)) {
@@ -1874,6 +1912,117 @@ final class XmlHtmlDom
         $value = strtolower(trim($value));
 
         return in_array($value, ['hide', 'show', 'toggle'], true) ? $value : null;
+    }
+
+    /**
+     * @return array{name:?string, valid:bool}
+     */
+    private static function slotAttributeSummary(string $value): array
+    {
+        $name = trim($value);
+
+        return [
+            'name' => $name === '' ? null : $name,
+            'valid' => $name !== '' && self::isHtmlReferenceToken($name),
+        ];
+    }
+
+    /**
+     * @return array{tokens:list<string>, names:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function partTokenListSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $names = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            if (!self::isHtmlReferenceToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $names, true)) {
+                $names[] = $token;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'names' => $names,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    /**
+     * @return array{items:list<array<string, mixed>>, names:list<string>, aliases:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function exportPartsSummary(string $value): array
+    {
+        $items = [];
+        $names = [];
+        $aliases = [];
+        $invalid = [];
+        foreach (explode(',', $value) as $rawItem) {
+            $raw = trim($rawItem);
+            if ($raw === '') {
+                continue;
+            }
+
+            $segments = array_map('trim', explode(':', $raw));
+            $source = $segments[0] ?? '';
+            $alias = count($segments) === 1 ? $source : ($segments[1] ?? '');
+            $valid = count($segments) <= 2
+                && self::isHtmlReferenceToken($source)
+                && self::isHtmlReferenceToken($alias);
+            if (!$valid) {
+                $invalid[] = $raw;
+            } else {
+                if (!in_array($source, $names, true)) {
+                    $names[] = $source;
+                }
+                if (!in_array($alias, $aliases, true)) {
+                    $aliases[] = $alias;
+                }
+            }
+
+            $items[] = [
+                'raw' => $raw,
+                'source' => $source === '' ? null : $source,
+                'alias' => $alias === '' ? null : $alias,
+                'renamed' => $valid && $source !== $alias,
+                'valid' => $valid,
+            ];
+        }
+
+        return [
+            'items' => $items,
+            'names' => $names,
+            'aliases' => $aliases,
+            'invalid' => $invalid,
+            'valid' => $items !== [] && $invalid === [],
+        ];
+    }
+
+    /**
+     * @return array{name:?string, valid:bool}
+     */
+    private static function customElementNameSummary(string $value): array
+    {
+        $name = trim($value);
+
+        return [
+            'name' => $name === '' ? null : $name,
+            'valid' => $name !== ''
+                && preg_match('/^[a-z][.0-9_a-z-]*-[.0-9_a-z-]*$/', $name) === 1
+                && self::isHtmlReferenceToken($name),
+        ];
+    }
+
+    private static function isHtmlReferenceToken(string $token): bool
+    {
+        return $token !== ''
+            && preg_match('/[\s<>"\'`=,:\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) !== 1;
     }
 
     /**
