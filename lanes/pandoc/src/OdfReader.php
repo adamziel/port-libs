@@ -12432,6 +12432,12 @@ final class OdfReader
             'directoryCount' => 0,
             'missingCount' => 0,
             'encryptedCount' => 0,
+            'versionedItemCount' => 0,
+            'manifestVersions' => [],
+            'versionedItems' => [],
+            'preferredViewModeCount' => 0,
+            'preferredViewModes' => [],
+            'preferredViewModeItems' => [],
             'declaredSizeMismatchCount' => 0,
             'parameterizedItemCount' => 0,
             'mediaTypeParameterNames' => [],
@@ -12463,6 +12469,8 @@ final class OdfReader
             $declaredSize = $item['declaredSize'] ?? null;
             $compressionMethod = $item['compressionMethod'] ?? null;
             $itemDiagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
+            $manifestVersion = trim((string) ($item['version'] ?? ''));
+            $preferredViewMode = trim((string) ($item['preferredViewMode'] ?? ''));
 
             if ($isDirectory) {
                 ++$summary['directoryCount'];
@@ -12475,6 +12483,34 @@ final class OdfReader
             }
             if ($declaredSizeMismatch) {
                 ++$summary['declaredSizeMismatchCount'];
+            }
+            if ($manifestVersion !== '') {
+                ++$summary['versionedItemCount'];
+                if (!in_array($manifestVersion, $summary['manifestVersions'], true)) {
+                    $summary['manifestVersions'][] = $manifestVersion;
+                }
+                $summary['versionedItems'][] = self::withoutEmpty([
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $item['part'] ?? null,
+                    'mediaType' => $mediaType,
+                    'version' => $manifestVersion,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                ]);
+            }
+            if ($preferredViewMode !== '') {
+                ++$summary['preferredViewModeCount'];
+                if (!in_array($preferredViewMode, $summary['preferredViewModes'], true)) {
+                    $summary['preferredViewModes'][] = $preferredViewMode;
+                }
+                $summary['preferredViewModeItems'][] = self::withoutEmpty([
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $item['part'] ?? null,
+                    'mediaType' => $mediaType,
+                    'preferredViewMode' => $preferredViewMode,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                ]);
             }
             if (is_int($storedByteLength)) {
                 $summary['storedByteLength'] += $storedByteLength;
@@ -12548,6 +12584,10 @@ final class OdfReader
                     'missingCount' => 0,
                     'directoryCount' => 0,
                     'encryptedCount' => 0,
+                    'versionedItemCount' => 0,
+                    'manifestVersions' => [],
+                    'preferredViewModeCount' => 0,
+                    'preferredViewModes' => [],
                     'declaredSizeMismatchCount' => 0,
                     'storedByteLength' => 0,
                     'compressedByteLength' => 0,
@@ -12595,6 +12635,18 @@ final class OdfReader
             }
             if ($encrypted) {
                 ++$groups[$groupMediaType]['encryptedCount'];
+            }
+            if ($manifestVersion !== '') {
+                ++$groups[$groupMediaType]['versionedItemCount'];
+                if (!in_array($manifestVersion, $groups[$groupMediaType]['manifestVersions'], true)) {
+                    $groups[$groupMediaType]['manifestVersions'][] = $manifestVersion;
+                }
+            }
+            if ($preferredViewMode !== '') {
+                ++$groups[$groupMediaType]['preferredViewModeCount'];
+                if (!in_array($preferredViewMode, $groups[$groupMediaType]['preferredViewModes'], true)) {
+                    $groups[$groupMediaType]['preferredViewModes'][] = $preferredViewMode;
+                }
             }
             if ($declaredSizeMismatch) {
                 ++$groups[$groupMediaType]['declaredSizeMismatchCount'];

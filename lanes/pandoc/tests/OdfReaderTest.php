@@ -10281,16 +10281,40 @@ XML;
             $manifestByPath[$item['fullPath']] = $item;
         }
         $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $manifestSummary = $result['importReport']['manifest']['mediaTypeSummary'];
         $manifestOrder = $provenance['manifestFileEntryOrder'];
         $inventory = $provenance['parts'];
+        $summaryByType = [];
+        foreach ($manifestSummary['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same($manifestSummary, $result['document']->attr('manifest')['mediaTypeSummary']);
         $t->same(6, $provenance['manifestFileEntryCount']);
         $t->same([0, 1, 2, 3, 4, 5], array_column($result['manifest'], 'manifestIndex'));
         $t->same(['/', 'styles.xml', 'Pictures/hero.png', 'content.xml', 'Pictures/missing.png', 'meta.xml'], array_column($manifestOrder, 'fullPath'));
         $t->same([0, 1, 2, 3, 4, 5], array_column($manifestOrder, 'manifestIndex'));
         $t->same(['1.3', '1.2', '1.1', '1.2', null, null], array_column($manifestOrder, 'version'));
         $t->same(['edit', null, 'thumbnail', 'page-preview', null, null], array_column($manifestOrder, 'preferredViewMode'));
+        $t->same(4, $manifestSummary['versionedItemCount']);
+        $t->same(['1.3', '1.2', '1.1'], $manifestSummary['manifestVersions']);
+        $t->same(['/', 'styles.xml', 'Pictures/hero.png', 'content.xml'], array_column($manifestSummary['versionedItems'], 'fullPath'));
+        $t->same(3, $manifestSummary['preferredViewModeCount']);
+        $t->same(['edit', 'thumbnail', 'page-preview'], $manifestSummary['preferredViewModes']);
+        $t->same(['/', 'Pictures/hero.png', 'content.xml'], array_column($manifestSummary['preferredViewModeItems'], 'fullPath'));
+        $t->same(1, $summaryByType[OdfReader::MIMETYPE]['versionedItemCount']);
+        $t->same(['1.3'], $summaryByType[OdfReader::MIMETYPE]['manifestVersions']);
+        $t->same(1, $summaryByType[OdfReader::MIMETYPE]['preferredViewModeCount']);
+        $t->same(['edit'], $summaryByType[OdfReader::MIMETYPE]['preferredViewModes']);
+        $t->same(2, $summaryByType['text/xml']['versionedItemCount']);
+        $t->same(['1.2'], $summaryByType['text/xml']['manifestVersions']);
+        $t->same(1, $summaryByType['text/xml']['preferredViewModeCount']);
+        $t->same(['page-preview'], $summaryByType['text/xml']['preferredViewModes']);
+        $t->same(1, $summaryByType['image/png']['versionedItemCount']);
+        $t->same(['1.1'], $summaryByType['image/png']['manifestVersions']);
+        $t->same(1, $summaryByType['image/png']['preferredViewModeCount']);
+        $t->same(['thumbnail'], $summaryByType['image/png']['preferredViewModes']);
 
         $t->same(1, $manifestByPath['styles.xml']['manifestIndex']);
         $t->same(2, $manifestByPath['Pictures/hero.png']['manifestIndex']);
