@@ -26188,6 +26188,84 @@ XML);
         $t->contains('<dt>Diaz 2026</dt><dd>Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french</dd>', $blocks);
     },
+    'maps bounded biblatex series creator names into csl rendering' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{series-creator-packet,
+  author        = {Writer, Wendy},
+  seriescreator = {{Series Review Board} and {Series Curator}},
+  title         = {Series Creator Packet},
+  date          = {2026},
+  series        = {Review Series}
+}
+
+@book{hyphen-series-creator,
+  author         = {Alias, Ari},
+  series-creator = {{Hyphen Series Board}},
+  title          = {Hyphen Series Creator Packet},
+  date           = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('series-creator-packet', $items[0]['id'] ?? null);
+        $t->same('Series Review Board', $items[0]['series-creator'][0]['literal'] ?? null);
+        $t->same('Series Curator', $items[0]['series-creator'][1]['literal'] ?? null);
+        $t->same('hyphen-series-creator', $items[1]['id'] ?? null);
+        $t->same('Hyphen Series Board', $items[1]['series-creator'][0]['literal'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $series = $processor->item('series-creator-packet');
+        $hyphen = $processor->item('hyphen-series-creator');
+        $t->same('Series Review Board', $series['seriesCreators'][0]['literal'] ?? null);
+        $t->same('Series Curator', $series['seriesCreators'][1]['literal'] ?? null);
+        $t->same('Hyphen Series Board', $hyphen['seriesCreators'][0]['literal'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Series Creator Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-creator-review</id>
+    <updated>2026-06-12T02:34:19+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="series-creator"/>
+        <text variable="collection-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="series-creator"/>
+      <text variable="collection-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Series Creator Review', $summary['title'] ?? null);
+        $t->same('series-creator', $citationChildren[1]['variable'] ?? null);
+        $t->same('series-creator', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Writer | Series Review Board and Series Curator | Review Series; Alias | Hyphen Series Board]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'series-creator-packet', 'text' => '[@series-creator-packet]']),
+            new AstNode('citation', ['id' => 'hyphen-series-creator', 'text' => '[@hyphen-series-creator]']),
+        ]));
+        $t->same('Series Creator Packet :: Series Review Board; Series Curator :: Review Series', $styled->renderBibliographyEntry('series-creator-packet'));
+        $t->same('Hyphen Series Creator Packet :: Hyphen Series Board', $styled->renderBibliographyEntry('hyphen-series-creator'));
+
+        $document = (new MarkdownReader())->read('Series creator handoff [@series-creator-packet; @hyphen-series-creator] keeps source series credits visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creator handoff [Writer | Series Review Board and Series Curator | Review Series; Alias | Hyphen Series Board] keeps source series credits visible.</p>', $blocks);
+        $t->contains('<dt>Writer 2026</dt><dd>Series Creator Packet :: Series Review Board; Series Curator :: Review Series</dd>', $blocks);
+        $t->contains('<dt>Alias 2025</dt><dd>Hyphen Series Creator Packet :: Hyphen Series Board</dd>', $blocks);
+    },
     'normalizes bounded direct csl json schema citation variables' => static function (TestRunner $t): void {
         $json = json_encode([
             [

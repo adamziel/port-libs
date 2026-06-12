@@ -22,6 +22,8 @@ final class BibtexCslParser
         'collectioneditor',
         'series-editor',
         'serieseditor',
+        'series-creator',
+        'seriescreator',
         'compiler',
         'composer',
         'contributor',
@@ -994,6 +996,7 @@ final class BibtexCslParser
             'reviser' => ['reviser'],
             'collaborator' => ['collaborator'],
             'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
+            'series-creator' => ['seriescreator', 'series-creator'],
         ] as $cslNameVariable => $fieldNames) {
             $names = self::namesFromFirstBibtexField($fields, $fieldNames);
             if ($names !== []) {
