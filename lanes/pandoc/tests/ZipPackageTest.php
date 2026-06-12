@@ -10020,6 +10020,94 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
     },
 
+    'summarizes largest zip package entries for shared package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $largestBytes = str_repeat('L', 160);
+        $documentXml = '<w:document><w:body><w:p>' . str_repeat('document size review ', 5) . '</w:p></w:body></w:document>';
+        $tieAlphaBytes = str_repeat('A', 80);
+        $tieBetaBytes = str_repeat('B', 80);
+        $tinyBytes = 'tiny';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/tie-beta.bin',
+                'data' => $tieBetaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/tiny.txt',
+                'data' => $tinyBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/largest.bin',
+                'data' => $largestBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/tie-alpha.bin',
+                'data' => $tieAlphaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $largestCompressed = strlen(gzdeflate($largestBytes));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $expectedNames = [
+            'word/media/largest.bin',
+            'word/document.xml',
+            'word/media/tie-alpha.bin',
+            'word/media/tie-beta.bin',
+            'word/media/tiny.txt',
+        ];
+
+        $summary = $package->sizePreflight();
+        $centralSummary = ZipPackage::centralDirectorySizePreflight($zip, 4096, 200.0);
+        $strictSummary = $package->strictImportPreflight(4096, 200.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 200.0, 4096);
+
+        $t->same(5, $summary['largestEntryLimit']);
+        $t->same(5, $summary['largestEntryCount']);
+        $t->same($expectedNames, array_column($summary['largestEntries'], 'name'));
+        $t->same('word/media/largest.bin', $summary['largestEntry']['name']);
+        $t->same($summary['largestEntry'], $summary['largestEntries'][0]);
+        $t->same(8, $summary['largestEntries'][0]['compressionMethod']);
+        $t->same(false, $summary['largestEntries'][0]['isDirectory']);
+        $t->same($largestCompressed, $summary['largestEntries'][0]['compressedSize']);
+        $t->same(strlen($largestBytes), $summary['largestEntries'][0]['uncompressedSize']);
+        $t->same(strlen($largestBytes) / $largestCompressed, $summary['largestEntries'][0]['expansionRatio']);
+        $t->same($documentCompressed, $summary['largestEntries'][1]['compressedSize']);
+        $t->same(strlen($documentXml), $summary['largestEntries'][1]['uncompressedSize']);
+        $t->same(strlen($tieAlphaBytes), $summary['largestEntries'][2]['uncompressedSize']);
+        $t->same(strlen($tieBetaBytes), $summary['largestEntries'][3]['uncompressedSize']);
+        $t->same(strlen($tinyBytes), $summary['largestEntries'][4]['uncompressedSize']);
+
+        $t->same(5, $centralSummary['largestEntryLimit']);
+        $t->same(5, $centralSummary['largestEntryCount']);
+        $t->same($expectedNames, array_column($centralSummary['largestEntries'], 'name'));
+        $t->same($expectedNames, array_column($rawStrict['centralDirectorySize']['largestEntries'], 'name'));
+        $t->same($summary['largestEntries'], $strictSummary['size']['largestEntries']);
+        $t->same($summary['largestEntries'], $rawStrict['strictImport']['size']['largestEntries']);
+
+        $centralLargest = $centralSummary['largestEntries'][0];
+        $t->same('word/media/largest.bin', $centralLargest['name']);
+        $t->same(3, $centralLargest['centralDirectoryIndex']);
+        $t->same('deflated', $centralLargest['compressionMethodName']);
+        $t->same($largestCompressed, $centralLargest['compressedSize']);
+        $t->same(strlen($largestBytes), $centralLargest['uncompressedSize']);
+        $t->same(false, $centralLargest['hasZip64SizeSentinel']);
+        $t->same([], $centralLargest['issues']);
+        $t->same(true, $rawStrict['isValid']);
+    },
+
     'preflights zero byte zip entry buckets before package byte handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>zero byte package preflight</w:p></w:body></w:document>';
         $mediaBytes = "active media bytes\n";

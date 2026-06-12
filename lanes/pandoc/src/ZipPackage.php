@@ -29,6 +29,7 @@ final class ZipPackage
     private const INFOZIP_UNIX_UID_GID_EXTRA_ID = 0x7875;
     private const WINZIP_AES_EXTRA_ID = 0x9901;
     private const UINT32_FACTOR = 4294967296;
+    private const SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT = 5;
     private const UNIX_HOST_SYSTEM = 3;
     private const DOS_READ_ONLY_ATTRIBUTE = 0x01;
     private const DOS_HIDDEN_ATTRIBUTE = 0x02;
@@ -8257,7 +8258,10 @@ final class ZipPackage
      *     expansionRatio:?float,
      *     maxTotalUncompressedBytes:?int,
      *     maxExpansionRatio:?float,
+     *     largestEntryLimit:int,
+     *     largestEntryCount:int,
      *     largestEntry:?array<string, mixed>,
+     *     largestEntries:list<array<string, mixed>>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     unknownByteCountEntries:list<array<string, mixed>>,
@@ -8303,6 +8307,7 @@ final class ZipPackage
         $deflatedEntryCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $largestEntry = null;
+        $largestEntryCandidates = [];
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
         $unknownExpansionRatioEntries = [];
@@ -8399,6 +8404,7 @@ final class ZipPackage
                 if ($entryExpansionRatio === null) {
                     $unknownExpansionRatioEntries[] = $entry;
                 }
+                $largestEntryCandidates[] = $entry;
                 if ($largestEntry === null || $uncompressedSize > $largestEntry['uncompressedSize']) {
                     $largestEntry = $entry;
                 }
@@ -8437,6 +8443,7 @@ final class ZipPackage
         $hasUnknownByteCounts = $unknownByteCountEntries !== [];
         $hasUnknownExpansionRatioEntries = $unknownExpansionRatioEntries !== [];
         $expansionRatio = $hasUnknownByteCounts ? null : self::expansionRatio($uncompressedBytes, $compressedBytes);
+        $largestEntries = self::largestSizeEntries($largestEntryCandidates, self::SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT);
         $issues = [];
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
@@ -8487,7 +8494,10 @@ final class ZipPackage
             'expansionRatio' => $expansionRatio,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'maxExpansionRatio' => $maxExpansionRatio,
+            'largestEntryLimit' => self::SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT,
+            'largestEntryCount' => count($largestEntries),
             'largestEntry' => $largestEntry,
+            'largestEntries' => $largestEntries,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'unknownByteCountEntries' => $unknownByteCountEntries,
@@ -9598,7 +9608,10 @@ final class ZipPackage
      *     deflatedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     expansionRatio:?float,
+     *     largestEntryLimit:int,
+     *     largestEntryCount:int,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     largestEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     unknownExpansionRatioEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
@@ -9686,7 +9699,10 @@ final class ZipPackage
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
+            'largestEntryLimit' => self::SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT,
+            'largestEntryCount' => min(count($entrySummaries), self::SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT),
             'largestEntry' => $largestEntry,
+            'largestEntries' => self::largestSizeEntries($entrySummaries, self::SIZE_PREFLIGHT_LARGEST_ENTRY_LIMIT),
             'zeroByteEntries' => $zeroByteEntries,
             'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
             'entries' => $entrySummaries,
@@ -9710,7 +9726,10 @@ final class ZipPackage
      *     deflatedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     expansionRatio:?float,
+     *     largestEntryLimit:int,
+     *     largestEntryCount:int,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     largestEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     unknownExpansionRatioEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
@@ -13624,6 +13643,31 @@ final class ZipPackage
         }
 
         return $uncompressedBytes / $compressedBytes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function largestSizeEntries(array $entries, int $limit): array
+    {
+        usort($entries, static function (array $left, array $right): int {
+            $byUncompressed = ((int) ($right['uncompressedSize'] ?? 0))
+                <=> ((int) ($left['uncompressedSize'] ?? 0));
+            if ($byUncompressed !== 0) {
+                return $byUncompressed;
+            }
+
+            $byCompressed = ((int) ($right['compressedSize'] ?? 0))
+                <=> ((int) ($left['compressedSize'] ?? 0));
+            if ($byCompressed !== 0) {
+                return $byCompressed;
+            }
+
+            return strcmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        });
+
+        return array_slice($entries, 0, max(0, $limit));
     }
 
     private static function compressionMethodName(int $method): string
