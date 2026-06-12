@@ -272,6 +272,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
+            if (($typstBoundaryProvenance['certificateDuplicates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-certificate-duplicates:' . count($typstBoundaryProvenance['certificateDuplicates']);
+            }
             if (($typstBoundaryProvenance['packagePath'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-path:' . $typstBoundaryProvenance['packagePath']['path'];
             }
@@ -5966,6 +5969,10 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
             $certificateValues
         );
+        $certificateDuplicates = $this->typstDuplicateBoundaryPathEntries(
+            $certificates,
+            'certificate-duplicate-boundary'
+        );
         $packagePathHistory = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-path'),
             $packagePathValues
@@ -6072,6 +6079,9 @@ final class PdfEngineHandoff
                 $issues[] = $issue;
             }
         }
+        foreach ($certificateDuplicates as $duplicate) {
+            $issues[] = $duplicate['issue'];
+        }
         foreach ($pdfTagIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6097,6 +6107,9 @@ final class PdfEngineHandoff
         ];
         if ($certificates !== []) {
             $provenance['certificates'] = $certificates;
+        }
+        if ($certificateDuplicates !== []) {
+            $provenance['certificateDuplicates'] = $certificateDuplicates;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -6286,6 +6299,38 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{path:string, kind:string, issues:list<string>}> $entries
+     * @return list<array{path:string, count:int, issue:string}>
+     */
+    private function typstDuplicateBoundaryPathEntries(array $entries, string $issue): array
+    {
+        $counts = [];
+        foreach ($entries as $entry) {
+            if (($entry['issues'] ?? []) !== [] || ($entry['path'] ?? '') === '') {
+                continue;
+            }
+
+            $counts[$entry['path']] = ($counts[$entry['path']] ?? 0) + 1;
+        }
+
+        ksort($counts);
+        $duplicates = [];
+        foreach ($counts as $path => $count) {
+            if ($count < 2) {
+                continue;
+            }
+
+            $duplicates[] = [
+                'path' => $path,
+                'count' => $count,
+                'issue' => $issue,
+            ];
+        }
+
+        return $duplicates;
     }
 
     /**

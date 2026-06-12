@@ -382,6 +382,62 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst duplicate certificate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cert-duplicate-boundary.pdf',
+            'source' => '= Typst Duplicate Certificate Boundary Packet',
+            'engineOptions' => [
+                '--cert=certs/internal-ca.pem',
+                '--cert',
+                'certs/internal-ca.pem',
+                '--cert=certs/review-ca.pem',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst duplicate certificate boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['certificate-duplicate-boundary'],
+            'certificates' => [
+                ['raw' => 'certs/internal-ca.pem', 'path' => 'certs/internal-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'certs/internal-ca.pem', 'path' => 'certs/internal-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'certs/review-ca.pem', 'path' => 'certs/review-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'certificateDuplicates' => [
+                ['path' => 'certs/internal-ca.pem', 'count' => 2, 'issue' => 'certificate-duplicate-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cert-duplicate-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cert-duplicate-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificates:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst system font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
