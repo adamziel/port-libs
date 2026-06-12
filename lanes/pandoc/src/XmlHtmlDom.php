@@ -773,6 +773,12 @@ final class XmlHtmlDom
         if (self::isHtmlOutlineElementName($name)) {
             $summary += self::outlineSummary($node, $name);
         }
+        if ($name === 'search') {
+            $summary += self::searchSummary($node);
+        }
+        if ($name === 'address') {
+            $summary += self::addressSummary($node);
+        }
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
         }
@@ -995,6 +1001,102 @@ final class XmlHtmlDom
     private static function isHtmlOutlineElementName(string $name): bool
     {
         return in_array($name, ['article', 'aside', 'main', 'nav', 'section'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function searchSummary(\DOMElement $search): array
+    {
+        $forms = [];
+        foreach (self::descendantHtmlElements($search, 'form') as $form) {
+            $forms[] = [
+                'id' => self::attributeOrNull($form, 'id'),
+                'action' => self::attributeOrNull($form, 'action'),
+                'method' => self::formMethod($form, 'method', 'get'),
+                'role' => self::attributeOrNull($form, 'role'),
+                'controls' => self::searchControlSummaries($form),
+            ];
+        }
+
+        return [
+            'landmark' => 'search',
+            'searchRegion' => 'search',
+            'searchText' => self::normalizedText($search),
+            'searchFormCount' => count($forms),
+            'searchForms' => $forms,
+            'searchControls' => self::searchControlSummaries($search),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function searchControlSummaries(\DOMElement $root): array
+    {
+        $controls = [];
+        foreach ($root->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($control);
+            if (!in_array($name, ['button', 'input', 'select', 'textarea'], true)) {
+                continue;
+            }
+
+            $summary = [
+                'control' => $name,
+                'id' => self::attributeOrNull($control, 'id'),
+                'controlName' => self::attributeOrNull($control, 'name'),
+                'label' => self::formControlLabels($control),
+            ];
+            if ($name === 'input') {
+                $summary['type'] = self::inputType($control);
+                $summary['value'] = self::attributeOrNull($control, 'value');
+            }
+            if ($name === 'button') {
+                $summary['type'] = self::buttonType($control);
+                $summary['value'] = self::attributeOrNull($control, 'value');
+                $summary['text'] = self::normalizedText($control);
+            }
+
+            $controls[] = $summary;
+        }
+
+        return $controls;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function addressSummary(\DOMElement $address): array
+    {
+        $links = [];
+        foreach (self::descendantHtmlElements($address, 'a') as $link) {
+            $relRaw = self::attributeOrNull($link, 'rel');
+            $links[] = [
+                'href' => self::attributeOrNull($link, 'href'),
+                'label' => self::normalizedText($link),
+                'relRaw' => $relRaw,
+                'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+            ];
+        }
+
+        return [
+            'contactInfo' => 'address',
+            'contactText' => self::normalizedText($address),
+            'contactLinkCount' => count($links),
+            'contactLinks' => $links,
+            'contactHrefs' => array_values(array_filter(
+                array_map(static fn (array $link): ?string => $link['href'], $links),
+                static fn (?string $href): bool => $href !== null
+            )),
+            'contactEmailHrefs' => array_values(array_filter(
+                array_map(static fn (array $link): ?string => $link['href'], $links),
+                static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'mailto:')
+            )),
+        ];
     }
 
     private static function firstScopedHeadingElement(\DOMElement $element): ?\DOMElement

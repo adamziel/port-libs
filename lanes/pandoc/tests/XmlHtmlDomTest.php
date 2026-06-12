@@ -612,6 +612,65 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/outline-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html search and address landmark metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<search id="site-search" aria-label="Site search"><form id="search-form" role="search" action="/find" method="post">'
+                . '<label for="q">Search terms</label><input id="q" name="q" type="search" value="pandoc">'
+                . '<button name="go" value="1">Go</button></form></search>'
+                . '<address id="contact">Maintained by <a href="mailto:docs@example.test" rel="author">Docs Team</a> '
+                . '<a href="/legal" rel="help external">Legal</a></address>',
+            'search and address landmark review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/search-address-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $search = $summary[0];
+        $form = $search['searchForms'][0];
+        $input = $search['searchControls'][0];
+        $button = $search['searchControls'][1];
+        $address = $summary[1];
+        $email = $address['contactLinks'][0];
+        $legal = $address['contactLinks'][1];
+
+        $t->same('search', $search['name']);
+        $t->same('search', $search['landmark']);
+        $t->same('search', $search['searchRegion']);
+        $t->same('Search termsGo', $search['searchText']);
+        $t->same(1, $search['searchFormCount']);
+        $t->same('search-form', $form['id']);
+        $t->same('/find', $form['action']);
+        $t->same('post', $form['method']);
+        $t->same('search', $form['role']);
+        $t->same(2, count($form['controls']));
+        $t->same('input', $input['control']);
+        $t->same('q', $input['id']);
+        $t->same('q', $input['controlName']);
+        $t->same('search', $input['type']);
+        $t->same('pandoc', $input['value']);
+        $t->same(['Search terms'], $input['label']);
+        $t->same('button', $button['control']);
+        $t->same('go', $button['controlName']);
+        $t->same('submit', $button['type']);
+        $t->same('Go', $button['text']);
+        $t->same('address', $address['name']);
+        $t->same('address', $address['contactInfo']);
+        $t->same('Maintained by Docs Team Legal', $address['contactText']);
+        $t->same(2, $address['contactLinkCount']);
+        $t->same('mailto:docs@example.test', $email['href']);
+        $t->same('Docs Team', $email['label']);
+        $t->same(['author'], $email['relTokens']);
+        $t->same('/legal', $legal['href']);
+        $t->same(['help', 'external'], $legal['relTokens']);
+        $t->same(['mailto:docs@example.test', '/legal'], $address['contactHrefs']);
+        $t->same(['mailto:docs@example.test'], $address['contactEmailHrefs']);
+        $t->same('<search aria-label="Site search" id="site-search"><form action="/find" id="search-form" method="post" role="search"><label for="q">Search terms</label><input id="q" name="q" type="search" value="pandoc"><button name="go" value="1">Go</button></form></search><address id="contact">Maintained by <a href="mailto:docs@example.test" rel="author">Docs Team</a> <a href="/legal" rel="help external">Legal</a></address>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/search-address-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html text-level semantic elements for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><abbr title="HyperText Markup Language">HTML</abbr> <dfn title="Review term">term</dfn> <mark>note</mark> '
