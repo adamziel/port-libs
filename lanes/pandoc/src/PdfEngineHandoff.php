@@ -278,6 +278,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
             }
+            if (($typstBoundaryProvenance['outputFormat'] ?? null) !== null) {
+                $outputFormat = $typstBoundaryProvenance['outputFormat'];
+                if (is_array($outputFormat) && is_string($outputFormat['format'] ?? null)) {
+                    $diagnostics[] = 'typst-output-format-boundary:' . ($outputFormat['format'] === '' ? 'invalid' : $outputFormat['format']);
+                }
+                if (is_array($outputFormat) && ($outputFormat['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-output-format-boundary-issues:' . count($outputFormat['issues']);
+                }
+            }
             if (($typstBoundaryProvenance['systemFonts'] ?? []) !== []) {
                 $systemFonts = $typstBoundaryProvenance['systemFonts'];
                 if (is_array($systemFonts) && is_string($systemFonts['systemFontAccess'] ?? null)) {
@@ -5761,6 +5770,7 @@ final class PdfEngineHandoff
             'diagnosticColor' => 'diagnostic-color-boundary-overridden',
             'dependencyFormat' => 'dependency-format-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'outputFormat' => 'output-format-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5807,11 +5817,12 @@ final class PdfEngineHandoff
         $diagnosticFormatValues = $this->engineOptionValues($engineOptions, ['--diagnostic-format'], true);
         $diagnosticColorValues = $this->engineOptionValues($engineOptions, ['--color'], true);
         $dependencyFormatValues = $this->engineOptionValues($engineOptions, ['--deps-format'], true);
+        $outputFormatValues = $this->typstOutputFormatOptionValues($engineOptions);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -5898,6 +5909,11 @@ final class PdfEngineHandoff
             $dependencyFormatValues
         );
         $dependencyFormat = $dependencyFormatHistory === [] ? null : $dependencyFormatHistory[count($dependencyFormatHistory) - 1];
+        $outputFormatHistory = array_map(
+            fn (string $value): array => $this->typstOutputFormatEntry($value),
+            $outputFormatValues
+        );
+        $outputFormat = $outputFormatHistory === [] ? null : $outputFormatHistory[count($outputFormatHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
@@ -5914,6 +5930,7 @@ final class PdfEngineHandoff
             'diagnosticColor' => $diagnosticColorValues,
             'dependencyFormat' => $dependencyFormatValues,
             'creationTimestamp' => $creationTimestampValues,
+            'outputFormat' => $outputFormatValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
         $pdfTagIssues = [];
@@ -5922,7 +5939,7 @@ final class PdfEngineHandoff
         }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $outputFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -6010,6 +6027,9 @@ final class PdfEngineHandoff
                 'format' => $dependencyFormat,
                 'issues' => array_values(array_unique($dependencyOutputIssues)),
             ];
+        }
+        if ($outputFormat !== null) {
+            $provenance['outputFormat'] = $outputFormat;
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
@@ -6115,6 +6135,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($dependencyFormatHistory)) {
             $provenance['dependencyFormatHistory'] = $dependencyFormatHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($outputFormatHistory)) {
+            $provenance['outputFormatHistory'] = $outputFormatHistory;
         }
 
         return $provenance;
@@ -6506,6 +6529,32 @@ final class PdfEngineHandoff
             'format' => $format,
             'makeCompatible' => $format === 'make',
             'machineReadable' => $format === 'json',
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, format:string, pdfOutput:bool, safe:bool, issues:list<string>}
+     */
+    private function typstOutputFormatEntry(string $raw): array
+    {
+        $value = strtolower(trim($raw));
+        $issues = [];
+        $format = $value;
+        if ($value === '') {
+            $issues[] = 'output-format-empty-boundary';
+        } elseif (str_contains($raw, "\0") || preg_match('/[[:cntrl:]]/', $raw) === 1 || preg_match('/\A[a-z][a-z0-9_-]*\z/', $value) !== 1) {
+            $issues[] = 'output-format-invalid-boundary';
+        } elseif ($value !== 'pdf') {
+            $issues[] = 'output-format-not-pdf-boundary:' . $value;
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'format' => $format,
+            'pdfOutput' => $value === 'pdf',
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
