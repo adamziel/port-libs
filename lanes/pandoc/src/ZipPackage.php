@@ -4719,6 +4719,13 @@ final class ZipPackage
      *     selectedUniqueEntryCount:int,
      *     selectedCompressedBytes:int,
      *     selectedUncompressedBytes:int,
+     *     selectedLocalHeaderBytes:int,
+     *     selectedLocalDataDescriptorBytes:int,
+     *     selectedLocalRecordBytes:int,
+     *     selectedLocalByteWindowStart:?int,
+     *     selectedLocalByteWindowEnd:?int,
+     *     selectedLocalByteWindowBytes:int,
+     *     selectedLocalByteWindowHasInterveningBytes:bool,
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
@@ -4855,10 +4862,52 @@ final class ZipPackage
 
         $selectedCompressedBytes = 0;
         $selectedUncompressedBytes = 0;
+        $selectedLocalHeaderBytes = 0;
+        $selectedLocalDataDescriptorBytes = 0;
+        $selectedLocalRecordBytes = 0;
+        $selectedLocalByteWindowStart = null;
+        $selectedLocalByteWindowEnd = null;
+        $selectedLocalSpansByName = [];
         foreach ($selectedEntriesByName as $entry) {
             $selectedCompressedBytes += $entry->compressedSize;
             $selectedUncompressedBytes += $entry->uncompressedSize;
+            $localHeader = $this->readLocalHeader($entry);
+            $compressedDataOffset = $localHeader['dataStart'];
+            $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
+            $dataDescriptorLength = 0;
+            $localRecordEnd = $compressedDataEnd;
+            if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+                $descriptor = $this->dataDescriptorMetadata(
+                    $entry,
+                    $compressedDataEnd,
+                    $this->nextEntryOrCentralDirectoryOffset($entry)
+                );
+                $dataDescriptorLength = $descriptor['descriptorLength'];
+                $localRecordEnd += $dataDescriptorLength;
+            }
+            $localRecordBytes = $localRecordEnd - $entry->localHeaderOffset;
+
+            $selectedLocalHeaderBytes += $localHeader['localHeaderLength'];
+            $selectedLocalDataDescriptorBytes += $dataDescriptorLength;
+            $selectedLocalRecordBytes += $localRecordBytes;
+            $selectedLocalByteWindowStart = $selectedLocalByteWindowStart === null
+                ? $entry->localHeaderOffset
+                : min($selectedLocalByteWindowStart, $entry->localHeaderOffset);
+            $selectedLocalByteWindowEnd = $selectedLocalByteWindowEnd === null
+                ? $localRecordEnd
+                : max($selectedLocalByteWindowEnd, $localRecordEnd);
+            $selectedLocalSpansByName[$entry->name] = [
+                'localHeader' => $localHeader,
+                'compressedDataOffset' => $compressedDataOffset,
+                'compressedDataEnd' => $compressedDataEnd,
+                'dataDescriptorLength' => $dataDescriptorLength,
+                'localRecordEnd' => $localRecordEnd,
+                'localRecordBytes' => $localRecordBytes,
+            ];
         }
+        $selectedLocalByteWindowBytes = $selectedLocalByteWindowStart === null || $selectedLocalByteWindowEnd === null
+            ? 0
+            : $selectedLocalByteWindowEnd - $selectedLocalByteWindowStart;
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
             && $selectedUncompressedBytes > $maxTotalUncompressedBytes;
@@ -4904,6 +4953,9 @@ final class ZipPackage
                 'localHeaderLength' => null,
                 'compressedDataOffset' => null,
                 'compressedDataEnd' => null,
+                'dataDescriptorLength' => null,
+                'localRecordEnd' => null,
+                'localRecordBytes' => null,
                 'centralDirectoryRecordOffset' => null,
                 'centralDirectoryRecordEnd' => null,
                 'maxUncompressedBytes' => $entryMaxUncompressedBytes,
@@ -4937,9 +4989,10 @@ final class ZipPackage
 
             $presentNames[$name] = true;
             $isDirectory = $entry->isDirectory();
-            $localHeader = $this->readLocalHeader($entry);
-            $compressedDataOffset = $localHeader['dataStart'];
-            $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
+            $localSpan = $selectedLocalSpansByName[$entry->name];
+            $localHeader = $localSpan['localHeader'];
+            $compressedDataOffset = $localSpan['compressedDataOffset'];
+            $compressedDataEnd = $localSpan['compressedDataEnd'];
             $summary['isDirectory'] = $isDirectory;
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
@@ -4952,6 +5005,9 @@ final class ZipPackage
             $summary['localHeaderLength'] = $localHeader['localHeaderLength'];
             $summary['compressedDataOffset'] = $compressedDataOffset;
             $summary['compressedDataEnd'] = $compressedDataEnd;
+            $summary['dataDescriptorLength'] = $localSpan['dataDescriptorLength'];
+            $summary['localRecordEnd'] = $localSpan['localRecordEnd'];
+            $summary['localRecordBytes'] = $localSpan['localRecordBytes'];
             $summary['centralDirectoryRecordOffset'] = $entry->centralDirectoryRecordOffset;
             $summary['centralDirectoryRecordEnd'] = $entry->centralDirectoryRecordEnd;
 
@@ -5020,6 +5076,13 @@ final class ZipPackage
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedCompressedBytes' => $selectedCompressedBytes,
             'selectedUncompressedBytes' => $selectedUncompressedBytes,
+            'selectedLocalHeaderBytes' => $selectedLocalHeaderBytes,
+            'selectedLocalDataDescriptorBytes' => $selectedLocalDataDescriptorBytes,
+            'selectedLocalRecordBytes' => $selectedLocalRecordBytes,
+            'selectedLocalByteWindowStart' => $selectedLocalByteWindowStart,
+            'selectedLocalByteWindowEnd' => $selectedLocalByteWindowEnd,
+            'selectedLocalByteWindowBytes' => $selectedLocalByteWindowBytes,
+            'selectedLocalByteWindowHasInterveningBytes' => $selectedLocalByteWindowBytes > $selectedLocalRecordBytes,
             'missingEntryCount' => count($missingEntries),
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,

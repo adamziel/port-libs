@@ -9396,6 +9396,9 @@ return [
         $t->same(2, $summary['missingEntryCount']);
         $t->same(1, $summary['missingRequiredEntryCount']);
         $t->same(1, $summary['missingOptionalEntryCount']);
+        $t->same(0, $summary['selectedLocalByteWindowStart']);
+        $t->same(0, $summary['selectedLocalDataDescriptorBytes']);
+        $t->same(false, $summary['selectedLocalByteWindowHasInterveningBytes']);
         $t->same(3, $summary['handoffEntryCount']);
         $t->same(3, $summary['readableEntryCount']);
         $t->same(4, $summary['failedEntryCount']);
@@ -9426,6 +9429,9 @@ return [
         $t->same(30 + strlen('word/document.xml'), $documentEntry['localHeaderLength']);
         $t->same($documentEntry['localHeaderOffset'] + $documentEntry['localHeaderLength'], $documentEntry['compressedDataOffset']);
         $t->same($documentEntry['compressedDataOffset'] + $documentEntry['compressedSize'], $documentEntry['compressedDataEnd']);
+        $t->same(0, $documentEntry['dataDescriptorLength']);
+        $t->same($documentEntry['compressedDataEnd'], $documentEntry['localRecordEnd']);
+        $t->same($documentEntry['localHeaderLength'] + $documentEntry['compressedSize'], $documentEntry['localRecordBytes']);
         $t->true($documentEntry['compressedDataEnd'] <= $documentEntry['centralDirectoryRecordOffset']);
         $t->true($documentEntry['centralDirectoryRecordOffset'] < $documentEntry['centralDirectoryRecordEnd']);
         $t->same(strlen($documentXml), $documentEntry['uncompressedSize']);
@@ -9440,6 +9446,7 @@ return [
         $t->same('stored', $imageEntry['compressionMethodName']);
         $t->same($documentEntry['compressedDataEnd'], $imageEntry['localHeaderOffset']);
         $t->same($imageEntry['compressedDataOffset'] + strlen($imageBytes), $imageEntry['compressedDataEnd']);
+        $t->same($imageEntry['compressedDataEnd'], $imageEntry['localRecordEnd']);
         $t->same(1.0, $imageEntry['expansionRatio']);
 
         $directoryEntry = $summary['entries'][2];
@@ -9448,6 +9455,8 @@ return [
         $t->same(true, $directoryEntry['isDirectory']);
         $t->same('stored', $directoryEntry['compressionMethodName']);
         $t->same($directoryEntry['compressedDataOffset'], $directoryEntry['compressedDataEnd']);
+        $t->same($directoryEntry['compressedDataEnd'], $directoryEntry['localRecordEnd']);
+        $t->same($directoryEntry['localHeaderLength'], $directoryEntry['localRecordBytes']);
         $t->same(0.0, $directoryEntry['expansionRatio']);
         $t->same(0, $directoryEntry['bytesRead']);
         $t->same(hash('sha256', ''), $directoryEntry['contentSha256']);
@@ -9458,6 +9467,8 @@ return [
         $t->same(false, $missingRequired['exists']);
         $t->same(null, $missingRequired['compressionMethodName']);
         $t->same(null, $missingRequired['compressedDataOffset']);
+        $t->same(null, $missingRequired['localRecordEnd']);
+        $t->same(null, $missingRequired['localRecordBytes']);
         $t->same(null, $missingRequired['centralDirectoryRecordOffset']);
         $t->same('missing-required', $missingRequired['status']);
         $t->same(['missing-required-entry'], $missingRequired['issues']);
@@ -9481,6 +9492,7 @@ return [
         $t->same(12, $unsupportedEntry['compressionMethod']);
         $t->same('unsupported', $unsupportedEntry['compressionMethodName']);
         $t->same($unsupportedEntry['compressedDataOffset'] + strlen($unsupportedBytes), $unsupportedEntry['compressedDataEnd']);
+        $t->same($unsupportedEntry['compressedDataEnd'], $unsupportedEntry['localRecordEnd']);
         $t->same(1.0, $unsupportedEntry['expansionRatio']);
         $t->same(false, $unsupportedEntry['isReadable']);
         $t->same(['unreadable-entry'], $unsupportedEntry['issues']);
@@ -9495,6 +9507,20 @@ return [
 
         $t->same([$missingRequired, $directoryMismatch, $oversizedEntry, $unsupportedEntry], $summary['failedEntries']);
         $t->same([$documentEntry, $summary['entries'][1], $directoryEntry], $summary['handoffEntries']);
+        $selectedLocalHeaderBytes = $documentEntry['localHeaderLength']
+            + $imageEntry['localHeaderLength']
+            + $directoryEntry['localHeaderLength']
+            + $oversizedEntry['localHeaderLength']
+            + $unsupportedEntry['localHeaderLength'];
+        $selectedLocalRecordBytes = $documentEntry['localRecordBytes']
+            + $imageEntry['localRecordBytes']
+            + $directoryEntry['localRecordBytes']
+            + $oversizedEntry['localRecordBytes']
+            + $unsupportedEntry['localRecordBytes'];
+        $t->same($selectedLocalHeaderBytes, $summary['selectedLocalHeaderBytes']);
+        $t->same($selectedLocalRecordBytes, $summary['selectedLocalRecordBytes']);
+        $t->same($selectedLocalRecordBytes, $summary['selectedLocalByteWindowBytes']);
+        $t->same($unsupportedEntry['localRecordEnd'], $summary['selectedLocalByteWindowEnd']);
 
         $safeSummary = $package->entryHandoffPreflight([
             'word/document.xml',
@@ -9509,12 +9535,23 @@ return [
 
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
+        $unrequestedSidecar = "<Relationships>unrequested sidecar</Relationships>\n";
         $mediaBytes = "selected media handoff bytes\n";
         $totalSelectedBytes = strlen($documentXml) + strlen($mediaBytes);
+        $documentLocalRecordBytes = 30 + strlen('word/document.xml') + strlen($documentXml);
+        $sidecarLocalRecordBytes = 30 + strlen('word/_rels/document.xml.rels') + strlen($unrequestedSidecar);
+        $mediaLocalRecordBytes = 30 + strlen('word/media/review.txt') + strlen($mediaBytes);
+        $selectedLocalHeaderBytes = 30 + strlen('word/document.xml') + 30 + strlen('word/media/review.txt');
+        $selectedLocalRecordBytes = $documentLocalRecordBytes + $mediaLocalRecordBytes;
         $package = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => $unrequestedSidecar,
                 'method' => 0,
             ],
             [
@@ -9537,6 +9574,13 @@ return [
         $t->same(2, $summary['selectedUniqueEntryCount']);
         $t->same($totalSelectedBytes, $summary['selectedCompressedBytes']);
         $t->same($totalSelectedBytes, $summary['selectedUncompressedBytes']);
+        $t->same($selectedLocalHeaderBytes, $summary['selectedLocalHeaderBytes']);
+        $t->same(0, $summary['selectedLocalDataDescriptorBytes']);
+        $t->same($selectedLocalRecordBytes, $summary['selectedLocalRecordBytes']);
+        $t->same(0, $summary['selectedLocalByteWindowStart']);
+        $t->same($selectedLocalRecordBytes + $sidecarLocalRecordBytes, $summary['selectedLocalByteWindowEnd']);
+        $t->same($selectedLocalRecordBytes + $sidecarLocalRecordBytes, $summary['selectedLocalByteWindowBytes']);
+        $t->same(true, $summary['selectedLocalByteWindowHasInterveningBytes']);
         $t->same(1024, $summary['maxEntryUncompressedBytes']);
         $t->same($totalSelectedBytes - 1, $summary['maxTotalUncompressedBytes']);
         $t->same(0, $summary['handoffEntryCount']);
@@ -9563,12 +9607,69 @@ return [
         $t->same([], $safeSummary['issues']);
         $t->same(2, $safeSummary['selectedUniqueEntryCount']);
         $t->same($totalSelectedBytes, $safeSummary['selectedUncompressedBytes']);
+        $t->same($selectedLocalRecordBytes, $safeSummary['selectedLocalRecordBytes']);
+        $t->same($selectedLocalRecordBytes + $sidecarLocalRecordBytes, $safeSummary['selectedLocalByteWindowBytes']);
+        $t->same(true, $safeSummary['selectedLocalByteWindowHasInterveningBytes']);
         $t->same(3, $safeSummary['handoffEntryCount']);
         $t->same(3, $safeSummary['readableEntryCount']);
         $t->same(0, $safeSummary['totalUncompressedSizeExceedsLimitEntryCount']);
         $t->same(strlen($documentXml), $safeSummary['entries'][0]['bytesRead']);
         $t->same(hash('sha256', $documentXml), $safeSummary['entries'][1]['contentSha256']);
         $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
+    },
+
+    'preflights selected zip package local record windows before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected local records</w:p></w:body></w:document>';
+        $unrequestedBytes = "unrequested relationship bytes\n";
+        $mediaBytes = "selected local media bytes\n";
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
+        $documentDescriptorBytes = 16;
+        $documentRecordBytes = 30 + strlen('word/document.xml') + $documentCompressedBytes + $documentDescriptorBytes;
+        $unrequestedRecordBytes = 30 + strlen('word/_rels/document.xml.rels') + strlen($unrequestedBytes);
+        $mediaRecordBytes = 30 + strlen('word/media/review.txt') + strlen($mediaBytes);
+        $selectedRecordBytes = $documentRecordBytes + $mediaRecordBytes;
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => $unrequestedBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file'],
+            ['name' => 'word/media/review.txt', 'required' => false, 'kind' => 'file'],
+        ], 1024);
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][1];
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same(30 + strlen('word/document.xml') + 30 + strlen('word/media/review.txt'), $summary['selectedLocalHeaderBytes']);
+        $t->same($documentDescriptorBytes, $summary['selectedLocalDataDescriptorBytes']);
+        $t->same($selectedRecordBytes, $summary['selectedLocalRecordBytes']);
+        $t->same(0, $summary['selectedLocalByteWindowStart']);
+        $t->same($selectedRecordBytes + $unrequestedRecordBytes, $summary['selectedLocalByteWindowEnd']);
+        $t->same($selectedRecordBytes + $unrequestedRecordBytes, $summary['selectedLocalByteWindowBytes']);
+        $t->same(true, $summary['selectedLocalByteWindowHasInterveningBytes']);
+        $t->same($documentDescriptorBytes, $documentEntry['dataDescriptorLength']);
+        $t->same($documentEntry['compressedDataEnd'] + $documentDescriptorBytes, $documentEntry['localRecordEnd']);
+        $t->same($documentRecordBytes, $documentEntry['localRecordBytes']);
+        $t->same($documentEntry['localRecordEnd'] + $unrequestedRecordBytes, $mediaEntry['localHeaderOffset']);
+        $t->same($mediaRecordBytes, $mediaEntry['localRecordBytes']);
+        $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
     },
 
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
