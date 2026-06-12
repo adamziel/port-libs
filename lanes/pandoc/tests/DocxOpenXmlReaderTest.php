@@ -250,6 +250,31 @@ return [
         $t->same(strlen($parts['customXml/raw-review.bin']), $summary['partsWithoutContentType'][0]['bytes']);
         $t->same($inventory['customXml/raw-review.bin']['crc32'], $summary['partsWithoutContentType'][0]['crc32']);
     },
+    'preserves docx package inventory SHA-256 provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/raw-review.bin'] = str_repeat('B', 20000);
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $inventory = $package['parts'];
+        $summary = $package['summary'];
+        $largest = $summary['largestParts'][0];
+        $missingContentType = $summary['partsWithoutContentType'][0];
+
+        $t->same(hash('sha256', $parts['[Content_Types].xml']), $inventory['[Content_Types].xml']['sha256']);
+        $t->same(hash('sha256', $parts['_rels/.rels']), $inventory['_rels/.rels']['sha256']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $inventory['word/document.xml']['sha256']);
+        $t->same(hash('sha256', $parts['word/_rels/document.xml.rels']), $inventory['word/_rels/document.xml.rels']['sha256']);
+        $t->same(hash('sha256', $parts['word/media/review.png']), $inventory['word/media/review.png']['sha256']);
+        $t->same(hash('sha256', $parts['customXml/raw-review.bin']), $inventory['customXml/raw-review.bin']['sha256']);
+
+        $t->same('customXml/raw-review.bin', $largest['partName']);
+        $t->same(20000, $largest['bytes']);
+        $t->same($inventory['customXml/raw-review.bin']['sha256'], $largest['sha256']);
+        $t->same($largest, $summary['largestPart']);
+        $t->same('customXml/raw-review.bin', $missingContentType['partName']);
+        $t->same($inventory['customXml/raw-review.bin']['sha256'], $missingContentType['sha256']);
+    },
     'summarizes largest docx package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/media/full-resolution-review.png'] = str_repeat('P', 20000);
