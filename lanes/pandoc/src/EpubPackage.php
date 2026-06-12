@@ -504,6 +504,7 @@ final class EpubPackage
             ? $this->metadata['linkVocabulary']
             : self::metadataLinkVocabularySummary($this->packageLinks);
         $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
+        $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
@@ -551,6 +552,7 @@ final class EpubPackage
             'guideReport' => $guideReport,
             'collections' => $this->collections,
             'collectionLinkVocabulary' => $collectionLinkVocabulary,
+            'collectionRoleVocabulary' => $collectionRoleVocabulary,
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
@@ -653,6 +655,8 @@ final class EpubPackage
                 'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
                 'collectionLinkVocabulary' => $collectionLinkVocabulary,
                 'collectionLinkVocabularyDiagnostics' => $collectionLinkVocabulary['diagnostics'],
+                'collectionRoleVocabulary' => $collectionRoleVocabulary,
+                'collectionRoleVocabularyDiagnostics' => $collectionRoleVocabulary['diagnostics'],
                 'packageLinks' => $this->packageLinks,
                 'packageLinksByRel' => $packageLinkReport['linksByRel'],
                 'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
@@ -6828,7 +6832,9 @@ final class EpubPackage
             : [];
         $role = self::emptyToNull($collectionElement->getAttribute('role'));
         $roleTokens = self::splitTokens($role ?? '');
+        $roleVocabulary = self::collectionRoleTokenReport($roleTokens, $prefixBindings, $index);
         $report = self::collectionLinkReport($links, true);
+        $diagnostics = array_merge($roleVocabulary['diagnostics'], $report['diagnostics']);
 
         return [
             'index' => $index,
@@ -6836,6 +6842,7 @@ final class EpubPackage
             'role' => $role,
             'roleTokens' => $roleTokens,
             'primaryRole' => $roleTokens[0] ?? null,
+            'roleVocabulary' => $roleVocabulary,
             'language' => self::metadataElementLanguage($collectionElement),
             'direction' => self::metadataElementDirection($collectionElement),
             'metadata' => $metadata,
@@ -6847,8 +6854,8 @@ final class EpubPackage
             'linkRelTokens' => $report['relTokens'],
             'linkRelCounts' => $report['relCounts'],
             'linksByRel' => $report['linksByRel'],
-            'diagnosticCount' => count($report['diagnostics']),
-            'diagnostics' => $report['diagnostics'],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
             'children' => $children,
         ];
     }
@@ -7042,6 +7049,24 @@ final class EpubPackage
             $linkIndex,
             'collection-link',
             'EPUB OPF collection link',
+        );
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionRoleTokenReport(array $tokens, array $prefixBindings, int $collectionIndex): array
+    {
+        return self::linkVocabularyTokenReport(
+            $tokens,
+            $prefixBindings,
+            'role',
+            $collectionIndex,
+            'collection',
+            'EPUB OPF collection role',
         );
     }
 
@@ -7263,6 +7288,72 @@ final class EpubPackage
 
     /**
      * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionRoleVocabularySummary(array $collections): array
+    {
+        $items = [];
+        self::appendCollectionRoleVocabularyItems($collections, [], $items);
+
+        $roles = [];
+        $roleTokenCount = 0;
+        $validTokenCount = 0;
+        $invalidTokenCount = 0;
+        $resolvedTokenCount = 0;
+        $absoluteUrlTokenCount = 0;
+        $duplicateTokenCount = 0;
+        $diagnostics = [];
+
+        foreach ($items as $item) {
+            foreach (is_array($item['roleTokens'] ?? null) ? $item['roleTokens'] : [] as $token) {
+                if (!is_string($token) || $token === '') {
+                    continue;
+                }
+
+                $roles[$token] = ($roles[$token] ?? 0) + 1;
+                ++$roleTokenCount;
+            }
+
+            $report = is_array($item['roleVocabulary'] ?? null) ? $item['roleVocabulary'] : [];
+            $validTokenCount += (int) ($report['validCount'] ?? 0);
+            $invalidTokenCount += (int) ($report['invalidCount'] ?? 0);
+            $resolvedTokenCount += (int) ($report['resolvedCount'] ?? 0);
+            $absoluteUrlTokenCount += (int) ($report['absoluteUrlCount'] ?? 0);
+            $duplicateTokenCount += (int) ($report['duplicateCount'] ?? 0);
+            foreach (is_array($report['diagnostics'] ?? null) ? $report['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'collectionPath' => $item['collectionPath'],
+                    'collectionId' => $item['collectionId'],
+                    'role' => $item['role'],
+                ] + $diagnostic;
+            }
+        }
+
+        ksort($roles);
+
+        return [
+            'present' => $roleTokenCount > 0,
+            'collectionCount' => count($items),
+            'roleTokenCount' => $roleTokenCount,
+            'validTokenCount' => $validTokenCount,
+            'invalidTokenCount' => $invalidTokenCount,
+            'resolvedTokenCount' => $resolvedTokenCount,
+            'absoluteUrlTokenCount' => $absoluteUrlTokenCount,
+            'duplicateTokenCount' => $duplicateTokenCount,
+            'roles' => $roles,
+            'items' => $items,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
      * @param list<array<string, mixed>> $links
      */
     private static function appendCollectionLinks(array $collections, array &$links): void
@@ -7281,6 +7372,43 @@ final class EpubPackage
             self::appendCollectionLinks(
                 is_array($collection['children'] ?? null) ? $collection['children'] : [],
                 $links,
+            );
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     * @param list<int> $collectionPath
+     * @param list<array<string, mixed>> $items
+     */
+    private static function appendCollectionRoleVocabularyItems(
+        array $collections,
+        array $collectionPath,
+        array &$items
+    ): void {
+        foreach ($collections as $collectionIndex => $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $currentPath = array_merge($collectionPath, [$collectionIndex]);
+            $items[] = [
+                'collectionPath' => $currentPath,
+                'collectionId' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                'roleTokens' => is_array($collection['roleTokens'] ?? null)
+                    ? array_values($collection['roleTokens'])
+                    : [],
+                'primaryRole' => is_string($collection['primaryRole'] ?? null) ? $collection['primaryRole'] : null,
+                'roleVocabulary' => is_array($collection['roleVocabulary'] ?? null)
+                    ? $collection['roleVocabulary']
+                    : self::collectionRoleTokenReport([], [], $collectionIndex),
+            ];
+
+            self::appendCollectionRoleVocabularyItems(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                $currentPath,
+                $items,
             );
         }
     }
