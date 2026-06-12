@@ -4183,6 +4183,81 @@ XML;
         $t->same($badSpineValidation, $badSpineSummary['wordpressImport']['packageValidation']);
     },
 
+    'reports malformed OPF spine itemref attributes without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $malformedSpineOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:spine-attribute-review</dc:identifier>
+    <dc:title>Spine attribute review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T01:52:09Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref id="orphan-spine" linear="no" properties="page-spread-left"/>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Spine attribute review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $malformedSpineOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+        ]));
+        $spine = $epub->spine();
+        $validation = $epub->validationReport();
+        $spineValidation = $validation['spine'];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same(['missing-spine-itemref-idref'], array_column($validation['diagnostics'], 'type'));
+        $t->same(2, $spineValidation['itemCount']);
+        $t->same(1, $spineValidation['linearCount']);
+        $t->same(1, $spineValidation['nonLinearCount']);
+        $t->same(1, $spineValidation['missingRequiredAttributeItemCount']);
+        $t->same(1, $spineValidation['missingRequiredAttributeCount']);
+        $t->same(['idref'], $spineValidation['missingRequiredAttributeNames']);
+        $t->same(0, $spineValidation['missingManifestItemCount']);
+        $t->same(0, $spineValidation['missingPackagePartCount']);
+        $t->same(0, $spineValidation['nonContentDocumentCount']);
+        $t->same('orphan-spine', $spineValidation['missingRequiredAttributeItems'][0]['id']);
+        $t->same('', $spineValidation['missingRequiredAttributeItems'][0]['idref']);
+        $t->same(['idref'], $spineValidation['missingRequiredAttributeItems'][0]['missingAttributes']);
+        $t->same('missing-spine-itemref-idref', $spineValidation['itemDiagnostics'][0]['type']);
+        $t->same('', $spineValidation['itemDiagnostics'][0]['idref']);
+        $t->same('idref', $spineValidation['itemDiagnostics'][0]['attribute']);
+        $t->same(false, $spine[0]['requiredAttributesPresent']);
+        $t->same(['idref'], $spine[0]['missingRequiredAttributes']);
+        $t->same('orphan-spine', $spine[0]['id']);
+        $t->same(false, $spine[0]['linear']);
+        $t->same('no', $spine[0]['linearRaw']);
+        $t->same('left', $spine[0]['pageSpread']);
+        $t->same('', $spine[0]['partName']);
+        $t->same(false, $spine[0]['manifestItemMissing']);
+        $t->same('/EPUB/chapter.xhtml', $spine[1]['partName']);
+        $t->same(true, $spine[1]['requiredAttributesPresent']);
+        $t->same($spineValidation['missingRequiredAttributeItems'], $summary['wordpressImport']['spineMissingRequiredAttributeItems']);
+        $t->same($spineValidation['missingRequiredAttributeNames'], $summary['wordpressImport']['spineMissingRequiredAttributeNames']);
+        $t->same($spineValidation['itemDiagnostics'], $summary['wordpressImport']['spineItemDiagnostics']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+    },
+
     'reports malformed OPF manifest item attributes without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
         $malformedManifestOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
