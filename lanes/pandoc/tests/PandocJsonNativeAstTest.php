@@ -82,6 +82,53 @@ return [
         $t->same('note', $note->type);
         $t->same('paragraph', $note->children[0]->type);
     },
+    'reads tagged pandoc document constructors into shared ast documents' => static function (TestRunner $t): void {
+        $pandoc = [
+            't' => 'Pandoc',
+            'c' => [
+                ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'tagged-document'],
+                    'review' => ['t' => 'MetaBool', 'c' => true],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Tagged'],
+                        ['t' => 'Space'],
+                        ['t' => 'Emph', 'c' => [
+                            ['t' => 'Str', 'c' => 'document'],
+                        ]],
+                    ], 'reviewQueue' => 'pandoc-constructor-block'],
+                ],
+            ],
+            'reviewQueue' => 'pandoc-constructor',
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($pandoc),
+            'native' => (new NativeReader())->read(json_encode($pandoc, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('document', $document->type, "{$source} document type");
+            $t->same('Pandoc', $document->attr('documentConstructor'), "{$source} document constructor");
+            $t->same($pandoc, $document->attr('documentNative'), "{$source} document native payload");
+            $t->same($source === 'json' ? 'tagged-document' : ['t' => 'MetaString', 'c' => 'tagged-document'], $document->attr('meta')['source'], "{$source} tagged document metadata");
+            $t->same($source === 'json' ? true : ['t' => 'MetaBool', 'c' => true], $document->attr('meta')['review'], "{$source} tagged document bool metadata");
+            $t->same('paragraph', $paragraph->type, "{$source} paragraph type");
+            $t->same('Para', $paragraph->attr('constructor'), "{$source} paragraph constructor");
+            $t->same($pandoc['c'][1][0], $paragraph->attr('native'), "{$source} paragraph native payload");
+            $t->same(['t' => 'MetaString', 'c' => 'tagged-document'], $jsonPacket['meta']['source'], "{$source} json writer emits standard meta");
+            $t->same(['t' => 'MetaString', 'c' => 'tagged-document'], $nativePacket['meta']['source'], "{$source} native writer emits standard meta");
+            $t->same($pandoc['c'][1], $jsonPacket['blocks'], "{$source} json writer preserves tagged document blocks");
+            $t->same($pandoc['c'][1], $nativePacket['blocks'], "{$source} native writer preserves tagged document blocks");
+            $t->same(false, array_key_exists('t', $jsonPacket), "{$source} json writer emits packet object");
+            $t->same(false, array_key_exists('t', $nativePacket), "{$source} native writer emits packet object");
+        }
+    },
     'reads legacy pandoc json metadata envelopes into shared ast documents' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $wrappedPacket = [

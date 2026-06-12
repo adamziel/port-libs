@@ -35,6 +35,7 @@ final class PandocJsonReader
      */
     public function readPacket(array $packet): AstNode
     {
+        $documentNative = $this->documentNativePayload($packet);
         $legacyTuplePacket = array_is_list($packet);
         $packet = $this->normalizePacket($packet);
         $blocks = $packet['blocks'] ?? null;
@@ -43,6 +44,10 @@ final class PandocJsonReader
         }
 
         $attrs = [];
+        if ($documentNative !== null) {
+            $attrs['documentConstructor'] = 'Pandoc';
+            $attrs['documentNative'] = $documentNative;
+        }
         $apiVersion = null;
         if (isset($packet['pandoc-api-version'])) {
             $apiVersion = $this->readApiVersion($packet['pandoc-api-version']);
@@ -65,6 +70,15 @@ final class PandocJsonReader
      */
     private function normalizePacket(array $packet): array
     {
+        if ($this->isTaggedObject($packet) && $packet['t'] === 'Pandoc') {
+            $content = $this->tuple($packet['c'] ?? null, 2, 'Pandoc');
+
+            return [
+                'meta' => $content[0],
+                'blocks' => $content[1],
+            ];
+        }
+
         if (!array_is_list($packet)) {
             return $packet;
         }
@@ -77,6 +91,15 @@ final class PandocJsonReader
             'meta' => $packet[0],
             'blocks' => $packet[1],
         ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $packet
+     * @return array<string, mixed>|null
+     */
+    private function documentNativePayload(array $packet): ?array
+    {
+        return $this->isTaggedObject($packet) && $packet['t'] === 'Pandoc' ? $packet : null;
     }
 
     /**

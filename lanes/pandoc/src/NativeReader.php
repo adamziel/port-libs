@@ -21,14 +21,15 @@ final class NativeReader
         if (!is_array($native)) {
             throw new \InvalidArgumentException('Pandoc native JSON must decode to an object');
         }
+        $documentAttrs = $this->documentConstructorAttrs($native);
         $native = $this->normalizeDocument($native);
         $rawMeta = $native['meta'] ?? [];
         $normalizedMeta = $this->normalizeMetadataMap($rawMeta);
 
-        $attrs = [
+        $attrs = array_replace($documentAttrs, [
             'meta' => $this->metadata($normalizedMeta),
             'nativeFormat' => 'pandoc-json',
-        ];
+        ]);
         $attrs = array_replace($attrs, $this->metadataConstructorAttrs($rawMeta, $normalizedMeta));
 
         if (isset($native['pandoc-api-version'])) {
@@ -49,6 +50,15 @@ final class NativeReader
      */
     private function normalizeDocument(array $native): array
     {
+        if ($this->isTaggedConstructor($native, 'Pandoc')) {
+            $content = $this->tuple($native['c'] ?? null, 2, 'Pandoc native JSON Pandoc content');
+
+            return [
+                'meta' => $content[0],
+                'blocks' => $content[1],
+            ];
+        }
+
         if (!array_is_list($native)) {
             return $native;
         }
@@ -70,6 +80,22 @@ final class NativeReader
         return [
             'meta' => $meta,
             'blocks' => $native[1],
+        ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $native
+     * @return array<string, mixed>
+     */
+    private function documentConstructorAttrs(array $native): array
+    {
+        if (!$this->isTaggedConstructor($native, 'Pandoc')) {
+            return [];
+        }
+
+        return [
+            'documentConstructor' => 'Pandoc',
+            'documentNative' => $native,
         ];
     }
 
