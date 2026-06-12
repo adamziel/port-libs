@@ -10546,6 +10546,53 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptBytes = 'alert("blocked");';
+        $configurationXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
+        $manifestWithReviewParts = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png" manifest:size="' . strlen($reviewImage) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/review.js" manifest:media-type="application/javascript" manifest:size="' . strlen($scriptBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml" manifest:size="' . strlen($configurationXml) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithReviewParts, null, null, [
+            ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+            ['name' => 'Scripts/review.js', 'data' => $scriptBytes, 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configurationXml, 'compressionMethod' => 0],
+        ]));
+
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $inventory = $result['importReport']['manifest']['packageProvenance']['parts'];
+
+        $t->same(['Pictures/hero.png', 'Pictures/review.png'], array_column($result['media'], 'part'));
+        $t->same(hash('sha256', 'PNGDATA'), $manifestByPart['Pictures/hero.png']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $manifestByPart['Pictures/review.png']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $mediaByPart['Pictures/review.png']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $inventory['Pictures/review.png']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $result['document']->attr('manifest')['packageProvenance']['parts']['Pictures/review.png']['byteSha256']);
+
+        $t->same(false, $manifestByPart['Scripts/review.js']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/review.js']['byteExposurePolicy']);
+        $t->same(null, $manifestByPart['Scripts/review.js']['byteSha256']);
+        $t->same(null, $inventory['Scripts/review.js']['byteSha256']);
+        $t->same(false, $manifestByPart['Configurations2/accelerator/current.xml']['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $manifestByPart['Configurations2/accelerator/current.xml']['byteExposurePolicy']);
+        $t->same(null, $manifestByPart['Configurations2/accelerator/current.xml']['byteSha256']);
+        $t->same(null, $inventory['Configurations2/accelerator/current.xml']['byteSha256']);
+    },
     'reports ODT configuration package sidecars without document media byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
         $configIconBytes = 'CONFIGPNG';

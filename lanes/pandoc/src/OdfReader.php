@@ -514,6 +514,7 @@ final class OdfReader
                 'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
                 'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'byteSha256' => $this->packageEntryByteSha256($package, $part, $canExposeBytes),
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
@@ -873,6 +874,7 @@ final class OdfReader
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
+                'byteSha256' => is_array($manifestItem) ? ($manifestItem['byteSha256'] ?? null) : null,
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestItem),
                 'manifestIndex' => is_array($manifestItem) ? $manifestItem['manifestIndex'] : null,
@@ -12389,6 +12391,15 @@ final class OdfReader
         ]);
     }
 
+    private function packageEntryByteSha256(ZipPackage $package, ?string $part, bool $canExposeBytes): ?string
+    {
+        if (!$canExposeBytes || $part === null || $part === '' || !$package->has($part)) {
+            return null;
+        }
+
+        return hash('sha256', $package->read($part));
+    }
+
     /**
      * @param list<array<string, mixed>> $manifest
      * @return list<array<string, mixed>>
@@ -12446,6 +12457,7 @@ final class OdfReader
                 'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
                 'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
                 'crc32' => $canExposeBytes ? $entry->crc32Hex() : null,
+                'byteSha256' => $item['byteSha256'] ?? null,
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
