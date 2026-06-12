@@ -2317,6 +2317,7 @@ final class DocxOpenXmlReader
         ksort($contentTypeSourceCounts);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
+        $contentTypeBuckets = $this->packageContentTypeBucketSummary($partInventory);
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
@@ -2440,6 +2441,7 @@ final class DocxOpenXmlReader
         return [
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
+            'contentTypeBucketCount' => count($contentTypeBuckets),
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
@@ -2464,6 +2466,7 @@ final class DocxOpenXmlReader
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
+            'contentTypeBuckets' => $contentTypeBuckets,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
@@ -2477,6 +2480,79 @@ final class DocxOpenXmlReader
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packageContentTypeBucketSummary(array $partInventory): array
+    {
+        $buckets = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $key = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            if (!isset($buckets[$key])) {
+                $buckets[$key] = [
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypes' => [],
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                ];
+            }
+
+            ++$buckets[$key]['partCount'];
+            $buckets[$key]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $buckets[$key]['partNames'][] = (string) $partName;
+
+            $contentType = is_string($part['contentType'] ?? null) ? $part['contentType'] : '';
+            $this->appendUniqueString($buckets[$key]['contentTypes'], $contentType);
+            $this->appendUniqueString(
+                $buckets[$key]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $buckets[$key]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$buckets[$key]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$buckets[$key]['parameterizedPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            if ($contentTypeSource === 'missing') {
+                ++$buckets[$key]['missingContentTypePartCount'];
+            }
+            $buckets[$key]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($buckets[$key]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $buckets[$key]['roleCounts'][$role] =
+                    ($buckets[$key]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($buckets, SORT_STRING);
+        foreach ($buckets as $key => $bucket) {
+            ksort($bucket['contentTypeSourceCounts'], SORT_STRING);
+            ksort($bucket['roleCounts'], SORT_STRING);
+            $buckets[$key] = $bucket;
+        }
+
+        return array_values($buckets);
     }
 
     /**
