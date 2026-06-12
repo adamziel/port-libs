@@ -577,6 +577,58 @@ XML;
         $t->same('rtl', $summary['wordpressImport']['metadataDetails']['packageDirection']);
     },
 
+    'validates OPF package root attributes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPackageRootDiagnostics = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="missing-id" xml:lang="en" dir="sideways">',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPackageRootDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $validation = $epub->validationReport();
+        $metadataValidation = $validation['metadata'];
+        $packageAttributes = $metadataValidation['packageAttributes'];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same('', $validation['packageVersion']);
+        $t->same(false, $validation['epub3']);
+        $t->same(3, $validation['diagnosticCount']);
+        $t->same(['missing-opf-package-version', 'invalid-opf-package-direction', 'unique-identifier-not-found'], array_column($validation['diagnostics'], 'type'));
+
+        $t->same(false, $metadataValidation['valid']);
+        $t->same(true, $metadataValidation['titlePresent']);
+        $t->same(true, $metadataValidation['identifierPresent']);
+        $t->same(true, $metadataValidation['languagePresent']);
+        $t->same(true, $metadataValidation['modifiedPresent']);
+        $t->same(3, $metadataValidation['diagnosticCount']);
+
+        $t->same(false, $packageAttributes['valid']);
+        $t->same(null, $packageAttributes['version']);
+        $t->same(false, $packageAttributes['versionPresent']);
+        $t->same('missing-id', $packageAttributes['uniqueIdentifierId']);
+        $t->same(false, $packageAttributes['uniqueIdentifierValid']);
+        $t->same(1, $packageAttributes['uniqueIdentifierDiagnosticCount']);
+        $t->same('missing-id', $packageAttributes['uniqueIdentifier']['id']);
+        $t->same(false, $packageAttributes['uniqueIdentifier']['matched']);
+        $t->same('first-dc-identifier', $packageAttributes['uniqueIdentifier']['selectedBy']);
+        $t->same('sideways', $packageAttributes['direction']);
+        $t->same(false, $packageAttributes['directionValid']);
+        $t->same(0, $packageAttributes['prefixDiagnosticCount']);
+
+        $t->same($packageAttributes, $summary['wordpressImport']['packageValidation']['metadata']['packageAttributes']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSpineRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

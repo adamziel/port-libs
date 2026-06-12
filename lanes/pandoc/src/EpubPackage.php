@@ -946,7 +946,8 @@ final class EpubPackage
             || (is_array($metadata['identifiers'] ?? null) && $metadata['identifiers'] !== []);
         $languagePresent = trim((string) ($metadata['language'] ?? '')) !== '';
         $modifiedPresent = trim((string) ($metadata['modified'] ?? '')) !== '';
-        $diagnostics = [];
+        $packageAttributes = self::packageAttributeValidationReport($metadata, $epub3);
+        $diagnostics = $packageAttributes['diagnostics'];
 
         if (!$titlePresent) {
             $diagnostics[] = [
@@ -978,10 +979,74 @@ final class EpubPackage
 
         return [
             'valid' => $diagnostics === [],
+            'packageAttributes' => $packageAttributes,
             'titlePresent' => $titlePresent,
             'identifierPresent' => $identifierPresent,
             'languagePresent' => $languagePresent,
             'modifiedPresent' => $modifiedPresent,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageAttributeValidationReport(array $metadata, bool $epub3): array
+    {
+        $package = is_array($metadata['package'] ?? null) ? $metadata['package'] : [];
+        $version = trim((string) ($package['version'] ?? $metadata['version'] ?? ''));
+        $uniqueIdentifier = is_array($metadata['uniqueIdentifier'] ?? null) ? $metadata['uniqueIdentifier'] : [];
+        $uniqueIdentifierDiagnostics = array_values(array_filter(
+            is_array($uniqueIdentifier['diagnostics'] ?? null) ? $uniqueIdentifier['diagnostics'] : [],
+            static fn (mixed $diagnostic): bool => is_array($diagnostic),
+        ));
+        $prefixDiagnostics = array_values(array_filter(
+            is_array($metadata['prefixDiagnostics'] ?? null) ? $metadata['prefixDiagnostics'] : [],
+            static fn (mixed $diagnostic): bool => is_array($diagnostic),
+        ));
+        $direction = is_string($package['direction'] ?? null) ? trim($package['direction']) : null;
+        $directionValid = $direction === null || in_array($direction, ['ltr', 'rtl', 'auto'], true);
+        $versionPresent = $version !== '';
+        $diagnostics = [];
+
+        if (!$versionPresent) {
+            $diagnostics[] = [
+                'type' => 'missing-opf-package-version',
+                'message' => 'EPUB OPF package root is missing the required version attribute',
+            ];
+        }
+
+        if (!$directionValid) {
+            $diagnostics[] = [
+                'type' => 'invalid-opf-package-direction',
+                'direction' => $direction,
+                'message' => 'EPUB OPF package root dir attribute must be ltr, rtl, or auto',
+            ];
+        }
+
+        array_push($diagnostics, ...$uniqueIdentifierDiagnostics, ...$prefixDiagnostics);
+
+        return [
+            'valid' => $diagnostics === [],
+            'epub3' => $epub3,
+            'version' => $versionPresent ? $version : null,
+            'versionPresent' => $versionPresent,
+            'id' => is_string($package['id'] ?? null) ? $package['id'] : null,
+            'uniqueIdentifierId' => is_string($package['uniqueIdentifierId'] ?? null) ? $package['uniqueIdentifierId'] : null,
+            'uniqueIdentifier' => $uniqueIdentifier,
+            'uniqueIdentifierValid' => ($uniqueIdentifier['valid'] ?? true) === true,
+            'uniqueIdentifierDiagnosticCount' => count($uniqueIdentifierDiagnostics),
+            'language' => is_string($package['language'] ?? null) ? $package['language'] : null,
+            'direction' => $direction,
+            'directionValid' => $directionValid,
+            'prefix' => is_string($package['prefix'] ?? null) ? $package['prefix'] : '',
+            'prefixDeclarations' => is_array($package['prefixDeclarations'] ?? null) ? array_values($package['prefixDeclarations']) : [],
+            'prefixBindings' => is_array($package['prefixBindings'] ?? null) ? $package['prefixBindings'] : [],
+            'prefixDiagnosticCount' => count($prefixDiagnostics),
+            'prefixDiagnostics' => $prefixDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
