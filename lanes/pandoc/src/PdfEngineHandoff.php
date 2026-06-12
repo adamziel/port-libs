@@ -310,6 +310,15 @@ final class PdfEngineHandoff
                 if (is_array($openOutput) && is_int($openOutput['flagCount'] ?? null) && $openOutput['flagCount'] > 0) {
                     $diagnostics[] = 'typst-open-output-flags:' . $openOutput['flagCount'];
                 }
+                if (is_array($openOutput) && is_int($openOutput['explicitViewerCount'] ?? null) && $openOutput['explicitViewerCount'] > 0) {
+                    $diagnostics[] = 'typst-open-output-viewers:' . $openOutput['explicitViewerCount'];
+                }
+                if (is_array($openOutput) && is_array($openOutput['selectedViewer'] ?? null)) {
+                    $selectedViewer = $openOutput['selectedViewer'];
+                    if (is_string($selectedViewer['viewer'] ?? null) && $selectedViewer['viewer'] !== '') {
+                        $diagnostics[] = 'typst-open-output-viewer:' . $selectedViewer['viewer'];
+                    }
+                }
             }
             if (($typstBoundaryProvenance['featureGates'] ?? null) !== null) {
                 $featureGates = $typstBoundaryProvenance['featureGates'];
@@ -5796,6 +5805,73 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<string> $engineOptions
+     * @return list<array{raw:string, viewer:string|null, mode:string, kind:string, safe:bool, issues:list<string>}>
+     */
+    private function typstOpenOutputEntries(array $engineOptions): array
+    {
+        $entries = [];
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            if ($option === '--open') {
+                $next = $engineOptions[$index + 1] ?? null;
+                $hasViewer = is_string($next) && trim($next) !== '' && !str_starts_with(trim($next), '-');
+                $entries[] = $this->typstOpenOutputEntry($hasViewer ? $next : '', $hasViewer);
+                continue;
+            }
+            if (str_starts_with($option, '--open=')) {
+                $entries[] = $this->typstOpenOutputEntry(substr($option, strlen('--open=')), true);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{raw:string, viewer:string|null, mode:string, kind:string, safe:bool, issues:list<string>}
+     */
+    private function typstOpenOutputEntry(string $raw, bool $explicitViewer): array
+    {
+        $value = str_replace('\\', '/', trim($raw));
+        $issues = [];
+        $kind = 'default';
+        $viewer = null;
+
+        if ($explicitViewer) {
+            $viewer = $value;
+            if ($value === '') {
+                $kind = 'invalid';
+                $issues[] = 'open-output-viewer-empty-boundary';
+            } elseif (strlen($value) > 256 || str_contains($value, "\0") || preg_match('/[[:cntrl:]]/', $value) === 1) {
+                $kind = 'invalid';
+                $issues[] = 'open-output-viewer-invalid-boundary';
+            } elseif ($this->isUriResourceReference($value) || str_starts_with($value, '/') || preg_match('/\A[A-Za-z]:\//', $value) === 1) {
+                $kind = $this->isUriResourceReference($value) ? 'uri' : 'absolute';
+                $issues[] = 'open-output-viewer-external-boundary';
+            } elseif (str_contains($value, '/')) {
+                try {
+                    $viewer = $this->normalizeRelativePath($value, 'Typst open output viewer');
+                    $kind = 'relative';
+                } catch (\InvalidArgumentException) {
+                    $kind = 'invalid';
+                    $issues[] = 'open-output-viewer-invalid-boundary';
+                }
+            } else {
+                $kind = 'program';
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'viewer' => $viewer,
+            'mode' => $explicitViewer ? 'explicit-viewer' : 'default-viewer',
+            'kind' => $kind,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
      * @param array<string, list<string>> $optionValues
      * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
      */
@@ -5865,7 +5941,8 @@ final class PdfEngineHandoff
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
-        $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
+        $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
+        $openOutputCount = count($openOutputEntries);
         if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
@@ -5977,7 +6054,7 @@ final class PdfEngineHandoff
         }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $fontPaths, $certificates, $inputVariables, $openOutputEntries)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -6087,10 +6164,24 @@ final class PdfEngineHandoff
             ];
         }
         if ($openOutputCount > 0) {
+            $explicitViewerEntries = array_values(array_filter(
+                $openOutputEntries,
+                static fn (array $entry): bool => ($entry['viewer'] ?? null) !== null
+            ));
+            $openOutputEntryIssues = [];
+            foreach ($openOutputEntries as $entry) {
+                foreach ($entry['issues'] as $issue) {
+                    $openOutputEntryIssues[] = $issue;
+                }
+            }
             $provenance['openOutput'] = [
                 'enabled' => true,
                 'flagCount' => $openOutputCount,
-                'issues' => $openOutputIssues,
+                'defaultViewerCount' => $openOutputCount - count($explicitViewerEntries),
+                'explicitViewerCount' => count($explicitViewerEntries),
+                'selectedViewer' => $explicitViewerEntries === [] ? null : $explicitViewerEntries[count($explicitViewerEntries) - 1],
+                'viewers' => $openOutputEntries,
+                'issues' => array_values(array_unique(array_merge($openOutputIssues, $openOutputEntryIssues))),
             ];
         }
         if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0) {
