@@ -10596,11 +10596,15 @@ XML;
     'reports ODT configuration package sidecars without document media byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
         $configIconBytes = 'CONFIGPNG';
+        $encryptedXml = '<encrypted-config/>';
+        $invalidBytes = '%PDF-config';
         $statusbarXml = '<statusbar:statusbar xmlns:statusbar="http://openoffice.org/2001/statusbar"/>';
         $configurationEntries =
             '  <manifest:file-entry manifest:full-path="Configurations2/" manifest:media-type=""/>' . "\n"
             . '  <manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml" manifest:size="' . strlen($acceleratorXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:full-path="Configurations2/images/Bitmaps/review.png" manifest:media-type="image/png" manifest:size="' . strlen($configIconBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/menubar/encrypted.xml" manifest:media-type="text/xml" manifest:size="' . strlen($encryptedXml) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="config-checksum"/></manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/popupmenu/invalid.pdf" manifest:media-type="application/pdf" manifest:size="' . strlen($invalidBytes) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:full-path="Configurations2/toolbar/missing.xml" manifest:media-type="text/xml"/>' . "\n";
         $manifest = str_replace('</manifest:manifest>', $configurationEntries . '</manifest:manifest>', $manifestXml);
 
@@ -10610,6 +10614,8 @@ XML;
                 ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
                 ['name' => 'Configurations2/images/Bitmaps/review.png', 'data' => $configIconBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/menubar/encrypted.xml', 'data' => $encryptedXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/popupmenu/invalid.pdf', 'data' => $invalidBytes, 'compressionMethod' => 0],
                 ['name' => 'Configurations2/statusbar/standardbar.xml', 'data' => $statusbarXml, 'compressionMethod' => 0],
             ],
         ));
@@ -10621,15 +10627,50 @@ XML;
         }
         $provenance = $result['importReport']['manifest']['packageProvenance'];
         $parts = $provenance['parts'];
+        $configurations = $result['packageConfigurations'];
+        $configurationsByPart = [];
+        foreach ($configurations['items'] as $item) {
+            $configurationsByPart[$item['part']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
-        $t->same(4, $provenance['configurationPackagePartCount']);
-        $t->same(4, $provenance['roleCounts']['configuration-package']);
+        $t->same(6, $provenance['configurationPackagePartCount']);
+        $t->same(6, $provenance['roleCounts']['configuration-package']);
         $t->same(1, $provenance['undeclaredRoleCounts']['configuration-package']);
         $t->same(['configuration-package', 'zip-directory', 'manifest-declared'], $parts['Configurations2/']['roles']);
         $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/accelerator/current.xml']['roles']);
         $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/images/Bitmaps/review.png']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/menubar/encrypted.xml']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/popupmenu/invalid.pdf']['roles']);
         $t->same(['configuration-package', 'undeclared-package-entry'], $parts['Configurations2/statusbar/standardbar.xml']['roles']);
+
+        $t->same($configurations, $result['document']->attr('packageConfigurations'));
+        $t->same($configurations, $result['metadata']['odfPackageConfigurations']);
+        $t->same($configurations, $result['importReport']['packageConfigurations']);
+        $t->same(7, $configurations['count']);
+        $t->same(6, $configurations['fileCount']);
+        $t->same(1, $configurations['directoryCount']);
+        $t->same(6, $configurations['declaredCount']);
+        $t->same(1, $configurations['undeclaredCount']);
+        $t->same(1, $configurations['missingCount']);
+        $t->same(1, $configurations['encryptedCount']);
+        $t->same(1, $configurations['invalidMediaTypeCount']);
+        $t->same([
+            'odf-configuration-package-encrypted-part',
+            'odf-configuration-package-invalid-media-type',
+            'odf-configuration-package-missing-part',
+            'odf-configuration-package-undeclared-part',
+        ], $configurations['issueCodes']);
+        $t->same([
+            'accelerator-configuration' => 1,
+            'configuration-directory' => 1,
+            'image-configuration-resource' => 1,
+            'menubar-configuration' => 1,
+            'popupmenu-configuration' => 1,
+            'statusbar-configuration' => 1,
+            'toolbar-configuration' => 1,
+        ], $configurations['kindCounts']);
+        $t->same('configuration-package-metadata-only', $configurations['reviewPolicy']);
 
         $accelerator = $manifestByPart['Configurations2/accelerator/current.xml'];
         $t->same(true, $accelerator['configurationPackagePart']);
@@ -10639,11 +10680,21 @@ XML;
         $t->same(null, $accelerator['crc32']);
         $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
         $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
+        $t->same('accelerator-configuration', $configurationsByPart['Configurations2/accelerator/current.xml']['kind']);
+        $t->same('accelerator', $configurationsByPart['Configurations2/accelerator/current.xml']['group']);
+        $t->same(null, $configurationsByPart['Configurations2/accelerator/current.xml']['byteLength']);
+        $t->same(strlen($acceleratorXml), $configurationsByPart['Configurations2/accelerator/current.xml']['storedByteLength']);
+        $t->same(null, $configurationsByPart['Configurations2/accelerator/current.xml']['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $configurationsByPart['Configurations2/accelerator/current.xml']['storedCrc32']);
+        $t->same(false, $configurationsByPart['Configurations2/accelerator/current.xml']['canExposeAsDocumentMedia']);
+        $t->same([], $configurationsByPart['Configurations2/accelerator/current.xml']['issues']);
 
         $configIcon = $manifestByPart['Configurations2/images/Bitmaps/review.png'];
         $t->same(true, $configIcon['configurationPackagePart']);
         $t->same(false, $configIcon['canExposeBytes']);
         $t->same('configuration-package-bytes-blocked', $configIcon['byteExposurePolicy']);
+        $t->same('image-configuration-resource', $configurationsByPart['Configurations2/images/Bitmaps/review.png']['kind']);
+        $t->same('image/png', $configurationsByPart['Configurations2/images/Bitmaps/review.png']['mediaType']);
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
 
         $missing = $manifestByPart['Configurations2/toolbar/missing.xml'];
@@ -10651,10 +10702,126 @@ XML;
         $t->same(false, $missing['canExposeBytes']);
         $t->same('configuration-package-bytes-blocked', $missing['byteExposurePolicy']);
         $t->same(['Configurations2/toolbar/missing.xml'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
+        $t->same(['odf-configuration-package-missing-part'], $configurationsByPart['Configurations2/toolbar/missing.xml']['issues']);
+
+        $encrypted = $configurationsByPart['Configurations2/menubar/encrypted.xml'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedXml), $encrypted['storedByteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['odf-configuration-package-encrypted-part'], $encrypted['issues']);
+
+        $invalid = $configurationsByPart['Configurations2/popupmenu/invalid.pdf'];
+        $t->same('application/pdf', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-configuration-package-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $configurationsByPart['Configurations2/statusbar/standardbar.xml'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same('text/xml', $orphan['mediaType']);
+        $t->same('statusbar-configuration', $orphan['kind']);
+        $t->same(['odf-configuration-package-undeclared-part'], $orphan['issues']);
 
         $t->same(false, $parts['Configurations2/accelerator/current.xml']['canExposeBytes']);
         $t->same(false, $parts['Configurations2/images/Bitmaps/review.png']['canExposeBytes']);
+        $t->same(false, $parts['Configurations2/menubar/encrypted.xml']['canExposeBytes']);
+        $t->same(false, $parts['Configurations2/popupmenu/invalid.pdf']['canExposeBytes']);
         $t->same(true, $parts['Configurations2/statusbar/standardbar.xml']['undeclared']);
+    },
+    'reports ODT configuration package metadata summaries as review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
+        $encryptedXml = '<encrypted-config/>';
+        $invalidBytes = '%PDF-config';
+        $statusbarXml = '<statusbar:statusbar xmlns:statusbar="http://openoffice.org/2001/statusbar"/>';
+        $configurationEntries =
+            '  <manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml" manifest:size="' . strlen($acceleratorXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/encrypted/current.xml" manifest:media-type="text/xml" manifest:size="' . strlen($encryptedXml) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="config-checksum"/></manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/popupmenu/invalid.pdf" manifest:media-type="application/pdf" manifest:size="' . strlen($invalidBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/toolbar/missing.xml" manifest:media-type="text/xml"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $configurationEntries . '</manifest:manifest>', $manifestXml);
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            overrideManifestXml: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/encrypted/current.xml', 'data' => $encryptedXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/popupmenu/invalid.pdf', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/statusbar/standardbar.xml', 'data' => $statusbarXml, 'compressionMethod' => 0],
+            ],
+        ));
+
+        $configurations = $result['packageConfigurations'];
+        $itemsByPart = [];
+        foreach ($configurations['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($configurations, $result['document']->attr('packageConfigurations'));
+        $t->same($configurations, $result['metadata']['odfPackageConfigurations']);
+        $t->same($configurations, $result['importReport']['packageConfigurations']);
+        $t->same(5, $configurations['count']);
+        $t->same(5, $configurations['fileCount']);
+        $t->same(0, $configurations['directoryCount']);
+        $t->same(4, $configurations['declaredCount']);
+        $t->same(1, $configurations['undeclaredCount']);
+        $t->same(1, $configurations['missingCount']);
+        $t->same(1, $configurations['encryptedCount']);
+        $t->same(1, $configurations['invalidMediaTypeCount']);
+        $t->same([
+            'odf-configuration-package-encrypted-part',
+            'odf-configuration-package-invalid-media-type',
+            'odf-configuration-package-missing-part',
+            'odf-configuration-package-undeclared-part',
+        ], $configurations['issueCodes']);
+        $t->same([
+            'accelerator-configuration' => 1,
+            'popupmenu-configuration' => 1,
+            'statusbar-configuration' => 1,
+            'toolbar-configuration' => 1,
+            'xml-configuration' => 1,
+        ], $configurations['kindCounts']);
+        $t->same('configuration-package-bytes-blocked', $configurations['byteExposurePolicy']);
+        $t->same('configuration-package-metadata-only', $configurations['reviewPolicy']);
+
+        $accelerator = $itemsByPart['Configurations2/accelerator/current.xml'];
+        $t->same('text/xml', $accelerator['mediaType']);
+        $t->same('accelerator-configuration', $accelerator['kind']);
+        $t->same(true, $accelerator['declared']);
+        $t->same(true, $accelerator['valid']);
+        $t->same(null, $accelerator['byteLength']);
+        $t->same(strlen($acceleratorXml), $accelerator['storedByteLength']);
+        $t->same(null, $accelerator['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
+        $t->same(false, $accelerator['canExposeBytes']);
+        $t->same(false, $accelerator['canExposeAsDocumentMedia']);
+        $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
+        $t->same([], $accelerator['issues']);
+
+        $missing = $itemsByPart['Configurations2/toolbar/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['storedByteLength']);
+        $t->same(['odf-configuration-package-missing-part'], $missing['issues']);
+
+        $encrypted = $itemsByPart['Configurations2/encrypted/current.xml'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedXml), $encrypted['storedByteLength']);
+        $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['odf-configuration-package-encrypted-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPart['Configurations2/popupmenu/invalid.pdf'];
+        $t->same('application/pdf', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-configuration-package-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPart['Configurations2/statusbar/standardbar.xml'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same('text/xml', $orphan['mediaType']);
+        $t->same('statusbar-configuration', $orphan['kind']);
+        $t->same(['odf-configuration-package-undeclared-part'], $orphan['issues']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
     },
     'reports ODT embedded object package provenance without exposing payload bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $chartContent = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body/></office:document-content>';
