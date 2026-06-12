@@ -6270,46 +6270,46 @@ final class PdfEngineHandoff
         if ($overrides !== []) {
             $provenance['overrides'] = $overrides;
         }
-        if ($this->typstBoundaryHistoryHasIssues($rootHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($rootHistory)) {
             $provenance['rootHistory'] = $rootHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($packagePathHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($packagePathHistory)) {
             $provenance['packagePathHistory'] = $packagePathHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($packageCacheHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($packageCacheHistory)) {
             $provenance['packageCacheHistory'] = $packageCacheHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($pageSelectionHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($pageSelectionHistory)) {
             $provenance['pageSelectionHistory'] = $pageSelectionHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($ppiHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($ppiHistory)) {
             $provenance['ppiHistory'] = $ppiHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($jobsHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($jobsHistory)) {
             $provenance['jobsHistory'] = $jobsHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($dependencyOutputHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($dependencyOutputHistory)) {
             $provenance['dependencyOutputHistory'] = $dependencyOutputHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($timingsOutputHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($timingsOutputHistory)) {
             $provenance['timingsOutputHistory'] = $timingsOutputHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($diagnosticFormatHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($diagnosticFormatHistory)) {
             $provenance['diagnosticFormatHistory'] = $diagnosticFormatHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($diagnosticColorHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($diagnosticColorHistory)) {
             $provenance['diagnosticColorHistory'] = $diagnosticColorHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($dependencyFormatHistory)) {
+        if ($this->typstBoundaryHistoryHasProvenance($dependencyFormatHistory)) {
             $provenance['dependencyFormatHistory'] = $dependencyFormatHistory;
         }
 
@@ -6319,19 +6319,9 @@ final class PdfEngineHandoff
     /**
      * @param list<array<string, mixed>> $history
      */
-    private function typstBoundaryHistoryHasIssues(array $history): bool
+    private function typstBoundaryHistoryHasProvenance(array $history): bool
     {
-        if (count($history) < 2) {
-            return false;
-        }
-
-        foreach ($history as $entry) {
-            if (($entry['issues'] ?? []) !== []) {
-                return true;
-            }
-        }
-
-        return false;
+        return count($history) > 1;
     }
 
     /**

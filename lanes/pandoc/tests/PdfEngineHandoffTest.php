@@ -427,6 +427,40 @@ return [
                     'issue' => 'creation-timestamp-boundary-overridden',
                 ],
             ],
+            'rootHistory' => [
+                ['raw' => 'project', 'path' => 'project', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePathHistory' => [
+                ['raw' => 'old-packages', 'path' => 'old-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'vendor/typst', 'path' => 'vendor/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packageCacheHistory' => [
+                ['raw' => 'cache-a', 'path' => 'cache-a', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'cache-b', 'path' => 'cache-b', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'creationTimestampHistory' => [
+                [
+                    'raw' => '1700000000',
+                    'value' => '1700000000',
+                    'kind' => 'unix-seconds',
+                    'timestamp' => 1700000000,
+                    'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                    'deterministic' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => '1700000001',
+                    'value' => '1700000001',
+                    'kind' => 'unix-seconds',
+                    'timestamp' => 1700000001,
+                    'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000001),
+                    'deterministic' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -1613,6 +1647,22 @@ return [
                     'issue' => 'timings-output-boundary-overridden',
                 ],
             ],
+            'timingsOutputHistory' => [
+                [
+                    'raw' => 'build/old-timings.json',
+                    'path' => 'build/old-timings.json',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'build/short-timings.json',
+                    'path' => 'build/short-timings.json',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -1769,6 +1819,188 @@ return [
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans safe typst diagnostic and dependency override histories without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/safe-history-boundary.pdf',
+            'source' => '= Typst Safe History Boundary Packet',
+            'engineOptions' => [
+                '--deps=build/safe-history-boundary.d',
+                '--diagnostic-format=human',
+                '--diagnostic-format',
+                'json',
+                '--color=auto',
+                '--color',
+                'never',
+                '--deps-format=make',
+                '--deps-format',
+                'json',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst safe history boundary packet\n%%EOF\n";
+        $depfile = "build/safe-history-boundary.pdf: build/safe-history-boundary.typ\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'diagnostic-format-boundary-overridden',
+                'diagnostic-color-boundary-overridden',
+                'dependency-format-boundary-overridden',
+            ],
+            'diagnosticOutput' => [
+                'format' => [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'color' => [
+                    'raw' => 'never',
+                    'value' => 'never',
+                    'color' => 'never',
+                    'ansiColor' => 'disabled',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+            'dependencyOutput' => [
+                'file' => [
+                    'raw' => 'build/safe-history-boundary.d',
+                    'path' => 'build/safe-history-boundary.d',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'format' => [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'makeCompatible' => false,
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'diagnosticFormat',
+                    'count' => 2,
+                    'values' => ['human', 'json'],
+                    'selected' => 'json',
+                    'issue' => 'diagnostic-format-boundary-overridden',
+                ],
+                [
+                    'option' => 'diagnosticColor',
+                    'count' => 2,
+                    'values' => ['auto', 'never'],
+                    'selected' => 'never',
+                    'issue' => 'diagnostic-color-boundary-overridden',
+                ],
+                [
+                    'option' => 'dependencyFormat',
+                    'count' => 2,
+                    'values' => ['make', 'json'],
+                    'selected' => 'json',
+                    'issue' => 'dependency-format-boundary-overridden',
+                ],
+            ],
+            'diagnosticFormatHistory' => [
+                [
+                    'raw' => 'human',
+                    'value' => 'human',
+                    'format' => 'human',
+                    'machineReadable' => false,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'diagnosticColorHistory' => [
+                [
+                    'raw' => 'auto',
+                    'value' => 'auto',
+                    'color' => 'auto',
+                    'ansiColor' => 'auto',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'never',
+                    'value' => 'never',
+                    'color' => 'never',
+                    'ansiColor' => 'disabled',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'dependencyFormatHistory' => [
+                [
+                    'raw' => 'make',
+                    'value' => 'make',
+                    'format' => 'make',
+                    'makeCompatible' => true,
+                    'machineReadable' => false,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'makeCompatible' => false,
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/safe-history-boundary.d' => $depfile,
+                'build/safe-history-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/safe-history-boundary.d' => $depfile,
+                'build/safe-history-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostics-format:json', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostics-color:never', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:build/safe-history-boundary.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-format:json', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-dependency-output-policy:ok', implode(',', $result['diagnostics']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
