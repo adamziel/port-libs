@@ -2834,6 +2834,83 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited figure drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][1]), 'edited figure drops stale source ordinal');
     },
+    'preserves figure child block native payloads when rebuilding figure wrappers' => static function (TestRunner $t): void {
+        $codeBlock = [
+            't' => 'CodeBlock',
+            'c' => [
+                ['figure-code', ['source'], [['data-source', 'figure']]],
+                "echo source\n",
+            ],
+            'reviewQueue' => 'figure-code-source',
+            'sourceOrdinal' => 91,
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['source-figure', ['review-figure'], [['data-source', 'native']]],
+                ['t' => 'Caption', 'c' => [
+                    null,
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Source'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [$codeBlock],
+            ],
+            'reviewQueue' => 'figure-source',
+            'sourceOrdinal' => 90,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $figure = $document->children[0];
+            $childBlock = $figure->children[0];
+            $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+                'caption' => 'Edited figure',
+                'captionInlines' => [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'figure']),
+                ],
+                'captionBlocks' => [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'Edited']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'figure']),
+                    ]),
+                ],
+            ]), $figure->children);
+            $rebuilt = new AstNode('document', $document->attrs, [$editedFigure]);
+
+            $t->same('code_block', $childBlock->type, "{$source} figure child block type");
+            $t->same($codeBlock, $childBlock->attr('native'), "{$source} reader preserves child code block native payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedFigure = $encoded['blocks'][0];
+                $captionPayload = $encodedFigure['c'][1]['c'] ?? $encodedFigure['c'][1];
+
+                $t->same('Figure', $encodedFigure['t'], "{$source} {$writer} writer regenerates edited figure wrapper");
+                $t->same('Edited', $captionPayload[1][0]['c'][0]['c'], "{$source} {$writer} writer regenerates edited caption text");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFigure), "{$source} {$writer} writer drops stale figure sidecar");
+                $t->same($codeBlock, $encodedFigure['c'][2][0], "{$source} {$writer} writer preserves unchanged figure child block payload");
+            }
+        }
+    },
     'preserves table row and cell native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $cellNative = [
             't' => 'Cell',
