@@ -1690,6 +1690,215 @@ final class ZipPackage
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     totalEntryCount:int,
+     *     archiveLength:int,
+     *     prefixByteCount:int,
+     *     hasPackagePrefix:bool,
+     *     localRegionOffset:int,
+     *     localRegionBytes:int,
+     *     localHeaderFixedBytes:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderBytes:int,
+     *     localPayloadBytes:int,
+     *     dataDescriptorBytes:int,
+     *     localEntryRecordBytes:int,
+     *     unclaimedLocalBytes:int,
+     *     localRegionAccountedBytes:int,
+     *     localRegionUnaccountedBytes:int,
+     *     interEntryGapCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryBytes:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     centralDirectoryToEocdGapOffset:?int,
+     *     centralDirectoryToEocdGapBytes:int,
+     *     centralDirectoryToEocdGapSignature:?string,
+     *     centralDirectoryToEocdGapPreviewHex:string,
+     *     centralDirectoryToEocdGapPreviewByteCount:int,
+     *     isCentralDirectoryToEocdGapExplainedBySignature:bool,
+     *     eocdFixedHeaderBytes:int,
+     *     packageCommentBytes:int,
+     *     endOfCentralDirectoryBytes:int,
+     *     declaredArchiveEndOffset:int,
+     *     trailingByteCount:int,
+     *     accountedArchiveBytes:int,
+     *     unaccountedArchiveBytes:int,
+     *     isLocalRegionContiguous:bool,
+     *     isArchiveLayoutContiguous:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function packageByteLayoutPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before package byte layout can be scanned');
+        }
+
+        $localHeaderSpans = self::localHeaderSpanPreflight($bytes);
+        $archiveLength = strlen($bytes);
+        $prefixByteCount = $localHeaderSpans['unexpectedPrefixBytes'];
+        $localRegionBytes = max(0, $archive['centralDirectoryOffset'] - $prefixByteCount);
+        $localHeaderBytes = 0;
+        $localHeaderVariableFieldBytes = 0;
+        $localPayloadBytes = 0;
+        $dataDescriptorBytes = 0;
+        $localEntryRecordBytes = 0;
+        $unclaimedLocalBytes = 0;
+        $interEntryGapCount = 0;
+        $entries = [];
+
+        foreach ($localHeaderSpans['entries'] as $entry) {
+            $localHeaderLength = is_int($entry['localHeaderLength'] ?? null) ? $entry['localHeaderLength'] : null;
+            $localNameLength = is_int($entry['localNameLength'] ?? null) ? $entry['localNameLength'] : null;
+            $localExtraFieldLength = is_int($entry['localExtraFieldLength'] ?? null) ? $entry['localExtraFieldLength'] : null;
+            $dataStart = is_int($entry['dataStart'] ?? null) ? $entry['dataStart'] : null;
+            $compressedSize = is_int($entry['compressedSize'] ?? null) ? $entry['compressedSize'] : null;
+            $descriptorLength = is_int($entry['descriptorLength'] ?? null) ? $entry['descriptorLength'] : 0;
+            $localHeaderOffset = is_int($entry['localHeaderOffset'] ?? null) ? $entry['localHeaderOffset'] : null;
+            $recordEnd = is_int($entry['recordEnd'] ?? null) ? $entry['recordEnd'] : null;
+            $unclaimedBytes = is_int($entry['unclaimedBytes'] ?? null) ? $entry['unclaimedBytes'] : 0;
+            $localRecordBytes = null;
+
+            if ($localHeaderLength !== null) {
+                $localHeaderBytes += $localHeaderLength;
+            }
+            if ($localNameLength !== null && $localExtraFieldLength !== null) {
+                $localHeaderVariableFieldBytes += $localNameLength + $localExtraFieldLength;
+            }
+            if ($dataStart !== null && $compressedSize !== null) {
+                $localPayloadBytes += $compressedSize;
+            }
+            if ($descriptorLength > 0) {
+                $dataDescriptorBytes += $descriptorLength;
+            }
+            if ($localHeaderOffset !== null && $recordEnd !== null && $recordEnd >= $localHeaderOffset) {
+                $localRecordBytes = $recordEnd - $localHeaderOffset;
+                $localEntryRecordBytes += $localRecordBytes;
+            }
+            if ($unclaimedBytes > 0) {
+                $unclaimedLocalBytes += $unclaimedBytes;
+                $interEntryGapCount++;
+            }
+
+            $entries[] = [
+                'name' => $entry['name'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'localHeaderOffset' => $entry['localHeaderOffset'],
+                'localHeaderLength' => $entry['localHeaderLength'],
+                'localNameLength' => $entry['localNameLength'],
+                'localExtraFieldLength' => $entry['localExtraFieldLength'],
+                'dataStart' => $entry['dataStart'],
+                'compressedSize' => $entry['compressedSize'],
+                'descriptorLength' => $entry['descriptorLength'],
+                'recordEnd' => $entry['recordEnd'],
+                'nextOffset' => $entry['nextOffset'],
+                'localRecordBytes' => $localRecordBytes,
+                'unclaimedBytes' => $unclaimedBytes,
+                'unclaimedBytesPreviewHex' => $entry['unclaimedBytesPreviewHex'],
+                'unclaimedBytesPreviewByteCount' => $entry['unclaimedBytesPreviewByteCount'],
+                'unclaimedBytesSignature' => $entry['unclaimedBytesSignature'],
+                'isContiguousWithNext' => $entry['isContiguousWithNext'],
+                'issues' => $entry['issues'],
+            ];
+        }
+
+        $centralDirectoryToEocdGapBytes = max(0, $archive['eocdOffset'] - $archive['centralDirectoryEnd']);
+        $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0
+            ? $archive['centralDirectoryEnd']
+            : null;
+        $centralDirectoryToEocdGapPreviewByteCount = min($centralDirectoryToEocdGapBytes, 16);
+        $centralDirectoryToEocdGapPreviewHex = $centralDirectoryToEocdGapBytes > 0
+            ? bin2hex(substr($bytes, $archive['centralDirectoryEnd'], $centralDirectoryToEocdGapPreviewByteCount))
+            : '';
+        $centralDirectoryToEocdGapSignature = $centralDirectoryToEocdGapBytes > 0
+            ? self::zipRecordSignatureNameAt($bytes, $archive['centralDirectoryEnd'])
+            : null;
+        $centralDirectorySignature = $centralDirectoryToEocdGapBytes > 0
+            ? self::centralDirectoryDigitalSignatureRecordAt($bytes, $archive['centralDirectoryEnd'])
+            : null;
+        $isCentralDirectoryToEocdGapExplainedBySignature = $centralDirectorySignature !== null
+            && $centralDirectorySignature['endOffset'] === $archive['eocdOffset'];
+        $eocdFixedHeaderBytes = 22;
+        $packageCommentBytes = $archive['packageCommentLength'];
+        $endOfCentralDirectoryBytes = $eocdFixedHeaderBytes + $packageCommentBytes;
+        $declaredArchiveEndOffset = $archive['eocdOffset'] + $endOfCentralDirectoryBytes;
+        $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
+        $localRegionAccountedBytes = $localEntryRecordBytes + $unclaimedLocalBytes;
+        $localRegionUnaccountedBytes = $localRegionBytes - $localRegionAccountedBytes;
+        $accountedArchiveBytes = $prefixByteCount
+            + $localRegionAccountedBytes
+            + $archive['centralDirectorySize']
+            + $centralDirectoryToEocdGapBytes
+            + $endOfCentralDirectoryBytes
+            + $trailingByteCount;
+        $unaccountedArchiveBytes = $archiveLength - $accountedArchiveBytes;
+        $issues = $localHeaderSpans['issues'];
+
+        if ($prefixByteCount > 0) {
+            $issues[] = 'package-prefix-bytes';
+        }
+        if ($centralDirectoryToEocdGapBytes > 0 && !$isCentralDirectoryToEocdGapExplainedBySignature) {
+            $issues[] = 'central-directory-eocd-gap';
+        }
+        if ($trailingByteCount > 0) {
+            $issues[] = 'eocd-trailing-bytes';
+        }
+        if ($localRegionUnaccountedBytes !== 0 || $unaccountedArchiveBytes !== 0) {
+            $issues[] = 'package-byte-layout-unaccounted-bytes';
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'entryCount' => count($entries),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'archiveLength' => $archiveLength,
+            'prefixByteCount' => $prefixByteCount,
+            'hasPackagePrefix' => $prefixByteCount > 0,
+            'localRegionOffset' => $prefixByteCount,
+            'localRegionBytes' => $localRegionBytes,
+            'localHeaderFixedBytes' => $localHeaderBytes - $localHeaderVariableFieldBytes,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localHeaderBytes' => $localHeaderBytes,
+            'localPayloadBytes' => $localPayloadBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'localEntryRecordBytes' => $localEntryRecordBytes,
+            'unclaimedLocalBytes' => $unclaimedLocalBytes,
+            'localRegionAccountedBytes' => $localRegionAccountedBytes,
+            'localRegionUnaccountedBytes' => $localRegionUnaccountedBytes,
+            'interEntryGapCount' => $interEntryGapCount,
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'eocdOffset' => $archive['eocdOffset'],
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSignature' => $centralDirectoryToEocdGapSignature,
+            'centralDirectoryToEocdGapPreviewHex' => $centralDirectoryToEocdGapPreviewHex,
+            'centralDirectoryToEocdGapPreviewByteCount' => $centralDirectoryToEocdGapPreviewByteCount,
+            'isCentralDirectoryToEocdGapExplainedBySignature' => $isCentralDirectoryToEocdGapExplainedBySignature,
+            'eocdFixedHeaderBytes' => $eocdFixedHeaderBytes,
+            'packageCommentBytes' => $packageCommentBytes,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+            'trailingByteCount' => $trailingByteCount,
+            'accountedArchiveBytes' => $accountedArchiveBytes,
+            'unaccountedArchiveBytes' => $unaccountedArchiveBytes,
+            'isLocalRegionContiguous' => $localHeaderSpans['issueEntryCount'] === 0
+                && $localRegionUnaccountedBytes === 0,
+            'isArchiveLayoutContiguous' => $issues === [],
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $archive
      * @return array{issue:string, location:string, error:string}|null
      */
@@ -10733,6 +10942,7 @@ final class ZipPackage
      *     localHeaderSpans:?array<string, mixed>,
      *     localHeaderOrder:?array<string, mixed>,
      *     packagePrefix:?array<string, mixed>,
+     *     packageByteLayout:?array<string, mixed>,
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
      *     generalPurposeFlags:?array<string, mixed>,
@@ -10861,6 +11071,7 @@ final class ZipPackage
                 'localHeaderSpans' => null,
                 'localHeaderOrder' => null,
                 'packagePrefix' => null,
+                'packageByteLayout' => null,
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
                 'generalPurposeFlags' => null,
@@ -10906,6 +11117,7 @@ final class ZipPackage
         $localHeaderSpans = null;
         $localHeaderOrder = null;
         $packagePrefix = null;
+        $packageByteLayout = null;
         $archiveExtraDataRecords = null;
         $encryption = null;
         $generalPurposeFlags = null;
@@ -11049,6 +11261,15 @@ final class ZipPackage
             );
             if ($packagePrefix !== null && !$packagePrefix['isSupportedByBoundedReader']) {
                 $addDiagnostics($packagePrefix['issues']);
+            }
+
+            $packageByteLayout = $runPreflight(
+                'package-byte-layout',
+                static fn (): array => self::packageByteLayoutPreflight($bytes)
+            );
+            if ($packageByteLayout !== null && !$packageByteLayout['isSupportedByBoundedReader']) {
+                $addDiagnostic('package-byte-layout-issues');
+                $addDiagnostics($packageByteLayout['issues']);
             }
 
             $archiveExtraDataRecords = $runPreflight(
@@ -11277,6 +11498,7 @@ final class ZipPackage
             ?? $localHeaderSpans['entryCount']
             ?? $localHeaderOrder['entryCount']
             ?? $packagePrefix['entryCount']
+            ?? $packageByteLayout['entryCount']
             ?? $splitArchive['entryCount']
             ?? $centralDirectorySignature['entryCount']
             ?? $centralDirectoryFixedHeaders['entryCount']
@@ -11334,6 +11556,7 @@ final class ZipPackage
             'localHeaderSpans' => $localHeaderSpans,
             'localHeaderOrder' => $localHeaderOrder,
             'packagePrefix' => $packagePrefix,
+            'packageByteLayout' => $packageByteLayout,
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
             'generalPurposeFlags' => $generalPurposeFlags,
@@ -11393,6 +11616,7 @@ final class ZipPackage
      *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
      *     localHeaderVariableFields:array<string, mixed>,
+     *     packageByteLayout:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
@@ -11437,6 +11661,7 @@ final class ZipPackage
         $centralDirectoryFixedHeaders = self::centralDirectoryFixedHeaderPreflight($this->bytes);
         $centralDirectoryVariableFields = self::centralDirectoryVariableFieldsPreflight($this->bytes);
         $localHeaderVariableFields = self::localHeaderVariableFieldsPreflight($this->bytes);
+        $packageByteLayout = self::packageByteLayoutPreflight($this->bytes);
         $contentPresence = $this->contentPresencePreflight();
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
@@ -11475,6 +11700,11 @@ final class ZipPackage
         if (!$centralDirectoryFixedHeaders['isSupportedByBoundedReader']) {
             $diagnostics[] = 'central-directory-fixed-header-issues';
             array_push($diagnostics, ...$centralDirectoryFixedHeaders['issues']);
+        }
+
+        if (!$packageByteLayout['isSupportedByBoundedReader']) {
+            $diagnostics[] = 'package-byte-layout-issues';
+            array_push($diagnostics, ...$packageByteLayout['issues']);
         }
 
         if (!$contentPresence['isSupportedByBoundedReader']) {
@@ -11625,6 +11855,7 @@ final class ZipPackage
             'centralDirectoryFixedHeaders' => $centralDirectoryFixedHeaders,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'localHeaderVariableFields' => $localHeaderVariableFields,
+            'packageByteLayout' => $packageByteLayout,
             'contentPresence' => $contentPresence,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
@@ -11663,6 +11894,7 @@ final class ZipPackage
      *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
      *     localHeaderVariableFields:array<string, mixed>,
+     *     packageByteLayout:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,

@@ -941,6 +941,120 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
     },
 
+    'preflights zip package byte layout before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentName = 'word/document.xml';
+        $mediaName = 'word/media/review.txt';
+        $documentXml = '<w:document><w:body><w:p>' . str_repeat('layout accounting ', 10) . '</w:p></w:body></w:document>';
+        $mediaBytes = "stored layout media bytes\n";
+        $gapBytes = 'layout-gap-review';
+        $packageComment = 'layout-comment';
+        $zip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 8,
+                'localSlack' => $gapBytes,
+            ],
+            [
+                'name' => $mediaName,
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ], $packageComment);
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
+        $documentHeaderBytes = 30 + strlen($documentName);
+        $mediaHeaderBytes = 30 + strlen($mediaName);
+        $localHeaderBytes = $documentHeaderBytes + $mediaHeaderBytes;
+        $localPayloadBytes = $documentCompressedBytes + strlen($mediaBytes);
+        $localRecordBytes = $localHeaderBytes + $localPayloadBytes;
+        $localRegionBytes = $localRecordBytes + strlen($gapBytes);
+        $centralDirectoryBytes = 46 + strlen($documentName) + 46 + strlen($mediaName);
+
+        $summary = ZipPackage::packageByteLayoutPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same(strlen($zip), $summary['archiveLength']);
+        $t->same(0, $summary['prefixByteCount']);
+        $t->same(false, $summary['hasPackagePrefix']);
+        $t->same(0, $summary['localRegionOffset']);
+        $t->same($localRegionBytes, $summary['localRegionBytes']);
+        $t->same(60, $summary['localHeaderFixedBytes']);
+        $t->same(strlen($documentName) + strlen($mediaName), $summary['localHeaderVariableFieldBytes']);
+        $t->same($localHeaderBytes, $summary['localHeaderBytes']);
+        $t->same($localPayloadBytes, $summary['localPayloadBytes']);
+        $t->same(0, $summary['dataDescriptorBytes']);
+        $t->same($localRecordBytes, $summary['localEntryRecordBytes']);
+        $t->same(strlen($gapBytes), $summary['unclaimedLocalBytes']);
+        $t->same($localRegionBytes, $summary['localRegionAccountedBytes']);
+        $t->same(0, $summary['localRegionUnaccountedBytes']);
+        $t->same(1, $summary['interEntryGapCount']);
+        $t->same($localRegionBytes, $summary['centralDirectoryOffset']);
+        $t->same($centralDirectoryBytes, $summary['centralDirectoryBytes']);
+        $t->same($localRegionBytes + $centralDirectoryBytes, $summary['centralDirectoryEnd']);
+        $t->same($summary['centralDirectoryEnd'], $summary['eocdOffset']);
+        $t->same(null, $summary['centralDirectoryToEocdGapOffset']);
+        $t->same(0, $summary['centralDirectoryToEocdGapBytes']);
+        $t->same(null, $summary['centralDirectoryToEocdGapSignature']);
+        $t->same('', $summary['centralDirectoryToEocdGapPreviewHex']);
+        $t->same(0, $summary['centralDirectoryToEocdGapPreviewByteCount']);
+        $t->same(false, $summary['isCentralDirectoryToEocdGapExplainedBySignature']);
+        $t->same(22, $summary['eocdFixedHeaderBytes']);
+        $t->same(strlen($packageComment), $summary['packageCommentBytes']);
+        $t->same(22 + strlen($packageComment), $summary['endOfCentralDirectoryBytes']);
+        $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
+        $t->same(0, $summary['trailingByteCount']);
+        $t->same(strlen($zip), $summary['accountedArchiveBytes']);
+        $t->same(0, $summary['unaccountedArchiveBytes']);
+        $t->same(false, $summary['isLocalRegionContiguous']);
+        $t->same(false, $summary['isArchiveLayoutContiguous']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['local-entry-unclaimed-bytes'], $summary['issues']);
+
+        $t->same($documentName, $summary['entries'][0]['name']);
+        $t->same($documentHeaderBytes + $documentCompressedBytes, $summary['entries'][0]['localRecordBytes']);
+        $t->same(strlen($gapBytes), $summary['entries'][0]['unclaimedBytes']);
+        $t->same(bin2hex(substr($gapBytes, 0, 16)), $summary['entries'][0]['unclaimedBytesPreviewHex']);
+        $t->same(false, $summary['entries'][0]['isContiguousWithNext']);
+        $t->same(['local-entry-unclaimed-bytes'], $summary['entries'][0]['issues']);
+        $t->same($mediaName, $summary['entries'][1]['name']);
+        $t->same($mediaHeaderBytes + strlen($mediaBytes), $summary['entries'][1]['localRecordBytes']);
+        $t->same(0, $summary['entries'][1]['unclaimedBytes']);
+        $t->same(true, $summary['entries'][1]['isContiguousWithNext']);
+
+        $t->same(false, $rawPreflight['isValid']);
+        $t->same(false, $rawPreflight['canInstantiate']);
+        $t->same($summary, $rawPreflight['packageByteLayout']);
+        $t->contains('package-byte-layout-issues', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
+
+        $safeZip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => $mediaName,
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]);
+        $safeSummary = ZipPackage::packageByteLayoutPreflight($safeZip);
+        $safeRaw = ZipPackage::rawStrictImportPreflight($safeZip, 2048, 100.0, 2048);
+
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same(true, $safeSummary['isArchiveLayoutContiguous']);
+        $t->same(0, $safeSummary['unclaimedLocalBytes']);
+        $t->same([], $safeSummary['issues']);
+        $t->same($safeSummary, $safeRaw['packageByteLayout']);
+        $t->same($safeSummary, $safeRaw['strictImport']['packageByteLayout']);
+        $t->same(true, $safeRaw['isValid']);
+        $t->same(true, $safeRaw['canInstantiate']);
+    },
+
     'preflights hidden zip local span record signatures before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
         $reviewPayload = 'hidden archive-extra reviewer metadata';
         $hiddenRecord = "PK\x06\x08" . pack('V', strlen($reviewPayload)) . $reviewPayload;
