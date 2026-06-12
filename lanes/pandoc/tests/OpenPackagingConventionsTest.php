@@ -389,6 +389,75 @@ return [
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
     },
+    'preflights raw OPC central directory manifest ZIP64 byte sentinels before package construction' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $imageBytes = 'PNGDATA';
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+        ]);
+
+        $mediaCentralDirectoryOffset = null;
+        foreach (ZipPackage::centralDirectorySizePreflight($zip)['entries'] as $entry) {
+            if ($entry['name'] === 'word/media/image.png') {
+                $mediaCentralDirectoryOffset = $entry['centralDirectoryOffset'];
+                break;
+            }
+        }
+        $t->true(is_int($mediaCentralDirectoryOffset));
+
+        $zip = substr_replace($zip, pack('V', 0xffffffff), $mediaCentralDirectoryOffset + 20, 4);
+        $zip = substr_replace($zip, pack('V', 0xffffffff), $mediaCentralDirectoryOffset + 24, 4);
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $knownBytes = strlen($contentTypesXml) + strlen($rootRelationshipsXml) + strlen($documentXml);
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['zipCentralDirectoryValid']);
+        $t->same(false, $summary['byteCountsAreExact']);
+        $t->same(['central-directory-size-unknown'], $summary['centralDirectoryIssues']);
+        $t->same([
+            'central-directory-size-unknown',
+            'zip64-size-or-offset-sentinel',
+        ], $summary['issues']);
+        $t->same([
+            'central-directory-size-unknown' => 1,
+            'zip64-size-or-offset-sentinel' => 1,
+        ], $summary['issueCounts']);
+        $t->same(['zip64-size-or-offset-sentinel' => ['word/media/image.png']], $summary['entryNamesByIssue']);
+        $t->same(['zip64-size-or-offset-sentinel' => ['/word/media/image.png']], $summary['partNamesByIssue']);
+        $t->same(1, $summary['unknownByteCountEntryCount']);
+        $t->same($knownBytes, $summary['compressedPayloadBytes']);
+        $t->same($knownBytes, $summary['uncompressedPayloadBytes']);
+        $t->same([
+            'entryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+        ], $summary['byteCountsByHandoffKind']['media']);
+        $t->same('_rels/.rels', $summary['largestPayloadEntry']['entryName']);
+
+        $mediaEntry = $entries['word/media/image.png'];
+        $t->same(false, $mediaEntry['byteCountsAreExact']);
+        $t->same(null, $mediaEntry['exactCompressedSize']);
+        $t->same(null, $mediaEntry['exactUncompressedSize']);
+        $t->same(true, $mediaEntry['hasZip64SizeSentinel']);
+        $t->same(['zip64-size-or-offset-sentinel'], $mediaEntry['issues']);
+        $t->same(false, $mediaEntry['valid']);
+        $t->same(0xffffffff, $mediaEntry['compressedSize']);
+        $t->same(0xffffffff, $mediaEntry['uncompressedSize']);
+        $t->same($summary['unknownByteCountEntries'][0]['entryName'], $mediaEntry['entryName']);
+        $t->same(['zip64-size-or-offset-sentinel'], $summary['unknownByteCountEntries'][0]['issues']);
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

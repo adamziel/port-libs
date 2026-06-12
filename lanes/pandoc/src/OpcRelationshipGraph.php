@@ -869,8 +869,9 @@ final class OpcRelationshipGraph
             $partName = null;
             $equivalenceKey = null;
             $parseError = null;
-            $issues = [];
+            $issues = $centralEntry['issues'];
             $contentTypesItem = false;
+            $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
 
             if (!$isDirectory) {
                 try {
@@ -885,7 +886,10 @@ final class OpcRelationshipGraph
                     }
                 } catch (\InvalidArgumentException $exception) {
                     $parseError = $exception->getMessage();
-                    $issues = self::packagePartNameIssuesForParseError($parseError);
+                    $issues = array_values(array_unique(array_merge(
+                        $issues,
+                        self::packagePartNameIssuesForParseError($parseError),
+                    )));
                 }
             }
 
@@ -905,6 +909,10 @@ final class OpcRelationshipGraph
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
                 'compressedSize' => $centralEntry['compressedSize'],
                 'uncompressedSize' => $centralEntry['uncompressedSize'],
+                'byteCountsAreExact' => $byteCountsAreExact,
+                'exactCompressedSize' => $byteCountsAreExact ? $centralEntry['compressedSize'] : null,
+                'exactUncompressedSize' => $byteCountsAreExact ? $centralEntry['uncompressedSize'] : null,
+                'hasZip64SizeSentinel' => $centralEntry['hasZip64SizeSentinel'],
                 'role' => $isDirectory ? 'directory' : 'package-part',
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
                 'contentTypesItem' => $contentTypesItem,
@@ -1059,6 +1067,7 @@ final class OpcRelationshipGraph
         $mediaPartCandidateCount = 0;
         $xmlPayloadPartCount = 0;
         $binaryPayloadPartCount = 0;
+        $unknownByteCountEntries = [];
         $largestPayloadEntry = null;
 
         if ($contentTypesItems === []) {
@@ -1074,14 +1083,20 @@ final class OpcRelationshipGraph
         }
 
         foreach ($entries as $entry) {
+            $exactCompressedSize = $entry['exactCompressedSize'];
+            $exactUncompressedSize = $entry['exactUncompressedSize'];
             if ($entry['isDirectory']) {
                 $directoryEntryCount++;
-                $directoryCompressedBytes += $entry['compressedSize'];
-                $directoryUncompressedBytes += $entry['uncompressedSize'];
+                if ($entry['byteCountsAreExact']) {
+                    $directoryCompressedBytes += $exactCompressedSize;
+                    $directoryUncompressedBytes += $exactUncompressedSize;
+                }
             } else {
                 $fileEntryCount++;
-                $fileCompressedBytes += $entry['compressedSize'];
-                $fileUncompressedBytes += $entry['uncompressedSize'];
+                if ($entry['byteCountsAreExact']) {
+                    $fileCompressedBytes += $exactCompressedSize;
+                    $fileUncompressedBytes += $exactUncompressedSize;
+                }
             }
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
@@ -1091,14 +1106,14 @@ final class OpcRelationshipGraph
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByRole,
                 $entry['role'],
-                $entry['compressedSize'],
-                $entry['uncompressedSize'],
+                $exactCompressedSize ?? 0,
+                $exactUncompressedSize ?? 0,
             );
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByHandoffKind,
                 $entry['handoffKind'],
-                $entry['compressedSize'],
-                $entry['uncompressedSize'],
+                $exactCompressedSize ?? 0,
+                $exactUncompressedSize ?? 0,
             );
             self::recordZipEntryManifestCompressionMethodProvenance(
                 $compressionMethodCounts,
@@ -1111,11 +1126,8 @@ final class OpcRelationshipGraph
                 $entry['handoffKind'],
             );
 
-            if (
-                $largestPayloadEntry === null
-                || $entry['uncompressedSize'] > $largestPayloadEntry['uncompressedSize']
-            ) {
-                $largestPayloadEntry = [
+            if (!$entry['byteCountsAreExact']) {
+                $unknownByteCountEntries[] = [
                     'entryName' => $entry['entryName'],
                     'partName' => $entry['partName'],
                     'role' => $entry['role'],
@@ -1124,6 +1136,21 @@ final class OpcRelationshipGraph
                     'compressionMethodName' => $entry['compressionMethodName'],
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
+                    'issues' => $entry['issues'],
+                ];
+            } elseif (
+                $largestPayloadEntry === null
+                || $exactUncompressedSize > $largestPayloadEntry['uncompressedSize']
+            ) {
+                $largestPayloadEntry = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => $entry['compressionMethodName'],
+                    'compressedSize' => $exactCompressedSize,
+                    'uncompressedSize' => $exactUncompressedSize,
                 ];
             }
 
@@ -1212,6 +1239,8 @@ final class OpcRelationshipGraph
             'isSupportedByBoundedReader' => $issues === [],
             'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader'],
             'centralDirectoryIssues' => $centralDirectory['issues'],
+            'byteCountsAreExact' => $centralDirectory['totalsAreExact'],
+            'unknownByteCountEntryCount' => count($unknownByteCountEntries),
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
             'entryCount' => count($entries),
             'fileEntryCount' => $fileEntryCount,
@@ -1252,6 +1281,7 @@ final class OpcRelationshipGraph
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
+            'unknownByteCountEntries' => $unknownByteCountEntries,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
