@@ -1715,6 +1715,8 @@ final class CslStyle
             'number-of-pages',
             'number-of-volumes',
             'collection-number',
+            'series-number',
+            'seriesnumber',
             'section',
             'part-number',
             'part',

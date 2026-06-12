@@ -7181,6 +7181,93 @@ XML);
         $t->contains('<p>Collection aliases Curator (2026) and (Ng 2025) keep source series visible.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.</dd>', $blocks);
     },
+    'normalizes bounded direct csl json biblatex series aliases into collection metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-series-alias',
+                'type' => 'book',
+                'title' => 'Direct Series Alias Packet',
+                'author' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'series' => 'Migration Review Studies',
+                'seriesShort' => 'MRS',
+                'seriesNumber' => 7,
+            ],
+            [
+                'id' => 'direct-series-title-alias',
+                'type' => 'chapter',
+                'title' => 'Direct Series Title Alias Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'seriesTitle' => 'Source Notes Series',
+                'series-title-short' => 'SNS',
+                'series-number' => '12',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $series = $processor->item('direct-series-alias');
+        $titleAlias = $processor->item('direct-series-title-alias');
+        $t->same('Migration Review Studies', $series['collectionTitle'] ?? null);
+        $t->same('MRS', $series['collectionTitleShort'] ?? null);
+        $t->same('7', $series['collectionNumber'] ?? null);
+        $t->same('Source Notes Series', $titleAlias['collectionTitle'] ?? null);
+        $t->same('SNS', $titleAlias['collectionTitleShort'] ?? null);
+        $t->same('12', $titleAlias['collectionNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Series Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-series-alias-review</id>
+    <updated>2026-06-12T00:44:32+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="series-title"/>
+        <text variable="series" form="short"/>
+        <text variable="series-number" form="ordinal"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="series"/>
+      <text variable="series-title-short"/>
+      <number variable="seriesnumber" form="roman"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Series Alias Review', $summary['title'] ?? null);
+        $t->same('series-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('series-number', $citationChildren[3]['variable'] ?? null);
+        $t->same('seriesnumber', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('[Curator | Migration Review Studies | MRS | 7th; Ng | Source Notes Series | SNS | 12th]', $styled->renderCitationCluster([
+            $citation('direct-series-alias', '[@direct-series-alias]'),
+            $citation('direct-series-title-alias', '[@direct-series-title-alias]'),
+        ]));
+        $t->same('Direct Series Alias Packet :: Migration Review Studies :: MRS :: vii', $styled->renderBibliographyEntry('direct-series-alias'));
+        $t->same('Direct Series Title Alias Packet :: Source Notes Series :: SNS :: xii', $styled->renderBibliographyEntry('direct-series-title-alias'));
+
+        $document = (new MarkdownReader())->read('Direct series aliases [@direct-series-alias; @direct-series-title-alias] keep collection metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct series aliases [Curator | Migration Review Studies | MRS | 7th; Ng | Source Notes Series | SNS | 12th] keep collection metadata visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Direct Series Alias Packet :: Migration Review Studies :: MRS :: vii</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Series Title Alias Packet :: Source Notes Series :: SNS :: xii</dd>', $blocks);
+    },
     'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{range-detail,
