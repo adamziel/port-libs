@@ -3528,6 +3528,48 @@ return [
             $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} edited citation drops stale record ordinal");
         }
     },
+    'regenerates nullary inline constructors with stale native content sidecars' => static function (TestRunner $t): void {
+        $spaceInline = ['t' => 'Space', 'c' => ['stale'], 'reviewQueue' => 'space-source'];
+        $softBreakInline = ['t' => 'SoftBreak', 'c' => 'stale', 'reviewQueue' => 'softbreak-source'];
+        $lineBreakInline = ['t' => 'LineBreak', 'c' => 1, 'reviewQueue' => 'linebreak-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    $spaceInline,
+                    $softBreakInline,
+                    $lineBreakInline,
+                ]],
+            ],
+        ];
+        $expectedInlines = [
+            ['t' => 'Space'],
+            ['t' => 'SoftBreak'],
+            ['t' => 'LineBreak'],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $nodes = $document->children[0]->children;
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $expectedJsonInlines = $source === 'native'
+                ? [['t' => 'Str', 'c' => ' '], ['t' => 'SoftBreak'], ['t' => 'LineBreak']]
+                : $expectedInlines;
+
+            $t->same($source === 'native' ? ['text', 'softbreak', 'linebreak'] : ['space', 'softbreak', 'linebreak'], array_map(static fn (AstNode $node): string => $node->type, $nodes), "{$source} nullary inline node types");
+            $t->same($source === 'native' ? [$spaceInline] : $spaceInline, $source === 'native' ? $nodes[0]->attr('nativeInlineParts') : $nodes[0]->attr('native'), "{$source} source space native sidecar");
+            $t->same($softBreakInline, $nodes[1]->attr('native'), "{$source} source softbreak native sidecar");
+            $t->same($lineBreakInline, $nodes[2]->attr('native'), "{$source} source linebreak native sidecar");
+            $t->same($expectedJsonInlines, $jsonPacket['blocks'][0]['c'], "{$source} JSON writer regenerates nullary constructors");
+            $t->same($expectedInlines, $nativePacket['blocks'][0]['c'], "{$source} native writer regenerates nullary constructors");
+        }
+    },
     'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $structuralInlines = [
             ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],

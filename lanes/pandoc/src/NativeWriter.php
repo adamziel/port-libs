@@ -1041,7 +1041,7 @@ final class NativeWriter
      */
     private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native)) {
+        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || $this->hasNonReusableNativeInlinePayload($native)) {
             return false;
         }
 
@@ -1085,7 +1085,7 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native)) {
+        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || !$this->isReusableNativeInlinePayload($native)) {
             return false;
         }
 
@@ -1124,6 +1124,129 @@ final class NativeWriter
         }
 
         return $nodes;
+    }
+
+    private function hasNonReusableNativeInlinePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNativeInlineConstructorTag($value['t'])
+            && !$this->isReusableNativeInlinePayload($value)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonReusableNativeInlinePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isReusableNativeInlinePayload(array $native): bool
+    {
+        return $this->isSidecarFreeLegacyTargetInlinePayload($native) || $this->isCurrentNativeInlinePayload($native);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isSidecarFreeLegacyTargetInlinePayload(array $native): bool
+    {
+        $tag = $native['t'] ?? null;
+        if ($tag !== 'Link' && $tag !== 'Image') {
+            return false;
+        }
+
+        $content = $native['c'] ?? null;
+        if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
+            return false;
+        }
+
+        foreach ($native as $key => $_item) {
+            if ($key !== 't' && $key !== 'c') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function isCurrentNativeInlinePayload(array $native): bool
+    {
+        $tag = $native['t'];
+
+        if (in_array($tag, ['Space', 'SoftBreak', 'LineBreak'], true)) {
+            return !array_key_exists('c', $native);
+        }
+
+        if ($tag === 'Str') {
+            return is_string($native['c'] ?? null);
+        }
+
+        $content = $native['c'] ?? null;
+        if (!is_array($content) || !array_is_list($content)) {
+            return false;
+        }
+
+        return match ($tag) {
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Note' => true,
+            'Quoted',
+            'Code',
+            'Math',
+            'RawInline',
+            'Cite',
+            'Span' => count($content) === 2,
+            'Link',
+            'Image' => count($content) === 3,
+            default => false,
+        };
+    }
+
+    private function isNativeInlineConstructorTag(string $tag): bool
+    {
+        return in_array($tag, [
+            'Str',
+            'Space',
+            'SoftBreak',
+            'LineBreak',
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Quoted',
+            'Code',
+            'Math',
+            'RawInline',
+            'Cite',
+            'Link',
+            'Image',
+            'Note',
+            'Span',
+        ], true);
     }
 
     private function hasLegacyTargetInlinePayloadSidecars(mixed $value): bool
@@ -1440,6 +1563,9 @@ final class NativeWriter
             }
 
             if ($part['t'] === 'Space') {
+                if (array_key_exists('c', $part)) {
+                    return null;
+                }
                 $text .= ' ';
                 $normalized[] = $part;
                 continue;

@@ -1151,6 +1151,10 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
+        if ($this->hasNonCurrentNativeInlinePayload($native)) {
+            return false;
+        }
+
         if ($tag === 'Plain' || $tag === 'Para') {
             $content = $native['c'] ?? null;
 
@@ -1200,18 +1204,73 @@ final class PandocJsonWriter
         return false;
     }
 
+    private function hasNonCurrentNativeInlinePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNativeInlineConstructorTag($value['t'])
+            && !$this->isCurrentNativeInlinePayload($value)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonCurrentNativeInlinePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @param array<string, mixed> $native
      */
     private function isCurrentNativeInlinePayload(array $native): bool
     {
         $tag = $native['t'];
-        if ($tag === 'Link' || $tag === 'Image') {
-            $content = $native['c'] ?? null;
 
-            return is_array($content) && array_is_list($content) && count($content) === 3;
+        if (in_array($tag, ['Space', 'SoftBreak', 'LineBreak'], true)) {
+            return !array_key_exists('c', $native);
         }
 
+        if ($tag === 'Str') {
+            return is_string($native['c'] ?? null);
+        }
+
+        $content = $native['c'] ?? null;
+        if (!is_array($content) || !array_is_list($content)) {
+            return false;
+        }
+
+        return match ($tag) {
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Note' => true,
+            'Quoted',
+            'Code',
+            'Math',
+            'RawInline',
+            'Cite',
+            'Span' => count($content) === 2,
+            'Link',
+            'Image' => count($content) === 3,
+            default => false,
+        };
+    }
+
+    private function isNativeInlineConstructorTag(string $tag): bool
+    {
         return in_array($tag, [
             'Str',
             'Space',
@@ -1229,6 +1288,8 @@ final class PandocJsonWriter
             'Math',
             'RawInline',
             'Cite',
+            'Link',
+            'Image',
             'Note',
             'Span',
         ], true);
@@ -1579,6 +1640,9 @@ final class PandocJsonWriter
             }
 
             if ($part['t'] === 'Space') {
+                if (array_key_exists('c', $part)) {
+                    return null;
+                }
                 $text .= ' ';
                 $normalized[] = $part;
                 continue;
