@@ -1349,6 +1349,9 @@ final class NativeReader
         if ($sourceText !== '') {
             $attrs['text'] = $sourceText;
         }
+        if ($sourceInlines !== []) {
+            $attrs['citationSourceInlines'] = $sourceInlines;
+        }
 
         return new AstNode('citation_group', $attrs, $citations);
     }

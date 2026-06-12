@@ -1543,6 +1543,17 @@ final class PandocJsonWriter
             return $node->children;
         }
 
+        $sourceInlines = $node->attr('citationSourceInlines', []);
+        if (
+            $node->type === 'citation_group'
+            && is_array($sourceInlines)
+            && $sourceInlines !== []
+            && $this->allAstNodes($sourceInlines)
+            && $this->allInlineNodes($sourceInlines)
+        ) {
+            return array_values($sourceInlines);
+        }
+
         $text = (string) $node->attr('text', '');
         if ($text === '' && $node->type === 'citation_group') {
             $text = '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationSourceText($citation), $this->citationGroupChildren($node))) . ']';
