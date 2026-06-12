@@ -27196,6 +27196,96 @@ XML);
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
     },
+    'maps bounded biblatex series creator aliases into csl name metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{series-creator-source,
+  author          = {Ng, Nia},
+  title           = {Series Creator Source Packet},
+  date            = {2026},
+  series          = {Migration Review Library},
+  seriescreator          = {{Series Desk} and Curator, Eli},
+  seriescreator+an:source = {1=series provenance verified; 2:family=curator family checked}
+}
+
+@book{hyphen-series-creator-source,
+  author         = {Roe, Pat},
+  title          = {Hyphen Series Creator Packet},
+  date           = {2025},
+  series         = {Legacy Review Library},
+  series-creator = {Archivist, Ada}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Series Desk', $items[0]['series-creator'][0]['literal'] ?? null);
+        $t->same('Curator', $items[0]['series-creator'][1]['family'] ?? null);
+        $t->same('Eli', $items[0]['series-creator'][1]['given'] ?? null);
+        $t->same('source', $items[0]['series-creator'][0]['annotations'][0]['part'] ?? null);
+        $t->same('series provenance verified', $items[0]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same('curator family checked', $items[0]['series-creator'][1]['annotations'][0]['value'] ?? null);
+        $t->same('Archivist', $items[1]['series-creator'][0]['family'] ?? null);
+        $t->same('Ada', $items[1]['series-creator'][0]['given'] ?? null);
+        $t->same('{Series Desk} and Curator, Eli', $items[0]['rawBibtex']['fields']['seriescreator'] ?? null);
+        $t->same('1=series provenance verified; 2:family=curator family checked', $items[0]['rawBibtex']['fields']['seriescreator+an:source'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $series = $processor->item('series-creator-source');
+        $hyphen = $processor->item('hyphen-series-creator-source');
+        $t->same('Series Desk', $series['seriesCreators'][0]['literal'] ?? null);
+        $t->same('Curator', $series['seriesCreators'][1]['family'] ?? null);
+        $t->same('source', $series['seriesCreators'][0]['annotations'][0]['part'] ?? null);
+        $t->same('series provenance verified', $series['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Archivist', $hyphen['seriesCreators'][0]['family'] ?? null);
+        $t->same('Ng, Nia. Series Creator Source Packet. Series: Migration Review Library. 2026. Name annotations: Series creator 1 source: series provenance verified; Series creator 2 family: curator family checked. Series created by Series Desk; Curator, Eli.', $processor->renderBibliographyEntry('series-creator-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Series Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-creator-alias-review</id>
+    <updated>2026-06-12T01:47:36+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <names variable="series-creator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Series Creator Alias Review', $summary['title'] ?? null);
+        $t->same('series-creator', $citationChildren[2]['variable'] ?? null);
+        $t->same('series-creator', $bibliographyChildren[2]['variable'] ?? null);
+        $t->same('[Ng | Migration Review Library | Series Desk and Curator; Roe | Legacy Review Library | Archivist]', $styled->renderCitationCluster([
+            $citation('series-creator-source', '[@series-creator-source]'),
+            $citation('hyphen-series-creator-source', '[@hyphen-series-creator-source]'),
+        ]));
+        $t->same('Series Creator Source Packet :: Migration Review Library :: Series Desk; Curator, Eli :: Series creator 1 source: series provenance verified; Series creator 2 family: curator family checked', $styled->renderBibliographyEntry('series-creator-source'));
+        $t->same('Hyphen Series Creator Packet :: Legacy Review Library :: Archivist, Ada', $styled->renderBibliographyEntry('hyphen-series-creator-source'));
+
+        $document = (new MarkdownReader())->read('Series creator aliases [@series-creator-source; @hyphen-series-creator-source] keep collection provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creator aliases [Ng | Migration Review Library | Series Desk and Curator; Roe | Legacy Review Library | Archivist] keep collection provenance visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Series Creator Source Packet :: Migration Review Library :: Series Desk; Curator, Eli :: Series creator 1 source: series provenance verified; Series creator 2 family: curator family checked</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Series Creator Packet :: Legacy Review Library :: Archivist, Ada</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
