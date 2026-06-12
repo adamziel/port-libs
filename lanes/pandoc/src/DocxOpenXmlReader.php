@@ -2331,6 +2331,7 @@ final class DocxOpenXmlReader
         $relationshipPartsWithMissingContentTypes = [];
         $relationshipTargetsWithoutContentType = [];
         $relationshipPartMissingSourceCount = 0;
+        $relationshipFromMissingSourceCount = 0;
         $relationshipPartsWithMissingSources = [];
         $relationshipsFromMissingSources = [];
         $relationshipTargetReferenceSuffixCount = 0;
@@ -2371,11 +2372,9 @@ final class DocxOpenXmlReader
             if (($relationshipPart['sourceExists'] ?? true) === false) {
                 ++$relationshipPartMissingSourceCount;
                 $relationshipPartsWithMissingSources[] = (string) $relationshipsPart;
-                $relationshipsFromMissingSources[] = [
-                    'relationshipsPart' => (string) $relationshipsPart,
-                    'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
-                    'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
-                ];
+                $missingSourceSummary = $this->missingRelationshipSourceSummary((string) $relationshipsPart, $relationshipPart);
+                $relationshipFromMissingSourceCount += (int) $missingSourceSummary['relationshipCount'];
+                $relationshipsFromMissingSources[] = $missingSourceSummary;
             }
 
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
@@ -2487,6 +2486,7 @@ final class DocxOpenXmlReader
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
+            'relationshipFromMissingSourceCount' => $relationshipFromMissingSourceCount,
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
@@ -3466,6 +3466,86 @@ final class DocxOpenXmlReader
             'contentTypeSource' => $relationship['contentTypeSource'] ?? 'missing',
             'defaultExtension' => $relationship['defaultExtension'] ?? null,
             'overridePartName' => $relationship['overridePartName'] ?? null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $relationshipPart
+     * @return array<string, mixed>
+     */
+    private function missingRelationshipSourceSummary(string $relationshipsPart, array $relationshipPart): array
+    {
+        $relationships = [];
+        $relationshipIds = [];
+        $targetParts = [];
+        $existingTargetParts = [];
+        $missingTargetParts = [];
+        $externalTargets = [];
+        $missingContentTypeTargetParts = [];
+        $targetReferenceSuffixes = [];
+        $internalTargetCount = 0;
+        $externalTargetCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeCount = 0;
+
+        foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+            if (!is_array($relationship)) {
+                continue;
+            }
+
+            $item = $this->relationshipProvenanceSummaryItem($relationship);
+            $relationships[] = $item;
+            $this->appendUniqueString($relationshipIds, is_string($item['id'] ?? null) ? $item['id'] : null);
+
+            $targetReferenceSuffix = is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : '';
+            if ($targetReferenceSuffix !== '') {
+                $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            }
+
+            if (($item['external'] ?? false) === true) {
+                ++$externalTargetCount;
+                $this->appendUniqueString($externalTargets, is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : null);
+                continue;
+            }
+
+            ++$internalTargetCount;
+            $targetPart = is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null;
+            $this->appendUniqueString($targetParts, $targetPart);
+
+            if (($item['exists'] ?? false) === true) {
+                ++$existingTargetCount;
+                $this->appendUniqueString($existingTargetParts, $targetPart);
+            } else {
+                ++$missingTargetCount;
+                $this->appendUniqueString($missingTargetParts, $targetPart);
+            }
+
+            if (($item['contentTypeSource'] ?? '') === 'missing') {
+                ++$missingContentTypeCount;
+                $this->appendUniqueString($missingContentTypeTargetParts, $targetPart);
+            }
+        }
+
+        return [
+            'relationshipsPart' => $relationshipsPart,
+            'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+            'sourceExists' => false,
+            'relationshipCount' => count($relationships),
+            'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? count($relationships)),
+            'internalTargetCount' => $internalTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'existingTargetCount' => $existingTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingContentTypeCount' => $missingContentTypeCount,
+            'relationshipIds' => $relationshipIds,
+            'targetParts' => $targetParts,
+            'existingTargetParts' => $existingTargetParts,
+            'missingTargetParts' => $missingTargetParts,
+            'externalTargets' => $externalTargets,
+            'missingContentTypeTargetParts' => $missingContentTypeTargetParts,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'relationships' => $relationships,
         ];
     }
 
