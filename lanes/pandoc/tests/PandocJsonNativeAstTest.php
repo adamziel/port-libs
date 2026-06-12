@@ -2409,6 +2409,83 @@ return [
         $t->same('Edited', $editedPacket['blocks'][1]['c'][0]['c'][1][0]['c']);
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]['c'][0]));
     },
+    'preserves native-reader-only inline payloads when rebuilding wrappers' => static function (TestRunner $t): void {
+        $codeAttr = [
+            'native-code',
+            ['php'],
+            [['data-source', 'native-reader']],
+            ['reviewQueue' => 'code-attr-sidecar'],
+        ];
+        $spanAttr = [
+            'native-span',
+            ['review-span'],
+            [['data-span', 'native-reader']],
+            ['reviewQueue' => 'span-attr-sidecar'],
+        ];
+        $codeInline = [
+            't' => 'Code',
+            'c' => [$codeAttr, 'echo 1;'],
+            'reviewQueue' => 'code-inline-source',
+        ];
+        $spanInline = [
+            't' => 'Span',
+            'c' => [
+                $spanAttr,
+                [
+                    ['t' => 'Str', 'c' => 'native'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'span'],
+                ],
+            ],
+            'reviewQueue' => 'span-inline-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    $codeInline,
+                    ['t' => 'Space'],
+                    $spanInline,
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $paragraph = $document->children[0];
+        $code = $paragraph->children[0];
+        $span = $paragraph->children[2];
+        $rebuilt = new AstNode('document', $document->attrs, [
+            new AstNode('paragraph', [], [
+                $code,
+                new AstNode('space'),
+                $span,
+            ]),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($rebuilt),
+            'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $t->same(array_slice($codeAttr, 0, 3), $code->attr('attrNative'), "{$writer} source code Attr tuple");
+            $t->same(array_slice($spanAttr, 0, 3), $span->attr('attrNative'), "{$writer} source span Attr tuple");
+            $t->same($codeInline, $encoded['blocks'][0]['c'][0], "{$writer} writer preserves native-reader-only code inline payload");
+            $t->same($spanInline, $encoded['blocks'][0]['c'][2], "{$writer} writer preserves native-reader-only span inline payload");
+        }
+
+        $editedCode = new AstNode('code', array_replace($code->attrs, [
+            'text' => 'echo 2;',
+        ]));
+        $editedPacket = json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [
+            new AstNode('paragraph', [], [$editedCode]),
+        ])), true, 512, JSON_THROW_ON_ERROR);
+        $editedInline = $editedPacket['blocks'][0]['c'][0];
+
+        $t->same('Code', $editedInline['t']);
+        $t->same('echo 2;', $editedInline['c'][1]);
+        $t->same(['native-code', ['php'], [['data-source', 'native-reader']]], $editedInline['c'][0]);
+        $t->same(false, array_key_exists('reviewQueue', $editedInline), 'edited native-reader-only inline payload drops stale wrapper sidecar');
+    },
     'preserves current plain and paragraph native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $plainBlock = [
             't' => 'Plain',

@@ -1059,28 +1059,41 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
-        try {
-            $packet = [
-                'pandoc-api-version' => [1, 23, 1],
-                'meta' => [],
-                'blocks' => [
-                    ['t' => 'Plain', 'c' => [$native]],
-                ],
-            ];
-            $jsonDocument = (new PandocJsonReader())->readPacket($packet);
-            $freshNode = $jsonDocument->children[0]->children[0] ?? null;
+        foreach ($this->inlinePayloadReaders($native) as $freshNode) {
             if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
                 return true;
             }
-
-            $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
-        } catch (\Throwable) {
-            return false;
         }
 
-        $freshNode = $document->children[0]->children[0] ?? null;
+        return false;
+    }
 
-        return $freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode);
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function inlinePayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$native]],
+            ],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
