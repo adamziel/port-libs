@@ -3182,7 +3182,7 @@ final class DocxOpenXmlReader
         return [
             'contentTypesPart' => $contentTypesPart,
             'relationshipParts' => $relationshipParts,
-            'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts),
+            'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts, $partInventory),
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
@@ -3247,6 +3247,8 @@ final class DocxOpenXmlReader
         $relationshipTargetsWithReferenceSuffix = [];
         $relationshipTargetsWithParentTraversal = [];
         $relationshipsWithSameSourceTargets = [];
+        $relationshipSourcePartSummaries = [];
+        $relationshipSourceRoleCounts = [];
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
         $duplicateRelationshipRecordCount = 0;
@@ -3299,6 +3301,22 @@ final class DocxOpenXmlReader
                 $type = (string) ($relationship['type'] ?? '');
                 $typeKey = $type === '' ? '(missing-type)' : $type;
                 $relationshipTypeCounts[$typeKey] = ($relationshipTypeCounts[$typeKey] ?? 0) + 1;
+                $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
+                $sourceRoles = $this->relationshipSourceRoles($sourcePart, $partInventory);
+                foreach ($sourceRoles as $sourceRole) {
+                    $relationshipSourceRoleCounts[$sourceRole] = ($relationshipSourceRoleCounts[$sourceRole] ?? 0) + 1;
+                }
+                if (!isset($relationshipSourcePartSummaries[$sourcePart])) {
+                    $relationshipSourcePartSummaries[$sourcePart] = [
+                        'sourcePart' => $sourcePart,
+                        'sourceExists' => $sourcePart === '/' || ($sourcePart !== '' && isset($partInventory[$sourcePart])),
+                        'sourceRoles' => $sourceRoles,
+                        'relationshipCount' => 0,
+                        'relationshipTypes' => [],
+                    ];
+                }
+                ++$relationshipSourcePartSummaries[$sourcePart]['relationshipCount'];
+                $this->appendUniqueString($relationshipSourcePartSummaries[$sourcePart]['relationshipTypes'], $typeKey);
 
                 $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null)
                     ? $relationship['targetReferenceSuffix']
@@ -3426,6 +3444,8 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipSourcePartSummaries, SORT_STRING);
+        ksort($relationshipSourceRoleCounts, SORT_STRING);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
 
@@ -3439,6 +3459,7 @@ final class DocxOpenXmlReader
             'largestPartBytes' => $largestPart['bytes'] ?? 0,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
+            'relationshipSourcePartCount' => count($relationshipSourcePartSummaries),
             'relationshipRecordCount' => $relationshipRecordCount,
             'internalRelationshipCount' => $internalRelationshipCount,
             'externalRelationshipCount' => $externalRelationshipCount,
@@ -3471,6 +3492,8 @@ final class DocxOpenXmlReader
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
+            'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
+            'relationshipSourceParts' => array_values($relationshipSourcePartSummaries),
             'partDirectories' => $partDirectories,
             'partExtensions' => $partExtensions,
             'largestPart' => $largestPart,
@@ -4620,7 +4643,7 @@ final class DocxOpenXmlReader
      * @param array<string, array<string, mixed>> $relationshipParts
      * @return array<string, array<string, mixed>>
      */
-    private function relationshipTypeProvenance(array $relationshipParts): array
+    private function relationshipTypeProvenance(array $relationshipParts, array $partInventory): array
     {
         $types = [];
         foreach ($relationshipParts as $relationshipPart) {
@@ -4647,6 +4670,7 @@ final class DocxOpenXmlReader
                         'missingTargetCount' => 0,
                         'parentTraversalTargetCount' => 0,
                         'sameSourceTargetCount' => 0,
+                        'sourceRoleCounts' => [],
                         'relationshipParts' => [],
                         'sourceParts' => [],
                         'targetParts' => [],
@@ -4663,6 +4687,7 @@ final class DocxOpenXmlReader
                 $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null;
                 $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : '';
                 $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
+                $sourceRoles = $this->relationshipSourceRoles($sourcePart, $partInventory);
                 $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
                 $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
                 $contentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null) ? $relationship['contentTypeParameters'] : [];
@@ -4672,6 +4697,10 @@ final class DocxOpenXmlReader
                     : count($contentTypeParameters);
 
                 $types[$typeKey]['count']++;
+                foreach ($sourceRoles as $sourceRole) {
+                    $types[$typeKey]['sourceRoleCounts'][$sourceRole] =
+                        ($types[$typeKey]['sourceRoleCounts'][$sourceRole] ?? 0) + 1;
+                }
                 if ($external) {
                     $types[$typeKey]['externalCount']++;
                     $this->appendUniqueString($types[$typeKey]['externalTargets'], $target);
@@ -4699,6 +4728,7 @@ final class DocxOpenXmlReader
                 $types[$typeKey]['relationships'][] = [
                     'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : '',
                     'sourcePart' => $sourcePart,
+                    'sourceRoles' => $sourceRoles,
                     'relationshipsPart' => $relationshipsPart,
                     'target' => $target,
                     'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
@@ -4726,8 +4756,35 @@ final class DocxOpenXmlReader
         }
 
         ksort($types);
+        foreach ($types as &$typeSummary) {
+            ksort($typeSummary['sourceRoleCounts'], SORT_STRING);
+        }
+        unset($typeSummary);
 
         return $types;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<string>
+     */
+    private function relationshipSourceRoles(string $sourcePart, array $partInventory): array
+    {
+        if ($sourcePart === '/') {
+            return ['package-root'];
+        }
+
+        if ($sourcePart === '' || !isset($partInventory[$sourcePart])) {
+            return ['missing-source-part'];
+        }
+
+        $rawRoles = $partInventory[$sourcePart]['roles'] ?? [];
+        $roles = array_values(array_filter(
+            array_map('strval', is_array($rawRoles) ? $rawRoles : []),
+            static fn (string $role): bool => $role !== '',
+        ));
+
+        return $roles === [] ? ['package-part'] : $roles;
     }
 
     private function relationshipTypeLabel(string $type): string

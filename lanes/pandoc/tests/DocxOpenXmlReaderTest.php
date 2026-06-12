@@ -472,6 +472,84 @@ XML;
         $t->true(in_array('relationship-part', $inventory['word/_rels/header1.xml.rels']['roles'], true), 'header relationship part role missing');
         $t->true(in_array('relationship-target', $inventory['word/media/header.png']['roles'], true), 'header image relationship target role missing');
     },
+    'summarizes docx relationship source roles for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header source</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-source.png"/>
+</Relationships>
+XML;
+        $parts['word/media/header.png'] = 'header source role png';
+        $parts['word/media/missing-source.png'] = 'missing source role png';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $sourceParts = [];
+        foreach ($summary['relationshipSourceParts'] as $sourcePart) {
+            $sourceParts[$sourcePart['sourcePart']] = $sourcePart;
+        }
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $headerType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+        $imageRelationships = [];
+        foreach ($package['relationshipTypes'][$imageType]['relationships'] as $relationship) {
+            $imageRelationships[$relationship['id']] = $relationship;
+        }
+
+        $t->same(7, $summary['relationshipCount']);
+        $t->same(4, $summary['relationshipSourcePartCount']);
+        $t->same([
+            'document-relationship-target' => 1,
+            'missing-source-part' => 1,
+            'office-document' => 3,
+            'package-root' => 2,
+            'root-relationship-target' => 3,
+        ], $summary['relationshipSourceRoleCounts']);
+        $t->same(['/', 'word/document.xml', 'word/header1.xml', 'word/missing-source.xml'], array_keys($sourceParts));
+
+        $t->same(['package-root'], $sourceParts['/']['sourceRoles']);
+        $t->same(2, $sourceParts['/']['relationshipCount']);
+        $t->same(['office-document', 'root-relationship-target'], $sourceParts['word/document.xml']['sourceRoles']);
+        $t->same(3, $sourceParts['word/document.xml']['relationshipCount']);
+        $t->same(['document-relationship-target'], $sourceParts['word/header1.xml']['sourceRoles']);
+        $t->same(1, $sourceParts['word/header1.xml']['relationshipCount']);
+        $t->same(false, $sourceParts['word/missing-source.xml']['sourceExists']);
+        $t->same(['missing-source-part'], $sourceParts['word/missing-source.xml']['sourceRoles']);
+        $t->same(1, $sourceParts['word/missing-source.xml']['relationshipCount']);
+
+        $t->same(['package-root' => 1], $package['relationshipTypes'][$officeType]['sourceRoleCounts']);
+        $t->same(['office-document' => 1, 'root-relationship-target' => 1], $package['relationshipTypes'][$headerType]['sourceRoleCounts']);
+        $t->same([
+            'document-relationship-target' => 1,
+            'missing-source-part' => 1,
+            'office-document' => 1,
+            'root-relationship-target' => 1,
+        ], $package['relationshipTypes'][$imageType]['sourceRoleCounts']);
+        $t->same(['office-document', 'root-relationship-target'], $imageRelationships['rImage']['sourceRoles']);
+        $t->same(['document-relationship-target'], $imageRelationships['rHeaderImage']['sourceRoles']);
+        $t->same(['missing-source-part'], $imageRelationships['rMissingSourceImage']['sourceRoles']);
+    },
     'summarizes docx header and footer parts from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
