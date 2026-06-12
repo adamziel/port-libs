@@ -226,6 +226,7 @@ final class OpenDocumentPackage
      *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
      *     packageSignatures:array<string, mixed>,
+     *     packageObjects:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
@@ -243,6 +244,7 @@ final class OpenDocumentPackage
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         $packageThumbnails = self::packageThumbnailMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageSignatures = self::packageSignatureMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageObjects = self::embeddedObjectPackageMetadata($this->package, $this->manifestEntries);
         $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
@@ -313,6 +315,7 @@ final class OpenDocumentPackage
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'packageThumbnails' => $packageThumbnails,
             'packageSignatures' => $packageSignatures,
+            'packageObjects' => $packageObjects,
             'packageFonts' => $packageFonts,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'packageInventory' => $packageInventory,
@@ -353,6 +356,7 @@ final class OpenDocumentPackage
 
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $compressionMethods = $this->package->compressionMethodPreflight();
+        $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
             $name = $entry['name'] ?? null;
@@ -370,6 +374,8 @@ final class OpenDocumentPackage
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $embeddedObjectPackageRootCount = 0;
+        $embeddedObjectPackagePartCount = 0;
         $scriptPackagePartCount = 0;
         $configurationPackagePartCount = 0;
         $fontPackagePartCount = 0;
@@ -377,11 +383,12 @@ final class OpenDocumentPackage
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
 
-            $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared);
+            $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $item = [
                 'path' => $entry->name,
                 'roles' => $roles,
@@ -424,11 +431,21 @@ final class OpenDocumentPackage
                 'manifestEncryptionIssueCodes' => is_array($manifestEntry) && is_array($manifestEntry['encryption'] ?? null)
                     ? ($manifestEntry['encryption']['issueCodes'] ?? [])
                     : [],
+                'embeddedObjectPackagePart' => is_array($embeddedObjectPackage),
+                'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
+                'embeddedObjectPath' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectPath'] : null,
+                'embeddedObjectType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectType'] : null,
+                'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
+                'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
+                'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($manifestEntry)
+                    ? ($manifestEntry['byteExposurePolicy'] ?? null)
+                    : (is_array($embeddedObjectPackage) ? 'embedded-object-package-bytes-blocked' : null),
                 'undeclared' => $isUndeclared,
             ];
 
@@ -449,6 +466,12 @@ final class OpenDocumentPackage
             }
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
+            }
+            if (in_array('embedded-object-root', $roles, true)) {
+                ++$embeddedObjectPackageRootCount;
+            }
+            if (in_array('embedded-object-part', $roles, true)) {
+                ++$embeddedObjectPackagePartCount;
             }
             if (in_array('script-package', $roles, true)) {
                 ++$scriptPackagePartCount;
@@ -480,6 +503,8 @@ final class OpenDocumentPackage
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'embeddedObjectPackageRootCount' => $embeddedObjectPackageRootCount,
+            'embeddedObjectPackagePartCount' => $embeddedObjectPackagePartCount,
             'scriptPackagePartCount' => $scriptPackagePartCount,
             'configurationPackagePartCount' => $configurationPackagePartCount,
             'fontPackagePartCount' => $fontPackagePartCount,
@@ -492,9 +517,15 @@ final class OpenDocumentPackage
 
     /**
      * @param array<string, mixed>|null $manifestEntry
+     * @param array<string, mixed>|null $embeddedObjectPackage
      * @return list<string>
      */
-    private static function packageEntryRoles(ZipPackageEntry $entry, ?array $manifestEntry, bool $undeclared): array
+    private static function packageEntryRoles(
+        ZipPackageEntry $entry,
+        ?array $manifestEntry,
+        bool $undeclared,
+        ?array $embeddedObjectPackage
+    ): array
     {
         $roles = [];
         if ($entry->name === 'mimetype') {
@@ -532,6 +563,9 @@ final class OpenDocumentPackage
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
+        }
+        if (is_array($embeddedObjectPackage)) {
+            $roles[] = $embeddedObjectPackage['isRoot'] === true ? 'embedded-object-root' : 'embedded-object-part';
         }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
@@ -600,12 +634,95 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, array<string, mixed>>
+     */
+    private static function embeddedObjectPackageRootParts(array $entries): array
+    {
+        $roots = [];
+        foreach ($entries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '') {
+                continue;
+            }
+            if (!self::isEmbeddedObjectPackageMediaType((string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? ''))) {
+                continue;
+            }
+
+            $root = rtrim($packagePath, '/') . '/';
+            if ($root === '/') {
+                continue;
+            }
+
+            $roots[$root] = $entry;
+        }
+
+        return $roots;
+    }
+
+    private static function isEmbeddedObjectPackageMediaType(string $mediaType): bool
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return in_array($base, [
+            'application/vnd.oasis.opendocument.chart',
+            'application/vnd.oasis.opendocument.formula',
+            'application/vnd.oasis.opendocument.graphics',
+            'application/vnd.oasis.opendocument.presentation',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'application/vnd.oasis.opendocument.text',
+        ], true);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return array<string, mixed>|null
+     */
+    private static function embeddedObjectPackageMembership(string $part, array $objectPackageRootParts): ?array
+    {
+        foreach ($objectPackageRootParts as $rootPart => $rootEntry) {
+            if ($part !== $rootPart && !str_starts_with($part, $rootPart)) {
+                continue;
+            }
+
+            return [
+                'rootPart' => $rootPart,
+                'objectPath' => rtrim($rootPart, '/'),
+                'objectType' => self::objectTypeForMediaType((string) ($rootEntry['mediaTypeBase'] ?? $rootEntry['mediaType'] ?? '')),
+                'mediaType' => (string) ($rootEntry['mediaType'] ?? ''),
+                'mediaTypeBase' => (string) ($rootEntry['mediaTypeBase'] ?? ''),
+                'isRoot' => $part === $rootPart,
+            ];
+        }
+
+        return null;
+    }
+
+    private static function objectTypeForMediaType(string $mediaType): string
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return match ($base) {
+            'application/vnd.oasis.opendocument.chart' => 'chart',
+            'application/vnd.oasis.opendocument.formula' => 'formula',
+            'application/vnd.oasis.opendocument.graphics' => 'graphics',
+            'application/vnd.oasis.opendocument.presentation' => 'presentation',
+            'application/vnd.oasis.opendocument.spreadsheet' => 'spreadsheet',
+            'application/vnd.oasis.opendocument.text' => 'text',
+            default => 'object',
+        };
+    }
+
+    /**
      * @param array<string, mixed> $entry
      */
     private static function isMediaResourceManifestEntry(array $entry): bool
     {
         $packagePath = $entry['packagePath'] ?? $entry['path'] ?? '';
         if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/')) {
+            return false;
+        }
+        if (($entry['embeddedObjectPackagePart'] ?? false) === true) {
             return false;
         }
         if (is_string($packagePath) && self::isThumbnailPackagePartName($packagePath)) {
@@ -640,10 +757,15 @@ final class OpenDocumentPackage
     private static function withPackageEntryMetadata(array $entries, ZipPackage $package): array
     {
         $hydrated = [];
+        $objectPackageRootParts = self::embeddedObjectPackageRootParts($entries);
         foreach ($entries as $entry) {
             $isRoot = $entry['path'] === '/';
             $packagePath = $entry['packagePath'];
             $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
+            $embeddedObjectPackage = is_string($packagePath)
+                ? self::embeddedObjectPackageMembership($packagePath, $objectPackageRootParts)
+                : null;
+            $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
             $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
             $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
@@ -656,7 +778,16 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$scriptPackagePart && !$configurationPackagePart && !$fontPackagePart && !$missingMediaType && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot
+                && $exists
+                && !$isDirectory
+                && !$encrypted
+                && !$embeddedObjectPackagePart
+                && !$scriptPackagePart
+                && !$configurationPackagePart
+                && !$fontPackagePart
+                && !$missingMediaType
+                && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -692,6 +823,13 @@ final class OpenDocumentPackage
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
+                'embeddedObjectPackagePart' => $embeddedObjectPackagePart,
+                'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
+                'embeddedObjectPath' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectPath'] : null,
+                'embeddedObjectType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectType'] : null,
+                'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
+                'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
+                'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'scriptPackagePart' => $scriptPackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
                 'fontPackagePart' => $fontPackagePart,
@@ -701,6 +839,7 @@ final class OpenDocumentPackage
                     $exists,
                     $isDirectory,
                     $encrypted,
+                    $embeddedObjectPackagePart,
                     $scriptPackagePart,
                     $configurationPackagePart,
                     $fontPackagePart,
@@ -719,6 +858,7 @@ final class OpenDocumentPackage
         bool $exists,
         bool $isDirectory,
         bool $encrypted,
+        bool $embeddedObjectPackagePart,
         bool $scriptPackagePart,
         bool $configurationPackagePart,
         bool $fontPackagePart,
@@ -733,6 +873,9 @@ final class OpenDocumentPackage
         }
         if ($encrypted) {
             return 'encrypted-resource-bytes-blocked';
+        }
+        if ($embeddedObjectPackagePart) {
+            return 'embedded-object-package-bytes-blocked';
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
@@ -1242,6 +1385,184 @@ final class OpenDocumentPackage
         ];
     }
 
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @return array<string, mixed>
+     */
+    private static function embeddedObjectPackageMetadata(ZipPackage $package, array $manifestEntries): array
+    {
+        $objectPackageRootParts = self::embeddedObjectPackageRootParts($manifestEntries);
+        $entriesByPath = [];
+        foreach ($package->entries() as $entry) {
+            $entriesByPath[$entry->name] = $entry;
+        }
+
+        $items = [];
+        $byRootPart = [];
+        $rootParts = [];
+        $objectTypes = [];
+        $issueCodes = [];
+        foreach ($objectPackageRootParts as $rootPart => $rootEntry) {
+            $objectPath = rtrim($rootPart, '/');
+            $declaredContainedParts = [];
+            $declaredContainedPartItems = [];
+            $existingDeclaredContainedParts = [];
+            $missingDeclaredContainedParts = [];
+            $encryptedDeclaredContainedParts = [];
+            foreach ($manifestEntries as $entry) {
+                $packagePath = $entry['packagePath'] ?? null;
+                if (!is_string($packagePath) || $packagePath === '' || $packagePath === $rootPart || !str_starts_with($packagePath, $rootPart)) {
+                    continue;
+                }
+
+                $declaredContainedParts[$packagePath] = true;
+                $summary = self::embeddedObjectManifestPartSummary($entry);
+                $declaredContainedPartItems[] = $summary;
+                if (($entry['exists'] ?? false) === true) {
+                    $existingDeclaredContainedParts[] = $summary;
+                } else {
+                    $missingDeclaredContainedParts[] = $summary;
+                }
+                if (($entry['encrypted'] ?? false) === true) {
+                    $encryptedDeclaredContainedParts[] = $summary;
+                }
+            }
+
+            $containedParts = [];
+            $undeclaredContainedParts = [];
+            $containedByteLength = 0;
+            foreach ($entriesByPath as $path => $entry) {
+                if ($path === $rootPart || !str_starts_with($path, $rootPart) || $entry->isDirectory()) {
+                    continue;
+                }
+
+                $partSummary = [
+                    'path' => $entry->name,
+                    'part' => $entry->name,
+                    'byteLength' => $entry->uncompressedSize,
+                    'compressedByteLength' => $entry->compressedSize,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'crc32' => $entry->crc32Hex(),
+                    'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                ];
+                $containedParts[] = $partSummary;
+                $containedByteLength += $entry->uncompressedSize;
+                if (!isset($declaredContainedParts[$entry->name])) {
+                    $undeclaredContainedParts[] = $partSummary;
+                }
+            }
+
+            usort($containedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+            usort($undeclaredContainedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+
+            $exists = $containedParts !== [] || isset($entriesByPath[$rootPart]);
+            $encrypted = ($rootEntry['encrypted'] ?? false) === true || $encryptedDeclaredContainedParts !== [];
+            $issues = [];
+            if (!$exists) {
+                $issues[] = 'odf-embedded-object-package-missing';
+            }
+            if ($missingDeclaredContainedParts !== []) {
+                $issues[] = 'odf-embedded-object-package-missing-declared-part';
+            }
+            if ($undeclaredContainedParts !== []) {
+                $issues[] = 'odf-embedded-object-package-undeclared-contained-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-embedded-object-package-encrypted';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $objectType = self::objectTypeForMediaType((string) ($rootEntry['mediaTypeBase'] ?? $rootEntry['mediaType'] ?? ''));
+            $item = [
+                'rootPart' => $rootPart,
+                'objectPath' => $objectPath,
+                'fullPath' => $rootEntry['path'] ?? null,
+                'manifestIndex' => $rootEntry['manifestIndex'] ?? null,
+                'objectType' => $objectType,
+                'mediaType' => $rootEntry['mediaType'] ?? '',
+                'mediaTypeBase' => $rootEntry['mediaTypeBase'] ?? '',
+                'version' => $rootEntry['version'] ?? null,
+                'preferredViewMode' => $rootEntry['preferredViewMode'] ?? null,
+                'exists' => $exists,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+                'reviewPolicy' => 'embedded-object-package-metadata-only',
+                'containedPartCount' => count($containedParts),
+                'containedByteLength' => $containedParts === [] ? null : $containedByteLength,
+                'containedParts' => $containedParts,
+                'declaredContainedPartCount' => count($declaredContainedPartItems),
+                'declaredContainedParts' => $declaredContainedPartItems,
+                'existingDeclaredContainedPartCount' => count($existingDeclaredContainedParts),
+                'missingDeclaredContainedPartCount' => count($missingDeclaredContainedParts),
+                'missingDeclaredContainedParts' => $missingDeclaredContainedParts,
+                'encryptedDeclaredContainedPartCount' => count($encryptedDeclaredContainedParts),
+                'undeclaredContainedPartCount' => count($undeclaredContainedParts),
+                'undeclaredContainedParts' => $undeclaredContainedParts,
+                'issues' => $issues,
+            ];
+            $items[] = $item;
+            $byRootPart[$rootPart] = $item;
+            $rootParts[] = $rootPart;
+            if (!in_array($objectType, $objectTypes, true)) {
+                $objectTypes[] = $objectType;
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-embedded-object-package-missing', $item['issues'], true))),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'containedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['containedPartCount'], $items)),
+            'containedByteLength' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedByteLength'] ?? 0), $items)),
+            'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
+            'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
+            'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
+            'encryptedDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['encryptedDeclaredContainedPartCount'], $items)),
+            'undeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['undeclaredContainedPartCount'], $items)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'rootParts' => $rootParts,
+            'objectTypes' => $objectTypes,
+            'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
+            'reviewPolicy' => 'embedded-object-package-metadata-only',
+            'byRootPart' => $byRootPart,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function embeddedObjectManifestPartSummary(array $entry): array
+    {
+        return [
+            'fullPath' => $entry['path'] ?? null,
+            'path' => $entry['path'] ?? null,
+            'part' => $entry['packagePath'] ?? null,
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'mediaType' => $entry['mediaType'] ?? '',
+            'mediaTypeBase' => $entry['mediaTypeBase'] ?? '',
+            'exists' => ($entry['exists'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+            'declaredSize' => $entry['declaredSize'] ?? null,
+            'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'compressionMethod' => $entry['compressionMethod'] ?? null,
+            'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+            'storedCrc32' => $entry['storedCrc32'] ?? null,
+            'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
+    }
+
     private static function isSignaturePackagePartName(string $path): bool
     {
         $normalized = strtolower(ltrim($path, '/'));
@@ -1285,6 +1606,10 @@ final class OpenDocumentPackage
             'manifestPartReferenceSuffixItems' => [],
             'uriEncodedPackageReferenceCount' => 0,
             'uriEncodedPackageReferenceItems' => [],
+            'embeddedObjectPackagePartCount' => 0,
+            'embeddedObjectRootCount' => 0,
+            'embeddedObjectContainedPartCount' => 0,
+            'embeddedObjectPackageItems' => [],
             'scriptPackagePartCount' => 0,
             'scriptPackageItems' => [],
             'configurationPackagePartCount' => 0,
@@ -1321,6 +1646,15 @@ final class OpenDocumentPackage
             if (($entry['uriEncodedPackageReference'] ?? false) === true) {
                 ++$summary['uriEncodedPackageReferenceCount'];
                 $summary['uriEncodedPackageReferenceItems'][] = $item;
+            }
+            if (($entry['embeddedObjectPackagePart'] ?? false) === true) {
+                ++$summary['embeddedObjectPackagePartCount'];
+                $summary['embeddedObjectPackageItems'][] = $item;
+                if (($entry['embeddedObjectRoot'] ?? false) === true) {
+                    ++$summary['embeddedObjectRootCount'];
+                } else {
+                    ++$summary['embeddedObjectContainedPartCount'];
+                }
             }
             if (($entry['scriptPackagePart'] ?? false) === true) {
                 ++$summary['scriptPackagePartCount'];
@@ -1463,6 +1797,13 @@ final class OpenDocumentPackage
             'encryption' => $entry['encryption'] ?? null,
             'encryptionRecordCount' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['recordCount'] ?? 0) : 0,
             'encryptionIssueCodes' => is_array($entry['encryption'] ?? null) ? ($entry['encryption']['issueCodes'] ?? []) : [],
+            'embeddedObjectPackagePart' => ($entry['embeddedObjectPackagePart'] ?? false) === true,
+            'embeddedObjectRootPart' => $entry['embeddedObjectRootPart'] ?? null,
+            'embeddedObjectPath' => $entry['embeddedObjectPath'] ?? null,
+            'embeddedObjectType' => $entry['embeddedObjectType'] ?? null,
+            'embeddedObjectRoot' => ($entry['embeddedObjectRoot'] ?? false) === true,
+            'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
+            'embeddedObjectMediaType' => $entry['embeddedObjectMediaType'] ?? null,
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
@@ -1502,6 +1843,11 @@ final class OpenDocumentPackage
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'embeddedObjectPackagePart' => ($entry['embeddedObjectPackagePart'] ?? false) === true,
+            'embeddedObjectRootPart' => $entry['embeddedObjectRootPart'] ?? null,
+            'embeddedObjectType' => $entry['embeddedObjectType'] ?? null,
+            'embeddedObjectRoot' => ($entry['embeddedObjectRoot'] ?? false) === true,
+            'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
@@ -1529,6 +1875,9 @@ final class OpenDocumentPackage
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'embeddedObjectPackagePart' => ($entry['embeddedObjectPackagePart'] ?? false) === true,
+            'embeddedObjectRootPart' => $entry['embeddedObjectRootPart'] ?? null,
+            'embeddedObjectType' => $entry['embeddedObjectType'] ?? null,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
         ];
     }
