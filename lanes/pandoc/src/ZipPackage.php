@@ -4717,9 +4717,15 @@ final class ZipPackage
      *     optionalEntryCount:int,
      *     presentEntryCount:int,
      *     selectedUniqueEntryCount:int,
+     *     selectedFileEntryCount:int,
+     *     selectedDirectoryEntryCount:int,
      *     selectedCompressedBytes:int,
      *     selectedUncompressedBytes:int,
      *     selectedExpansionRatio:?float,
+     *     selectedStoredEntryCount:int,
+     *     selectedDeflatedEntryCount:int,
+     *     selectedUnsupportedCompressionMethodCount:int,
+     *     selectedSupportedCompressionMethodEntryCount:int,
      *     selectedUnknownExpansionRatioEntryCount:int,
      *     selectedHasUnknownExpansionRatioEntries:bool,
      *     missingEntryCount:int,
@@ -4743,6 +4749,8 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
+     *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -4864,12 +4872,43 @@ final class ZipPackage
 
         $selectedCompressedBytes = 0;
         $selectedUncompressedBytes = 0;
+        $selectedFileEntryCount = 0;
+        $selectedDirectoryEntryCount = 0;
+        $selectedStoredEntryCount = 0;
+        $selectedDeflatedEntryCount = 0;
+        $selectedUnsupportedCompressionMethodEntries = [];
+        $selectedCompressionMethodBuckets = [];
         $selectedUnknownExpansionRatioEntries = [];
         $selectedRawNameProvenanceEntries = [];
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
         $selectedDecodedNameDiffersFromRawNameEntryCount = 0;
         foreach ($selectedEntriesByName as $entry) {
+            $isDirectory = $entry->isDirectory();
+            if ($isDirectory) {
+                ++$selectedDirectoryEntryCount;
+            } else {
+                ++$selectedFileEntryCount;
+            }
+            if ($entry->compressionMethod === 0) {
+                ++$selectedStoredEntryCount;
+            } elseif ($entry->compressionMethod === 8) {
+                ++$selectedDeflatedEntryCount;
+            } else {
+                $selectedUnsupportedCompressionMethodEntries[] = [
+                    'name' => $entry->name,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'isDirectory' => $isDirectory,
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                ];
+            }
+            self::addCompressionMethodBucket(
+                $selectedCompressionMethodBuckets,
+                $entry->compressionMethod,
+                $entry->compressedSize,
+                $entry->uncompressedSize
+            );
             $selectedCompressedBytes += $entry->compressedSize;
             $selectedUncompressedBytes += $entry->uncompressedSize;
             $selectedExpansionRatio = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -4877,7 +4916,7 @@ final class ZipPackage
                 $selectedUnknownExpansionRatioEntries[] = [
                     'name' => $entry->name,
                     'compressionMethod' => $entry->compressionMethod,
-                    'isDirectory' => $entry->isDirectory(),
+                    'isDirectory' => $isDirectory,
                     'compressedSize' => $entry->compressedSize,
                     'uncompressedSize' => $entry->uncompressedSize,
                     'expansionRatio' => $selectedExpansionRatio,
@@ -5068,9 +5107,15 @@ final class ZipPackage
             'optionalEntryCount' => $optionalEntryCount,
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
+            'selectedFileEntryCount' => $selectedFileEntryCount,
+            'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedCompressedBytes' => $selectedCompressedBytes,
             'selectedUncompressedBytes' => $selectedUncompressedBytes,
             'selectedExpansionRatio' => self::expansionRatio($selectedUncompressedBytes, $selectedCompressedBytes),
+            'selectedStoredEntryCount' => $selectedStoredEntryCount,
+            'selectedDeflatedEntryCount' => $selectedDeflatedEntryCount,
+            'selectedUnsupportedCompressionMethodCount' => count($selectedUnsupportedCompressionMethodEntries),
+            'selectedSupportedCompressionMethodEntryCount' => count($selectedEntriesByName) - count($selectedUnsupportedCompressionMethodEntries),
             'selectedUnknownExpansionRatioEntryCount' => count($selectedUnknownExpansionRatioEntries),
             'selectedHasUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries !== [],
             'missingEntryCount' => count($missingEntries),
@@ -5096,6 +5141,8 @@ final class ZipPackage
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
             'roleSummaries' => $roleSummaries,
+            'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
+            'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'missingEntries' => $missingEntries,

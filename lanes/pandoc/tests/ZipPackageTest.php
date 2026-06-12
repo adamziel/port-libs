@@ -9388,11 +9388,55 @@ return [
             ['name' => 'word/media/unsupported.bin', 'required' => true, 'kind' => 'file', 'role' => 'unsupported-required'],
             ['name' => 'word/optional.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
         ], 128);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $selectedStoredBytes = strlen($imageBytes) + strlen($largeBytes);
+        $selectedUnsupportedEntry = [
+            'name' => 'word/media/unsupported.bin',
+            'compressionMethod' => 12,
+            'isDirectory' => false,
+            'compressedSize' => strlen($unsupportedBytes),
+            'uncompressedSize' => strlen($unsupportedBytes),
+        ];
+        $selectedCompressionMethodBuckets = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 3,
+                'compressedBytes' => $selectedStoredBytes,
+                'uncompressedBytes' => $selectedStoredBytes,
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $documentCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($unsupportedBytes),
+                'uncompressedBytes' => strlen($unsupportedBytes),
+                'isSupported' => false,
+            ],
+        ];
 
         $t->same(8, $summary['requestedEntryCount']);
         $t->same(4, $summary['requiredEntryCount']);
         $t->same(4, $summary['optionalEntryCount']);
         $t->same(5, $summary['presentEntryCount']);
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['selectedFileEntryCount']);
+        $t->same(1, $summary['selectedDirectoryEntryCount']);
+        $t->same(3, $summary['selectedStoredEntryCount']);
+        $t->same(1, $summary['selectedDeflatedEntryCount']);
+        $t->same(1, $summary['selectedUnsupportedCompressionMethodCount']);
+        $t->same(4, $summary['selectedSupportedCompressionMethodEntryCount']);
+        $t->same($selectedCompressionMethodBuckets, $summary['selectedCompressionMethodBuckets']);
+        $t->same([$selectedUnsupportedEntry], $summary['selectedUnsupportedCompressionMethodEntries']);
         $t->same(2, $summary['missingEntryCount']);
         $t->same(1, $summary['missingRequiredEntryCount']);
         $t->same(1, $summary['missingOptionalEntryCount']);
