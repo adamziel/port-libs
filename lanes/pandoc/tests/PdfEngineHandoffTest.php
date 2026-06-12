@@ -2197,6 +2197,7 @@ return [
                     'issues' => [],
                 ],
                 'issues' => ['dependency-output-external-boundary'],
+                'option' => '--make-deps',
             ],
             'overrides' => [
                 [
@@ -2223,6 +2224,16 @@ return [
                     'issues' => ['dependency-output-external-boundary'],
                 ],
             ],
+            'dependencyOutputOptionHistory' => [
+                [
+                    'option' => '--deps',
+                    'value' => 'build/local-deps.d',
+                ],
+                [
+                    'option' => '--make-deps',
+                    'value' => 'https://deps.example.invalid/review.d',
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -2241,6 +2252,8 @@ return [
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-dependency-output:https://deps.example.invalid/review.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-option:--make-deps', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-option-history:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-dependency-format:json', implode(',', $plan['diagnostics']));
         $t->contains('typst-dependency-output-issues:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
@@ -2250,6 +2263,89 @@ return [
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst make deps alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/make-deps-alias.pdf',
+            'source' => '= Typst Make Deps Alias Packet',
+            'engineOptions' => [
+                '--make-deps=build/make-deps-alias.d',
+                '--deps-format=make',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst make-deps alias packet\n%%EOF\n";
+        $depfile = "build/make-deps-alias.pdf: build/make-deps-alias.typ\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'dependencyOutput' => [
+                'file' => [
+                    'raw' => 'build/make-deps-alias.d',
+                    'path' => 'build/make-deps-alias.d',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'format' => [
+                    'raw' => 'make',
+                    'value' => 'make',
+                    'format' => 'make',
+                    'makeCompatible' => true,
+                    'machineReadable' => false,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+                'option' => '--make-deps',
+            ],
+            'dependencyOutputOptionHistory' => [
+                [
+                    'option' => '--make-deps',
+                    'value' => 'build/make-deps-alias.d',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/make-deps-alias.d' => $depfile,
+                'build/make-deps-alias.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/make-deps-alias.d' => $depfile,
+                'build/make-deps-alias.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('build/make-deps-alias.d', $plan['engineDependencyFile']);
+        $t->same(['build/make-deps-alias.d'], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(1, $plan['typstBoundarySummary']['sidecarOutputCount']);
+        $t->same(1, $plan['typstBoundarySummary']['historyEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['dependencyOutputOptionHistoryCount']);
+        $t->same('--make-deps', $plan['typstBoundarySummary']['dependencyOutputSelectedOption']);
+        $t->same(['--make-deps' => 1], $plan['typstBoundarySummary']['dependencyOutputOptionCounts']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:build/make-deps-alias.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-option:--make-deps', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-option-history:1', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-artifacts:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same(hash('sha256', $depfile), $result['producedArtifactsSha256']['build/make-deps-alias.d']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
