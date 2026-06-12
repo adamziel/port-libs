@@ -1641,6 +1641,25 @@ final class NativeReader
             $attr = array_slice($attr, 0, 3);
             $attrs['attrConstructor'] = 'Attr';
             $attrs['attrNative'] = $this->isTaggedConstructor($native, 'Attr') ? $native : $attr;
+            if (!is_string($attr[0])) {
+                throw new \InvalidArgumentException('Pandoc native JSON Attr identifier must be a string');
+            }
+            if (!is_array($attr[1]) || !array_is_list($attr[1])) {
+                throw new \InvalidArgumentException('Pandoc native JSON Attr classes must be a list');
+            }
+            foreach ($attr[1] as $class) {
+                if (!is_string($class)) {
+                    throw new \InvalidArgumentException('Pandoc native JSON Attr classes must be strings');
+                }
+            }
+            if (!is_array($attr[2]) || !array_is_list($attr[2])) {
+                throw new \InvalidArgumentException('Pandoc native JSON Attr key-values must be a list');
+            }
+            foreach ($attr[2] as $pair) {
+                if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2 || !is_string($pair[0]) || !is_string($pair[1])) {
+                    throw new \InvalidArgumentException('Pandoc native JSON Attr key-value entries must be string pairs');
+                }
+            }
         }
 
         if (is_string($attr[0] ?? null) && $attr[0] !== '') {

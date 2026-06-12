@@ -5113,7 +5113,35 @@ return [
             'citationMode' => ['t' => 'NormalCitation'],
             'citationHash' => 'hash',
         ]])));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket([
+            'blocks' => [[
+                't' => 'Header',
+                'c' => [2, ['bad-classes', [42], []], []],
+            ]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket([
+            'blocks' => [[
+                't' => 'Header',
+                'c' => [2, ['bad-attributes', [], [['data-source', 42]]], []],
+            ]],
+        ]));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket(['pandoc-api-version' => ['1'], 'blocks' => []]));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => (new NativeReader())->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Header',
+                'c' => [2, ['bad-native-classes', [42], []], []],
+            ]],
+        ], JSON_THROW_ON_ERROR)));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => (new NativeReader())->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Header',
+                'c' => [2, ['bad-native-attributes', [], [['data-source', 42]]], []],
+            ]],
+        ], JSON_THROW_ON_ERROR)));
         $t->throws(InvalidArgumentException::class, static fn (): string => $writer->write(new AstNode('paragraph')));
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('unsupported_block')])));
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('paragraph', [], [new AstNode('citation')])])));

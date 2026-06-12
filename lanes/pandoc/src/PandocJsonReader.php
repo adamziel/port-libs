@@ -1397,6 +1397,12 @@ final class PandocJsonReader
         }
 
         $classes = $this->listContent($tuple[1], 'Attr classes');
+        foreach ($classes as $class) {
+            if (!is_string($class)) {
+                throw new \InvalidArgumentException('Attr classes must be strings');
+            }
+        }
+
         $attributes = $this->listContent($tuple[2], 'Attr key-values');
         $mappedAttributes = [];
         foreach ($attributes as $attribute) {
@@ -1415,7 +1421,7 @@ final class PandocJsonReader
             $attrs['id'] = $tuple[0];
         }
         if ($classes !== []) {
-            $attrs['classes'] = array_map(static fn (mixed $class): string => (string) $class, $classes);
+            $attrs['classes'] = $classes;
         }
         if ($mappedAttributes !== []) {
             $attrs['attributes'] = $mappedAttributes;
