@@ -10366,6 +10366,157 @@ return [
         $t->same([$documentEntry, $localOnlyEntry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip entry platform attribute provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected platform attributes</w:p></w:body></w:document>';
+        $macroBytes = "selected executable sidecar bytes\n";
+        $commentsXml = '<w:comments><w:comment>internal attribute sidecar</w:comment></w:comments>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'externalAttributes' => 0x81a40020,
+            ],
+            [
+                'name' => 'word/vbaProject.bin',
+                'data' => $macroBytes,
+                'method' => 0,
+                'externalAttributes' => 0x81ed0002,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'internalAttributes' => 0x0001,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/vbaProject.bin', 'required' => false, 'kind' => 'file', 'role' => 'package-sidecar'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+        ], 1024);
+
+        $t->same(4, $summary['requestedEntryCount']);
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedPlatformAttributeProvenanceEntryCount']);
+        $t->same(2, $summary['selectedExternalAttributeEntryCount']);
+        $t->same(1, $summary['selectedInternalAttributeEntryCount']);
+        $t->same(2, $summary['selectedDosAttributeEntryCount']);
+        $t->same(2, $summary['selectedUnixModeEntryCount']);
+        $t->same(1, $summary['selectedExecutableFileEntryCount']);
+        $t->same(0, $summary['selectedWritablePermissionEntryCount']);
+        $t->same(2, $summary['selectedPlatformAttributeIssueEntryCount']);
+        $t->same([
+            'dos-hidden-attribute',
+            'unix-executable-file',
+            'internal-text-attribute',
+        ], $summary['selectedPlatformAttributeIssues']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+
+        $documentEntry = $summary['entries'][0];
+        $macroEntry = $summary['entries'][1];
+        $commentsEntry = $summary['entries'][2];
+        $missingEntry = $summary['entries'][3];
+
+        $t->same(3, $documentEntry['madeByHostSystem']);
+        $t->same('unix', $documentEntry['madeByHostSystemName']);
+        $t->same(20, $documentEntry['madeByVersion']);
+        $t->same(0x0314, $documentEntry['versionMadeBy']);
+        $t->same(true, $documentEntry['creatorVersionMeetsNeeded']);
+        $t->same(0x81a40020, $documentEntry['externalAttributes']);
+        $t->same('81a40020', $documentEntry['externalAttributesHex']);
+        $t->same(true, $documentEntry['hasExternalAttributes']);
+        $t->same(0x20, $documentEntry['dosAttributes']);
+        $t->same(['archive'], $documentEntry['dosAttributeNames']);
+        $t->same(true, $documentEntry['hasDosAttributes']);
+        $t->same(0x81a4, $documentEntry['unixMode']);
+        $t->same('100644', $documentEntry['unixModeOctal']);
+        $t->same(0644, $documentEntry['unixPermissions']);
+        $t->same('0644', $documentEntry['unixPermissionsOctal']);
+        $t->same('regular-file', $documentEntry['unixFileTypeName']);
+        $t->same(false, $documentEntry['isUnixExecutableFile']);
+        $t->same(false, $documentEntry['hasWritablePermissions']);
+        $t->same(true, $documentEntry['hasPlatformAttributeProvenance']);
+        $t->same([], $documentEntry['platformAttributeIssues']);
+
+        $t->same(0x81ed0002, $macroEntry['externalAttributes']);
+        $t->same('81ed0002', $macroEntry['externalAttributesHex']);
+        $t->same(0x02, $macroEntry['dosAttributes']);
+        $t->same(['hidden'], $macroEntry['dosAttributeNames']);
+        $t->same(true, $macroEntry['hasDosHiddenAttribute']);
+        $t->same(0x81ed, $macroEntry['unixMode']);
+        $t->same('100755', $macroEntry['unixModeOctal']);
+        $t->same(0755, $macroEntry['unixPermissions']);
+        $t->same('0755', $macroEntry['unixPermissionsOctal']);
+        $t->same(true, $macroEntry['isUnixExecutableFile']);
+        $t->same(['dos-hidden-attribute', 'unix-executable-file'], $macroEntry['platformAttributeIssues']);
+        $t->same($macroBytes, $package->read('word/vbaProject.bin'));
+
+        $t->same(false, $commentsEntry['hasExternalAttributes']);
+        $t->same(0, $commentsEntry['externalAttributes']);
+        $t->same(null, $commentsEntry['unixMode']);
+        $t->same(0x0001, $commentsEntry['internalFileAttributes']);
+        $t->same('0001', $commentsEntry['internalFileAttributesHex']);
+        $t->same(['apparently-text'], $commentsEntry['internalAttributeNames']);
+        $t->same(true, $commentsEntry['hasInternalFileAttributes']);
+        $t->same(true, $commentsEntry['hasTextInternalAttribute']);
+        $t->same(['internal-text-attribute'], $commentsEntry['platformAttributeIssues']);
+        $t->same(hash('sha256', $commentsXml), $commentsEntry['contentSha256']);
+
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['externalAttributes']);
+        $t->same(null, $missingEntry['internalFileAttributes']);
+        $t->same(null, $missingEntry['madeByHostSystem']);
+        $t->same(false, $missingEntry['hasPlatformAttributeProvenance']);
+        $t->same([], $missingEntry['platformAttributeIssues']);
+
+        $t->same([
+            [
+                'name' => 'word/document.xml',
+                'externalAttributes' => 0x81a40020,
+                'dosAttributeNames' => ['archive'],
+                'unixMode' => 0x81a4,
+                'internalFileAttributes' => 0,
+                'platformAttributeIssues' => [],
+            ],
+            [
+                'name' => 'word/vbaProject.bin',
+                'externalAttributes' => 0x81ed0002,
+                'dosAttributeNames' => ['hidden'],
+                'unixMode' => 0x81ed,
+                'internalFileAttributes' => 0,
+                'platformAttributeIssues' => ['dos-hidden-attribute', 'unix-executable-file'],
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'externalAttributes' => 0,
+                'dosAttributeNames' => [],
+                'unixMode' => null,
+                'internalFileAttributes' => 0x0001,
+                'platformAttributeIssues' => ['internal-text-attribute'],
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'externalAttributes' => $entry['externalAttributes'],
+                'dosAttributeNames' => $entry['dosAttributeNames'],
+                'unixMode' => $entry['unixMode'],
+                'internalFileAttributes' => $entry['internalFileAttributes'],
+                'platformAttributeIssues' => $entry['platformAttributeIssues'],
+            ],
+            $summary['selectedPlatformAttributeProvenanceEntries']
+        ));
+
+        $t->same([
+            'word/vbaProject.bin',
+            'word/comments.xml',
+        ], array_column($summary['selectedPlatformAttributeIssueEntries'], 'name'));
+        $t->same([$documentEntry, $macroEntry, $commentsEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip entry local fixed header provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>selected fixed header provenance</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>fixed header descriptor placeholders</w:comment></w:comments>';
