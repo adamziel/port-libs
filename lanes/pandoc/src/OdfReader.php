@@ -426,7 +426,7 @@ final class OdfReader
         }
 
         $this->manifestVersion = self::attr($root, self::MANIFEST_NS, 'version');
-        $items = [];
+        $rawItems = [];
         $seenFullPaths = [];
         $seenParts = [];
         $rootMediaType = null;
@@ -462,45 +462,7 @@ final class OdfReader
             } else {
                 $rootMediaType = $mediaType;
             }
-            $isDirectory = is_string($part) && str_ends_with($part, '/');
-            $exists = $part === null || $isDirectory || $package->has($part);
-            $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
-            $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
-            $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
-            $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $missingFileMediaType = $mediaType === '' && is_string($part) && $part !== '' && !$isDirectory;
-            $diagnostics = $missingFileMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
-            $declaredSizeMismatch = !$encrypted
-                && $declaredSize !== null
-                && $storedByteLength !== null
-                && $declaredSize !== $storedByteLength;
-
-            $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
-            $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
-            $fontPackagePart = is_string($part) && $this->isFontPackagePart($part, $mediaType);
-            $objectReplacementPackagePart = is_string($part) && $this->isObjectReplacementPackagePartName($part);
-            $canExposeBytes = !$encrypted
-                && !$isDirectory
-                && !$scriptPackagePart
-                && !$configurationPackagePart
-                && !$fontPackagePart
-                && !$objectReplacementPackagePart
-                && !$missingFileMediaType
-                && $zipEntry instanceof ZipPackageEntry
-                && $hasSupportedCompression;
-            $byteExposurePolicy = self::byteExposurePolicy(
-                $part,
-                $exists,
-                $isDirectory,
-                $encrypted,
-                $scriptPackagePart,
-                $configurationPackagePart,
-                $fontPackagePart,
-                $objectReplacementPackagePart,
-                $missingFileMediaType,
-                $hasSupportedCompression
-            );
-            $item = [
+            $rawItems[] = [
                 'manifestIndex' => $manifestIndex,
                 'fullPath' => $fullPath,
                 'part' => $part,
@@ -516,34 +478,14 @@ final class OdfReader
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
-                'exists' => $exists,
-                'isDirectory' => $isDirectory,
-                'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
-                'storedByteLength' => $storedByteLength,
-                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
-                'compressionMethod' => $compressionMethod,
-                'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
-                'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
-                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
-                'byteSha256' => $this->packageEntryByteSha256($package, $part, $canExposeBytes),
                 'declaredSize' => $declaredSize,
-                'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
-                'configurationPackagePart' => $configurationPackagePart,
-                'fontPackagePart' => $fontPackagePart,
-                'objectReplacementPackagePart' => $objectReplacementPackagePart,
-                'canExposeBytes' => $canExposeBytes,
-                'byteExposurePolicy' => $byteExposurePolicy,
                 'encryption' => $encrypted ? $this->encryptionRecords($encryptionElements) : null,
             ];
-            if ($diagnostics !== []) {
-                $item['diagnostics'] = $diagnostics;
-            }
-            $items[] = $item;
             ++$manifestIndex;
         }
 
-        if ($items === []) {
+        if ($rawItems === []) {
             throw new \RuntimeException('ODT manifest does not contain file entries');
         }
         if ($rootMediaType === null) {
@@ -554,6 +496,92 @@ final class OdfReader
         }
         if (!$hasContentXml) {
             throw new \RuntimeException('ODT manifest is missing content.xml');
+        }
+
+        $items = [];
+        $objectPackageRootParts = $this->objectPackageRootParts($rawItems);
+        foreach ($rawItems as $rawItem) {
+            $part = $rawItem['part'] ?? null;
+            $mediaType = (string) ($rawItem['mediaType'] ?? '');
+            $isDirectory = is_string($part) && str_ends_with($part, '/');
+            $exists = $part === null || $isDirectory || $package->has($part);
+            $zipEntry = $exists && is_string($part) && $part !== '' && !$isDirectory ? $package->entry($part) : null;
+            $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
+            $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
+            $missingFileMediaType = $mediaType === '' && is_string($part) && $part !== '' && !$isDirectory;
+            $diagnostics = $missingFileMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
+            $encrypted = ($rawItem['encrypted'] ?? false) === true;
+            $declaredSize = is_int($rawItem['declaredSize'] ?? null) ? $rawItem['declaredSize'] : null;
+            $declaredSizeMismatch = !$encrypted
+                && $declaredSize !== null
+                && $storedByteLength !== null
+                && $declaredSize !== $storedByteLength;
+
+            $embeddedObjectPackage = is_string($part) && $part !== ''
+                ? $this->embeddedObjectPackageMembership($part, $objectPackageRootParts)
+                : null;
+            $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
+            $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
+            $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
+            $fontPackagePart = is_string($part) && $this->isFontPackagePart($part, $mediaType);
+            $rdfMetadataPart = is_string($part) && $this->isRdfPackagePart($part, $mediaType);
+            $objectReplacementPackagePart = is_string($part) && $this->isObjectReplacementPackagePartName($part);
+            $canExposeBytes = !$encrypted
+                && !$isDirectory
+                && !$embeddedObjectPackagePart
+                && !$scriptPackagePart
+                && !$configurationPackagePart
+                && !$fontPackagePart
+                && !$rdfMetadataPart
+                && !$objectReplacementPackagePart
+                && !$missingFileMediaType
+                && $zipEntry instanceof ZipPackageEntry
+                && $hasSupportedCompression;
+            $byteExposurePolicy = self::byteExposurePolicy(
+                $part,
+                $exists,
+                $isDirectory,
+                $encrypted,
+                $embeddedObjectPackagePart,
+                $scriptPackagePart,
+                $configurationPackagePart,
+                $fontPackagePart,
+                $rdfMetadataPart,
+                $objectReplacementPackagePart,
+                $missingFileMediaType,
+                $hasSupportedCompression
+            );
+            $item = $rawItem + [
+                'exists' => $exists,
+                'isDirectory' => $isDirectory,
+                'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedByteLength' => $storedByteLength,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
+                'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'byteSha256' => $this->packageEntryByteSha256($package, $part, $canExposeBytes),
+                'declaredSizeMismatch' => $declaredSizeMismatch,
+                'embeddedObjectPackagePart' => $embeddedObjectPackagePart,
+                'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
+                'embeddedObjectPath' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectPath'] : null,
+                'embeddedObjectType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectType'] : null,
+                'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
+                'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
+                'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'configurationPackagePart' => $configurationPackagePart,
+                'fontPackagePart' => $fontPackagePart,
+                'rdfMetadataPart' => $rdfMetadataPart,
+                'objectReplacementPackagePart' => $objectReplacementPackagePart,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
+            ];
+            if ($diagnostics !== []) {
+                $item['diagnostics'] = $diagnostics;
+            }
+            $items[] = $item;
         }
 
         return $items;
@@ -734,9 +762,11 @@ final class OdfReader
         bool $exists,
         bool $isDirectory,
         bool $encrypted,
+        bool $embeddedObjectPackagePart,
         bool $scriptPackagePart,
         bool $configurationPackagePart,
         bool $fontPackagePart,
+        bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
@@ -750,6 +780,9 @@ final class OdfReader
         if ($encrypted) {
             return 'encrypted-resource-bytes-blocked';
         }
+        if ($embeddedObjectPackagePart) {
+            return 'embedded-object-package-bytes-blocked';
+        }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
         }
@@ -758,6 +791,9 @@ final class OdfReader
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
+        }
+        if ($rdfMetadataPart) {
+            return 'rdf-metadata-bytes-blocked';
         }
         if ($objectReplacementPackagePart) {
             return 'object-replacement-package-bytes-blocked';
@@ -801,6 +837,7 @@ final class OdfReader
         $packageSignaturePartCount = 0;
         $configurationPackagePartCount = 0;
         $packageFontPartCount = 0;
+        $rdfMetadataPartCount = 0;
         $objectReplacementPartCount = 0;
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
@@ -874,6 +911,7 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
 
@@ -916,8 +954,16 @@ final class OdfReader
                 'manifestEncryptionIssueCodes' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
                     ? ($manifestItem['encryption']['issueCodes'] ?? [])
                     : [],
+                'embeddedObjectPackagePart' => is_array($embeddedObjectPackage),
+                'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
+                'embeddedObjectPath' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectPath'] : null,
+                'embeddedObjectType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['objectType'] : null,
+                'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
+                'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
+                'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'fontPackagePart' => is_array($manifestItem) && ($manifestItem['fontPackagePart'] ?? false) === true,
+                'rdfMetadataPart' => $this->isRdfPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null),
                 'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
@@ -948,6 +994,9 @@ final class OdfReader
             }
             if (in_array('font-package', $roles, true)) {
                 ++$packageFontPartCount;
+            }
+            if (in_array('rdf-metadata', $roles, true)) {
+                ++$rdfMetadataPartCount;
             }
             if (in_array('object-replacement', $roles, true)) {
                 ++$objectReplacementPartCount;
@@ -993,6 +1042,7 @@ final class OdfReader
             'packageSignaturePartCount' => $packageSignaturePartCount,
             'configurationPackagePartCount' => $configurationPackagePartCount,
             'packageFontPartCount' => $packageFontPartCount,
+            'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'objectReplacementPartCount' => $objectReplacementPartCount,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
             'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
@@ -1055,6 +1105,30 @@ final class OdfReader
             'application/vnd.oasis.opendocument.spreadsheet',
             'application/vnd.oasis.opendocument.text',
         ], true);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return array<string, mixed>|null
+     */
+    private function embeddedObjectPackageMembership(string $part, array $objectPackageRootParts): ?array
+    {
+        foreach ($objectPackageRootParts as $rootPart => $rootItem) {
+            if ($part !== $rootPart && !str_starts_with($part, $rootPart)) {
+                continue;
+            }
+
+            return [
+                'rootPart' => $rootPart,
+                'objectPath' => rtrim($rootPart, '/'),
+                'objectType' => $this->objectTypeForMediaType((string) ($rootItem['mediaTypeBase'] ?? $rootItem['mediaType'] ?? '')),
+                'mediaType' => (string) ($rootItem['mediaType'] ?? ''),
+                'mediaTypeBase' => (string) ($rootItem['mediaTypeBase'] ?? ''),
+                'isRoot' => $part === $rootPart,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1297,18 +1371,25 @@ final class OdfReader
         if ($this->isFontPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null)) {
             $roles[] = 'font-package';
         }
+        $rdfMetadataPart = $this->isRdfPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null);
+        if ($rdfMetadataPart) {
+            $roles[] = 'rdf-metadata';
+        }
         if ($this->isObjectReplacementPackagePartName($entry->name)) {
             $roles[] = 'object-replacement';
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
+        $embeddedObjectPackagePart = false;
         if (isset($objectPackageRootParts[$entry->name])) {
             $roles[] = 'embedded-object-root';
+            $embeddedObjectPackagePart = true;
         } else {
             foreach (array_keys($objectPackageRootParts) as $rootPart) {
                 if (str_starts_with($entry->name, $rootPart)) {
                     $roles[] = 'embedded-object-part';
+                    $embeddedObjectPackagePart = true;
                     break;
                 }
             }
@@ -1321,6 +1402,8 @@ final class OdfReader
                 && !str_ends_with($part, '/')
                 && !self::isConfigurationPackagePartName($part)
                 && !$this->isObjectReplacementPackagePartName($part)
+                && !$embeddedObjectPackagePart
+                && !$rdfMetadataPart
                 && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))
             ) {
                 $roles[] = 'media-resource';
@@ -11389,10 +11472,16 @@ final class OdfReader
      */
     private function isRdfManifestItem(array $item): bool
     {
-        $mediaType = strtolower(trim(explode(';', (string) ($item['mediaType'] ?? ''), 2)[0]));
         $part = (string) ($item['part'] ?? '');
 
-        return $mediaType === 'application/rdf+xml' || $this->isRdfPartName($part);
+        return $this->isRdfPackagePart($part, (string) ($item['mediaType'] ?? ''));
+    }
+
+    private function isRdfPackagePart(string $part, ?string $mediaType = null): bool
+    {
+        $base = $mediaType === null ? '' : self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return $base === 'application/rdf+xml' || $this->isRdfPartName($part);
     }
 
     private function isRdfPartName(string $part): bool
@@ -12442,6 +12531,9 @@ final class OdfReader
             if (str_ends_with($part, '/')) {
                 continue;
             }
+            if (($item['embeddedObjectPackagePart'] ?? false) === true) {
+                continue;
+            }
             if ($this->isScriptPackagePartName($part)) {
                 continue;
             }
@@ -12452,6 +12544,9 @@ final class OdfReader
                 continue;
             }
             if ($this->isFontPackagePart($part, $mediaType)) {
+                continue;
+            }
+            if (($item['rdfMetadataPart'] ?? false) === true) {
                 continue;
             }
             if ($this->isObjectReplacementPackagePartName($part)) {
