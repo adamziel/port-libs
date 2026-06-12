@@ -1321,6 +1321,109 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
     },
+    'reports compact ODT RDF sidecars as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $rdfBytes = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
+        $encryptedBytes = '<encrypted-rdf/>';
+        $invalidBytes = 'plain text metadata';
+        $orphanBytes = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="content.xml"/></rdf:RDF>';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="metadata/encrypted.rdf" manifest:size="16">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="rdf-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="rdf-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="metadata/missing.rdf"/>'
+            . '<manifest:file-entry manifest:media-type="text/plain" manifest:full-path="metadata/manifest.rdf"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'manifest.rdf', 'data' => $rdfBytes, 'compressionMethod' => 0],
+                ['name' => 'metadata/encrypted.rdf', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+                ['name' => 'metadata/manifest.rdf', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'review/manifest.rdf', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ]
+        ))->summarize();
+        $rdf = $summary['packageRdfMetadata'];
+        $itemsByPath = [];
+        foreach ($rdf['items'] as $item) {
+            $itemsByPath[$item['packagePath']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(5, $rdf['count']);
+        $t->same(3, $rdf['readableCount']);
+        $t->same(4, $rdf['declaredCount']);
+        $t->same(1, $rdf['undeclaredCount']);
+        $t->same(1, $rdf['missingCount']);
+        $t->same(1, $rdf['encryptedCount']);
+        $t->same(1, $rdf['invalidMediaTypeCount']);
+        $t->same(4, $rdf['issueCount']);
+        $t->same([
+            'odf-rdf-encrypted-package-part',
+            'odf-rdf-invalid-media-type',
+            'odf-rdf-missing-package-part',
+            'odf-rdf-undeclared-package-part',
+        ], $rdf['issueCodes']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+
+        $declared = $itemsByPath['manifest.rdf'];
+        $t->same('manifest.rdf', $declared['fullPath']);
+        $t->same('application/rdf+xml', $declared['mediaType']);
+        $t->same(['application/rdf+xml'], $declared['expectedMediaTypes']);
+        $t->same(true, $declared['declared']);
+        $t->same(true, $declared['valid']);
+        $t->same(strlen($rdfBytes), $declared['byteLength']);
+        $t->same(sprintf('%08x', crc32($rdfBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('package-rdf-metadata-only', $declared['reviewPolicy']);
+        $t->same([], $declared['issues']);
+
+        $missing = $itemsByPath['metadata/missing.rdf'];
+        $t->same(false, $missing['exists']);
+        $t->same('application/rdf+xml', $missing['mediaType']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(['odf-rdf-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPath['metadata/encrypted.rdf'];
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedBytes), $encrypted['storedByteLength']);
+        $t->same(null, $encrypted['crc32']);
+        $t->same(sprintf('%08x', crc32($encryptedBytes)), $encrypted['storedCrc32']);
+        $t->same(['odf-rdf-encrypted-package-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPath['metadata/manifest.rdf'];
+        $t->same('text/plain', $invalid['mediaType']);
+        $t->same('text/plain', $invalid['mediaTypeBase']);
+        $t->same(false, $invalid['valid']);
+        $t->same(strlen($invalidBytes), $invalid['byteLength']);
+        $t->same(['odf-rdf-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPath['review/manifest.rdf'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(null, $orphan['mediaType']);
+        $t->same(strlen($orphanBytes), $orphan['byteLength']);
+        $t->same(['odf-rdf-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(4, $summary['packageInventory']['packageRdfMetadataPartCount']);
+        $t->same(4, $summary['packageInventory']['roleCounts']['package-rdf-metadata']);
+        $t->same(['package-rdf-metadata', 'manifest-declared'], $inventory['manifest.rdf']['roles']);
+        $t->same(['manifest-declared', 'package-rdf-metadata'], $inventory['metadata/encrypted.rdf']['roles']);
+        $t->same(['package-rdf-metadata', 'undeclared-package-entry'], $inventory['review/manifest.rdf']['roles']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('review/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));

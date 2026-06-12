@@ -225,6 +225,7 @@ final class OpenDocumentPackage
      *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
      *     packageSignatures:array<string, mixed>,
+     *     packageRdfMetadata:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
      *     styleNames:list<string>,
@@ -241,6 +242,7 @@ final class OpenDocumentPackage
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         $packageThumbnails = self::packageThumbnailMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageSignatures = self::packageSignatureMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageRdfMetadata = self::packageRdfMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -309,6 +311,7 @@ final class OpenDocumentPackage
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'packageThumbnails' => $packageThumbnails,
             'packageSignatures' => $packageSignatures,
+            'packageRdfMetadata' => $packageRdfMetadata,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
@@ -365,6 +368,7 @@ final class OpenDocumentPackage
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $packageRdfMetadataPartCount = 0;
         $scriptPackagePartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
@@ -438,6 +442,9 @@ final class OpenDocumentPackage
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
             }
+            if (in_array('package-rdf-metadata', $roles, true)) {
+                ++$packageRdfMetadataPartCount;
+            }
             if (in_array('script-package', $roles, true)) {
                 ++$scriptPackagePartCount;
             }
@@ -462,6 +469,7 @@ final class OpenDocumentPackage
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'packageRdfMetadataPartCount' => $packageRdfMetadataPartCount,
             'scriptPackagePartCount' => $scriptPackagePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
@@ -501,6 +509,9 @@ final class OpenDocumentPackage
         if (self::isSignaturePackagePartName($entry->name)) {
             $roles[] = 'package-signature';
         }
+        if (self::isRdfMetadataPackagePartName($entry->name)) {
+            $roles[] = 'package-rdf-metadata';
+        }
         if (self::isScriptPackagePartName($entry->name)) {
             $roles[] = 'script-package';
         }
@@ -511,6 +522,9 @@ final class OpenDocumentPackage
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
                 $roles[] = 'media-resource';
+            }
+            if (!$entry->isDirectory() && self::isRdfManifestEntry($manifestEntry)) {
+                $roles[] = 'package-rdf-metadata';
             }
         }
         if ($undeclared) {
@@ -554,6 +568,21 @@ final class OpenDocumentPackage
         }
 
         return str_starts_with((string) ($entry['path'] ?? ''), 'Pictures/');
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function isRdfManifestEntry(array $entry): bool
+    {
+        $packagePath = $entry['packagePath'] ?? $entry['path'] ?? '';
+        $mediaType = strtolower(trim((string) ($entry['mediaTypeBase'] ?? '')));
+        if ($mediaType === '') {
+            $mediaType = self::mediaTypeReport((string) ($entry['mediaType'] ?? ''))['mediaTypeBase'];
+        }
+
+        return $mediaType === 'application/rdf+xml'
+            || (is_string($packagePath) && self::isRdfMetadataPackagePartName($packagePath));
     }
 
     /**
@@ -995,6 +1024,138 @@ final class OpenDocumentPackage
         ];
     }
 
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return array{count:int, readableCount:int, declaredCount:int, undeclaredCount:int, missingCount:int, encryptedCount:int, invalidMediaTypeCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     */
+    private static function packageRdfMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
+    {
+        $candidatesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isRdfManifestEntry($entry)) {
+                continue;
+            }
+
+            $entry['declared'] = true;
+            $candidatesByPath[$packagePath] = $entry;
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $packagePath = $entry['path'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isRdfMetadataPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $candidatesByPath[$packagePath] = [
+                'path' => $packagePath,
+                'packagePath' => $packagePath,
+                'pathReference' => $packagePath,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+                'mediaType' => null,
+                'mediaTypeBase' => '',
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+            ];
+        }
+
+        ksort($candidatesByPath, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        foreach ($candidatesByPath as $packagePath => $entry) {
+            $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $mediaType = is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null;
+            $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $mediaTypeValid = $mediaType === null || $mediaTypeReport['mediaTypeBase'] === 'application/rdf+xml';
+            $issues = [];
+            if (!$zipEntry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-rdf-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-rdf-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-rdf-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-rdf-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $entry['path'] ?? $packagePath,
+                'path' => $entry['path'] ?? $packagePath,
+                'packagePath' => $packagePath,
+                'part' => $packagePath,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'expectedMediaTypes' => ['application/rdf+xml'],
+                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-rdf-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaType'] !== null
+                    && $item['mediaTypeBase'] !== 'application/rdf+xml',
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+        ];
+    }
+
     private static function isSignaturePackagePartName(string $path): bool
     {
         $normalized = strtolower(ltrim($path, '/'));
@@ -1002,6 +1163,11 @@ final class OpenDocumentPackage
         return str_starts_with($normalized, 'meta-inf/')
             && str_ends_with($normalized, 'signatures.xml')
             && !str_ends_with($normalized, '/');
+    }
+
+    private static function isRdfMetadataPackagePartName(string $path): bool
+    {
+        return strtolower(basename($path)) === 'manifest.rdf' && !str_ends_with($path, '/');
     }
 
     /**
