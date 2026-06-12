@@ -5883,7 +5883,10 @@ final class EpubReader
             'uri' => $uri,
             'target' => $reference['target'],
             'part' => $reference['part'],
-            'fragment' => self::targetFragment($reference['target']),
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
             'external' => $reference['external'],
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
@@ -5903,6 +5906,7 @@ final class EpubReader
      *     fragment:?string,
      *     fragmentKind:?string,
      *     epubCfi:?array<string, mixed>,
+     *     mediaFragment:?array<string, mixed>,
      *     external:bool,
      *     exists:bool,
      *     byteLength:?int,
@@ -5913,14 +5917,21 @@ final class EpubReader
     private function ocfSidecarReference(ZipPackage $package, string $uri, string $context): array
     {
         $uri = trim($uri);
+        $fragmentFields = self::targetFragmentFields(null);
         if ($uri === '') {
             return self::missingOcfSidecarReference($context);
         }
 
         if (self::isExternalReference($uri)) {
+            $fragmentFields = self::targetFragmentFields($uri);
+
             return [
                 'target' => $uri,
                 'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
@@ -5944,6 +5955,10 @@ final class EpubReader
             return [
                 'target' => null,
                 'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
@@ -5957,6 +5972,7 @@ final class EpubReader
         }
 
         $part = OpcPackagePath::stripQueryAndFragment($target);
+        $fragmentFields = self::targetFragmentFields($target);
         $exists = $package->has($part);
         $entry = $exists ? $package->entry($part) : null;
         $diagnostics = $exists ? [] : [[
@@ -5969,6 +5985,10 @@ final class EpubReader
         return [
             'target' => $target,
             'part' => $part,
+            'fragment' => $fragmentFields['fragment'],
+            'fragmentKind' => $fragmentFields['fragmentKind'],
+            'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -6085,6 +6105,10 @@ final class EpubReader
      * @return array{
      *     target:null,
      *     part:null,
+     *     fragment:null,
+     *     fragmentKind:null,
+     *     epubCfi:null,
+     *     mediaFragment:null,
      *     external:false,
      *     exists:false,
      *     byteLength:null,
@@ -6097,6 +6121,10 @@ final class EpubReader
         return [
             'target' => null,
             'part' => null,
+            'fragment' => null,
+            'fragmentKind' => null,
+            'epubCfi' => null,
+            'mediaFragment' => null,
             'external' => false,
             'exists' => false,
             'byteLength' => null,
