@@ -74,6 +74,17 @@ final class EpubReader
         'list-of-tables' => 'list-of-tables',
         'list-of-video' => 'list-of-video',
     ];
+    private const OPF_MANIFEST_STRUCTURAL_ATTRIBUTES = [
+        'id' => true,
+        'href' => true,
+        'media-type' => true,
+        'properties' => true,
+        'fallback' => true,
+        'fallback-style' => true,
+        'media-overlay' => true,
+        'xml:lang' => true,
+        'dir' => true,
+    ];
 
     /**
      * @return array{
@@ -4516,6 +4527,10 @@ final class EpubReader
             $propertyVocabulary = self::manifestItemPropertyVocabularyReport($properties, $prefixBindings, $id);
             $resourceFlags = self::resourcePropertyFlags($properties);
             $resourceReviewFlags = self::resourceReviewFlags($resourceFlags);
+            $attributes = self::manifestItemAttributes($item);
+            $customAttributes = self::manifestItemCustomAttributes($attributes);
+            $language = self::xmlLang($item);
+            $direction = self::direction($item);
 
             if (self::isExternalReference($href)) {
                 $fragmentFields = self::targetFragmentFields($href);
@@ -4532,6 +4547,10 @@ final class EpubReader
                     'mediaType' => $mediaType,
                     'properties' => $properties,
                     'propertyVocabulary' => $propertyVocabulary,
+                    'language' => $language,
+                    'direction' => $direction,
+                    'attributes' => $attributes,
+                    'customAttributes' => $customAttributes,
                     'resourceFlags' => $resourceFlags,
                     'resourceReviewFlags' => $resourceReviewFlags,
                     'refinements' => self::metadataRefinementsForId($refinementsById, $id),
@@ -4586,6 +4605,10 @@ final class EpubReader
                 'mediaType' => $mediaType,
                 'properties' => $properties,
                 'propertyVocabulary' => $propertyVocabulary,
+                'language' => $language,
+                'direction' => $direction,
+                'attributes' => $attributes,
+                'customAttributes' => $customAttributes,
                 'resourceFlags' => $resourceFlags,
                 'resourceReviewFlags' => $resourceReviewFlags,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $id),
@@ -4604,6 +4627,54 @@ final class EpubReader
         }
 
         return $manifest;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function manifestItemCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_MANIFEST_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function manifestItemAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        if (!$element->hasAttributes()) {
+            return $attributes;
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = $attribute->prefix !== ''
+                ? $attribute->prefix . ':' . $attribute->localName
+                : $attribute->name;
+            $attributes[$name] = $attribute->value;
+        }
+
+        ksort($attributes);
+
+        return $attributes;
     }
 
     /**
@@ -4755,6 +4826,7 @@ final class EpubReader
         return [
             'count' => count($manifest),
             'items' => $manifest,
+            'authoring' => self::manifestItemAuthoringReport($manifest),
             'itemsByPart' => $itemsByPart,
             'missingItemCount' => count($missingItems),
             'missingItems' => $missingItems,
@@ -4772,6 +4844,69 @@ final class EpubReader
             'itemDiagnostics' => $itemDiagnostics,
             'diagnostics' => $diagnostics,
             'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestItemAuthoringReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $languageItems = [];
+        $directionItems = [];
+        $customAttributeItems = [];
+
+        foreach ($manifest as $item) {
+            $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : [];
+            $customAttributes = is_array($item['customAttributes'] ?? null)
+                ? $item['customAttributes']
+                : self::manifestItemCustomAttributes($attributes);
+            $summary = [
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'language' => is_string($item['language'] ?? null) ? $item['language'] : null,
+                'direction' => is_string($item['direction'] ?? null) ? $item['direction'] : null,
+                'attributes' => $attributes,
+                'attributeCount' => count($attributes),
+                'customAttributes' => $customAttributes,
+                'customAttributeCount' => count($customAttributes),
+            ];
+
+            $items[] = $summary;
+            if ($summary['id'] !== '') {
+                $itemsById[$summary['id']] = $summary;
+            }
+            if ($summary['language'] !== null) {
+                $languageItems[] = $summary;
+            }
+            if ($summary['direction'] !== null) {
+                $directionItems[] = $summary;
+            }
+            if ($customAttributes !== []) {
+                $customAttributeItems[] = $summary;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'languageItemCount' => count($languageItems),
+            'languageItems' => $languageItems,
+            'directionItemCount' => count($directionItems),
+            'directionItems' => $directionItems,
+            'customAttributeItemCount' => count($customAttributeItems),
+            'customAttributeItems' => $customAttributeItems,
         ];
     }
 
@@ -13903,6 +14038,10 @@ final class EpubReader
                 'target' => $item['target'],
                 'part' => $part,
                 'properties' => $item['properties'],
+                'manifestLanguage' => $item['language'] ?? null,
+                'manifestDirection' => $item['direction'] ?? null,
+                'manifestAttributes' => $item['attributes'] ?? [],
+                'manifestCustomAttributes' => $item['customAttributes'] ?? [],
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
@@ -14008,6 +14147,10 @@ final class EpubReader
                 'htmlByteLength' => is_int($asset['htmlByteLength'] ?? null) ? $asset['htmlByteLength'] : null,
                 'htmlSha256' => is_string($asset['htmlSha256'] ?? null) ? $asset['htmlSha256'] : null,
                 'htmlLineCount' => is_int($asset['htmlLineCount'] ?? null) ? $asset['htmlLineCount'] : null,
+                'manifestLanguage' => is_string($asset['manifestLanguage'] ?? null) ? $asset['manifestLanguage'] : null,
+                'manifestDirection' => is_string($asset['manifestDirection'] ?? null) ? $asset['manifestDirection'] : null,
+                'manifestAttributes' => is_array($asset['manifestAttributes'] ?? null) ? $asset['manifestAttributes'] : [],
+                'manifestCustomAttributes' => is_array($asset['manifestCustomAttributes'] ?? null) ? $asset['manifestCustomAttributes'] : [],
                 'resourceReviewFlags' => is_array($asset['resourceReviewFlags'] ?? null) ? array_values($asset['resourceReviewFlags']) : [],
                 'contentResourceReviewFlags' => is_array($asset['contentResourceReviewFlags'] ?? null) ? array_values($asset['contentResourceReviewFlags']) : [],
                 'diagnosticCount' => count(is_array($asset['contentDiagnostics'] ?? null) ? $asset['contentDiagnostics'] : []),
@@ -19459,6 +19602,10 @@ final class EpubReader
                 'mediaTypeReviewFlags' => $item['mediaTypeReviewFlags'] ?? [],
                 'mediaTypeDiagnostics' => $item['mediaTypeDiagnostics'] ?? [],
                 'properties' => $item['properties'],
+                'manifestLanguage' => $item['language'] ?? null,
+                'manifestDirection' => $item['direction'] ?? null,
+                'manifestAttributes' => $item['attributes'] ?? [],
+                'manifestCustomAttributes' => $item['customAttributes'] ?? [],
                 'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
                 'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'] ?? null,
@@ -20291,6 +20438,10 @@ final class EpubReader
                 'pageBreakCount' => is_array($pageBreaks['itemsByPart'][$contentPart] ?? null)
                     ? count($pageBreaks['itemsByPart'][$contentPart])
                     : 0,
+                'manifestLanguage' => $asset['manifestLanguage'] ?? null,
+                'manifestDirection' => $asset['manifestDirection'] ?? null,
+                'manifestAttributes' => $asset['manifestAttributes'] ?? [],
+                'manifestCustomAttributes' => $asset['manifestCustomAttributes'] ?? [],
                 'resourceFlags' => $asset['resourceFlags'] ?? [],
                 'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
                 'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],

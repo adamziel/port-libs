@@ -4211,6 +4211,73 @@ XML;
         $t->same($provenance['itemsById']['chapter-1'], $provenance['itemsByPart']['/OEBPS/text/chapter1.xhtml']);
         $t->same($result['manifest'], $result['importReport']['manifest']['items']);
     },
+    'preserves OPF manifest item authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithManifestAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            $opfXml
+        );
+        $opfWithManifestAuthoring = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
+            $opfWithManifestAuthoring
+        );
+        $opfWithManifestAuthoring = str_replace(
+            '<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image" dir="ltr" data-review="cover"/>',
+            $opfWithManifestAuthoring
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithManifestAuthoring));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $xhtmlById = [];
+        foreach ($result['xhtmlAssets'] as $asset) {
+            $xhtmlById[$asset['id']] = $asset;
+        }
+        $assetsById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetsById[$asset['id']] = $asset;
+        }
+
+        $chapter = $manifestById['chapter-1'];
+        $t->same('fr', $chapter['language']);
+        $t->same('rtl', $chapter['direction']);
+        $t->same('fr', $chapter['attributes']['xml:lang']);
+        $t->same('wp-import', $chapter['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $chapter['customAttributes']);
+        $t->same('ltr', $manifestById['cover-image']['direction']);
+        $t->same(['data-review' => 'cover'], $manifestById['cover-image']['customAttributes']);
+
+        $authoring = $result['importReport']['manifest']['authoring'];
+        $t->same(6, $authoring['itemCount']);
+        $t->same(1, $authoring['languageItemCount']);
+        $t->same(['chapter-1'], array_map(static fn (array $item): string => $item['id'], $authoring['languageItems']));
+        $t->same(2, $authoring['directionItemCount']);
+        $t->same(['chapter-1', 'cover-image'], array_map(static fn (array $item): string => $item['id'], $authoring['directionItems']));
+        $t->same(2, $authoring['customAttributeItemCount']);
+        $t->same('primary', $authoring['itemsById']['chapter-1']['customAttributes']['data-review']);
+        $t->same('wp-import', $authoring['itemsById']['chapter-1']['customAttributes']['review:source']);
+        $t->same('cover', $authoring['itemsById']['cover-image']['customAttributes']['data-review']);
+
+        $chapterAsset = $xhtmlById['chapter-1'];
+        $t->same('fr', $chapterAsset['manifestLanguage']);
+        $t->same('rtl', $chapterAsset['manifestDirection']);
+        $t->same($chapter['attributes'], $chapterAsset['manifestAttributes']);
+        $t->same($chapter['customAttributes'], $chapterAsset['manifestCustomAttributes']);
+        $t->same('ltr', $assetsById['cover-image']['manifestDirection']);
+        $t->same('cover', $assetsById['cover-image']['manifestCustomAttributes']['data-review']);
+
+        $contentProvenance = $result['spineContentProvenance']['itemsByIdref']['chapter-1'];
+        $t->same('fr', $contentProvenance['manifestLanguage']);
+        $t->same('rtl', $contentProvenance['manifestDirection']);
+        $t->same($chapter['customAttributes'], $contentProvenance['manifestCustomAttributes']);
+        $t->same('fr', $result['document']->children[0]->attr('manifestLanguage'));
+        $t->same('rtl', $result['document']->children[0]->attr('manifestDirection'));
+        $t->same($chapter['attributes'], $result['document']->children[0]->attr('manifestAttributes'));
+    },
     'reports duplicate OPF manifest package parts for import preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithDuplicateTargets = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
