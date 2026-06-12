@@ -1073,8 +1073,18 @@ final class CitationCslProcessor
         }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
-        $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
-        $language = self::stringField($item, 'language');
+        $languageList = self::stringListFromFirstField($item, [
+            'language-list',
+            'languageList',
+            'languagelist',
+            'langid-list',
+            'langidList',
+            'langidlist',
+            'hyphenation-list',
+            'hyphenationList',
+            'hyphenationlist',
+        ]);
+        $language = self::firstStringField($item, ['language', 'langid', 'hyphenation']);
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
         }

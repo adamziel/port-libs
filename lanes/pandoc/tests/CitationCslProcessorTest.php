@@ -2588,6 +2588,113 @@ XML);
         $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
     },
+    'normalizes bounded direct csl json language aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-langid-alias',
+                'type' => 'book',
+                'title' => 'Direct Langid Alias Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'langid' => 'ngerman',
+            ],
+            [
+                'id' => 'direct-hyphenation-alias',
+                'type' => 'report',
+                'title' => 'Direct Hyphenation Alias Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'hyphenation' => 'french',
+            ],
+            [
+                'id' => 'direct-languagelist-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Language List Alias Packet',
+                'author' => [
+                    ['family' => 'Kim', 'given' => 'Kai'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'languagelist' => 'italian; latin',
+            ],
+            [
+                'id' => 'direct-langid-list-alias',
+                'type' => 'webpage',
+                'title' => 'Direct Langid List Alias Packet',
+                'author' => [
+                    ['family' => 'Lee', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'langid-list' => ['spanish', 'basque'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $langid = $processor->item('direct-langid-alias');
+        $hyphenation = $processor->item('direct-hyphenation-alias');
+        $languageList = $processor->item('direct-languagelist-alias');
+        $langidList = $processor->item('direct-langid-list-alias');
+        $t->same('ngerman', $langid['language'] ?? null);
+        $t->same(['ngerman'], $langid['languageList'] ?? null);
+        $t->same('french', $hyphenation['language'] ?? null);
+        $t->same(['french'], $hyphenation['languageList'] ?? null);
+        $t->same('italian; latin', $languageList['language'] ?? null);
+        $t->same(['italian', 'latin'], $languageList['languageList'] ?? null);
+        $t->same('spanish; basque', $langidList['language'] ?? null);
+        $t->same(['spanish', 'basque'], $langidList['languageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Language Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-language-alias-review</id>
+    <updated>2026-06-12T03:58:11+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Language Alias Review', $summary['title'] ?? null);
+        $t->same('language', $citationChildren[1]['variable'] ?? null);
+        $t->same('language-list', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | ngerman | ngerman; Roe | french | french; Kim | italian; latin | italian; latin; Lee | spanish; basque | spanish; basque]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-langid-alias', 'text' => '[@direct-langid-alias]']),
+            new AstNode('citation', ['id' => 'direct-hyphenation-alias', 'text' => '[@direct-hyphenation-alias]']),
+            new AstNode('citation', ['id' => 'direct-languagelist-alias', 'text' => '[@direct-languagelist-alias]']),
+            new AstNode('citation', ['id' => 'direct-langid-list-alias', 'text' => '[@direct-langid-list-alias]']),
+        ]));
+        $t->same('Direct Langid Alias Packet :: ngerman :: ngerman', $styled->renderBibliographyEntry('direct-langid-alias'));
+        $t->same('Direct Hyphenation Alias Packet :: french :: french', $styled->renderBibliographyEntry('direct-hyphenation-alias'));
+        $t->same('Direct Language List Alias Packet :: italian; latin :: italian; latin', $styled->renderBibliographyEntry('direct-languagelist-alias'));
+        $t->same('Direct Langid List Alias Packet :: spanish; basque :: spanish; basque', $styled->renderBibliographyEntry('direct-langid-list-alias'));
+
+        $document = (new MarkdownReader())->read('Direct language aliases [@direct-langid-alias; @direct-languagelist-alias] keep primary language metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Sources'));
+        $t->contains('<p>Direct language aliases [Ng | ngerman | ngerman; Kim | italian; latin | italian; latin] keep primary language metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Alias Packet :: ngerman :: ngerman</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>Direct Language List Alias Packet :: italian; latin :: italian; latin</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
