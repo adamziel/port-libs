@@ -6402,6 +6402,10 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::FOOTNOTES_REL => 'footnotes',
+            self::ENDNOTES_REL => 'endnotes',
+            self::COMMENTS_REL => 'comments',
+            self::COMMENTS_EXTENDED_REL => 'comments-extended',
             self::SETTINGS_REL => 'settings',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
