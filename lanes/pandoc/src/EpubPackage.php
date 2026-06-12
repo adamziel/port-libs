@@ -663,6 +663,12 @@ final class EpubPackage
                 'mediaOverlayItems' => $this->mediaOverlays['items'],
                 'mediaOverlayTargets' => $this->mediaOverlays['textTargets'],
                 'mediaOverlayAudioTargets' => $this->mediaOverlays['audioTargets'],
+                'mediaOverlayTextLocalTargets' => $this->mediaOverlays['textLocalTargets'] ?? [],
+                'mediaOverlayTextExternalTargets' => $this->mediaOverlays['textExternalTargets'] ?? [],
+                'mediaOverlayTextMissingTargets' => $this->mediaOverlays['textMissingTargets'] ?? [],
+                'mediaOverlayAudioLocalTargets' => $this->mediaOverlays['audioLocalTargets'] ?? [],
+                'mediaOverlayAudioExternalTargets' => $this->mediaOverlays['audioExternalTargets'] ?? [],
+                'mediaOverlayAudioMissingTargets' => $this->mediaOverlays['audioMissingTargets'] ?? [],
                 'mediaOverlayDiagnostics' => $mediaOverlayDiagnostics,
                 'manifestFallbacks' => $manifestFallbacks,
                 'manifestFallbackItems' => $manifestFallbacks['fallbackItems'],
@@ -7576,6 +7582,12 @@ final class EpubPackage
         $itemsById = [];
         $textTargets = [];
         $audioTargets = [];
+        $textLocalTargets = [];
+        $textExternalTargets = [];
+        $textMissingTargets = [];
+        $audioLocalTargets = [];
+        $audioExternalTargets = [];
+        $audioMissingTargets = [];
         $diagnostics = $durationReport['diagnostics'];
 
         foreach ($referencedByOverlay as $overlayId => $referencedBy) {
@@ -7600,6 +7612,18 @@ final class EpubPackage
                     'itemCount' => 0,
                     'textTargets' => [],
                     'audioTargets' => [],
+                    'textLocalTargetCount' => 0,
+                    'textExternalTargetCount' => 0,
+                    'textMissingTargetCount' => 0,
+                    'audioLocalTargetCount' => 0,
+                    'audioExternalTargetCount' => 0,
+                    'audioMissingTargetCount' => 0,
+                    'textLocalTargets' => [],
+                    'textExternalTargets' => [],
+                    'textMissingTargets' => [],
+                    'audioLocalTargets' => [],
+                    'audioExternalTargets' => [],
+                    'audioMissingTargets' => [],
                     'diagnostics' => [[
                         'type' => 'missing-media-overlay-manifest-item',
                         'id' => $overlayId,
@@ -7623,8 +7647,21 @@ final class EpubPackage
             $itemsById[$overlayId] = $item;
             array_push($textTargets, ...$item['textTargets']);
             array_push($audioTargets, ...$item['audioTargets']);
+            array_push($textLocalTargets, ...$item['textLocalTargets']);
+            array_push($textExternalTargets, ...$item['textExternalTargets']);
+            array_push($textMissingTargets, ...$item['textMissingTargets']);
+            array_push($audioLocalTargets, ...$item['audioLocalTargets']);
+            array_push($audioExternalTargets, ...$item['audioExternalTargets']);
+            array_push($audioMissingTargets, ...$item['audioMissingTargets']);
             array_push($diagnostics, ...self::mediaOverlayItemDiagnostics($item));
         }
+
+        $textLocalTargets = array_values(array_unique($textLocalTargets));
+        $textExternalTargets = array_values(array_unique($textExternalTargets));
+        $textMissingTargets = array_values(array_unique($textMissingTargets));
+        $audioLocalTargets = array_values(array_unique($audioLocalTargets));
+        $audioExternalTargets = array_values(array_unique($audioExternalTargets));
+        $audioMissingTargets = array_values(array_unique($audioMissingTargets));
 
         return [
             'present' => $items !== [],
@@ -7640,6 +7677,18 @@ final class EpubPackage
             'itemsById' => $itemsById,
             'textTargets' => array_values(array_unique($textTargets)),
             'audioTargets' => array_values(array_unique($audioTargets)),
+            'textLocalTargetCount' => count($textLocalTargets),
+            'textExternalTargetCount' => count($textExternalTargets),
+            'textMissingTargetCount' => count($textMissingTargets),
+            'audioLocalTargetCount' => count($audioLocalTargets),
+            'audioExternalTargetCount' => count($audioExternalTargets),
+            'audioMissingTargetCount' => count($audioMissingTargets),
+            'textLocalTargets' => $textLocalTargets,
+            'textExternalTargets' => $textExternalTargets,
+            'textMissingTargets' => $textMissingTargets,
+            'audioLocalTargets' => $audioLocalTargets,
+            'audioExternalTargets' => $audioExternalTargets,
+            'audioMissingTargets' => $audioMissingTargets,
             'durations' => $durationReport,
             'diagnostics' => $diagnostics,
         ];
@@ -7757,16 +7806,42 @@ final class EpubPackage
 
         $textTargets = [];
         $audioTargets = [];
+        $textLocalTargets = [];
+        $textExternalTargets = [];
+        $textMissingTargets = [];
+        $audioLocalTargets = [];
+        $audioExternalTargets = [];
+        $audioMissingTargets = [];
         foreach ($timelineItems as $item) {
             $textTarget = $item['textTarget'] ?? null;
             if (is_string($textTarget) && $textTarget !== '') {
                 $textTargets[] = $textTarget;
+                if (($item['textExternal'] ?? false) === true) {
+                    $textExternalTargets[] = $textTarget;
+                } elseif (($item['textExists'] ?? false) === true) {
+                    $textLocalTargets[] = $textTarget;
+                } else {
+                    $textMissingTargets[] = $textTarget;
+                }
             }
             $audioTarget = $item['audioTarget'] ?? null;
             if (is_string($audioTarget) && $audioTarget !== '') {
                 $audioTargets[] = $audioTarget;
+                if (($item['audioExternal'] ?? false) === true) {
+                    $audioExternalTargets[] = $audioTarget;
+                } elseif (($item['audioExists'] ?? false) === true) {
+                    $audioLocalTargets[] = $audioTarget;
+                } else {
+                    $audioMissingTargets[] = $audioTarget;
+                }
             }
         }
+        $textLocalTargets = array_values(array_unique($textLocalTargets));
+        $textExternalTargets = array_values(array_unique($textExternalTargets));
+        $textMissingTargets = array_values(array_unique($textMissingTargets));
+        $audioLocalTargets = array_values(array_unique($audioLocalTargets));
+        $audioExternalTargets = array_values(array_unique($audioExternalTargets));
+        $audioMissingTargets = array_values(array_unique($audioMissingTargets));
         $provenance = self::zipEntryProvenance($entry);
         if (($overlay['canExposeBytes'] ?? false) !== true) {
             $provenance['canExposeBytes'] = false;
@@ -7789,6 +7864,18 @@ final class EpubPackage
             'itemCount' => count($timelineItems),
             'textTargets' => array_values(array_unique($textTargets)),
             'audioTargets' => array_values(array_unique($audioTargets)),
+            'textLocalTargetCount' => count($textLocalTargets),
+            'textExternalTargetCount' => count($textExternalTargets),
+            'textMissingTargetCount' => count($textMissingTargets),
+            'audioLocalTargetCount' => count($audioLocalTargets),
+            'audioExternalTargetCount' => count($audioExternalTargets),
+            'audioMissingTargetCount' => count($audioMissingTargets),
+            'textLocalTargets' => $textLocalTargets,
+            'textExternalTargets' => $textExternalTargets,
+            'textMissingTargets' => $textMissingTargets,
+            'audioLocalTargets' => $audioLocalTargets,
+            'audioExternalTargets' => $audioExternalTargets,
+            'audioMissingTargets' => $audioMissingTargets,
             'diagnostics' => $diagnostics,
         ] + $provenance;
     }
@@ -7833,6 +7920,7 @@ final class EpubPackage
                 'textTarget' => $textReference['target'],
                 'textPartName' => $textReference['partName'],
                 'textExists' => $textReference['exists'],
+                'textExternal' => $textReference['external'],
                 'textManifestId' => $textReference['manifestId'],
                 'textManifestMediaType' => $textReference['manifestMediaType'],
                 'textHrefHasQuery' => $textReference['hrefHasQuery'],
@@ -7870,6 +7958,9 @@ final class EpubPackage
                 'clipEndSeconds' => $clip['clipEndSeconds'],
                 'clipDurationSeconds' => $clip['clipDurationSeconds'],
                 'clipValid' => $clip['valid'],
+                'textDiagnostics' => $textReference['diagnostics'],
+                'audioDiagnostics' => $audioReference['diagnostics'],
+                'clipDiagnostics' => $clip['diagnostics'],
                 'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics'], $clip['diagnostics']),
             ];
         }
