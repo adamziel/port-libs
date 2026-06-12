@@ -252,6 +252,111 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst environment boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'workspace/environment-boundary.pdf',
+            'source' => '= Typst Environment Boundary Packet',
+            'engineEnvironment' => [
+                'TYPST_ROOT' => 'env-root',
+                'TYPST_PACKAGE_CACHE_PATH' => 'https://cache.example.invalid/typst',
+                'SOURCE_DATE_EPOCH' => '1700000000',
+                'TYPST_FEATURES' => 'html,a11y-extras',
+            ],
+            'engineOptions' => ['--root=workspace'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst environment boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'inputVariables' => [],
+            'issues' => [
+                'package-cache-external-boundary',
+                'root-boundary-overridden',
+            ],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 1,
+                'safeStorageEntryCount' => 0,
+                'unsafeStorageEntryCount' => 1,
+                'packagePathCount' => 0,
+                'packageCacheCount' => 1,
+                'relativeStorageEntryCount' => 0,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 0,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => ['package-cache-external-boundary'],
+            ],
+            'environment' => [
+                ['name' => 'TYPST_ROOT', 'option' => 'root', 'raw' => 'env-root', 'values' => ['env-root'], 'issues' => []],
+                ['name' => 'TYPST_PACKAGE_CACHE_PATH', 'option' => 'packageCache', 'raw' => 'https://cache.example.invalid/typst', 'values' => ['https://cache.example.invalid/typst'], 'issues' => []],
+                ['name' => 'SOURCE_DATE_EPOCH', 'option' => 'creationTimestamp', 'raw' => '1700000000', 'values' => ['1700000000'], 'issues' => []],
+                ['name' => 'TYPST_FEATURES', 'option' => 'features', 'raw' => 'html,a11y-extras', 'values' => ['html,a11y-extras'], 'issues' => []],
+            ],
+            'creationTimestamp' => [
+                'raw' => '1700000000',
+                'value' => '1700000000',
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000000,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'featureGates' => [
+                'raw' => 'html,a11y-extras',
+                'value' => 'html,a11y-extras',
+                'features' => ['html', 'a11y-extras'],
+                'featureCount' => 2,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'root',
+                    'count' => 2,
+                    'values' => ['env-root', 'workspace'],
+                    'selected' => 'workspace',
+                    'issue' => 'root-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'workspace/environment-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'workspace/environment-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-environment:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:1700000000', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst package storage boundary policy provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

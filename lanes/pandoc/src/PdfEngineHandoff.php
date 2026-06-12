@@ -105,6 +105,7 @@ final class PdfEngineHandoff
      *     sourcePath?: string,
      *     source?: string,
      *     engineOptions?: list<string>|string,
+     *     engineEnvironment?: array<string, string>,
      *     templatePath?: string,
      *     includeInHeader?: list<string>|string,
      *     resourcePaths?: list<string>|string,
@@ -123,6 +124,7 @@ final class PdfEngineHandoff
      *     outputFile: string,
      *     argv: list<string>,
      *     engineOptions: list<string>,
+     *     engineEnvironment: array<string, string>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
      *     templateFile: string|null,
@@ -166,6 +168,7 @@ final class PdfEngineHandoff
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
             : $this->deriveSourcePath($outputFile, $profile['extension']);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
+        $engineEnvironment = $this->normalizeEngineEnvironment($options['engineEnvironment'] ?? []);
         $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
@@ -200,7 +203,7 @@ final class PdfEngineHandoff
         if ($typstTimingFile !== null && !in_array($typstTimingFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $typstTimingFile;
         }
-        $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
+        $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
@@ -263,6 +266,9 @@ final class PdfEngineHandoff
         }
         if ($typstBoundaryProvenance !== []) {
             $diagnostics[] = 'typst-boundary-provenance:' . $typstBoundaryProvenance['reviewStatus'];
+            if (($typstBoundaryProvenance['environment'] ?? []) !== []) {
+                $diagnostics[] = 'typst-boundary-environment:' . count($typstBoundaryProvenance['environment']);
+            }
             if (($typstBoundaryProvenance['root'] ?? null) !== null) {
                 $diagnostics[] = 'typst-root-boundary:' . $typstBoundaryProvenance['root']['path'];
             }
@@ -473,6 +479,7 @@ final class PdfEngineHandoff
             'outputFile' => $outputFile,
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
+            'engineEnvironment' => $engineEnvironment,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
@@ -5963,26 +5970,100 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param array<string, string> $engineEnvironment
+     * @return list<array{name:string, option:string, raw:string, values:list<string>, issues:list<string>}>
+     */
+    private function typstBoundaryEnvironmentEntries(array $engineEnvironment): array
+    {
+        $entries = [];
+        foreach ([
+            'TYPST_ROOT' => ['option' => 'root', 'list' => false],
+            'TYPST_FONT_PATHS' => ['option' => 'fontPaths', 'list' => true],
+            'TYPST_PACKAGE_PATH' => ['option' => 'packagePath', 'list' => false],
+            'TYPST_PACKAGE_CACHE_PATH' => ['option' => 'packageCache', 'list' => false],
+            'SOURCE_DATE_EPOCH' => ['option' => 'creationTimestamp', 'list' => false],
+            'TYPST_FEATURES' => ['option' => 'features', 'list' => false],
+        ] as $name => $spec) {
+            if (!array_key_exists($name, $engineEnvironment)) {
+                continue;
+            }
+
+            $raw = $engineEnvironment[$name];
+            $entries[] = [
+                'name' => $name,
+                'option' => $spec['option'],
+                'raw' => $raw,
+                'values' => $spec['list'] === true ? $this->typstEnvironmentListValues($engineEnvironment, $name) : [$raw],
+                'issues' => [],
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $engineEnvironment
+     * @return list<string>
+     */
+    private function typstEnvironmentValues(array $engineEnvironment, string $name): array
+    {
+        return array_key_exists($name, $engineEnvironment) ? [$engineEnvironment[$name]] : [];
+    }
+
+    /**
+     * @param array<string, string> $engineEnvironment
+     * @return list<string>
+     */
+    private function typstEnvironmentListValues(array $engineEnvironment, string $name): array
+    {
+        if (!array_key_exists($name, $engineEnvironment)) {
+            return [];
+        }
+
+        return explode(PATH_SEPARATOR, $engineEnvironment[$name]);
+    }
+
+    /**
      * @param list<string> $engineOptions
+     * @param array<string, string> $engineEnvironment
      * @return array<string, mixed>
      */
-    private function typstBoundaryProvenanceFor(string $engine, string $family, array $engineOptions): array
+    private function typstBoundaryProvenanceFor(string $engine, string $family, array $engineOptions, array $engineEnvironment = []): array
     {
         if ($engine !== 'typst' || $family !== 'typst') {
             return [];
         }
 
-        $rootValues = $this->engineOptionValues($engineOptions, ['--root'], true);
-        $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
+        $environmentEntries = $this->typstBoundaryEnvironmentEntries($engineEnvironment);
+        $rootValues = array_merge(
+            $this->typstEnvironmentValues($engineEnvironment, 'TYPST_ROOT'),
+            $this->engineOptionValues($engineOptions, ['--root'], true)
+        );
+        $fontPathValues = array_merge(
+            $this->typstEnvironmentListValues($engineEnvironment, 'TYPST_FONT_PATHS'),
+            $this->engineOptionValues($engineOptions, ['--font-path'], true)
+        );
         $certificateValues = $this->engineOptionValues($engineOptions, ['--cert'], true);
-        $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
-        $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true);
+        $packagePathValues = array_merge(
+            $this->typstEnvironmentValues($engineEnvironment, 'TYPST_PACKAGE_PATH'),
+            $this->engineOptionValues($engineOptions, ['--package-path'], true)
+        );
+        $packageCacheValues = array_merge(
+            $this->typstEnvironmentValues($engineEnvironment, 'TYPST_PACKAGE_CACHE_PATH'),
+            $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true)
+        );
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
-        $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true, false, '/\A-[0-9]/');
+        $creationTimestampValues = array_merge(
+            $this->typstEnvironmentValues($engineEnvironment, 'SOURCE_DATE_EPOCH'),
+            $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true, false, '/\A-[0-9]/')
+        );
         $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true, false, '/\A-[0-9]/');
         $ppiValues = $this->engineOptionValues($engineOptions, ['--ppi'], true, false, '/\A-[0-9]/');
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
-        $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
+        $featureGateValues = array_merge(
+            $this->typstEnvironmentValues($engineEnvironment, 'TYPST_FEATURES'),
+            $this->engineOptionValues($engineOptions, ['--features'], true)
+        );
         $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true, false, '/\A-[0-9]/');
         $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true, true);
         $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings', '-t'], true);
@@ -5994,7 +6075,7 @@ final class PdfEngineHandoff
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
         $openOutputCount = count($openOutputEntries);
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
+        if ($environmentEntries === [] && $rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6133,6 +6214,11 @@ final class PdfEngineHandoff
         foreach ($inputVariableOverrides as $override) {
             $issues[] = $override['issue'];
         }
+        foreach ($environmentEntries as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
         $issues = array_values(array_unique($issues));
 
         $provenance = [
@@ -6155,6 +6241,9 @@ final class PdfEngineHandoff
         }
         if ($packageStoragePolicy !== []) {
             $provenance['packageStoragePolicy'] = $packageStoragePolicy;
+        }
+        if ($environmentEntries !== []) {
+            $provenance['environment'] = $environmentEntries;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -29247,6 +29336,37 @@ final class PdfEngineHandoff
         }
 
         return $strings;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizeEngineEnvironment(mixed $value): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+        if (!is_array($value) || array_is_list($value)) {
+            throw new \InvalidArgumentException('PDF engine environment must be a keyed array');
+        }
+
+        $environment = [];
+        foreach ($value as $name => $item) {
+            if (!is_string($name) || $name === '' || preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', $name) !== 1) {
+                throw new \InvalidArgumentException('PDF engine environment names must be shell variable names');
+            }
+            if (!is_string($item)) {
+                throw new \InvalidArgumentException('PDF engine environment values must be strings');
+            }
+            if (str_contains($item, "\0")) {
+                throw new \InvalidArgumentException('PDF engine environment value for ' . $name . ' must not contain NUL bytes');
+            }
+
+            $environment[$name] = $item;
+        }
+        ksort($environment);
+
+        return $environment;
     }
 
     /**
