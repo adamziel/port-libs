@@ -8,6 +8,7 @@ final class XmlHtmlDom
 {
     private const FRAGMENT_ROOT_ATTRIBUTE = 'data-port-libs-pandoc-fragment-root';
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
+    private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -1554,7 +1555,7 @@ final class XmlHtmlDom
     {
         $text = $element->textContent;
 
-        return [
+        $summary = [
             'template' => 'inert-source',
             'templateText' => $text,
             'templateTextLength' => strlen($text),
@@ -1563,6 +1564,74 @@ final class XmlHtmlDom
             'templateContainsActiveLikeText' => preg_match('/<\s*(script|style|iframe|object|embed|link|meta)\b|<!doctype|<\?/i', $text) === 1,
             'templateReviewPolicy' => 'template-inert-escaped-source',
         ];
+
+        return $summary + self::templateContentReviewSummary($text);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function templateContentReviewSummary(string $source): array
+    {
+        $summary = [
+            'templateContentReviewPolicy' => 'template-content-inert-fragment-review',
+            'templateContentByteLength' => strlen($source),
+            'templateContentSha256' => hash('sha256', $source),
+            'templateContentParsed' => false,
+            'templateContentDiagnostics' => [],
+        ];
+
+        if (strlen($source) > self::TEMPLATE_CONTENT_REVIEW_MAX_BYTES) {
+            $summary['templateContentDiagnostics'] = ['template-content-review-limit-exceeded'];
+
+            return $summary;
+        }
+
+        try {
+            $fragment = self::loadHtmlFragment($source, 'template content fragment');
+        } catch (\InvalidArgumentException $exception) {
+            $summary['templateContentDiagnostics'] = ['template-content-unsafe-or-unparseable'];
+            $summary['templateContentError'] = $exception->getMessage();
+
+            return $summary;
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $text = self::normalizedText($root);
+        $topLevelElementNames = [];
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $topLevelElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $summary['templateContentParsed'] = true;
+        $summary['templateContentTopLevelElementNames'] = $topLevelElementNames;
+        $summary['templateContentTopLevelElementCount'] = count($topLevelElementNames);
+        $summary['templateContentTextLength'] = strlen($text);
+        $summary['templateContentTextSha256'] = hash('sha256', $text);
+        if ($text !== '') {
+            $summary['templateContentText'] = $text;
+        }
+        $summary['templateContentLinkHrefs'] = self::inertHtmlFragmentAttributeValues($root, ['a', 'area'], 'href');
+        $summary['templateContentImageSources'] = self::inertHtmlFragmentAttributeValues($root, ['img'], 'src');
+        $forms = self::descendantHtmlElements($root, 'form');
+        $summary['templateContentFormCount'] = count($forms);
+        $summary['templateContentFormActions'] = array_values(array_filter(
+            array_map(static fn (\DOMElement $form): ?string => self::attributeOrNull($form, 'action'), $forms),
+            static fn (?string $action): bool => $action !== null && $action !== ''
+        ));
+        $summary['templateContentActiveElementNames'] = self::inertHtmlFragmentDescendantNames($root, ['script' => true, 'style' => true]);
+        $summary['templateContentEmbeddedElementNames'] = self::inertHtmlFragmentDescendantNames($root, [
+            'audio' => true,
+            'canvas' => true,
+            'embed' => true,
+            'iframe' => true,
+            'object' => true,
+            'video' => true,
+        ]);
+
+        return $summary;
     }
 
     /**
@@ -4125,16 +4194,16 @@ final class XmlHtmlDom
         if ($text !== '') {
             $summary['srcdocText'] = $text;
         }
-        $summary['srcdocLinkHrefs'] = self::iframeSrcdocAttributeValues($root, ['a', 'area'], 'href');
-        $summary['srcdocImageSources'] = self::iframeSrcdocAttributeValues($root, ['img'], 'src');
+        $summary['srcdocLinkHrefs'] = self::inertHtmlFragmentAttributeValues($root, ['a', 'area'], 'href');
+        $summary['srcdocImageSources'] = self::inertHtmlFragmentAttributeValues($root, ['img'], 'src');
         $forms = self::descendantHtmlElements($root, 'form');
         $summary['srcdocFormCount'] = count($forms);
         $summary['srcdocFormActions'] = array_values(array_filter(
             array_map(static fn (\DOMElement $form): ?string => self::attributeOrNull($form, 'action'), $forms),
             static fn (?string $action): bool => $action !== null && $action !== ''
         ));
-        $summary['srcdocActiveElementNames'] = self::iframeSrcdocDescendantNames($root, ['script' => true, 'style' => true]);
-        $summary['srcdocEmbeddedElementNames'] = self::iframeSrcdocDescendantNames($root, [
+        $summary['srcdocActiveElementNames'] = self::inertHtmlFragmentDescendantNames($root, ['script' => true, 'style' => true]);
+        $summary['srcdocEmbeddedElementNames'] = self::inertHtmlFragmentDescendantNames($root, [
             'audio' => true,
             'canvas' => true,
             'embed' => true,
@@ -4150,7 +4219,7 @@ final class XmlHtmlDom
      * @param list<string> $names
      * @return list<string>
      */
-    private static function iframeSrcdocAttributeValues(\DOMElement $root, array $names, string $attribute): array
+    private static function inertHtmlFragmentAttributeValues(\DOMElement $root, array $names, string $attribute): array
     {
         $values = [];
         foreach ($names as $name) {
@@ -4169,7 +4238,7 @@ final class XmlHtmlDom
      * @param array<string, true> $names
      * @return list<string>
      */
-    private static function iframeSrcdocDescendantNames(\DOMElement $root, array $names): array
+    private static function inertHtmlFragmentDescendantNames(\DOMElement $root, array $names): array
     {
         $elementNames = [];
         foreach ($root->getElementsByTagName('*') as $element) {
