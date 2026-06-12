@@ -440,10 +440,10 @@ return [
     <rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
   <links>
-    <link href="META-INF/container-record.json" rel="record alternate" media-type="application/ld+json" properties="schema-org reviewer"/>
+    <link href="META-INF/container-record.json?profile=ocf#record" rel="record alternate" media-type="application/ld+json" properties="schema-org reviewer"/>
     <link href="OEBPS/text/chapter1.xhtml#epubcfi(/6/2[chapter-1]!/4/2/1:12)" rel="preview" media-type="application/xhtml+xml"/>
-    <link href="https://metadata.example.test/source-record.json" rel="record" media-type="application/ld+json"/>
-    <link href="META-INF/missing-record.json" rel="record" media-type="application/json"/>
+    <link href="https://metadata.example.test/source-record.json?profile=remote#audit" rel="record" media-type="application/ld+json"/>
+    <link href="META-INF/missing-record.json?profile=missing#record" rel="record" media-type="application/json"/>
   </links>
 </container>
 XML;
@@ -466,8 +466,14 @@ XML;
         $t->same(['record', 'alternate'], $local['rel']);
         $t->same(['schema-org', 'reviewer'], $local['properties']);
         $t->same('application/ld+json', $local['mediaType']);
-        $t->same('/META-INF/container-record.json', $local['target']);
+        $t->same('/META-INF/container-record.json?profile=ocf#record', $local['target']);
+        $t->same(true, $local['hrefHasQuery']);
+        $t->same('profile=ocf', $local['hrefQuery']);
+        $t->same(true, $local['hrefHasFragment']);
+        $t->same('record', $local['hrefFragment']);
         $t->same('/META-INF/container-record.json', $local['part']);
+        $t->same('record', $local['fragment']);
+        $t->same('id', $local['fragmentKind']);
         $t->same(false, $local['external']);
         $t->same(true, $local['exists']);
         $t->same(strlen($containerRecord), $local['byteLength']);
@@ -476,6 +482,10 @@ XML;
 
         $preview = $container['links'][1];
         $t->same('/OEBPS/text/chapter1.xhtml#epubcfi(/6/2[chapter-1]!/4/2/1:12)', $preview['target']);
+        $t->same(false, $preview['hrefHasQuery']);
+        $t->same(null, $preview['hrefQuery']);
+        $t->same(true, $preview['hrefHasFragment']);
+        $t->same('epubcfi(/6/2[chapter-1]!/4/2/1:12)', $preview['hrefFragment']);
         $t->same('/OEBPS/text/chapter1.xhtml', $preview['part']);
         $t->same('epubcfi(/6/2[chapter-1]!/4/2/1:12)', $preview['fragment']);
         $t->same('epub-cfi', $preview['fragmentKind']);
@@ -483,6 +493,12 @@ XML;
         $t->same(true, $preview['exists']);
 
         $remote = $container['links'][2];
+        $t->same('https://metadata.example.test/source-record.json?profile=remote#audit', $remote['target']);
+        $t->same(true, $remote['hrefHasQuery']);
+        $t->same('profile=remote', $remote['hrefQuery']);
+        $t->same(true, $remote['hrefHasFragment']);
+        $t->same('audit', $remote['hrefFragment']);
+        $t->same('audit', $remote['fragment']);
         $t->same(true, $remote['external']);
         $t->same(false, $remote['exists']);
         $t->same(null, $remote['part']);
@@ -491,6 +507,11 @@ XML;
         $missing = $container['links'][3];
         $t->same(false, $missing['exists']);
         $t->same('/META-INF/missing-record.json', $missing['part']);
+        $t->same(true, $missing['hrefHasQuery']);
+        $t->same('profile=missing', $missing['hrefQuery']);
+        $t->same(true, $missing['hrefHasFragment']);
+        $t->same('record', $missing['hrefFragment']);
+        $t->same('record', $missing['fragment']);
         $t->same('missing-container-link-reference', $missing['diagnostics'][0]['type']);
 
         $t->same(2, count($container['linkDiagnostics']));

@@ -352,6 +352,10 @@ final class EpubReader
                 'properties' => self::spaceDelimited($link->getAttribute('properties')),
                 'refines' => self::nullableAttribute($link, 'refines'),
                 'target' => $reference['target'],
+                'hrefHasQuery' => $reference['hrefHasQuery'],
+                'hrefQuery' => $reference['hrefQuery'],
+                'hrefHasFragment' => $reference['hrefHasFragment'],
+                'hrefFragment' => $reference['hrefFragment'],
                 'part' => $reference['part'],
                 'fragment' => $reference['fragment'],
                 'fragmentKind' => $reference['fragmentKind'],
@@ -384,6 +388,10 @@ final class EpubReader
     /**
      * @return array{
      *     target:?string,
+     *     hrefHasQuery:bool,
+     *     hrefQuery:?string,
+     *     hrefHasFragment:bool,
+     *     hrefFragment:?string,
      *     part:?string,
      *     fragment:?string,
      *     fragmentKind:?string,
@@ -401,9 +409,14 @@ final class EpubReader
     {
         $href = trim($href);
         $fragmentFields = self::targetFragmentFields(null);
+        $suffixFields = self::targetHrefSuffixFields($href === '' ? null : $href);
         if ($href === '') {
             return [
                 'target' => null,
+                'hrefHasQuery' => $suffixFields['hrefHasQuery'],
+                'hrefQuery' => $suffixFields['hrefQuery'],
+                'hrefHasFragment' => $suffixFields['hrefHasFragment'],
+                'hrefFragment' => $suffixFields['hrefFragment'],
                 'part' => null,
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
@@ -423,9 +436,14 @@ final class EpubReader
 
         if (self::isExternalReference($href)) {
             $fragmentFields = self::targetFragmentFields($href);
+            $suffixFields = self::targetHrefSuffixFields($href);
 
             return [
                 'target' => $href,
+                'hrefHasQuery' => $suffixFields['hrefHasQuery'],
+                'hrefQuery' => $suffixFields['hrefQuery'],
+                'hrefHasFragment' => $suffixFields['hrefHasFragment'],
+                'hrefFragment' => $suffixFields['hrefFragment'],
                 'part' => null,
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
@@ -449,6 +467,10 @@ final class EpubReader
         } catch (\InvalidArgumentException $exception) {
             return [
                 'target' => null,
+                'hrefHasQuery' => $suffixFields['hrefHasQuery'],
+                'hrefQuery' => $suffixFields['hrefQuery'],
+                'hrefHasFragment' => $suffixFields['hrefHasFragment'],
+                'hrefFragment' => $suffixFields['hrefFragment'],
                 'part' => null,
                 'fragment' => $fragmentFields['fragment'],
                 'fragmentKind' => $fragmentFields['fragmentKind'],
@@ -468,6 +490,7 @@ final class EpubReader
         }
 
         $fragmentFields = self::targetFragmentFields($target);
+        $suffixFields = self::targetHrefSuffixFields($target);
         $part = OpcPackagePath::stripQueryAndFragment($target);
         $exists = $package->has($part);
         $entry = $exists ? $package->entry($part) : null;
@@ -480,6 +503,10 @@ final class EpubReader
 
         return [
             'target' => $target,
+            'hrefHasQuery' => $suffixFields['hrefHasQuery'],
+            'hrefQuery' => $suffixFields['hrefQuery'],
+            'hrefHasFragment' => $suffixFields['hrefHasFragment'],
+            'hrefFragment' => $suffixFields['hrefFragment'],
             'part' => $part,
             'fragment' => $fragmentFields['fragment'],
             'fragmentKind' => $fragmentFields['fragmentKind'],
@@ -10752,6 +10779,32 @@ final class EpubReader
     private static function targetFragment(?string $target): ?string
     {
         return self::targetFragmentFields($target)['fragment'];
+    }
+
+    /**
+     * @return array{hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}
+     */
+    private static function targetHrefSuffixFields(?string $target): array
+    {
+        if ($target === null) {
+            return [
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+            ];
+        }
+
+        $fragmentOffset = strpos($target, '#');
+        $withoutFragment = $fragmentOffset === false ? $target : substr($target, 0, $fragmentOffset);
+        $queryOffset = strpos($withoutFragment, '?');
+
+        return [
+            'hrefHasQuery' => $queryOffset !== false,
+            'hrefQuery' => $queryOffset === false ? null : substr($withoutFragment, $queryOffset + 1),
+            'hrefHasFragment' => $fragmentOffset !== false,
+            'hrefFragment' => $fragmentOffset === false ? null : substr($target, $fragmentOffset + 1),
+        ];
     }
 
     /**
