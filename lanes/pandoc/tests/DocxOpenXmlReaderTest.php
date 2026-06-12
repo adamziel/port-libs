@@ -1074,6 +1074,71 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'classifies docx digital signature package inventory roles for review handoff' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/bad-signature.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignatureOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin.sigs#origin"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin.sigs'] = 'signature origin bytes';
+        $parts['_xmlsignatures/_rels/origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignature1" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml?slot=primary#sig"/>
+  <Relationship Id="rSignature2" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="bad-signature.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig1.xml'] = '<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo/></ds:Signature>';
+        $parts['_xmlsignatures/bad-signature.xml'] = '<notSignature xmlns="urn:example"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $originInventory = $package['parts']['_xmlsignatures/origin.sigs'];
+        $signatureRelationshipsInventory = $package['parts']['_xmlsignatures/_rels/origin.sigs.rels'];
+        $signatureInventory = $package['parts']['_xmlsignatures/sig1.xml'];
+        $badSignatureInventory = $package['parts']['_xmlsignatures/bad-signature.xml'];
+        $directories = [];
+        foreach ($summary['partDirectories'] as $directory) {
+            $directories[$directory['directory']] = $directory;
+        }
+
+        $t->same(1, $summary['digitalSignatureOriginInventoryPartCount']);
+        $t->same(2, $summary['digitalSignatureSignatureInventoryPartCount']);
+        $t->same(1, $summary['digitalSignatureRelationshipInventoryPartCount']);
+        $t->same(1, $summary['roleCounts']['digital-signature-origin']);
+        $t->same(2, $summary['roleCounts']['digital-signature-signature']);
+        $t->same(1, $summary['roleCounts']['digital-signature-relationships']);
+        $t->same(['root-relationship-target', 'digital-signature-origin'], $originInventory['roles']);
+        $t->same(['relationship-part', 'digital-signature-relationships'], $signatureRelationshipsInventory['roles']);
+        $t->same(['relationship-target', 'digital-signature-signature'], $signatureInventory['roles']);
+        $t->same($signatureInventory['roles'], $badSignatureInventory['roles']);
+        $t->same('_xmlsignatures/origin.sigs', $signatureRelationshipsInventory['relationshipSourcePart']);
+        $t->same(true, $signatureRelationshipsInventory['relationshipSourceExists']);
+        $t->same(1, $directories['_xmlsignatures']['roleCounts']['digital-signature-origin']);
+        $t->same(2, $directories['_xmlsignatures']['roleCounts']['digital-signature-signature']);
+        $t->same(1, $directories['_xmlsignatures/_rels']['roleCounts']['digital-signature-relationships']);
+        $t->same(1, $docx['digitalSignatures']['originCount']);
+        $t->same(2, $docx['digitalSignatures']['signatureCount']);
+        $t->same(['_xmlsignatures/origin.sigs'], $docx['digitalSignatures']['originParts']);
+        $t->same(['_xmlsignatures/sig1.xml', '_xmlsignatures/bad-signature.xml'], $docx['digitalSignatures']['signatureParts']);
+        $t->same(1, $summary['relationshipTypeCounts'][$originType]);
+        $t->same(2, $summary['relationshipTypeCounts'][$signatureType]);
+        $t->true(!isset($docx['media']['_xmlsignatures/sig1.xml']), 'signature XML should not be exposed as document media');
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

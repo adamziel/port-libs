@@ -2990,6 +2990,9 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'digitalSignatureOriginInventoryPartCount' => (int) ($roleCounts['digital-signature-origin'] ?? 0),
+            'digitalSignatureSignatureInventoryPartCount' => (int) ($roleCounts['digital-signature-signature'] ?? 0),
+            'digitalSignatureRelationshipInventoryPartCount' => (int) ($roleCounts['digital-signature-relationships'] ?? 0),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -4667,6 +4670,9 @@ final class DocxOpenXmlReader
         }
 
         $this->addPartRole($rolesByPart, $partName, $role);
+        if ($relationshipType === self::DIGITAL_SIGNATURE_ORIGIN_REL) {
+            $this->addPartRole($rolesByPart, $this->relationshipsPartFor($partName), 'digital-signature-relationships');
+        }
     }
 
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
@@ -4674,6 +4680,8 @@ final class DocxOpenXmlReader
         return match ($relationshipType) {
             self::ACTIVEX_CONTROL_REL => 'activex-control',
             self::ACTIVEX_BINARY_REL => 'activex-binary',
+            self::DIGITAL_SIGNATURE_ORIGIN_REL => 'digital-signature-origin',
+            self::DIGITAL_SIGNATURE_SIGNATURE_REL => 'digital-signature-signature',
             default => null,
         };
     }
