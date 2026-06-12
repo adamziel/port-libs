@@ -1095,6 +1095,76 @@ return [
             ['t' => 'Str', 'c' => 'Edited text'],
         ], $editedJson['blocks'][0]['c']);
     },
+    'preserves current inline container native payloads through regenerated pandoc json blocks' => static function (TestRunner $t): void {
+        $inlinePayloads = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'em']], 'sourcepos' => '1:1-1:3'],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'sourcepos' => '1:4-1:10'],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']], 'sourcepos' => '1:11-1:16'],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'strike']], 'sourcepos' => '1:17-1:23'],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => 'sup']], 'sourcepos' => '1:24-1:27'],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'sub']], 'sourcepos' => '1:28-1:31'],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'sourcepos' => '1:32-1:36'],
+            ['t' => 'Quoted', 'c' => [['t' => 'SingleQuote'], [['t' => 'Str', 'c' => 'quoted']]], 'sourcepos' => '1:37-1:45'],
+            ['t' => 'Note', 'c' => [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]]], 'sourcepos' => '1:46-1:52'],
+            ['t' => 'Span', 'c' => [['span-id', ['review'], [['data-source', 'native-inline']]], [['t' => 'Str', 'c' => 'span']]], 'sourcepos' => '1:53-1:59'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $inlinePayloads],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $regenerated = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', array_replace($paragraph->attrs, ['regeneratedParent' => true]), $paragraph->children),
+            ]);
+            $encoded = (new PandocJsonWriter())->toArray($regenerated);
+            $nativeEncoded = json_decode((new NativeWriter())->write($regenerated), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('Para', $encoded['blocks'][0]['t'], "{$source} regenerated paragraph constructor");
+            $t->same($inlinePayloads, $encoded['blocks'][0]['c'], "{$source} inline native payloads survive regenerated parent");
+            $t->same($inlinePayloads, $nativeEncoded['blocks'][0]['c'], "{$source} inline native payloads survive native regenerated parent");
+            $t->same([
+                'emph',
+                'strong',
+                'underline',
+                'strikeout',
+                'superscript',
+                'subscript',
+                'small_caps',
+                'quoted',
+                'note',
+                'span',
+            ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), "{$source} inline node mapping");
+            $t->same($inlinePayloads[7], $paragraph->children[7]->attr('native'), "{$source} quoted native payload");
+            $t->same($inlinePayloads[9], $paragraph->children[9]->attr('native'), "{$source} span native payload");
+        }
+
+        $paragraph = $documents['json']->children[0];
+        $editedEmph = new AstNode(
+            'emph',
+            $paragraph->children[0]->attrs,
+            [new AstNode('text', ['text' => 'edited'])]
+        );
+        $editedDocument = new AstNode('document', $documents['json']->attrs, [
+            new AstNode('paragraph', array_replace($paragraph->attrs, ['regeneratedParent' => true]), [$editedEmph]),
+        ]);
+        $edited = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Emph', $edited['blocks'][0]['c'][0]['t']);
+        $t->same('edited', $edited['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('sourcepos', $edited['blocks'][0]['c'][0]));
+        $t->same('edited', $editedNative['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('sourcepos', $editedNative['blocks'][0]['c'][0]));
+    },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
             'citationId' => 'source-a',
