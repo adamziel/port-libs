@@ -10327,6 +10327,26 @@ XML;
         $t->same(4, $provenance['manifestDeclaredPartCount']);
         $t->same(1, $provenance['undeclaredEntryCount']);
         $t->same(1, $provenance['packageDirectoryCount']);
+        $t->same(5, $provenance['corePackagePartCount']);
+        $t->same(1, $provenance['mediaResourcePartCount']);
+        $t->same(1, $provenance['packageThumbnailPartCount']);
+        $t->same(0, $provenance['packageSignaturePartCount']);
+        $t->same([
+            'manifest-declared' => 4,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-styles' => 1,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+            'zip-directory' => 1,
+        ], $provenance['roleCounts']);
+        $t->same([
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+        ], $provenance['undeclaredRoleCounts']);
         $t->same(false, $provenance['centralDirectoryOrderMatchesLocalHeaderOrder']);
         $t->same('mimetype', $provenance['mimetypeEntry']['firstLocalEntryName']);
         $t->same(true, $provenance['mimetypeEntry']['isValid']);

@@ -358,6 +358,12 @@ final class OpenDocumentPackage
         $parts = [];
         $undeclaredEntries = [];
         $packageDirectoryCount = 0;
+        $roleCounts = [];
+        $undeclaredRoleCounts = [];
+        $corePackagePartCount = 0;
+        $mediaResourcePartCount = 0;
+        $packageThumbnailPartCount = 0;
+        $packageSignaturePartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -366,9 +372,10 @@ final class OpenDocumentPackage
                 ++$packageDirectoryCount;
             }
 
+            $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared);
             $item = [
                 'path' => $entry->name,
-                'roles' => self::packageEntryRoles($entry, $manifestEntry, $isUndeclared),
+                'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
@@ -408,11 +415,32 @@ final class OpenDocumentPackage
                 'undeclared' => $isUndeclared,
             ];
 
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                if ($isUndeclared) {
+                    $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
+                }
+            }
+            if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
+                ++$corePackagePartCount;
+            }
+            if (in_array('media-resource', $roles, true)) {
+                ++$mediaResourcePartCount;
+            }
+            if (in_array('package-thumbnail', $roles, true)) {
+                ++$packageThumbnailPartCount;
+            }
+            if (in_array('package-signature', $roles, true)) {
+                ++$packageSignaturePartCount;
+            }
+
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
                 $undeclaredEntries[] = $item;
             }
         }
+        ksort($roleCounts, SORT_STRING);
+        ksort($undeclaredRoleCounts, SORT_STRING);
 
         return [
             'entryCount' => count($parts),
@@ -420,6 +448,12 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => count($undeclaredEntries),
             'undeclaredEntries' => $undeclaredEntries,
             'packageDirectoryCount' => $packageDirectoryCount,
+            'roleCounts' => $roleCounts,
+            'undeclaredRoleCounts' => $undeclaredRoleCounts,
+            'corePackagePartCount' => $corePackagePartCount,
+            'mediaResourcePartCount' => $mediaResourcePartCount,
+            'packageThumbnailPartCount' => $packageThumbnailPartCount,
+            'packageSignaturePartCount' => $packageSignaturePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
