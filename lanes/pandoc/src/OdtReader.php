@@ -23,7 +23,7 @@ final class OdtReader
     public const CONFIG_NS = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
 
     /**
-     * @return array{document:AstNode, metadata:array<string, string>, settings:array<string, mixed>, importReport:array<string, mixed>, manifest:list<array{path:string, mediaType:string, encrypted:bool, size:?int}>}
+     * @return array{document:AstNode, metadata:array<string, string>, settings:array<string, mixed>, importReport:array<string, mixed>, manifest:list<array<string, mixed>>}
      */
     public function readPackage(ZipPackage $package): array
     {
@@ -74,7 +74,7 @@ final class OdtReader
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, encrypted:bool, size:?int}>
+     * @return list<array<string, mixed>>
      */
     private function readManifest(ZipPackage $package): array
     {
@@ -98,10 +98,17 @@ final class OdtReader
             if ($path === null || $path === '') {
                 continue;
             }
+            $path = self::normalizeManifestPath($path);
+            $packageReference = self::manifestPackageReference($path);
 
             $size = $this->manifestAttr($child, 'size');
             $entries[] = [
                 'path' => $path,
+                'packagePath' => $packageReference['packagePath'],
+                'pathReference' => $packageReference['pathReference'],
+                'pathSuffix' => $packageReference['pathSuffix'],
+                'pathQuery' => $packageReference['pathQuery'],
+                'pathFragment' => $packageReference['pathFragment'],
                 'mediaType' => (string) ($this->manifestAttr($child, 'media-type') ?? ''),
                 'encrypted' => $this->firstChildElement($child, self::MANIFEST_NS, 'encryption-data') instanceof \DOMElement,
                 'size' => $size !== null && preg_match('/^\d+$/', $size) === 1 ? (int) $size : null,
@@ -1218,20 +1225,26 @@ final class OdtReader
 
     private function packagePartFromHref(string $href): ?string
     {
-        if ($href === '' || str_contains($href, '://') || str_starts_with($href, '#')) {
+        if ($href === '' || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1 || str_starts_with($href, '#')) {
             return null;
         }
 
         $path = ltrim($href, '/');
-        if ($path === '' || str_contains($path, '..')) {
+        if ($path === '') {
             return null;
         }
 
-        return $path;
+        try {
+            $reference = self::manifestPackageReference(self::normalizeManifestPath($path));
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        return $reference['packagePath'];
     }
 
     /**
-     * @param list<array{path:string, mediaType:string, encrypted:bool, size:?int}> $manifest
+     * @param list<array<string, mixed>> $manifest
      * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styleCatalog
      * @return array<string, mixed>
      */
@@ -1239,7 +1252,12 @@ final class OdtReader
     {
         $manifestByPath = [];
         foreach ($manifest as $entry) {
-            $manifestByPath[$entry['path']] = $entry;
+            foreach (['path', 'pathReference', 'packagePath'] as $key) {
+                $path = $entry[$key] ?? null;
+                if (is_string($path) && $path !== '' && !isset($manifestByPath[$path])) {
+                    $manifestByPath[$path] = $entry;
+                }
+            }
         }
 
         $images = $this->imageImportReport($package, $document, $manifestByPath);
@@ -1285,8 +1303,8 @@ final class OdtReader
     }
 
     /**
-     * @param array<string, array{path:string, mediaType:string, encrypted:bool, size:?int}> $manifestByPath
-     * @return array{count:int, embeddedCount:int, missingCount:int, items:list<array{href:string, part:?string, exists:?bool, bytes:?int, mediaType:?string, encrypted:bool, alt:string}>}
+     * @param array<string, array<string, mixed>> $manifestByPath
+     * @return array{count:int, embeddedCount:int, missingCount:int, items:list<array<string, mixed>>}
      */
     private function imageImportReport(ZipPackage $package, AstNode $document, array $manifestByPath): array
     {
@@ -1307,6 +1325,12 @@ final class OdtReader
                 'bytes' => $part !== null && $exists === true ? strlen($package->read($part)) : null,
                 'mediaType' => is_array($manifest) ? $manifest['mediaType'] : null,
                 'encrypted' => is_array($manifest) ? $manifest['encrypted'] : false,
+                'manifestPath' => is_array($manifest) ? $manifest['path'] : null,
+                'manifestPackagePath' => is_array($manifest) ? $manifest['packagePath'] : null,
+                'manifestPathReference' => is_array($manifest) ? $manifest['pathReference'] : null,
+                'manifestPathSuffix' => is_array($manifest) ? $manifest['pathSuffix'] : null,
+                'manifestPathQuery' => is_array($manifest) ? $manifest['pathQuery'] : null,
+                'manifestPathFragment' => is_array($manifest) ? $manifest['pathFragment'] : null,
                 'alt' => (string) $image->attr('alt', ''),
             ];
         }
@@ -1853,6 +1877,111 @@ final class OdtReader
     private function manifestAttr(\DOMElement $element, string $localName): ?string
     {
         return $this->namespacedAttr($element, self::MANIFEST_NS, $localName);
+    }
+
+    private static function normalizeManifestPath(string $path): string
+    {
+        if ($path === '') {
+            throw new \InvalidArgumentException('ODF manifest full-path must not be empty');
+        }
+
+        if ($path === '/') {
+            return '/';
+        }
+
+        if (str_starts_with($path, '/') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+        }
+
+        $segments = explode('/', $path);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+            }
+        }
+
+        return $path;
+    }
+
+    /**
+     * @return array{packagePath:string|null,pathReference:string|null,pathSuffix:string|null,pathQuery:string|null,pathFragment:string|null}
+     */
+    private static function manifestPackageReference(string $path): array
+    {
+        if ($path === '/') {
+            return [
+                'packagePath' => null,
+                'pathReference' => null,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+            ];
+        }
+
+        $pathReference = $path;
+        $pathSuffix = null;
+        $pathQuery = null;
+        $pathFragment = null;
+        $suffixOffset = strcspn($path, '?#');
+        if ($suffixOffset < strlen($path)) {
+            $pathReference = substr($path, 0, $suffixOffset);
+            $pathSuffix = substr($path, $suffixOffset);
+            if (str_starts_with($pathSuffix, '?')) {
+                $queryAndFragment = substr($pathSuffix, 1);
+                $fragmentOffset = strpos($queryAndFragment, '#');
+                if ($fragmentOffset === false) {
+                    $pathQuery = $queryAndFragment;
+                } else {
+                    $pathQuery = substr($queryAndFragment, 0, $fragmentOffset);
+                    $pathFragment = substr($queryAndFragment, $fragmentOffset + 1);
+                }
+            } elseif (str_starts_with($pathSuffix, '#')) {
+                $pathFragment = substr($pathSuffix, 1);
+            }
+        }
+
+        return [
+            'packagePath' => self::manifestPackagePath($pathReference),
+            'pathReference' => $pathReference,
+            'pathSuffix' => $pathSuffix,
+            'pathQuery' => $pathQuery,
+            'pathFragment' => $pathFragment,
+        ];
+    }
+
+    private static function manifestPackagePath(string $path): ?string
+    {
+        if ($path === '/') {
+            return null;
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            throw new \InvalidArgumentException('Malformed percent escape in ODF manifest full-path: ' . $path);
+        }
+
+        $decodedPath = rawurldecode($path);
+        if ($decodedPath === '' || str_starts_with($decodedPath, '/') || str_contains($decodedPath, '\\') || str_contains($decodedPath, "\0")) {
+            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+        }
+
+        $segments = explode('/', $decodedPath);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+            }
+        }
+
+        return $decodedPath;
     }
 
     private function configAttr(\DOMElement $element, string $localName): ?string

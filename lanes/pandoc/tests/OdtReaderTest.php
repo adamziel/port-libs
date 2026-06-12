@@ -328,6 +328,60 @@ XML;
         $t->same(1, $report['textBoxes']['count']);
         $t->same(1, $report['styles']['listCount']);
     },
+    'resolves encoded ODT image package references with query and fragment provenance' => static function (TestRunner $t) use ($buildPackage): void {
+        $contentWithEncodedImage = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  office:version="1.3">
+  <office:body>
+    <office:text>
+      <text:p><draw:frame draw:name="Encoded image"><draw:image xlink:href="Pictures/source%20hero.png?cache=1#draw"/></draw:frame></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $manifestWithEncodedImage = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/source%20hero.png?cache=1#draw" manifest:media-type="image/png" manifest:size="8"/>
+</manifest:manifest>
+XML;
+
+        $result = (new OdtReader())->readPackage($buildPackage([
+            'content.xml' => $contentWithEncodedImage,
+            'META-INF/manifest.xml' => $manifestWithEncodedImage,
+            'Pictures/source hero.png' => 'PNGDATA2',
+        ]));
+
+        $image = $result['document']->children[0]->children[0];
+        $manifestEntry = $result['manifest'][2];
+        $media = $result['importReport']['media'];
+        $item = $media['items'][0];
+
+        $t->same('Pictures/source%20hero.png?cache=1#draw', $image->attr('url'));
+        $t->same('Pictures/source hero.png', $image->attr('sourcePart'));
+        $t->same(true, $image->attr('exists'));
+        $t->same('Pictures/source%20hero.png?cache=1#draw', $manifestEntry['path']);
+        $t->same('Pictures/source hero.png', $manifestEntry['packagePath']);
+        $t->same('Pictures/source%20hero.png', $manifestEntry['pathReference']);
+        $t->same('?cache=1#draw', $manifestEntry['pathSuffix']);
+        $t->same('cache=1', $manifestEntry['pathQuery']);
+        $t->same('draw', $manifestEntry['pathFragment']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(8, $item['bytes']);
+        $t->same('image/png', $item['mediaType']);
+        $t->same('Pictures/source%20hero.png?cache=1#draw', $item['manifestPath']);
+        $t->same('Pictures/source hero.png', $item['manifestPackagePath']);
+        $t->same('Pictures/source%20hero.png', $item['manifestPathReference']);
+        $t->same('?cache=1#draw', $item['manifestPathSuffix']);
+        $t->same('cache=1', $item['manifestPathQuery']);
+        $t->same('draw', $item['manifestPathFragment']);
+    },
     'reports ODT style reference diagnostics for import review' => static function (TestRunner $t) use ($buildPackage): void {
         $contentWithPlainParagraph = <<<'XML'
 <office:document-content
