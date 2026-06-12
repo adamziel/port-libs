@@ -2073,6 +2073,101 @@ XML);
         $t->contains('<p>Related options source Curator (2024) keeps related-entry switches visible.</p>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.</dd>', $blocks);
     },
+    'maps bounded biblatex hyphenated relation aliases into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@xdata{hyphen-shared-packet,
+  title     = {Hyphen Shared Packet},
+  date      = {2026-06-10},
+  publisher = {Hyphen Desk}
+}
+
+@book{hyphen-member,
+  options = {dataonly},
+  author  = {Smith, Ada},
+  title   = {Hyphen Member Packet},
+  date    = {2025}
+}
+
+@book{hyphen-relation-manual,
+  author          = {Curator, Eli},
+  title           = {Hyphen Relation Manual},
+  date            = {2024},
+  xdata-keys      = {hyphen-shared-packet, missing-xdata-hyphen},
+  entry-set       = {hyphen-member, missing-entry-hyphen},
+  related-keys    = {hyphen-member, missing-related-hyphen},
+  related-type    = {companion},
+  related-string  = {Hyphen companion set},
+  related-options = {skipbib=false, useeditor=true},
+  xref-keys       = {hyphen-member, missing-xref-hyphen}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $item = $items[0];
+        $t->same('hyphen-relation-manual', $item['id']);
+        $t->same('Hyphen Desk', $item['publisher'] ?? null);
+        $t->same(['hyphen-shared-packet', 'missing-xdata-hyphen'], $item['xdataKeys'] ?? null);
+        $t->same('hyphen-shared-packet', $item['xdataItems'][0]['id'] ?? null);
+        $t->same('Hyphen Shared Packet', $item['xdataItems'][0]['title'] ?? null);
+        $t->same(['missing-xdata-hyphen'], $item['missingXdataKeys'] ?? null);
+        $t->same(['hyphen-member', 'missing-entry-hyphen'], $item['entrySet'] ?? null);
+        $t->same('hyphen-member', $item['entrySetItems'][0]['id'] ?? null);
+        $t->same(['missing-entry-hyphen'], $item['missingEntrySetKeys'] ?? null);
+        $t->same(['hyphen-member', 'missing-related-hyphen'], $item['relatedKeys'] ?? null);
+        $t->same('companion', $item['relatedType'] ?? null);
+        $t->same('Hyphen companion set', $item['relatedString'] ?? null);
+        $t->same(['skipbib=false', 'useeditor=true'], $item['related-options'] ?? null);
+        $t->same(['missing-related-hyphen'], $item['missingRelatedKeys'] ?? null);
+        $t->same(['hyphen-member', 'missing-xref-hyphen'], $item['xrefKeys'] ?? null);
+        $t->same(['missing-xref-hyphen'], $item['missingXrefKeys'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('hyphen-relation-manual');
+        $t->same('Hyphen Desk', $manual['publisher'] ?? null);
+        $t->same('Hyphen Shared Packet (2026-06-10); missing: missing-xdata-hyphen', $manual['xdataSummary'] ?? null);
+        $t->same('Hyphen Member Packet (2025); missing: missing-entry-hyphen', $manual['entrySetSummary'] ?? null);
+        $t->same(['skipbib=false', 'useeditor=true'], $manual['relatedOptions'] ?? null);
+        $t->same(
+            'Curator, Eli. Hyphen Relation Manual. Hyphen Desk, 2024. Entry set: Hyphen Member Packet (2025); missing: missing-entry-hyphen. Xdata packets: Hyphen Shared Packet (2026-06-10); missing: missing-xdata-hyphen. Hyphen companion set (companion): Hyphen Member Packet (2025); missing: missing-related-hyphen. Related options: skipbib=false; useeditor=true. Xref: Hyphen Member Packet (2025); missing: missing-xref-hyphen.',
+            $processor->renderBibliographyEntry('hyphen-relation-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="xdata-keys"/>
+        <text variable="entry-set-keys"/>
+        <text variable="related-keys"/>
+        <text variable="related-options"/>
+        <text variable="xref-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="xdata-summary"/>
+      <text variable="entry-set-summary"/>
+      <text variable="related-summary"/>
+      <text variable="xref-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Hyphen Relation Manual | hyphen-shared-packet, missing-xdata-hyphen | hyphen-member, missing-entry-hyphen | hyphen-member, missing-related-hyphen | skipbib=false, useeditor=true | hyphen-member, missing-xref-hyphen]', $styled->renderCitationCluster([$citation('hyphen-relation-manual', '[@hyphen-relation-manual]')]));
+        $t->same('Hyphen Relation Manual :: Hyphen Shared Packet (2026-06-10); missing: missing-xdata-hyphen :: Hyphen Member Packet (2025); missing: missing-entry-hyphen :: Hyphen companion set (companion): Hyphen Member Packet (2025); missing: missing-related-hyphen :: Xref: Hyphen Member Packet (2025); missing: missing-xref-hyphen', $styled->renderBibliographyEntry('hyphen-relation-manual'));
+
+        $document = (new MarkdownReader())->read('Hyphen relation source @hyphen-relation-manual keeps package provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Hyphen relation source Curator (2024) keeps package provenance visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Hyphen Relation Manual. Hyphen Desk, 2024. Entry set: Hyphen Member Packet (2025); missing: missing-entry-hyphen. Xdata packets: Hyphen Shared Packet (2026-06-10); missing: missing-xdata-hyphen. Hyphen companion set (companion): Hyphen Member Packet (2025); missing: missing-related-hyphen. Related options: skipbib=false; useeditor=true. Xref: Hyphen Member Packet (2025); missing: missing-xref-hyphen.</dd>', $blocks);
+    },
     'maps bounded biblatex entry options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{entry-options-manual,
