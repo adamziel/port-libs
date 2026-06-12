@@ -1698,13 +1698,9 @@ final class XmlHtmlDom
     private static function listSummary(\DOMElement $element, string $name): array
     {
         if ($name === 'li') {
-            $valueRaw = self::attributeOrNull($element, 'value');
-
             return [
                 'listItem' => true,
-                'valueRaw' => $valueRaw,
-                'value' => self::integerAttribute($element, 'value', null),
-            ];
+            ] + self::listItemOrdinalSummary($element);
         }
 
         if ($name === 'ol') {
@@ -1723,6 +1719,48 @@ final class XmlHtmlDom
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
         ];
+    }
+
+    /**
+     * @return array{valueRaw:?string, value:?int, listOrdinal:?int, listOrdinalSource:?string}
+     */
+    private static function listItemOrdinalSummary(\DOMElement $item): array
+    {
+        $valueRaw = self::attributeOrNull($item, 'value');
+        $value = self::integerAttribute($item, 'value', null);
+        $summary = [
+            'valueRaw' => $valueRaw,
+            'value' => $value,
+            'listOrdinal' => null,
+            'listOrdinalSource' => null,
+        ];
+
+        $parent = $item->parentNode;
+        if (!$parent instanceof \DOMElement || self::htmlElementName($parent) !== 'ol') {
+            return $summary;
+        }
+
+        $items = self::childHtmlElements($parent, 'li');
+        $reversed = $parent->hasAttribute('reversed');
+        $start = self::integerAttribute($parent, 'start', null);
+        $current = $start ?? ($reversed ? count($items) : 1);
+        $implicitSource = $start !== null ? 'start-attribute' : ($reversed ? 'reversed-count' : 'default-start');
+
+        foreach ($items as $child) {
+            $childValue = self::integerAttribute($child, 'value', null);
+            $ordinal = $childValue ?? $current;
+            if ($child->isSameNode($item)) {
+                $summary['listOrdinal'] = $ordinal;
+                $summary['listOrdinalSource'] = $childValue !== null ? 'value-attribute' : $implicitSource;
+
+                return $summary;
+            }
+
+            $current = $ordinal + ($reversed ? -1 : 1);
+            $implicitSource = $childValue !== null ? 'previous-value' : $implicitSource;
+        }
+
+        return $summary;
     }
 
     /**

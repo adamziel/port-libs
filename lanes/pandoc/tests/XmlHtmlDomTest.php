@@ -432,6 +432,54 @@ XML, 'package reader XML');
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html ordered list effective ordinal provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<ol id="reverse" reversed><li>Review</li><li value="9">Patch</li><li>Verify</li></ol>'
+                . '<ol id="forward" start="4"><li>Draft</li><li value="-2">Pinned</li><li>Next</li></ol>'
+                . '<ul id="plain"><li value="5">Loose</li></ul>',
+            'ordered list effective ordinal review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/list-ordinal-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $reverse = $summary[0];
+        $reverseReview = $reverse['children'][0];
+        $reversePatch = $reverse['children'][1];
+        $reverseVerify = $reverse['children'][2];
+        $forward = $summary[1];
+        $forwardDraft = $forward['children'][0];
+        $forwardPinned = $forward['children'][1];
+        $forwardNext = $forward['children'][2];
+        $plainLoose = $summary[2]['children'][0];
+
+        $t->same('ordered', $reverse['list']);
+        $t->same(true, $reverse['reversed']);
+        $t->same(3, $reverseReview['listOrdinal']);
+        $t->same('reversed-count', $reverseReview['listOrdinalSource']);
+        $t->same('9', $reversePatch['valueRaw']);
+        $t->same(9, $reversePatch['listOrdinal']);
+        $t->same('value-attribute', $reversePatch['listOrdinalSource']);
+        $t->same(8, $reverseVerify['listOrdinal']);
+        $t->same('previous-value', $reverseVerify['listOrdinalSource']);
+        $t->same('ordered', $forward['list']);
+        $t->same(4, $forward['start']);
+        $t->same(4, $forwardDraft['listOrdinal']);
+        $t->same('start-attribute', $forwardDraft['listOrdinalSource']);
+        $t->same(-2, $forwardPinned['listOrdinal']);
+        $t->same('value-attribute', $forwardPinned['listOrdinalSource']);
+        $t->same(-1, $forwardNext['listOrdinal']);
+        $t->same('previous-value', $forwardNext['listOrdinalSource']);
+        $t->same('unordered', $summary[2]['list']);
+        $t->same(null, $plainLoose['listOrdinal']);
+        $t->same(null, $plainLoose['listOrdinalSource']);
+        $t->same('<ol id="reverse" reversed><li>Review</li><li value="9">Patch</li><li>Verify</li></ol><ol id="forward" start="4"><li>Draft</li><li value="-2">Pinned</li><li>Next</li></ol><ul id="plain"><li value="5">Loose</li></ul>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/list-ordinal-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'
