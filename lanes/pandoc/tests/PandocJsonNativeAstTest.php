@@ -4599,6 +4599,118 @@ return [
         $t->same($packet['blocks'], $jsonPacket['blocks']);
         $t->same($packet['blocks'], $nativePacket['blocks']);
     },
+    'preserves list definition and line helper payloads when rebuilding wrappers' => static function (TestRunner $t): void {
+        $bulletItem = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Bullet'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ], 'reviewQueue' => 'bullet-item-source'],
+        ];
+        $orderedItem = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ordered'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ], 'reviewQueue' => 'ordered-item-source'],
+        ];
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Source'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [['term-code', ['native'], [['data-kind', 'term']]], 'Glossary'], 'reviewQueue' => 'term-code-source'],
+        ];
+        $definitionBodies = [
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Primary'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'definition'],
+                ], 'reviewQueue' => 'primary-definition-source'],
+            ],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alias'],
+                ], 'reviewQueue' => 'alias-definition-source'],
+            ],
+        ];
+        $line = [
+            ['t' => 'Str', 'c' => 'Line'],
+            ['t' => 'Space', 'reviewQueue' => 'line-space-source'],
+            ['t' => 'Str', 'c' => 'source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => [$bulletItem], 'reviewQueue' => 'bullet-wrapper-source'],
+                ['t' => 'OrderedList', 'c' => [
+                    [7, ['t' => 'UpperAlpha'], ['t' => 'Period']],
+                    [$orderedItem],
+                ], 'reviewQueue' => 'ordered-wrapper-source'],
+                ['t' => 'DefinitionList', 'c' => [
+                    [$definitionTerm, $definitionBodies],
+                ], 'reviewQueue' => 'definition-wrapper-source'],
+                ['t' => 'LineBlock', 'c' => [$line], 'reviewQueue' => 'line-wrapper-source'],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $bullet = $document->children[0];
+            $ordered = $document->children[1];
+            $definitionList = $document->children[2];
+            $lineBlock = $document->children[3];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('bullet_list', [], $bullet->children),
+                new AstNode('ordered_list', array_replace($ordered->attrs, ['start' => 8]), $ordered->children),
+                new AstNode('definition_list', [], $definitionList->children),
+                new AstNode('line_block', [], $lineBlock->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($bulletItem, $encoded['blocks'][0]['c'][0], "{$source} {$writer} writer preserves rebuilt bullet item payload");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer drops stale bullet wrapper payload");
+                $t->same(8, $encoded['blocks'][1]['c'][0][0], "{$source} {$writer} writer regenerates edited ordered list start");
+                $t->same($orderedItem, $encoded['blocks'][1]['c'][1][0], "{$source} {$writer} writer preserves rebuilt ordered item payload");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} {$writer} writer drops stale ordered wrapper payload");
+                $t->same($definitionTerm, $encoded['blocks'][2]['c'][0][0], "{$source} {$writer} writer preserves rebuilt definition term payload");
+                $t->same($definitionBodies, $encoded['blocks'][2]['c'][0][1], "{$source} {$writer} writer preserves rebuilt definition body payloads");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]), "{$source} {$writer} writer drops stale definition wrapper payload");
+                $t->same($line, $encoded['blocks'][3]['c'][0], "{$source} {$writer} writer preserves rebuilt line payload");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][3]), "{$source} {$writer} writer drops stale line wrapper payload");
+            }
+
+            $orderedItemNode = $ordered->children[0];
+            $orderedParagraph = $orderedItemNode->children[0];
+            $editedOrderedItem = new AstNode('list_item', $orderedItemNode->attrs, [
+                new AstNode('paragraph', $orderedParagraph->attrs, [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'source']),
+                ]),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', array_replace($ordered->attrs, ['start' => 8]), [$editedOrderedItem]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedItem = $encoded['blocks'][0]['c'][1][0];
+
+                $t->same('Edited', $editedItem[0]['c'][0]['c'], "{$source} {$writer} writer regenerates edited list item text");
+                $t->same(false, array_key_exists('reviewQueue', $editedItem[0]), "{$source} {$writer} writer drops stale edited list item payload");
+            }
+        }
+    },
     'round trips pandoc json cite inlines with csl metadata for wordpress handoff' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

@@ -410,7 +410,7 @@ final class PandocJsonWriter
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItems($node->children)],
-            'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
+            'line_block' => ['t' => 'LineBlock', 'c' => $this->writeLineBlockLines($node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
@@ -452,7 +452,8 @@ final class PandocJsonWriter
             if ($item->type !== 'list_item') {
                 continue;
             }
-            $encoded[] = $this->childrenAsBlocks($item);
+            $blocks = $this->childrenAsBlocks($item);
+            $encoded[] = $this->reusableBlockListPayload($item->attr('listItemNative'), $blocks) ?? $blocks;
         }
 
         return $encoded;
@@ -472,16 +473,66 @@ final class PandocJsonWriter
 
             $term = $item->children[0] ?? new AstNode('text', ['text' => (string) $item->attr('term', '')]);
             $termInlines = $this->isInlineNode($term) ? [$term] : $this->inlineChildrenOrText($term);
+            $encodedTerm = $this->writeInlines($termInlines);
+            $termNative = $term instanceof AstNode
+                ? $this->reusableInlineListPayload($term->attr('definitionTermNative'), $encodedTerm)
+                : null;
+            $termNative ??= $this->reusableInlineListPayload($item->attr('definitionTermNative'), $encodedTerm);
+
             $definitions = [];
             foreach (array_slice($item->children, 1) as $definition) {
                 if ($definition->type === 'definition') {
-                    $definitions[] = $this->childrenAsBlocks($definition);
+                    $blocks = $this->childrenAsBlocks($definition);
+                    $definitions[] = $this->reusableBlockListPayload($definition->attr('definitionNative'), $blocks) ?? $blocks;
                 }
             }
-            $encoded[] = [$this->writeInlines($termInlines), $definitions];
+            $definitions = $this->reusableNestedBlockListPayload($item->attr('definitionDefinitionsNative'), $definitions) ?? $definitions;
+            $encoded[] = [$termNative ?? $encodedTerm, $definitions];
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<AstNode> $lines
+     * @return list<list<array<string, mixed>>>
+     */
+    private function writeLineBlockLines(array $lines): array
+    {
+        $encoded = [];
+        foreach ($lines as $line) {
+            $inlines = $this->writeInlines($this->inlineChildrenOrText($line));
+            $encoded[] = $this->reusableInlineListPayload($line->attr('lineNative'), $inlines) ?? $inlines;
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @return list<array<string, mixed>>|null
+     */
+    private function reusableBlockListPayload(mixed $native, array $blocks): ?array
+    {
+        return is_array($native) && array_is_list($native) && $native === $blocks ? $native : null;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $definitions
+     * @return list<list<array<string, mixed>>>|null
+     */
+    private function reusableNestedBlockListPayload(mixed $native, array $definitions): ?array
+    {
+        return is_array($native) && array_is_list($native) && $native === $definitions ? $native : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $inlines
+     * @return list<array<string, mixed>>|null
+     */
+    private function reusableInlineListPayload(mixed $native, array $inlines): ?array
+    {
+        return is_array($native) && array_is_list($native) && $native === $inlines ? $native : null;
     }
 
     /**
