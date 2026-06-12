@@ -565,37 +565,24 @@ final class DocxReader
 
     /**
      * @param array<string, mixed> $packageRelationships
-     * @return array{source:?string, valid:bool, roleTargetCount:int, validRoleTargetCount:int, invalidRoleTargetCount:int, roleCounts:array<string,int>, issueCounts:array<string,int>, issues:list<string>, invalidRelationships:list<array<string,mixed>>}
+     * @return array{source:?string, valid:bool, roleTargetCount:int, relationshipCount:int, validRoleTargetCount:int, invalidRoleTargetCount:int, roleCounts:array<string,int>, issueCounts:array<string,int>, issues:list<string>, relationships:list<array<string,mixed>>, invalidRelationships:list<array<string,mixed>>}
      */
     private function packageRelationshipMetadataSummary(array $packageRelationships): array
     {
+        $relationshipSummaries = [];
         $invalidRelationships = [];
         $relationships = $packageRelationships['relationships'] ?? [];
         if (is_array($relationships)) {
             foreach ($relationships as $relationship) {
-                if (!is_array($relationship) || ($relationship['valid'] ?? false) === true) {
+                if (!is_array($relationship)) {
                     continue;
                 }
 
-                $invalidRelationships[] = [
-                    'source' => $relationship['source'] ?? null,
-                    'id' => $relationship['id'] ?? null,
-                    'role' => $relationship['role'] ?? null,
-                    'type' => $relationship['type'] ?? null,
-                    'target' => $relationship['target'] ?? null,
-                    'targetPart' => $relationship['targetPart'] ?? null,
-                    'contentType' => $relationship['contentType'] ?? null,
-                    'expectedContentType' => $relationship['expectedContentType'] ?? null,
-                    'expectedContentTypePrefix' => $relationship['expectedContentTypePrefix'] ?? null,
-                    'expectedExternal' => $relationship['expectedExternal'] ?? null,
-                    'external' => $relationship['external'] ?? null,
-                    'exists' => $relationship['exists'] ?? null,
-                    'sourceAllowed' => $relationship['sourceAllowed'] ?? null,
-                    'issues' => array_values(array_filter(
-                        is_array($relationship['issues'] ?? null) ? $relationship['issues'] : [],
-                        static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
-                    )),
-                ];
+                $summary = $this->packageRelationshipMetadataItem($relationship);
+                $relationshipSummaries[] = $summary;
+                if (($relationship['valid'] ?? false) !== true) {
+                    $invalidRelationships[] = $summary;
+                }
             }
         }
 
@@ -603,12 +590,62 @@ final class DocxReader
             'source' => is_string($packageRelationships['source'] ?? null) ? $packageRelationships['source'] : null,
             'valid' => ($packageRelationships['valid'] ?? false) === true,
             'roleTargetCount' => (int) ($packageRelationships['roleTargetCount'] ?? 0),
+            'relationshipCount' => count($relationshipSummaries),
             'validRoleTargetCount' => (int) ($packageRelationships['validRoleTargetCount'] ?? 0),
             'invalidRoleTargetCount' => (int) ($packageRelationships['invalidRoleTargetCount'] ?? 0),
             'roleCounts' => is_array($packageRelationships['roleCounts'] ?? null) ? $packageRelationships['roleCounts'] : [],
             'issueCounts' => is_array($packageRelationships['issueCounts'] ?? null) ? $packageRelationships['issueCounts'] : [],
             'issues' => is_array($packageRelationships['issues'] ?? null) ? $packageRelationships['issues'] : [],
+            'relationships' => $relationshipSummaries,
             'invalidRelationships' => $invalidRelationships,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $relationship
+     * @return array<string, mixed>
+     */
+    private function packageRelationshipMetadataItem(array $relationship): array
+    {
+        return [
+            'source' => is_string($relationship['source'] ?? null) ? $relationship['source'] : null,
+            'sourceContentType' => is_string($relationship['sourceContentType'] ?? null) ? $relationship['sourceContentType'] : null,
+            'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+            'role' => is_string($relationship['role'] ?? null) ? $relationship['role'] : null,
+            'type' => is_string($relationship['type'] ?? null) ? $relationship['type'] : null,
+            'target' => is_string($relationship['target'] ?? null) ? $relationship['target'] : null,
+            'targetPart' => is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null,
+            'contentType' => is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null,
+            'expectedContentType' => is_string($relationship['expectedContentType'] ?? null) ? $relationship['expectedContentType'] : null,
+            'expectedContentTypes' => is_array($relationship['expectedContentTypes'] ?? null) ? array_values(array_filter(
+                $relationship['expectedContentTypes'],
+                static fn (mixed $contentType): bool => is_string($contentType) && $contentType !== '',
+            )) : null,
+            'expectedContentTypePrefix' => is_string($relationship['expectedContentTypePrefix'] ?? null) ? $relationship['expectedContentTypePrefix'] : null,
+            'expectedSource' => is_string($relationship['expectedSource'] ?? null) ? $relationship['expectedSource'] : null,
+            'sourceAllowed' => is_bool($relationship['sourceAllowed'] ?? null) ? $relationship['sourceAllowed'] : null,
+            'expectedExternal' => is_bool($relationship['expectedExternal'] ?? null) ? $relationship['expectedExternal'] : null,
+            'external' => is_bool($relationship['external'] ?? null) ? $relationship['external'] : null,
+            'exists' => is_bool($relationship['exists'] ?? null) ? $relationship['exists'] : null,
+            'relationshipPartTarget' => ($relationship['relationshipPartTarget'] ?? false) === true,
+            'relationshipTypeKind' => is_string($relationship['relationshipTypeKind'] ?? null) ? $relationship['relationshipTypeKind'] : null,
+            'relationshipTypeScheme' => is_string($relationship['relationshipTypeScheme'] ?? null) ? $relationship['relationshipTypeScheme'] : null,
+            'relationshipTypeValid' => is_bool($relationship['relationshipTypeValid'] ?? null) ? $relationship['relationshipTypeValid'] : null,
+            'relationshipTypeIssues' => is_array($relationship['relationshipTypeIssues'] ?? null) ? array_values(array_filter(
+                $relationship['relationshipTypeIssues'],
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+            )) : [],
+            'externalTargetKind' => is_string($relationship['externalTargetKind'] ?? null) ? $relationship['externalTargetKind'] : null,
+            'externalTargetScheme' => is_string($relationship['externalTargetScheme'] ?? null) ? $relationship['externalTargetScheme'] : null,
+            'externalTargetAllowed' => is_bool($relationship['externalTargetAllowed'] ?? null) ? $relationship['externalTargetAllowed'] : null,
+            'externalTargetRequiresBaseUri' => is_bool($relationship['externalTargetRequiresBaseUri'] ?? null) ? $relationship['externalTargetRequiresBaseUri'] : null,
+            'externalTargetRewriteBasePart' => is_string($relationship['externalTargetRewriteBasePart'] ?? null) ? $relationship['externalTargetRewriteBasePart'] : null,
+            'externalTargetRewriteReason' => is_string($relationship['externalTargetRewriteReason'] ?? null) ? $relationship['externalTargetRewriteReason'] : null,
+            'valid' => ($relationship['valid'] ?? false) === true,
+            'issues' => array_values(array_filter(
+                is_array($relationship['issues'] ?? null) ? $relationship['issues'] : [],
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+            )),
         ];
     }
 

@@ -13623,6 +13623,85 @@ XML;
         $t->same(true, $relationshipsById['rIdEncrypted']['sourceAllowed']);
         $t->same([], $relationshipsById['rIdEncrypted']['issues']);
     },
+    'surfaces valid DOCX package-root relationship role records in metadata' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
+  <Relationship Id="rIdEncrypted" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Package relationship metadata packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"/>'],
+            ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
+            ['name' => 'EncryptedPackage', 'data' => 'encrypted'],
+        ]));
+        $summary = $result['metadata']['docxPackageRelationships'];
+        $recordsById = [];
+        foreach ($summary['relationships'] as $relationship) {
+            $recordsById[$relationship['id']] = $relationship;
+        }
+
+        $t->same('Package relationship metadata packet.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same('/', $summary['source']);
+        $t->same(true, $summary['valid']);
+        $t->same(4, $summary['roleTargetCount']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(4, count($summary['relationships']));
+        $t->same(0, count($summary['invalidRelationships']));
+        $t->same([
+            'core-properties' => 1,
+            'encrypted-package' => 1,
+            'office-document' => 1,
+            'thumbnail' => 1,
+        ], $summary['roleCounts']);
+
+        $t->same('office-document', $recordsById['rIdDocument']['role']);
+        $t->same('/word/document.xml', $recordsById['rIdDocument']['targetPart']);
+        $t->same(false, $recordsById['rIdDocument']['external']);
+        $t->same(true, $recordsById['rIdDocument']['valid']);
+        $t->same(true, in_array(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            $recordsById['rIdDocument']['expectedContentTypes'],
+            true,
+        ));
+
+        $t->same('core-properties', $recordsById['rIdCore']['role']);
+        $t->same('/docProps/core.xml', $recordsById['rIdCore']['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $recordsById['rIdCore']['expectedContentType']);
+        $t->same(false, $recordsById['rIdCore']['expectedExternal']);
+
+        $t->same('thumbnail', $recordsById['rIdThumbnail']['role']);
+        $t->same('/docProps/thumbnail.png', $recordsById['rIdThumbnail']['targetPart']);
+        $t->same('image/', $recordsById['rIdThumbnail']['expectedContentTypePrefix']);
+        $t->same(true, $recordsById['rIdThumbnail']['exists']);
+
+        $t->same('encrypted-package', $recordsById['rIdEncrypted']['role']);
+        $t->same('/EncryptedPackage', $recordsById['rIdEncrypted']['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $recordsById['rIdEncrypted']['expectedContentType']);
+        $t->same(true, $recordsById['rIdEncrypted']['sourceAllowed']);
+        $t->same([], $recordsById['rIdEncrypted']['issues']);
+    },
     'reports DOCX encrypted package relationship boundaries without decrypting payloads' => static function (TestRunner $t): void {
         $encryptedBytes = 'opaque encrypted package bytes';
         $contentTypesXml = <<<'XML'
