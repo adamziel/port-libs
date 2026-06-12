@@ -82,6 +82,101 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
+    'summarizes jats and bits front matter review packets without reader parity claims' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front>
+    <journal-meta>
+      <journal-title-group><journal-title>Journal &amp; Review</journal-title></journal-title-group>
+      <publisher><publisher-name>Port Libs Press</publisher-name></publisher>
+    </journal-meta>
+    <article-meta>
+      <article-id pub-id-type="doi">10.5555/review.42</article-id>
+      <title-group>
+        <article-title>Import <italic>Safety</italic> Study</article-title>
+        <subtitle>Escaping &amp; attributes</subtitle>
+      </title-group>
+      <contrib-group>
+        <contrib contrib-type="author"><name><surname>Zed</surname><given-names>Ada</given-names></name><xref ref-type="aff" rid="aff1"/></contrib>
+        <contrib contrib-type="editor"><collab>Review Board</collab></contrib>
+      </contrib-group>
+      <pub-date date-type="pub"><year>2026</year><month>06</month><day>12</day></pub-date>
+      <abstract><p>Native PHP <bold>review</bold> packet.</p></abstract>
+      <kwd-group><kwd>XML</kwd><kwd>JATS</kwd></kwd-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1">[1]</xref>.</p></sec>
+    <fig id="f1"><caption><p>Figure</p></caption></fig>
+    <table-wrap id="t1"><caption><p>Table</p></caption></table-wrap>
+  </body>
+  <back><ref-list><ref id="r1"><label>1</label></ref></ref-list></back>
+</article>
+XML, 'JATS article XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same('xml-html5-jats-dom', $packet['formatFamily']);
+        $t->same('jats', $packet['format']);
+        $t->same('jats-bits-front-matter-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('article', $packet['rootName']);
+        $t->same('research-article', $packet['documentType']);
+        $t->same('1.3', $packet['dtdVersion']);
+        $t->same('en', $packet['language']);
+        $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
+        $t->same('article-meta', $packet['metadataRoot']);
+        $t->same('Import Safety Study', $packet['title']);
+        $t->same('Escaping & attributes', $packet['subtitle']);
+        $t->same('Journal & Review', $packet['journalTitle']);
+        $t->same('Port Libs Press', $packet['publisherName']);
+        $t->same([['element' => 'article-id', 'type' => 'doi', 'value' => '10.5555/review.42']], $packet['articleIds']);
+        $t->same(1, $packet['identifierCount']);
+        $t->same('Native PHP review packet.', $packet['abstractText']);
+        $t->same(['XML', 'JATS'], $packet['keywords']);
+        $t->same(2, $packet['contributorCount']);
+        $t->same(['Ada Zed', 'Review Board'], $packet['contributorNames']);
+        $t->same(['author', 'editor'], $packet['contributorRoles']);
+        $t->same(['aff1'], $packet['contributors'][0]['xrefTargets'] ?? null);
+        $t->same('2026-06-12', $packet['publicationDates'][0]['iso'] ?? null);
+        $t->same(1, $packet['sectionCount']);
+        $t->same(['Scope'], $packet['sectionTitles']);
+        $t->same('s1', $packet['sections'][0]['id'] ?? null);
+        $t->same(1, $packet['sections'][0]['paragraphCount'] ?? null);
+        $t->same(['aff1', 'r1'], $packet['xrefTargets']);
+        $t->same(['r1'], $packet['referenceIds']);
+        $t->same(['f1'], $packet['figureIds']);
+        $t->same(['t1'], $packet['tableWrapIds']);
+        $t->same(0, $packet['bookPartCount']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="monograph" xml:lang="fr">
+  <book-meta>
+    <book-id book-id-type="isbn">978-1-55555-042-0</book-id>
+    <title-group><book-title>Review Book</book-title><subtitle>Bounded XML metadata</subtitle></title-group>
+    <contrib-group><contrib contrib-type="editor"><string-name>Camille Editor</string-name></contrib></contrib-group>
+    <pub-date pub-type="ppub"><year>2025</year></pub-date>
+  </book-meta>
+  <book-body><book-part id="ch1"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta></book-part></book-body>
+</book>
+XML, 'BITS book XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same('bits', $bitsPacket['format']);
+        $t->same('book', $bitsPacket['rootName']);
+        $t->same('monograph', $bitsPacket['documentType']);
+        $t->same('fr', $bitsPacket['language']);
+        $t->same('book-meta', $bitsPacket['metadataRoot']);
+        $t->same('Review Book', $bitsPacket['title']);
+        $t->same('Bounded XML metadata', $bitsPacket['subtitle']);
+        $t->same([['element' => 'book-id', 'type' => 'isbn', 'value' => '978-1-55555-042-0']], $bitsPacket['bookIds']);
+        $t->same(['Camille Editor'], $bitsPacket['contributorNames']);
+        $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
+        $t->same(1, $bitsPacket['bookPartCount']);
+        $t->same(false, $bitsPacket['directReaderParity']);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
+        json_encode($bitsPacket, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
