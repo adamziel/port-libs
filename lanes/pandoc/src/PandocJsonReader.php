@@ -56,7 +56,10 @@ final class PandocJsonReader
             $attrs = array_replace($attrs, $this->metaConstructorAttrs($rawMeta, $meta));
         }
 
-        return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
+        $children = array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks);
+        $attrs['constructorInventory'] = PandocConstructorInventory::fromDocumentParts($attrs, $children);
+
+        return new AstNode('document', $attrs, $children);
     }
 
     /**

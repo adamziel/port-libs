@@ -1442,6 +1442,138 @@ return [
             $t->same($bodyNative, $editedNative['meta']['body'], "{$source} native writer keeps unchanged block payload");
         }
     },
+    'summarizes pandoc json and native ast constructor inventories for review handoff' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['inventory-table', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Short'],
+                    ]]]],
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Long']]]],
+                ]],
+                [[['t' => 'AlignRight'], ['t' => 'ColWidth', 'c' => 0.5]]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignCenter'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $citationRecord = [
+            'citationId' => 'inventory-source',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 0,
+            'citationHash' => 77,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [['t' => 'Str', 'c' => 'Inventory']]],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'queue' => ['t' => 'MetaString', 'c' => 'json-native'],
+                    'flags' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaBool', 'c' => true],
+                        ['t' => 'MetaString', 'c' => 'constructors'],
+                    ]],
+                ]],
+            ]],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [2, ['inventory-heading', [], []], [
+                    ['t' => 'Str', 'c' => 'Constructor'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Inventory'],
+                ]]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alpha'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Beta'],
+                    ['t' => 'SoftBreak'],
+                    ['t' => 'Str', 'c' => 'Gamma'],
+                    ['t' => 'LineBreak'],
+                    ['t' => 'Code', 'c' => [['inventory-code', ['php'], []], 'echo 1;']],
+                    ['t' => 'Quoted', 'c' => [['t' => 'DoubleQuote'], [['t' => 'Str', 'c' => 'quoted']]]],
+                    ['t' => 'Math', 'c' => [['t' => 'DisplayMath'], 'x = 1']],
+                    ['t' => 'Cite', 'c' => [[$citationRecord], [['t' => 'Str', 'c' => '@inventory-source']]]],
+                    ['t' => 'VendorInline', 'c' => ['opaque' => true]],
+                ]],
+                $tableBlock,
+                ['t' => 'VendorBlock', 'c' => ['opaque' => true]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+        $jsonInventory = $documents['json']->attr('constructorInventory');
+        $nativeInventory = $documents['native']->attr('constructorInventory');
+
+        $t->same($jsonInventory, $nativeInventory);
+        foreach ($documents as $source => $document) {
+            $inventory = $document->attr('constructorInventory');
+
+            $t->same(1, $inventory['blockConstructors']['Header'] ?? 0, "{$source} header block constructor count");
+            $t->same(1, $inventory['blockConstructors']['Para'] ?? 0, "{$source} paragraph block constructor count");
+            $t->same(1, $inventory['blockConstructors']['Table'] ?? 0, "{$source} table block constructor count");
+            $t->same(8, $inventory['inlineConstructors']['Str'] ?? 0, "{$source} string inline constructor count");
+            $t->same(2, $inventory['inlineConstructors']['Space'] ?? 0, "{$source} space inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['SoftBreak'] ?? 0, "{$source} softbreak inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['LineBreak'] ?? 0, "{$source} linebreak inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['Code'] ?? 0, "{$source} code inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['Quoted'] ?? 0, "{$source} quoted inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['Math'] ?? 0, "{$source} math inline constructor count");
+            $t->same(1, $inventory['inlineConstructors']['Cite'] ?? 0, "{$source} cite inline constructor count");
+            $t->same(6, $inventory['helperConstructors']['Attr'] ?? 0, "{$source} attr helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['Caption'] ?? 0, "{$source} caption helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['Just'] ?? 0, "{$source} maybe helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['ShortCaption'] ?? 0, "{$source} short caption helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['DoubleQuote'] ?? 0, "{$source} quote helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['DisplayMath'] ?? 0, "{$source} math helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['NormalCitation'] ?? 0, "{$source} citation mode helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['Citation'] ?? 0, "{$source} citation record helper constructor count");
+            $t->same(0, $inventory['helperConstructors']['TableHead'] ?? 0, "{$source} empty table head helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['TableBody'] ?? 0, "{$source} table body helper constructor count");
+            $t->same(0, $inventory['helperConstructors']['TableFoot'] ?? 0, "{$source} empty table foot helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['Row'] ?? 0, "{$source} row helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['Cell'] ?? 0, "{$source} cell helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['AlignRight'] ?? 0, "{$source} column alignment helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['ColWidth'] ?? 0, "{$source} column width helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['RowHeadColumns'] ?? 0, "{$source} row head helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['AlignCenter'] ?? 0, "{$source} cell alignment helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['RowSpan'] ?? 0, "{$source} row span helper constructor count");
+            $t->same(1, $inventory['helperConstructors']['ColSpan'] ?? 0, "{$source} col span helper constructor count");
+            $t->same(2, $inventory['metaConstructors']['MetaMap'] ?? 0, "{$source} meta map constructor count");
+            $t->same(1, $inventory['metaConstructors']['MetaInlines'] ?? 0, "{$source} meta inlines constructor count");
+            $t->same(2, $inventory['metaConstructors']['MetaBool'] ?? 0, "{$source} meta bool constructor count");
+            $t->same(1, $inventory['metaConstructors']['MetaList'] ?? 0, "{$source} meta list constructor count");
+            $t->same(2, $inventory['metaConstructors']['MetaString'] ?? 0, "{$source} meta string constructor count");
+            $t->same(1, $inventory['unknownBlockConstructors']['VendorBlock'] ?? 0, "{$source} unknown block constructor count");
+            $t->same(1, $inventory['unknownInlineConstructors']['VendorInline'] ?? 0, "{$source} unknown inline constructor count");
+        }
+    },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

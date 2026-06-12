@@ -39,6 +39,7 @@ final class NativeReader
         foreach ($this->blocks($native['blocks'] ?? []) as $block) {
             $children[] = $this->block($block);
         }
+        $attrs['constructorInventory'] = PandocConstructorInventory::fromDocumentParts($attrs, $children);
 
         return new AstNode('document', $attrs, $children);
     }
