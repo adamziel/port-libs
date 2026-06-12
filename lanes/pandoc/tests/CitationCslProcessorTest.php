@@ -5424,6 +5424,99 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Direct ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.</dd>', $blocks);
         $t->contains('<dt>Repository Desk 2023</dt><dd>Repository Desk. Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.</dd>', $blocks);
     },
+    'maps bounded biblatex ISBN and ISSN compact aliases into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{biblatex-isbn13,
+  author = {Ng, Nia},
+  title  = {BibLaTeX ISBN13 Manual},
+  date   = {2026},
+  isbn13 = {978-1-4028-9462-6}
+}
+
+@book{biblatex-eisbn,
+  author = {Roe, Pat},
+  title  = {BibLaTeX Electronic ISBN Manual},
+  date   = {2025},
+  eISBN  = {978-0-596-52068-7}
+}
+
+@article{biblatex-print-issn,
+  author       = {Doe, Jane},
+  title        = {BibLaTeX Print ISSN Packet},
+  journaltitle = {Journal of Source Review},
+  date         = {2024},
+  printISSN    = {1234-5678}
+}
+
+@article{biblatex-eissn,
+  author       = {{Repository Desk}},
+  title        = {BibLaTeX Electronic ISSN Packet},
+  journaltitle = {Online Import Review},
+  date         = {2023},
+  eISSN        = {2468-1357}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('978-1-4028-9462-6', $items[0]['ISBN'] ?? null);
+        $t->same('978-0-596-52068-7', $items[1]['ISBN'] ?? null);
+        $t->same('1234-5678', $items[2]['ISSN'] ?? null);
+        $t->same('2468-1357', $items[3]['ISSN'] ?? null);
+        $t->same('978-1-4028-9462-6', $items[0]['rawBibtex']['fields']['isbn13'] ?? null);
+        $t->same('978-0-596-52068-7', $items[1]['rawBibtex']['fields']['eisbn'] ?? null);
+        $t->same('1234-5678', $items[2]['rawBibtex']['fields']['printissn'] ?? null);
+        $t->same('2468-1357', $items[3]['rawBibtex']['fields']['eissn'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $isbn13 = $processor->item('biblatex-isbn13');
+        $eisbn = $processor->item('biblatex-eisbn');
+        $printIssn = $processor->item('biblatex-print-issn');
+        $eissn = $processor->item('biblatex-eissn');
+        $t->same('978-1-4028-9462-6', $isbn13['isbn'] ?? null);
+        $t->same('978-0-596-52068-7', $eisbn['isbn'] ?? null);
+        $t->same('1234-5678', $printIssn['issn'] ?? null);
+        $t->same('2468-1357', $eissn['issn'] ?? null);
+        $t->same('Ng, Nia. BibLaTeX ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.', $processor->renderBibliographyEntry('biblatex-isbn13'));
+        $t->same('Roe, Pat. BibLaTeX Electronic ISBN Manual. 2025. ISBN 978-0-596-52068-7.', $processor->renderBibliographyEntry('biblatex-eisbn'));
+        $t->same('Doe, Jane. BibLaTeX Print ISSN Packet. Journal of Source Review. 2024. ISSN 1234-5678.', $processor->renderBibliographyEntry('biblatex-print-issn'));
+        $t->same('Repository Desk. BibLaTeX Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.', $processor->renderBibliographyEntry('biblatex-eissn'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="ISBN-13"/>
+        <text variable="printISSN"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="eISBN"/>
+      <text variable="eISSN"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 978-1-4028-9462-6; Roe | 978-0-596-52068-7; Doe | 1234-5678; Repository Desk | 2468-1357]', $styled->renderCitationCluster([
+            $citation('biblatex-isbn13', '[@biblatex-isbn13]'),
+            $citation('biblatex-eisbn', '[@biblatex-eisbn]'),
+            $citation('biblatex-print-issn', '[@biblatex-print-issn]'),
+            $citation('biblatex-eissn', '[@biblatex-eissn]'),
+        ]));
+        $t->same('BibLaTeX ISBN13 Manual :: 978-1-4028-9462-6', $styled->renderBibliographyEntry('biblatex-isbn13'));
+        $t->same('BibLaTeX Electronic ISSN Packet :: 2468-1357', $styled->renderBibliographyEntry('biblatex-eissn'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX identifier aliases @biblatex-isbn13, ebook [@biblatex-eisbn], print journal @biblatex-print-issn, and online journal [@biblatex-eissn] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX identifier aliases Ng (2026), ebook (Roe 2025), print journal Doe (2024), and online journal (Repository Desk 2023) stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. BibLaTeX ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.</dd>', $blocks);
+        $t->contains('<dt>Repository Desk 2023</dt><dd>Repository Desk. BibLaTeX Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.</dd>', $blocks);
+    },
     'maps bounded biblatex eprint archive summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{eprint-source,
