@@ -8377,10 +8377,25 @@ XML;
         foreach ($result['media'] as $media) {
             $mediaByPart[$media['part']] = $media;
         }
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPart[$item['part']] = $item;
+        }
+        $provenanceParts = $result['importReport']['manifest']['packageProvenance']['parts'];
+        $olePayloadManifest = $manifestByPart['Object OLE/oleObject.bin'];
+        $olePayloadInventory = $provenanceParts['Object OLE/oleObject.bin'];
+
         $t->same(2, $result['importReport']['content']['embeddedObjectCount']);
         $t->same(1, $result['importReport']['content']['missingEmbeddedObjectCount']);
-        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $mediaByPart['Object OLE/oleObject.bin']['mediaType']);
-        $t->same(9, $mediaByPart['Object OLE/oleObject.bin']['byteLength']);
+        $t->same(false, isset($mediaByPart['Object OLE/oleObject.bin']));
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $olePayloadManifest['mediaType']);
+        $t->same(true, $olePayloadManifest['embeddedObjectPackagePart']);
+        $t->same(true, $olePayloadManifest['embeddedObjectContainedPart']);
+        $t->same(false, $olePayloadManifest['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $olePayloadManifest['byteExposurePolicy']);
+        $t->same(9, $olePayloadManifest['storedByteLength']);
+        $t->same(false, $olePayloadInventory['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $olePayloadInventory['byteExposurePolicy']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
@@ -9362,7 +9377,8 @@ XML;
         foreach ($summary['items'] as $item) {
             $summaryByType[$item['mediaType']] = $item;
         }
-        $textByteLength = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen($objectXml);
+        $coreTextByteLength = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml);
+        $textByteLength = $coreTextByteLength + strlen($objectXml);
 
         $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
         $t->same(11, $summary['manifestItemCount']);
@@ -9376,7 +9392,7 @@ XML;
         $t->same(0, $summary['declaredSizeMismatchCount']);
         $t->same(2048, $summary['declaredSize']);
         $t->same($textByteLength + 15, $summary['storedByteLength']);
-        $t->same($textByteLength + 8, $summary['exposableByteLength']);
+        $t->same($coreTextByteLength + 8, $summary['exposableByteLength']);
 
         $imagePng = $summaryByType['image/png'];
         $t->same(2, $imagePng['count']);
@@ -9395,7 +9411,7 @@ XML;
         $t->same(0, $textXml['encryptedCount']);
         $t->same(0, $textXml['missingCount']);
         $t->same($textByteLength, $textXml['storedByteLength']);
-        $t->same($textByteLength, $textXml['exposableByteLength']);
+        $t->same($coreTextByteLength, $textXml['exposableByteLength']);
 
         $imageJpeg = $summaryByType['image/jpeg'];
         $t->same(1, $imageJpeg['count']);
@@ -10000,6 +10016,21 @@ XML;
         $t->same($rdf, $result['importReport']['rdfMetadata']);
         $t->same(7, $result['importReport']['manifest']['count']);
         $t->same(1, count($result['media']), 'RDF XML sidecars must stay out of media byte handoff');
+
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPart[$item['part']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+        $t->same(2, $provenance['rdfMetadataPartCount']);
+        $t->same(2, $provenance['roleCounts']['rdf-metadata']);
+        $t->same(true, $manifestByPart['manifest.rdf']['rdfMetadataPart']);
+        $t->same(false, $manifestByPart['manifest.rdf']['canExposeBytes']);
+        $t->same('rdf-metadata-bytes-blocked', $manifestByPart['manifest.rdf']['byteExposurePolicy']);
+        $t->same(true, $parts['manifest.rdf']['rdfMetadataPart']);
+        $t->same(false, $parts['manifest.rdf']['canExposeBytes']);
+        $t->same('rdf-metadata-bytes-blocked', $parts['manifest.rdf']['byteExposurePolicy']);
 
         $validPart = $rdf['parts'][0];
         $invalidPart = $rdf['parts'][1];
@@ -10692,6 +10723,10 @@ XML;
         $ole = $objects['byRootPart']['Object OLE/'];
         $missing = $objects['byRootPart']['Object Missing/'];
         $inventory = $provenance['parts'];
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPart[$item['part']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(3, $provenance['embeddedObjectPackageCount']);
@@ -10753,6 +10788,19 @@ XML;
             'odf-embedded-object-package-missing',
             'odf-embedded-object-package-missing-declared-part',
         ], $missing['issues']);
+
+        $previewManifest = $manifestByPart['Object Chart/Pictures/preview.png'];
+        $previewInventory = $inventory['Object Chart/Pictures/preview.png'];
+        $t->same(true, $previewManifest['embeddedObjectPackagePart']);
+        $t->same(true, $previewManifest['embeddedObjectContainedPart']);
+        $t->same('Object Chart/', $previewManifest['embeddedObjectRootPart']);
+        $t->same(false, $previewManifest['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $previewManifest['byteExposurePolicy']);
+        $t->same(true, $previewInventory['embeddedObjectPackagePart']);
+        $t->same(true, $previewInventory['embeddedObjectContainedPart']);
+        $t->same(false, $previewInventory['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $previewInventory['byteExposurePolicy']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
 
         $t->same(2, $provenance['roleCounts']['embedded-object-root']);
         $t->same(5, $provenance['roleCounts']['embedded-object-part']);
