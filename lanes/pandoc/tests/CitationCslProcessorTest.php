@@ -4185,6 +4185,87 @@ XML);
         $t->contains('<dt>Ames 2026</dt><dd>Direct Access Camel Packet :: 2026-06-08 :: 2026-06-08 :: 2026-06-08</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Visited Packet :: review queue :: review queue :: review queue</dd>', $blocks);
     },
+    'normalizes direct csl json uppercase url access date aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-uppercase-url-date',
+                'type' => 'webpage',
+                'title' => 'Uppercase URL Date Packet',
+                'author' => [
+                    ['family' => 'Dale', 'given' => 'Dee'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/uppercase-url-date',
+                'URLDate' => ['date-parts' => [[2026, 6, 12]]],
+                'URLDateAddon' => 'captured from uppercase CSL export',
+            ],
+            [
+                'id' => 'direct-uppercase-url-date-hyphen',
+                'type' => 'webpage',
+                'title' => 'Uppercase Hyphen URL Date Packet',
+                'author' => [
+                    ['family' => 'Eliot', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL-date' => ['literal' => 'publisher review queue'],
+                'URL-date-addon' => 'hyphenated uppercase export',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $uppercase = $processor->item('direct-uppercase-url-date');
+        $hyphen = $processor->item('direct-uppercase-url-date-hyphen');
+        $t->same('2026-06-12', $uppercase['accessedDate']['display'] ?? null);
+        $t->same('captured from uppercase CSL export', $uppercase['accessedDateAddon'] ?? null);
+        $t->same('publisher review queue', $hyphen['accessedDate']['display'] ?? null);
+        $t->same('hyphenated uppercase export', $hyphen['accessedDateAddon'] ?? null);
+        $t->same('Dale, Dee. Uppercase URL Date Packet. 2026. Accessed date addendum: captured from uppercase CSL export. https://example.test/uppercase-url-date. Accessed 2026-06-12.', $processor->renderBibliographyEntry('direct-uppercase-url-date'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Uppercase URL Date Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-uppercase-url-date-alias-review</id>
+    <updated>2026-06-12T02:57:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="URLDate"/>
+        <text variable="accessed-date-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="url-date"/>
+      <text variable="accessed-date-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Uppercase URL Date Alias Review', $summary['title'] ?? null);
+        $t->same('URLDate', $citationChildren[1]['variable'] ?? null);
+        $t->same('accessed-date-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Dale | 2026-06-12 | captured from uppercase CSL export; Eliot | publisher review queue | hyphenated uppercase export]', $styled->renderCitationCluster([
+            $citation('direct-uppercase-url-date', '[@direct-uppercase-url-date]'),
+            $citation('direct-uppercase-url-date-hyphen', '[@direct-uppercase-url-date-hyphen]'),
+        ]));
+        $t->same('Uppercase URL Date Packet :: 2026-06-12 :: captured from uppercase CSL export', $styled->renderBibliographyEntry('direct-uppercase-url-date'));
+        $t->same('Uppercase Hyphen URL Date Packet :: publisher review queue :: hyphenated uppercase export', $styled->renderBibliographyEntry('direct-uppercase-url-date-hyphen'));
+
+        $document = (new MarkdownReader())->read('Uppercase URL date aliases [@direct-uppercase-url-date; @direct-uppercase-url-date-hyphen] keep access provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Uppercase URL date aliases [Dale | 2026-06-12 | captured from uppercase CSL export; Eliot | publisher review queue | hyphenated uppercase export] keep access provenance visible.</p>', $blocks);
+        $t->contains('<dt>Dale 2026</dt><dd>Uppercase URL Date Packet :: 2026-06-12 :: captured from uppercase CSL export</dd>', $blocks);
+        $t->contains('<dt>Eliot 2025</dt><dd>Uppercase Hyphen URL Date Packet :: publisher review queue :: hyphenated uppercase export</dd>', $blocks);
+    },
     'maps bounded biblatex url description labels into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{url-description-source,
