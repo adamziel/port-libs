@@ -11185,10 +11185,13 @@ return [
         $t->contains('data-docx-sdt-prefix-2-name="review" data-docx-sdt-prefix-2-uri="https://example.test/review"', $blocks);
     },
     'reports DOCX custom XML store parts for bound content controls' => static function (TestRunner $t) use ($buildSdtDataBindingCustomXmlStorePackage): void {
-        $result = (new DocxReader())->readPackage($buildSdtDataBindingCustomXmlStorePackage());
+        $package = $buildSdtDataBindingCustomXmlStorePackage();
+        $result = (new DocxReader())->readPackage($package);
         $document = $result['document'];
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
+        $itemEntry = $package->entry('/customXml/item1.xml');
+        $propertiesEntry = $package->entry('/customXml/itemProps1.xml');
 
         $store = $result['metadata']['docxCustomXmlStore'];
         $t->same(1, $store['count']);
@@ -11203,6 +11206,11 @@ return [
         $t->same(false, $item['external']);
         $t->same(true, $item['exists']);
         $t->true(is_int($item['bytes']) && $item['bytes'] > 0, 'Custom XML store item should report byte size');
+        $t->same($itemEntry->uncompressedSize, $item['byteLength']);
+        $t->same($itemEntry->compressedSize, $item['compressedByteLength']);
+        $t->same(8, $item['compressionMethod']);
+        $t->same('deflated', $item['compressionMethodName']);
+        $t->same($itemEntry->crc32Hex(), $item['crc32']);
         $t->same('wpd:packet', $item['rootName']);
         $t->same('packet', $item['rootLocalName']);
         $t->same('https://example.test/wp/docx', $item['rootNamespace']);
@@ -11210,6 +11218,11 @@ return [
         $t->same('{33333333-4444-5555-6666-777777777777}', $item['storeItemID']);
         $t->same('/customXml/itemProps1.xml', $item['propertiesPart']);
         $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $item['propertiesContentType']);
+        $t->same($propertiesEntry->uncompressedSize, $item['propertiesByteLength']);
+        $t->same($propertiesEntry->compressedSize, $item['propertiesCompressedByteLength']);
+        $t->same(8, $item['propertiesCompressionMethod']);
+        $t->same('deflated', $item['propertiesCompressionMethodName']);
+        $t->same($propertiesEntry->crc32Hex(), $item['propertiesCrc32']);
         $t->same(2, $item['schemaRefCount']);
         $t->same('https://example.test/wp/docx/schema', $item['schemaRefs'][0]);
         $t->same('https://example.test/review/schema', $item['schemaRefs'][1]);

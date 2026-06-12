@@ -16804,6 +16804,11 @@ final class DocxReader
             'external' => $relationshipSummary['external'],
             'exists' => $relationshipSummary['exists'],
             'bytes' => null,
+            'byteLength' => null,
+            'compressedByteLength' => null,
+            'compressionMethod' => null,
+            'compressionMethodName' => null,
+            'crc32' => null,
             'rootName' => null,
             'rootNamespace' => null,
             'rootLocalName' => null,
@@ -16814,6 +16819,11 @@ final class DocxReader
             'schemaRefs' => [],
             'propertiesPart' => null,
             'propertiesContentType' => null,
+            'propertiesByteLength' => null,
+            'propertiesCompressedByteLength' => null,
+            'propertiesCompressionMethod' => null,
+            'propertiesCompressionMethodName' => null,
+            'propertiesCrc32' => null,
             'propertiesRelationship' => null,
             'propertiesIssues' => [],
             'issues' => $relationshipSummary['issues'],
@@ -16835,6 +16845,12 @@ final class DocxReader
 
         $bytes = $package->read($relationshipSummary['targetPart']);
         $item['bytes'] = strlen($bytes);
+        $item['byteLength'] = strlen($bytes);
+        $entry = $package->entry($relationshipSummary['targetPart']);
+        $item['compressedByteLength'] = $entry->compressedSize;
+        $item['compressionMethod'] = $entry->compressionMethod;
+        $item['compressionMethodName'] = self::zipCompressionMethodName($entry->compressionMethod);
+        $item['crc32'] = $entry->crc32Hex();
 
         try {
             $dom = self::loadXml($bytes, 'DOCX custom XML data store item');
@@ -16857,6 +16873,11 @@ final class DocxReader
         if ($properties !== []) {
             $item['propertiesPart'] = $properties['part'];
             $item['propertiesContentType'] = $properties['contentType'];
+            $item['propertiesByteLength'] = $properties['byteLength'];
+            $item['propertiesCompressedByteLength'] = $properties['compressedByteLength'];
+            $item['propertiesCompressionMethod'] = $properties['compressionMethod'];
+            $item['propertiesCompressionMethodName'] = $properties['compressionMethodName'];
+            $item['propertiesCrc32'] = $properties['crc32'];
             $item['propertiesRelationship'] = $properties['relationship'];
             $item['propertiesIssues'] = $properties['issues'];
             $item['storeItemID'] = $properties['storeItemID'];
@@ -16872,7 +16893,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{part:?string, contentType:?string, relationship:array<string, mixed>, storeItemID:?string, schemaRefs:list<string>, issues:list<string>}|array{}
+     * @return array{part:?string, contentType:?string, relationship:array<string, mixed>, byteLength:?int, compressedByteLength:?int, compressionMethod:?int, compressionMethodName:?string, crc32:?string, storeItemID:?string, schemaRefs:list<string>, issues:list<string>}|array{}
      */
     private function customXmlStorePropertiesForItem(
         string $itemPart,
@@ -16907,6 +16928,11 @@ final class DocxReader
             'part' => $relationshipSummary['targetPart'],
             'contentType' => $relationshipSummary['contentType'],
             'relationship' => $relationshipSummary,
+            'byteLength' => null,
+            'compressedByteLength' => null,
+            'compressionMethod' => null,
+            'compressionMethodName' => null,
+            'crc32' => null,
             'storeItemID' => null,
             'schemaRefs' => [],
             'issues' => [],
@@ -16917,6 +16943,13 @@ final class DocxReader
 
             return $properties;
         }
+
+        $entry = $package->entry($relationshipSummary['targetPart']);
+        $properties['byteLength'] = $entry->uncompressedSize;
+        $properties['compressedByteLength'] = $entry->compressedSize;
+        $properties['compressionMethod'] = $entry->compressionMethod;
+        $properties['compressionMethodName'] = self::zipCompressionMethodName($entry->compressionMethod);
+        $properties['crc32'] = $entry->crc32Hex();
 
         $parsed = $this->customXmlStoreProperties($package->read($relationshipSummary['targetPart']));
         $properties['storeItemID'] = $parsed['storeItemID'];
@@ -16984,6 +17017,15 @@ final class DocxReader
     private function customXmlStoreLookupKey(string $storeItemId): string
     {
         return strtolower(trim($storeItemId));
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     private function contentTypeBaseEquals(string $contentType, string $expected): bool
