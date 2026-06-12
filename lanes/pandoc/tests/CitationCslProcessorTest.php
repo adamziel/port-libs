@@ -2588,6 +2588,79 @@ XML);
         $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact language list aliases' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-language-list-camel',
+                'type' => 'book',
+                'title' => 'Camel Language List Packet',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'languageList' => ['italian', 'latin'],
+            ],
+            [
+                'id' => 'direct-language-list-compact',
+                'type' => 'report',
+                'title' => 'Compact Language List Packet',
+                'author' => [
+                    ['literal' => 'Source Lab'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'languagelist' => 'greek; german',
+            ],
+        ]);
+
+        $camel = $processor->item('direct-language-list-camel');
+        $compact = $processor->item('direct-language-list-compact');
+        $t->same('italian; latin', $camel['language'] ?? null);
+        $t->same(['italian', 'latin'], $camel['languageList'] ?? null);
+        $t->same('greek; german', $compact['language'] ?? null);
+        $t->same(['greek', 'german'], $compact['languageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Language List Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-language-list-alias-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="languageList"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="languageList"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Language List Alias Review', $summary['title'] ?? null);
+        $t->same('languageList', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('language-list', $summary['bibliographyRendering'][2]['variable'] ?? null);
+        $t->same('(Review Desk | italian; latin; Source Lab | greek; german)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-language-list-camel', 'text' => '[@direct-language-list-camel]']),
+            new AstNode('citation', ['id' => 'direct-language-list-compact', 'text' => '[@direct-language-list-compact]']),
+        ]));
+        $t->same('Camel Language List Packet :: italian; latin :: italian; latin', $styled->renderBibliographyEntry('direct-language-list-camel'));
+        $t->same('Compact Language List Packet :: greek; german :: greek; german', $styled->renderBibliographyEntry('direct-language-list-compact'));
+
+        $document = (new MarkdownReader())->read('Language aliases [@direct-language-list-camel; @direct-language-list-compact] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Alias Sources'));
+        $t->contains('<p>Language aliases (Review Desk | italian; latin; Source Lab | greek; german) stay visible.</p>', $blocks);
+        $t->contains('<dt>Review Desk 2026</dt><dd>Camel Language List Packet :: italian; latin :: italian; latin</dd>', $blocks);
+        $t->contains('<dt>Source Lab 2025</dt><dd>Compact Language List Packet :: greek; german :: greek; german</dd>', $blocks);
+    },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @patent{import-patent,
