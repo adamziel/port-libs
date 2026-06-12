@@ -2275,6 +2275,7 @@ final class DocxOpenXmlReader
             $documentPart,
             $documentRelationshipsPart,
             $documentRelationships,
+            $relationshipParts,
         );
 
         return [
@@ -2300,6 +2301,10 @@ final class DocxOpenXmlReader
         $contentTypeSourceCounts = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
+        $relationshipTargetPartCount = 0;
+        $relationshipTargetReferenceRecordCount = 0;
+        $multiRelationshipTargetPartCount = 0;
+        $relationshipTargetParts = [];
         foreach ($partInventory as $part) {
             $packageByteLength += (int) ($part['bytes'] ?? 0);
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
@@ -2310,6 +2315,24 @@ final class DocxOpenXmlReader
             }
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$relationshipPartCount;
+            }
+
+            $relationshipTargetCount = (int) ($part['relationshipTargetCount'] ?? 0);
+            if ($relationshipTargetCount > 0) {
+                ++$relationshipTargetPartCount;
+                $relationshipTargetReferenceRecordCount += $relationshipTargetCount;
+                if ($relationshipTargetCount > 1) {
+                    ++$multiRelationshipTargetPartCount;
+                }
+                $relationshipTargetParts[] = [
+                    'partName' => (string) ($part['partName'] ?? ''),
+                    'relationshipTargetCount' => $relationshipTargetCount,
+                    'relationshipTargetRelationshipParts' => $part['relationshipTargetRelationshipParts'] ?? [],
+                    'relationshipTargetSourceParts' => $part['relationshipTargetSourceParts'] ?? [],
+                    'relationshipTargetRelationshipIds' => $part['relationshipTargetRelationshipIds'] ?? [],
+                    'relationshipTargetReferenceSuffixCount' => (int) ($part['relationshipTargetReferenceSuffixCount'] ?? 0),
+                    'relationshipTargetDuplicateRecordCount' => (int) ($part['relationshipTargetDuplicateRecordCount'] ?? 0),
+                ];
             }
         }
 
@@ -2451,6 +2474,9 @@ final class DocxOpenXmlReader
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'relationshipTargetPartCount' => $relationshipTargetPartCount,
+            'relationshipTargetReferenceRecordCount' => $relationshipTargetReferenceRecordCount,
+            'multiRelationshipTargetPartCount' => $multiRelationshipTargetPartCount,
             'duplicateRelationshipIdCount' => $duplicateRelationshipIdCount,
             'duplicateRelationshipRecordCount' => $duplicateRelationshipRecordCount,
             'duplicateRelationshipIds' => $duplicateRelationshipIds,
@@ -2478,6 +2504,7 @@ final class DocxOpenXmlReader
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
+            'relationshipTargetParts' => $relationshipTargetParts,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
         ];
     }
@@ -3385,7 +3412,7 @@ final class DocxOpenXmlReader
      */
     private function relationshipProvenanceSummaryItem(array $relationship): array
     {
-        return [
+        $item = [
             'id' => $relationship['id'] ?? '',
             'type' => $relationship['type'] ?? '',
             'sourcePart' => $relationship['sourcePart'] ?? '',
@@ -3409,6 +3436,15 @@ final class DocxOpenXmlReader
             'defaultExtension' => $relationship['defaultExtension'] ?? null,
             'overridePartName' => $relationship['overridePartName'] ?? null,
         ];
+
+        if (isset($relationship['ordinal']) && is_int($relationship['ordinal'])) {
+            $item['ordinal'] = $relationship['ordinal'];
+        }
+        if (array_key_exists('duplicateId', $relationship)) {
+            $item['duplicateId'] = (bool) $relationship['duplicateId'];
+        }
+
+        return $item;
     }
 
     /**
@@ -3806,6 +3842,7 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @param array<string, array<string, mixed>> $relationshipParts
      * @return array<string, array<string, mixed>>
      */
     private function packagePartInventory(
@@ -3815,6 +3852,7 @@ final class DocxOpenXmlReader
         string $documentPart,
         string $documentRelationshipsPart,
         array $documentRelationships,
+        array $relationshipParts,
     ): array {
         $rolesByPart = [];
         $this->addPartRole($rolesByPart, '[Content_Types].xml', 'content-types');
@@ -3856,6 +3894,7 @@ final class DocxOpenXmlReader
             }
         }
 
+        $relationshipTargetsByPart = $this->packageRelationshipTargetsByPart($relationshipParts);
         $inventory = [];
         foreach ($parts as $partName => $contents) {
             $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
@@ -3885,7 +3924,17 @@ final class DocxOpenXmlReader
                 'overridePartName' => $contentTypeResolution['overridePartName'],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
+                'relationshipTargetCount' => 0,
+                'relationshipTargetReferenceSuffixCount' => 0,
+                'relationshipTargetDuplicateRecordCount' => 0,
+                'relationshipTargetRelationshipParts' => [],
+                'relationshipTargetSourceParts' => [],
+                'relationshipTargetRelationshipIds' => [],
+                'relationshipTargetReferences' => [],
             ];
+            if (isset($relationshipTargetsByPart[$partName])) {
+                $entry = array_replace($entry, $relationshipTargetsByPart[$partName]);
+            }
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
                 $entry['relationshipSourcePart'] = $relationshipSourcePart;
@@ -3895,6 +3944,71 @@ final class DocxOpenXmlReader
         }
 
         return $inventory;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @return array<string, array<string, mixed>>
+     */
+    private function packageRelationshipTargetsByPart(array $relationshipParts): array
+    {
+        $targetsByPart = [];
+        foreach ($relationshipParts as $relationshipPart) {
+            $records = is_array($relationshipPart['relationshipRecords'] ?? null)
+                ? $relationshipPart['relationshipRecords']
+                : [];
+            if ($records === [] && is_array($relationshipPart['relationships'] ?? null)) {
+                $records = array_values($relationshipPart['relationships']);
+            }
+
+            foreach ($records as $relationship) {
+                if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                    continue;
+                }
+
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null;
+                if ($targetPart === null || $targetPart === '') {
+                    continue;
+                }
+
+                if (!isset($targetsByPart[$targetPart])) {
+                    $targetsByPart[$targetPart] = [
+                        'relationshipTargetCount' => 0,
+                        'relationshipTargetReferenceSuffixCount' => 0,
+                        'relationshipTargetDuplicateRecordCount' => 0,
+                        'relationshipTargetRelationshipParts' => [],
+                        'relationshipTargetSourceParts' => [],
+                        'relationshipTargetRelationshipIds' => [],
+                        'relationshipTargetReferences' => [],
+                    ];
+                }
+
+                ++$targetsByPart[$targetPart]['relationshipTargetCount'];
+                if (($relationship['targetReferenceSuffix'] ?? '') !== '') {
+                    ++$targetsByPart[$targetPart]['relationshipTargetReferenceSuffixCount'];
+                }
+                if (($relationship['duplicateId'] ?? false) === true) {
+                    ++$targetsByPart[$targetPart]['relationshipTargetDuplicateRecordCount'];
+                }
+
+                $this->appendUniqueString(
+                    $targetsByPart[$targetPart]['relationshipTargetRelationshipParts'],
+                    is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                );
+                $this->appendUniqueString(
+                    $targetsByPart[$targetPart]['relationshipTargetSourceParts'],
+                    is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                );
+                $this->appendUniqueString(
+                    $targetsByPart[$targetPart]['relationshipTargetRelationshipIds'],
+                    is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                );
+
+                $targetsByPart[$targetPart]['relationshipTargetReferences'][] = $this->relationshipProvenanceSummaryItem($relationship);
+            }
+        }
+
+        return $targetsByPart;
     }
 
     private function packagePartDirectory(string $partName): string

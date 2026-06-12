@@ -430,6 +430,71 @@ XML;
         $t->true(in_array('relationship-part', $inventory['word/_rels/header1.xml.rels']['roles'], true), 'header relationship part role missing');
         $t->true(in_array('relationship-target', $inventory['word/media/header.png']['roles'], true), 'header image relationship target role missing');
     },
+    'summarizes inbound docx relationship targets on package inventory parts' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '  <Relationship Id="rImageAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?copy=document#img"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header target</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?copy=header#logo"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $media = $inventory['word/media/review.png'];
+        $header = $inventory['word/header1.xml'];
+        $documentPart = $inventory['word/document.xml'];
+        $targetedByPart = [];
+        foreach ($summary['relationshipTargetParts'] as $targetPart) {
+            $targetedByPart[$targetPart['partName']] = $targetPart;
+        }
+
+        $t->same(4, $summary['relationshipTargetPartCount']);
+        $t->same(6, $summary['relationshipTargetReferenceRecordCount']);
+        $t->same(1, $summary['multiRelationshipTargetPartCount']);
+        $t->same(4, $summary['uniqueRelationshipTargetPartCount']);
+        $t->same(['docProps/core.xml', 'word/document.xml', 'word/media/review.png', 'word/header1.xml'], array_keys($targetedByPart));
+
+        $t->same(3, $media['relationshipTargetCount']);
+        $t->same(2, $media['relationshipTargetReferenceSuffixCount']);
+        $t->same(0, $media['relationshipTargetDuplicateRecordCount']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $media['relationshipTargetRelationshipParts']);
+        $t->same(['word/document.xml', 'word/header1.xml'], $media['relationshipTargetSourceParts']);
+        $t->same(['rImage', 'rImageAudit', 'rHeaderImage'], $media['relationshipTargetRelationshipIds']);
+        $t->same(['', '?copy=document#img', '?copy=header#logo'], array_column($media['relationshipTargetReferences'], 'targetReferenceSuffix'));
+        $t->same([1, 3, 0], array_column($media['relationshipTargetReferences'], 'ordinal'));
+        $t->same([false, false, false], array_column($media['relationshipTargetReferences'], 'duplicateId'));
+        $t->same('word/media/review.png?copy=header#logo', $media['relationshipTargetReferences'][2]['resolvedTarget']);
+        $t->same('copy=header', $media['relationshipTargetReferences'][2]['targetQuery']);
+        $t->same('logo', $media['relationshipTargetReferences'][2]['targetFragment']);
+        $t->same('image/png', $media['relationshipTargetReferences'][2]['contentType']);
+        $t->same(3, $targetedByPart['word/media/review.png']['relationshipTargetCount']);
+        $t->same(['rImage', 'rImageAudit', 'rHeaderImage'], $targetedByPart['word/media/review.png']['relationshipTargetRelationshipIds']);
+
+        $t->same(1, $header['relationshipTargetCount']);
+        $t->same(['word/_rels/document.xml.rels'], $header['relationshipTargetRelationshipParts']);
+        $t->same(['word/document.xml'], $header['relationshipTargetSourceParts']);
+        $t->same(['rHeader'], $header['relationshipTargetRelationshipIds']);
+        $t->same('?slot=default#hdr', $header['relationshipTargetReferences'][0]['targetReferenceSuffix']);
+        $t->true(in_array('document-relationship-target', $header['roles'], true), 'header document relationship target role missing');
+
+        $t->same(1, $documentPart['relationshipTargetCount']);
+        $t->same(['_rels/.rels'], $documentPart['relationshipTargetRelationshipParts']);
+        $t->same(['/'], $documentPart['relationshipTargetSourceParts']);
+        $t->same(['rDoc'], $documentPart['relationshipTargetRelationshipIds']);
+        $t->same('/', $documentPart['relationshipTargetReferences'][0]['sourcePart']);
+        $t->same('officeDocument', $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument']['label']);
+    },
     'summarizes docx header and footer parts from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
