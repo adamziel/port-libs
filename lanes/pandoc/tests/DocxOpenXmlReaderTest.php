@@ -1921,6 +1921,104 @@ XML;
         $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
+    'carries docx altchunk and embedded object imports into package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $altChunkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $oleRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+        $htmlChunk = '<article><h2>Reviewer HTML chunk</h2></article>';
+        $workbookBytes = 'fake embedded workbook bytes';
+        $oleBytes = 'fake ole object bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/chunks/review.html" ContentType="text/html; charset=utf-8"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/review.xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/review.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rAltHtml" Type="' . $altChunkRel . '" Target="chunks/review.html?slot=body#chunk"/>' . "\n" .
+            '  <Relationship Id="rAltRemote" Type="' . $altChunkRel . '" Target="https://example.test/review.html?remote=1#chunk" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rEmbeddedWorkbook" Type="' . $packageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
+            '  <Relationship Id="rOleExisting" Type="' . $oleRel . '" Target="embeddings/review.bin"/>' . "\n" .
+            '  <Relationship Id="rOleMissing" Type="' . $oleRel . '" Target="embeddings/missing.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:altChunk r:id="rAltHtml"/>' . "\n" .
+            '    <w:altChunk r:id="rAltMissing"/>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rEmbeddedWorkbook" ProgID="Excel.Sheet.12"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rOleExisting" ProgID="Package"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rOleMissing" ProgID="Package"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/chunks/review.html'] = $htmlChunk;
+        $parts['word/embeddings/review.xlsx'] = $workbookBytes;
+        $parts['word/embeddings/review.bin'] = $oleBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $alternativeFormats = $package['alternativeFormats'];
+        $embeddedObjects = $package['embeddedObjects'];
+        $html = $alternativeFormats['byRelationshipId']['rAltHtml'];
+        $workbook = $embeddedObjects['byRelationshipId']['rEmbeddedWorkbook'];
+        $ole = $embeddedObjects['byRelationshipId']['rOleExisting'];
+        $missingOle = $embeddedObjects['byRelationshipId']['rOleMissing'];
+        $inventory = $package['parts'];
+
+        $t->same($docx['alternativeFormats'], $alternativeFormats);
+        $t->same(3, $summary['alternativeFormatCount']);
+        $t->same(2, $summary['alternativeFormatRelationshipCount']);
+        $t->same(2, $summary['alternativeFormatReferencedCount']);
+        $t->same(1, $summary['alternativeFormatExistingCount']);
+        $t->same(0, $summary['alternativeFormatMissingCount']);
+        $t->same(1, $summary['alternativeFormatExternalCount']);
+        $t->same(2, $summary['alternativeFormatIssueCount']);
+        $t->same(['external-altchunk', 'unknown-relationship'], $summary['alternativeFormatIssueCodes']);
+        $t->same('alternative-format-import-bytes-blocked', $alternativeFormats['byteExposurePolicy']);
+        $t->same('alternative-format-import-metadata-only', $alternativeFormats['reviewPolicy']);
+        $t->same(strlen($htmlChunk), $html['bytes']);
+        $t->same(sprintf('%08x', crc32($htmlChunk)), $html['crc32']);
+        $t->same(hash('sha256', $htmlChunk), $html['sha256']);
+        $t->same('text/html', $html['contentTypeBase']);
+        $t->same(['charset' => 'utf-8'], $html['contentTypeParameterMap']);
+        $t->same('alternative-format-import-bytes-blocked', $html['byteExposurePolicy']);
+        $t->true(in_array('alternative-format-import', $inventory['word/chunks/review.html']['roles'], true), 'altChunk inventory role missing');
+
+        $t->same($docx['embeddedObjects'], $embeddedObjects);
+        $t->same(3, $summary['embeddedObjectCount']);
+        $t->same(3, $summary['embeddedObjectRelationshipCount']);
+        $t->same(3, $summary['embeddedObjectReferencedCount']);
+        $t->same(2, $summary['embeddedObjectExistingCount']);
+        $t->same(1, $summary['embeddedObjectMissingCount']);
+        $t->same(0, $summary['embeddedObjectExternalCount']);
+        $t->same(1, $summary['embeddedObjectIssueCount']);
+        $t->same(['missing-content-type', 'missing-in-package'], $summary['embeddedObjectIssueCodes']);
+        $t->same('embedded-object-bytes-blocked', $embeddedObjects['byteExposurePolicy']);
+        $t->same('embedded-object-metadata-only', $embeddedObjects['reviewPolicy']);
+        $t->same(strlen($workbookBytes), $workbook['bytes']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same($packageRel, $workbook['relationshipType']);
+        $t->same($oleRel, $ole['relationshipType']);
+        $t->same('embedded-object-bytes-blocked', $ole['byteExposurePolicy']);
+        $t->same(['missing-in-package', 'missing-content-type'], $missingOle['issues']);
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/review.xlsx']['roles'], true), 'embedded package inventory role missing');
+        $t->true(in_array('embedded-object', $inventory['word/embeddings/review.bin']['roles'], true), 'embedded object inventory role missing');
+    },
     'reports docx activex control package provenance as metadata only' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
