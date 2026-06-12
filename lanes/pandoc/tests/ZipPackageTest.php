@@ -10269,9 +10269,12 @@ return [
         $t->same(strlen($documentXml), $summary['entries'][0]['bytesRead']);
         $t->same($crc32($documentXml), $summary['entries'][0]['crc32']);
         $t->same(sprintf('%08x', $crc32($documentXml)), $summary['entries'][0]['crc32Hex']);
+        $t->same(hash('sha256', $documentXml), $summary['entries'][0]['contentSha256']);
+        $t->same(hash('sha256', $mediaBytes), $summary['entries'][1]['contentSha256']);
         $t->same('word/media/', $summary['entries'][2]['name']);
         $t->same(true, $summary['entries'][2]['isDirectory']);
         $t->same(0, $summary['entries'][2]['bytesRead']);
+        $t->same(hash('sha256', ''), $summary['entries'][2]['contentSha256']);
         $t->same($summary, $package->assertReadableEntries(1024));
 
         $corruptPackage = ZipPackage::fromString($corruptZipEntryPayload($buildZipPackage([
@@ -10295,8 +10298,11 @@ return [
         $t->same('word/document.xml', $corruptSummary['failedEntries'][0]['name']);
         $t->same(false, $corruptSummary['entries'][0]['isReadable']);
         $t->same(null, $corruptSummary['entries'][0]['bytesRead']);
+        $t->same(null, $corruptSummary['entries'][0]['contentSha256']);
+        $t->same(null, $corruptSummary['failedEntries'][0]['contentSha256']);
         $t->contains('ZIP entry word/document.xml', $corruptSummary['entries'][0]['error']);
         $t->same(true, $corruptSummary['entries'][1]['isReadable']);
+        $t->same(hash('sha256', $mediaBytes), $corruptSummary['entries'][1]['contentSha256']);
         $t->throws(\RuntimeException::class, static fn (): array => $corruptPackage->assertReadableEntries());
     },
 

@@ -9777,8 +9777,8 @@ final class ZipPackage
      *     readableEntryCount:int,
      *     failedEntryCount:int,
      *     maxEntryUncompressedBytes:?int,
-     *     failedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:string}>,
-     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, error:?string}>
+     *     failedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, contentSha256:?string, error:string}>,
+     *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, crc32:int, crc32Hex:string, isReadable:bool, bytesRead:?int, contentSha256:?string, error:?string}>
      * }
      */
     public function readIntegrityPreflight(?int $maxEntryUncompressedBytes = null): array
@@ -9799,11 +9799,14 @@ final class ZipPackage
                 'crc32Hex' => $entry->crc32Hex(),
                 'isReadable' => true,
                 'bytesRead' => null,
+                'contentSha256' => null,
                 'error' => null,
             ];
 
             try {
-                $summary['bytesRead'] = strlen($this->read($entry->name, $maxEntryUncompressedBytes));
+                $contents = $this->read($entry->name, $maxEntryUncompressedBytes);
+                $summary['bytesRead'] = strlen($contents);
+                $summary['contentSha256'] = hash('sha256', $contents);
             } catch (\RuntimeException $exception) {
                 $summary['isReadable'] = false;
                 $summary['error'] = $exception->getMessage();
@@ -9817,6 +9820,7 @@ final class ZipPackage
                     'crc32Hex' => $summary['crc32Hex'],
                     'isReadable' => false,
                     'bytesRead' => null,
+                    'contentSha256' => null,
                     'error' => $summary['error'],
                 ];
             }
