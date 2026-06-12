@@ -714,6 +714,97 @@ final class XmlHtmlDom
         return trim($text);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeJatsFrontMatter(\DOMDocument $dom, string $format = 'jats'): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('JATS/BITS review packet requires a document element');
+        }
+
+        $format = strtolower(trim($format));
+        if (!in_array($format, ['jats', 'bits'], true)) {
+            throw new \InvalidArgumentException('JATS/BITS review packet format must be jats or bits');
+        }
+
+        $rootName = $root->localName;
+        if (!in_array($rootName, ['article', 'book', 'book-part'], true)) {
+            throw new \InvalidArgumentException('JATS/BITS review packet root must be article, book, or book-part');
+        }
+
+        $metadata = self::jatsMetadataElement($root);
+        $body = self::firstDescendantElement($root, 'body') ?? self::firstDescendantElement($root, 'book-body');
+
+        $articleIds = $metadata instanceof \DOMElement
+            ? self::jatsTypedTextRecords($metadata, ['article-id'], ['pub-id-type'])
+            : [];
+        $bookIds = $metadata instanceof \DOMElement
+            ? self::jatsTypedTextRecords($metadata, ['book-id'], ['book-id-type', 'pub-id-type'])
+            : [];
+        $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
+        $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
+        $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
+        $xrefTargets = self::jatsXrefTargets($root);
+        $referenceIds = self::jatsElementIds($root, 'ref');
+        $figureIds = self::jatsElementIds($root, 'fig');
+        $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
+
+        return [
+            'formatFamily' => 'xml-html5-jats-dom',
+            'format' => $format,
+            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'directReaderParity' => false,
+            'rootName' => $rootName,
+            'rootAttributes' => self::xmlAttributeMap($root),
+            'documentType' => self::jatsDocumentType($root),
+            'dtdVersion' => self::attribute($root, 'dtd-version'),
+            'language' => self::attribute($root, 'lang', 'http://www.w3.org/XML/1998/namespace')
+                ?? self::attribute($root, 'lang'),
+            'metadataRoot' => $metadata instanceof \DOMElement ? $metadata->localName : null,
+            'hasFrontMatter' => $metadata instanceof \DOMElement,
+            'title' => $metadata instanceof \DOMElement
+                ? self::jatsFirstText($metadata, ['article-title', 'book-title', 'title'])
+                : null,
+            'subtitle' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['subtitle']) : null,
+            'journalTitle' => self::jatsFirstText($root, ['journal-title']),
+            'publisherName' => self::jatsFirstText($root, ['publisher-name']),
+            'articleIds' => $articleIds,
+            'bookIds' => $bookIds,
+            'identifierCount' => count($articleIds) + count($bookIds),
+            'abstractText' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['abstract']) : null,
+            'keywords' => $metadata instanceof \DOMElement ? self::jatsTextList($metadata, 'kwd') : [],
+            'contributors' => $contributors,
+            'contributorCount' => count($contributors),
+            'contributorNames' => array_values(array_map(
+                static fn (array $contributor): string => (string) $contributor['name'],
+                $contributors
+            )),
+            'contributorRoles' => array_values(array_unique(array_filter(
+                array_map(static fn (array $contributor): ?string => $contributor['role'], $contributors),
+                static fn (?string $role): bool => $role !== null && $role !== ''
+            ))),
+            'publicationDates' => $dates,
+            'publicationDateCount' => count($dates),
+            'sectionCount' => count($sections),
+            'sectionTitles' => array_values(array_filter(
+                array_map(static fn (array $section): ?string => $section['title'], $sections),
+                static fn (?string $title): bool => $title !== null && $title !== ''
+            )),
+            'sections' => $sections,
+            'xrefTargets' => $xrefTargets,
+            'xrefTargetCount' => count($xrefTargets),
+            'referenceIds' => $referenceIds,
+            'referenceCount' => count($referenceIds),
+            'figureIds' => $figureIds,
+            'figureCount' => count($figureIds),
+            'tableWrapIds' => $tableWrapIds,
+            'tableWrapCount' => count($tableWrapIds),
+            'bookPartCount' => count(self::descendantElements($root, 'book-part')),
+        ];
+    }
+
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement
     {
         $root = self::fragmentRoot($dom);
@@ -722,6 +813,271 @@ final class XmlHtmlDom
         }
 
         return $root;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function xmlAttributeMap(\DOMElement $element): array
+    {
+        $attributes = [];
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = $attribute->prefix !== ''
+                ? $attribute->prefix . ':' . $attribute->localName
+                : $attribute->name;
+            $attributes[$name] = $attribute->value;
+        }
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    private static function jatsMetadataElement(\DOMElement $root): ?\DOMElement
+    {
+        foreach (['article-meta', 'book-meta', 'book-part-meta'] as $name) {
+            $metadata = self::firstDescendantElement($root, $name);
+            if ($metadata instanceof \DOMElement) {
+                return $metadata;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsDocumentType(\DOMElement $root): ?string
+    {
+        foreach (['article-type', 'book-type', 'book-part-type'] as $name) {
+            $value = self::attribute($root, $name);
+            if ($value !== null && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function jatsFirstText(\DOMElement $root, array $localNames): ?string
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstDescendantElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsTextList(\DOMElement $root, string $localName): array
+    {
+        $values = [];
+        foreach (self::descendantElements($root, $localName) as $element) {
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                $values[] = $text;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @param list<string> $typeAttributes
+     * @return list<array{element:string, type:?string, value:string}>
+     */
+    private static function jatsTypedTextRecords(\DOMElement $root, array $localNames, array $typeAttributes): array
+    {
+        $records = [];
+        foreach ($localNames as $localName) {
+            foreach (self::descendantElements($root, $localName) as $element) {
+                $value = self::normalizedText($element);
+                if ($value === '') {
+                    continue;
+                }
+
+                $type = null;
+                foreach ($typeAttributes as $attribute) {
+                    $type = self::attribute($element, $attribute);
+                    if ($type !== null && trim($type) !== '') {
+                        $type = trim($type);
+                        break;
+                    }
+                    $type = null;
+                }
+
+                $records[] = [
+                    'element' => $localName,
+                    'type' => $type,
+                    'value' => $value,
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsContributorSummaries(\DOMElement $metadata): array
+    {
+        $contributors = [];
+        foreach (self::descendantElements($metadata, 'contrib') as $contrib) {
+            $role = self::attribute($contrib, 'contrib-type');
+            $xrefTargets = [];
+            foreach (self::descendantElements($contrib, 'xref') as $xref) {
+                $target = self::attribute($xref, 'rid');
+                if ($target !== null && trim($target) !== '') {
+                    $xrefTargets[] = trim($target);
+                }
+            }
+
+            $contributors[] = [
+                'role' => $role === null || trim($role) === '' ? null : trim($role),
+                'name' => self::jatsContributorName($contrib),
+                'xrefTargets' => array_values(array_unique($xrefTargets)),
+            ];
+        }
+
+        return $contributors;
+    }
+
+    private static function jatsContributorName(\DOMElement $contrib): string
+    {
+        $name = self::firstDescendantElement($contrib, 'name');
+        if ($name instanceof \DOMElement) {
+            $surname = self::jatsFirstText($name, ['surname']);
+            $given = self::jatsFirstText($name, ['given-names']);
+            $combined = trim(($given ?? '') . ' ' . ($surname ?? ''));
+            if ($combined !== '') {
+                return $combined;
+            }
+        }
+
+        foreach (['string-name', 'collab'] as $localName) {
+            $element = self::firstDescendantElement($contrib, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return self::normalizedText($contrib);
+    }
+
+    /**
+     * @return list<array{type:?string, year:?string, month:?string, day:?string, iso:?string}>
+     */
+    private static function jatsPublicationDateSummaries(\DOMElement $metadata): array
+    {
+        $dates = [];
+        foreach (self::descendantElements($metadata, 'pub-date') as $date) {
+            $year = self::jatsFirstText($date, ['year']);
+            $month = self::jatsFirstText($date, ['month']);
+            $day = self::jatsFirstText($date, ['day']);
+
+            $dates[] = [
+                'type' => self::attribute($date, 'date-type') ?? self::attribute($date, 'pub-type'),
+                'year' => $year,
+                'month' => $month,
+                'day' => $day,
+                'iso' => self::jatsIsoDate($year, $month, $day),
+            ];
+        }
+
+        return $dates;
+    }
+
+    private static function jatsIsoDate(?string $year, ?string $month, ?string $day): ?string
+    {
+        if ($year === null || preg_match('/^\d{4}$/', $year) !== 1) {
+            return null;
+        }
+
+        if ($month === null || preg_match('/^\d{1,2}$/', $month) !== 1) {
+            return $year;
+        }
+
+        $iso = $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT);
+        if ($day === null || preg_match('/^\d{1,2}$/', $day) !== 1) {
+            return $iso;
+        }
+
+        return $iso . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @return list<array{id:?string, title:?string, paragraphCount:int}>
+     */
+    private static function jatsSectionSummaries(\DOMElement $body): array
+    {
+        $sections = [];
+        foreach (self::descendantElements($body, 'sec') as $section) {
+            $title = self::firstChildElement($section, 'title');
+            $sections[] = [
+                'id' => self::attribute($section, 'id'),
+                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
+                'paragraphCount' => count(self::descendantElements($section, 'p')),
+            ];
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsXrefTargets(\DOMElement $root): array
+    {
+        $targets = [];
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            $rid = self::attribute($xref, 'rid');
+            if ($rid === null || trim($rid) === '') {
+                continue;
+            }
+
+            foreach (self::spaceSeparatedTokens($rid) as $target) {
+                $targets[] = $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsElementIds(\DOMElement $root, string $localName): array
+    {
+        $ids = [];
+        foreach (self::descendantElements($root, $localName) as $element) {
+            $id = self::attribute($element, 'id');
+            if ($id !== null && trim($id) !== '') {
+                $ids[] = trim($id);
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
