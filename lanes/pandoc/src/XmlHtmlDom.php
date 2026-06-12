@@ -917,6 +917,9 @@ final class XmlHtmlDom
         if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
+        if (in_array($name, ['ruby', 'rt', 'rp'], true)) {
+            $summary += self::rubySummary($node, $name);
+        }
         if (in_array($name, ['br', 'hr', 'wbr'], true)) {
             $summary += self::breakElementSummary($name);
         }
@@ -1160,6 +1163,61 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rubySummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'rt') {
+            return [
+                'rubyPart' => 'annotation',
+                'rubyAnnotationText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'rp') {
+            return [
+                'rubyPart' => 'fallback-parenthesis',
+                'rubyFallbackText' => self::normalizedText($element),
+            ];
+        }
+
+        $annotations = array_values(array_map(
+            static fn (\DOMElement $annotation): string => self::normalizedText($annotation),
+            self::childHtmlElements($element, 'rt')
+        ));
+        $fallbacks = array_values(array_map(
+            static fn (\DOMElement $fallback): string => self::normalizedText($fallback),
+            self::childHtmlElements($element, 'rp')
+        ));
+
+        return [
+            'textSemantic' => 'ruby',
+            'ruby' => 'ruby',
+            'rubyBaseText' => self::rubyBaseText($element),
+            'rubyAnnotationTexts' => $annotations,
+            'rubyAnnotationCount' => count($annotations),
+            'rubyFallbackTexts' => $fallbacks,
+            'rubyFallbackCount' => count($fallbacks),
+        ];
+    }
+
+    private static function rubyBaseText(\DOMElement $ruby): string
+    {
+        $text = '';
+        foreach ($ruby->childNodes as $child) {
+            if ($child instanceof \DOMElement && in_array(strtolower(self::htmlElementName($child)), ['rt', 'rp'], true)) {
+                continue;
+            }
+
+            $text .= $child->textContent;
+        }
+
+        $normalized = preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text;
+
+        return trim($normalized);
     }
 
     /**

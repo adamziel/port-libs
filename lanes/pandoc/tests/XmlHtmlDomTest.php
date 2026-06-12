@@ -497,6 +497,56 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html ruby annotation metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><ruby id="term" lang="ja">漢<rp>(</rp><rt>kan</rt><rp>)</rp><span>字</span><rt>ji</rt></ruby>'
+                . '<ruby id="mono">東<rt>east</rt></ruby></p>',
+            'ruby annotation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/ruby-annotation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $ruby = $paragraph['children'][0];
+        $firstFallback = $ruby['children'][1];
+        $firstAnnotation = $ruby['children'][2];
+        $secondFallback = $ruby['children'][3];
+        $span = $ruby['children'][4];
+        $secondAnnotation = $ruby['children'][5];
+        $mono = $paragraph['children'][1];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('漢(kan)字ji東east', $paragraph['text']);
+        $t->same('ruby', $ruby['textSemantic']);
+        $t->same('ruby', $ruby['ruby']);
+        $t->same('term', $ruby['elementId']);
+        $t->same('ja', $ruby['language']);
+        $t->same('漢字', $ruby['rubyBaseText']);
+        $t->same(['kan', 'ji'], $ruby['rubyAnnotationTexts']);
+        $t->same(2, $ruby['rubyAnnotationCount']);
+        $t->same(['(', ')'], $ruby['rubyFallbackTexts']);
+        $t->same(2, $ruby['rubyFallbackCount']);
+        $t->same('fallback-parenthesis', $firstFallback['rubyPart']);
+        $t->same('(', $firstFallback['rubyFallbackText']);
+        $t->same('annotation', $firstAnnotation['rubyPart']);
+        $t->same('kan', $firstAnnotation['rubyAnnotationText']);
+        $t->same('fallback-parenthesis', $secondFallback['rubyPart']);
+        $t->same('span', $span['name']);
+        $t->same('annotation', $secondAnnotation['rubyPart']);
+        $t->same('ji', $secondAnnotation['rubyAnnotationText']);
+        $t->same('東', $mono['rubyBaseText']);
+        $t->same(['east'], $mono['rubyAnnotationTexts']);
+        $t->same(1, $mono['rubyAnnotationCount']);
+        $t->same([], $mono['rubyFallbackTexts']);
+        $t->same(0, $mono['rubyFallbackCount']);
+        $t->same('<p><ruby id="term" lang="ja">漢<rp>(</rp><rt>kan</rt><rp>)</rp><span>字</span><rt>ji</rt></ruby><ruby id="mono">東<rt>east</rt></ruby></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/ruby-annotation-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'
