@@ -3581,6 +3581,15 @@ return [
                 ],
             ],
         ]);
+        $expectedPackagePolicy = [
+            'reviewStatus' => 'review',
+            'packageDependencyCount' => 1,
+            'namespaces' => ['preview'],
+            'packages' => ['preview/cetz'],
+            'versions' => ['0.3.2'],
+            'subpathDependencyCount' => 0,
+            'issues' => ['typst-package-dependencies:1'],
+        ];
 
         $t->same('typst', $plan['engine']);
         $t->same('build/review.d', $plan['engineDependencyFile']);
@@ -3593,6 +3602,8 @@ return [
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $result['engineInputFiles']);
         $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
         $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
+        $t->same($expectedPackagePolicy, $result['typstPackageDependencyPolicy']);
+        $t->same($expectedPackagePolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
         $t->same(['build/review.pdf'], $result['engineOutputFiles']);
         $t->same('.', $result['engineBoundaryRoot']);
         $t->same([], $result['engineBoundaryViolations']);
@@ -3604,9 +3615,11 @@ return [
         $t->contains('engine-dependency-files:3', implode(',', $result['diagnostics']));
         $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
         $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
         $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
         $t->contains('engine-boundary-root:.', implode(',', $result['diagnostics']));
-        $t->contains('artifact-provenance-review:ok', implode(',', $result['diagnostics']));
+        $t->contains('artifact-provenance-review:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same(false, $missing['ok']);
         $t->same('missing-engine-input-file', $missing['reason']);
         $t->same(['shared assets/chart.svg'], $missing['missingEngineInputFiles']);
@@ -3614,6 +3627,7 @@ return [
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $sequence['finalEngineInputFiles']);
         $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineExternalInputFiles']);
         $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
+        $t->same($expectedPackagePolicy, $sequence['finalTypstPackageDependencyPolicy']);
         $t->same('.', $sequence['finalEngineBoundaryRoot']);
         $t->same([], $sequence['finalEngineBoundaryViolations']);
     },
@@ -3793,6 +3807,79 @@ return [
         $t->contains('engine-typst-package-inputs:3', implode(',', $result['diagnostics']));
         $t->contains('engine-typst-package-dependencies:3', implode(',', $result['diagnostics']));
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
+    },
+
+    'fake runner reviews typst package dependency boundaries without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Package Boundary Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'build/package-boundary.pdf',
+            'source' => $source,
+            'engineOptions' => ['--root=workspace', '--deps=build/package-boundary.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package boundary packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/package-boundary.pdf: workspace/main.typ @preview/cetz:0.3.2/src/lib.typ @typst/symbols:0.1.0',
+            '',
+        ]);
+        $expectedDependencies = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@typst/symbols:0.1.0',
+                'reference' => '@typst/symbols:0.1.0',
+                'namespace' => 'typst',
+                'package' => 'symbols',
+                'version' => '0.1.0',
+                'subpath' => null,
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'packageDependencyCount' => 2,
+            'namespaces' => ['preview', 'typst'],
+            'packages' => ['preview/cetz', 'typst/symbols'],
+            'versions' => ['0.1.0', '0.3.2'],
+            'subpathDependencyCount' => 1,
+            'issues' => ['typst-package-dependencies:2'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/package-boundary.d' => $depfile,
+                'build/package-boundary.pdf' => $pdfBytes,
+                'workspace/main.typ' => $source,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/package-boundary.d' => $depfile,
+                    'build/package-boundary.pdf' => $pdfBytes,
+                    'workspace/main.typ' => $source,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same([], $result['engineBoundaryViolations']);
+        $t->same($expectedDependencies, $result['engineTypstPackageDependencies']);
+        $t->same($expectedPolicy, $result['typstPackageDependencyPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-count:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-subpaths:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
     },
 
     'fake runner reviews typst dependency output target provenance' => static function (TestRunner $t) use ($document): void {
