@@ -428,6 +428,15 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'typst-pdf-tags:disabled';
                     }
                 }
+                if (is_array($pdfExport) && is_array($pdfExport['pretty'] ?? null)) {
+                    $pretty = $pdfExport['pretty'];
+                    if (($pretty['enabled'] ?? false) === true) {
+                        $diagnostics[] = 'typst-pdf-pretty:enabled';
+                    }
+                    if (is_int($pretty['flagCount'] ?? null) && $pretty['flagCount'] > 1) {
+                        $diagnostics[] = 'typst-pdf-pretty-flags:' . $pretty['flagCount'];
+                    }
+                }
                 if (is_array($pdfExport) && ($pdfExport['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-pdf-export-issues:' . count($pdfExport['issues']);
                 }
@@ -6016,9 +6025,10 @@ final class PdfEngineHandoff
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
+        $prettyOutputCount = $this->engineOptionFlagCount($engineOptions, '--pretty');
         $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
         $openOutputCount = count($openOutputEntries);
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6270,7 +6280,7 @@ final class PdfEngineHandoff
                 $provenance['openOutput']['viewers'] = $openOutputViewers;
             }
         }
-        if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0) {
+        if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
             foreach ($pageSelectionHistory as $entry) {
                 foreach ($entry['issues'] as $issue) {
@@ -6299,6 +6309,13 @@ final class PdfEngineHandoff
                     'disabled' => true,
                     'flagCount' => $noPdfTagsCount,
                     'issues' => $pdfTagIssues,
+                ];
+            }
+            if ($prettyOutputCount > 0) {
+                $pdfExport['pretty'] = [
+                    'enabled' => true,
+                    'flagCount' => $prettyOutputCount,
+                    'issues' => [],
                 ];
             }
             $provenance['pdfExport'] = $pdfExport;
@@ -6431,6 +6448,7 @@ final class PdfEngineHandoff
             is_array($pdfExport['pageSelection'] ?? null),
             is_array($pdfExport['ppi'] ?? null),
             is_array($pdfExport['tags'] ?? null),
+            is_array($pdfExport['pretty'] ?? null),
         ] as $present) {
             if ($present) {
                 ++$pdfExportControlCount;
