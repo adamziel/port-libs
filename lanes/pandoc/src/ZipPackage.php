@@ -9374,11 +9374,15 @@ final class ZipPackage
         $uncompressedBytes = 0;
         $fileCount = 0;
         $directoryCount = 0;
+        $zeroByteEntryCount = 0;
+        $zeroByteFileCount = 0;
+        $emptyDirectoryEntryCount = 0;
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $largestEntry = null;
         $entrySummaries = [];
+        $zeroByteEntries = [];
 
         foreach ($this->entries as $entry) {
             $isDirectory = $entry->isDirectory();
@@ -9408,6 +9412,16 @@ final class ZipPackage
             ];
             $entrySummaries[] = $entrySummary;
 
+            if ($entry->uncompressedSize === 0) {
+                $zeroByteEntryCount++;
+                if ($isDirectory) {
+                    $emptyDirectoryEntryCount++;
+                } else {
+                    $zeroByteFileCount++;
+                }
+                $zeroByteEntries[] = $entrySummary;
+            }
+
             if (
                 $largestEntry === null
                 || $entrySummary['uncompressedSize'] > $largestEntry['uncompressedSize']
@@ -9420,6 +9434,10 @@ final class ZipPackage
             'entryCount' => count($this->entries),
             'fileCount' => $fileCount,
             'directoryCount' => $directoryCount,
+            'zeroByteEntryCount' => $zeroByteEntryCount,
+            'zeroByteFileCount' => $zeroByteFileCount,
+            'emptyDirectoryEntryCount' => $emptyDirectoryEntryCount,
+            'hasZeroByteEntries' => $zeroByteEntryCount > 0,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
             'storedEntryCount' => $storedEntryCount,
@@ -9427,6 +9445,7 @@ final class ZipPackage
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
             'largestEntry' => $largestEntry,
+            'zeroByteEntries' => $zeroByteEntries,
             'entries' => $entrySummaries,
         ];
     }
@@ -9436,6 +9455,10 @@ final class ZipPackage
      *     entryCount:int,
      *     fileCount:int,
      *     directoryCount:int,
+     *     zeroByteEntryCount:int,
+     *     zeroByteFileCount:int,
+     *     emptyDirectoryEntryCount:int,
+     *     hasZeroByteEntries:bool,
      *     compressedBytes:int,
      *     uncompressedBytes:int,
      *     storedEntryCount:int,
@@ -9443,6 +9466,7 @@ final class ZipPackage
      *     unsupportedCompressionMethodCount:int,
      *     expansionRatio:?float,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
      * }
      */

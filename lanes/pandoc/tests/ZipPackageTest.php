@@ -9707,6 +9707,90 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
     },
 
+    'preflights zero byte zip entry buckets before package byte handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>zero byte package preflight</w:p></w:body></w:document>';
+        $mediaBytes = "active media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/empty.bin',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/empty-deflated.bin',
+                'data' => '',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/empty-dir/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $emptyDeflatedCompressed = strlen(gzdeflate(''));
+        $totalCompressed = $documentCompressed + $emptyDeflatedCompressed + strlen($mediaBytes);
+        $totalUncompressed = strlen($documentXml) + strlen($mediaBytes);
+        $emptyStoredFile = [
+            'name' => 'word/media/empty.bin',
+            'compressionMethod' => 0,
+            'isDirectory' => false,
+            'compressedSize' => 0,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+        $emptyDeflatedFile = [
+            'name' => 'word/media/empty-deflated.bin',
+            'compressionMethod' => 8,
+            'isDirectory' => false,
+            'compressedSize' => $emptyDeflatedCompressed,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+        $emptyDirectory = [
+            'name' => 'word/media/empty-dir/',
+            'compressionMethod' => 0,
+            'isDirectory' => true,
+            'compressedSize' => 0,
+            'uncompressedSize' => 0,
+            'expansionRatio' => 0.0,
+        ];
+        $summary = $package->sizePreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(4, $summary['fileCount']);
+        $t->same(1, $summary['directoryCount']);
+        $t->same(3, $summary['zeroByteEntryCount']);
+        $t->same(2, $summary['zeroByteFileCount']);
+        $t->same(1, $summary['emptyDirectoryEntryCount']);
+        $t->same(true, $summary['hasZeroByteEntries']);
+        $t->same($totalCompressed, $summary['compressedBytes']);
+        $t->same($totalUncompressed, $summary['uncompressedBytes']);
+        $t->same([$emptyStoredFile, $emptyDeflatedFile, $emptyDirectory], $summary['zeroByteEntries']);
+        $t->same($emptyStoredFile, $summary['entries'][1]);
+        $t->same($emptyDeflatedFile, $summary['entries'][2]);
+        $t->same($emptyDirectory, $summary['entries'][3]);
+        $t->same('word/document.xml', $summary['largestEntry']['name']);
+        $t->same($summary, $package->assertSizePreflight($totalUncompressed, 100.0));
+
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($package->bytes(), 2048, 100.0, 2048);
+        $t->same(true, $strictSummary['isValid']);
+        $t->same($summary, $strictSummary['size']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['strictImport']['size']);
+    },
+
     'preflights central directory byte accounting before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>' . str_repeat('central size accounting ', 32) . '</w:p></w:body></w:document>';
         $mediaBytes = "stored media bytes for review\n";
