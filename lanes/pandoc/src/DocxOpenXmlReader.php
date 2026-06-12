@@ -3671,6 +3671,9 @@ final class DocxOpenXmlReader
             'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
+            'contentTypeExistingOverrideCount' => (int) ($contentTypesPart['existingOverrideCount'] ?? 0),
+            'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
+            'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
@@ -4988,6 +4991,15 @@ final class DocxOpenXmlReader
             ] + $this->contentTypeReport($contentType);
         }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
+        $existingOverrideParts = [];
+        $missingOverrideParts = [];
+        foreach ($overrides as $partName => $override) {
+            if (($override['exists'] ?? false) === true) {
+                $existingOverrideParts[] = $partName;
+            } else {
+                $missingOverrideParts[] = $override;
+            }
+        }
 
         return [
             'partName' => '[Content_Types].xml',
@@ -4995,6 +5007,10 @@ final class DocxOpenXmlReader
             'bytes' => isset($parts['[Content_Types].xml']) ? strlen($parts['[Content_Types].xml']) : 0,
             'defaultCount' => count($defaults),
             'overrideCount' => count($overrides),
+            'existingOverrideCount' => count($existingOverrideParts),
+            'missingOverrideCount' => count($missingOverrideParts),
+            'existingOverrideParts' => $existingOverrideParts,
+            'missingOverrideParts' => $missingOverrideParts,
             'defaults' => $defaults,
             'overrides' => $overrides,
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),

@@ -514,6 +514,56 @@ return [
         $t->same('duplicate-default-extension', $preflight['records'][1]['issues'][0]);
         $t->same('duplicate-override-part-name', $preflight['records'][4]['issues'][0]);
     },
+    'summarizes docx missing content type override declarations for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=review"/>' . "\n" .
+            '  <Override PartName="/word/media/missing-diagram.svg" ContentType="image/svg+xml; profile=review-diagram"/>' . "\n" .
+            '  <Override PartName="/customXml/missing-payload.xml" ContentType="application/xml; profile=missing-payload"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingDiagram" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-diagram.svg?review=1#diagram"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $summary = $package['summary'];
+        $missingOverrides = $contentTypesPart['missingOverrideParts'];
+        $missingDiagram = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rMissingDiagram'];
+
+        $t->same(5, $contentTypesPart['overrideCount']);
+        $t->same(2, $contentTypesPart['existingOverrideCount']);
+        $t->same(3, $contentTypesPart['missingOverrideCount']);
+        $t->same(['word/document.xml', 'docProps/core.xml'], $contentTypesPart['existingOverrideParts']);
+        $t->same(['word/comments.xml', 'word/media/missing-diagram.svg', 'customXml/missing-payload.xml'], array_column($missingOverrides, 'partName'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=review', $missingOverrides[0]['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $missingOverrides[0]['contentTypeBase']);
+        $t->same(['profile' => 'review'], $missingOverrides[0]['contentTypeParameterMap']);
+        $t->same(false, $missingOverrides[0]['exists']);
+        $t->same('image/svg+xml; profile=review-diagram', $missingOverrides[1]['contentType']);
+        $t->same(['profile' => 'review-diagram'], $missingOverrides[1]['contentTypeParameterMap']);
+        $t->same('application/xml; profile=missing-payload', $missingOverrides[2]['contentType']);
+
+        $t->same(2, $summary['contentTypeExistingOverrideCount']);
+        $t->same(3, $summary['contentTypeMissingOverrideCount']);
+        $t->same($missingOverrides, $summary['contentTypeMissingOverrideParts']);
+        $t->same(1, $summary['missingRelationshipTargetCount']);
+        $t->same(0, $summary['relationshipTargetMissingContentTypeCount']);
+
+        $t->same('word/media/missing-diagram.svg', $missingDiagram['targetPart']);
+        $t->same(false, $missingDiagram['exists']);
+        $t->same('image/svg+xml; profile=review-diagram', $missingDiagram['contentType']);
+        $t->same('override', $missingDiagram['contentTypeSource']);
+        $t->same('review=1', $missingDiagram['targetQuery']);
+        $t->same('diagram', $missingDiagram['targetFragment']);
+    },
     'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
