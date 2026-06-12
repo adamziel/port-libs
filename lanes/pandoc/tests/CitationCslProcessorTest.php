@@ -26756,6 +26756,102 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Camel Publisher List Packet :: Review Press; Archive Desk :: Review Press; Archive Desk</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Compact Publisher List Packet :: Field Press; Mirror Desk :: Field Press; Mirror Desk</dd>', $blocks);
     },
+    'normalizes bounded direct csl json institution organization and school publisher aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-institution-publisher',
+                'type' => 'report',
+                'title' => 'Institution Publisher Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'institution' => 'Archive Institute',
+            ],
+            [
+                'id' => 'direct-organization-publisher',
+                'type' => 'book',
+                'title' => 'Organization Publisher Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'organization' => 'Migration Review Desk',
+            ],
+            [
+                'id' => 'direct-school-publisher',
+                'type' => 'thesis',
+                'title' => 'School Publisher Packet',
+                'author' => [
+                    ['family' => 'Kim', 'given' => 'Kai'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'school' => 'Source University',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $institution = $processor->item('direct-institution-publisher');
+        $organization = $processor->item('direct-organization-publisher');
+        $school = $processor->item('direct-school-publisher');
+        $t->same('Archive Institute', $institution['publisher'] ?? null);
+        $t->same(['Archive Institute'], $institution['publisherList'] ?? null);
+        $t->same('institution', array_key_exists('institution', $institution['raw'] ?? []) ? 'institution' : null);
+        $t->same('Migration Review Desk', $organization['publisher'] ?? null);
+        $t->same(['Migration Review Desk'], $organization['publisherList'] ?? null);
+        $t->same('organization', array_key_exists('organization', $organization['raw'] ?? []) ? 'organization' : null);
+        $t->same('Source University', $school['publisher'] ?? null);
+        $t->same(['Source University'], $school['publisherList'] ?? null);
+        $t->same('school', array_key_exists('school', $school['raw'] ?? []) ? 'school' : null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher Authority Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-authority-alias-review</id>
+    <updated>2026-06-12T02:29:42+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="institution"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="organization"/>
+      <text variable="school"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Publisher Authority Alias Review', $summary['title'] ?? null);
+        $t->same('institution', $citationChildren[1]['variable'] ?? null);
+        $t->same('organization', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('school', $bibliographyChildren[2]['variable'] ?? null);
+        $t->same('[Ng | Archive Institute; Roe | Migration Review Desk; Kim | Source University]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-institution-publisher', 'text' => '[@direct-institution-publisher]']),
+            new AstNode('citation', ['id' => 'direct-organization-publisher', 'text' => '[@direct-organization-publisher]']),
+            new AstNode('citation', ['id' => 'direct-school-publisher', 'text' => '[@direct-school-publisher]']),
+        ]));
+        $t->same('Institution Publisher Packet :: Archive Institute :: Archive Institute', $styled->renderBibliographyEntry('direct-institution-publisher'));
+        $t->same('Organization Publisher Packet :: Migration Review Desk :: Migration Review Desk', $styled->renderBibliographyEntry('direct-organization-publisher'));
+        $t->same('School Publisher Packet :: Source University :: Source University', $styled->renderBibliographyEntry('direct-school-publisher'));
+
+        $document = (new MarkdownReader())->read('Direct publisher authority aliases [@direct-institution-publisher; @direct-organization-publisher; @direct-school-publisher] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct publisher authority aliases [Ng | Archive Institute; Roe | Migration Review Desk; Kim | Source University] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Institution Publisher Packet :: Archive Institute :: Archive Institute</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>School Publisher Packet :: Source University :: Source University</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
