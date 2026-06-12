@@ -1366,6 +1366,72 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $externalResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst short timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/short-timings-boundary.pdf',
+            'source' => '= Typst Short Timings Boundary Packet',
+            'engineOptions' => ['-tbuild/old-timings.json', '-t', 'build/short-timings.json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst short timings sidecar packet\n%%EOF\n";
+        $timingsBytes = '{"traceEvents":[{"name":"layout","args":{"file":"build/short-timings-boundary.typ","line":1}}]}';
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['timings-output-boundary-overridden'],
+            'timingsOutput' => [
+                'raw' => 'build/short-timings.json',
+                'path' => 'build/short-timings.json',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'timingsOutput',
+                    'count' => 2,
+                    'values' => ['build/old-timings.json', 'build/short-timings.json'],
+                    'selected' => 'build/short-timings.json',
+                    'issue' => 'timings-output-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/short-timings-boundary.pdf' => $pdfBytes,
+                'build/short-timings.json' => $timingsBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/short-timings-boundary.pdf' => $pdfBytes,
+                'build/short-timings.json' => $timingsBytes,
+            ],
+        ]]);
+
+        $t->same(['build/short-timings.json'], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-timings-output:build/short-timings.json', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-artifacts:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same(['build/short-timings.json'], $result['artifactProvenanceReview']['expectedEngineArtifacts']);
+        $t->same(hash('sha256', $timingsBytes), $result['producedArtifactsSha256']['build/short-timings.json']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst diagnostic output boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

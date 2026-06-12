@@ -5482,7 +5482,7 @@ final class PdfEngineHandoff
             return null;
         }
 
-        $values = $this->engineOptionValues($engineOptions, ['--timings'], true);
+        $values = $this->engineOptionValues($engineOptions, ['--timings', '-t'], true);
         if ($values === []) {
             return null;
         }
@@ -5939,7 +5939,7 @@ final class PdfEngineHandoff
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
         $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true);
         $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true);
-        $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings'], true);
+        $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings', '-t'], true);
         $diagnosticFormatValues = $this->engineOptionValues($engineOptions, ['--diagnostic-format'], true);
         $diagnosticColorValues = $this->engineOptionValues($engineOptions, ['--color'], true);
         $dependencyFormatValues = $this->engineOptionValues($engineOptions, ['--deps-format'], true);
