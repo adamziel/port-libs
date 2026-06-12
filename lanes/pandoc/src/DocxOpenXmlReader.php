@@ -59,6 +59,9 @@ final class DocxOpenXmlReader
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
     private const NS_XMLDSIG = 'http://www.w3.org/2000/09/xmldsig#';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+    private const CT_WORD_TEMPLATE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml';
+    private const CT_WORD_MACRO_ENABLED_DOCUMENT = 'application/vnd.ms-word.document.macroenabled.main+xml';
+    private const CT_WORD_MACRO_ENABLED_TEMPLATE = 'application/vnd.ms-word.template.macroenabledtemplate.main+xml';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
     private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
@@ -352,6 +355,11 @@ final class DocxOpenXmlReader
                 self::NS_W,
                 'document',
                 self::CT_WORD_DOCUMENT,
+                [
+                    self::CT_WORD_TEMPLATE,
+                    self::CT_WORD_MACRO_ENABLED_DOCUMENT,
+                    self::CT_WORD_MACRO_ENABLED_TEMPLATE,
+                ],
             ),
             $this->selectedXmlPartDefinition('coreProperties', $corePropertiesPart['partName'], $corePropertiesPart['xml'], $corePropertiesPart['exists'], $corePropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_CP, 'coreProperties', self::CT_CORE_PROPERTIES),
             $this->selectedXmlPartDefinition('extendedProperties', $extendedPropertiesPart['partName'], $extendedPropertiesPart['xml'], $extendedPropertiesPart['exists'], $extendedPropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_EP, 'Properties', self::CT_EXTENDED_PROPERTIES),
@@ -5129,7 +5137,13 @@ final class DocxOpenXmlReader
         string $expectedRootNamespace,
         string $expectedRootLocalName,
         string $expectedContentTypeBase,
+        array $expectedAlternativeContentTypeBases = [],
     ): array {
+        $expectedContentTypeBases = array_values(array_unique(array_filter(
+            array_merge([$expectedContentTypeBase], $expectedAlternativeContentTypeBases),
+            static fn (string $contentTypeBase): bool => $contentTypeBase !== '',
+        )));
+
         return [
             'kind' => $kind,
             'partName' => $partName,
@@ -5142,6 +5156,7 @@ final class DocxOpenXmlReader
             'expectedRootNamespace' => $expectedRootNamespace,
             'expectedRootLocalName' => $expectedRootLocalName,
             'expectedContentTypeBase' => $expectedContentTypeBase,
+            'expectedContentTypeBases' => $expectedContentTypeBases,
         ];
     }
 
@@ -5205,13 +5220,19 @@ final class DocxOpenXmlReader
         $expectedRootNamespace = (string) $definition['expectedRootNamespace'];
         $expectedRootLocalName = (string) $definition['expectedRootLocalName'];
         $expectedContentTypeBase = (string) $definition['expectedContentTypeBase'];
+        $expectedContentTypeBases = is_array($definition['expectedContentTypeBases'] ?? null)
+            ? array_values(array_filter(
+                array_map('strval', $definition['expectedContentTypeBases']),
+                static fn (string $contentTypeBase): bool => $contentTypeBase !== '',
+            ))
+            : ($expectedContentTypeBase === '' ? [] : [$expectedContentTypeBase]);
         $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
         $validateContentType = $exists || $required || $relationship !== null;
         $contentTypeMatchesExpected = null;
         $issues = [];
 
-        if ($expectedContentTypeBase !== '' && $validateContentType) {
-            $contentTypeMatchesExpected = $contentTypeResolution['contentTypeBase'] === $expectedContentTypeBase;
+        if ($expectedContentTypeBases !== [] && $validateContentType) {
+            $contentTypeMatchesExpected = in_array($contentTypeResolution['contentTypeBase'], $expectedContentTypeBases, true);
             if (!$contentTypeMatchesExpected) {
                 $issues[] = $contentTypeResolution['contentTypeSource'] === 'missing'
                     ? 'missing-content-type'
@@ -5233,6 +5254,7 @@ final class DocxOpenXmlReader
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
+            'expectedContentTypeBases' => $expectedContentTypeBases,
             'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
             'relationshipId' => null,
             'relationshipType' => null,

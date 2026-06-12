@@ -3305,6 +3305,41 @@ XML;
         $t->same(null, $byKind['comments']['contentTypeMatchesExpected']);
         $t->same([], $byKind['comments']['issues']);
     },
+    'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
+        $acceptedDocumentContentTypes = [
+            ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
+            ['application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml'],
+            ['application/vnd.ms-word.document.macroEnabled.main+xml', 'application/vnd.ms-word.document.macroenabled.main+xml'],
+            ['application/vnd.ms-word.template.macroEnabledTemplate.main+xml', 'application/vnd.ms-word.template.macroenabledtemplate.main+xml'],
+        ];
+        $expectedContentTypeBases = array_column($acceptedDocumentContentTypes, 1);
+
+        foreach ($acceptedDocumentContentTypes as [$contentType, $contentTypeBase]) {
+            $parts = docx_openxml_reader_fixture_parts();
+            $parts['[Content_Types].xml'] = str_replace(
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                $contentType,
+                $parts['[Content_Types].xml']
+            );
+
+            $document = (new DocxOpenXmlReader())->readPackage($parts);
+            $docx = $document->attr('docx');
+            $package = $docx['packageProvenance'];
+            $selectedDocument = $package['selectedXmlParts']['byKind']['document'];
+            $documentInventory = $package['parts']['word/document.xml'];
+            $documentRelationship = $package['relationshipParts']['_rels/.rels']['relationships']['rDoc'];
+
+            $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+            $t->same($contentType, $selectedDocument['contentType']);
+            $t->same($contentTypeBase, $selectedDocument['contentTypeBase']);
+            $t->same(true, $selectedDocument['contentTypeMatchesExpected']);
+            $t->same($expectedContentTypeBases, $selectedDocument['expectedContentTypeBases']);
+            $t->same([], $selectedDocument['issues']);
+            $t->true(!in_array('document', $package['summary']['selectedXmlPartIssueKinds'], true), 'document main content type should not be reported as a selected XML issue');
+            $t->same($contentTypeBase, $documentInventory['contentTypeBase']);
+            $t->same($contentTypeBase, $documentRelationship['contentTypeBase']);
+        }
+    },
     'tracks docx glossary document package relationship provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
