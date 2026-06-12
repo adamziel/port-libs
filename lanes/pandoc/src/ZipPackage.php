@@ -5153,6 +5153,8 @@ final class ZipPackage
         $selectedLocalExtraFieldEntryCount = 0;
         $selectedCentralExtraFieldRecordCount = 0;
         $selectedLocalExtraFieldRecordCount = 0;
+        $selectedLocalHeaderFixedFieldEntries = [];
+        $selectedLocalHeaderFixedFieldIssueEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
         $selectedDataDescriptorEntryCount = 0;
         $selectedSignedDataDescriptorEntryCount = 0;
@@ -5248,6 +5250,15 @@ final class ZipPackage
                     'name' => $entry->name,
                 ] + $extraFieldProvenance;
             }
+            $localHeaderFixedFieldProvenance = self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader);
+            $selectedLocalHeaderFixedFieldEntries[] = [
+                'name' => $entry->name,
+            ] + $localHeaderFixedFieldProvenance;
+            if ($localHeaderFixedFieldProvenance['localHeaderFixedFieldIssues'] !== []) {
+                $selectedLocalHeaderFixedFieldIssueEntries[] = [
+                    'name' => $entry->name,
+                ] + $localHeaderFixedFieldProvenance;
+            }
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             if ($dataDescriptorProvenance['usesDataDescriptor']) {
                 $selectedDataDescriptorEntryCount++;
@@ -5328,6 +5339,44 @@ final class ZipPackage
                 'hasLocalExtraFields' => false,
                 'centralLocalExtraFieldIdsMatch' => null,
                 'hasExtraFieldProvenance' => false,
+                'localFixedHeaderOffset' => null,
+                'localFixedHeaderLength' => null,
+                'localFixedHeaderEnd' => null,
+                'localSignatureOffset' => null,
+                'localSignatureLength' => null,
+                'localVersionNeededToExtractOffset' => null,
+                'localGeneralPurposeFlagsOffset' => null,
+                'localCompressionMethodOffset' => null,
+                'localModifiedDosTimeOffset' => null,
+                'localModifiedDosDateOffset' => null,
+                'localCrc32Offset' => null,
+                'localCompressedSizeOffset' => null,
+                'localUncompressedSizeOffset' => null,
+                'localNameLengthOffset' => null,
+                'localExtraFieldLengthOffset' => null,
+                'centralVersionNeededToExtract' => null,
+                'localVersionNeededToExtract' => null,
+                'centralGeneralPurposeFlags' => null,
+                'localGeneralPurposeFlags' => null,
+                'centralCompressionMethod' => null,
+                'localCompressionMethod' => null,
+                'centralModifiedDosTime' => null,
+                'localModifiedDosTime' => null,
+                'centralModifiedDosDate' => null,
+                'localModifiedDosDate' => null,
+                'centralCrc32' => null,
+                'centralCrc32Hex' => null,
+                'localFixedHeaderCrc32' => null,
+                'localFixedHeaderCrc32Hex' => null,
+                'centralCompressedSize' => null,
+                'localFixedHeaderCompressedSize' => null,
+                'centralUncompressedSize' => null,
+                'localFixedHeaderUncompressedSize' => null,
+                'localFixedHeaderNameLength' => null,
+                'localFixedHeaderExtraFieldLength' => null,
+                'localFixedHeaderHasZeroDataDescriptorPlaceholders' => null,
+                'localHeaderFixedFieldsMatchCentralDirectory' => null,
+                'localHeaderFixedFieldIssues' => [],
                 'usesDataDescriptor' => false,
                 'dataDescriptorHasSignature' => null,
                 'dataDescriptorOffset' => null,
@@ -5398,6 +5447,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryRawCommentHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
+            $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, $this->entryDataDescriptorHandoffProvenance($entry, $localHeader));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
@@ -5515,6 +5565,8 @@ final class ZipPackage
             'selectedExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount + $selectedLocalExtraFieldRecordCount,
             'selectedCentralExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount,
             'selectedLocalExtraFieldRecordCount' => $selectedLocalExtraFieldRecordCount,
+            'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
+            'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -5533,6 +5585,8 @@ final class ZipPackage
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
+            'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
+            'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
@@ -5703,6 +5757,136 @@ final class ZipPackage
         ksort($summaries, SORT_STRING);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @return array{
+     *     localFixedHeaderOffset:int,
+     *     localFixedHeaderLength:int,
+     *     localFixedHeaderEnd:int,
+     *     localSignatureOffset:int,
+     *     localSignatureLength:int,
+     *     localVersionNeededToExtractOffset:int,
+     *     localGeneralPurposeFlagsOffset:int,
+     *     localCompressionMethodOffset:int,
+     *     localModifiedDosTimeOffset:int,
+     *     localModifiedDosDateOffset:int,
+     *     localCrc32Offset:int,
+     *     localCompressedSizeOffset:int,
+     *     localUncompressedSizeOffset:int,
+     *     localNameLengthOffset:int,
+     *     localExtraFieldLengthOffset:int,
+     *     centralVersionNeededToExtract:int,
+     *     localVersionNeededToExtract:int,
+     *     centralGeneralPurposeFlags:int,
+     *     localGeneralPurposeFlags:int,
+     *     centralCompressionMethod:int,
+     *     localCompressionMethod:int,
+     *     centralModifiedDosTime:int,
+     *     localModifiedDosTime:int,
+     *     centralModifiedDosDate:int,
+     *     localModifiedDosDate:int,
+     *     centralCrc32:int,
+     *     centralCrc32Hex:string,
+     *     localFixedHeaderCrc32:int,
+     *     localFixedHeaderCrc32Hex:string,
+     *     centralCompressedSize:int,
+     *     localFixedHeaderCompressedSize:int,
+     *     centralUncompressedSize:int,
+     *     localFixedHeaderUncompressedSize:int,
+     *     localFixedHeaderNameLength:int,
+     *     localFixedHeaderExtraFieldLength:int,
+     *     localFixedHeaderHasZeroDataDescriptorPlaceholders:?bool,
+     *     localHeaderFixedFieldsMatchCentralDirectory:bool,
+     *     localHeaderFixedFieldIssues:list<string>
+     * }
+     */
+    private static function entryLocalHeaderFixedFieldHandoffProvenance(ZipPackageEntry $entry, array $localHeader): array
+    {
+        $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
+        $hasZeroDataDescriptorPlaceholders = $usesDataDescriptor
+            ? (
+                $localHeader['crc32'] === 0
+                && $localHeader['compressedSize'] === 0
+                && $localHeader['uncompressedSize'] === 0
+            )
+            : null;
+
+        $issues = [];
+        if ($localHeader['versionNeededToExtract'] !== $entry->versionNeededToExtract) {
+            $issues[] = 'local-header-version-needed-mismatch';
+        }
+        if ($localHeader['generalPurposeFlags'] !== $entry->generalPurposeFlags) {
+            $issues[] = 'local-header-flags-mismatch';
+        }
+        if ($localHeader['compressionMethod'] !== $entry->compressionMethod) {
+            $issues[] = 'local-header-compression-method-mismatch';
+        }
+        if (
+            $localHeader['modifiedDosTime'] !== $entry->lastModifiedTime
+            || $localHeader['modifiedDosDate'] !== $entry->lastModifiedDate
+        ) {
+            $issues[] = 'local-header-modification-time-mismatch';
+        }
+        if ($usesDataDescriptor) {
+            if ($hasZeroDataDescriptorPlaceholders !== true) {
+                $issues[] = 'local-header-data-descriptor-placeholders-not-zero';
+            }
+        } else {
+            if ($localHeader['crc32'] !== $entry->crc32) {
+                $issues[] = 'local-header-crc32-mismatch';
+            }
+            if ($localHeader['compressedSize'] !== $entry->compressedSize) {
+                $issues[] = 'local-header-compressed-size-mismatch';
+            }
+            if ($localHeader['uncompressedSize'] !== $entry->uncompressedSize) {
+                $issues[] = 'local-header-uncompressed-size-mismatch';
+            }
+        }
+
+        $localHeaderOffset = $entry->localHeaderOffset;
+
+        return [
+            'localFixedHeaderOffset' => $localHeaderOffset,
+            'localFixedHeaderLength' => 30,
+            'localFixedHeaderEnd' => $localHeaderOffset + 30,
+            'localSignatureOffset' => $localHeaderOffset,
+            'localSignatureLength' => 4,
+            'localVersionNeededToExtractOffset' => $localHeaderOffset + 4,
+            'localGeneralPurposeFlagsOffset' => $localHeaderOffset + 6,
+            'localCompressionMethodOffset' => $localHeaderOffset + 8,
+            'localModifiedDosTimeOffset' => $localHeaderOffset + 10,
+            'localModifiedDosDateOffset' => $localHeaderOffset + 12,
+            'localCrc32Offset' => $localHeaderOffset + 14,
+            'localCompressedSizeOffset' => $localHeaderOffset + 18,
+            'localUncompressedSizeOffset' => $localHeaderOffset + 22,
+            'localNameLengthOffset' => $localHeaderOffset + 26,
+            'localExtraFieldLengthOffset' => $localHeaderOffset + 28,
+            'centralVersionNeededToExtract' => $entry->versionNeededToExtract,
+            'localVersionNeededToExtract' => (int) $localHeader['versionNeededToExtract'],
+            'centralGeneralPurposeFlags' => $entry->generalPurposeFlags,
+            'localGeneralPurposeFlags' => (int) $localHeader['generalPurposeFlags'],
+            'centralCompressionMethod' => $entry->compressionMethod,
+            'localCompressionMethod' => (int) $localHeader['compressionMethod'],
+            'centralModifiedDosTime' => $entry->lastModifiedTime,
+            'localModifiedDosTime' => (int) $localHeader['modifiedDosTime'],
+            'centralModifiedDosDate' => $entry->lastModifiedDate,
+            'localModifiedDosDate' => (int) $localHeader['modifiedDosDate'],
+            'centralCrc32' => $entry->crc32,
+            'centralCrc32Hex' => $entry->crc32Hex(),
+            'localFixedHeaderCrc32' => (int) $localHeader['crc32'],
+            'localFixedHeaderCrc32Hex' => sprintf('%08x', (int) $localHeader['crc32']),
+            'centralCompressedSize' => $entry->compressedSize,
+            'localFixedHeaderCompressedSize' => (int) $localHeader['compressedSize'],
+            'centralUncompressedSize' => $entry->uncompressedSize,
+            'localFixedHeaderUncompressedSize' => (int) $localHeader['uncompressedSize'],
+            'localFixedHeaderNameLength' => (int) $localHeader['nameLength'],
+            'localFixedHeaderExtraFieldLength' => (int) $localHeader['extraFieldLength'],
+            'localFixedHeaderHasZeroDataDescriptorPlaceholders' => $hasZeroDataDescriptorPlaceholders,
+            'localHeaderFixedFieldsMatchCentralDirectory' => $issues === [],
+            'localHeaderFixedFieldIssues' => $issues,
+        ];
     }
 
     /**
@@ -13853,7 +14037,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{extraFieldData:string, dataStart:int, crc32:int, compressedSize:int, uncompressedSize:int, nameLength:int, extraFieldLength:int, localHeaderLength:int}
+     * @return array{extraFieldData:string, dataStart:int, crc32:int, compressedSize:int, uncompressedSize:int, nameLength:int, extraFieldLength:int, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int}
      */
     private function readLocalHeader(ZipPackageEntry $entry): array
     {
@@ -13968,6 +14152,11 @@ final class ZipPackage
             'nameLength' => $nameLength,
             'extraFieldLength' => $extraLength,
             'localHeaderLength' => 30 + $nameLength + $extraLength,
+            'versionNeededToExtract' => $versionNeededToExtract,
+            'generalPurposeFlags' => $flags,
+            'compressionMethod' => $method,
+            'modifiedDosTime' => $modifiedTime,
+            'modifiedDosDate' => $modifiedDate,
         ];
     }
 

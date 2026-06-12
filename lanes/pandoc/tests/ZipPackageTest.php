@@ -10298,6 +10298,121 @@ return [
         $t->same([$documentEntry, $localOnlyEntry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip entry local fixed header provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>selected fixed header provenance</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>fixed header descriptor placeholders</w:comment></w:comments>';
+        $commentsExtra = pack('vva*', 0xcafe, strlen('comments-local'), 'comments-local');
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'modifiedTime' => 0x1234,
+                'modifiedDate' => 0x5678,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'modifiedTime' => 0x2222,
+                'modifiedDate' => 0x4444,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+        ], 1024);
+
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedLocalHeaderFixedFieldEntryCount']);
+        $t->same(0, $summary['selectedLocalHeaderFixedFieldIssueEntryCount']);
+        $t->same([], $summary['selectedLocalHeaderFixedFieldIssueEntries']);
+
+        $documentEntry = $summary['entries'][0];
+        $commentsEntry = $summary['entries'][1];
+        $missingEntry = $summary['entries'][2];
+        $documentFixed = $summary['selectedLocalHeaderFixedFieldEntries'][0];
+        $commentsFixed = $summary['selectedLocalHeaderFixedFieldEntries'][1];
+
+        $t->same('word/document.xml', $documentFixed['name']);
+        $t->same(0, $documentFixed['localFixedHeaderOffset']);
+        $t->same(30, $documentFixed['localFixedHeaderLength']);
+        $t->same(30, $documentFixed['localFixedHeaderEnd']);
+        $t->same(0, $documentFixed['localSignatureOffset']);
+        $t->same(4, $documentFixed['localSignatureLength']);
+        $t->same(4, $documentFixed['localVersionNeededToExtractOffset']);
+        $t->same(6, $documentFixed['localGeneralPurposeFlagsOffset']);
+        $t->same(8, $documentFixed['localCompressionMethodOffset']);
+        $t->same(10, $documentFixed['localModifiedDosTimeOffset']);
+        $t->same(12, $documentFixed['localModifiedDosDateOffset']);
+        $t->same(14, $documentFixed['localCrc32Offset']);
+        $t->same(18, $documentFixed['localCompressedSizeOffset']);
+        $t->same(22, $documentFixed['localUncompressedSizeOffset']);
+        $t->same(26, $documentFixed['localNameLengthOffset']);
+        $t->same(28, $documentFixed['localExtraFieldLengthOffset']);
+        $t->same(20, $documentFixed['centralVersionNeededToExtract']);
+        $t->same(20, $documentFixed['localVersionNeededToExtract']);
+        $t->same(0x0800, $documentFixed['centralGeneralPurposeFlags']);
+        $t->same(0x0800, $documentFixed['localGeneralPurposeFlags']);
+        $t->same(0, $documentFixed['centralCompressionMethod']);
+        $t->same(0, $documentFixed['localCompressionMethod']);
+        $t->same(0x1234, $documentFixed['centralModifiedDosTime']);
+        $t->same(0x1234, $documentFixed['localModifiedDosTime']);
+        $t->same(0x5678, $documentFixed['centralModifiedDosDate']);
+        $t->same(0x5678, $documentFixed['localModifiedDosDate']);
+        $t->same($crc32($documentXml), $documentFixed['centralCrc32']);
+        $t->same(sprintf('%08x', $crc32($documentXml)), $documentFixed['centralCrc32Hex']);
+        $t->same($crc32($documentXml), $documentFixed['localFixedHeaderCrc32']);
+        $t->same(sprintf('%08x', $crc32($documentXml)), $documentFixed['localFixedHeaderCrc32Hex']);
+        $t->same(strlen($documentXml), $documentFixed['centralCompressedSize']);
+        $t->same(strlen($documentXml), $documentFixed['localFixedHeaderCompressedSize']);
+        $t->same(strlen($documentXml), $documentFixed['centralUncompressedSize']);
+        $t->same(strlen($documentXml), $documentFixed['localFixedHeaderUncompressedSize']);
+        $t->same(strlen('word/document.xml'), $documentFixed['localFixedHeaderNameLength']);
+        $t->same(0, $documentFixed['localFixedHeaderExtraFieldLength']);
+        $t->same(null, $documentFixed['localFixedHeaderHasZeroDataDescriptorPlaceholders']);
+        $t->same(true, $documentFixed['localHeaderFixedFieldsMatchCentralDirectory']);
+        $t->same([], $documentFixed['localHeaderFixedFieldIssues']);
+
+        $commentsCompressedSize = strlen(gzdeflate($commentsXml));
+        $t->same('word/comments.xml', $commentsFixed['name']);
+        $t->same($commentsEntry['localHeaderOffset'], $commentsFixed['localFixedHeaderOffset']);
+        $t->same($commentsEntry['localHeaderOffset'] + 30, $commentsFixed['localFixedHeaderEnd']);
+        $t->same($commentsEntry['localHeaderOffset'] + 14, $commentsFixed['localCrc32Offset']);
+        $t->same(8, $commentsFixed['centralCompressionMethod']);
+        $t->same(8, $commentsFixed['localCompressionMethod']);
+        $t->same(0x2222, $commentsFixed['centralModifiedDosTime']);
+        $t->same(0x2222, $commentsFixed['localModifiedDosTime']);
+        $t->same(0x4444, $commentsFixed['centralModifiedDosDate']);
+        $t->same(0x4444, $commentsFixed['localModifiedDosDate']);
+        $t->same($crc32($commentsXml), $commentsFixed['centralCrc32']);
+        $t->same(0, $commentsFixed['localFixedHeaderCrc32']);
+        $t->same('00000000', $commentsFixed['localFixedHeaderCrc32Hex']);
+        $t->same($commentsCompressedSize, $commentsFixed['centralCompressedSize']);
+        $t->same(0, $commentsFixed['localFixedHeaderCompressedSize']);
+        $t->same(strlen($commentsXml), $commentsFixed['centralUncompressedSize']);
+        $t->same(0, $commentsFixed['localFixedHeaderUncompressedSize']);
+        $t->same(strlen('word/comments.xml'), $commentsFixed['localFixedHeaderNameLength']);
+        $t->same(strlen($commentsExtra), $commentsFixed['localFixedHeaderExtraFieldLength']);
+        $t->same(true, $commentsFixed['localFixedHeaderHasZeroDataDescriptorPlaceholders']);
+        $t->same(true, $commentsFixed['localHeaderFixedFieldsMatchCentralDirectory']);
+        $t->same([], $commentsFixed['localHeaderFixedFieldIssues']);
+
+        $t->same($documentFixed['localVersionNeededToExtract'], $documentEntry['localVersionNeededToExtract']);
+        $t->same($documentFixed['localCrc32Offset'], $documentEntry['localCrc32Offset']);
+        $t->same($commentsFixed['localFixedHeaderCompressedSize'], $commentsEntry['localFixedHeaderCompressedSize']);
+        $t->same($commentsFixed['localFixedHeaderHasZeroDataDescriptorPlaceholders'], $commentsEntry['localFixedHeaderHasZeroDataDescriptorPlaceholders']);
+        $t->same(null, $missingEntry['localVersionNeededToExtract']);
+        $t->same(null, $missingEntry['localFixedHeaderOffset']);
+        $t->same([], $missingEntry['localHeaderFixedFieldIssues']);
+        $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip entry data descriptor provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>selected descriptor provenance</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>signed descriptor</w:comment></w:comments>';
