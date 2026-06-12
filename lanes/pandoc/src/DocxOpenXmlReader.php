@@ -2490,6 +2490,9 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'digitalSignatureOriginInventoryPartCount' => (int) ($roleCounts['digital-signature-origin'] ?? 0),
+            'digitalSignatureSignatureInventoryPartCount' => (int) ($roleCounts['digital-signature-signature'] ?? 0),
+            'digitalSignatureRelationshipInventoryPartCount' => (int) ($roleCounts['digital-signature-relationships'] ?? 0),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -3935,7 +3938,12 @@ final class DocxOpenXmlReader
             if ($this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
-            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'root-relationship-target');
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $this->addPartRole($rolesByPart, $targetPart, 'root-relationship-target');
+            if ($relationship['type'] === self::DIGITAL_SIGNATURE_ORIGIN_REL) {
+                $this->addPartRole($rolesByPart, $targetPart, 'digital-signature-origin');
+                $this->addPartRole($rolesByPart, $this->relationshipsPartFor($targetPart), 'digital-signature-relationships');
+            }
         }
         foreach ($documentRelationships as $relationship) {
             if ($this->isExternalRelationshipTarget($relationship)) {
@@ -3956,7 +3964,11 @@ final class DocxOpenXmlReader
                 if ($this->isExternalRelationshipTarget($relationship)) {
                     continue;
                 }
-                $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'relationship-target');
+                $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+                $this->addPartRole($rolesByPart, $targetPart, 'relationship-target');
+                if ($relationship['type'] === self::DIGITAL_SIGNATURE_SIGNATURE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'digital-signature-signature');
+                }
             }
         }
 
