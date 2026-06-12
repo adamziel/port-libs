@@ -105,6 +105,7 @@ final class PdfEngineHandoff
      *     sourcePath?: string,
      *     source?: string,
      *     engineOptions?: list<string>|string,
+     *     engineEnvironment?: array<string, string>,
      *     templatePath?: string,
      *     includeInHeader?: list<string>|string,
      *     resourcePaths?: list<string>|string,
@@ -123,6 +124,7 @@ final class PdfEngineHandoff
      *     outputFile: string,
      *     argv: list<string>,
      *     engineOptions: list<string>,
+     *     engineEnvironment: array<string, string>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
      *     templateFile: string|null,
@@ -166,6 +168,7 @@ final class PdfEngineHandoff
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
             : $this->deriveSourcePath($outputFile, $profile['extension']);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
+        $engineEnvironment = $this->normalizeEngineEnvironment($options['engineEnvironment'] ?? []);
         $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
@@ -200,9 +203,9 @@ final class PdfEngineHandoff
         if ($typstTimingFile !== null && !in_array($typstTimingFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $typstTimingFile;
         }
-        $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
+        $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $typstBoundarySummary = $this->typstBoundarySummaryFor($typstBoundaryProvenance);
-        $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions);
+        $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $sourceMapFile;
@@ -311,6 +314,9 @@ final class PdfEngineHandoff
             }
             if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
+            }
+            if (($typstBoundaryProvenance['environmentVariables'] ?? []) !== []) {
+                $diagnostics[] = 'typst-boundary-environment:' . count($typstBoundaryProvenance['environmentVariables']);
             }
             if (($typstBoundaryProvenance['systemFonts'] ?? []) !== []) {
                 $systemFonts = $typstBoundaryProvenance['systemFonts'];
@@ -499,6 +505,7 @@ final class PdfEngineHandoff
             'outputFile' => $outputFile,
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
+            'engineEnvironment' => $engineEnvironment,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
@@ -734,9 +741,11 @@ final class PdfEngineHandoff
         $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
             ? $plan['engineProgram']
             : $engine;
+        $planEngineOptions = $this->normalizeStringList($plan['engineOptions'] ?? []);
+        $planEngineEnvironment = $this->normalizeEngineEnvironment($plan['engineEnvironment'] ?? []);
         $typstOutputFormatPolicy = is_array($plan['typstOutputFormatPolicy'] ?? null)
             ? $plan['typstOutputFormatPolicy']
-            : $this->typstOutputFormatPolicyFor($engine, $outputFile, $this->normalizeStringList($plan['engineOptions'] ?? []));
+            : $this->typstOutputFormatPolicyFor($engine, $outputFile, $planEngineOptions);
         $engineBoundaryRoot = isset($plan['engineBoundaryRoot']) && is_string($plan['engineBoundaryRoot']) && $plan['engineBoundaryRoot'] !== ''
             ? $this->normalizeRelativeDirectory($plan['engineBoundaryRoot'], 'PDF engine boundary root')
             : null;
@@ -753,7 +762,7 @@ final class PdfEngineHandoff
         $diagnostics[] = 'fake-runner-no-execution';
         $typstBoundaryProvenance = is_array($plan['typstBoundaryProvenance'] ?? null)
             ? $plan['typstBoundaryProvenance']
-            : [];
+            : $this->typstBoundaryProvenanceFor($engine, $engine === 'typst' ? 'typst' : '', $planEngineOptions, $planEngineEnvironment);
         $typstBoundarySummary = is_array($plan['typstBoundarySummary'] ?? null)
             ? $plan['typstBoundarySummary']
             : $this->typstBoundarySummaryFor($typstBoundaryProvenance);
@@ -5559,18 +5568,25 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
-    private function engineBoundaryRootFor(string $engine, string $family, array $engineOptions): ?string
+    private function engineBoundaryRootFor(string $engine, string $family, array $engineOptions, array $engineEnvironment = []): ?string
     {
         if ($engine !== 'typst' || $family !== 'typst') {
             return null;
         }
 
-        $root = $this->engineOptionValue($engineOptions, ['--root']);
-        if ($root === null) {
+        $rootValues = $this->engineOptionValues($engineOptions, ['--root'], true);
+        if ($rootValues === [] && array_key_exists('TYPST_ROOT', $engineEnvironment)) {
+            $rootValues = [$engineEnvironment['TYPST_ROOT']];
+        }
+        if ($rootValues === []) {
+            return null;
+        }
+        $root = $this->typstBoundaryPathEntry($rootValues[count($rootValues) - 1], 'root');
+        if (($root['safe'] ?? false) !== true || !is_string($root['path'] ?? null) || $root['path'] === '') {
             return null;
         }
 
-        return $this->normalizeRelativeDirectory($root, 'Typst root path');
+        return $root['path'];
     }
 
     /**
@@ -5899,6 +5915,42 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<string>
+     */
+    private function typstEnvironmentPathListValues(string $raw): array
+    {
+        if ($raw === '') {
+            return [''];
+        }
+
+        return explode(PATH_SEPARATOR, $raw);
+    }
+
+    /**
+     * @return array{raw:string, value:string, enabled:bool, safe:bool, issues:list<string>}
+     */
+    private function typstEnvironmentFlagEntry(string $raw, string $kind): array
+    {
+        $value = strtolower(trim($raw));
+        $issues = [];
+        $enabled = false;
+
+        if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+            $enabled = true;
+        } elseif (!in_array($value, ['0', 'false', 'no', 'off'], true)) {
+            $issues[] = $kind . '-environment-invalid-boundary';
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'enabled' => $enabled,
+            'safe' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @param list<string> $engineOptions
      * @return list<array{raw:string|null, viewer:string|null, mode:string, safe:bool, issues:list<string>}>
      */
@@ -5999,11 +6051,21 @@ final class PdfEngineHandoff
      * @param list<string> $engineOptions
      * @return array<string, mixed>
      */
-    private function typstBoundaryProvenanceFor(string $engine, string $family, array $engineOptions): array
+    private function typstBoundaryProvenanceFor(string $engine, string $family, array $engineOptions, array $engineEnvironment = []): array
     {
         if ($engine !== 'typst' || $family !== 'typst') {
             return [];
         }
+
+        $environmentVariables = [];
+        $rootEnvironmentVariable = null;
+        $fontPathEnvironmentVariable = null;
+        $packagePathEnvironmentVariable = null;
+        $packageCacheEnvironmentVariable = null;
+        $creationTimestampEnvironmentVariable = null;
+        $featureGateEnvironmentVariable = null;
+        $systemFontEnvironmentFlag = null;
+        $embeddedFontEnvironmentFlag = null;
 
         $rootValues = $this->engineOptionValues($engineOptions, ['--root'], true);
         $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
@@ -6028,18 +6090,64 @@ final class PdfEngineHandoff
         $prettyOutputCount = $this->engineOptionFlagCount($engineOptions, '--pretty');
         $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
         $openOutputCount = count($openOutputEntries);
+
+        if ($rootValues === [] && array_key_exists('TYPST_ROOT', $engineEnvironment)) {
+            $rootValues = [$engineEnvironment['TYPST_ROOT']];
+            $rootEnvironmentVariable = 'TYPST_ROOT';
+            $environmentVariables[] = 'TYPST_ROOT';
+        }
+        if ($fontPathValues === [] && array_key_exists('TYPST_FONT_PATHS', $engineEnvironment)) {
+            $fontPathValues = $this->typstEnvironmentPathListValues($engineEnvironment['TYPST_FONT_PATHS']);
+            $fontPathEnvironmentVariable = 'TYPST_FONT_PATHS';
+            $environmentVariables[] = 'TYPST_FONT_PATHS';
+        }
+        if ($packagePathValues === [] && array_key_exists('TYPST_PACKAGE_PATH', $engineEnvironment)) {
+            $packagePathValues = [$engineEnvironment['TYPST_PACKAGE_PATH']];
+            $packagePathEnvironmentVariable = 'TYPST_PACKAGE_PATH';
+            $environmentVariables[] = 'TYPST_PACKAGE_PATH';
+        }
+        if ($packageCacheValues === [] && array_key_exists('TYPST_PACKAGE_CACHE_PATH', $engineEnvironment)) {
+            $packageCacheValues = [$engineEnvironment['TYPST_PACKAGE_CACHE_PATH']];
+            $packageCacheEnvironmentVariable = 'TYPST_PACKAGE_CACHE_PATH';
+            $environmentVariables[] = 'TYPST_PACKAGE_CACHE_PATH';
+        }
+        if ($creationTimestampValues === [] && array_key_exists('SOURCE_DATE_EPOCH', $engineEnvironment)) {
+            $creationTimestampValues = [$engineEnvironment['SOURCE_DATE_EPOCH']];
+            $creationTimestampEnvironmentVariable = 'SOURCE_DATE_EPOCH';
+            $environmentVariables[] = 'SOURCE_DATE_EPOCH';
+        }
+        if ($featureGateValues === [] && array_key_exists('TYPST_FEATURES', $engineEnvironment)) {
+            $featureGateValues = [$engineEnvironment['TYPST_FEATURES']];
+            $featureGateEnvironmentVariable = 'TYPST_FEATURES';
+            $environmentVariables[] = 'TYPST_FEATURES';
+        }
+        if ($ignoreSystemFontCount === 0 && array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
+            $systemFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_SYSTEM_FONTS'], 'ignore-system-fonts');
+            if ($systemFontEnvironmentFlag['enabled'] === true) {
+                $ignoreSystemFontCount = 1;
+                $environmentVariables[] = 'TYPST_IGNORE_SYSTEM_FONTS';
+            }
+        }
+        if ($ignoreEmbeddedFontCount === 0 && array_key_exists('TYPST_IGNORE_EMBEDDED_FONTS', $engineEnvironment)) {
+            $embeddedFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_EMBEDDED_FONTS'], 'ignore-embedded-fonts');
+            if ($embeddedFontEnvironmentFlag['enabled'] === true) {
+                $ignoreEmbeddedFontCount = 1;
+                $environmentVariables[] = 'TYPST_IGNORE_EMBEDDED_FONTS';
+            }
+        }
+
         if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
         $issues = [];
         $rootHistory = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'root'),
+            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'root', $rootEnvironmentVariable),
             $rootValues
         );
         $root = $rootHistory === [] ? null : $rootHistory[count($rootHistory) - 1];
         $fontPaths = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'font-path'),
+            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'font-path', $fontPathEnvironmentVariable),
             $fontPathValues
         );
         $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
@@ -6049,12 +6157,12 @@ final class PdfEngineHandoff
         );
         $certificatePolicy = $this->typstCertificatePolicy($certificates);
         $packagePathHistory = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-path'),
+            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'package-path', $packagePathEnvironmentVariable),
             $packagePathValues
         );
         $packagePath = $packagePathHistory === [] ? null : $packagePathHistory[count($packagePathHistory) - 1];
         $packageCacheHistory = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-cache'),
+            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'package-cache', $packageCacheEnvironmentVariable),
             $packageCacheValues
         );
         $packageCache = $packageCacheHistory === [] ? null : $packageCacheHistory[count($packageCacheHistory) - 1];
@@ -6064,7 +6172,7 @@ final class PdfEngineHandoff
             $inputVariableValues
         );
         $creationTimestampHistory = array_map(
-            fn (string $value): array => $this->typstCreationTimestampEntry($value),
+            fn (string $value): array => $this->typstCreationTimestampEntryFromSource($value, $creationTimestampEnvironmentVariable),
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
@@ -6084,7 +6192,7 @@ final class PdfEngineHandoff
         );
         $pdfStandard = $pdfStandardHistory === [] ? null : $pdfStandardHistory[count($pdfStandardHistory) - 1];
         $featureGateHistory = array_map(
-            fn (string $value): array => $this->typstFeatureGateEntry($value),
+            fn (string $value): array => $this->typstFeatureGateEntryFromSource($value, $featureGateEnvironmentVariable),
             $featureGateValues
         );
         $featureGates = $featureGateHistory === [] ? null : $featureGateHistory[count($featureGateHistory) - 1];
@@ -6178,6 +6286,9 @@ final class PdfEngineHandoff
             'inputVariables' => $inputVariables,
             'issues' => $issues,
         ];
+        if ($environmentVariables !== []) {
+            $provenance['environmentVariables'] = array_values(array_unique($environmentVariables));
+        }
         if ($certificates !== []) {
             $provenance['certificates'] = $certificates;
         }
@@ -6256,6 +6367,10 @@ final class PdfEngineHandoff
                 'fontPathCount' => count($fontPaths),
                 'issues' => [],
             ];
+            if ($systemFontEnvironmentFlag !== null && $systemFontEnvironmentFlag['enabled'] === true) {
+                $provenance['systemFonts']['environmentVariable'] = 'TYPST_IGNORE_SYSTEM_FONTS';
+                $provenance['systemFonts']['environmentValue'] = $systemFontEnvironmentFlag['raw'];
+            }
         }
         if ($ignoreEmbeddedFontCount > 0) {
             $provenance['embeddedFonts'] = [
@@ -6264,6 +6379,10 @@ final class PdfEngineHandoff
                 'flagCount' => $ignoreEmbeddedFontCount,
                 'issues' => [],
             ];
+            if ($embeddedFontEnvironmentFlag !== null && $embeddedFontEnvironmentFlag['enabled'] === true) {
+                $provenance['embeddedFonts']['environmentVariable'] = 'TYPST_IGNORE_EMBEDDED_FONTS';
+                $provenance['embeddedFonts']['environmentValue'] = $embeddedFontEnvironmentFlag['raw'];
+            }
         }
         if ($openOutputCount > 0) {
             $openOutputViewers = array_values(array_filter(
@@ -6829,6 +6948,17 @@ final class PdfEngineHandoff
         }
     }
 
+    private function typstBoundaryPathEntryFromSource(string $raw, string $kind, ?string $environmentVariable): array
+    {
+        $entry = $this->typstBoundaryPathEntry($raw, $kind);
+        if ($environmentVariable !== null) {
+            $entry['source'] = 'environment';
+            $entry['environmentVariable'] = $environmentVariable;
+        }
+
+        return $entry;
+    }
+
     /**
      * @return array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}
      */
@@ -6996,6 +7126,17 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    private function typstFeatureGateEntryFromSource(string $raw, ?string $environmentVariable): array
+    {
+        $entry = $this->typstFeatureGateEntry($raw);
+        if ($environmentVariable !== null) {
+            $entry['source'] = 'environment';
+            $entry['environmentVariable'] = $environmentVariable;
+        }
+
+        return $entry;
     }
 
     /**
@@ -7221,6 +7362,17 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => $issues,
         ];
+    }
+
+    private function typstCreationTimestampEntryFromSource(string $raw, ?string $environmentVariable): array
+    {
+        $entry = $this->typstCreationTimestampEntry($raw);
+        if ($environmentVariable !== null) {
+            $entry['source'] = 'environment';
+            $entry['environmentVariable'] = $environmentVariable;
+        }
+
+        return $entry;
     }
 
     /**
@@ -29424,6 +29576,37 @@ final class PdfEngineHandoff
         }
 
         return $strings;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizeEngineEnvironment(mixed $value): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+        if (!is_array($value) || array_is_list($value)) {
+            throw new \InvalidArgumentException('PDF engine environment must be a keyed string array');
+        }
+
+        $environment = [];
+        foreach ($value as $name => $item) {
+            if (!is_string($name) || preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', $name) !== 1) {
+                throw new \InvalidArgumentException('PDF engine environment variable names must be strings');
+            }
+            if (!is_string($item)) {
+                throw new \InvalidArgumentException('PDF engine environment variable ' . $name . ' must be a string');
+            }
+            if (str_contains($name, "\0") || str_contains($item, "\0")) {
+                throw new \InvalidArgumentException('PDF engine environment variable ' . $name . ' must not contain NUL bytes');
+            }
+
+            $environment[$name] = $item;
+        }
+        ksort($environment);
+
+        return $environment;
     }
 
     /**
