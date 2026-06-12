@@ -645,6 +645,7 @@ XML;
         $header = $docx['headers']['byRelationshipId']['rHeaderDefault'];
         $footer = $docx['footers']['byRelationshipId']['rFooterFirst'];
         $headerImage = $docx['packageProvenance']['relationshipParts']['word/_rels/header1.xml.rels']['relationships']['rHeaderImage'];
+        $inventory = $docx['packageProvenance']['parts'];
 
         $t->same(1, $docx['headers']['count']);
         $t->same(1, $docx['headers']['existingCount']);
@@ -669,6 +670,7 @@ XML;
         $t->same('hdr', $header['relationship']['targetFragment']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $header['relationship']['contentType']);
         $t->same('override', $header['relationship']['contentTypeSource']);
+        $t->true(in_array('header-part', $inventory['word/header1.xml']['roles'], true), 'header inventory role missing');
         $t->same('word/media/header-logo.png', $headerImage['targetPart']);
         $t->same(true, $headerImage['exists']);
 
@@ -686,6 +688,98 @@ XML;
         $t->same('word/footer1.xml', $footer['relationship']['targetPart']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml', $footer['relationship']['contentType']);
         $t->same('override', $footer['relationship']['contentTypeSource']);
+        $t->true(in_array('footer-part', $inventory['word/footer1.xml']['roles'], true), 'footer inventory role missing');
+    },
+    'preserves docx header and footer reference issue provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/footers/missing.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="https://example.test/header.xml?slot=even#hdr" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rFooterMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footers/missing.xml?slot=first#ftr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="even" r:id="rHeaderExternal"/>' . "\n" .
+            '      <w:headerReference w:type="first" r:id="rMissingHeader"/>' . "\n" .
+            '      <w:headerReference r:id="rImage"/>' . "\n" .
+            '      <w:footerReference w:type="first" r:id="rFooterMissing"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $headers = $docx['headers'];
+        $footers = $docx['footers'];
+        $summary = $docx['packageProvenance']['summary'];
+        $headerExternal = $headers['byRelationshipId']['rHeaderExternal'];
+        $headerMissing = $headers['byRelationshipId']['rMissingHeader'];
+        $headerWrongType = $headers['byRelationshipId']['rImage'];
+        $footerMissing = $footers['byRelationshipId']['rFooterMissing'];
+
+        $t->same(3, $headers['count']);
+        $t->same(0, $headers['existingCount']);
+        $t->same(0, $headers['missingCount']);
+        $t->same(1, $headers['externalCount']);
+        $t->same(3, $headers['referencedCount']);
+        $t->same(1, $headers['unresolvedCount']);
+        $t->same(1, $headers['unexpectedRelationshipTypeCount']);
+        $t->same(3, $headers['issueCount']);
+        $t->same(['rHeaderExternal', 'rMissingHeader', 'rImage'], $headers['relationshipIds']);
+        $t->same(['external-header', 'unexpected-relationship-type', 'unknown-relationship'], $headers['issueCodes']);
+        $t->same(['https://example.test/header.xml?slot=even#hdr'], $headers['externalTargets']);
+
+        $t->same('header', $headerExternal['sourceType']);
+        $t->same(['even'], $headerExternal['referenceTypes']);
+        $t->same(true, $headerExternal['external']);
+        $t->same(null, $headerExternal['partName']);
+        $t->same('slot=even', $headerExternal['targetQuery']);
+        $t->same('hdr', $headerExternal['targetFragment']);
+        $t->same('?slot=even#hdr', $headerExternal['targetReferenceSuffix']);
+        $t->same(['external-header'], $headerExternal['issues']);
+
+        $t->same(['first'], $headerMissing['referenceTypes']);
+        $t->same(null, $headerMissing['relationship']);
+        $t->same(['unknown-relationship'], $headerMissing['issues']);
+
+        $t->same(['default'], $headerWrongType['referenceTypes']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $headerWrongType['relationshipType']);
+        $t->same('word/media/review.png', $headerWrongType['partName']);
+        $t->same(true, $headerWrongType['exists']);
+        $t->same(['unexpected-relationship-type'], $headerWrongType['issues']);
+
+        $t->same(1, $footers['count']);
+        $t->same(0, $footers['existingCount']);
+        $t->same(1, $footers['missingCount']);
+        $t->same(0, $footers['externalCount']);
+        $t->same(1, $footers['referencedCount']);
+        $t->same(0, $footers['unresolvedCount']);
+        $t->same(1, $footers['issueCount']);
+        $t->same(['missing-in-package'], $footers['issueCodes']);
+        $t->same('word/footers/missing.xml', $footerMissing['partName']);
+        $t->same('slot=first', $footerMissing['targetQuery']);
+        $t->same('ftr', $footerMissing['targetFragment']);
+        $t->same('override', $footerMissing['relationship']['contentTypeSource']);
+        $t->same(['missing-in-package'], $footerMissing['issues']);
+
+        $t->same(3, $summary['headerPartCount']);
+        $t->same(1, $summary['headerExternalTargetCount']);
+        $t->same(1, $summary['headerUnresolvedReferenceCount']);
+        $t->same(3, $summary['headerIssueCount']);
+        $t->same(['external-header', 'unexpected-relationship-type', 'unknown-relationship'], $summary['headerIssueCodes']);
+        $t->same(1, $summary['footerPartCount']);
+        $t->same(1, $summary['footerMissingPartCount']);
+        $t->same(1, $summary['footerIssueCount']);
     },
     'flags docx relationship sidecars whose source part is missing' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

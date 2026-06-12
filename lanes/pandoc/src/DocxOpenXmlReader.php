@@ -264,6 +264,20 @@ final class DocxOpenXmlReader
             $numbering,
             $referencedNotes,
         );
+        $packageProvenance['summary']['headerPartCount'] = $headers['count'];
+        $packageProvenance['summary']['headerExistingPartCount'] = $headers['existingCount'];
+        $packageProvenance['summary']['headerMissingPartCount'] = $headers['missingCount'];
+        $packageProvenance['summary']['headerExternalTargetCount'] = $headers['externalCount'];
+        $packageProvenance['summary']['headerUnresolvedReferenceCount'] = $headers['unresolvedCount'];
+        $packageProvenance['summary']['headerIssueCount'] = $headers['issueCount'];
+        $packageProvenance['summary']['headerIssueCodes'] = $headers['issueCodes'];
+        $packageProvenance['summary']['footerPartCount'] = $footers['count'];
+        $packageProvenance['summary']['footerExistingPartCount'] = $footers['existingCount'];
+        $packageProvenance['summary']['footerMissingPartCount'] = $footers['missingCount'];
+        $packageProvenance['summary']['footerExternalTargetCount'] = $footers['externalCount'];
+        $packageProvenance['summary']['footerUnresolvedReferenceCount'] = $footers['unresolvedCount'];
+        $packageProvenance['summary']['footerIssueCount'] = $footers['issueCount'];
+        $packageProvenance['summary']['footerIssueCodes'] = $footers['issueCodes'];
         $alternativeFormats = $this->readAlternativeFormatImports(
             $parts,
             $parts[$documentPart],
@@ -962,7 +976,7 @@ final class DocxOpenXmlReader
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
      * @param array<string, array<string, AstNode>> $referencedNotes
-     * @return array{count:int, existingCount:int, missingCount:int, referencedCount:int, relationshipIds:list<string>, partNames:list<string>, byRelationshipId:array<string, array<string, mixed>>, items:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private function readHeaderFooterParts(
         array $parts,
@@ -979,64 +993,224 @@ final class DocxOpenXmlReader
     ): array {
         $items = [];
         $byRelationshipId = [];
-        $existingCount = 0;
-        $missingCount = 0;
-        $referencedCount = 0;
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
+        $handledRelationshipIds = [];
 
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== $relationshipType || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== $relationshipType) {
                 continue;
             }
 
             $relationshipId = $relationship['id'];
-            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
-            $exists = isset($parts[$partName]);
-            $partRelationshipsPart = $this->relationshipsPartFor($partName);
-            $partRelationships = $this->readRelationshipsPart($parts, $partRelationshipsPart);
-            $part = $exists
-                ? $this->readHeaderFooterPart($parts[$partName], $partName, $rootName, $partRelationships, $contentTypes, $styles, $numbering, $referencedNotes)
-                : ['validRoot' => false, 'rootName' => null, 'blocks' => []];
-            $referenceTypes = $referencesByRelationshipId[$relationshipId] ?? [];
+            $item = $this->headerFooterPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $relationshipType,
+                $sourceType,
+                $rootName,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes,
+                $relationshipId,
+                count($items),
+                $referencesByRelationshipId[$relationshipId] ?? [],
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+            $handledRelationshipIds[$relationshipId] = true;
+        }
 
-            if ($exists) {
-                ++$existingCount;
-            } else {
-                ++$missingCount;
-            }
-            if ($referenceTypes !== []) {
-                ++$referencedCount;
+        foreach ($referencesByRelationshipId as $relationshipId => $referenceTypes) {
+            if (isset($handledRelationshipIds[$relationshipId])) {
+                continue;
             }
 
-            $item = [
-                'relationshipId' => $relationshipId,
-                'sourceType' => $sourceType,
-                'partName' => $partName,
-                'exists' => $exists,
-                'referenced' => $referenceTypes !== [],
-                'referenceTypes' => $referenceTypes,
-                'validRoot' => $part['validRoot'],
-                'rootName' => $part['rootName'],
-                'relationshipsPart' => $partRelationshipsPart,
-                'relationshipCount' => count($partRelationships),
-                'blockCount' => count($part['blocks']),
-                'text' => $this->plainBlockText($part['blocks']),
-                'relationship' => $this->relationshipSummary($relationship, $documentPart, $relationshipsPart, $partName, $exists, $contentTypes),
-            ];
+            $item = $this->headerFooterPartItem(
+                $parts,
+                $relationships[$relationshipId] ?? null,
+                $documentPart,
+                $relationshipsPart,
+                $relationshipType,
+                $sourceType,
+                $rootName,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes,
+                $relationshipId,
+                count($items),
+                $referenceTypes,
+            );
             $items[] = $item;
             $byRelationshipId[$relationshipId] = $item;
         }
 
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $this->appendUniqueString($relationshipIds, is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : null);
+            if (($item['referenced'] ?? false) === true) {
+                $this->appendUniqueString($referencedRelationshipIds, is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : null);
+            }
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
         return [
             'count' => count($items),
-            'existingCount' => $existingCount,
-            'missingCount' => $missingCount,
-            'referencedCount' => $referencedCount,
-            'relationshipIds' => array_column($items, 'relationshipId'),
-            'partNames' => array_column($items, 'partName'),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true && $item['relationshipType'] === $relationshipType)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @param list<string> $referenceTypes
+     * @return array<string, mixed>
+     */
+    private function headerFooterPartItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        string $expectedRelationshipType,
+        string $sourceType,
+        string $rootName,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes,
+        string $relationshipId,
+        int $index,
+        array $referenceTypes,
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'sourceType' => $sourceType,
+            'referenced' => $referenceTypes !== [],
+            'referenceTypes' => $referenceTypes,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'validRoot' => false,
+            'rootName' => null,
+            'relationshipsPart' => null,
+            'relationshipCount' => 0,
+            'blockCount' => 0,
+            'text' => '',
+            'relationship' => null,
+            'reviewPolicy' => 'header-footer-metadata-only',
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $partRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $partRelationships = $partRelationshipsPart === null || (bool) $summary['external']
+            ? []
+            : $this->readRelationshipsPart($parts, $partRelationshipsPart);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['relationshipsPart'] = $partRelationshipsPart;
+        $item['relationshipCount'] = count($partRelationships);
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== $expectedRelationshipType) {
+            $item['issues'][] = 'unexpected-relationship-type';
+
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-' . $sourceType;
+
+            return $item;
+        }
+
+        if (!$exists || $targetPart === null) {
+            $item['issues'][] = 'missing-in-package';
+
+            return $item;
+        }
+
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-content-type';
+        }
+
+        $part = $this->readHeaderFooterPart($parts[$targetPart], $targetPart, $rootName, $partRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
+        $item['validRoot'] = $part['validRoot'];
+        $item['rootName'] = $part['rootName'];
+        $item['blockCount'] = count($part['blocks']);
+        $item['text'] = $this->plainBlockText($part['blocks']);
+
+        return $item;
     }
 
     /**
@@ -5555,6 +5729,8 @@ final class DocxOpenXmlReader
         return match ($relationshipType) {
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
+            self::HEADER_REL => 'header-part',
+            self::FOOTER_REL => 'footer-part',
             self::ACTIVEX_CONTROL_REL => 'activex-control',
             self::ACTIVEX_BINARY_REL => 'activex-binary',
             self::VBA_PROJECT_REL => 'vba-project',
