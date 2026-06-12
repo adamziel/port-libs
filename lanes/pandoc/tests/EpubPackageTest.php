@@ -2975,6 +2975,77 @@ XML;
         $t->same(['missing-manifest-fallback-for-non-core-media-type'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
     },
 
+    'reports OPF manifest fallback chains whose terminal package part is missing' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithMissingFallbackPart = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:missing-fallback-part-review</dc:identifier>
+    <dc:title>Missing fallback package part</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T02:01:23Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="review-widget" href="widgets/review.bin" media-type="application/x-review-widget" fallback="missing-fallback"/>
+    <item id="missing-fallback" href="text/missing-fallback.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMissingFallbackPart],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/widgets/review.bin', 'data' => 'REVIEW'],
+        ]));
+        $fallbacks = $epub->manifestFallbacks();
+        $reviewWidget = $fallbacks['itemsById']['review-widget'];
+        $fallbackChainItem = $reviewWidget['fallbackChain'][0];
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+
+        $t->same(true, $fallbacks['present']);
+        $t->same(1, $fallbacks['itemCount']);
+        $t->same(1, $fallbacks['fallbackCount']);
+        $t->same(1, $fallbacks['resolvedFallbackCount']);
+        $t->same(0, $fallbacks['usableFallbackCount']);
+        $t->same(1, $fallbacks['fallbackDiagnosticCount']);
+        $t->same(['missing-manifest-fallback-package-part'], array_column($fallbacks['diagnostics'], 'type'));
+
+        $t->same('missing-fallback', $reviewWidget['fallbackId']);
+        $t->same(true, $reviewWidget['fallbackResolved']);
+        $t->same(false, $reviewWidget['fallbackUsable']);
+        $t->same('missing-fallback', $reviewWidget['fallbackTerminalId']);
+        $t->same('/EPUB/text/missing-fallback.xhtml', $reviewWidget['fallbackTerminalPartName']);
+        $t->same('application/xhtml+xml', $reviewWidget['fallbackTerminalMediaType']);
+        $t->same(true, $reviewWidget['fallbackTerminalCoreMediaType']);
+        $t->same(true, $reviewWidget['fallbackTerminalEpubContentDocument']);
+        $t->same(false, $fallbackChainItem['exists']);
+        $t->same(false, $fallbackChainItem['canExposeBytes']);
+        $t->same('missing-manifest-fallback-package-part', $reviewWidget['fallbackDiagnostics'][0]['type']);
+        $t->same('/EPUB/text/missing-fallback.xhtml', $reviewWidget['fallbackDiagnostics'][0]['terminalPartName']);
+
+        $t->same(false, $validation['valid']);
+        $t->same(['missing-manifest-href-target'], array_column($validation['manifest']['diagnostics'], 'type'));
+        $t->same('missing-fallback', $validation['manifest']['missingItems'][0]['id']);
+        $t->same($fallbacks, $summary['wordpressImport']['manifestFallbacks']);
+        $t->same($fallbacks['diagnostics'], $summary['wordpressImport']['manifestFallbackDiagnostics']);
+    },
+
     'summarizes OPF manifest resource properties for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithResourceProperties = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

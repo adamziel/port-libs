@@ -7266,20 +7266,29 @@ final class EpubPackage
                 'cyclic' => 'cyclic-manifest-fallback-style-chain',
                 'missing' => 'missing-manifest-fallback-style-item',
                 'unsupported' => 'non-css-manifest-fallback-style',
+                'missingPart' => 'missing-manifest-fallback-style-package-part',
+                'unreadablePart' => 'unreadable-manifest-fallback-style-package-part',
                 'key' => 'fallbackStyle',
                 'cycleMessage' => 'EPUB OPF manifest fallback-style chain cycles before reaching a CSS resource',
                 'missingMessage' => 'EPUB OPF manifest fallback-style references an item id that is not in the OPF manifest',
                 'unsupportedMessage' => 'EPUB OPF manifest fallback-style chain terminates at a non-CSS resource',
+                'missingPartMessage' => 'EPUB OPF manifest fallback-style chain terminates at a package part that is not present in the ZIP',
+                'unreadablePartMessage' => 'EPUB OPF manifest fallback-style chain terminates at a package part whose bytes cannot be exposed',
             ]
             : [
                 'cyclic' => 'cyclic-manifest-fallback-chain',
                 'missing' => 'missing-manifest-fallback-item',
                 'unsupported' => 'unsupported-manifest-fallback-terminal',
+                'missingPart' => 'missing-manifest-fallback-package-part',
+                'unreadablePart' => 'unreadable-manifest-fallback-package-part',
                 'key' => 'fallback',
                 'cycleMessage' => 'EPUB OPF manifest fallback chain cycles before reaching a core media type',
                 'missingMessage' => 'EPUB OPF manifest fallback references an item id that is not in the OPF manifest',
                 'unsupportedMessage' => 'EPUB OPF manifest fallback chain terminates at another non-core media type',
+                'missingPartMessage' => 'EPUB OPF manifest fallback chain terminates at a package part that is not present in the ZIP',
+                'unreadablePartMessage' => 'EPUB OPF manifest fallback chain terminates at a package part whose bytes cannot be exposed',
             ];
+        $chainBroken = false;
 
         while ($next !== null) {
             if (isset($visited[$next])) {
@@ -7290,6 +7299,7 @@ final class EpubPackage
                     'chainIds' => array_map(static fn (array $chainItem): string => (string) $chainItem['id'], $chain),
                     'message' => $diagnosticNames['cycleMessage'],
                 ];
+                $chainBroken = true;
                 break;
             }
 
@@ -7301,6 +7311,7 @@ final class EpubPackage
                     $diagnosticNames['key'] => $next,
                     'message' => $diagnosticNames['missingMessage'],
                 ];
+                $chainBroken = true;
                 break;
             }
 
@@ -7327,6 +7338,7 @@ final class EpubPackage
                     'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
                     'message' => $diagnosticNames['unsupportedMessage'],
                 ];
+                $chainBroken = true;
             } elseif (!$isStyle && ($terminal['coreMediaType'] ?? false) !== true) {
                 $diagnostics[] = [
                     'type' => $diagnosticNames['unsupported'],
@@ -7336,13 +7348,42 @@ final class EpubPackage
                     'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
                     'message' => $diagnosticNames['unsupportedMessage'],
                 ];
+                $chainBroken = true;
+            }
+
+            if (($terminal['exists'] ?? false) !== true) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['missingPart'],
+                    'id' => (string) ($item['id'] ?? ''),
+                    $diagnosticNames['key'] => $fallbackId,
+                    'terminalId' => (string) ($terminal['id'] ?? ''),
+                    'terminalPartName' => (string) ($terminal['partName'] ?? ''),
+                    'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
+                    'message' => $diagnosticNames['missingPartMessage'],
+                ];
+            } elseif (($terminal['canExposeBytes'] ?? false) !== true) {
+                $diagnostics[] = [
+                    'type' => $diagnosticNames['unreadablePart'],
+                    'id' => (string) ($item['id'] ?? ''),
+                    $diagnosticNames['key'] => $fallbackId,
+                    'terminalId' => (string) ($terminal['id'] ?? ''),
+                    'terminalPartName' => (string) ($terminal['partName'] ?? ''),
+                    'terminalMediaType' => (string) ($terminal['mediaType'] ?? ''),
+                    'compressionMethod' => $terminal['compressionMethod'] ?? null,
+                    'compressionMethodName' => $terminal['compressionMethodName'] ?? null,
+                    'message' => $diagnosticNames['unreadablePartMessage'],
+                ];
             }
         }
+        $terminalUsable = is_array($terminal)
+            && ($terminal['exists'] ?? false) === true
+            && ($terminal['canExposeBytes'] ?? false) === true;
+        $resolved = !$chainBroken && $chain !== [];
 
         return [
             'id' => $fallbackId,
-            'resolved' => $diagnostics === [] && $chain !== [],
-            'usable' => $diagnostics === [] && $chain !== [],
+            'resolved' => $resolved,
+            'usable' => $resolved && $terminalUsable && $diagnostics === [],
             'chain' => $chain,
             'terminalId' => is_array($terminal) ? (string) $terminal['id'] : null,
             'terminalPartName' => is_array($terminal) ? (string) $terminal['partName'] : null,
