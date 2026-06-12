@@ -4568,6 +4568,54 @@ XML;
         $t->same('Legacy chapter', $missingTocEpub->navigation()['entries'][0]['label']);
     },
 
+    'preserves EPUB container rootfile full-path suffix provenance for package review' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithRootfileSuffix = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf?profile=compact#primary" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithRootfileSuffix],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $declaredRootfiles = $epub->rootfiles();
+        $validation = $epub->validationReport();
+        $rootfiles = $validation['rootfiles'];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/package.opf', $epub->opfPartName());
+        $t->same('EPUB/package.opf?profile=compact#primary', $declaredRootfiles[0]['fullPath']);
+        $t->same('/EPUB/package.opf?profile=compact#primary', $declaredRootfiles[0]['target']);
+        $t->same('/EPUB/package.opf', $declaredRootfiles[0]['partName']);
+        $t->same(true, $declaredRootfiles[0]['fullPathHasQuery']);
+        $t->same('profile=compact', $declaredRootfiles[0]['fullPathQuery']);
+        $t->same(true, $declaredRootfiles[0]['fullPathHasFragment']);
+        $t->same('primary', $declaredRootfiles[0]['fullPathFragment']);
+        $t->same(false, $validation['valid']);
+        $t->same(2, $validation['diagnosticCount']);
+        $t->same(['rootfile-full-path-query-component', 'rootfile-full-path-fragment-component'], array_column($validation['diagnostics'], 'type'));
+        $t->same(1, $rootfiles['fullPathSuffixCount']);
+        $t->same('profile=compact', $rootfiles['fullPathSuffixItems'][0]['query']);
+        $t->same('primary', $rootfiles['fullPathSuffixItems'][0]['fragment']);
+        $t->same('/EPUB/package.opf', $rootfiles['items'][0]['partName']);
+        $t->same('/EPUB/package.opf?profile=compact#primary', $rootfiles['items'][0]['target']);
+        $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);
+        $t->same(true, $rootfiles['items'][0]['exists']);
+        $t->same($rootfiles['items'][0], $rootfiles['selectedRootfile']);
+        $t->same($declaredRootfiles, $summary['rootfiles']);
+        $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'preserves EPUB container rootfile ZIP provenance for package handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
         $containerWithRootfileProvenance = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
