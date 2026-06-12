@@ -10267,9 +10267,9 @@ XML;
         $manifestWithReorderedEntries = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
   <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>
-  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml" manifest:version="1.2"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:version="1.1" manifest:preferred-view-mode="thumbnail"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:version="1.2" manifest:preferred-view-mode="page-preview"/>
   <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
 </manifest:manifest>
@@ -10289,6 +10289,8 @@ XML;
         $t->same([0, 1, 2, 3, 4, 5], array_column($result['manifest'], 'manifestIndex'));
         $t->same(['/', 'styles.xml', 'Pictures/hero.png', 'content.xml', 'Pictures/missing.png', 'meta.xml'], array_column($manifestOrder, 'fullPath'));
         $t->same([0, 1, 2, 3, 4, 5], array_column($manifestOrder, 'manifestIndex'));
+        $t->same(['1.3', '1.2', '1.1', '1.2', null, null], array_column($manifestOrder, 'version'));
+        $t->same(['edit', null, 'thumbnail', 'page-preview', null, null], array_column($manifestOrder, 'preferredViewMode'));
 
         $t->same(1, $manifestByPath['styles.xml']['manifestIndex']);
         $t->same(2, $manifestByPath['Pictures/hero.png']['manifestIndex']);
@@ -10300,6 +10302,10 @@ XML;
         $t->same(1, $inventory['styles.xml']['manifestIndex']);
         $t->same(2, $inventory['Pictures/hero.png']['manifestIndex']);
         $t->same(5, $inventory['meta.xml']['manifestIndex']);
+        $t->same('1.2', $inventory['content.xml']['manifestVersion']);
+        $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
+        $t->same('thumbnail', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
         $t->same(false, $manifestOrder[4]['exists']);
         $t->same(false, $manifestOrder[4]['canExposeBytes']);
         $t->same(['Pictures/missing.png'], array_column($result['importReport']['manifest']['missingItems'], 'part'));

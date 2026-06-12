@@ -768,6 +768,8 @@ final class OdfReader
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'mediaType' => $item['mediaType'] ?? null,
+                'version' => $item['version'] ?? null,
+                'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -852,6 +854,8 @@ final class OdfReader
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
+                'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
+                'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestItem) ? $manifestItem['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
