@@ -33,6 +33,7 @@ final class DocxOpenXmlReader
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+    private const FONT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     private const GLOSSARY_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
@@ -64,6 +65,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
+    private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedfont';
     private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
     private const CT_WORD_GLOSSARY_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
@@ -174,7 +176,7 @@ final class DocxOpenXmlReader
         $webSettingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::WEB_SETTINGS_REL, 'webSettings.xml');
         $webSettings = $this->readWebSettings($webSettingsPart['xml'], $webSettingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
-        $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
+        $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName'], $parts, $contentTypes);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
         $glossaryDocumentPart = $this->relatedDocumentPart(
@@ -340,6 +342,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['summary']['fontTableEmbeddedFontCount'] = (int) ($fontTable['embeddedFontRelationshipCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontExistingCount'] = (int) ($fontTable['embeddedFontExistingCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontMissingCount'] = (int) ($fontTable['embeddedFontMissingCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
         $packageProvenance['activeXControls'] = $activeXControls;
         $packageProvenance['summary']['activeXControlCount'] = $activeXControls['count'];
         $packageProvenance['summary']['activeXControlRelationshipCount'] = $activeXControls['relationshipCount'];
@@ -5545,6 +5553,8 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::FONT_TABLE_REL => 'font-table',
+            self::FONT_REL => 'embedded-font',
             self::ACTIVEX_CONTROL_REL => 'activex-control',
             self::ACTIVEX_BINARY_REL => 'activex-binary',
             self::VBA_PROJECT_REL => 'vba-project',
@@ -6234,7 +6244,7 @@ final class DocxOpenXmlReader
     /**
      * @return array<string, mixed>
      */
-    private function readFontTable(string $xml, string $partName): array
+    private function readFontTable(string $xml, string $partName, array $parts, array $contentTypes): array
     {
         if ($xml === '') {
             return [];
@@ -6242,8 +6252,16 @@ final class DocxOpenXmlReader
 
         $dom = $this->loadXml($xml, $partName);
         $xpath = $this->xpath($dom);
+        $relationshipsPart = $this->relationshipsPartFor($partName);
+        $relationships = $this->readRelationshipsPart($parts, $relationshipsPart);
         $fonts = [];
         $byName = [];
+        $embeddedFontRelationshipCount = 0;
+        $embeddedFontExistingCount = 0;
+        $embeddedFontMissingCount = 0;
+        $embeddedFontExternalCount = 0;
+        $embeddedFontIssueCount = 0;
+        $embeddedFontIssueCodes = [];
         foreach ($this->elements($xpath, '/w:fonts/w:font') as $font) {
             $name = $font->getAttributeNS(self::NS_W, 'name');
             if ($name === '') {
@@ -6258,17 +6276,205 @@ final class DocxOpenXmlReader
                 'pitch' => $this->childAttr($font, 'pitch', 'val') ?: null,
                 'panose1' => $this->childAttr($font, 'panose1', 'val') ?: null,
             ], static fn (mixed $value): bool => $value !== null && $value !== '');
+            $embeddedFonts = $this->fontTableEmbeddedFonts($font, $parts, $relationships, $partName, $relationshipsPart, $contentTypes);
+            $record['embeddedFontCount'] = count($embeddedFonts);
+            $record['embeddedFonts'] = $embeddedFonts;
+            $embeddedFontRelationshipCount += count($embeddedFonts);
+            foreach ($embeddedFonts as $embeddedFont) {
+                if (($embeddedFont['external'] ?? false) === true) {
+                    ++$embeddedFontExternalCount;
+                }
+                if (($embeddedFont['external'] ?? false) === false && ($embeddedFont['exists'] ?? false) === true) {
+                    ++$embeddedFontExistingCount;
+                }
+                if (in_array('missing-in-package', $embeddedFont['issues'], true)) {
+                    ++$embeddedFontMissingCount;
+                }
+                if ($embeddedFont['issues'] !== []) {
+                    ++$embeddedFontIssueCount;
+                }
+                foreach ($embeddedFont['issues'] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $embeddedFontIssueCodes[$issue] = true;
+                    }
+                }
+            }
 
             $fonts[] = $record;
             $byName[$name] = $record;
         }
+        ksort($embeddedFontIssueCodes, SORT_STRING);
 
         return [
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($relationships),
             'fontCount' => count($fonts),
+            'embeddedFontRelationshipCount' => $embeddedFontRelationshipCount,
+            'embeddedFontExistingCount' => $embeddedFontExistingCount,
+            'embeddedFontMissingCount' => $embeddedFontMissingCount,
+            'embeddedFontExternalCount' => $embeddedFontExternalCount,
+            'embeddedFontIssueCount' => $embeddedFontIssueCount,
+            'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
             'declaredNames' => array_column($fonts, 'name'),
             'fonts' => $fonts,
             'byName' => $byName,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return list<array<string, mixed>>
+     */
+    private function fontTableEmbeddedFonts(
+        \DOMElement $font,
+        array $parts,
+        array $relationships,
+        string $fontTablePart,
+        string $relationshipsPart,
+        array $contentTypes
+    ): array {
+        $embeddedFonts = [];
+        foreach ([
+            'embedRegular' => 'regular',
+            'embedBold' => 'bold',
+            'embedItalic' => 'italic',
+            'embedBoldItalic' => 'bold-italic',
+        ] as $localName => $style) {
+            $embedded = $this->childElement($font, $localName);
+            if (!$embedded instanceof \DOMElement) {
+                continue;
+            }
+
+            $relationshipId = $embedded->getAttributeNS(self::NS_R, 'id');
+            $embeddedFonts[] = $this->fontTableEmbeddedFontItem(
+                $parts,
+                $relationships[$relationshipId] ?? null,
+                $fontTablePart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                $style,
+                $embedded->getAttributeNS(self::NS_W, 'fontKey'),
+            );
+        }
+
+        return $embeddedFonts;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function fontTableEmbeddedFontItem(
+        array $parts,
+        ?array $relationship,
+        string $fontTablePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        string $style,
+        string $fontKey
+    ): array {
+        $item = [
+            'style' => $style,
+            'id' => $relationshipId,
+            'sourcePart' => $fontTablePart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'expectedContentTypeBase' => self::CT_OBFUSCATED_FONT,
+            'external' => false,
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'fontKeyPresent' => $fontKey !== '',
+            'fontKeySha256' => $fontKey !== '' ? hash('sha256', $fontKey) : null,
+            'byteExposurePolicy' => 'embedded-font-bytes-blocked',
+            'reviewPolicy' => 'embedded-font-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'missing-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $fontTablePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['external'] = $external;
+        $item['exists'] = $exists;
+        $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::FONT_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($external) {
+            $item['issues'][] = 'external-embedded-font';
+        } else {
+            if (!$exists) {
+                $item['issues'][] = 'missing-in-package';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $item['issues'][] = 'missing-content-type';
+            } elseif ($contentTypeBase !== self::CT_OBFUSCATED_FONT) {
+                $item['issues'][] = 'unexpected-embedded-font-content-type';
+            }
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
     }
 
     /**

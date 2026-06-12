@@ -2712,6 +2712,143 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'preflights docx font table embedded font package relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $fontKey = '{00112233-4455-6677-8899-AABBCCDDEEFF}';
+        $fontBytes = 'OBFUSCATEDFONT';
+        $badFontBytes = 'not an obfuscated font';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/review-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/aptos-Regular.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>' . "\n" .
+            '  <Override PartName="/word/fonts/bad.ttf" ContentType="font/ttf"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/review-fonts.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/review-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Aptos">
+    <w:family w:val="swiss"/>
+    <w:embedRegular r:id="rRegular" w:fontKey="{00112233-4455-6677-8899-AABBCCDDEEFF}"/>
+    <w:embedBold r:id="rMissingBold" w:fontKey="{11112233-4455-6677-8899-AABBCCDDEEFF}"/>
+    <w:embedItalic r:id="rExternalItalic"/>
+    <w:embedBoldItalic r:id="rWrongType"/>
+  </w:font>
+  <w:font w:name="No Relationship">
+    <w:embedRegular w:fontKey="{22222222-4455-6677-8899-AABBCCDDEEFF}"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/fonts/_rels/review-fonts.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="aptos-Regular.odttf?style=regular#font"/>
+  <Relationship Id="rMissingBold" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="missing-bold.odttf"/>
+  <Relationship Id="rExternalItalic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="https://fonts.example.test/aptos-Italic.ttf" TargetMode="External"/>
+  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="bad.ttf"/>
+</Relationships>
+XML;
+        $parts['word/fonts/aptos-Regular.odttf'] = $fontBytes;
+        $parts['word/fonts/bad.ttf'] = $badFontBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $aptos = $fontTable['byName']['Aptos'];
+        $regular = $aptos['embeddedFonts'][0];
+        $missing = $aptos['embeddedFonts'][1];
+        $external = $aptos['embeddedFonts'][2];
+        $wrongType = $aptos['embeddedFonts'][3];
+        $missingRelationship = $fontTable['byName']['No Relationship']['embeddedFonts'][0];
+
+        $t->same('word/fonts/review-fonts.xml', $docx['fontTablePart']);
+        $t->same('word/fonts/_rels/review-fonts.xml.rels', $fontTable['relationshipsPart']);
+        $t->same(4, $fontTable['relationshipCount']);
+        $t->same(2, $fontTable['fontCount']);
+        $t->same(5, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(2, $fontTable['embeddedFontExistingCount']);
+        $t->same(1, $fontTable['embeddedFontMissingCount']);
+        $t->same(1, $fontTable['embeddedFontExternalCount']);
+        $t->same(4, $fontTable['embeddedFontIssueCount']);
+        $t->same([
+            'external-embedded-font',
+            'missing-content-type',
+            'missing-in-package',
+            'missing-relationship-id',
+            'unexpected-embedded-font-content-type',
+            'unexpected-relationship-type',
+        ], $fontTable['embeddedFontIssueCodes']);
+        $t->same(4, $aptos['embeddedFontCount']);
+
+        $t->same('regular', $regular['style']);
+        $t->same('rRegular', $regular['id']);
+        $t->same('word/fonts/review-fonts.xml', $regular['sourcePart']);
+        $t->same('word/fonts/_rels/review-fonts.xml.rels', $regular['relationshipsPart']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/font', $regular['relationshipType']);
+        $t->same('aptos-Regular.odttf?style=regular#font', $regular['target']);
+        $t->same('word/fonts/aptos-Regular.odttf?style=regular#font', $regular['resolvedTarget']);
+        $t->same('word/fonts/aptos-Regular.odttf', $regular['targetPart']);
+        $t->same('style=regular', $regular['targetQuery']);
+        $t->same('font', $regular['targetFragment']);
+        $t->same('?style=regular#font', $regular['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont', $regular['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedfont', $regular['contentTypeBase']);
+        $t->same(false, $regular['external']);
+        $t->same(true, $regular['exists']);
+        $t->same(strlen($fontBytes), $regular['byteLength']);
+        $t->same(sprintf('%08x', crc32($fontBytes)), $regular['crc32']);
+        $t->same(true, $regular['fontKeyPresent']);
+        $t->same(hash('sha256', $fontKey), $regular['fontKeySha256']);
+        $t->true(!isset($regular['fontKey']), 'Raw embedded font key should not be exposed');
+        $t->same('embedded-font-bytes-blocked', $regular['byteExposurePolicy']);
+        $t->same('embedded-font-metadata-only', $regular['reviewPolicy']);
+        $t->same([], $regular['issues']);
+        $t->same(true, $regular['valid']);
+
+        $t->same('bold', $missing['style']);
+        $t->same('word/fonts/missing-bold.odttf', $missing['targetPart']);
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
+
+        $t->same('italic', $external['style']);
+        $t->same('https://fonts.example.test/aptos-Italic.ttf', $external['target']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(['external-embedded-font'], $external['issues']);
+
+        $t->same('bold-italic', $wrongType['style']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
+        $t->same('word/fonts/bad.ttf', $wrongType['targetPart']);
+        $t->same('font/ttf', $wrongType['contentType']);
+        $t->same(['unexpected-relationship-type', 'unexpected-embedded-font-content-type'], $wrongType['issues']);
+
+        $t->same('regular', $missingRelationship['style']);
+        $t->same('', $missingRelationship['id']);
+        $t->same(true, $missingRelationship['fontKeyPresent']);
+        $t->same(['missing-relationship-id'], $missingRelationship['issues']);
+
+        $t->true(in_array('font-table', $inventory['word/fonts/review-fonts.xml']['roles'], true), 'font table inventory role missing');
+        $t->true(in_array('embedded-font', $inventory['word/fonts/aptos-Regular.odttf']['roles'], true), 'embedded font inventory role missing');
+        $t->same('font', $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font']['label']);
+        $t->same(3, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font']['count']);
+        $t->same(5, $summary['fontTableEmbeddedFontCount']);
+        $t->same(2, $summary['fontTableEmbeddedFontExistingCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontMissingCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontExternalCount']);
+        $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
+        $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
+    },
     'summarizes docx attached template relationships from settings part' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
