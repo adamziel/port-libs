@@ -677,7 +677,7 @@ final class NativeWriter
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
      */
     private function tableRows(array $rows): array
     {
@@ -687,10 +687,11 @@ final class NativeWriter
                 continue;
             }
 
-            $encoded[] = [
+            $payload = [
                 $this->attrTuple($row),
                 $this->tableCells($row->children),
             ];
+            $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload) ?? $payload;
         }
 
         return $encoded;
@@ -698,7 +699,7 @@ final class NativeWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
      */
     private function tableCells(array $cells): array
     {
@@ -708,7 +709,7 @@ final class NativeWriter
                 continue;
             }
 
-            $encoded[] = [
+            $payload = [
                 $this->attrTuple($cell),
                 $this->taggedNative($cell->attr('alignmentNative'), $this->tableAlignmentConstructor((string) $cell->attr('align', 'default')))
                     ?? ['t' => $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))],
@@ -718,9 +719,24 @@ final class NativeWriter
                     ?? ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
                 $this->childrenAsBlocks($cell),
             ];
+            $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload) ?? $payload;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $payload
+     * @return array<string, mixed>|null
+     */
+    private function reusableTaggedTableHelperNative(AstNode $node, string $constructor, array $payload): ?array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        return ($native['c'] ?? null) === $payload ? $native : null;
     }
 
     /**

@@ -1727,8 +1727,8 @@ return [
         $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
         $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
         $jsonTableBody = $jsonPacket['blocks'][3]['c'][4][0];
-        $jsonTableRow = $jsonTableBody[3][0];
-        $jsonTableCell = $jsonTableRow[1][0];
+        $jsonTableRow = $jsonTableBody[3][0]['c'] ?? $jsonTableBody[3][0];
+        $jsonTableCell = $jsonTableRow[1][0]['c'] ?? $jsonTableRow[1][0];
         $nativeTableBody = $nativePacket['blocks'][3]['c'][4][0]['c'];
         $nativeTableRow = $nativeTableBody[3][0]['c'];
         $nativeTableCell = $nativeTableRow[1][0]['c'];
@@ -2093,7 +2093,8 @@ return [
         foreach ($documents as $source => $document) {
             $jsonPacket = (new PandocJsonWriter())->toArray($document);
             $body = $jsonPacket['blocks'][2]['c'][4][0];
-            $cell = $body[3][0][1][0];
+            $row = $body[3][0]['c'] ?? $body[3][0];
+            $cell = $row[1][0]['c'] ?? $row[1][0];
 
             $t->same($styleNative, $jsonPacket['blocks'][0]['c'][0][1], "{$source} json writer list style native payload");
             $t->same($delimiterNative, $jsonPacket['blocks'][0]['c'][0][2], "{$source} json writer list delimiter native payload");
@@ -2612,6 +2613,101 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited figure drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][1]), 'edited figure drops stale source ordinal');
     },
+    'preserves table row and cell native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
+        $cellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['', [], []],
+                ['t' => 'AlignCenter', 'c' => []],
+                ['t' => 'RowSpan', 'c' => [1]],
+                ['t' => 'ColSpan', 'c' => [1]],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Metric'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'cell-source',
+            'sourceOrdinal' => 82,
+        ];
+        $rowNative = [
+            't' => 'Row',
+            'c' => [
+                ['', [], []],
+                [$cellNative],
+            ],
+            'reviewQueue' => 'row-source',
+            'sourceOrdinal' => 81,
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignCenter', 'c' => []], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => [0]],
+                        [],
+                        [$rowNative],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'rebuilt-table']), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedBody = $encodedTable['c'][4][0];
+                $encodedRow = $encodedBody[3][0];
+                $encodedCell = $encodedRow['c'][1][0];
+
+                $t->same('rebuilt-table', $encodedTable['c'][0][0], "{$source} {$writer} writer regenerates edited table attr");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$source} {$writer} writer drops stale table sidecar");
+                $t->same($rowNative, $encodedRow, "{$source} {$writer} writer preserves row helper native payload");
+                $t->same($cellNative, $encodedCell, "{$source} {$writer} writer preserves cell helper native payload");
+            }
+
+            $editedCell = new AstNode('table_cell', $cell->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+            ]);
+            $editedRow = new AstNode('table_row', $row->attrs, [$editedCell]);
+            $editedBody = new AstNode('table_body', $body->attrs, [$editedRow]);
+            $editedTable = new AstNode('table', array_replace($table->attrs, ['id' => 'edited-table']), [$editedBody]);
+            $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedTable]));
+            $editedRowPayload = $editedPacket['blocks'][0]['c'][4][0][3][0];
+            $editedCellPayload = $editedRowPayload[1][0];
+
+            $t->same('Edited', $editedCellPayload[4][0]['c'][0]['c'], "{$source} edited cell regenerates content");
+            $t->same(false, array_key_exists('reviewQueue', $editedRowPayload), "{$source} edited cell drops stale row wrapper sidecar");
+            $t->same(false, array_key_exists('reviewQueue', $editedCellPayload), "{$source} edited cell drops stale cell wrapper sidecar");
+        }
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
@@ -2941,7 +3037,8 @@ return [
             ]);
             $nativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
             $body = $nativePacket['blocks'][2]['c'][4][0];
-            $cell = $body[3][0][1][0];
+            $row = $body[3][0]['c'] ?? $body[3][0];
+            $cell = $row[1][0]['c'] ?? $row[1][0];
 
             $t->same(5, $nativePacket['blocks'][0]['c'][0][0], "{$source} native writer regenerates edited list start");
             $t->same($styleNative, $nativePacket['blocks'][0]['c'][0][1], "{$source} native writer list style native payload");

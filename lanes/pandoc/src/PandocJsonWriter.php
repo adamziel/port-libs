@@ -798,7 +798,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
      */
     private function writeTableRows(array $rows): array
     {
@@ -808,10 +808,11 @@ final class PandocJsonWriter
                 continue;
             }
 
-            $encoded[] = [
+            $payload = [
                 $this->attrTuple($row),
                 $this->writeTableCells($row->children),
             ];
+            $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload) ?? $payload;
         }
 
         return $encoded;
@@ -819,7 +820,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
      */
     private function writeTableCells(array $cells): array
     {
@@ -832,16 +833,31 @@ final class PandocJsonWriter
             $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
             $rowspan = max(1, (int) $cell->attr('rowspan', 1));
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $encoded[] = [
+            $payload = [
                 $this->attrTuple($cell),
                 $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? $this->enum($alignmentConstructor),
                 $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
                 $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->childrenAsBlocks($cell),
             ];
+            $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload) ?? $payload;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $payload
+     * @return array<string, mixed>|null
+     */
+    private function reusableTaggedTableHelperNative(AstNode $node, string $constructor, array $payload): ?array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        return ($native['c'] ?? null) === $payload ? $native : null;
     }
 
     /**
