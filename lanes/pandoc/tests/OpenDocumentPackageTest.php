@@ -1411,6 +1411,7 @@ XML;
     'blocks compact ODT script package bytes in package review summaries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
         $javaScript = 'function ReviewLinkClick() { return false; }';
+        $scriptIcon = 'SCRIPTICON';
         $encryptedScript = 'encrypted macro payload';
         $orphanScript = 'function orphan() { return true; }';
         $scriptEntries =
@@ -1418,6 +1419,7 @@ XML;
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Scripts/icon.png" manifest:size="' . strlen($scriptIcon) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/missing.js"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/encrypted.js" manifest:size="2048"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="macro-checksum"><manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="macro-iv"/></manifest:encryption-data></manifest:file-entry>' . "\n";
         $manifest = str_replace('</manifest:manifest>', $scriptEntries . '</manifest:manifest>', $manifestXml);
@@ -1429,31 +1431,71 @@ XML;
                 ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
                 ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
+                ['name' => 'Scripts/icon.png', 'data' => $scriptIcon, 'compressionMethod' => 0],
                 ['name' => 'Scripts/encrypted.js', 'data' => $encryptedScript, 'compressionMethod' => 0],
                 ['name' => 'Scripts/orphan.js', 'data' => $orphanScript, 'compressionMethod' => 0],
             ],
         ))->summarize();
+        $scripts = $summary['packageScripts'];
+        $scriptByPath = [];
+        foreach ($scripts['items'] as $item) {
+            $scriptByPath[$item['packagePath']] = $item;
+        }
         $reviewByPath = [];
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(6, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(6, $scripts['count']);
+        $t->same(4, $scripts['readableCount']);
+        $t->same(5, $scripts['declaredCount']);
+        $t->same(1, $scripts['undeclaredCount']);
+        $t->same(1, $scripts['missingCount']);
+        $t->same(1, $scripts['encryptedCount']);
+        $t->same(3, $scripts['issueCount']);
+        $t->same([
+            'odf-script-encrypted-package-part',
+            'odf-script-missing-package-part',
+            'odf-script-undeclared-package-part',
+        ], $scripts['issueCodes']);
+        $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
+        $t->same(['basic-module', 'javascript', 'script-package-part'], $scripts['scriptKinds']);
+        $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
+        $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
+
+        $t->same(7, $summary['manifestReview']['scriptPackagePartCount']);
         $t->same([
             'Basic/',
             'Basic/Standard/Review.xml',
             'Scripts/',
             'Scripts/review-link.js',
+            'Scripts/icon.png',
             'Scripts/missing.js',
             'Scripts/encrypted.js',
         ], array_column($summary['manifestReview']['scriptPackageItems'], 'path'));
-        $t->same(6, $inventory['scriptPackagePartCount']);
+        $t->same(7, $inventory['scriptPackagePartCount']);
         $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Basic/']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/Review.xml']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/review-link.js']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/icon.png']['roles']);
         $t->same(['script-package', 'undeclared-package-entry'], $inventory['parts']['Scripts/orphan.js']['roles']);
         $t->same(1, $inventory['undeclaredRoleCounts']['script-package']);
+
+        $basicScript = $scriptByPath['Basic/Standard/Review.xml'];
+        $t->same('basic', $basicScript['scriptContainer']);
+        $t->same('basic-module', $basicScript['scriptKind']);
+        $t->same('Standard', $basicScript['scriptLibrary']);
+        $t->same('Review', $basicScript['scriptModule']);
+        $t->same('text/xml', $basicScript['mediaType']);
+        $t->same(true, $basicScript['declared']);
+        $t->same(true, $basicScript['valid']);
+        $t->same(strlen($basicModuleXml), $basicScript['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicModuleXml)), $basicScript['crc32']);
+        $t->same(false, $basicScript['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicScript['byteExposurePolicy']);
+        $t->same('package-script-metadata-only', $basicScript['reviewPolicy']);
+        $t->same([], $basicScript['issues']);
 
         $basic = $reviewByPath['Basic/Standard/Review.xml'];
         $t->same(true, $basic['scriptPackagePart']);
@@ -1466,6 +1508,15 @@ XML;
         $t->same('script-package-bytes-blocked', $basic['byteExposurePolicy']);
         $t->same([], $basic['diagnostics']);
 
+        $javascriptScript = $scriptByPath['Scripts/review-link.js'];
+        $t->same('scripts', $javascriptScript['scriptContainer']);
+        $t->same('javascript', $javascriptScript['scriptKind']);
+        $t->same('review-link.js', $javascriptScript['scriptPath']);
+        $t->same('review-link', $javascriptScript['scriptModule']);
+        $t->same('application/javascript', $javascriptScript['mediaType']);
+        $t->same(strlen($javaScript), $javascriptScript['byteLength']);
+        $t->same(sprintf('%08x', crc32($javaScript)), $javascriptScript['crc32']);
+
         $javascript = $reviewByPath['Scripts/review-link.js'];
         $t->same(true, $javascript['scriptPackagePart']);
         $t->same(false, $javascript['canExposeBytes']);
@@ -1473,11 +1524,40 @@ XML;
         $t->same(strlen($javaScript), $javascript['storedByteLength']);
         $t->same('script-package-bytes-blocked', $javascript['byteExposurePolicy']);
 
+        $iconScript = $scriptByPath['Scripts/icon.png'];
+        $t->same('script-package-part', $iconScript['scriptKind']);
+        $t->same('image/png', $iconScript['mediaType']);
+        $t->same(strlen($scriptIcon), $iconScript['byteLength']);
+        $t->same(sprintf('%08x', crc32($scriptIcon)), $iconScript['crc32']);
+        $t->same(false, $iconScript['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $iconScript['byteExposurePolicy']);
+
+        $icon = $reviewByPath['Scripts/icon.png'];
+        $t->same(true, $icon['scriptPackagePart']);
+        $t->same(false, $icon['canExposeBytes']);
+        $t->same(null, $icon['byteLength']);
+        $t->same(strlen($scriptIcon), $icon['storedByteLength']);
+        $t->same('script-package-bytes-blocked', $icon['byteExposurePolicy']);
+
+        $missingScript = $scriptByPath['Scripts/missing.js'];
+        $t->same(false, $missingScript['exists']);
+        $t->same(null, $missingScript['byteLength']);
+        $t->same(['odf-script-missing-package-part'], $missingScript['issues']);
+
         $missing = $reviewByPath['Scripts/missing.js'];
         $t->same(false, $missing['exists']);
         $t->same(false, $missing['canExposeBytes']);
         $t->same('script-package-bytes-blocked', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
+
+        $encryptedScriptItem = $scriptByPath['Scripts/encrypted.js'];
+        $t->same(true, $encryptedScriptItem['encrypted']);
+        $t->same(false, $encryptedScriptItem['valid']);
+        $t->same(null, $encryptedScriptItem['byteLength']);
+        $t->same(strlen($encryptedScript), $encryptedScriptItem['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($encryptedScript)), $encryptedScriptItem['storedCrc32']);
+        $t->same('encrypted-resource-bytes-blocked', $encryptedScriptItem['byteExposurePolicy']);
+        $t->same(['odf-script-encrypted-package-part'], $encryptedScriptItem['issues']);
 
         $encrypted = $reviewByPath['Scripts/encrypted.js'];
         $t->same(true, $encrypted['encrypted']);
@@ -1486,6 +1566,13 @@ XML;
         $t->same(strlen($encryptedScript), $encrypted['storedByteLength']);
         $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
         $t->same(['odf-manifest-encrypted-package-part', 'odf-manifest-declared-size-mismatch'], $encrypted['diagnostics']);
+
+        $orphanScriptItem = $scriptByPath['Scripts/orphan.js'];
+        $t->same(false, $orphanScriptItem['declared']);
+        $t->same(true, $orphanScriptItem['undeclared']);
+        $t->same('application/javascript', $orphanScriptItem['mediaType']);
+        $t->same(strlen($orphanScript), $orphanScriptItem['byteLength']);
+        $t->same(['odf-script-undeclared-package-part'], $orphanScriptItem['issues']);
 
         $orphan = $summary['undeclaredPackageEntries'][0];
         $t->same('Scripts/orphan.js', $orphan['path']);
