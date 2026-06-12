@@ -48,6 +48,76 @@ $footnotesRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+/**
+ * @param list<array{name:string, data:string, centralIndex?:int}> $entries
+ */
+$buildOpcZipPackage = static function (array $entries): string {
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($entries as $entryIndex => $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'];
+        $crc32 = (int) sprintf('%u', crc32($data));
+        $offset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc32,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $data;
+
+        $centralRecord = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc32,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $offset
+        );
+        $centralRecord .= $name;
+        $centralRecords[] = [
+            'order' => $entry['centralIndex'] ?? $entryIndex,
+            'index' => $entryIndex,
+            'record' => $centralRecord,
+        ];
+    }
+
+    usort(
+        $centralRecords,
+        static fn (array $left, array $right): int => [$left['order'], $left['index']] <=> [$right['order'], $right['index']]
+    );
+
+    $central = implode('', array_map(static fn (array $record): string => $record['record'], $centralRecords));
+    $centralOffset = strlen($body);
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $centralOffset, 0);
+};
+
 return [
     'parses OPC content types defaults overrides and fallback lookup' => static function (TestRunner $t) use ($contentTypesXml): void {
         $types = OpcContentTypes::fromXml($contentTypesXml);
@@ -457,6 +527,65 @@ return [
         $t->same(0xffffffff, $mediaEntry['uncompressedSize']);
         $t->same($summary['unknownByteCountEntries'][0]['entryName'], $mediaEntry['entryName']);
         $t->same(['zip64-size-or-offset-sentinel'], $summary['unknownByteCountEntries'][0]['issues']);
+    },
+    'carries OPC ZIP local header order provenance through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $zip = $buildOpcZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>',
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'centralIndex' => 1,
+            ],
+        ]);
+
+        $packageSummary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        foreach ([$packageSummary, $rawSummary] as $summary) {
+            $entries = [];
+            foreach ($summary['entries'] as $entry) {
+                $entries[$entry['entryName']] = $entry;
+            }
+
+            $t->same(true, $summary['valid']);
+            $t->same(['_rels/.rels', 'word/document.xml', '[Content_Types].xml'], $summary['localHeaderOrder']['centralDirectoryOrderNames']);
+            $t->same(['[Content_Types].xml', '_rels/.rels', 'word/document.xml'], $summary['localHeaderOrder']['localHeaderOrderNames']);
+            $t->same(true, $summary['localHeaderOrder']['hasCentralDirectoryOrderMismatch']);
+            $t->same(3, $summary['localHeaderOrder']['mismatchedEntryCount']);
+            $t->same(['_rels/.rels', 'word/document.xml', '[Content_Types].xml'], array_column($summary['localHeaderOrder']['mismatchedEntries'], 'name'));
+            $t->same([1, 2, 0], array_column($summary['localHeaderOrder']['mismatchedEntries'], 'localHeaderOrder'));
+
+            $t->same(1, $entries['_rels/.rels']['localHeaderOrder']);
+            $t->same('[Content_Types].xml', $entries['_rels/.rels']['localHeaderNameAtCentralDirectoryIndex']);
+            $t->same('word/document.xml', $entries['_rels/.rels']['centralDirectoryNameAtLocalHeaderOrder']);
+            $t->same(false, $entries['_rels/.rels']['matchesCentralDirectoryOrder']);
+
+            $t->same(2, $entries['word/document.xml']['localHeaderOrder']);
+            $t->same('_rels/.rels', $entries['word/document.xml']['localHeaderNameAtCentralDirectoryIndex']);
+            $t->same('[Content_Types].xml', $entries['word/document.xml']['centralDirectoryNameAtLocalHeaderOrder']);
+            $t->same(false, $entries['word/document.xml']['matchesCentralDirectoryOrder']);
+
+            $t->same(0, $entries['[Content_Types].xml']['localHeaderOrder']);
+            $t->same('word/document.xml', $entries['[Content_Types].xml']['localHeaderNameAtCentralDirectoryIndex']);
+            $t->same('_rels/.rels', $entries['[Content_Types].xml']['centralDirectoryNameAtLocalHeaderOrder']);
+            $t->same(false, $entries['[Content_Types].xml']['matchesCentralDirectoryOrder']);
+        }
+
+        $t->same($packageSummary['localHeaderOrder'], $rawSummary['localHeaderOrder']);
     },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

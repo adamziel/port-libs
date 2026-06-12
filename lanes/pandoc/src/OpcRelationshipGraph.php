@@ -283,6 +283,11 @@ final class OpcRelationshipGraph
         $packagePartEntryIndexesByEquivalenceKey = [];
         $contentTypes = null;
         $contentTypesParseError = null;
+        $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $localHeaderOrderByCentralDirectoryIndex = [];
+        foreach ($localHeaderOrder['entries'] as $orderEntry) {
+            $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
+        }
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
@@ -291,6 +296,7 @@ final class OpcRelationshipGraph
             $parseError = null;
             $issues = [];
             $contentTypesItem = false;
+            $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$entryIndex] ?? null;
 
             if (!$isDirectory) {
                 try {
@@ -315,6 +321,11 @@ final class OpcRelationshipGraph
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
+                'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
+                'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
+                'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $entry->name,
+                'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $entry->name,
+                'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'compressionMethod' => $entry->compressionMethod,
@@ -860,6 +871,7 @@ final class OpcRelationshipGraph
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
             'largestPayloadEntries' => $largestPayloadEntries,
+            'localHeaderOrder' => $localHeaderOrder,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
@@ -877,6 +889,11 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
+        $localHeaderOrderByCentralDirectoryIndex = [];
+        foreach ($localHeaderOrder['entries'] as $orderEntry) {
+            $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
+        }
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
@@ -891,6 +908,7 @@ final class OpcRelationshipGraph
             $issues = $centralEntry['issues'];
             $contentTypesItem = false;
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
+            $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
 
             if (!$isDirectory) {
                 try {
@@ -918,6 +936,10 @@ final class OpcRelationshipGraph
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
+                'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
+                'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $centralEntry['name'],
+                'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $centralEntry['name'],
+                'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
@@ -1321,6 +1343,7 @@ final class OpcRelationshipGraph
             'largestPayloadEntryCount' => count($largestPayloadEntries),
             'largestPayloadEntries' => $largestPayloadEntries,
             'unknownByteCountEntries' => $unknownByteCountEntries,
+            'localHeaderOrder' => $localHeaderOrder,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
