@@ -1136,11 +1136,17 @@ final class PandocJsonWriter
         }
         if ($tag === 'Figure' || $tag === 'Table') {
             $content = $native['c'] ?? null;
+            if (!is_array($content) || !array_is_list($content) || count($content) !== ($tag === 'Figure' ? 3 : 6)) {
+                return false;
+            }
 
-            return is_array($content)
-                && array_is_list($content)
-                && count($content) === ($tag === 'Figure' ? 3 : 6)
-                && $this->hasNativePayloadSidecars($native);
+            if ($this->hasNativePayloadSidecars($native)) {
+                return true;
+            }
+
+            return $tag === 'Figure'
+                ? $this->isSidecarFreeEmptyFigurePayload($content)
+                : $this->isSidecarFreeEmptyTablePayload($content);
         }
 
         return in_array($tag, [
@@ -1170,6 +1176,39 @@ final class PandocJsonWriter
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $content
+     */
+    private function isSidecarFreeEmptyFigurePayload(array $content): bool
+    {
+        return $this->isTaggedNativeConstructor($content[1] ?? null, 'Caption')
+            && ($content[2] ?? null) === [];
+    }
+
+    /**
+     * @param list<mixed> $content
+     */
+    private function isSidecarFreeEmptyTablePayload(array $content): bool
+    {
+        return $this->isTaggedNativeConstructor($content[1] ?? null, 'Caption')
+            && $this->isEmptyTableSectionPayload($content[3] ?? null, 'TableHead')
+            && ($content[4] ?? null) === []
+            && $this->isEmptyTableSectionPayload($content[5] ?? null, 'TableFoot');
+    }
+
+    private function isEmptyTableSectionPayload(mixed $value, string $constructor): bool
+    {
+        return $this->isTaggedNativeConstructor($value, $constructor)
+            && ($value['c'] ?? null) === [['', [], []], []];
+    }
+
+    private function isTaggedNativeConstructor(mixed $value, string $constructor): bool
+    {
+        return is_array($value)
+            && !array_is_list($value)
+            && ($value['t'] ?? null) === $constructor;
     }
 
     private function hasLegacyTargetInlinePayload(mixed $value): bool

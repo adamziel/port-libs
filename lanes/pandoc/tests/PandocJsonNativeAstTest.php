@@ -2715,6 +2715,82 @@ return [
         $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited figure drops stale review provenance');
         $t->same(false, array_key_exists('sourceOrdinal', $editedPacket['blocks'][1]), 'edited figure drops stale source ordinal');
     },
+    'preserves sidecar-free current table and figure helper constructors through pandoc json writer' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [],
+                ]],
+                [
+                    [
+                        ['t' => 'AlignDefault'],
+                        ['t' => 'ColWidthDefault'],
+                    ],
+                ],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Short'],
+                    ]]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} preserves sidecar-free current helper constructor payloads");
+            $t->same('Caption', $document->children[1]->attr('captionConstructor'), "{$source} figure caption constructor");
+            $t->same('Just', $document->children[1]->attr('shortCaptionMaybeConstructor'), "{$source} figure short-caption maybe constructor");
+            $t->same('ShortCaption', $document->children[1]->attr('shortCaptionConstructor'), "{$source} figure short-caption constructor");
+        }
+
+        $jsonDocument = $documents['json'];
+        $editedTable = new AstNode('table', array_replace($jsonDocument->children[0]->attrs, [
+            'id' => 'edited-table',
+        ]), $jsonDocument->children[0]->children);
+        $editedFigure = new AstNode('figure', array_replace($jsonDocument->children[1]->attrs, [
+            'id' => 'edited-figure',
+        ]), $jsonDocument->children[1]->children);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            $editedTable,
+            $editedFigure,
+        ]));
+
+        $t->same('edited-table', $editedPacket['blocks'][0]['c'][0][0]);
+        $t->same('edited-figure', $editedPacket['blocks'][1]['c'][0][0]);
+        $t->same(false, $editedPacket['blocks'][0] === $tableBlock);
+        $t->same(false, $editedPacket['blocks'][1] === $figureBlock);
+    },
     'preserves table row and cell native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $cellNative = [
             't' => 'Cell',
