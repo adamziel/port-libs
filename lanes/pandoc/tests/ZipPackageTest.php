@@ -9665,6 +9665,159 @@ return [
         $t->same("legacy encoded media placeholder\n", $package->read('/' . $cp437Name));
     },
 
+    'preflights selected zip entry raw comment provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $documentXml = '<w:document><w:body><w:p>selected raw comment provenance</w:p></w:body></w:document>';
+        $utf8Comment = 'UTF-8 package review note';
+        $unicodeRawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $unicodeRawComment, $unicodeComment);
+        $cp437RawComment = "r\x82sum\x82 media";
+        $cp437Comment = "r\u{00e9}sum\u{00e9} media";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/utf8-note.txt',
+                'data' => "utf8 comment media placeholder\n",
+                'method' => 0,
+                'comment' => $utf8Comment,
+            ],
+            [
+                'name' => 'word/media/unicode-comment.bin',
+                'data' => "unicode comment media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $unicodeRawComment,
+                'centralExtra' => $unicodeCommentExtra,
+            ],
+            [
+                'name' => 'word/media/cp437-comment.bin',
+                'data' => "cp437 comment media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $cp437RawComment,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/utf8-note.txt', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/unicode-comment.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/cp437-comment.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/missing-comment.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 1024);
+
+        $t->same(5, $summary['requestedEntryCount']);
+        $t->same(4, $summary['presentEntryCount']);
+        $t->same(4, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedCommentedEntryCount']);
+        $t->same(3, $summary['selectedRawCommentProvenanceEntryCount']);
+        $t->same(1, $summary['selectedLegacyEncodedCommentEntryCount']);
+        $t->same(1, $summary['selectedUnicodeCommentExtraEntryCount']);
+        $t->same(2, $summary['selectedDecodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same('word/document.xml', $documentEntry['name']);
+        $t->same('', $documentEntry['comment']);
+        $t->same('', $documentEntry['rawComment']);
+        $t->same('', $documentEntry['rawCommentHex']);
+        $t->same(0, $documentEntry['rawCommentLength']);
+        $t->same('utf-8', $documentEntry['commentEncoding']);
+        $t->same(true, $documentEntry['rawCommentMatchesDecodedComment']);
+        $t->same(false, $documentEntry['hasRawCommentProvenance']);
+
+        $utf8Entry = $summary['entries'][1];
+        $t->same('word/media/utf8-note.txt', $utf8Entry['name']);
+        $t->same($utf8Comment, $utf8Entry['comment']);
+        $t->same($utf8Comment, $utf8Entry['rawComment']);
+        $t->same(bin2hex($utf8Comment), $utf8Entry['rawCommentHex']);
+        $t->same(strlen($utf8Comment), $utf8Entry['rawCommentLength']);
+        $t->same('utf-8', $utf8Entry['commentEncoding']);
+        $t->same(true, $utf8Entry['rawCommentMatchesDecodedComment']);
+        $t->same(false, $utf8Entry['usesLegacyCommentEncoding']);
+        $t->same(false, $utf8Entry['usesUnicodeCommentExtraField']);
+        $t->same(true, $utf8Entry['hasRawCommentProvenance']);
+
+        $unicodeEntry = $summary['entries'][2];
+        $t->same('word/media/unicode-comment.bin', $unicodeEntry['name']);
+        $t->same($unicodeComment, $unicodeEntry['comment']);
+        $t->same($unicodeRawComment, $unicodeEntry['rawComment']);
+        $t->same(bin2hex($unicodeRawComment), $unicodeEntry['rawCommentHex']);
+        $t->same(strlen($unicodeRawComment), $unicodeEntry['rawCommentLength']);
+        $t->same('info-zip-unicode-comment', $unicodeEntry['commentEncoding']);
+        $t->same(false, $unicodeEntry['rawCommentMatchesDecodedComment']);
+        $t->same(false, $unicodeEntry['usesLegacyCommentEncoding']);
+        $t->same(true, $unicodeEntry['usesUnicodeCommentExtraField']);
+        $t->same(true, $unicodeEntry['hasRawCommentProvenance']);
+
+        $cp437Entry = $summary['entries'][3];
+        $t->same('word/media/cp437-comment.bin', $cp437Entry['name']);
+        $t->same($cp437Comment, $cp437Entry['comment']);
+        $t->same($cp437RawComment, $cp437Entry['rawComment']);
+        $t->same(bin2hex($cp437RawComment), $cp437Entry['rawCommentHex']);
+        $t->same(strlen($cp437RawComment), $cp437Entry['rawCommentLength']);
+        $t->same('cp437', $cp437Entry['commentEncoding']);
+        $t->same(false, $cp437Entry['rawCommentMatchesDecodedComment']);
+        $t->same(true, $cp437Entry['usesLegacyCommentEncoding']);
+        $t->same(false, $cp437Entry['usesUnicodeCommentExtraField']);
+        $t->same(true, $cp437Entry['hasRawCommentProvenance']);
+
+        $t->same([
+            [
+                'name' => 'word/media/utf8-note.txt',
+                'comment' => $utf8Comment,
+                'rawComment' => $utf8Comment,
+                'rawCommentHex' => bin2hex($utf8Comment),
+                'rawCommentLength' => strlen($utf8Comment),
+                'commentEncoding' => 'utf-8',
+                'rawCommentMatchesDecodedComment' => true,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => true,
+            ],
+            [
+                'name' => 'word/media/unicode-comment.bin',
+                'comment' => $unicodeComment,
+                'rawComment' => $unicodeRawComment,
+                'rawCommentHex' => bin2hex($unicodeRawComment),
+                'rawCommentLength' => strlen($unicodeRawComment),
+                'commentEncoding' => 'info-zip-unicode-comment',
+                'rawCommentMatchesDecodedComment' => false,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => true,
+                'hasRawCommentProvenance' => true,
+            ],
+            [
+                'name' => 'word/media/cp437-comment.bin',
+                'comment' => $cp437Comment,
+                'rawComment' => $cp437RawComment,
+                'rawCommentHex' => bin2hex($cp437RawComment),
+                'rawCommentLength' => strlen($cp437RawComment),
+                'commentEncoding' => 'cp437',
+                'rawCommentMatchesDecodedComment' => false,
+                'usesLegacyCommentEncoding' => true,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => true,
+            ],
+        ], $summary['selectedRawCommentProvenanceEntries']);
+
+        $missingEntry = $summary['entries'][4];
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['comment']);
+        $t->same(null, $missingEntry['rawComment']);
+        $t->same(null, $missingEntry['rawCommentHex']);
+        $t->same(null, $missingEntry['commentEncoding']);
+        $t->same(false, $missingEntry['hasRawCommentProvenance']);
+        $t->same([$documentEntry, $utf8Entry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";

@@ -4744,6 +4744,11 @@ final class ZipPackage
      *     selectedLegacyEncodedNameEntryCount:int,
      *     selectedUnicodePathExtraEntryCount:int,
      *     selectedDecodedNameDiffersFromRawNameEntryCount:int,
+     *     selectedCommentedEntryCount:int,
+     *     selectedRawCommentProvenanceEntryCount:int,
+     *     selectedLegacyEncodedCommentEntryCount:int,
+     *     selectedUnicodeCommentExtraEntryCount:int,
+     *     selectedDecodedCommentDiffersFromRawCommentEntryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -4753,6 +4758,7 @@ final class ZipPackage
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
+     *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4880,9 +4886,14 @@ final class ZipPackage
         $selectedCompressionMethodBuckets = [];
         $selectedUnknownExpansionRatioEntries = [];
         $selectedRawNameProvenanceEntries = [];
+        $selectedRawCommentProvenanceEntries = [];
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
         $selectedDecodedNameDiffersFromRawNameEntryCount = 0;
+        $selectedCommentedEntryCount = 0;
+        $selectedLegacyEncodedCommentEntryCount = 0;
+        $selectedUnicodeCommentExtraEntryCount = 0;
+        $selectedDecodedCommentDiffersFromRawCommentEntryCount = 0;
         foreach ($selectedEntriesByName as $entry) {
             $isDirectory = $entry->isDirectory();
             if ($isDirectory) {
@@ -4937,6 +4948,24 @@ final class ZipPackage
                     'name' => $entry->name,
                 ] + $rawNameProvenance;
             }
+            $rawCommentProvenance = self::entryRawCommentHandoffProvenance($entry);
+            if ($entry->comment !== '') {
+                $selectedCommentedEntryCount++;
+            }
+            if ($rawCommentProvenance['hasRawCommentProvenance']) {
+                if (!$rawCommentProvenance['rawCommentMatchesDecodedComment']) {
+                    $selectedDecodedCommentDiffersFromRawCommentEntryCount++;
+                }
+                if ($rawCommentProvenance['usesLegacyCommentEncoding']) {
+                    $selectedLegacyEncodedCommentEntryCount++;
+                }
+                if ($rawCommentProvenance['usesUnicodeCommentExtraField']) {
+                    $selectedUnicodeCommentExtraEntryCount++;
+                }
+                $selectedRawCommentProvenanceEntries[] = [
+                    'name' => $entry->name,
+                ] + $rawCommentProvenance;
+            }
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -4981,6 +5010,15 @@ final class ZipPackage
                 'usesLegacyNameEncoding' => false,
                 'usesUnicodePathExtraField' => false,
                 'hasRawNameProvenance' => false,
+                'comment' => null,
+                'rawComment' => null,
+                'rawCommentHex' => null,
+                'rawCommentLength' => null,
+                'commentEncoding' => null,
+                'rawCommentMatchesDecodedComment' => null,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => false,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'expansionRatio' => null,
@@ -5030,6 +5068,7 @@ final class ZipPackage
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
+            $summary = array_merge($summary, self::entryRawCommentHandoffProvenance($entry));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5135,6 +5174,11 @@ final class ZipPackage
             'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
             'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
             'selectedDecodedNameDiffersFromRawNameEntryCount' => $selectedDecodedNameDiffersFromRawNameEntryCount,
+            'selectedCommentedEntryCount' => $selectedCommentedEntryCount,
+            'selectedRawCommentProvenanceEntryCount' => count($selectedRawCommentProvenanceEntries),
+            'selectedLegacyEncodedCommentEntryCount' => $selectedLegacyEncodedCommentEntryCount,
+            'selectedUnicodeCommentExtraEntryCount' => $selectedUnicodeCommentExtraEntryCount,
+            'selectedDecodedCommentDiffersFromRawCommentEntryCount' => $selectedDecodedCommentDiffersFromRawCommentEntryCount,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5145,6 +5189,7 @@ final class ZipPackage
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
+            'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -5255,6 +5300,30 @@ final class ZipPackage
             'hasRawNameProvenance' => !$rawNameMatchesDecodedName
                 || $usesLegacyNameEncoding
                 || $usesUnicodePathExtraField,
+        ];
+    }
+
+    /**
+     * @return array{comment:string, rawComment:string, rawCommentHex:string, rawCommentLength:int, commentEncoding:string, rawCommentMatchesDecodedComment:bool, usesLegacyCommentEncoding:bool, usesUnicodeCommentExtraField:bool, hasRawCommentProvenance:bool}
+     */
+    private static function entryRawCommentHandoffProvenance(ZipPackageEntry $entry): array
+    {
+        $rawCommentMatchesDecodedComment = $entry->rawComment === $entry->comment;
+        $usesLegacyCommentEncoding = $entry->commentEncoding === 'cp437';
+        $usesUnicodeCommentExtraField = $entry->commentEncoding === 'info-zip-unicode-comment';
+
+        return [
+            'comment' => $entry->comment,
+            'rawComment' => $entry->rawComment,
+            'rawCommentHex' => bin2hex($entry->rawComment),
+            'rawCommentLength' => strlen($entry->rawComment),
+            'commentEncoding' => $entry->commentEncoding,
+            'rawCommentMatchesDecodedComment' => $rawCommentMatchesDecodedComment,
+            'usesLegacyCommentEncoding' => $usesLegacyCommentEncoding,
+            'usesUnicodeCommentExtraField' => $usesUnicodeCommentExtraField,
+            'hasRawCommentProvenance' => $entry->rawComment !== ''
+                || $entry->comment !== ''
+                || $usesUnicodeCommentExtraField,
         ];
     }
 
