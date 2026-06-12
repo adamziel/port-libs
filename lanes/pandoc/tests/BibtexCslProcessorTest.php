@@ -256,6 +256,7 @@ BIB;
   introduction      = {Intro, Ira},
   foreword          = {Foreword, Finn},
   afterword         = {Afterword, Ari},
+  seriescreator     = {Series, Sela},
   title             = {Secondary Credit Packet},
   year              = {2026}
 }
@@ -279,7 +280,9 @@ BIB;
         $t->same('Intro', $item['introduction'][0]['family']);
         $t->same('Foreword', $item['foreword'][0]['family']);
         $t->same('Afterword', $item['afterword'][0]['family']);
+        $t->same('Series', $item['series-creator'][0]['family']);
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
+        $t->same('Series, Sela', $item['rawBibtex']['fields']['seriescreator']);
         $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
     },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {

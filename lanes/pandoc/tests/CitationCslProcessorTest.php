@@ -8018,6 +8018,91 @@ XML);
         $t->contains('<dt>Series Editor Packet 2026</dt><dd>Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified</dd>', $blocks);
         $t->contains('<dt>Hyphen Series Editor Packet 2025</dt><dd>Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified</dd>', $blocks);
     },
+    'maps bounded biblatex series creator aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{series-creator-compact,
+  title            = {Series Creator Packet},
+  date             = {2026},
+  seriescreator    = {Creator, Cora and {{Series Desk}}},
+  seriescreator+an = {1=compact series creator verified; 2=literal series creator verified}
+}
+
+@collection{series-creator-hyphen,
+  title             = {Hyphen Series Creator Packet},
+  date              = {2025},
+  series-creator    = {Hyphen, Hera},
+  series-creator+an:family = {1=hyphen series creator verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Creator', $items[0]['series-creator'][0]['family'] ?? null);
+        $t->same('Cora', $items[0]['series-creator'][0]['given'] ?? null);
+        $t->same('Series Desk', $items[0]['series-creator'][1]['literal'] ?? null);
+        $t->same('compact series creator verified', $items[0]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same('literal series creator verified', $items[0]['series-creator'][1]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['seriescreator']));
+        $t->same('Hyphen', $items[1]['series-creator'][0]['family'] ?? null);
+        $t->same('family', $items[1]['series-creator'][0]['annotations'][0]['part'] ?? null);
+        $t->same('hyphen series creator verified', $items[1]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[1]['biblatex-field-annotations']['series-creator']));
+        $t->same('Creator, Cora and {{Series Desk}}', $items[0]['rawBibtex']['fields']['seriescreator'] ?? null);
+        $t->same('Hyphen, Hera', $items[1]['rawBibtex']['fields']['series-creator'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('series-creator-compact');
+        $hyphen = $processor->item('series-creator-hyphen');
+        $t->same('Creator', $compact['seriesCreators'][0]['family'] ?? null);
+        $t->same('Series Desk', $compact['seriesCreators'][1]['literal'] ?? null);
+        $t->same('Hyphen', $hyphen['seriesCreators'][0]['family'] ?? null);
+        $t->same('hyphen series creator verified', $hyphen['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Series Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-creator-alias-review</id>
+    <updated>2026-06-11T23:56:06+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <names variable="series-creator"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Series Creator Alias Review', $summary['title'] ?? null);
+        $t->same('series-creator', $summary['citationRendering'][0]['variable'] ?? null);
+        $t->same('series-creator', $summary['bibliographyRendering'][1]['variable'] ?? null);
+        $t->same('(Creator and Series Desk; Hyphen)', $styled->renderCitationCluster([
+            $citation('series-creator-compact', '[@series-creator-compact]'),
+            $citation('series-creator-hyphen', '[@series-creator-hyphen]'),
+        ]));
+        $t->same(
+            'Series Creator Packet :: Creator, Cora; Series Desk :: Series creator 1: compact series creator verified; Series creator 2: literal series creator verified',
+            $styled->renderBibliographyEntry('series-creator-compact')
+        );
+        $t->same(
+            'Hyphen Series Creator Packet :: Hyphen, Hera :: Series creator 1 family: hyphen series creator verified',
+            $styled->renderBibliographyEntry('series-creator-hyphen')
+        );
+
+        $document = (new MarkdownReader())->read('Series creators [@series-creator-compact; @series-creator-hyphen] stay attached to CSL metadata.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creators (Creator and Series Desk; Hyphen) stay attached to CSL metadata.</p>', $blocks);
+        $t->contains('<dt>Series Creator Packet 2026</dt><dd>Series Creator Packet :: Creator, Cora; Series Desk :: Series creator 1: compact series creator verified; Series creator 2: literal series creator verified</dd>', $blocks);
+        $t->contains('<dt>Hyphen Series Creator Packet 2025</dt><dd>Hyphen Series Creator Packet :: Hyphen, Hera :: Series creator 1 family: hyphen series creator verified</dd>', $blocks);
+    },
     'maps bounded biblatex hyphenated original author aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{original-author-hyphen,
