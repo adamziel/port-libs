@@ -296,6 +296,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
             }
+            if (($typstBoundaryProvenance['packageStoragePolicy'] ?? []) !== []) {
+                $packageStoragePolicy = $typstBoundaryProvenance['packageStoragePolicy'];
+                if (is_array($packageStoragePolicy) && is_string($packageStoragePolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-package-storage-policy:' . $packageStoragePolicy['reviewStatus'];
+                }
+                if (is_array($packageStoragePolicy) && is_int($packageStoragePolicy['unsafeStorageEntryCount'] ?? null) && $packageStoragePolicy['unsafeStorageEntryCount'] > 0) {
+                    $diagnostics[] = 'typst-package-storage-unsafe:' . $packageStoragePolicy['unsafeStorageEntryCount'];
+                }
+            }
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
             }
@@ -6003,6 +6012,7 @@ final class PdfEngineHandoff
             $packageCacheValues
         );
         $packageCache = $packageCacheHistory === [] ? null : $packageCacheHistory[count($packageCacheHistory) - 1];
+        $packageStoragePolicy = $this->typstPackageStoragePolicy($packagePathHistory, $packageCacheHistory);
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
@@ -6130,6 +6140,9 @@ final class PdfEngineHandoff
         }
         if ($fontPathPolicy !== []) {
             $provenance['fontPathPolicy'] = $fontPathPolicy;
+        }
+        if ($packageStoragePolicy !== []) {
+            $provenance['packageStoragePolicy'] = $packageStoragePolicy;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -6435,6 +6448,69 @@ final class PdfEngineHandoff
             'absoluteCertificateCount' => $kindCounts['absolute'],
             'uriCertificateCount' => $kindCounts['uri'],
             'invalidCertificateCount' => $kindCounts['invalid'],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}> $packagePaths
+     * @param list<array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}> $packageCaches
+     * @return array{reviewStatus:string, storageEntryCount:int, safeStorageEntryCount:int, unsafeStorageEntryCount:int, packagePathCount:int, packageCacheCount:int, relativeStorageEntryCount:int, workspaceStorageEntryCount:int, absoluteStorageEntryCount:int, uriStorageEntryCount:int, invalidStorageEntryCount:int, issues:list<string>}|array{}
+     */
+    private function typstPackageStoragePolicy(array $packagePaths, array $packageCaches): array
+    {
+        $entries = array_merge($packagePaths, $packageCaches);
+        if ($entries === []) {
+            return [];
+        }
+
+        $safeCount = 0;
+        $unsafeCount = 0;
+        $kindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'invalid' => 0,
+        ];
+        $issues = [];
+        foreach ($entries as $entry) {
+            $kind = is_string($entry['kind'] ?? null) ? $entry['kind'] : 'invalid';
+            if (array_key_exists($kind, $kindCounts)) {
+                ++$kindCounts[$kind];
+            } else {
+                ++$kindCounts['invalid'];
+            }
+
+            if (($entry['safe'] ?? false) === true) {
+                ++$safeCount;
+            } else {
+                ++$unsafeCount;
+            }
+
+            foreach (($entry['issues'] ?? []) as $issue) {
+                if (is_string($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        if ($unsafeCount === 0) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'storageEntryCount' => count($entries),
+            'safeStorageEntryCount' => $safeCount,
+            'unsafeStorageEntryCount' => $unsafeCount,
+            'packagePathCount' => count($packagePaths),
+            'packageCacheCount' => count($packageCaches),
+            'relativeStorageEntryCount' => $kindCounts['relative'],
+            'workspaceStorageEntryCount' => $kindCounts['workspace'],
+            'absoluteStorageEntryCount' => $kindCounts['absolute'],
+            'uriStorageEntryCount' => $kindCounts['uri'],
+            'invalidStorageEntryCount' => $kindCounts['invalid'],
             'issues' => array_values(array_unique($issues)),
         ];
     }

@@ -122,6 +122,20 @@ return [
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
             'inputVariables' => [],
             'issues' => ['package-cache-external-boundary'],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 2,
+                'safeStorageEntryCount' => 1,
+                'unsafeStorageEntryCount' => 1,
+                'packagePathCount' => 1,
+                'packageCacheCount' => 1,
+                'relativeStorageEntryCount' => 1,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 0,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => ['package-cache-external-boundary'],
+            ],
             'dependencyOutput' => [
                 'file' => ['raw' => 'build/boundary.d', 'path' => 'build/boundary.d', 'kind' => 'relative', 'safe' => true, 'issues' => []],
                 'format' => null,
@@ -150,6 +164,8 @@ return [
         $t->contains('typst-font-paths:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-dependency-output:build/boundary.d', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
@@ -181,6 +197,20 @@ return [
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
             'inputVariables' => [],
             'issues' => ['package-cache-external-boundary', 'package-cache-boundary-overridden'],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 2,
+                'safeStorageEntryCount' => 1,
+                'unsafeStorageEntryCount' => 1,
+                'packagePathCount' => 0,
+                'packageCacheCount' => 2,
+                'relativeStorageEntryCount' => 1,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 0,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => ['package-cache-external-boundary'],
+            ],
             'overrides' => [
                 [
                     'option' => 'packageCache',
@@ -210,8 +240,109 @@ return [
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst package storage boundary policy provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/package-storage-policy.pdf',
+            'source' => '= Typst Package Storage Boundary Packet',
+            'engineOptions' => [
+                '--package-path=vendor/typst-packages',
+                '--package-path',
+                '/srv/typst-packages',
+                '--package-cache=cache/typst',
+                '--package-cache',
+                'https://cache.example.invalid/typst',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package storage boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => ['raw' => '/srv/typst-packages', 'path' => '/srv/typst-packages', 'kind' => 'absolute', 'safe' => false, 'issues' => ['package-path-external-boundary']],
+            'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'inputVariables' => [],
+            'issues' => [
+                'package-path-external-boundary',
+                'package-cache-external-boundary',
+                'package-path-boundary-overridden',
+                'package-cache-boundary-overridden',
+            ],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 4,
+                'safeStorageEntryCount' => 2,
+                'unsafeStorageEntryCount' => 2,
+                'packagePathCount' => 2,
+                'packageCacheCount' => 2,
+                'relativeStorageEntryCount' => 2,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 1,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => [
+                    'package-path-external-boundary',
+                    'package-cache-external-boundary',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'packagePath',
+                    'count' => 2,
+                    'values' => ['vendor/typst-packages', '/srv/typst-packages'],
+                    'selected' => '/srv/typst-packages',
+                    'issue' => 'package-path-boundary-overridden',
+                ],
+                [
+                    'option' => 'packageCache',
+                    'count' => 2,
+                    'values' => ['cache/typst', 'https://cache.example.invalid/typst'],
+                    'selected' => 'https://cache.example.invalid/typst',
+                    'issue' => 'package-cache-boundary-overridden',
+                ],
+            ],
+            'packagePathHistory' => [
+                ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => '/srv/typst-packages', 'path' => '/srv/typst-packages', 'kind' => 'absolute', 'safe' => false, 'issues' => ['package-path-external-boundary']],
+            ],
+            'packageCacheHistory' => [
+                ['raw' => 'cache/typst', 'path' => 'cache/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/package-storage-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/package-storage-policy.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path:/srv/typst-packages', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
@@ -2137,6 +2268,23 @@ return [
                 'font-path-empty',
                 'input-variable-invalid-boundary',
             ],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 2,
+                'safeStorageEntryCount' => 0,
+                'unsafeStorageEntryCount' => 2,
+                'packagePathCount' => 1,
+                'packageCacheCount' => 1,
+                'relativeStorageEntryCount' => 0,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 0,
+                'uriStorageEntryCount' => 0,
+                'invalidStorageEntryCount' => 2,
+                'issues' => [
+                    'package-path-empty',
+                    'package-cache-empty',
+                ],
+            ],
             'creationTimestamp' => [
                 'raw' => '',
                 'value' => '',
@@ -2166,6 +2314,8 @@ return [
         $t->contains('typst-font-paths:1', implode(',', $plan['diagnostics']));
         $t->same(true, in_array('typst-package-path:', $plan['diagnostics'], true));
         $t->same(true, in_array('typst-package-cache:', $plan['diagnostics'], true));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-inputs:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:6', implode(',', $plan['diagnostics']));
@@ -2307,6 +2457,23 @@ return [
                 'package-cache-boundary-overridden',
                 'creation-timestamp-boundary-overridden',
             ],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 4,
+                'safeStorageEntryCount' => 2,
+                'unsafeStorageEntryCount' => 2,
+                'packagePathCount' => 2,
+                'packageCacheCount' => 2,
+                'relativeStorageEntryCount' => 2,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 1,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => [
+                    'package-path-external-boundary',
+                    'package-cache-external-boundary',
+                ],
+            ],
             'creationTimestamp' => [
                 'raw' => $timestamp,
                 'value' => $timestamp,
@@ -2399,6 +2566,8 @@ return [
         $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-cache:cache/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:1700000000', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:4', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:8', implode(',', $plan['diagnostics']));
