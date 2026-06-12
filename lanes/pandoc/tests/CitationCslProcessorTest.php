@@ -27045,6 +27045,87 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
         $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
     },
+    'renders bounded direct csl json status taxonomy variable aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-status-variable-alias',
+                'type' => 'report',
+                'title' => 'Direct Status Variable Alias Packet',
+                'author' => [
+                    ['family' => 'Lane', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publication-status' => 'queued',
+                'keyword-list' => ['archival review', 'csl alias'],
+                'category-list' => ['csl', 'taxonomy'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-status-variable-alias');
+        $t->same('queued', $item['status'] ?? null);
+        $t->same(['archival review', 'csl alias'], $item['keywords'] ?? null);
+        $t->same('archival review; csl alias', $item['keywordSummary'] ?? null);
+        $t->same(['csl', 'taxonomy'], $item['categories'] ?? null);
+        $t->same('csl; taxonomy', $item['categorySummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Status Taxonomy Variable Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-status-taxonomy-variable-alias-review</id>
+    <updated>2026-06-12T03:31:53+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="publication-status keyword-list category-list" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="publication-status"/>
+            <text variable="pubstate"/>
+            <text variable="keyword-list"/>
+            <text variable="keyword-list-summary"/>
+            <text variable="category-list"/>
+            <text variable="category-list-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-status-taxonomy-aliases"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publicationstatus"/>
+      <text variable="keywordlist"/>
+      <text variable="keywordlistsummary"/>
+      <text variable="categorylist"/>
+      <text variable="categorylistsummary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Status Taxonomy Variable Alias Review', $summary['title'] ?? null);
+        $t->same(['publication-status', 'keyword-list', 'category-list'], $branch['variables'] ?? null);
+        $t->same('publicationstatus', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Lane | queued | queued | archival review, csl alias | archival review; csl alias | csl, taxonomy | csl; taxonomy]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-status-variable-alias', 'text' => '[@direct-status-variable-alias]']),
+        ]));
+        $t->same('Direct Status Variable Alias Packet :: queued :: archival review, csl alias :: archival review; csl alias :: csl, taxonomy :: csl; taxonomy', $styled->renderBibliographyEntry('direct-status-variable-alias'));
+
+        $document = (new MarkdownReader())->read('Status taxonomy style aliases [@direct-status-variable-alias] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Status taxonomy style aliases [Lane | queued | queued | archival review, csl alias | archival review; csl alias | csl, taxonomy | csl; taxonomy] stay visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Direct Status Variable Alias Packet :: queued :: archival review, csl alias :: archival review; csl alias :: csl, taxonomy :: csl; taxonomy</dd>', $blocks);
+    },
     'normalizes bounded direct csl json abstract note aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
