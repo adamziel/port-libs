@@ -948,7 +948,7 @@ final class OdfReader
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
             $part = (string) ($manifestItem['part'] ?? '');
-            if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
+            if (!$entry->isDirectory() && !str_ends_with($part, '/') && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))) {
                 $roles[] = 'media-resource';
             }
             if ($this->isScriptPackagePartName($part)) {

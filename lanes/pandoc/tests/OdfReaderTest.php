@@ -9165,13 +9165,17 @@ XML;
         );
 
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDirectories, null, null, [
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Object 1/', 'data' => '', 'compressionMethod' => 0],
             ['name' => 'Object 1/content.xml', 'data' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>'],
+            ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
         ]));
         $manifestByPath = [];
         foreach ($result['manifest'] as $item) {
             $manifestByPath[$item['fullPath']] = $item;
         }
         $manifestReport = $result['importReport']['manifest'];
+        $packageProvenance = $manifestReport['packageProvenance'];
 
         $t->same(9, $manifestReport['count']);
         $t->same(3, $manifestReport['directoryCount']);
@@ -9196,6 +9200,11 @@ XML;
         $t->same('Object 1/content.xml', $manifestByPath['Object 1/content.xml']['part']);
         $t->same(true, $manifestByPath['Object 1/content.xml']['exists']);
         $t->same(false, $configurationDirectory['canExposeBytes']);
+        $t->same(3, $packageProvenance['packageDirectoryCount']);
+        $t->same(1, $packageProvenance['mediaResourcePartCount']);
+        $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Pictures/']['roles']);
+        $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Object 1/']['roles']);
+        $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Configurations2/']['roles']);
         $t->same($manifestReport['directoryItems'], array_values(array_filter(
             $result['document']->attr('manifest')['items'],
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
