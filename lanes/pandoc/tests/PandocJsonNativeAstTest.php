@@ -3291,6 +3291,57 @@ return [
             $t->same($colSpanNative, $cell[3], "{$source} native writer colspan native payload");
         }
     },
+    'emits text-only shared ast block constructors through pandoc json and native writers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('plain', ['text' => 'Plain']),
+            new AstNode('paragraph', ['text' => 'Paragraph']),
+            new AstNode('heading', ['level' => 2, 'text' => 'Heading']),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', ['text' => 'Bullet']),
+            ]),
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', [], [
+                    new AstNode('definition_term', ['text' => 'Term']),
+                    new AstNode('definition', ['text' => 'Definition']),
+                ]),
+            ]),
+            new AstNode('line_block', [], [
+                new AstNode('line', ['text' => 'Line']),
+            ]),
+        ]);
+        $expectedBlocks = [
+            ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Plain']]],
+            ['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'Paragraph']]],
+            ['t' => 'Header', 'c' => [2, ['', [], []], [['t' => 'Str', 'c' => 'Heading']]]],
+            ['t' => 'BulletList', 'c' => [
+                [
+                    ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Bullet']]],
+                ],
+            ]],
+            ['t' => 'DefinitionList', 'c' => [
+                [
+                    [['t' => 'Str', 'c' => 'Term']],
+                    [
+                        [
+                            ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Definition']]],
+                        ],
+                    ],
+                ],
+            ]],
+            ['t' => 'LineBlock', 'c' => [
+                [['t' => 'Str', 'c' => 'Line']],
+            ]],
+        ];
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($expectedBlocks, $jsonPacket['blocks'], 'pandoc json writer emits text-only block constructors');
+        $t->same($expectedBlocks, $nativePacket['blocks'], 'native writer emits text-only block constructors');
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

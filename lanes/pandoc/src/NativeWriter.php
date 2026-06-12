@@ -373,8 +373,8 @@ final class NativeWriter
     private function block(AstNode $node): array
     {
         return match ($node->type) {
-            'paragraph' => ['t' => 'Para', 'c' => $this->inlines($node->children)],
-            'plain' => ['t' => 'Plain', 'c' => $this->inlines($node->children)],
+            'paragraph' => ['t' => 'Para', 'c' => $this->inlines($this->inlineChildrenOrText($node))],
+            'plain' => ['t' => 'Plain', 'c' => $this->inlines($this->inlineChildrenOrText($node))],
             'heading' => ['t' => 'Header', 'c' => [
                 (int) $node->attr('level', 1),
                 $this->attrTuple($node),

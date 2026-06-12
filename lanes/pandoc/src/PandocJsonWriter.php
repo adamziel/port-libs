@@ -396,7 +396,7 @@ final class PandocJsonWriter
         return match ($node->type) {
             'plain' => ['t' => 'Plain', 'c' => $this->writeInlines($this->inlineChildrenOrText($node))],
             'paragraph' => ['t' => 'Para', 'c' => $this->writeInlines($this->inlineChildrenOrText($node))],
-            'heading' => ['t' => 'Header', 'c' => [(int) $node->attr('level', 1), $this->attrTuple($node), $this->writeInlines($node->children)]],
+            'heading' => ['t' => 'Header', 'c' => [(int) $node->attr('level', 1), $this->attrTuple($node), $this->writeInlines($this->inlineChildrenOrText($node))]],
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
@@ -490,7 +490,9 @@ final class PandocJsonWriter
     private function childrenAsBlocks(AstNode $node): array
     {
         if ($node->children === []) {
-            return [];
+            $inlines = $this->inlineChildrenOrText($node);
+
+            return $inlines === [] ? [] : [['t' => 'Plain', 'c' => $this->writeInlines($inlines)]];
         }
 
         if ($this->allInlineNodes($node->children)) {
