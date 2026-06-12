@@ -4090,6 +4090,62 @@ XML;
         $t->same(2, count($result['document']->children));
         $t->contains('Review appendix', $result['document']->children[1]->attr('html'));
     },
+    'reports invalid OPF manifest href targets without aborting reader ingestion' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithInvalidHref = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="invalid-escape" href="../../outside.bin?review=1#asset" media-type="application/octet-stream"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithInvalidHref));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+        $manifestReport = $result['importReport']['manifest'];
+        $invalid = $manifestById['invalid-escape'];
+        $invalidAsset = $assetById['invalid-escape'];
+
+        $t->same(7, $manifestReport['count']);
+        $t->same('../../outside.bin?review=1#asset', $invalid['href']);
+        $t->same(null, $invalid['target']);
+        $t->same(null, $invalid['part']);
+        $t->same(false, $invalid['external']);
+        $t->same(false, $invalid['exists']);
+        $t->same(false, $invalid['canExposeBytes']);
+        $t->same(null, $invalid['byteLength']);
+        $t->same(null, $invalid['crc32']);
+        $t->same('invalid-manifest-href-target', $invalid['diagnostics'][0]['type']);
+        $t->same('invalid-escape', $invalid['diagnostics'][0]['id']);
+        $t->same('../../outside.bin?review=1#asset', $invalid['diagnostics'][0]['href']);
+        $t->contains('must not traverse above the package root', $invalid['diagnostics'][0]['message']);
+
+        $t->same(0, $manifestReport['missingItemCount']);
+        $t->same([], $manifestReport['missingItems']);
+        $t->same(1, $manifestReport['invalidHrefItemCount']);
+        $t->same('invalid-escape', $manifestReport['invalidHrefItems'][0]['id']);
+        $t->same('../../outside.bin?review=1#asset', $manifestReport['invalidHrefItems'][0]['href']);
+        $t->same(null, $manifestReport['invalidHrefItems'][0]['part']);
+        $t->same('invalid-manifest-href-target', $manifestReport['itemDiagnostics'][0]['type']);
+        $t->same(1, $manifestReport['itemDiagnosticCount']);
+        $t->same(1, $manifestReport['diagnosticCount']);
+        $t->same(1, $manifestReport['byteProvenance']['invalidHrefItemCount']);
+        $t->same('invalid-escape', $manifestReport['byteProvenance']['invalidHrefItems'][0]['id']);
+        $t->same(0, $manifestReport['byteProvenance']['missingItemCount']);
+
+        $t->same(null, $invalidAsset['target']);
+        $t->same(null, $invalidAsset['part']);
+        $t->same(false, $invalidAsset['exists']);
+        $t->same(false, $invalidAsset['canExposeBytes']);
+        $t->same('invalid-manifest-href-target', $invalidAsset['diagnostics'][0]['type']);
+        $t->same(2, count($result['document']->children));
+        $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
     'rejects missing spine package resources before manifest review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingSpineContent = str_replace(
             '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',

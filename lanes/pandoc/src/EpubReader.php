@@ -4573,14 +4573,28 @@ final class EpubReader
                 continue;
             }
 
-            $target = OpcPackagePath::resolveInternalTarget($opfPart, $href);
-            $part = OpcPackagePath::stripQueryAndFragment($target);
-            $fragmentFields = self::targetFragmentFields($target);
-            $exists = $package->has($part);
-            $entry = $exists ? $package->entry($part) : null;
+            $target = null;
+            $part = null;
+            $fragmentFields = self::targetFragmentFields(null);
+            $exists = false;
+            $entry = null;
             $byteSha256 = null;
             $diagnostics = [];
-            if ($exists) {
+            try {
+                $target = OpcPackagePath::resolveInternalTarget($opfPart, $href);
+                $part = OpcPackagePath::stripQueryAndFragment($target);
+                $fragmentFields = self::targetFragmentFields($target);
+                $exists = $package->has($part);
+                $entry = $exists ? $package->entry($part) : null;
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-href-target',
+                    'id' => $id,
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+            if ($part !== null && $exists) {
                 try {
                     $byteSha256 = hash('sha256', $package->read($part));
                 } catch (\Throwable $exception) {
@@ -4620,7 +4634,7 @@ final class EpubReader
                 'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'byteSha256' => $byteSha256,
                 'encrypted' => false,
-                'canExposeBytes' => true,
+                'canExposeBytes' => $part !== null,
                 'encryption' => null,
                 'diagnostics' => $diagnostics,
             ];
@@ -4783,32 +4797,47 @@ final class EpubReader
     {
         $missingItems = [];
         $externalItems = [];
+        $invalidHrefItems = [];
         $itemsByPart = [];
         $itemDiagnostics = [];
         foreach ($manifest as $item) {
-            if (($item['external'] ?? false) === true) {
-                $externalItems[] = $item;
-            } elseif (($item['exists'] ?? false) !== true) {
-                $missingItems[] = $item;
-            }
-
-            $part = $item['part'] ?? null;
-            if (is_string($part) && $part !== '') {
-                $itemsByPart[$part][] = $item;
-            }
-
+            $hasInvalidHref = false;
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
                     continue;
                 }
 
-                $itemDiagnostics[] = [
+                $itemDiagnostic = [
                     'id' => (string) ($item['id'] ?? ''),
                     'href' => (string) ($item['href'] ?? ''),
                     'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
                     'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
                     'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
                 ] + $diagnostic;
+                $itemDiagnostics[] = $itemDiagnostic;
+
+                if (($diagnostic['type'] ?? null) === 'invalid-manifest-href-target') {
+                    $hasInvalidHref = true;
+                    $invalidHrefItems[] = [
+                        'id' => (string) ($item['id'] ?? ''),
+                        'href' => (string) ($item['href'] ?? ''),
+                        'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                        'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                        'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                        'message' => is_string($diagnostic['message'] ?? null) ? $diagnostic['message'] : '',
+                    ];
+                }
+            }
+
+            if (($item['external'] ?? false) === true) {
+                $externalItems[] = $item;
+            } elseif (($item['exists'] ?? false) !== true && !$hasInvalidHref) {
+                $missingItems[] = $item;
+            }
+
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $itemsByPart[$part][] = $item;
             }
         }
 
@@ -4832,6 +4861,8 @@ final class EpubReader
             'missingItems' => $missingItems,
             'externalItemCount' => count($externalItems),
             'externalItems' => $externalItems,
+            'invalidHrefItemCount' => count($invalidHrefItems),
+            'invalidHrefItems' => $invalidHrefItems,
             'byteProvenance' => self::manifestByteProvenanceReport($manifest),
             'duplicatePackagePartCount' => count($duplicateGroups),
             'duplicatePackageItemCount' => $duplicateItemCount,
@@ -4932,6 +4963,10 @@ final class EpubReader
             }
 
             $diagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+            if (self::diagnosticsContainType($diagnostics, 'invalid-manifest-href-target')) {
+                continue;
+            }
+
             $diagnostics[] = self::missingNonSpineManifestResourceDiagnostic($item);
             $manifestById[$id]['diagnostics'] = $diagnostics;
         }
@@ -4958,6 +4993,20 @@ final class EpubReader
     }
 
     /**
+     * @param list<mixed> $diagnostics
+     */
+    private static function diagnosticsContainType(array $diagnostics, string $type): bool
+    {
+        foreach ($diagnostics as $diagnostic) {
+            if (is_array($diagnostic) && ($diagnostic['type'] ?? null) === $type) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param list<array<string, mixed>> $manifest
      *
      * @return array<string, mixed>
@@ -4971,11 +5020,14 @@ final class EpubReader
         $encryptedItems = [];
         $missingItems = [];
         $externalItems = [];
+        $invalidHrefItems = [];
 
         foreach ($manifest as $item) {
             $id = (string) ($item['id'] ?? '');
             $part = is_string($item['part'] ?? null) ? $item['part'] : null;
             $byteSha256 = is_string($item['byteSha256'] ?? null) ? $item['byteSha256'] : null;
+            $diagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
+            $hasInvalidHref = self::diagnosticsContainType($diagnostics, 'invalid-manifest-href-target');
             $summary = [
                 'id' => $id,
                 'href' => (string) ($item['href'] ?? ''),
@@ -4989,7 +5041,7 @@ final class EpubReader
                 'byteSha256' => $byteSha256,
                 'encrypted' => self::isEncryptedManifestItem($item),
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
-                'diagnosticCount' => count(is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : []),
+                'diagnosticCount' => count($diagnostics),
             ];
 
             $items[] = $summary;
@@ -5005,11 +5057,14 @@ final class EpubReader
             if ($summary['encrypted']) {
                 $encryptedItems[] = $summary;
             }
-            if (!$summary['external'] && !$summary['exists']) {
+            if (!$summary['external'] && !$summary['exists'] && !$hasInvalidHref) {
                 $missingItems[] = $summary;
             }
             if ($summary['external']) {
                 $externalItems[] = $summary;
+            }
+            if ($hasInvalidHref) {
+                $invalidHrefItems[] = $summary;
             }
         }
 
@@ -5023,6 +5078,7 @@ final class EpubReader
             'encryptedItemCount' => count($encryptedItems),
             'missingItemCount' => count($missingItems),
             'externalItemCount' => count($externalItems),
+            'invalidHrefItemCount' => count($invalidHrefItems),
             'items' => $items,
             'itemsById' => $itemsById,
             'itemsByPart' => $itemsByPart,
@@ -5030,6 +5086,7 @@ final class EpubReader
             'encryptedItems' => $encryptedItems,
             'missingItems' => $missingItems,
             'externalItems' => $externalItems,
+            'invalidHrefItems' => $invalidHrefItems,
         ];
     }
 
