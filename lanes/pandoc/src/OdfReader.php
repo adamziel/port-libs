@@ -757,6 +757,10 @@ final class OdfReader
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $rawNameProvenanceEntries = [];
+        $legacyEncodedNameEntryCount = 0;
+        $unicodePathExtraEntryCount = 0;
+        $decodedNameDiffersFromRawNameEntryCount = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -825,6 +829,7 @@ final class OdfReader
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared);
+            $rawNameProvenance = self::packageEntryRawNameProvenance($entry);
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
@@ -840,6 +845,13 @@ final class OdfReader
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
+                'rawName' => $rawNameProvenance['rawName'],
+                'rawNameHex' => $rawNameProvenance['rawNameHex'],
+                'nameEncoding' => $rawNameProvenance['nameEncoding'],
+                'rawNameMatchesDecodedName' => $rawNameProvenance['rawNameMatchesDecodedName'],
+                'usesLegacyNameEncoding' => $rawNameProvenance['usesLegacyNameEncoding'],
+                'usesUnicodePathExtraField' => $rawNameProvenance['usesUnicodePathExtraField'],
+                'hasRawNameProvenance' => $rawNameProvenance['hasRawNameProvenance'],
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestItem),
                 'manifestIndex' => is_array($manifestItem) ? $manifestItem['manifestIndex'] : null,
@@ -869,6 +881,23 @@ final class OdfReader
                 'byteExposurePolicy' => is_array($manifestItem) ? ($manifestItem['byteExposurePolicy'] ?? null) : null,
                 'undeclared' => $isUndeclared,
             ];
+            if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
+                ++$decodedNameDiffersFromRawNameEntryCount;
+            }
+            if ($rawNameProvenance['usesLegacyNameEncoding']) {
+                ++$legacyEncodedNameEntryCount;
+            }
+            if ($rawNameProvenance['usesUnicodePathExtraField']) {
+                ++$unicodePathExtraEntryCount;
+            }
+            if ($rawNameProvenance['hasRawNameProvenance']) {
+                $rawNameProvenanceEntries[] = [
+                    'part' => $entry->name,
+                    'roles' => $roles,
+                    'declaredInManifest' => is_array($manifestItem),
+                    'undeclared' => $isUndeclared,
+                ] + $rawNameProvenance;
+            }
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -910,6 +939,11 @@ final class OdfReader
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'rawNameProvenanceEntryCount' => count($rawNameProvenanceEntries),
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -967,6 +1001,28 @@ final class OdfReader
         }
 
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
+    }
+
+    /**
+     * @return array{rawName:string, rawNameHex:string, nameEncoding:string, rawNameMatchesDecodedName:bool, usesLegacyNameEncoding:bool, usesUnicodePathExtraField:bool, hasRawNameProvenance:bool}
+     */
+    private static function packageEntryRawNameProvenance(ZipPackageEntry $entry): array
+    {
+        $rawNameMatchesDecodedName = $entry->rawName === $entry->name;
+        $usesLegacyNameEncoding = $entry->nameEncoding === 'cp437';
+        $usesUnicodePathExtraField = $entry->nameEncoding === 'info-zip-unicode-path';
+
+        return [
+            'rawName' => $entry->rawName,
+            'rawNameHex' => bin2hex($entry->rawName),
+            'nameEncoding' => $entry->nameEncoding,
+            'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+            'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+            'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+            'hasRawNameProvenance' => !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField,
+        ];
     }
 
     /**
