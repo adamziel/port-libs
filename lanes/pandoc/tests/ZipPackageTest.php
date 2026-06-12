@@ -10009,6 +10009,114 @@ return [
         $t->same([$documentEntry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip entry extra field provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected extra field provenance</w:p></w:body></w:document>';
+        $documentExtra = pack('vva*', 0xcafe, strlen('document-extra'), 'document-extra');
+        $localOnlyExtra = pack('vva*', 0xbeef, strlen('local-only'), 'local-only');
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'localExtra' => $documentExtra,
+                'centralExtra' => $documentExtra,
+            ],
+            [
+                'name' => 'word/media/local-extra.bin',
+                'data' => "local extra field media placeholder\n",
+                'method' => 0,
+                'localExtra' => $localOnlyExtra,
+                'centralExtra' => '',
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/local-extra.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/missing.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 1024);
+
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedExtraFieldEntryCount']);
+        $t->same(1, $summary['selectedCentralExtraFieldEntryCount']);
+        $t->same(2, $summary['selectedLocalExtraFieldEntryCount']);
+        $t->same(3, $summary['selectedExtraFieldRecordCount']);
+        $t->same(1, $summary['selectedCentralExtraFieldRecordCount']);
+        $t->same(2, $summary['selectedLocalExtraFieldRecordCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+
+        $documentEntry = $summary['entries'][0];
+        $t->same('word/document.xml', $documentEntry['name']);
+        $t->same(strlen($documentExtra), $documentEntry['centralExtraFieldLength']);
+        $t->same(1, $documentEntry['centralExtraFieldRecordCount']);
+        $t->same([0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same(true, $documentEntry['hasCentralExtraFields']);
+        $t->same(strlen($documentExtra), $documentEntry['localExtraFieldLength']);
+        $t->same(1, $documentEntry['localExtraFieldRecordCount']);
+        $t->same([0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(true, $documentEntry['hasLocalExtraFields']);
+        $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $documentEntry['hasExtraFieldProvenance']);
+
+        $localOnlyEntry = $summary['entries'][1];
+        $t->same('word/media/local-extra.bin', $localOnlyEntry['name']);
+        $t->same(0, $localOnlyEntry['centralExtraFieldLength']);
+        $t->same(0, $localOnlyEntry['centralExtraFieldRecordCount']);
+        $t->same([], $localOnlyEntry['centralExtraFieldIds']);
+        $t->same(false, $localOnlyEntry['hasCentralExtraFields']);
+        $t->same(strlen($localOnlyExtra), $localOnlyEntry['localExtraFieldLength']);
+        $t->same(1, $localOnlyEntry['localExtraFieldRecordCount']);
+        $t->same([0xbeef], $localOnlyEntry['localExtraFieldIds']);
+        $t->same(true, $localOnlyEntry['hasLocalExtraFields']);
+        $t->same(false, $localOnlyEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $localOnlyEntry['hasExtraFieldProvenance']);
+
+        $expectedExtraFieldEntries = [
+            [
+                'name' => 'word/document.xml',
+                'centralExtraFieldLength' => strlen($documentExtra),
+                'centralExtraFieldRecordCount' => 1,
+                'centralExtraFieldIds' => [0xcafe],
+                'hasCentralExtraFields' => true,
+                'localExtraFieldLength' => strlen($documentExtra),
+                'localExtraFieldRecordCount' => 1,
+                'localExtraFieldIds' => [0xcafe],
+                'hasLocalExtraFields' => true,
+                'centralLocalExtraFieldIdsMatch' => true,
+                'hasExtraFieldProvenance' => true,
+            ],
+            [
+                'name' => 'word/media/local-extra.bin',
+                'centralExtraFieldLength' => 0,
+                'centralExtraFieldRecordCount' => 0,
+                'centralExtraFieldIds' => [],
+                'hasCentralExtraFields' => false,
+                'localExtraFieldLength' => strlen($localOnlyExtra),
+                'localExtraFieldRecordCount' => 1,
+                'localExtraFieldIds' => [0xbeef],
+                'hasLocalExtraFields' => true,
+                'centralLocalExtraFieldIdsMatch' => false,
+                'hasExtraFieldProvenance' => true,
+            ],
+        ];
+        $t->same($expectedExtraFieldEntries, $summary['selectedExtraFieldProvenanceEntries']);
+
+        $missingEntry = $summary['entries'][2];
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['centralExtraFieldLength']);
+        $t->same(0, $missingEntry['centralExtraFieldRecordCount']);
+        $t->same([], $missingEntry['centralExtraFieldIds']);
+        $t->same(false, $missingEntry['hasCentralExtraFields']);
+        $t->same(null, $missingEntry['localExtraFieldLength']);
+        $t->same(0, $missingEntry['localExtraFieldRecordCount']);
+        $t->same([], $missingEntry['localExtraFieldIds']);
+        $t->same(false, $missingEntry['hasLocalExtraFields']);
+        $t->same(null, $missingEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(false, $missingEntry['hasExtraFieldProvenance']);
+        $t->same([$documentEntry, $localOnlyEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";

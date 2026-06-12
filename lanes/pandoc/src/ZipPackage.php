@@ -4749,6 +4749,12 @@ final class ZipPackage
      *     selectedLegacyEncodedCommentEntryCount:int,
      *     selectedUnicodeCommentExtraEntryCount:int,
      *     selectedDecodedCommentDiffersFromRawCommentEntryCount:int,
+     *     selectedExtraFieldEntryCount:int,
+     *     selectedCentralExtraFieldEntryCount:int,
+     *     selectedLocalExtraFieldEntryCount:int,
+     *     selectedExtraFieldRecordCount:int,
+     *     selectedCentralExtraFieldRecordCount:int,
+     *     selectedLocalExtraFieldRecordCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -4760,6 +4766,7 @@ final class ZipPackage
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
      *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
+     *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4895,7 +4902,13 @@ final class ZipPackage
         $selectedLegacyEncodedCommentEntryCount = 0;
         $selectedUnicodeCommentExtraEntryCount = 0;
         $selectedDecodedCommentDiffersFromRawCommentEntryCount = 0;
+        $selectedExtraFieldProvenanceEntries = [];
+        $selectedCentralExtraFieldEntryCount = 0;
+        $selectedLocalExtraFieldEntryCount = 0;
+        $selectedCentralExtraFieldRecordCount = 0;
+        $selectedLocalExtraFieldRecordCount = 0;
         foreach ($selectedEntriesByName as $entry) {
+            $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
             if ($isDirectory) {
                 ++$selectedDirectoryEntryCount;
@@ -4969,6 +4982,20 @@ final class ZipPackage
                     'name' => $entry->name,
                 ] + $rawCommentProvenance;
             }
+            $extraFieldProvenance = self::entryExtraFieldHandoffProvenance($entry, $localHeader);
+            if ($extraFieldProvenance['hasCentralExtraFields']) {
+                $selectedCentralExtraFieldEntryCount++;
+            }
+            if ($extraFieldProvenance['hasLocalExtraFields']) {
+                $selectedLocalExtraFieldEntryCount++;
+            }
+            $selectedCentralExtraFieldRecordCount += $extraFieldProvenance['centralExtraFieldRecordCount'];
+            $selectedLocalExtraFieldRecordCount += $extraFieldProvenance['localExtraFieldRecordCount'];
+            if ($extraFieldProvenance['hasExtraFieldProvenance']) {
+                $selectedExtraFieldProvenanceEntries[] = [
+                    'name' => $entry->name,
+                ] + $extraFieldProvenance;
+            }
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -5021,6 +5048,16 @@ final class ZipPackage
                 'usesLegacyCommentEncoding' => false,
                 'usesUnicodeCommentExtraField' => false,
                 'hasRawCommentProvenance' => false,
+                'centralExtraFieldLength' => null,
+                'centralExtraFieldRecordCount' => 0,
+                'centralExtraFieldIds' => [],
+                'hasCentralExtraFields' => false,
+                'localExtraFieldLength' => null,
+                'localExtraFieldRecordCount' => 0,
+                'localExtraFieldIds' => [],
+                'hasLocalExtraFields' => false,
+                'centralLocalExtraFieldIdsMatch' => null,
+                'hasExtraFieldProvenance' => false,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'expansionRatio' => null,
@@ -5071,6 +5108,7 @@ final class ZipPackage
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryRawCommentHandoffProvenance($entry));
+            $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5181,6 +5219,12 @@ final class ZipPackage
             'selectedLegacyEncodedCommentEntryCount' => $selectedLegacyEncodedCommentEntryCount,
             'selectedUnicodeCommentExtraEntryCount' => $selectedUnicodeCommentExtraEntryCount,
             'selectedDecodedCommentDiffersFromRawCommentEntryCount' => $selectedDecodedCommentDiffersFromRawCommentEntryCount,
+            'selectedExtraFieldEntryCount' => count($selectedExtraFieldProvenanceEntries),
+            'selectedCentralExtraFieldEntryCount' => $selectedCentralExtraFieldEntryCount,
+            'selectedLocalExtraFieldEntryCount' => $selectedLocalExtraFieldEntryCount,
+            'selectedExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount + $selectedLocalExtraFieldRecordCount,
+            'selectedCentralExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount,
+            'selectedLocalExtraFieldRecordCount' => $selectedLocalExtraFieldRecordCount,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5193,6 +5237,7 @@ final class ZipPackage
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
+            'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -5282,6 +5327,54 @@ final class ZipPackage
         ksort($summaries, SORT_STRING);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @return array{
+     *     centralExtraFieldLength:int,
+     *     centralExtraFieldRecordCount:int,
+     *     centralExtraFieldIds:list<int>,
+     *     hasCentralExtraFields:bool,
+     *     localExtraFieldLength:int,
+     *     localExtraFieldRecordCount:int,
+     *     localExtraFieldIds:list<int>,
+     *     hasLocalExtraFields:bool,
+     *     centralLocalExtraFieldIdsMatch:bool,
+     *     hasExtraFieldProvenance:bool
+     * }
+     */
+    private static function entryExtraFieldHandoffProvenance(ZipPackageEntry $entry, array $localHeader): array
+    {
+        $centralExtraFields = $entry->centralExtraFields();
+        $localExtraFieldData = is_string($localHeader['extraFieldData'] ?? null)
+            ? $localHeader['extraFieldData']
+            : '';
+        $localExtraFields = ZipPackageEntry::extraFieldsFromData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $centralExtraFieldIds = array_map(
+            static fn (array $field): int => $field['id'],
+            $centralExtraFields
+        );
+        $localExtraFieldIds = array_map(
+            static fn (array $field): int => $field['id'],
+            $localExtraFields
+        );
+
+        return [
+            'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
+            'centralExtraFieldRecordCount' => count($centralExtraFields),
+            'centralExtraFieldIds' => $centralExtraFieldIds,
+            'hasCentralExtraFields' => $centralExtraFields !== [],
+            'localExtraFieldLength' => strlen($localExtraFieldData),
+            'localExtraFieldRecordCount' => count($localExtraFields),
+            'localExtraFieldIds' => $localExtraFieldIds,
+            'hasLocalExtraFields' => $localExtraFields !== [],
+            'centralLocalExtraFieldIdsMatch' => $centralExtraFieldIds === $localExtraFieldIds,
+            'hasExtraFieldProvenance' => $centralExtraFields !== [] || $localExtraFields !== [],
+        ];
     }
 
     /**
