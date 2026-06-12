@@ -51,6 +51,7 @@ final class OpcRelationshipGraph
     ];
 
     private const RELATIONSHIP_PART_CONTENT_TYPE = 'application/vnd.openxmlformats-package.relationships+xml';
+    private const ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT = 5;
     private const CORE_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const EXTENDED_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
     private const CUSTOM_PROPERTIES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
@@ -271,7 +272,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, contentTypeOverrideDeclarationCount:int, contentTypeUsedOverrideDeclarationCount:int, contentTypeUnusedOverrideDeclarationCount:int, contentTypeInvalidOverrideDeclarationCount:int, contentTypeUnusedOverridePartNames:list<string>, contentTypeOverrideDeclarationIssueCounts:array<string, int>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, entryNamesByIssue:array<string, list<string>>, partNamesByIssue:array<string, list<string>>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, contentTypeOverrideDeclarations:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, matchKind:string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, contentTypeOverrideDeclarationCount:int, contentTypeUsedOverrideDeclarationCount:int, contentTypeUnusedOverrideDeclarationCount:int, contentTypeInvalidOverrideDeclarationCount:int, contentTypeUnusedOverridePartNames:list<string>, contentTypeOverrideDeclarationIssueCounts:array<string, int>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, entryNamesByIssue:array<string, list<string>>, partNamesByIssue:array<string, list<string>>, roleCounts:array<string, int>, contentTypesItems:list<string>, largestPayloadEntryLimit:int, largestPayloadEntryCount:int, largestPayloadEntries:list<array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int}>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, contentTypeOverrideDeclarations:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, matchKind:string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -587,6 +588,7 @@ final class OpcRelationshipGraph
         $xmlPayloadPartCount = 0;
         $binaryPayloadPartCount = 0;
         $largestPayloadEntry = null;
+        $payloadEntries = [];
 
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = 1;
@@ -673,6 +675,16 @@ final class OpcRelationshipGraph
                     'uncompressedSize' => $entry['uncompressedSize'],
                 ];
             }
+            $payloadEntries[] = [
+                'entryName' => $entry['entryName'],
+                'partName' => $entry['partName'],
+                'role' => $entry['role'],
+                'handoffKind' => $entry['handoffKind'],
+                'compressionMethod' => $entry['compressionMethod'],
+                'compressionMethodName' => $entry['compressionMethodName'],
+                'compressedSize' => $entry['compressedSize'],
+                'uncompressedSize' => $entry['uncompressedSize'],
+            ];
 
             foreach ($entry['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
@@ -779,6 +791,10 @@ final class OpcRelationshipGraph
             $contentTypeOverrideDeclarations,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
         );
+        $largestPayloadEntries = self::largestZipManifestPayloadEntries(
+            $payloadEntries,
+            self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
+        );
 
         return [
             'valid' => $issues === [],
@@ -841,6 +857,9 @@ final class OpcRelationshipGraph
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
+            'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
+            'largestPayloadEntryCount' => count($largestPayloadEntries),
+            'largestPayloadEntries' => $largestPayloadEntries,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
@@ -1069,6 +1088,7 @@ final class OpcRelationshipGraph
         $binaryPayloadPartCount = 0;
         $unknownByteCountEntries = [];
         $largestPayloadEntry = null;
+        $payloadEntries = [];
 
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = ($issueCounts['missing-content-types-item'] ?? 0) + 1;
@@ -1143,6 +1163,18 @@ final class OpcRelationshipGraph
                 || $exactUncompressedSize > $largestPayloadEntry['uncompressedSize']
             ) {
                 $largestPayloadEntry = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => $entry['compressionMethodName'],
+                    'compressedSize' => $exactCompressedSize,
+                    'uncompressedSize' => $exactUncompressedSize,
+                ];
+            }
+            if ($entry['byteCountsAreExact']) {
+                $payloadEntries[] = [
                     'entryName' => $entry['entryName'],
                     'partName' => $entry['partName'],
                     'role' => $entry['role'],
@@ -1233,6 +1265,10 @@ final class OpcRelationshipGraph
             $relationshipParts,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
         );
+        $largestPayloadEntries = self::largestZipManifestPayloadEntries(
+            $payloadEntries,
+            self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
+        );
 
         return [
             'valid' => $issues === [],
@@ -1281,6 +1317,9 @@ final class OpcRelationshipGraph
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
+            'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
+            'largestPayloadEntryCount' => count($largestPayloadEntries),
+            'largestPayloadEntries' => $largestPayloadEntries,
             'unknownByteCountEntries' => $unknownByteCountEntries,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
@@ -7524,6 +7563,41 @@ final class OpcRelationshipGraph
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    /**
+     * @param list<array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int}> $entries
+     * @return list<array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int}>
+     */
+    private static function largestZipManifestPayloadEntries(array $entries, int $limit): array
+    {
+        if ($limit < 1) {
+            return [];
+        }
+
+        usort(
+            $entries,
+            static function (array $left, array $right): int {
+                $byUncompressedSize = $right['uncompressedSize'] <=> $left['uncompressedSize'];
+                if ($byUncompressedSize !== 0) {
+                    return $byUncompressedSize;
+                }
+
+                $byCompressedSize = $right['compressedSize'] <=> $left['compressedSize'];
+                if ($byCompressedSize !== 0) {
+                    return $byCompressedSize;
+                }
+
+                $byPartName = strcmp((string) ($left['partName'] ?? ''), (string) ($right['partName'] ?? ''));
+                if ($byPartName !== 0) {
+                    return $byPartName;
+                }
+
+                return strcmp($left['entryName'], $right['entryName']);
+            }
+        );
+
+        return array_slice($entries, 0, $limit);
     }
 
     /**

@@ -720,6 +720,66 @@ XML;
         $t->same('deflated', $summary['largestPayloadEntry']['compressionMethodName']);
         $t->same($summary['largestPayloadEntry'], $centralSummary['largestPayloadEntry']);
     },
+    'summarizes OPC ZIP manifest largest payload entries before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="bin" ContentType="application/octet-stream"/></Types>
+XML;
+        $largeImage = str_repeat('l', 900);
+        $tieAlpha = str_repeat('a', 800);
+        $tieBeta = str_repeat('b', 800);
+        $binaryPayload = str_repeat('p', 700);
+        $documentXml = str_repeat('<w:p/>', 100);
+        $rootRelationshipsXml = str_repeat('r', 500);
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/large.png', 'data' => $largeImage, 'compressionMethod' => 0],
+            ['name' => 'word/media/tie-alpha.png', 'data' => $tieAlpha, 'compressionMethod' => 0],
+            ['name' => 'word/media/tie-beta.png', 'data' => $tieBeta, 'compressionMethod' => 0],
+            ['name' => 'word/payload/package.bin', 'data' => $binaryPayload, 'compressionMethod' => 0],
+            ['name' => 'word/payload/small.bin', 'data' => 'small', 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $expectedLargestNames = [
+            'word/media/large.png',
+            'word/media/tie-alpha.png',
+            'word/media/tie-beta.png',
+            'word/payload/package.bin',
+            'word/document.xml',
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same(5, $summary['largestPayloadEntryLimit']);
+        $t->same(5, $summary['largestPayloadEntryCount']);
+        $t->same(5, $centralSummary['largestPayloadEntryLimit']);
+        $t->same(5, $centralSummary['largestPayloadEntryCount']);
+        $t->same($expectedLargestNames, array_column($summary['largestPayloadEntries'], 'entryName'));
+        $t->same($expectedLargestNames, array_column($centralSummary['largestPayloadEntries'], 'entryName'));
+        $t->same($summary['largestPayloadEntries'], $centralSummary['largestPayloadEntries']);
+        $t->same($summary['largestPayloadEntries'][0], $summary['largestPayloadEntry']);
+        $t->same($centralSummary['largestPayloadEntries'][0], $centralSummary['largestPayloadEntry']);
+
+        $largest = $summary['largestPayloadEntries'][0];
+        $t->same('word/media/large.png', $largest['entryName']);
+        $t->same('/word/media/large.png', $largest['partName']);
+        $t->same('media', $largest['role']);
+        $t->same('media', $largest['handoffKind']);
+        $t->same(0, $largest['compressionMethod']);
+        $t->same('stored', $largest['compressionMethodName']);
+        $t->same(strlen($largeImage), $largest['compressedSize']);
+        $t->same(strlen($largeImage), $largest['uncompressedSize']);
+
+        $t->same('/word/media/tie-alpha.png', $summary['largestPayloadEntries'][1]['partName']);
+        $t->same('/word/media/tie-beta.png', $summary['largestPayloadEntries'][2]['partName']);
+        $t->same('binary-part', $summary['largestPayloadEntries'][3]['role']);
+        $t->same('binary', $summary['largestPayloadEntries'][3]['handoffKind']);
+        $t->same('xml-part', $summary['largestPayloadEntries'][4]['role']);
+        $t->same('xml', $summary['largestPayloadEntries'][4]['handoffKind']);
+    },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
