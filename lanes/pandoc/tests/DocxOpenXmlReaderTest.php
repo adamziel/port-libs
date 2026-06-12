@@ -1362,6 +1362,64 @@ XML;
         $t->same(['missing-relationship-id'], $summary['invalidRelationshipRecords'][0]['issues']);
         $t->same(1, $summary['relationshipTypeCounts']['(missing-type)']);
     },
+    'summarizes docx relationship target mode declarations for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml" TargetMode="Internal"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rExplicitInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/explicit-internal.png" TargetMode="Internal"/>' . "\n" .
+            '  <Relationship Id="rUnexpectedMode" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unexpected-mode.png" TargetMode="Sidecar"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/explicit-internal.png'] = 'explicit internal image bytes';
+        $parts['word/media/unexpected-mode.png'] = 'unexpected mode image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $rootRelationship = $package['relationshipParts']['_rels/.rels']['relationships']['rDoc'];
+        $documentRelationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rExplicitInternal'];
+        $unexpectedRecord = $summary['relationshipsWithUnexpectedTargetMode'][0];
+
+        $t->same(6, $summary['relationshipRecordCount']);
+        $t->same(6, $summary['relationshipCount']);
+        $t->same(5, $summary['internalRelationshipCount']);
+        $t->same(1, $summary['externalRelationshipCount']);
+        $t->same([
+            '(implicit-internal)' => 2,
+            'External' => 1,
+            'Internal' => 2,
+            'Sidecar' => 1,
+        ], $summary['relationshipRecordTargetModeCounts']);
+        $t->same(2, $summary['relationshipRecordImplicitInternalTargetModeCount']);
+        $t->same(2, $summary['relationshipRecordExplicitInternalTargetModeCount']);
+        $t->same(1, $summary['relationshipRecordExplicitExternalTargetModeCount']);
+        $t->same(1, $summary['relationshipRecordUnexpectedTargetModeCount']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $summary['relationshipPartsWithExplicitInternalTargetMode']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithUnexpectedTargetMode']);
+        $t->same(['rDoc', 'rExplicitInternal'], array_column($summary['relationshipsWithExplicitInternalTargetMode'], 'id'));
+        $t->same(['rUnexpectedMode'], array_column($summary['relationshipsWithUnexpectedTargetMode'], 'id'));
+
+        $t->same('Internal', $rootRelationship['targetMode']);
+        $t->same(false, $rootRelationship['external']);
+        $t->same('word/document.xml', $rootRelationship['targetPart']);
+        $t->same(true, $rootRelationship['exists']);
+        $t->same('Internal', $documentRelationship['targetMode']);
+        $t->same(false, $documentRelationship['external']);
+        $t->same('word/media/explicit-internal.png', $documentRelationship['targetPart']);
+        $t->same(true, $documentRelationship['exists']);
+        $t->same('rUnexpectedMode', $unexpectedRecord['id']);
+        $t->same('Sidecar', $unexpectedRecord['targetMode']);
+        $t->same(false, $unexpectedRecord['valid']);
+        $t->same(['unexpected-relationship-target-mode'], $unexpectedRecord['issues']);
+        $t->same('word/media/unexpected-mode.png', $unexpectedRecord['targetPart']);
+        $t->same(true, $unexpectedRecord['exists']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

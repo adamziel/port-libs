@@ -2841,11 +2841,20 @@ final class DocxOpenXmlReader
         $duplicateRelationshipRecordCount = 0;
         $invalidRelationshipRecordCount = 0;
         $relationshipRecordIssueCount = 0;
+        $relationshipRecordTargetModeCounts = [];
+        $relationshipRecordImplicitInternalTargetModeCount = 0;
+        $relationshipRecordExplicitInternalTargetModeCount = 0;
+        $relationshipRecordExplicitExternalTargetModeCount = 0;
+        $relationshipRecordUnexpectedTargetModeCount = 0;
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
+        $relationshipPartsWithExplicitInternalTargetMode = [];
+        $relationshipPartsWithUnexpectedTargetMode = [];
         $duplicateRelationshipIds = [];
         $duplicateRelationshipIdItems = [];
         $invalidRelationshipRecords = [];
+        $relationshipsWithExplicitInternalTargetMode = [];
+        $relationshipsWithUnexpectedTargetMode = [];
         $relationshipRecordIssueCodes = [];
         $targetParts = [];
         $partsWithoutContentType = [];
@@ -2926,6 +2935,44 @@ final class DocxOpenXmlReader
             $duplicateRelationshipRecordCount += (int) ($relationshipPart['duplicateRelationshipRecordCount'] ?? 0);
             $invalidRelationshipRecordCount += (int) ($relationshipPart['invalidRelationshipRecordCount'] ?? 0);
             $relationshipRecordIssueCount += (int) ($relationshipPart['relationshipRecordIssueCount'] ?? 0);
+            foreach (($relationshipPart['relationshipRecords'] ?? []) as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                $targetMode = is_string($record['targetMode'] ?? null) ? $record['targetMode'] : '';
+                $targetModeKey = $targetMode === '' ? '(implicit-internal)' : $targetMode;
+                $relationshipRecordTargetModeCounts[$targetModeKey] = ($relationshipRecordTargetModeCounts[$targetModeKey] ?? 0) + 1;
+
+                if ($targetMode === '') {
+                    ++$relationshipRecordImplicitInternalTargetModeCount;
+                    continue;
+                }
+
+                if ($targetMode === 'Internal') {
+                    ++$relationshipRecordExplicitInternalTargetModeCount;
+                    $relationshipPartsWithExplicitInternalTargetMode[(string) $relationshipsPart] = true;
+                    $relationshipsWithExplicitInternalTargetMode[] = $this->relationshipProvenanceSummaryItem($record) + [
+                        'ordinal' => $record['ordinal'] ?? null,
+                        'valid' => (bool) ($record['valid'] ?? false),
+                        'issues' => $record['issues'] ?? [],
+                    ];
+                    continue;
+                }
+
+                if ($targetMode === 'External') {
+                    ++$relationshipRecordExplicitExternalTargetModeCount;
+                    continue;
+                }
+
+                ++$relationshipRecordUnexpectedTargetModeCount;
+                $relationshipPartsWithUnexpectedTargetMode[(string) $relationshipsPart] = true;
+                $relationshipsWithUnexpectedTargetMode[] = $this->relationshipProvenanceSummaryItem($record) + [
+                    'ordinal' => $record['ordinal'] ?? null,
+                    'valid' => (bool) ($record['valid'] ?? false),
+                    'issues' => $record['issues'] ?? [],
+                ];
+            }
             if (($relationshipPart['duplicateRelationshipIdCount'] ?? 0) > 0) {
                 $relationshipPartsWithDuplicateRelationshipIds[] = (string) $relationshipsPart;
             }
@@ -2959,6 +3006,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
 
         return [
@@ -2983,6 +3031,11 @@ final class DocxOpenXmlReader
             'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
             'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
             'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
+            'relationshipRecordTargetModeCounts' => $relationshipRecordTargetModeCounts,
+            'relationshipRecordImplicitInternalTargetModeCount' => $relationshipRecordImplicitInternalTargetModeCount,
+            'relationshipRecordExplicitInternalTargetModeCount' => $relationshipRecordExplicitInternalTargetModeCount,
+            'relationshipRecordExplicitExternalTargetModeCount' => $relationshipRecordExplicitExternalTargetModeCount,
+            'relationshipRecordUnexpectedTargetModeCount' => $relationshipRecordUnexpectedTargetModeCount,
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
@@ -3005,6 +3058,8 @@ final class DocxOpenXmlReader
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
+            'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
+            'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
@@ -3013,6 +3068,8 @@ final class DocxOpenXmlReader
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
+            'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
+            'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
         ];
     }
 
