@@ -2182,6 +2182,11 @@ final class XmlHtmlDom
             $summary += $microdata;
         }
 
+        $rdfa = self::rdfaAttributeSummary($attributes);
+        if ($rdfa !== []) {
+            $summary += $rdfa;
+        }
+
         if (array_key_exists('lang', $attributes)) {
             $summary['languageRaw'] = $attributes['lang'];
             $summary['language'] = trim($attributes['lang']);
@@ -2348,6 +2353,204 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function rdfaAttributeSummary(array $attributes): array
+    {
+        $rdfaAttributes = ['about', 'content', 'datatype', 'inlist', 'prefix', 'property', 'rel', 'resource', 'rev', 'typeof', 'vocab'];
+        $present = [];
+        foreach ($rdfaAttributes as $attribute) {
+            if (array_key_exists($attribute, $attributes)) {
+                $present[] = $attribute;
+            }
+        }
+
+        if ($present === []) {
+            return [];
+        }
+
+        $triggerAttributes = array_diff($present, ['content', 'rel']);
+        if ($triggerAttributes === []) {
+            return [];
+        }
+
+        $summary = [
+            'rdfa' => self::rdfaSummaryKind($attributes),
+            'rdfaAttributes' => $present,
+        ];
+
+        if (array_key_exists('vocab', $attributes)) {
+            $vocab = self::rdfaSingleTokenSummary($attributes['vocab']);
+            $summary['rdfaVocabRaw'] = $attributes['vocab'];
+            $summary['rdfaVocab'] = $vocab['value'];
+            $summary['rdfaVocabValid'] = $vocab['valid'];
+        }
+
+        if (array_key_exists('prefix', $attributes)) {
+            $prefixes = self::rdfaPrefixSummary($attributes['prefix']);
+            $summary['rdfaPrefixRaw'] = $attributes['prefix'];
+            $summary['rdfaPrefixTokens'] = $prefixes['tokens'];
+            $summary['rdfaPrefixMappings'] = $prefixes['items'];
+            $summary['rdfaPrefixes'] = $prefixes['prefixes'];
+            $summary['invalidRdfaPrefixMappings'] = $prefixes['invalid'];
+            $summary['rdfaPrefixValid'] = $prefixes['valid'];
+        }
+
+        if (array_key_exists('typeof', $attributes)) {
+            $types = self::semanticMetadataTokenSummary($attributes['typeof']);
+            $summary['rdfaTypeofRaw'] = $attributes['typeof'];
+            $summary['rdfaTypeofTokens'] = $types['tokens'];
+            $summary['rdfaTypes'] = $types['values'];
+            $summary['invalidRdfaTypes'] = $types['invalid'];
+            $summary['rdfaTypeofValid'] = $types['valid'];
+        }
+
+        if (array_key_exists('property', $attributes)) {
+            $properties = self::semanticMetadataTokenSummary($attributes['property']);
+            $summary['rdfaPropertyRaw'] = $attributes['property'];
+            $summary['rdfaPropertyTokens'] = $properties['tokens'];
+            $summary['rdfaProperties'] = $properties['values'];
+            $summary['invalidRdfaProperties'] = $properties['invalid'];
+            $summary['rdfaPropertyValid'] = $properties['valid'];
+        }
+
+        if (array_key_exists('rel', $attributes)) {
+            $relations = self::semanticMetadataTokenSummary($attributes['rel']);
+            $summary['rdfaRelRaw'] = $attributes['rel'];
+            $summary['rdfaRelTokens'] = $relations['tokens'];
+            $summary['rdfaRelations'] = $relations['values'];
+            $summary['invalidRdfaRelations'] = $relations['invalid'];
+            $summary['rdfaRelValid'] = $relations['valid'];
+        }
+
+        if (array_key_exists('rev', $attributes)) {
+            $reverse = self::semanticMetadataTokenSummary($attributes['rev']);
+            $summary['rdfaRevRaw'] = $attributes['rev'];
+            $summary['rdfaRevTokens'] = $reverse['tokens'];
+            $summary['rdfaReverseRelations'] = $reverse['values'];
+            $summary['invalidRdfaReverseRelations'] = $reverse['invalid'];
+            $summary['rdfaRevValid'] = $reverse['valid'];
+        }
+
+        if (array_key_exists('about', $attributes)) {
+            $about = self::rdfaSingleTokenSummary($attributes['about']);
+            $summary['rdfaAboutRaw'] = $attributes['about'];
+            $summary['rdfaAbout'] = $about['value'];
+            $summary['rdfaAboutValid'] = $about['valid'];
+        }
+
+        if (array_key_exists('resource', $attributes)) {
+            $resource = self::rdfaSingleTokenSummary($attributes['resource']);
+            $summary['rdfaResourceRaw'] = $attributes['resource'];
+            $summary['rdfaResource'] = $resource['value'];
+            $summary['rdfaResourceValid'] = $resource['valid'];
+        }
+
+        if (array_key_exists('datatype', $attributes)) {
+            $datatype = self::rdfaSingleTokenSummary($attributes['datatype']);
+            $summary['rdfaDatatypeRaw'] = $attributes['datatype'];
+            $summary['rdfaDatatype'] = $datatype['value'];
+            $summary['rdfaDatatypeValid'] = $datatype['valid'];
+        }
+
+        if (array_key_exists('content', $attributes)) {
+            $summary['rdfaContentRaw'] = $attributes['content'];
+            $summary['rdfaContent'] = $attributes['content'];
+            $summary['rdfaContentValid'] = self::isSafeRdfaLiteral($attributes['content']);
+        }
+
+        if (array_key_exists('inlist', $attributes)) {
+            $summary['rdfaInListRaw'] = $attributes['inlist'];
+            $summary['rdfaInList'] = true;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function rdfaSummaryKind(array $attributes): string
+    {
+        if (array_key_exists('property', $attributes)) {
+            return 'property';
+        }
+
+        if (array_key_exists('rel', $attributes) || array_key_exists('rev', $attributes)) {
+            return 'relationship';
+        }
+
+        if (array_key_exists('typeof', $attributes) || array_key_exists('about', $attributes) || array_key_exists('resource', $attributes)) {
+            return 'resource';
+        }
+
+        return 'metadata';
+    }
+
+    /**
+     * @return array{value:?string, valid:bool}
+     */
+    private static function rdfaSingleTokenSummary(string $value): array
+    {
+        $trimmed = trim($value);
+
+        return [
+            'value' => $trimmed === '' ? null : $trimmed,
+            'valid' => $trimmed !== '' && self::isSafeHtmlSemanticMetadataToken($trimmed),
+        ];
+    }
+
+    /**
+     * @return array{tokens:list<string>, items:list<array<string, mixed>>, prefixes:array<string, string>, invalid:list<string>, valid:bool}
+     */
+    private static function rdfaPrefixSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $items = [];
+        $prefixes = [];
+        $invalid = [];
+        $count = count($tokens);
+
+        for ($index = 0; $index < $count; $index += 2) {
+            $prefixToken = $tokens[$index];
+            $iri = $tokens[$index + 1] ?? null;
+            $prefix = str_ends_with($prefixToken, ':') ? substr($prefixToken, 0, -1) : null;
+            $raw = $iri === null ? $prefixToken : $prefixToken . ' ' . $iri;
+            $valid = $iri !== null
+                && $prefix !== null
+                && preg_match('/^[A-Za-z][A-Za-z0-9._-]*$/', $prefix) === 1
+                && self::isSafeHtmlSemanticMetadataToken($iri);
+
+            if ($valid) {
+                $prefixes[$prefix] = $iri;
+            } else {
+                $invalid[] = $raw;
+            }
+
+            $items[] = [
+                'raw' => $raw,
+                'prefix' => $prefix,
+                'iri' => $iri,
+                'valid' => $valid,
+            ];
+        }
+
+        return [
+            'tokens' => $tokens,
+            'items' => $items,
+            'prefixes' => $prefixes,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isSafeRdfaLiteral(string $value): bool
+    {
+        return preg_match('/[<\p{Cc}\p{Zl}\p{Zp}]/u', $value) !== 1;
     }
 
     /**

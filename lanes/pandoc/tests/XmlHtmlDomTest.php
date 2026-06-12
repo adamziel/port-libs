@@ -266,6 +266,94 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/microdata-attribute-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html rdfa semantic attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="review-rdfa" vocab="https://schema.org/" typeof="Article ReviewNewsArticle bad&lt;term" about="./articles/42" prefix="dc: http://purl.org/dc/terms/ schema: https://schema.org/ bad-prefix javascript:alert(1) dangling:" inlist="inlist">'
+                . '<h1 property="headline schema:name bad&lt;prop" content="RDFa title">Visible Title</h1>'
+                . '<a rel="author next javascript:alert(1)" rev="reviewedBy" resource="#author" href="/authors/ada">Ada</a>'
+                . '<span property="datePublished" datatype="xsd:date" content="2026-06-12">June 12</span>'
+                . '<span about=" bad id " typeof="javascript:alert(1)">Invalid</span></article>',
+            'RDFa semantic review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/rdfa-semantic-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $heading = $article['children'][0];
+        $link = $article['children'][1];
+        $date = $article['children'][2];
+        $invalid = $article['children'][3];
+
+        $t->same('article', $article['name']);
+        $t->same('review-rdfa', $article['elementId']);
+        $t->same('resource', $article['rdfa']);
+        $t->same(['about', 'inlist', 'prefix', 'typeof', 'vocab'], $article['rdfaAttributes']);
+        $t->same('https://schema.org/', $article['rdfaVocab']);
+        $t->same(true, $article['rdfaVocabValid']);
+        $t->same([
+            'dc' => 'http://purl.org/dc/terms/',
+            'schema' => 'https://schema.org/',
+        ], $article['rdfaPrefixes']);
+        $t->same([
+            ['raw' => 'dc: http://purl.org/dc/terms/', 'prefix' => 'dc', 'iri' => 'http://purl.org/dc/terms/', 'valid' => true],
+            ['raw' => 'schema: https://schema.org/', 'prefix' => 'schema', 'iri' => 'https://schema.org/', 'valid' => true],
+            ['raw' => 'bad-prefix javascript:alert(1)', 'prefix' => null, 'iri' => 'javascript:alert(1)', 'valid' => false],
+            ['raw' => 'dangling:', 'prefix' => 'dangling', 'iri' => null, 'valid' => false],
+        ], $article['rdfaPrefixMappings']);
+        $t->same(['bad-prefix javascript:alert(1)', 'dangling:'], $article['invalidRdfaPrefixMappings']);
+        $t->same(false, $article['rdfaPrefixValid']);
+        $t->same(['Article', 'ReviewNewsArticle', 'bad<term'], $article['rdfaTypeofTokens']);
+        $t->same(['Article', 'ReviewNewsArticle'], $article['rdfaTypes']);
+        $t->same(['bad<term'], $article['invalidRdfaTypes']);
+        $t->same(false, $article['rdfaTypeofValid']);
+        $t->same('./articles/42', $article['rdfaAbout']);
+        $t->same(true, $article['rdfaAboutValid']);
+        $t->same('inlist', $article['rdfaInListRaw']);
+        $t->same(true, $article['rdfaInList']);
+
+        $t->same('property', $heading['rdfa']);
+        $t->same(['content', 'property'], $heading['rdfaAttributes']);
+        $t->same(['headline', 'schema:name', 'bad<prop'], $heading['rdfaPropertyTokens']);
+        $t->same(['headline', 'schema:name'], $heading['rdfaProperties']);
+        $t->same(['bad<prop'], $heading['invalidRdfaProperties']);
+        $t->same(false, $heading['rdfaPropertyValid']);
+        $t->same('RDFa title', $heading['rdfaContent']);
+        $t->same(true, $heading['rdfaContentValid']);
+        $t->same('heading', $heading['documentOutline']);
+
+        $t->same('relationship', $link['rdfa']);
+        $t->same(['rel', 'resource', 'rev'], $link['rdfaAttributes']);
+        $t->same(['author', 'next', 'javascript:alert(1)'], $link['rdfaRelTokens']);
+        $t->same(['author', 'next'], $link['rdfaRelations']);
+        $t->same(['javascript:alert(1)'], $link['invalidRdfaRelations']);
+        $t->same(false, $link['rdfaRelValid']);
+        $t->same(['reviewedBy'], $link['rdfaReverseRelations']);
+        $t->same(true, $link['rdfaRevValid']);
+        $t->same('#author', $link['rdfaResource']);
+        $t->same(true, $link['rdfaResourceValid']);
+        $t->same('a', $link['hyperlink']);
+
+        $t->same('property', $date['rdfa']);
+        $t->same(['datePublished'], $date['rdfaProperties']);
+        $t->same('xsd:date', $date['rdfaDatatype']);
+        $t->same(true, $date['rdfaDatatypeValid']);
+        $t->same('2026-06-12', $date['rdfaContent']);
+        $t->same(true, $date['rdfaContentValid']);
+
+        $t->same('resource', $invalid['rdfa']);
+        $t->same(['javascript:alert(1)'], $invalid['invalidRdfaTypes']);
+        $t->same(false, $invalid['rdfaTypeofValid']);
+        $t->same('bad id', $invalid['rdfaAbout']);
+        $t->same(false, $invalid['rdfaAboutValid']);
+
+        $t->same('<article about="./articles/42" id="review-rdfa" inlist="inlist" prefix="dc: http://purl.org/dc/terms/ schema: https://schema.org/ bad-prefix javascript:alert(1) dangling:" typeof="Article ReviewNewsArticle bad&lt;term" vocab="https://schema.org/"><h1 content="RDFa title" property="headline schema:name bad&lt;prop">Visible Title</h1><a href="/authors/ada" rel="author next javascript:alert(1)" resource="#author" rev="reviewedBy">Ada</a><span content="2026-06-12" datatype="xsd:date" property="datePublished">June 12</span><span about=" bad id " typeof="javascript:alert(1)">Invalid</span></article>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/rdfa-semantic-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html aria reference attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="region" role="region" aria-labelledby="title missing title" aria-describedby="desc help" aria-controls="panel,ghost" aria-owns="row1 row1 row2" aria-details="details">'
