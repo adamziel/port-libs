@@ -1509,7 +1509,7 @@ final class CitationCslProcessor
             'authorities' => $authorityNames,
             'translators' => self::namesFromFirstItemField($item, $id, 'translator', ['translator', 'translators']),
             'chairs' => self::namesFromFirstItemField($item, $id, 'chair', ['chair', 'chairs']),
-            'containerAuthors' => self::namesFromFirstItemField($item, $id, 'container-author', ['container-author', 'containerAuthor', 'container-authors', 'containerAuthors']),
+            'containerAuthors' => self::namesFromFirstItemField($item, $id, 'container-author', ['container-author', 'containerAuthor', 'container-authors', 'containerAuthors', 'bookauthor', 'bookAuthor', 'book-author', 'bookauthors', 'bookAuthors', 'book-authors']),
             'collectionEditors' => self::namesFromFirstItemField($item, $id, 'collection-editor', ['collection-editor', 'collectionEditor', 'collection-editors', 'collectionEditors']),
             'seriesCreators' => self::namesFromFirstItemField($item, $id, 'series-creator', ['series-creator', 'seriesCreator', 'series-creators', 'seriesCreators']),
             'composers' => self::namesFromFirstItemField($item, $id, 'composer', ['composer', 'composers']),
