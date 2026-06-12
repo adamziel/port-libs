@@ -911,34 +911,10 @@ final class XmlHtmlDom
             $summary += self::quoteSummary($node, $name);
         }
         if ($name === 'progress') {
-            $max = self::positiveNumericAttribute($node, 'max', 1.0);
-            $value = self::numericAttribute($node, 'value', null);
-            $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
-            $summary['measurement'] = 'progress';
-            $summary['labels'] = self::formControlLabels($node);
-            $summary['value'] = $value;
-            $summary['max'] = $max;
-            $summary['position'] = $value === null ? null : $value / $max;
-            $summary['indeterminate'] = $value === null;
+            $summary += self::progressMeasurementSummary($node, includeLabels: true);
         }
         if ($name === 'meter') {
-            $min = self::numericAttribute($node, 'min', 0.0) ?? 0.0;
-            $max = self::numericAttribute($node, 'max', 1.0) ?? 1.0;
-            if ($max < $min) {
-                $max = $min;
-            }
-
-            $summary['measurement'] = 'meter';
-            $summary['labels'] = self::formControlLabels($node);
-            $summary['min'] = $min;
-            $summary['max'] = $max;
-            $summary['value'] = self::boundedNumber(self::numericAttribute($node, 'value', $min) ?? $min, $min, $max);
-            foreach (['low', 'high', 'optimum'] as $threshold) {
-                $thresholdValue = self::numericAttribute($node, $threshold, null);
-                if ($thresholdValue !== null) {
-                    $summary[$threshold] = $thresholdValue;
-                }
-            }
+            $summary += self::meterMeasurementSummary($node, includeLabels: true);
         }
         if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param', 'canvas'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
@@ -3744,6 +3720,65 @@ final class XmlHtmlDom
             $summary['type'] = self::inputType($control);
         } elseif ($name === 'button') {
             $summary['type'] = self::buttonType($control);
+        } elseif ($name === 'progress') {
+            $summary += self::progressMeasurementSummary($control, includeLabels: false);
+        } elseif ($name === 'meter') {
+            $summary += self::meterMeasurementSummary($control, includeLabels: false);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function progressMeasurementSummary(\DOMElement $progress, bool $includeLabels): array
+    {
+        $max = self::positiveNumericAttribute($progress, 'max', 1.0);
+        $value = self::numericAttribute($progress, 'value', null);
+        $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
+        $summary = [
+            'measurement' => 'progress',
+            'value' => $value,
+            'max' => $max,
+            'position' => $value === null ? null : $value / $max,
+            'indeterminate' => $value === null,
+        ];
+
+        if ($includeLabels) {
+            $summary['labels'] = self::formControlLabels($progress);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function meterMeasurementSummary(\DOMElement $meter, bool $includeLabels): array
+    {
+        $min = self::numericAttribute($meter, 'min', 0.0) ?? 0.0;
+        $max = self::numericAttribute($meter, 'max', 1.0) ?? 1.0;
+        if ($max < $min) {
+            $max = $min;
+        }
+
+        $summary = [
+            'measurement' => 'meter',
+            'min' => $min,
+            'max' => $max,
+            'value' => self::boundedNumber(self::numericAttribute($meter, 'value', $min) ?? $min, $min, $max),
+        ];
+
+        if ($includeLabels) {
+            $summary['labels'] = self::formControlLabels($meter);
+        }
+
+        foreach (['low', 'high', 'optimum'] as $threshold) {
+            $thresholdValue = self::numericAttribute($meter, $threshold, null);
+            if ($thresholdValue !== null) {
+                $summary[$threshold] = $thresholdValue;
+            }
         }
 
         return $summary;
