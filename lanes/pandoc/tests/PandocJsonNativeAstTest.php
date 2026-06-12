@@ -1442,6 +1442,78 @@ return [
             $t->same($bodyNative, $editedNative['meta']['body'], "{$source} native writer keeps unchanged block payload");
         }
     },
+    'preserves metadata child native payloads when rebuilding typed meta wrappers' => static function (TestRunner $t): void {
+        $headlineStr = ['t' => 'Str', 'c' => 'Alpha', 'reviewQueue' => 'headline-str-source'];
+        $headlineSpace = ['t' => 'Space', 'reviewQueue' => 'headline-space-source'];
+        $headlineCode = ['t' => 'Code', 'c' => [
+            ['headline-code', ['review'], [['data-source', 'meta']]],
+            'ticket-42',
+        ], 'reviewQueue' => 'headline-code-source'];
+        $bodyPara = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Body'],
+        ], 'reviewQueue' => 'body-para-source'];
+        $bodyRule = ['t' => 'HorizontalRule', 'reviewQueue' => 'body-rule-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'headline' => ['t' => 'MetaInlines', 'c' => [
+                    $headlineStr,
+                    $headlineSpace,
+                    $headlineCode,
+                ], 'reviewQueue' => 'headline-wrapper-source'],
+                'body' => ['t' => 'MetaBlocks', 'c' => [
+                    $bodyPara,
+                    $bodyRule,
+                ], 'reviewQueue' => 'body-wrapper-source'],
+            ],
+            'blocks' => [],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $meta = $document->attr('meta');
+        $headline = $meta['headline'];
+        $body = $meta['body'];
+        $meta['headline'] = [
+            'type' => 'inlines',
+            'children' => [
+                ...$headline['children'],
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'edited']),
+            ],
+        ];
+        $meta['body'] = [
+            'type' => 'blocks',
+            'children' => [
+                ...$body['children'],
+                new AstNode('null_block'),
+            ],
+        ];
+        $editedDocument = new AstNode('document', array_replace($document->attrs, ['meta' => $meta]), $document->children);
+
+        $packets = [
+            'json' => (new PandocJsonWriter())->toArray($editedDocument),
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($packets as $writer => $encoded) {
+            $encodedHeadline = $encoded['meta']['headline'];
+            $encodedBody = $encoded['meta']['body'];
+
+            $t->same('MetaInlines', $encodedHeadline['t'], "{$writer} writer rebuilds edited inline metadata wrapper");
+            $t->same(false, array_key_exists('reviewQueue', $encodedHeadline), "{$writer} writer drops stale inline metadata wrapper sidecar");
+            $t->same($headlineStr, $encodedHeadline['c'][0], "{$writer} writer preserves inline metadata text payload");
+            $t->same($headlineSpace, $encodedHeadline['c'][1], "{$writer} writer preserves inline metadata space payload");
+            $t->same($headlineCode, $encodedHeadline['c'][2], "{$writer} writer preserves inline metadata code payload");
+            $t->same(['t' => 'Space'], $encodedHeadline['c'][3], "{$writer} writer emits appended metadata space");
+            $t->same(['t' => 'Str', 'c' => 'edited'], $encodedHeadline['c'][4], "{$writer} writer emits appended metadata text");
+
+            $t->same('MetaBlocks', $encodedBody['t'], "{$writer} writer rebuilds edited block metadata wrapper");
+            $t->same(false, array_key_exists('reviewQueue', $encodedBody), "{$writer} writer drops stale block metadata wrapper sidecar");
+            $t->same($bodyPara, $encodedBody['c'][0], "{$writer} writer preserves block metadata paragraph payload");
+            $t->same($bodyRule, $encodedBody['c'][1], "{$writer} writer preserves block metadata rule payload");
+            $t->same(['t' => 'Null'], $encodedBody['c'][2], "{$writer} writer emits appended metadata null block");
+        }
+    },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

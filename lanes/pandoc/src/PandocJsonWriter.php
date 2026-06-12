@@ -205,9 +205,9 @@ final class PandocJsonWriter
         }
 
         if ($value instanceof AstNode) {
-            $content = $this->isInlineNode($value) ? $this->writeInline($value) : $this->writeBlock($value);
-
-            return ['t' => $this->isInlineNode($value) ? 'MetaInlines' : 'MetaBlocks', 'c' => [$content]];
+            return $this->isInlineNode($value)
+                ? ['t' => 'MetaInlines', 'c' => $this->writeInlines([$value])]
+                : ['t' => 'MetaBlocks', 'c' => $this->writeBlocks([$value])];
         }
 
         if (is_array($value)) {
@@ -226,7 +226,7 @@ final class PandocJsonWriter
 
                     return [
                         't' => $inline ? 'MetaInlines' : 'MetaBlocks',
-                        'c' => array_map(fn (AstNode $node): array => $inline ? $this->writeInline($node) : $this->writeBlock($node), $nodes),
+                        'c' => $inline ? $this->writeInlines($nodes) : $this->writeBlocks($nodes),
                     ];
                 }
 
@@ -246,8 +246,8 @@ final class PandocJsonWriter
     private function writeTypedMetaValue(array $value): array
     {
         return match ($value['type']) {
-            'inlines' => ['t' => 'MetaInlines', 'c' => array_map(fn (AstNode $node): array => $this->writeInline($node), $this->metaChildren($value))],
-            'blocks' => ['t' => 'MetaBlocks', 'c' => array_map(fn (AstNode $node): array => $this->writeBlock($node), $this->metaChildren($value))],
+            'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
+            'blocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
             'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
             'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
             default => ['t' => 'MetaString', 'c' => ''],
