@@ -445,6 +445,7 @@ final class OpenDocumentPackage
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestIndex' => is_array($manifestEntry) ? $manifestEntry['manifestIndex'] : null,
                 'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
+                'manifestPackagePath' => is_array($manifestEntry) ? $manifestEntry['packagePath'] : null,
                 'manifestPathReference' => is_array($manifestEntry) ? $manifestEntry['pathReference'] : null,
                 'manifestPathSuffix' => is_array($manifestEntry) ? $manifestEntry['pathSuffix'] : null,
                 'manifestPathQuery' => is_array($manifestEntry) ? $manifestEntry['pathQuery'] : null,

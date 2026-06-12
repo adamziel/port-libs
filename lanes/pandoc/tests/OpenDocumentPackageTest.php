@@ -812,6 +812,8 @@ XML;
         $t->same(false, $review['items'][4]['uriEncodedPackageReference']);
         $t->same(true, $review['manifestFileEntryOrder'][5]['uriEncodedPackageReference']);
         $t->same(true, $inventory['Pictures/source hero.png']['manifestUriEncodedPackageReference']);
+        $t->same('Pictures/source%20hero.png', $inventory['Pictures/source hero.png']['manifestPath']);
+        $t->same('Pictures/source hero.png', $inventory['Pictures/source hero.png']['manifestPackagePath']);
         $t->same(0, $summary['undeclaredPackageEntryCount']);
         $t->same(0, $review['undeclaredPackageEntryCount']);
         $t->same('Pictures/source hero.png', $review['items'][5]['packagePath']);
@@ -830,6 +832,31 @@ XML;
             $manifestXml
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
+    },
+    'keeps compact ODT URI encoded manifest parts declared in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SRCIMAGE';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0]],
+        ));
+        $inventory = $odt->summarize()['packageInventory'];
+        $inventoryPart = $inventory['parts']['Pictures/source hero.png'];
+
+        $t->same(0, $inventory['undeclaredEntryCount']);
+        $t->same('Pictures/source hero.png', $inventoryPart['path']);
+        $t->same(['manifest-declared', 'media-resource'], $inventoryPart['roles']);
+        $t->same(true, $inventoryPart['declaredInManifest']);
+        $t->same(false, $inventoryPart['undeclared']);
+        $t->same('Pictures/source%20hero.png', $inventoryPart['manifestPath']);
+        $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
+        $t->same('image/png', $inventoryPart['manifestMediaType']);
     },
     'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SOURCEPNG';
@@ -890,10 +917,12 @@ XML;
         $t->same('review', $reviewByPath['Pictures/hero.png?cache=1#review']['pathFragment']);
 
         $t->same('Pictures/hero.png?cache=1#review', $inventory['Pictures/hero.png']['manifestPath']);
+        $t->same('Pictures/hero.png', $inventory['Pictures/hero.png']['manifestPackagePath']);
         $t->same('Pictures/hero.png', $inventory['Pictures/hero.png']['manifestPathReference']);
         $t->same('?cache=1#review', $inventory['Pictures/hero.png']['manifestPathSuffix']);
         $t->same('cache=1', $inventory['Pictures/hero.png']['manifestPathQuery']);
         $t->same('review', $inventory['Pictures/hero.png']['manifestPathFragment']);
+        $t->same('Pictures/source hero.png', $inventory['Pictures/source hero.png']['manifestPackagePath']);
     },
     'summarizes compact ODT manifest suffix references without marking stripped parts undeclared' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifest = str_replace(
