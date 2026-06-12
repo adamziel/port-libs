@@ -46,6 +46,9 @@ final class DocxOpenXmlReader
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
+    private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+    private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    private const NS_XMLDSIG = 'http://www.w3.org/2000/09/xmldsig#';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
@@ -62,6 +65,8 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
+    private const CT_DIGITAL_SIGNATURE_ORIGIN = 'application/vnd.openxmlformats-package.digital-signature-origin';
+    private const CT_DIGITAL_SIGNATURE_XMLSIGNATURE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
 
     public function readFile(string $path): AstNode
     {
@@ -124,6 +129,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
         $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
         $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
+        $digitalSignatures = $this->packageDigitalSignatureProvenance($parts, $rootRelationships, $contentTypes);
+        $packageProvenance['digitalSignatures'] = $digitalSignatures;
+        $packageProvenance['summary']['digitalSignatureOriginCount'] = $digitalSignatures['originCount'];
+        $packageProvenance['summary']['digitalSignatureExistingOriginCount'] = $digitalSignatures['existingOriginCount'];
+        $packageProvenance['summary']['digitalSignatureMissingOriginCount'] = $digitalSignatures['missingOriginCount'];
+        $packageProvenance['summary']['digitalSignatureExternalOriginCount'] = $digitalSignatures['externalOriginCount'];
+        $packageProvenance['summary']['digitalSignatureSignatureCount'] = $digitalSignatures['signatureCount'];
+        $packageProvenance['summary']['digitalSignatureExistingSignatureCount'] = $digitalSignatures['existingSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureMissingSignatureCount'] = $digitalSignatures['missingSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureExternalSignatureCount'] = $digitalSignatures['externalSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureInvalidXmlCount'] = $digitalSignatures['invalidSignatureXmlCount'];
+        $packageProvenance['summary']['digitalSignatureUnexpectedRootCount'] = $digitalSignatures['unexpectedSignatureRootCount'];
+        $packageProvenance['summary']['digitalSignatureIssueCount'] = $digitalSignatures['issueCount'];
+        $packageProvenance['summary']['digitalSignatureIssueCodes'] = $digitalSignatures['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
@@ -339,6 +358,7 @@ final class DocxOpenXmlReader
                 'embeddedObjects' => $embeddedObjects,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
+                'digitalSignatures' => $digitalSignatures,
                 'media' => $media,
             ],
         ];
@@ -2644,6 +2664,467 @@ final class DocxOpenXmlReader
     private function isImageContentType(string $contentType): bool
     {
         return str_starts_with(strtolower(trim(explode(';', $contentType, 2)[0])), 'image/');
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packageDigitalSignatureProvenance(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $originRelationships = [];
+        foreach ($rootRelationships as $relationship) {
+            if ($relationship['type'] === self::DIGITAL_SIGNATURE_ORIGIN_REL) {
+                $originRelationships[] = $relationship;
+            }
+        }
+
+        $origins = [];
+        $signatures = [];
+        $byOriginRelationshipId = [];
+        $bySignatureRelationshipId = [];
+        $originRelationshipIds = [];
+        $signatureRelationshipIds = [];
+        $originParts = [];
+        $signatureParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($originRelationships as $relationship) {
+            $origin = $this->digitalSignatureOriginItem($parts, $relationship, $contentTypes, count($origins));
+            $origins[] = $origin;
+            $byOriginRelationshipId[(string) $origin['id']] = $origin;
+            $originRelationshipIds[] = (string) $origin['id'];
+            $this->appendUniqueString($originParts, is_string($origin['targetPart'] ?? null) ? $origin['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($origin['contentType'] ?? null) ? $origin['contentType'] : null);
+            if (($origin['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($origin['target'] ?? null) ? $origin['target'] : null);
+            }
+            foreach (($origin['issues'] ?? []) as $issue) {
+                $issueCodes[(string) $issue] = true;
+            }
+
+            foreach (($origin['signatures']['items'] ?? []) as $signature) {
+                if (!is_array($signature)) {
+                    continue;
+                }
+                $signatures[] = $signature;
+                $bySignatureRelationshipId[(string) $signature['id']] = $signature;
+                $signatureRelationshipIds[] = (string) $signature['id'];
+                $this->appendUniqueString($signatureParts, is_string($signature['targetPart'] ?? null) ? $signature['targetPart'] : null);
+                $this->appendUniqueString($contentTypesSeen, is_string($signature['contentType'] ?? null) ? $signature['contentType'] : null);
+                if (($signature['external'] ?? false) === true) {
+                    $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
+                }
+                foreach (($signature['issues'] ?? []) as $issue) {
+                    $issueCodes[(string) $issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => $origins !== [],
+            'originCount' => count($origins),
+            'existingOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === false && $origin['exists'] === true,
+            )),
+            'missingOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === false && $origin['exists'] === false,
+            )),
+            'externalOriginCount' => count(array_filter($origins, static fn (array $origin): bool => $origin['external'] === true)),
+            'signatureCount' => count($signatures),
+            'existingSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === true,
+            )),
+            'missingSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === false,
+            )),
+            'externalSignatureCount' => count(array_filter($signatures, static fn (array $signature): bool => $signature['external'] === true)),
+            'invalidSignatureXmlCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => in_array('invalid-signature-xml', $signature['issues'], true),
+            )),
+            'unexpectedSignatureRootCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => in_array('unexpected-signature-root', $signature['issues'], true),
+            )),
+            'issueCount' => count(array_filter(
+                array_merge($origins, $signatures),
+                static fn (array $item): bool => $item['issues'] !== [],
+            )),
+            'originRelationshipIds' => $originRelationshipIds,
+            'signatureRelationshipIds' => $signatureRelationshipIds,
+            'originParts' => $originParts,
+            'signatureParts' => $signatureParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byOriginRelationshipId' => $byOriginRelationshipId,
+            'bySignatureRelationshipId' => $bySignatureRelationshipId,
+            'origins' => $origins,
+            'signatures' => $signatures,
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureOriginItem(array $parts, array $relationship, array $contentTypes, int $index): array
+    {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $relationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $relationships = $relationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $relationshipsPart);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-signature-origin';
+        } elseif (!$exists) {
+            $issues[] = 'missing-origin-part';
+        }
+        if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+            $issues[] = 'missing-origin-content-type';
+        } elseif (!$external && $contentTypeBase !== '' && $contentTypeBase !== self::CT_DIGITAL_SIGNATURE_ORIGIN) {
+            $issues[] = 'unexpected-origin-content-type';
+        }
+        if (!$external && $exists && $relationshipsPart !== null && !isset($parts[$relationshipsPart])) {
+            $issues[] = 'missing-origin-relationships';
+        }
+
+        $signatures = $this->digitalSignatureParts(
+            $parts,
+            $targetPart,
+            $relationshipsPart,
+            $relationships,
+            $contentTypes,
+        );
+
+        return [
+            'index' => $index,
+            'source' => '/',
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_DIGITAL_SIGNATURE_ORIGIN,
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => '_rels/.rels',
+            'originRelationshipsPart' => $relationshipsPart,
+            'originRelationshipCount' => count($relationships),
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'signatures' => $signatures,
+            'signatureCount' => $signatures['count'],
+            'signatureIssueCount' => $signatures['issueCount'],
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+    ): array {
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return [
+                'count' => 0,
+                'existingCount' => 0,
+                'missingCount' => 0,
+                'externalCount' => 0,
+                'invalidXmlCount' => 0,
+                'unexpectedRootCount' => 0,
+                'issueCount' => 0,
+                'relationshipIds' => [],
+                'partNames' => [],
+                'externalTargets' => [],
+                'contentTypes' => [],
+                'issueCodes' => [],
+                'byRelationshipId' => [],
+                'items' => [],
+            ];
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::DIGITAL_SIGNATURE_SIGNATURE_REL) {
+                continue;
+            }
+
+            $item = $this->digitalSignaturePartItem(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                $issueCodes[(string) $issue] = true;
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidXmlCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('invalid-signature-xml', $item['issues'], true),
+            )),
+            'unexpectedRootCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('unexpected-signature-root', $item['issues'], true),
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function digitalSignaturePartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-signature-target';
+        } elseif (!$exists) {
+            $issues[] = 'missing-signature-part';
+        }
+        if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+            $issues[] = 'missing-signature-content-type';
+        } elseif (!$external && $contentTypeBase !== '' && $contentTypeBase !== self::CT_DIGITAL_SIGNATURE_XMLSIGNATURE) {
+            $issues[] = 'unexpected-signature-content-type';
+        }
+
+        $metadata = $this->emptyDigitalSignatureXmlMetadata();
+        if ($exists && $targetPart !== null) {
+            $metadata = $this->digitalSignatureXmlMetadata($parts[$targetPart], $targetPart);
+            if ($metadata['validXml'] === false) {
+                $issues[] = 'invalid-signature-xml';
+            } elseif ($metadata['validRoot'] === false) {
+                $issues[] = 'unexpected-signature-root';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'source' => $sourcePart,
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_DIGITAL_SIGNATURE_XMLSIGNATURE,
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'validXml' => $metadata['validXml'],
+            'xmlParseError' => $metadata['xmlParseError'],
+            'rootNamespace' => $metadata['rootNamespace'],
+            'rootLocalName' => $metadata['rootLocalName'],
+            'validRoot' => $metadata['validRoot'],
+            'referenceCount' => $metadata['referenceCount'],
+            'referenceUris' => $metadata['referenceUris'],
+            'digestMethodAlgorithms' => $metadata['digestMethodAlgorithms'],
+            'signatureMethodAlgorithms' => $metadata['signatureMethodAlgorithms'],
+            'canonicalizationMethodAlgorithms' => $metadata['canonicalizationMethodAlgorithms'],
+            'hasSignatureValue' => $metadata['hasSignatureValue'],
+            'cryptographicValidation' => false,
+            'reviewPolicy' => 'digital-signature-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyDigitalSignatureXmlMetadata(): array
+    {
+        return [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'referenceCount' => 0,
+            'referenceUris' => [],
+            'digestMethodAlgorithms' => [],
+            'signatureMethodAlgorithms' => [],
+            'canonicalizationMethodAlgorithms' => [],
+            'hasSignatureValue' => null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function digitalSignatureXmlMetadata(string $xml, string $partName): array
+    {
+        $metadata = $this->emptyDigitalSignatureXmlMetadata();
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            $metadata['validXml'] = false;
+            $metadata['xmlParseError'] = $this->lastXmlPreflightError($xml, $partName);
+
+            return $metadata;
+        }
+
+        $root = $dom->documentElement;
+        $metadata['validXml'] = $root instanceof \DOMElement;
+        $metadata['xmlParseError'] = null;
+        $metadata['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $metadata['rootLocalName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $metadata['validRoot'] = $root instanceof \DOMElement
+            && $root->namespaceURI === self::NS_XMLDSIG
+            && $root->localName === 'Signature';
+
+        if ($metadata['validRoot'] !== true || !$root instanceof \DOMElement) {
+            return $metadata;
+        }
+
+        $metadata['referenceCount'] = 0;
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'Reference') as $reference) {
+            if (!$reference instanceof \DOMElement) {
+                continue;
+            }
+            ++$metadata['referenceCount'];
+            $this->appendUniqueString($metadata['referenceUris'], $reference->getAttribute('URI'));
+        }
+
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'DigestMethod') as $digestMethod) {
+            if ($digestMethod instanceof \DOMElement) {
+                $this->appendUniqueString($metadata['digestMethodAlgorithms'], $digestMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'SignatureMethod') as $signatureMethod) {
+            if ($signatureMethod instanceof \DOMElement) {
+                $this->appendUniqueString($metadata['signatureMethodAlgorithms'], $signatureMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'CanonicalizationMethod') as $canonicalizationMethod) {
+            if ($canonicalizationMethod instanceof \DOMElement) {
+                $this->appendUniqueString($metadata['canonicalizationMethodAlgorithms'], $canonicalizationMethod->getAttribute('Algorithm'));
+            }
+        }
+
+        $metadata['hasSignatureValue'] = false;
+        foreach ($root->getElementsByTagNameNS(self::NS_XMLDSIG, 'SignatureValue') as $signatureValue) {
+            if ($signatureValue instanceof \DOMElement && trim($signatureValue->textContent) !== '') {
+                $metadata['hasSignatureValue'] = true;
+                break;
+            }
+        }
+
+        return $metadata;
     }
 
     /**

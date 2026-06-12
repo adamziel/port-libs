@@ -734,6 +734,182 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['docProps/thumbnail-review.jpeg']['roles'], true), 'thumbnail root target role missing');
         $t->true(!isset($docx['media']['docProps/thumbnail-review.jpeg']), 'package thumbnail should not be exposed as document media');
     },
+    'reports docx digital signature package provenance as metadata only' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $originBytes = 'signature origin bytes';
+        $signatureXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+    <ds:Reference URI="/word/document.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>abc=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>signed</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml; profile=package-signature"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/bad-signature.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSignatureOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin.sigs?audit=1#origin"/>' . "\n" .
+            '  <Relationship Id="rMissingSignatureOrigin" Type="' . $originType . '" Target="_xmlsignatures/missing-origin.sigs"/>' . "\n" .
+            '  <Relationship Id="rExternalSignatureOrigin" Type="' . $originType . '" Target="https://example.test/origin.sigs" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin.sigs'] = $originBytes;
+        $parts['_xmlsignatures/_rels/origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignature1" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml?slot=1#sig"/>
+  <Relationship Id="rMissingSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="missing.sig"/>
+  <Relationship Id="rExternalSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="https://example.test/sig.xml" TargetMode="External"/>
+  <Relationship Id="rBadSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="bad-signature.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig1.xml'] = $signatureXml;
+        $parts['_xmlsignatures/bad-signature.xml'] = '<notSignature xmlns="urn:example"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $origin = $signatures['byOriginRelationshipId']['rSignatureOrigin'];
+        $missingOrigin = $signatures['byOriginRelationshipId']['rMissingSignatureOrigin'];
+        $externalOrigin = $signatures['byOriginRelationshipId']['rExternalSignatureOrigin'];
+        $signature = $signatures['bySignatureRelationshipId']['rSignature1'];
+        $missingSignature = $signatures['bySignatureRelationshipId']['rMissingSignature'];
+        $externalSignature = $signatures['bySignatureRelationshipId']['rExternalSignature'];
+        $badSignature = $signatures['bySignatureRelationshipId']['rBadSignature'];
+        $originRelationshipType = $package['relationshipTypes'][$originType];
+        $signatureRelationshipType = $package['relationshipTypes'][$signatureType];
+
+        $t->same($signatures, $docx['digitalSignatures']);
+        $t->same(true, $signatures['present']);
+        $t->same(3, $signatures['originCount']);
+        $t->same(1, $signatures['existingOriginCount']);
+        $t->same(1, $signatures['missingOriginCount']);
+        $t->same(1, $signatures['externalOriginCount']);
+        $t->same(4, $signatures['signatureCount']);
+        $t->same(2, $signatures['existingSignatureCount']);
+        $t->same(1, $signatures['missingSignatureCount']);
+        $t->same(1, $signatures['externalSignatureCount']);
+        $t->same(0, $signatures['invalidSignatureXmlCount']);
+        $t->same(1, $signatures['unexpectedSignatureRootCount']);
+        $t->same(5, $signatures['issueCount']);
+        $t->same([
+            'external-signature-origin',
+            'external-signature-target',
+            'missing-origin-content-type',
+            'missing-origin-part',
+            'missing-signature-content-type',
+            'missing-signature-part',
+            'unexpected-signature-content-type',
+            'unexpected-signature-root',
+        ], $signatures['issueCodes']);
+        $t->same(['rSignatureOrigin', 'rMissingSignatureOrigin', 'rExternalSignatureOrigin'], $signatures['originRelationshipIds']);
+        $t->same(['rSignature1', 'rMissingSignature', 'rExternalSignature', 'rBadSignature'], $signatures['signatureRelationshipIds']);
+        $t->same(['_xmlsignatures/origin.sigs', '_xmlsignatures/missing-origin.sigs'], $signatures['originParts']);
+        $t->same(['_xmlsignatures/sig1.xml', '_xmlsignatures/missing.sig', '_xmlsignatures/bad-signature.xml'], $signatures['signatureParts']);
+        $t->same(['https://example.test/sig.xml', 'https://example.test/origin.sigs'], $signatures['externalTargets']);
+        $t->same(false, $signatures['cryptographicValidation']);
+        $t->same('digital-signature-metadata-only', $signatures['reviewPolicy']);
+
+        $t->same('_xmlsignatures/origin.sigs', $origin['targetPart']);
+        $t->same('?audit=1#origin', $origin['targetReferenceSuffix']);
+        $t->same('audit=1', $origin['targetQuery']);
+        $t->same('origin', $origin['targetFragment']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-origin', $origin['contentTypeBase']);
+        $t->same(strlen($originBytes), $origin['byteLength']);
+        $t->same(sprintf('%08x', crc32($originBytes)), $origin['crc32']);
+        $t->same('_xmlsignatures/_rels/origin.sigs.rels', $origin['originRelationshipsPart']);
+        $t->same(4, $origin['originRelationshipCount']);
+        $t->same(4, $origin['signatureCount']);
+        $t->same([], $origin['issues']);
+
+        $t->same('_xmlsignatures/missing-origin.sigs', $missingOrigin['targetPart']);
+        $t->same(false, $missingOrigin['exists']);
+        $t->same(['missing-origin-part', 'missing-origin-content-type'], $missingOrigin['issues']);
+        $t->same(true, $externalOrigin['external']);
+        $t->same(null, $externalOrigin['targetPart']);
+        $t->same(['external-signature-origin'], $externalOrigin['issues']);
+
+        $t->same('_xmlsignatures/sig1.xml', $signature['targetPart']);
+        $t->same('?slot=1#sig', $signature['targetReferenceSuffix']);
+        $t->same('slot=1', $signature['targetQuery']);
+        $t->same('sig', $signature['targetFragment']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml; profile=package-signature', $signature['contentType']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml', $signature['contentTypeBase']);
+        $t->same(['profile' => 'package-signature'], $signature['contentTypeParameterMap']);
+        $t->same(true, $signature['validXml']);
+        $t->same(true, $signature['validRoot']);
+        $t->same('http://www.w3.org/2000/09/xmldsig#', $signature['rootNamespace']);
+        $t->same('Signature', $signature['rootLocalName']);
+        $t->same(1, $signature['referenceCount']);
+        $t->same(['/word/document.xml'], $signature['referenceUris']);
+        $t->same(['http://www.w3.org/2001/04/xmlenc#sha256'], $signature['digestMethodAlgorithms']);
+        $t->same(['http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'], $signature['signatureMethodAlgorithms']);
+        $t->same(['http://www.w3.org/TR/2001/REC-xml-c14n-20010315'], $signature['canonicalizationMethodAlgorithms']);
+        $t->same(true, $signature['hasSignatureValue']);
+        $t->same(false, $signature['cryptographicValidation']);
+        $t->same('digital-signature-metadata-only', $signature['reviewPolicy']);
+        $t->same([], $signature['issues']);
+
+        $t->same('_xmlsignatures/missing.sig', $missingSignature['targetPart']);
+        $t->same(false, $missingSignature['exists']);
+        $t->same(['missing-signature-part', 'missing-signature-content-type'], $missingSignature['issues']);
+        $t->same(true, $externalSignature['external']);
+        $t->same(null, $externalSignature['targetPart']);
+        $t->same(['external-signature-target'], $externalSignature['issues']);
+        $t->same('_xmlsignatures/bad-signature.xml', $badSignature['targetPart']);
+        $t->same('application/xml', $badSignature['contentTypeBase']);
+        $t->same(false, $badSignature['validRoot']);
+        $t->same(['unexpected-signature-content-type', 'unexpected-signature-root'], $badSignature['issues']);
+
+        $t->same(3, $summary['digitalSignatureOriginCount']);
+        $t->same(1, $summary['digitalSignatureExistingOriginCount']);
+        $t->same(1, $summary['digitalSignatureMissingOriginCount']);
+        $t->same(1, $summary['digitalSignatureExternalOriginCount']);
+        $t->same(4, $summary['digitalSignatureSignatureCount']);
+        $t->same(2, $summary['digitalSignatureExistingSignatureCount']);
+        $t->same(1, $summary['digitalSignatureMissingSignatureCount']);
+        $t->same(1, $summary['digitalSignatureExternalSignatureCount']);
+        $t->same(0, $summary['digitalSignatureInvalidXmlCount']);
+        $t->same(1, $summary['digitalSignatureUnexpectedRootCount']);
+        $t->same(5, $summary['digitalSignatureIssueCount']);
+        $t->same($signatures['issueCodes'], $summary['digitalSignatureIssueCodes']);
+        $t->same(3, $summary['relationshipTypeCounts'][$originType]);
+        $t->same(4, $summary['relationshipTypeCounts'][$signatureType]);
+
+        $t->same('origin', $originRelationshipType['label']);
+        $t->same(3, $originRelationshipType['count']);
+        $t->same(2, $originRelationshipType['internalCount']);
+        $t->same(1, $originRelationshipType['externalCount']);
+        $t->same(['_xmlsignatures/origin.sigs'], $originRelationshipType['existingTargetParts']);
+        $t->same(['_xmlsignatures/missing-origin.sigs'], $originRelationshipType['missingTargetParts']);
+        $t->same('signature', $signatureRelationshipType['label']);
+        $t->same(4, $signatureRelationshipType['count']);
+        $t->same(3, $signatureRelationshipType['internalCount']);
+        $t->same(1, $signatureRelationshipType['externalCount']);
+        $t->same(['_xmlsignatures/sig1.xml', '_xmlsignatures/bad-signature.xml'], $signatureRelationshipType['existingTargetParts']);
+        $t->same(['_xmlsignatures/missing.sig'], $signatureRelationshipType['missingTargetParts']);
+        $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
+        $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
