@@ -879,6 +879,65 @@ XML;
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
     },
+    'summarizes compact ODT package inventory role buckets for review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings/>
+</office:document-settings>
+XML;
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="META-INF/documentsignatures.xml"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0],
+                ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMB', 'compressionMethod' => 0],
+                ['name' => 'Scripts/review/basic.xba', 'data' => 'macro', 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $inventory = $summary['packageInventory'];
+
+        $t->same(10, $inventory['entryCount']);
+        $t->same(6, $inventory['manifestDeclaredPartCount']);
+        $t->same(2, $inventory['undeclaredEntryCount']);
+        $t->same(6, $inventory['corePackagePartCount']);
+        $t->same(1, $inventory['mediaResourcePartCount']);
+        $t->same(1, $inventory['packageThumbnailPartCount']);
+        $t->same(1, $inventory['packageSignaturePartCount']);
+        $t->same([
+            'manifest-declared' => 6,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-settings' => 1,
+            'odf-styles' => 1,
+            'package-signature' => 1,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 2,
+        ], $inventory['roleCounts']);
+        $t->same([
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 2,
+        ], $inventory['undeclaredRoleCounts']);
+        $t->same(['odf-settings', 'manifest-declared'], $inventory['parts']['settings.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $inventory['parts']['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['parts']['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['undeclared-package-entry'], $inventory['parts']['Scripts/review/basic.xba']['roles']);
+        $t->same(1, $summary['packageSignatures']['count']);
+        $t->same(1, $summary['packageThumbnails']['count']);
+    },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $encryptedBytes = 'ENCRYPTEDPNG';

@@ -710,6 +710,12 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $roleCounts = [];
+        $undeclaredRoleCounts = [];
+        $corePackagePartCount = 0;
+        $mediaResourcePartCount = 0;
+        $packageThumbnailPartCount = 0;
+        $packageSignaturePartCount = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -773,10 +779,11 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared);
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
-                'roles' => $this->packagePartRoles($entry, $manifestItem, $isUndeclared),
+                'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
@@ -807,7 +814,28 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
             ];
+
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                if ($isUndeclared) {
+                    $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
+                }
+            }
+            if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
+                ++$corePackagePartCount;
+            }
+            if (in_array('media-resource', $roles, true)) {
+                ++$mediaResourcePartCount;
+            }
+            if (in_array('package-thumbnail', $roles, true)) {
+                ++$packageThumbnailPartCount;
+            }
+            if (in_array('package-signature', $roles, true)) {
+                ++$packageSignaturePartCount;
+            }
         }
+        ksort($roleCounts, SORT_STRING);
+        ksort($undeclaredRoleCounts, SORT_STRING);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -821,6 +849,12 @@ final class OdfReader
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
+            'roleCounts' => $roleCounts,
+            'undeclaredRoleCounts' => $undeclaredRoleCounts,
+            'corePackagePartCount' => $corePackagePartCount,
+            'mediaResourcePartCount' => $mediaResourcePartCount,
+            'packageThumbnailPartCount' => $packageThumbnailPartCount,
+            'packageSignaturePartCount' => $packageSignaturePartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
