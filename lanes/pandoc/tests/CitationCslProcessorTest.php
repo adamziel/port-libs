@@ -26186,6 +26186,89 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json language aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-langid-alias',
+                'type' => 'book',
+                'title' => 'Direct Langid Alias Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'langid' => 'ngerman',
+            ],
+            [
+                'id' => 'direct-hyphenation-alias',
+                'type' => 'article-journal',
+                'title' => 'Direct Hyphenation Alias Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'hyphenation' => 'french',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $langid = $processor->item('direct-langid-alias');
+        $hyphenation = $processor->item('direct-hyphenation-alias');
+
+        $t->same('ngerman', $langid['language'] ?? null);
+        $t->same(['ngerman'], $langid['languageList'] ?? null);
+        $t->same('french', $hyphenation['language'] ?? null);
+        $t->same(['french'], $hyphenation['languageList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Language Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-language-alias-review</id>
+    <updated>2026-06-12T01:38:55+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="language"/>
+        <text variable="langid"/>
+        <text variable="hyphenation"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="language"/>
+      <text variable="langid"/>
+      <text variable="hyphenation"/>
+      <text variable="language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Language Alias Review', $summary['title'] ?? null);
+        $t->same('language', $citationChildren[1]['variable'] ?? null);
+        $t->same('langid', $citationChildren[2]['variable'] ?? null);
+        $t->same('hyphenation', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ames | ngerman | ngerman | ngerman | ngerman; Bell | french | french | french | french]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-langid-alias', 'text' => '[@direct-langid-alias]']),
+            new AstNode('citation', ['id' => 'direct-hyphenation-alias', 'text' => '[@direct-hyphenation-alias]']),
+        ]));
+        $t->same('Direct Langid Alias Packet :: ngerman :: ngerman :: ngerman :: ngerman', $styled->renderBibliographyEntry('direct-langid-alias'));
+        $t->same('Direct Hyphenation Alias Packet :: french :: french :: french :: french', $styled->renderBibliographyEntry('direct-hyphenation-alias'));
+
+        $document = (new MarkdownReader())->read('Direct language aliases [@direct-langid-alias; @direct-hyphenation-alias] keep BibLaTeX language metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct language aliases [Ames | ngerman | ngerman | ngerman | ngerman; Bell | french | french | french | french] keep BibLaTeX language metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Langid Alias Packet :: ngerman :: ngerman :: ngerman :: ngerman</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Hyphenation Alias Packet :: french :: french :: french :: french</dd>', $blocks);
+    },
     'normalizes bounded direct csl json publisher place aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
