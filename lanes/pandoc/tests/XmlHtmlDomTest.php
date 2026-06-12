@@ -827,6 +827,79 @@ XML, 'package reader XML');
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'summarizes html script and style raw text provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $jsonText = '{"headline":"<Review>","amp":"&"}';
+        $importMapText = '{"imports":{"app":"./app.js"}}';
+        $styleText = 'body{background:url("cover.png")} @import url("theme.css");';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script type="module" src="app.js" async defer nomodule crossorigin="anonymous" integrity="sha384-review" referrerpolicy="no-referrer" fetchpriority="low" blocking="render"></script>'
+                . '<script type="application/ld+json; charset=utf-8" id="data">' . $jsonText . '</script>'
+                . '<script type="importmap">' . $importMapText . '</script>'
+                . '<style type="text/css" media="print" disabled blocking="render">' . $styleText . '</style>',
+            'script style raw text review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', ['source' => 'xml-html5-dom'], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/script-style-provenance-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $expectedHtml = '<script async blocking="render" crossorigin="anonymous" defer fetchpriority="low" integrity="sha384-review" nomodule referrerpolicy="no-referrer" src="app.js" type="module"></script>'
+            . '<script id="data" type="application/ld+json; charset=utf-8">' . $jsonText . '</script>'
+            . '<script type="importmap">' . $importMapText . '</script>'
+            . '<style blocking="render" disabled media="print" type="text/css">' . $styleText . '</style>';
+
+        $t->same(4, count($summary));
+        $t->same('script', $summary[0]['name']);
+        $t->same('script', $summary[0]['rawTextElement']);
+        $t->same('module-script', $summary[0]['scriptKind']);
+        $t->same('module', $summary[0]['scriptType']);
+        $t->same('app.js', $summary[0]['src']);
+        $t->same(true, $summary[0]['external']);
+        $t->same(false, $summary[0]['inline']);
+        $t->same(true, $summary[0]['scriptExecutable']);
+        $t->same(false, $summary[0]['scriptDataBlock']);
+        $t->same(true, $summary[0]['async']);
+        $t->same(true, $summary[0]['defer']);
+        $t->same(true, $summary[0]['nomodule']);
+        $t->same(['render'], $summary[0]['blockingTokens']);
+        $t->same('anonymous', $summary[0]['crossorigin']);
+        $t->same('sha384-review', $summary[0]['integrity']);
+        $t->same('no-referrer', $summary[0]['referrerpolicy']);
+        $t->same('low', $summary[0]['fetchpriority']);
+        $t->same('', $summary[0]['rawText']);
+        $t->same(0, $summary[0]['rawTextLength']);
+        $t->same(hash('sha256', ''), $summary[0]['rawTextSha256']);
+        $t->same('data', $summary[1]['elementId']);
+        $t->same('application/ld+json', $summary[1]['scriptType']);
+        $t->same('data-block', $summary[1]['scriptKind']);
+        $t->same(false, $summary[1]['scriptExecutable']);
+        $t->same(true, $summary[1]['scriptDataBlock']);
+        $t->same(false, $summary[1]['external']);
+        $t->same(true, $summary[1]['inline']);
+        $t->same($jsonText, $summary[1]['rawText']);
+        $t->same(strlen($jsonText), $summary[1]['rawTextLength']);
+        $t->same(hash('sha256', $jsonText), $summary[1]['rawTextSha256']);
+        $t->same('importmap', $summary[2]['scriptKind']);
+        $t->same(true, $summary[2]['scriptDataBlock']);
+        $t->same($importMapText, $summary[2]['rawText']);
+        $t->same('style', $summary[3]['name']);
+        $t->same('style', $summary[3]['rawTextElement']);
+        $t->same('text/css', $summary[3]['styleType']);
+        $t->same('css', $summary[3]['styleKind']);
+        $t->same('print', $summary[3]['media']);
+        $t->same(true, $summary[3]['disabled']);
+        $t->same(['render'], $summary[3]['blockingTokens']);
+        $t->same($styleText, $summary[3]['rawText']);
+        $t->same(strlen($styleText), $summary[3]['rawTextLength']);
+        $t->same(hash('sha256', $styleText), $summary[3]['rawTextSha256']);
+        $t->same(true, $summary[3]['styleHasImport']);
+        $t->same(true, $summary[3]['styleContainsUrl']);
+        $t->same(1, $summary[3]['cssRuleLikeCount']);
+        $t->same($expectedHtml, $html);
+        $t->contains($expectedHtml, $blocks);
+        $t->same('/migration/script-style-provenance-review.html', $document->children[0]->attr('part'));
+    },
     'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'

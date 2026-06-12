@@ -911,6 +911,12 @@ final class XmlHtmlDom
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
+        if ($name === 'script') {
+            $summary += self::scriptSummary($node);
+        }
+        if ($name === 'style') {
+            $summary += self::styleSummary($node);
+        }
         if ($name === 'template') {
             $summary += self::templateSummary($node);
         }
@@ -1099,6 +1105,141 @@ final class XmlHtmlDom
             'delay' => $delay,
             'urlRaw' => $urlRaw,
             'url' => $url,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptSummary(\DOMElement $script): array
+    {
+        $typeRaw = self::attributeOrNull($script, 'type');
+        $type = self::normalizedContentTypeAttribute($typeRaw);
+        $kind = self::scriptKind($type);
+        $text = $script->textContent;
+        $src = self::attributeOrNull($script, 'src');
+        $blockingRaw = self::attributeOrNull($script, 'blocking');
+
+        return [
+            'rawTextElement' => 'script',
+            'script' => 'script',
+            'scriptTypeRaw' => $typeRaw,
+            'scriptType' => $type,
+            'scriptKind' => $kind,
+            'scriptExecutable' => in_array($kind, ['classic-script', 'module-script'], true),
+            'scriptDataBlock' => !in_array($kind, ['classic-script', 'module-script'], true),
+            'src' => $src,
+            'external' => $src !== null,
+            'inline' => $text !== '',
+            'async' => $script->hasAttribute('async'),
+            'defer' => $script->hasAttribute('defer'),
+            'nomodule' => $script->hasAttribute('nomodule'),
+            'blockingRaw' => $blockingRaw,
+            'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
+            'crossorigin' => self::attributeOrNull($script, 'crossorigin'),
+            'integrity' => self::attributeOrNull($script, 'integrity'),
+            'referrerpolicy' => self::attributeOrNull($script, 'referrerpolicy'),
+            'fetchpriority' => self::attributeOrNull($script, 'fetchpriority'),
+            'rawText' => $text,
+            'rawTextLength' => strlen($text),
+            'rawTextSha256' => hash('sha256', $text),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function styleSummary(\DOMElement $style): array
+    {
+        $typeRaw = self::attributeOrNull($style, 'type');
+        $type = self::normalizedContentTypeAttribute($typeRaw);
+        $text = $style->textContent;
+        $blockingRaw = self::attributeOrNull($style, 'blocking');
+
+        return [
+            'rawTextElement' => 'style',
+            'style' => 'style',
+            'styleTypeRaw' => $typeRaw,
+            'styleType' => $type,
+            'styleKind' => $type === null || $type === '' || $type === 'text/css' ? 'css' : 'non-css',
+            'media' => self::attributeOrNull($style, 'media'),
+            'disabled' => $style->hasAttribute('disabled'),
+            'blockingRaw' => $blockingRaw,
+            'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
+            'rawText' => $text,
+            'rawTextLength' => strlen($text),
+            'rawTextSha256' => hash('sha256', $text),
+            'styleHasImport' => preg_match('/@import\b/i', $text) === 1,
+            'styleContainsUrl' => preg_match('/\burl\s*\(/i', $text) === 1,
+            'cssRuleLikeCount' => substr_count($text, '{'),
+        ];
+    }
+
+    private static function normalizedContentTypeAttribute(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return '';
+        }
+
+        return trim(explode(';', $value, 2)[0]);
+    }
+
+    private static function scriptKind(?string $type): string
+    {
+        if ($type === null || $type === '') {
+            return 'classic-script';
+        }
+
+        if ($type === 'module') {
+            return 'module-script';
+        }
+
+        if ($type === 'importmap') {
+            return 'importmap';
+        }
+
+        if ($type === 'speculationrules') {
+            return 'speculation-rules';
+        }
+
+        if (in_array($type, self::classicScriptMimeTypes(), true)) {
+            return 'classic-script';
+        }
+
+        if ($type === 'application/json' || str_ends_with($type, '+json')) {
+            return 'data-block';
+        }
+
+        return 'non-executable-data';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function classicScriptMimeTypes(): array
+    {
+        return [
+            'application/ecmascript',
+            'application/javascript',
+            'application/x-ecmascript',
+            'application/x-javascript',
+            'text/ecmascript',
+            'text/javascript',
+            'text/javascript1.0',
+            'text/javascript1.1',
+            'text/javascript1.2',
+            'text/javascript1.3',
+            'text/javascript1.4',
+            'text/javascript1.5',
+            'text/jscript',
+            'text/livescript',
+            'text/x-ecmascript',
+            'text/x-javascript',
         ];
     }
 
