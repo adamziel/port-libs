@@ -6139,6 +6139,7 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::SETTINGS_REL => 'settings',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
             self::HEADER_REL => 'header-part',
@@ -6742,6 +6743,10 @@ final class DocxOpenXmlReader
             $settings['documentProtection'] = $this->wordAttributeMap($protection, [
                 'edit',
                 'enforcement',
+                'algorithmName',
+                'hashValue',
+                'saltValue',
+                'spinCount',
                 'cryptProviderType',
                 'cryptAlgorithmClass',
                 'cryptAlgorithmType',
@@ -6751,11 +6756,103 @@ final class DocxOpenXmlReader
             if (isset($settings['documentProtection']['enforcement'])) {
                 $settings['documentProtection']['enforcement'] = $this->wordBoolean($protection, 'enforcement');
             }
-            foreach (['cryptAlgorithmSid', 'cryptSpinCount'] as $numericKey) {
+            foreach (['spinCount', 'cryptAlgorithmSid', 'cryptSpinCount'] as $numericKey) {
                 if (isset($settings['documentProtection'][$numericKey]) && is_numeric($settings['documentProtection'][$numericKey])) {
                     $settings['documentProtection'][$numericKey] = (int) $settings['documentProtection'][$numericKey];
                 }
             }
+        }
+
+        $writeProtection = $this->firstElement($xpath, '/w:settings/w:writeProtection', $dom);
+        if ($writeProtection instanceof \DOMElement) {
+            $settings['writeProtection'] = $this->wordAttributeMap($writeProtection, [
+                'recommended',
+                'algorithmName',
+                'hashValue',
+                'saltValue',
+                'spinCount',
+                'cryptProviderType',
+                'cryptAlgorithmClass',
+                'cryptAlgorithmType',
+                'cryptAlgorithmSid',
+                'cryptSpinCount',
+            ]);
+            if (isset($settings['writeProtection']['recommended'])) {
+                $settings['writeProtection']['recommended'] = $this->wordBoolean($writeProtection, 'recommended');
+            }
+            foreach (['spinCount', 'cryptAlgorithmSid', 'cryptSpinCount'] as $numericKey) {
+                if (isset($settings['writeProtection'][$numericKey]) && is_numeric($settings['writeProtection'][$numericKey])) {
+                    $settings['writeProtection'][$numericKey] = (int) $settings['writeProtection'][$numericKey];
+                }
+            }
+        }
+
+        $revisionView = $this->firstElement($xpath, '/w:settings/w:revisionView', $dom);
+        if ($revisionView instanceof \DOMElement) {
+            $revisionViewSettings = [];
+            foreach ([
+                'markup',
+                'comments',
+                'insDel',
+                'formatting',
+                'inkAnnotations',
+            ] as $attribute) {
+                if ($revisionView->getAttributeNS(self::NS_W, $attribute) !== '') {
+                    $revisionViewSettings[$attribute] = $this->wordBoolean($revisionView, $attribute);
+                }
+            }
+            if ($revisionViewSettings !== []) {
+                $settings['revisionView'] = $revisionViewSettings;
+            }
+        }
+
+        $proofState = $this->firstElement($xpath, '/w:settings/w:proofState', $dom);
+        if ($proofState instanceof \DOMElement) {
+            $proofing = $this->wordAttributeMap($proofState, ['spelling', 'grammar']);
+            if ($proofing !== []) {
+                $settings['proofing'] = $proofing;
+            }
+        }
+
+        $hyphenation = [];
+        foreach ([
+            'autoHyphenation' => 'autoHyphenation',
+            'doNotHyphenateCaps' => 'doNotHyphenateCaps',
+        ] as $localName => $key) {
+            $element = $this->firstElement($xpath, '/w:settings/w:' . $localName, $dom);
+            if ($element instanceof \DOMElement) {
+                $hyphenation[$key] = $this->wordBoolean($element);
+            }
+        }
+        foreach ([
+            'consecutiveHyphenLimit' => 'consecutiveHyphenLimit',
+            'hyphenationZone' => 'hyphenationZoneTwips',
+        ] as $localName => $key) {
+            $element = $this->firstElement($xpath, '/w:settings/w:' . $localName, $dom);
+            if ($element instanceof \DOMElement && is_numeric($element->getAttributeNS(self::NS_W, 'val'))) {
+                $hyphenation[$key] = (int) $element->getAttributeNS(self::NS_W, 'val');
+            }
+        }
+        if ($hyphenation !== []) {
+            $settings['hyphenation'] = $hyphenation;
+        }
+
+        $savePolicy = [];
+        foreach ([
+            'saveFormsData' => 'saveFormsData',
+            'savePreviewPicture' => 'savePreviewPicture',
+            'doNotEmbedSmartTags' => 'doNotEmbedSmartTags',
+            'embedTrueTypeFonts' => 'embedTrueTypeFonts',
+            'embedSystemFonts' => 'embedSystemFonts',
+            'saveSubsetFonts' => 'saveSubsetFonts',
+        ] as $localName => $key) {
+            $element = $this->firstElement($xpath, '/w:settings/w:' . $localName, $dom);
+            if ($element instanceof \DOMElement) {
+                $savePolicy[$key] = $this->wordBoolean($element);
+            }
+        }
+        if ($savePolicy !== []) {
+            $settings['savePolicy'] = $savePolicy;
         }
 
         $compatibility = [];

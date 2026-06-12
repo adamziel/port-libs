@@ -2904,6 +2904,90 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'preserves docx settings review protection hyphenation and save policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml?policy=review#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:documentProtection w:edit="trackedChanges" w:enforcement="false" w:algorithmName="SHA-1" w:hashValue="doc-hash" w:saltValue="doc-salt" w:spinCount="5000"/>
+  <w:writeProtection w:recommended="1" w:algorithmName="SHA-512" w:hashValue="write-hash" w:saltValue="write-salt" w:spinCount="100000"/>
+  <w:revisionView w:markup="1" w:comments="0" w:insDel="true" w:formatting="false" w:inkAnnotations="on"/>
+  <w:proofState w:spelling="clean" w:grammar="dirty"/>
+  <w:autoHyphenation w:val="1"/>
+  <w:doNotHyphenateCaps w:val="0"/>
+  <w:consecutiveHyphenLimit w:val="3"/>
+  <w:hyphenationZone w:val="360"/>
+  <w:saveFormsData w:val="true"/>
+  <w:savePreviewPicture/>
+  <w:doNotEmbedSmartTags/>
+  <w:embedTrueTypeFonts w:val="1"/>
+  <w:embedSystemFonts w:val="0"/>
+  <w:saveSubsetFonts w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $package = $docx['packageProvenance'];
+        $inventory = $package['parts']['docSettings/review-settings.xml'];
+        $selectedSettings = $package['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/review-settings.xml', $docx['settingsPart']);
+        $t->same('../docSettings/review-settings.xml?policy=review#settings', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/review-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('policy=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('settings', $docx['settingsRelationship']['targetFragment']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $docx['settingsRelationship']['contentType']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+        $t->same(1, $package['summary']['roleCounts']['settings']);
+
+        $t->same('trackedChanges', $settings['documentProtection']['edit']);
+        $t->same(false, $settings['documentProtection']['enforcement']);
+        $t->same('SHA-1', $settings['documentProtection']['algorithmName']);
+        $t->same('doc-hash', $settings['documentProtection']['hashValue']);
+        $t->same('doc-salt', $settings['documentProtection']['saltValue']);
+        $t->same(5000, $settings['documentProtection']['spinCount']);
+
+        $t->same(true, $settings['writeProtection']['recommended']);
+        $t->same('SHA-512', $settings['writeProtection']['algorithmName']);
+        $t->same('write-hash', $settings['writeProtection']['hashValue']);
+        $t->same('write-salt', $settings['writeProtection']['saltValue']);
+        $t->same(100000, $settings['writeProtection']['spinCount']);
+
+        $t->same(true, $settings['revisionView']['markup']);
+        $t->same(false, $settings['revisionView']['comments']);
+        $t->same(true, $settings['revisionView']['insDel']);
+        $t->same(false, $settings['revisionView']['formatting']);
+        $t->same(true, $settings['revisionView']['inkAnnotations']);
+        $t->same('clean', $settings['proofing']['spelling']);
+        $t->same('dirty', $settings['proofing']['grammar']);
+
+        $t->same(true, $settings['hyphenation']['autoHyphenation']);
+        $t->same(false, $settings['hyphenation']['doNotHyphenateCaps']);
+        $t->same(3, $settings['hyphenation']['consecutiveHyphenLimit']);
+        $t->same(360, $settings['hyphenation']['hyphenationZoneTwips']);
+        $t->same(true, $settings['savePolicy']['saveFormsData']);
+        $t->same(true, $settings['savePolicy']['savePreviewPicture']);
+        $t->same(true, $settings['savePolicy']['doNotEmbedSmartTags']);
+        $t->same(true, $settings['savePolicy']['embedTrueTypeFonts']);
+        $t->same(false, $settings['savePolicy']['embedSystemFonts']);
+        $t->same(true, $settings['savePolicy']['saveSubsetFonts']);
+    },
     'preflights docx font table embedded font package relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $fontKey = '{00112233-4455-6677-8899-AABBCCDDEEFF}';
