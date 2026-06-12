@@ -3914,6 +3914,158 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'summarizes docx chart package parts from drawing relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart><c:title/><c:plotArea/></c:chart>
+</c:chartSpace>
+XML;
+        $badChartXml = '<review-chart/>';
+        $unreferencedChartXml = '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/charts/chart1.xml" ContentType="' . $chartContentType . '; profile=review-chart"/>' . "\n" .
+            '  <Override PartName="/word/charts/bad-chart.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/charts/missing-chart.xml" ContentType="' . $chartContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/unreferenced.xml" ContentType="' . $chartContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rChart" Type="' . $chartRel . '" Target="charts/chart1.xml?series=1#chart"/>' . "\n" .
+            '  <Relationship Id="rBadChart" Type="' . $chartRel . '" Target="charts/bad-chart.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingChart" Type="' . $chartRel . '" Target="charts/missing-chart.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalChart" Type="' . $chartRel . '" Target="https://example.test/chart.xml?remote=1#chart" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>' . "\n" .
+            '  <Relationship Id="rUnreferencedChart" Type="' . $chartRel . '" Target="charts/unreferenced.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rBadChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rMissingChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rExternalChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rWrongType\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/charts/chart1.xml'] = $chartXml;
+        $parts['word/charts/bad-chart.xml'] = $badChartXml;
+        $parts['word/charts/unreferenced.xml'] = $unreferencedChartXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $charts = $docx['chartParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $chart = $charts['byRelationshipId']['rChart'];
+        $bad = $charts['byRelationshipId']['rBadChart'];
+        $missing = $charts['byRelationshipId']['rMissingChart'];
+        $external = $charts['byRelationshipId']['rExternalChart'];
+        $wrongType = $charts['byRelationshipId']['rWrongType'];
+        $unreferenced = $charts['byRelationshipId']['rUnreferencedChart'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+        $inventory = $docx['packageProvenance']['parts'];
+
+        $t->same($charts, $docx['packageProvenance']['chartParts']);
+        $t->same(7, $charts['count']);
+        $t->same(5, $charts['relationshipCount']);
+        $t->same(6, $charts['referencedCount']);
+        $t->same(1, $charts['unreferencedRelationshipCount']);
+        $t->same(3, $charts['existingCount']);
+        $t->same(1, $charts['missingCount']);
+        $t->same(1, $charts['externalCount']);
+        $t->same(1, $charts['unresolvedCount']);
+        $t->same(0, $charts['invalidXmlCount']);
+        $t->same(1, $charts['unexpectedRootCount']);
+        $t->same(1, $charts['unexpectedRelationshipTypeCount']);
+        $t->same(0, $charts['missingContentTypeCount']);
+        $t->same(1, $charts['unexpectedContentTypeCount']);
+        $t->same(5, $charts['issueCount']);
+        $t->same([
+            'external-chart-part',
+            'missing-chart-part',
+            'missing-relationship-id',
+            'unexpected-chart-content-type',
+            'unexpected-chart-root',
+            'unexpected-relationship-type',
+        ], $charts['issueCodes']);
+        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rWrongType', 'rUnreferencedChart'], $charts['relationshipIds']);
+        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rWrongType'], $charts['referencedRelationshipIds']);
+        $t->same(['rUnreferencedChart'], $charts['unreferencedRelationshipIds']);
+        $t->same(['word/charts/chart1.xml', 'word/charts/bad-chart.xml', 'word/charts/missing-chart.xml', 'word/charts/unreferenced.xml'], $charts['partNames']);
+        $t->same('chart-part-bytes-blocked', $charts['byteExposurePolicy']);
+        $t->same('chart-part-metadata-only', $charts['reviewPolicy']);
+
+        $t->same(true, $chart['referenced']);
+        $t->same($chartRel, $chart['relationshipType']);
+        $t->same('charts/chart1.xml?series=1#chart', $chart['target']);
+        $t->same('word/charts/chart1.xml?series=1#chart', $chart['resolvedTarget']);
+        $t->same('word/charts/chart1.xml', $chart['targetPart']);
+        $t->same('series=1', $chart['targetQuery']);
+        $t->same('chart', $chart['targetFragment']);
+        $t->same('?series=1#chart', $chart['targetReferenceSuffix']);
+        $t->same(strlen($chartXml), $chart['byteLength']);
+        $t->same(sprintf('%08x', crc32($chartXml)), $chart['crc32']);
+        $t->same(hash('sha256', $chartXml), $chart['sha256']);
+        $t->same($chartContentType . '; profile=review-chart', $chart['contentType']);
+        $t->same($chartContentType, $chart['contentTypeBase']);
+        $t->same(['profile' => 'review-chart'], $chart['contentTypeParameterMap']);
+        $t->same('override', $chart['contentTypeSource']);
+        $t->same('word/charts/_rels/chart1.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(0, $chart['chartRelationshipCount']);
+        $t->same(true, $chart['validXml']);
+        $t->same(true, $chart['validRoot']);
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/chart', $chart['rootNamespace']);
+        $t->same('chartSpace', $chart['rootLocalName']);
+        $t->same([], $chart['issues']);
+        $t->same(true, $chart['valid']);
+
+        $t->same(['unexpected-chart-content-type', 'unexpected-chart-root'], $bad['issues']);
+        $t->same('application/xml', $bad['contentType']);
+        $t->same('review-chart', $bad['rootLocalName']);
+        $t->same(['missing-chart-part'], $missing['issues']);
+        $t->same(false, $missing['exists']);
+        $t->same(['external-chart-part'], $external['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same([], $unreferenced['issues']);
+
+        $t->same(7, $summary['chartPartCount']);
+        $t->same(5, $summary['chartPartRelationshipCount']);
+        $t->same(6, $summary['chartPartReferencedCount']);
+        $t->same(3, $summary['chartPartExistingCount']);
+        $t->same(1, $summary['chartPartMissingCount']);
+        $t->same(1, $summary['chartPartExternalCount']);
+        $t->same(5, $summary['chartPartIssueCount']);
+        $t->same($charts['issueCodes'], $summary['chartPartIssueCodes']);
+        $t->same('chart', $relationshipTypes[$chartRel]['label']);
+        $t->same(5, $relationshipTypes[$chartRel]['count']);
+        $t->same(4, $relationshipTypes[$chartRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$chartRel]['externalCount']);
+        $t->same(['word/charts/chart1.xml', 'word/charts/bad-chart.xml', 'word/charts/unreferenced.xml'], $relationshipTypes[$chartRel]['existingTargetParts']);
+        $t->true(in_array('chart-part', $inventory['word/charts/chart1.xml']['roles'], true), 'chart inventory role missing');
+        $t->true(in_array('chart-part', $inventory['word/charts/unreferenced.xml']['roles'], true), 'unreferenced chart inventory role missing');
+        $t->true(!isset($docx['media']['word/charts/chart1.xml']), 'Chart XML should not be exposed as document media');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
