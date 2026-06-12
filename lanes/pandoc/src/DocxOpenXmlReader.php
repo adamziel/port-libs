@@ -3444,11 +3444,14 @@ final class DocxOpenXmlReader
         $relationshipTargetQueryCount = 0;
         $relationshipTargetFragmentCount = 0;
         $relationshipTargetParentTraversalSegmentCount = 0;
+        $relationshipTargetPackageRootEscapeSegmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
         $relationshipPartsWithParentTraversalTargets = [];
+        $relationshipPartsWithPackageRootEscapes = [];
         $relationshipPartsWithSameSourceTargets = [];
         $relationshipTargetsWithReferenceSuffix = [];
         $relationshipTargetsWithParentTraversal = [];
+        $relationshipTargetsWithPackageRootEscapes = [];
         $relationshipsWithSameSourceTargets = [];
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
@@ -3529,6 +3532,11 @@ final class DocxOpenXmlReader
                     $relationshipTargetsWithParentTraversal[] = $this->relationshipProvenanceSummaryItem($relationship);
                     $relationshipPartsWithParentTraversalTargets[(string) $relationshipsPart] = true;
                     $relationshipTargetParentTraversalSegmentCount += (int) ($relationship['targetParentTraversalCount'] ?? 0);
+                }
+                if (($relationship['targetEscapesPackageRoot'] ?? false) === true) {
+                    $relationshipTargetsWithPackageRootEscapes[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    $relationshipPartsWithPackageRootEscapes[(string) $relationshipsPart] = true;
+                    $relationshipTargetPackageRootEscapeSegmentCount += (int) ($relationship['targetPackageRootEscapeCount'] ?? 0);
                 }
                 if (($relationship['sameSourcePart'] ?? false) === true) {
                     $relationshipsWithSameSourceTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
@@ -3668,6 +3676,8 @@ final class DocxOpenXmlReader
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
             'relationshipTargetParentTraversalCount' => count($relationshipTargetsWithParentTraversal),
             'relationshipTargetParentTraversalSegmentCount' => $relationshipTargetParentTraversalSegmentCount,
+            'relationshipTargetPackageRootEscapeCount' => count($relationshipTargetsWithPackageRootEscapes),
+            'relationshipTargetPackageRootEscapeSegmentCount' => $relationshipTargetPackageRootEscapeSegmentCount,
             'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
@@ -3683,6 +3693,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'relationshipPartsWithParentTraversalTargets' => array_keys($relationshipPartsWithParentTraversalTargets),
+            'relationshipPartsWithPackageRootEscapes' => array_keys($relationshipPartsWithPackageRootEscapes),
             'relationshipPartsWithSameSourceTargets' => array_keys($relationshipPartsWithSameSourceTargets),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
@@ -3694,6 +3705,7 @@ final class DocxOpenXmlReader
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'relationshipTargetsWithParentTraversal' => $relationshipTargetsWithParentTraversal,
+            'relationshipTargetsWithPackageRootEscapes' => $relationshipTargetsWithPackageRootEscapes,
             'relationshipsWithSameSourceTargets' => $relationshipsWithSameSourceTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
@@ -4681,6 +4693,8 @@ final class DocxOpenXmlReader
             'targetFragment' => $relationship['targetFragment'] ?? null,
             'targetParentTraversalCount' => (int) ($relationship['targetParentTraversalCount'] ?? 0),
             'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
+            'targetPackageRootEscapeCount' => (int) ($relationship['targetPackageRootEscapeCount'] ?? 0),
+            'targetEscapesPackageRoot' => (bool) ($relationship['targetEscapesPackageRoot'] ?? false),
             'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
             'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
             'exists' => (bool) ($relationship['exists'] ?? false),
@@ -4849,6 +4863,7 @@ final class DocxOpenXmlReader
                         'existingTargetCount' => 0,
                         'missingTargetCount' => 0,
                         'parentTraversalTargetCount' => 0,
+                        'packageRootEscapeTargetCount' => 0,
                         'sameSourceTargetCount' => 0,
                         'relationshipParts' => [],
                         'sourceParts' => [],
@@ -4882,6 +4897,9 @@ final class DocxOpenXmlReader
                     $types[$typeKey]['internalCount']++;
                     if (($relationship['targetHasParentTraversal'] ?? false) === true) {
                         $types[$typeKey]['parentTraversalTargetCount']++;
+                    }
+                    if (($relationship['targetEscapesPackageRoot'] ?? false) === true) {
+                        $types[$typeKey]['packageRootEscapeTargetCount']++;
                     }
                     if (($relationship['sameSourcePart'] ?? false) === true) {
                         $types[$typeKey]['sameSourceTargetCount']++;
@@ -4922,6 +4940,8 @@ final class DocxOpenXmlReader
                     'targetFragment' => is_string($relationship['targetFragment'] ?? null) ? $relationship['targetFragment'] : null,
                     'targetParentTraversalCount' => (int) ($relationship['targetParentTraversalCount'] ?? 0),
                     'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
+                    'targetPackageRootEscapeCount' => (int) ($relationship['targetPackageRootEscapeCount'] ?? 0),
+                    'targetEscapesPackageRoot' => (bool) ($relationship['targetEscapesPackageRoot'] ?? false),
                     'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
                     'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
                 ];
@@ -5220,6 +5240,8 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => $suffix['suffix'],
             'targetParentTraversalCount' => $targetPath['parentTraversalCount'],
             'targetHasParentTraversal' => $targetPath['hasParentTraversal'],
+            'targetPackageRootEscapeCount' => $targetPath['packageRootEscapeCount'],
+            'targetEscapesPackageRoot' => $targetPath['escapesPackageRoot'],
             'targetStartsAtPackageRoot' => $targetPath['startsAtPackageRoot'],
             'sameSourcePart' => $targetPath['sameSourcePart'],
             'exists' => $targetPart !== null && isset($parts[$targetPart]),
@@ -5236,7 +5258,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{parentTraversalCount:int, hasParentTraversal:bool, startsAtPackageRoot:bool, sameSourcePart:bool}
+     * @return array{parentTraversalCount:int, hasParentTraversal:bool, packageRootEscapeCount:int, escapesPackageRoot:bool, startsAtPackageRoot:bool, sameSourcePart:bool}
      */
     private function relationshipTargetPathProvenance(
         string $target,
@@ -5249,6 +5271,8 @@ final class DocxOpenXmlReader
             return [
                 'parentTraversalCount' => 0,
                 'hasParentTraversal' => false,
+                'packageRootEscapeCount' => 0,
+                'escapesPackageRoot' => false,
                 'startsAtPackageRoot' => false,
                 'sameSourcePart' => false,
             ];
@@ -5262,15 +5286,50 @@ final class DocxOpenXmlReader
         ));
         $parentTraversalCount = count(array_filter($segments, static fn (string $segment): bool => $segment === '..'));
         $normalizedSourcePart = $this->normalizePartName($sourcePart);
+        $packageRootEscapeCount = $this->relationshipTargetPackageRootEscapeCount(
+            $rawTargetPart,
+            $normalizedSourcePart,
+        );
 
         return [
             'parentTraversalCount' => $parentTraversalCount,
             'hasParentTraversal' => $parentTraversalCount > 0,
+            'packageRootEscapeCount' => $packageRootEscapeCount,
+            'escapesPackageRoot' => $packageRootEscapeCount > 0,
             'startsAtPackageRoot' => str_starts_with($rawTargetPart, '/'),
             'sameSourcePart' => $targetPart !== null
                 && $normalizedSourcePart !== ''
                 && $targetPart === $normalizedSourcePart,
         ];
+    }
+
+    private function relationshipTargetPackageRootEscapeCount(string $rawTargetPart, string $normalizedSourcePart): int
+    {
+        if (str_starts_with($rawTargetPart, '/')) {
+            return 0;
+        }
+
+        $sourceDirectory = dirname($normalizedSourcePart);
+        $stack = $sourceDirectory === '.' || $sourceDirectory === ''
+            ? []
+            : array_values(array_filter(explode('/', $sourceDirectory), static fn (string $segment): bool => $segment !== ''));
+        $escapeCount = 0;
+        foreach (explode('/', str_replace('\\', '/', $rawTargetPart)) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                if ($stack === []) {
+                    ++$escapeCount;
+                    continue;
+                }
+                array_pop($stack);
+                continue;
+            }
+            $stack[] = $segment;
+        }
+
+        return $escapeCount;
     }
 
     /**
