@@ -2614,6 +2614,118 @@ return [
         $t->same(['native-code', ['php'], [['data-source', 'native-reader']]], $editedInline['c'][0]);
         $t->same(false, array_key_exists('reviewQueue', $editedInline), 'edited native-reader-only inline payload drops stale wrapper sidecar');
     },
+    'preserves native block attr sidecar payloads when rebuilding wrappers' => static function (TestRunner $t): void {
+        $headingAttr = [
+            'native-heading',
+            ['review-heading'],
+            [['data-source', 'native-reader']],
+            ['reviewQueue' => 'heading-attr-sidecar'],
+        ];
+        $codeBlockAttr = [
+            'native-code-block',
+            ['php'],
+            [['data-source', 'native-reader']],
+            ['reviewQueue' => 'code-block-attr-sidecar'],
+        ];
+        $divAttr = [
+            'native-div',
+            ['review-div'],
+            [['data-source', 'native-reader']],
+            ['reviewQueue' => 'div-attr-sidecar'],
+        ];
+        $headingBlock = [
+            't' => 'Header',
+            'c' => [
+                2,
+                $headingAttr,
+                [
+                    ['t' => 'Str', 'c' => 'Native'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'heading'],
+                ],
+            ],
+            'reviewQueue' => 'heading-source',
+        ];
+        $codeBlock = [
+            't' => 'CodeBlock',
+            'c' => [$codeBlockAttr, "echo 1;\n"],
+            'reviewQueue' => 'code-block-source',
+        ];
+        $divBlock = [
+            't' => 'Div',
+            'c' => [
+                $divAttr,
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Native'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'div'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'div-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$headingBlock, $codeBlock, $divBlock],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $heading = $document->children[0];
+        $code = $document->children[1];
+        $div = $document->children[2];
+        $rebuilt = new AstNode('document', $document->attrs, [
+            new AstNode('heading', $heading->attrs, $heading->children),
+            new AstNode('code_block', $code->attrs),
+            new AstNode('div', $div->attrs, $div->children),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($rebuilt),
+            'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $t->same(array_slice($headingAttr, 0, 3), $heading->attr('attrNative'), "{$writer} source heading Attr tuple");
+            $t->same(array_slice($codeBlockAttr, 0, 3), $code->attr('attrNative'), "{$writer} source code block Attr tuple");
+            $t->same(array_slice($divAttr, 0, 3), $div->attr('attrNative'), "{$writer} source div Attr tuple");
+            $t->same($headingBlock, $encoded['blocks'][0], "{$writer} writer preserves native heading block payload");
+            $t->same($codeBlock, $encoded['blocks'][1], "{$writer} writer preserves native code block payload");
+            $t->same($divBlock, $encoded['blocks'][2], "{$writer} writer preserves native div block payload");
+        }
+
+        $editedHeading = new AstNode('heading', array_replace($heading->attrs, [
+            'text' => 'Edited heading',
+        ]), [
+            new AstNode('text', ['text' => 'Edited']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'heading']),
+        ]);
+        $editedCode = new AstNode('code_block', array_replace($code->attrs, [
+            'text' => "echo 2;\n",
+        ]));
+        $editedDivParagraph = new AstNode('paragraph', $div->children[0]->attrs, [
+            new AstNode('text', ['text' => 'Edited']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'div']),
+        ]);
+        $editedDiv = new AstNode('div', $div->attrs, [$editedDivParagraph]);
+        $editedDocument = new AstNode('document', $document->attrs, [$editedHeading, $editedCode, $editedDiv]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($editedDocument),
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $encoded) {
+            $t->same('Edited', $encoded['blocks'][0]['c'][2][0]['c'], "{$writer} writer regenerates edited heading text");
+            $t->same(array_slice($headingAttr, 0, 3), $encoded['blocks'][0]['c'][1], "{$writer} writer drops stale heading Attr sidecar");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$writer} writer drops stale heading wrapper sidecar");
+            $t->same("echo 2;\n", $encoded['blocks'][1]['c'][1], "{$writer} writer regenerates edited code block text");
+            $t->same(array_slice($codeBlockAttr, 0, 3), $encoded['blocks'][1]['c'][0], "{$writer} writer drops stale code block Attr sidecar");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$writer} writer drops stale code block wrapper sidecar");
+            $t->same('Edited', $encoded['blocks'][2]['c'][1][0]['c'][0]['c'], "{$writer} writer regenerates edited div child text");
+            $t->same(array_slice($divAttr, 0, 3), $encoded['blocks'][2]['c'][0], "{$writer} writer drops stale div Attr sidecar");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]), "{$writer} writer drops stale div wrapper sidecar");
+        }
+    },
     'preserves current plain and paragraph native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $plainBlock = [
             't' => 'Plain',
