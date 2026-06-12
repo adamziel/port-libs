@@ -911,6 +911,9 @@ final class XmlHtmlDom
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
+        if (in_array($name, ['script', 'style'], true)) {
+            $summary += self::activeContentSummary($node, $name);
+        }
         if ($name === 'template') {
             $summary += self::templateSummary($node);
         }
@@ -1263,6 +1266,58 @@ final class XmlHtmlDom
         }
 
         return $fallbackTexts;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function activeContentSummary(\DOMElement $element, string $name): array
+    {
+        $text = $element->textContent;
+        if ($name === 'script') {
+            $typeRaw = self::attributeOrNull($element, 'type');
+            $type = $typeRaw === null ? null : strtolower(trim($typeRaw));
+
+            return [
+                'activeContent' => 'script',
+                'scriptSourceKind' => $element->hasAttribute('src') ? 'external' : 'inline',
+                'src' => self::attributeOrNull($element, 'src'),
+                'scriptTypeRaw' => $typeRaw,
+                'scriptType' => $type,
+                'module' => $type === 'module',
+                'async' => $element->hasAttribute('async'),
+                'defer' => $element->hasAttribute('defer'),
+                'nomodule' => $element->hasAttribute('nomodule'),
+                'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
+                'integrity' => self::attributeOrNull($element, 'integrity'),
+                'referrerpolicy' => self::attributeOrNull($element, 'referrerpolicy'),
+                'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
+                'blockingRaw' => self::attributeOrNull($element, 'blocking'),
+                'blockingTokens' => $element->hasAttribute('blocking') ? self::spaceSeparatedTokens($element->getAttribute('blocking')) : [],
+                'scriptText' => $text,
+                'scriptTextLength' => strlen($text),
+                'scriptTextSha256' => hash('sha256', $text),
+                'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
+            ];
+        }
+
+        $typeRaw = self::attributeOrNull($element, 'type');
+        $type = $typeRaw === null ? null : strtolower(trim($typeRaw));
+
+        return [
+            'activeContent' => 'style',
+            'styleSourceKind' => 'inline',
+            'styleTypeRaw' => $typeRaw,
+            'styleType' => $type,
+            'media' => self::attributeOrNull($element, 'media'),
+            'disabled' => $element->hasAttribute('disabled'),
+            'blockingRaw' => self::attributeOrNull($element, 'blocking'),
+            'blockingTokens' => $element->hasAttribute('blocking') ? self::spaceSeparatedTokens($element->getAttribute('blocking')) : [],
+            'styleText' => $text,
+            'styleTextLength' => strlen($text),
+            'styleTextSha256' => hash('sha256', $text),
+            'activeReviewPolicy' => 'inline-style-source',
+        ];
     }
 
     /**

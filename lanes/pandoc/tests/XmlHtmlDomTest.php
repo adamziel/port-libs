@@ -827,6 +827,72 @@ XML, 'package reader XML');
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'summarizes html script and style active source provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script type="module" src="app.js" async defer crossorigin="anonymous" integrity="sha384-review" referrerpolicy="no-referrer" fetchpriority="high" blocking="render"></script>'
+                . '<script nomodule>console.log("<review> & source");</script>'
+                . '<style type="text/css" media="print" disabled blocking="render">body > .review { color: red; }</style>',
+            'active content provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/active-content-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $externalScript = $summary[0];
+        $inlineScript = $summary[1];
+        $style = $summary[2];
+
+        $t->same('script', $externalScript['name']);
+        $t->same('script', $externalScript['activeContent']);
+        $t->same('external', $externalScript['scriptSourceKind']);
+        $t->same('app.js', $externalScript['src']);
+        $t->same('module', $externalScript['scriptTypeRaw']);
+        $t->same('module', $externalScript['scriptType']);
+        $t->same(true, $externalScript['module']);
+        $t->same(true, $externalScript['async']);
+        $t->same(true, $externalScript['defer']);
+        $t->same(false, $externalScript['nomodule']);
+        $t->same('anonymous', $externalScript['crossorigin']);
+        $t->same('sha384-review', $externalScript['integrity']);
+        $t->same('no-referrer', $externalScript['referrerpolicy']);
+        $t->same('high', $externalScript['fetchpriority']);
+        $t->same('render', $externalScript['blockingRaw']);
+        $t->same(['render'], $externalScript['blockingTokens']);
+        $t->same('', $externalScript['scriptText']);
+        $t->same(0, $externalScript['scriptTextLength']);
+        $t->same(hash('sha256', ''), $externalScript['scriptTextSha256']);
+        $t->same('external-script-source', $externalScript['activeReviewPolicy']);
+        $t->same('script', $inlineScript['activeContent']);
+        $t->same('inline', $inlineScript['scriptSourceKind']);
+        $t->same(null, $inlineScript['src']);
+        $t->same(false, $inlineScript['module']);
+        $t->same(false, $inlineScript['async']);
+        $t->same(false, $inlineScript['defer']);
+        $t->same(true, $inlineScript['nomodule']);
+        $t->same('console.log("<review> & source");', $inlineScript['scriptText']);
+        $t->same(strlen('console.log("<review> & source");'), $inlineScript['scriptTextLength']);
+        $t->same(hash('sha256', 'console.log("<review> & source");'), $inlineScript['scriptTextSha256']);
+        $t->same('inline-script-source', $inlineScript['activeReviewPolicy']);
+        $t->same('style', $style['name']);
+        $t->same('style', $style['activeContent']);
+        $t->same('inline', $style['styleSourceKind']);
+        $t->same('text/css', $style['styleTypeRaw']);
+        $t->same('text/css', $style['styleType']);
+        $t->same('print', $style['media']);
+        $t->same(true, $style['disabled']);
+        $t->same('render', $style['blockingRaw']);
+        $t->same(['render'], $style['blockingTokens']);
+        $t->same('body > .review { color: red; }', $style['styleText']);
+        $t->same(strlen('body > .review { color: red; }'), $style['styleTextLength']);
+        $t->same(hash('sha256', 'body > .review { color: red; }'), $style['styleTextSha256']);
+        $t->same('inline-style-source', $style['activeReviewPolicy']);
+        $t->same('<script async blocking="render" crossorigin="anonymous" defer fetchpriority="high" integrity="sha384-review" referrerpolicy="no-referrer" src="app.js" type="module"></script><script nomodule>console.log("<review> & source");</script><style blocking="render" disabled media="print" type="text/css">body > .review { color: red; }</style>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/active-content-review.html', $document->children[0]->attr('part'));
+    },
     'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'
