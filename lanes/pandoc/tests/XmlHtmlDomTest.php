@@ -1703,6 +1703,7 @@ XML, 'package reader XML');
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
+                . '<p><img src="diagram.png" alt="Diagram" usemap="#figures"><img src="bad.png" alt="Bad" usemap="bad target"></p>'
                 . '<map name="figures"><area shape="rect" coords="0,0,10,10" href="diagram.png#hotspot" alt="Diagram hotspot" target="_self" rel="help external"></map>',
             'hyperlink review fragment'
         );
@@ -1710,7 +1711,9 @@ XML, 'package reader XML');
         $html = XmlHtmlDom::serializeHtmlFragment($dom);
 
         $anchor = $summary[0]['children'][1];
-        $map = $summary[1];
+        $image = $summary[1]['children'][0];
+        $invalidImage = $summary[1]['children'][1];
+        $map = $summary[2];
         $area = $map['children'][0];
 
         $t->same('a', $anchor['name']);
@@ -1726,8 +1729,25 @@ XML, 'package reader XML');
         $t->same(['/audit', '/log'], $anchor['pingUrls']);
         $t->same('no-referrer', $anchor['referrerpolicy']);
         $t->same('Chapter one', $anchor['label']);
+        $t->same('image', $image['embeddedResource']);
+        $t->same('diagram.png', $image['src']);
+        $t->same('Diagram', $image['alt']);
+        $t->same('#figures', $image['useMapRaw']);
+        $t->same('figures', $image['useMapName']);
+        $t->same(true, $image['useMapValid']);
+        $t->same('bad target', $invalidImage['useMapRaw']);
+        $t->same('bad target', $invalidImage['useMapName']);
+        $t->same(false, $invalidImage['useMapValid']);
         $t->same('map', $map['name']);
         $t->same(['name' => 'figures'], $map['attributes']);
+        $t->same('map', $map['imageMap']);
+        $t->same('figures', $map['mapNameRaw']);
+        $t->same('figures', $map['mapName']);
+        $t->same(true, $map['mapNameValid']);
+        $t->same(1, $map['areaCount']);
+        $t->same(['diagram.png#hotspot'], $map['areaHrefs']);
+        $t->same(['Diagram hotspot'], $map['areaLabels']);
+        $t->same('diagram.png#hotspot', $map['areas'][0]['href']);
         $t->same('area', $area['name']);
         $t->same('area', $area['hyperlink']);
         $t->same('diagram.png#hotspot', $area['href']);
@@ -1735,7 +1755,7 @@ XML, 'package reader XML');
         $t->same('rect', $area['shape']);
         $t->same('0,0,10,10', $area['coords']);
         $t->same(['help', 'external'], $area['relTokens']);
-        $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
+        $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><p><img alt="Diagram" src="diagram.png" usemap="#figures"><img alt="Bad" src="bad.png" usemap="bad target"></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

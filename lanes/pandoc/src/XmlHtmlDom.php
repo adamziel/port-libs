@@ -917,6 +917,9 @@ final class XmlHtmlDom
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
+        if ($name === 'map') {
+            $summary += self::imageMapSummary($node);
+        }
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
@@ -2723,8 +2726,7 @@ final class XmlHtmlDom
     private static function imageSummary(\DOMElement $image): array
     {
         $srcset = self::attributeOrNull($image, 'srcset');
-
-        return [
+        $summary = [
             'embeddedResource' => 'image',
             'src' => self::attributeOrNull($image, 'src'),
             'alt' => self::attributeOrNull($image, 'alt'),
@@ -2733,6 +2735,59 @@ final class XmlHtmlDom
             'sizes' => self::attributeOrNull($image, 'sizes'),
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
+        ];
+
+        if ($image->hasAttribute('usemap')) {
+            $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
+            $summary['useMapRaw'] = $useMap['raw'];
+            $summary['useMapName'] = $useMap['name'];
+            $summary['useMapValid'] = $useMap['valid'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>}
+     */
+    private static function imageMapSummary(\DOMElement $map): array
+    {
+        $name = self::attributeOrNull($map, 'name');
+        $areas = array_map(
+            static fn (\DOMElement $area): array => self::hyperlinkSummary($area, 'area'),
+            self::descendantHtmlElements($map, 'area'),
+        );
+
+        return [
+            'imageMap' => 'map',
+            'mapNameRaw' => $name,
+            'mapName' => $name === null ? null : trim($name),
+            'mapNameValid' => $name !== null && self::isHtmlReferenceToken(trim($name)),
+            'areaCount' => count($areas),
+            'areaHrefs' => array_values(array_filter(
+                array_map(static fn (array $area): ?string => $area['href'] ?? null, $areas),
+                static fn (?string $href): bool => $href !== null && $href !== ''
+            )),
+            'areaLabels' => array_values(array_filter(
+                array_map(static fn (array $area): ?string => $area['label'] ?? null, $areas),
+                static fn (?string $label): bool => $label !== null && $label !== ''
+            )),
+            'areas' => $areas,
+        ];
+    }
+
+    /**
+     * @return array{raw:string, name:?string, valid:bool}
+     */
+    private static function useMapAttributeSummary(string $value): array
+    {
+        $raw = trim($value);
+        $name = str_starts_with($raw, '#') ? substr($raw, 1) : $raw;
+
+        return [
+            'raw' => $value,
+            'name' => $name === '' ? null : $name,
+            'valid' => str_starts_with($raw, '#') && self::isHtmlReferenceToken($name),
         ];
     }
 
