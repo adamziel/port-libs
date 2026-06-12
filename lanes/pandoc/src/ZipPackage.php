@@ -10037,6 +10037,12 @@ final class ZipPackage
      *     duplicatePlannedEntryNameGroups:list<array{name:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     duplicatePlannedRawNameGroups:list<array{rawName:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     duplicatePlannedLocalHeaderOffsetGroups:list<array{localHeaderOffset:int,count:int,names:list<string>,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>}>,
+     *     retainedEntryCount:int,
+     *     retainedEntryNames:list<string>,
+     *     recoverableEntryNames:list<string>,
+     *     plannedEntryNames:list<string>,
+     *     plannedActionCounts:array<string, int>,
+     *     plannedSourceCounts:array<string, int>,
      *     retainedEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
      *     recoverableEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
      *     plannedEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
@@ -10076,6 +10082,12 @@ final class ZipPackage
         $duplicatePlannedEntryNameGroups = self::centralDirectoryDuplicateEntryGroups($plannedEntries, 'name', 'name');
         $duplicatePlannedRawNameGroups = self::centralDirectoryDuplicateEntryGroups($plannedEntries, 'rawName', 'rawName');
         $duplicatePlannedLocalHeaderOffsetGroups = self::centralDirectoryLocalHeaderOffsetGroups($plannedEntries);
+        $plannedActionCounts = [];
+        $plannedSourceCounts = [];
+        foreach ($plannedEntries as $entry) {
+            $plannedActionCounts[$entry['action']] = ($plannedActionCounts[$entry['action']] ?? 0) + 1;
+            $plannedSourceCounts[$entry['source']] = ($plannedSourceCounts[$entry['source']] ?? 0) + 1;
+        }
 
         $repairAvailable = $recoverableEntries !== []
             && $gapFullyRecovered
@@ -10140,6 +10152,12 @@ final class ZipPackage
             'duplicatePlannedEntryNameGroups' => $duplicatePlannedEntryNameGroups,
             'duplicatePlannedRawNameGroups' => $duplicatePlannedRawNameGroups,
             'duplicatePlannedLocalHeaderOffsetGroups' => $duplicatePlannedLocalHeaderOffsetGroups,
+            'retainedEntryCount' => count($retainedEntries),
+            'retainedEntryNames' => array_column($retainedEntries, 'name'),
+            'recoverableEntryNames' => array_column($recoverableEntries, 'name'),
+            'plannedEntryNames' => array_column($plannedEntries, 'name'),
+            'plannedActionCounts' => $plannedActionCounts,
+            'plannedSourceCounts' => $plannedSourceCounts,
             'retainedEntries' => $retainedEntries,
             'recoverableEntries' => $recoverableEntries,
             'plannedEntries' => $plannedEntries,
