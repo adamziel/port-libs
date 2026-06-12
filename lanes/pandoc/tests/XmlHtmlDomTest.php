@@ -497,6 +497,64 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html ruby annotation provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><ruby id="term">base<rp>(</rp><rt>annotation</rt><rp>)</rp><rtc><rt>alternate</rt><rt>source</rt></rtc><rb>tail</rb><rt>tail-note</rt></ruby></p>',
+            'ruby annotation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/ruby-annotations-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $ruby = $paragraph['children'][0];
+        $fallbackOpen = $ruby['children'][1];
+        $firstAnnotation = $ruby['children'][2];
+        $fallbackClose = $ruby['children'][3];
+        $container = $ruby['children'][4];
+        $containerAnnotation = $container['children'][0];
+        $base = $ruby['children'][5];
+        $tailAnnotation = $ruby['children'][6];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('base(annotation)alternatesourcetailtail-note', $paragraph['text']);
+        $t->same('ruby', $ruby['name']);
+        $t->same('ruby', $ruby['ruby']);
+        $t->same('term', $ruby['elementId']);
+        $t->same('base(annotation)alternatesourcetailtail-note', $ruby['rubyText']);
+        $t->same(['base', 'tail'], $ruby['rubyBaseTexts']);
+        $t->same(2, $ruby['rubyBaseCount']);
+        $t->same(['annotation', 'alternate', 'source', 'tail-note'], $ruby['rubyAnnotationTexts']);
+        $t->same(4, $ruby['rubyAnnotationCount']);
+        $t->same([
+            ['container' => null, 'text' => 'annotation'],
+            ['container' => 'rtc', 'text' => 'alternate'],
+            ['container' => 'rtc', 'text' => 'source'],
+            ['container' => null, 'text' => 'tail-note'],
+        ], $ruby['rubyAnnotations']);
+        $t->same(['(', ')'], $ruby['rubyFallbackTexts']);
+        $t->same(2, $ruby['rubyFallbackCount']);
+
+        $t->same('fallback-parenthesis', $fallbackOpen['rubyPart']);
+        $t->same('(', $fallbackOpen['rubyFallbackText']);
+        $t->same('annotation', $firstAnnotation['rubyPart']);
+        $t->same('annotation', $firstAnnotation['rubyAnnotationText']);
+        $t->same(')', $fallbackClose['rubyFallbackText']);
+        $t->same('annotation-container', $container['rubyPart']);
+        $t->same(['alternate', 'source'], $container['rubyAnnotationTexts']);
+        $t->same(2, $container['rubyAnnotationCount']);
+        $t->same('annotation', $containerAnnotation['rubyPart']);
+        $t->same('alternate', $containerAnnotation['rubyAnnotationText']);
+        $t->same('base', $base['rubyPart']);
+        $t->same('tail', $base['rubyBaseText']);
+        $t->same('tail-note', $tailAnnotation['rubyAnnotationText']);
+        $t->same('<p><ruby id="term">base<rp>(</rp><rt>annotation</rt><rp>)</rp><rtc><rt>alternate</rt><rt>source</rt></rtc><rb>tail</rb><rt>tail-note</rt></ruby></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/ruby-annotations-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'

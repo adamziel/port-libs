@@ -914,6 +914,9 @@ final class XmlHtmlDom
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
+        if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
+            $summary += self::rubySummary($node, $name);
+        }
         if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
@@ -1118,6 +1121,142 @@ final class XmlHtmlDom
             ],
             default => [],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rubySummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'ruby') {
+            $baseTexts = self::rubyBaseTexts($element);
+            $annotations = self::rubyAnnotationSummaries($element);
+            $fallbackTexts = self::rubyFallbackTexts($element);
+
+            return [
+                'ruby' => 'ruby',
+                'rubyText' => self::normalizedText($element),
+                'rubyBaseTexts' => $baseTexts,
+                'rubyBaseCount' => count($baseTexts),
+                'rubyAnnotationTexts' => array_values(array_map(
+                    static fn (array $annotation): string => (string) $annotation['text'],
+                    $annotations
+                )),
+                'rubyAnnotations' => $annotations,
+                'rubyAnnotationCount' => count($annotations),
+                'rubyFallbackTexts' => $fallbackTexts,
+                'rubyFallbackCount' => count($fallbackTexts),
+            ];
+        }
+
+        if ($name === 'rb') {
+            return [
+                'rubyPart' => 'base',
+                'rubyBaseText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'rt') {
+            return [
+                'rubyPart' => 'annotation',
+                'rubyAnnotationText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'rp') {
+            return [
+                'rubyPart' => 'fallback-parenthesis',
+                'rubyFallbackText' => self::normalizedText($element),
+            ];
+        }
+
+        $annotations = array_values(array_map(
+            static fn (\DOMElement $annotation): string => self::normalizedText($annotation),
+            self::childHtmlElements($element, 'rt')
+        ));
+
+        return [
+            'rubyPart' => 'annotation-container',
+            'rubyAnnotationTexts' => $annotations,
+            'rubyAnnotationCount' => count($annotations),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function rubyBaseTexts(\DOMElement $ruby): array
+    {
+        $baseTexts = [];
+        foreach ($ruby->childNodes as $child) {
+            if ($child instanceof \DOMText) {
+                $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $child->nodeValue ?? '') ?? ($child->nodeValue ?? '');
+                $text = trim($text);
+                if ($text !== '') {
+                    $baseTexts[] = $text;
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement || self::htmlElementName($child) !== 'rb') {
+                continue;
+            }
+
+            $text = self::normalizedText($child);
+            if ($text !== '') {
+                $baseTexts[] = $text;
+            }
+        }
+
+        return $baseTexts;
+    }
+
+    /**
+     * @return list<array{container:string|null, text:string}>
+     */
+    private static function rubyAnnotationSummaries(\DOMElement $ruby): array
+    {
+        $annotations = [];
+        foreach ($ruby->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if ($name === 'rt') {
+                $annotations[] = [
+                    'container' => null,
+                    'text' => self::normalizedText($child),
+                ];
+                continue;
+            }
+
+            if ($name !== 'rtc') {
+                continue;
+            }
+
+            foreach (self::childHtmlElements($child, 'rt') as $annotation) {
+                $annotations[] = [
+                    'container' => 'rtc',
+                    'text' => self::normalizedText($annotation),
+                ];
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function rubyFallbackTexts(\DOMElement $ruby): array
+    {
+        $fallbackTexts = [];
+        foreach (self::childHtmlElements($ruby, 'rp') as $fallback) {
+            $fallbackTexts[] = self::normalizedText($fallback);
+        }
+
+        return $fallbackTexts;
     }
 
     /**
