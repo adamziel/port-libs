@@ -1019,6 +1019,16 @@ final class PandocJsonWriter
             'Math',
             'RawInline',
             'Cite',
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Quoted',
+            'Note',
+            'Span',
         ], true);
     }
 
