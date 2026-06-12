@@ -242,6 +242,12 @@ final class PdfEngineHandoff
             if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
                 $diagnostics[] = 'typst-output-format-explicit:' . $typstOutputFormatPolicy['explicitFormat'];
             }
+            if (($typstOutputFormatPolicy['formatHistory'] ?? []) !== []) {
+                $diagnostics[] = 'typst-output-format-history:' . count($typstOutputFormatPolicy['formatHistory']);
+            }
+            if (($typstOutputFormatPolicy['overrides'] ?? []) !== []) {
+                $diagnostics[] = 'typst-output-format-overrides:' . count($typstOutputFormatPolicy['overrides']);
+            }
             if ($typstOutputFormatPolicy['issues'] !== []) {
                 $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
             }
@@ -5616,14 +5622,19 @@ final class PdfEngineHandoff
 
         $issues = [];
         $formatOptions = [];
-        foreach ($this->typstOutputFormatOptionValues($engineOptions) as $value) {
-            $format = strtolower(trim($value));
-            if ($format === '') {
-                $issues[] = 'missing-format-value';
+        $formatHistory = [];
+        $formatValues = $this->typstOutputFormatOptionValues($engineOptions);
+        foreach ($formatValues as $value) {
+            $entry = $this->typstOutputFormatEntry($value);
+            $formatHistory[] = $entry;
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+            if ($entry['format'] === null) {
                 continue;
             }
 
-            $formatOptions[] = $format;
+            $formatOptions[] = $entry['format'];
         }
 
         $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
@@ -5637,14 +5648,25 @@ final class PdfEngineHandoff
 
         $explicitFormat = $formatOptions === [] ? null : $formatOptions[count($formatOptions) - 1];
         $distinctFormats = array_values(array_unique($formatOptions));
+        $overrides = [];
         if (count($distinctFormats) > 1) {
             $issues[] = 'conflicting-format-options:' . count($distinctFormats);
+        }
+        if (count($formatValues) > 1) {
+            $overrides[] = [
+                'option' => 'format',
+                'count' => count($formatValues),
+                'values' => $formatValues,
+                'selected' => $formatValues[count($formatValues) - 1],
+                'issue' => 'format-boundary-overridden',
+            ];
+            $issues[] = 'format-boundary-overridden';
         }
         if ($explicitFormat !== null && $explicitFormat !== 'pdf') {
             $issues[] = 'explicit-format-not-pdf:' . $explicitFormat;
         }
 
-        return [
+        $policy = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
             'declaredOutputFile' => $outputFile,
             'inferredOutputFormat' => $inferredOutputFormat,
@@ -5652,6 +5674,14 @@ final class PdfEngineHandoff
             'formatOptions' => $formatOptions,
             'issues' => array_values(array_unique($issues)),
         ];
+        if (count($formatValues) > 1 || in_array('', $formatValues, true)) {
+            $policy['formatHistory'] = $formatHistory;
+        }
+        if ($overrides !== []) {
+            $policy['overrides'] = $overrides;
+        }
+
+        return $policy;
     }
 
     /**
@@ -5677,6 +5707,31 @@ final class PdfEngineHandoff
         }
 
         return $values;
+    }
+
+    /**
+     * @return array{raw:string, value:string, format:string|null, safe:bool, issues:list<string>}
+     */
+    private function typstOutputFormatEntry(string $raw): array
+    {
+        $value = strtolower(trim($raw));
+        if ($value === '') {
+            return [
+                'raw' => $raw,
+                'value' => '',
+                'format' => null,
+                'safe' => false,
+                'issues' => ['missing-format-value'],
+            ];
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'format' => $value,
+            'safe' => $value === 'pdf',
+            'issues' => $value === 'pdf' ? [] : ['explicit-format-not-pdf:' . $value],
+        ];
     }
 
     /**
