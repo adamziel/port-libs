@@ -230,6 +230,11 @@ return [
             'dependencyOutputPresent' => true,
             'timingsOutputPresent' => true,
             'diagnosticOutputPresent' => true,
+            'fontAccessControlCount' => 2,
+            'systemFontAccessDisabled' => true,
+            'systemFontAccessFlagCount' => 1,
+            'embeddedFontAccessDisabled' => true,
+            'embeddedFontAccessFlagCount' => 1,
             'pdfExportControlCount' => 3,
             'featureGateCount' => 2,
             'executionPolicyPresent' => true,
@@ -265,6 +270,7 @@ return [
         $t->contains('typst-boundary-summary-paths:9', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));
         $t->same(['build/boundary-summary.d', 'build/boundary-summary-timings.json'], $plan['expectedEngineArtifacts']);

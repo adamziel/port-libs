@@ -458,6 +458,9 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['sidecarOutputCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-sidecars:' . $typstBoundarySummary['sidecarOutputCount'];
             }
+            if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -6415,6 +6418,12 @@ final class PdfEngineHandoff
 
         $dependencyOutputPresent = is_array($provenance['dependencyOutput']['file'] ?? null);
         $timingsOutputPresent = is_array($provenance['timingsOutput'] ?? null);
+        $systemFontAccess = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
+        $embeddedFontAccess = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
+        $systemFontAccessDisabled = ($systemFontAccess['systemFontAccess'] ?? null) === 'disabled';
+        $embeddedFontAccessDisabled = ($embeddedFontAccess['embeddedFontAccess'] ?? null) === 'disabled';
+        $systemFontAccessFlagCount = is_int($systemFontAccess['flagCount'] ?? null) ? $systemFontAccess['flagCount'] : 0;
+        $embeddedFontAccessFlagCount = is_int($embeddedFontAccess['flagCount'] ?? null) ? $embeddedFontAccess['flagCount'] : 0;
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
         $pdfExportControlCount = 0;
         foreach ([
@@ -6462,6 +6471,11 @@ final class PdfEngineHandoff
             'dependencyOutputPresent' => $dependencyOutputPresent,
             'timingsOutputPresent' => $timingsOutputPresent,
             'diagnosticOutputPresent' => is_array($provenance['diagnosticOutput'] ?? null),
+            'fontAccessControlCount' => (int) $systemFontAccessDisabled + (int) $embeddedFontAccessDisabled,
+            'systemFontAccessDisabled' => $systemFontAccessDisabled,
+            'systemFontAccessFlagCount' => $systemFontAccessFlagCount,
+            'embeddedFontAccessDisabled' => $embeddedFontAccessDisabled,
+            'embeddedFontAccessFlagCount' => $embeddedFontAccessFlagCount,
             'pdfExportControlCount' => $pdfExportControlCount,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
             'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
