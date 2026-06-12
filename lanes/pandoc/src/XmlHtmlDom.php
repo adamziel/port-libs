@@ -847,6 +847,12 @@ final class XmlHtmlDom
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
+        if ($name === 'fieldset') {
+            $summary += self::fieldsetSummary($node);
+        }
+        if ($name === 'legend') {
+            $summary += self::legendSummary($node);
+        }
         if ($name === 'details') {
             $summaryElements = self::detailsSummaryElements($node);
             $summary['disclosure'] = 'details';
@@ -3201,6 +3207,106 @@ final class XmlHtmlDom
         }
 
         return $options;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function fieldsetSummary(\DOMElement $fieldset): array
+    {
+        $legend = self::firstChildHtmlElement($fieldset, 'legend');
+        $controls = self::fieldsetControlSummaries($fieldset, $legend);
+
+        return [
+            'formGroup' => 'fieldset',
+            'disabled' => $fieldset->hasAttribute('disabled'),
+            'legendText' => $legend instanceof \DOMElement ? self::normalizedText($legend) : null,
+            'legendCount' => count(self::childHtmlElements($fieldset, 'legend')),
+            'controlCount' => count($controls),
+            'legendControlCount' => count(array_filter(
+                $controls,
+                static fn (array $control): bool => (bool) ($control['inFirstLegend'] ?? false)
+            )),
+            'controls' => $controls,
+            'controlNames' => self::fieldsetControlNames($controls),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function legendSummary(\DOMElement $legend): array
+    {
+        $fieldset = self::parentHtmlElement($legend, 'fieldset');
+        $firstLegend = $fieldset instanceof \DOMElement ? self::firstChildHtmlElement($fieldset, 'legend') : null;
+
+        return [
+            'formGroupPart' => 'legend',
+            'legendText' => self::normalizedText($legend),
+            'fieldsetDisabled' => $fieldset instanceof \DOMElement ? $fieldset->hasAttribute('disabled') : null,
+            'firstLegend' => $firstLegend instanceof \DOMElement && $legend->isSameNode($firstLegend),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function fieldsetControlSummaries(\DOMElement $fieldset, ?\DOMElement $firstLegend): array
+    {
+        $controls = [];
+        foreach ($fieldset->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || !self::isFormControlElement($control)) {
+                continue;
+            }
+
+            $name = self::htmlElementName($control);
+            $controlSummary = [
+                'tag' => $name,
+                'id' => self::attributeOrNull($control, 'id'),
+                'controlName' => self::attributeOrNull($control, 'name'),
+                'effectiveDisabled' => self::isEffectivelyDisabledFormControl($control),
+                'inFirstLegend' => $firstLegend instanceof \DOMElement && self::isDescendantOrSame($control, $firstLegend),
+            ];
+
+            if ($name === 'input') {
+                $controlSummary['type'] = self::inputType($control);
+            } elseif ($name === 'button') {
+                $controlSummary['type'] = self::buttonType($control);
+            }
+
+            $controls[] = $controlSummary;
+        }
+
+        return $controls;
+    }
+
+    private static function isFormControlElement(\DOMElement $element): bool
+    {
+        return in_array(self::htmlElementName($element), ['button', 'input', 'output', 'select', 'textarea'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function fieldsetControlNames(array $controls): array
+    {
+        $names = [];
+        foreach ($controls as $control) {
+            $name = $control['controlName'] ?? null;
+            if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private static function parentHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+
+        return $parent instanceof \DOMElement && self::htmlElementName($parent) === $name ? $parent : null;
     }
 
     private static function tableHeaderScope(\DOMElement $header): ?string

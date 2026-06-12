@@ -1076,7 +1076,8 @@ XML, 'package reader XML');
         $formatInput = $form['children'][1];
         $datalist = $form['children'][2];
         $fieldset = $form['children'][3];
-        $legendButton = $fieldset['children'][0]['children'][1];
+        $legend = $fieldset['children'][0];
+        $legendButton = $legend['children'][1];
         $confirmInput = $fieldset['children'][1]['children'][1];
         $stateSelect = $fieldset['children'][2];
         $notes = $fieldset['children'][3];
@@ -1098,6 +1099,57 @@ XML, 'package reader XML');
         $t->same('datalist', $datalist['formControl']);
         $t->same($expectedOptions, $datalist['datalistOptions']);
         $t->same(['disabled' => 'disabled'], $fieldset['attributes']);
+        $t->same('fieldset', $fieldset['formGroup']);
+        $t->same(true, $fieldset['disabled']);
+        $t->same('Batch Keep enabled', $fieldset['legendText']);
+        $t->same(1, $fieldset['legendCount']);
+        $t->same(5, $fieldset['controlCount']);
+        $t->same(1, $fieldset['legendControlCount']);
+        $t->same(['confirm', 'state', 'notes', 'save'], $fieldset['controlNames']);
+        $t->same([
+            [
+                'tag' => 'button',
+                'id' => 'legend-action',
+                'controlName' => null,
+                'effectiveDisabled' => false,
+                'inFirstLegend' => true,
+                'type' => 'submit',
+            ],
+            [
+                'tag' => 'input',
+                'id' => 'confirm',
+                'controlName' => 'confirm',
+                'effectiveDisabled' => true,
+                'inFirstLegend' => false,
+                'type' => 'checkbox',
+            ],
+            [
+                'tag' => 'select',
+                'id' => 'state',
+                'controlName' => 'state',
+                'effectiveDisabled' => true,
+                'inFirstLegend' => false,
+            ],
+            [
+                'tag' => 'textarea',
+                'id' => 'notes',
+                'controlName' => 'notes',
+                'effectiveDisabled' => true,
+                'inFirstLegend' => false,
+            ],
+            [
+                'tag' => 'button',
+                'id' => 'submit',
+                'controlName' => 'save',
+                'effectiveDisabled' => true,
+                'inFirstLegend' => false,
+                'type' => 'submit',
+            ],
+        ], $fieldset['controls']);
+        $t->same('legend', $legend['formGroupPart']);
+        $t->same('Batch Keep enabled', $legend['legendText']);
+        $t->same(true, $legend['fieldsetDisabled']);
+        $t->same(true, $legend['firstLegend']);
         $t->same('button', $legendButton['formControl']);
         $t->same(false, $legendButton['effectiveDisabled']);
         $t->same('input', $confirmInput['formControl']);
