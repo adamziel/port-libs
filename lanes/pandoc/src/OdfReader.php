@@ -767,6 +767,8 @@ final class OdfReader
                 'part' => $part,
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $item['mediaType'] ?? null,
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,

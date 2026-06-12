@@ -9063,6 +9063,67 @@ XML;
         $t->same(1, count($result['importReport']['manifest']['missingItems']));
         $t->same('Pictures/missing.png?missing=true', $result['importReport']['manifest']['missingItems'][0]['fullPath']);
     },
+    'preserves ODT manifest file-entry order query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSuffixedPaths = str_replace(
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:full-path="content.xml?view=body#text" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="styles.xml#styledefs" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png?cache=1#image" manifest:media-type="image/png"/>'
+                    . '<manifest:file-entry manifest:full-path="Pictures/missing.png?missing=true" manifest:media-type="image/png"/>',
+            ],
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSuffixedPaths));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $orderByFullPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $orderByFullPath[$item['fullPath']] = $item;
+        }
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(6, $provenance['manifestFileEntryCount']);
+        $t->same(4, $provenance['manifestPartReferenceSuffixCount']);
+        $t->same(3, $provenance['manifestPartReferenceQueryCount']);
+        $t->same(3, $provenance['manifestPartReferenceFragmentCount']);
+
+        $content = $orderByFullPath['content.xml?view=body#text'];
+        $t->same(1, $content['manifestIndex']);
+        $t->same('content.xml', $content['part']);
+        $t->same('?view=body#text', $content['partSuffix']);
+        $t->same(true, array_key_exists('partQuery', $content));
+        $t->same('view=body', $content['partQuery']);
+        $t->same(true, array_key_exists('partFragment', $content));
+        $t->same('text', $content['partFragment']);
+        $t->same(true, $content['canExposeBytes']);
+
+        $styles = $orderByFullPath['styles.xml#styledefs'];
+        $t->same('styles.xml', $styles['part']);
+        $t->same('#styledefs', $styles['partSuffix']);
+        $t->same(true, array_key_exists('partQuery', $styles));
+        $t->same(null, $styles['partQuery']);
+        $t->same(true, array_key_exists('partFragment', $styles));
+        $t->same('styledefs', $styles['partFragment']);
+
+        $hero = $orderByFullPath['Pictures/hero.png?cache=1#image'];
+        $t->same('Pictures/hero.png', $hero['part']);
+        $t->same('cache=1', $hero['partQuery']);
+        $t->same('image', $hero['partFragment']);
+
+        $missing = $orderByFullPath['Pictures/missing.png?missing=true'];
+        $t->same('Pictures/missing.png', $missing['part']);
+        $t->same('missing=true', $missing['partQuery']);
+        $t->same(true, array_key_exists('partFragment', $missing));
+        $t->same(null, $missing['partFragment']);
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+    },
     'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
             ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
