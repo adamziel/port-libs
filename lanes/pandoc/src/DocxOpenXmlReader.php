@@ -257,6 +257,7 @@ final class DocxOpenXmlReader
             $numbering,
             $referencedNotes,
         );
+        $sectionProperties = $this->readSectionProperties($parts[$documentPart], $documentPart);
         $headerFooterReferences = $this->readHeaderFooterReferences($parts[$documentPart], $documentPart);
         $headers = $this->readHeaderFooterParts(
             $parts,
@@ -298,6 +299,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['footerUnresolvedReferenceCount'] = $footers['unresolvedCount'];
         $packageProvenance['summary']['footerIssueCount'] = $footers['issueCount'];
         $packageProvenance['summary']['footerIssueCodes'] = $footers['issueCodes'];
+        $packageProvenance['sections'] = $sectionProperties;
+        $packageProvenance['summary']['sectionCount'] = $sectionProperties['count'];
+        $packageProvenance['summary']['sectionHeaderReferenceCount'] = $sectionProperties['headerReferenceCount'];
+        $packageProvenance['summary']['sectionFooterReferenceCount'] = $sectionProperties['footerReferenceCount'];
+        $packageProvenance['summary']['sectionLandscapeCount'] = $sectionProperties['landscapeCount'];
+        $packageProvenance['summary']['sectionTitlePageCount'] = $sectionProperties['titlePageCount'];
+        $packageProvenance['summary']['sectionColumnLayoutCount'] = $sectionProperties['columnLayoutCount'];
+        $packageProvenance['summary']['sectionIssueCount'] = $sectionProperties['issueCount'];
+        $packageProvenance['summary']['sectionIssueCodes'] = $sectionProperties['issueCodes'];
         $alternativeFormats = $this->readAlternativeFormatImports(
             $parts,
             $parts[$documentPart],
@@ -501,6 +511,7 @@ final class DocxOpenXmlReader
                 'commentsExtended' => $commentsExtended['summary'],
                 'headers' => $headers,
                 'footers' => $footers,
+                'sections' => $sectionProperties,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
                 'chartParts' => $chartParts,
@@ -1005,6 +1016,283 @@ final class DocxOpenXmlReader
             'xml' => $parts[$partName] ?? '',
             'relationship' => null,
             'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSectionProperties(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [
+                'count' => 0,
+                'types' => [],
+                'orientations' => [],
+                'headerReferenceCount' => 0,
+                'footerReferenceCount' => 0,
+                'landscapeCount' => 0,
+                'titlePageCount' => 0,
+                'columnLayoutCount' => 0,
+                'pageSizeCount' => 0,
+                'pageMarginCount' => 0,
+                'issueCount' => 0,
+                'issueCodes' => [],
+                'items' => [],
+            ];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $items = [];
+        $types = [];
+        $orientations = [];
+        $issueCodes = [];
+        $headerReferenceCount = 0;
+        $footerReferenceCount = 0;
+        $landscapeCount = 0;
+        $titlePageCount = 0;
+        $columnLayoutCount = 0;
+        $pageSizeCount = 0;
+        $pageMarginCount = 0;
+        $issueCount = 0;
+
+        foreach ($this->elements($xpath, '//w:sectPr') as $section) {
+            $item = $this->sectionPropertyItem($section, $xpath, $partName, count($items));
+            $items[] = $item;
+
+            $this->appendUniqueString($types, is_string($item['type'] ?? null) ? $item['type'] : null);
+            $orientation = is_array($item['pageSize'] ?? null) ? ($item['pageSize']['orientation'] ?? null) : null;
+            $this->appendUniqueString($orientations, is_string($orientation) ? $orientation : null);
+            $headerReferenceCount += (int) ($item['headerReferenceCount'] ?? 0);
+            $footerReferenceCount += (int) ($item['footerReferenceCount'] ?? 0);
+            if (($item['landscape'] ?? false) === true) {
+                ++$landscapeCount;
+            }
+            if (($item['titlePage'] ?? false) === true) {
+                ++$titlePageCount;
+            }
+            if (($item['columns']['present'] ?? false) === true) {
+                ++$columnLayoutCount;
+            }
+            if (($item['pageSize']['present'] ?? false) === true) {
+                ++$pageSizeCount;
+            }
+            if (($item['pageMargins']['present'] ?? false) === true) {
+                ++$pageMarginCount;
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                    ++$issueCount;
+                }
+            }
+        }
+
+        sort($types, SORT_STRING);
+        sort($orientations, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'types' => $types,
+            'orientations' => $orientations,
+            'headerReferenceCount' => $headerReferenceCount,
+            'footerReferenceCount' => $footerReferenceCount,
+            'landscapeCount' => $landscapeCount,
+            'titlePageCount' => $titlePageCount,
+            'columnLayoutCount' => $columnLayoutCount,
+            'pageSizeCount' => $pageSizeCount,
+            'pageMarginCount' => $pageMarginCount,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionPropertyItem(\DOMElement $section, \DOMXPath $xpath, string $partName, int $index): array
+    {
+        $headerReferences = $this->sectionReferenceItems($section, $xpath, 'header');
+        $footerReferences = $this->sectionReferenceItems($section, $xpath, 'footer');
+        $pageSize = $this->sectionPageSize($this->firstElement($xpath, 'w:pgSz', $section));
+        $pageMargins = $this->sectionPageMargins($this->firstElement($xpath, 'w:pgMar', $section));
+        $columns = $this->sectionColumns($this->firstElement($xpath, 'w:cols', $section));
+        $pageNumbering = $this->sectionPageNumbering($this->firstElement($xpath, 'w:pgNumType', $section));
+        $documentGrid = $this->sectionDocumentGrid($this->firstElement($xpath, 'w:docGrid', $section));
+        $titlePage = $this->firstElement($xpath, 'w:titlePg', $section);
+        $issues = [];
+
+        foreach (array_merge($headerReferences, $footerReferences) as $reference) {
+            foreach ($reference['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'index' => $index,
+            'documentPart' => $partName,
+            'type' => $this->emptyStringToNull($this->childAttr($section, 'type', 'val')),
+            'headerReferenceCount' => count($headerReferences),
+            'footerReferenceCount' => count($footerReferences),
+            'headerReferences' => $headerReferences,
+            'footerReferences' => $footerReferences,
+            'pageSize' => $pageSize,
+            'pageMargins' => $pageMargins,
+            'columns' => $columns,
+            'pageNumbering' => $pageNumbering,
+            'documentGrid' => $documentGrid,
+            'titlePage' => $titlePage instanceof \DOMElement ? $this->wordBoolean($titlePage) : false,
+            'landscape' => ($pageSize['orientation'] ?? null) === 'landscape',
+            'textDirection' => $this->emptyStringToNull($this->childAttr($section, 'textDirection', 'val')),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function sectionReferenceItems(\DOMElement $section, \DOMXPath $xpath, string $kind): array
+    {
+        $items = [];
+        $elementName = $kind === 'footer' ? 'footerReference' : 'headerReference';
+        foreach ($this->elements($xpath, 'w:' . $elementName, $section) as $reference) {
+            $relationshipId = $reference->getAttributeNS(self::NS_R, 'id');
+            $type = $reference->getAttributeNS(self::NS_W, 'type');
+            $type = $type === '' ? 'default' : $type;
+            $issues = [];
+            if ($relationshipId === '') {
+                $issues[] = 'missing-' . $kind . '-reference-id';
+            }
+            if (!in_array($type, ['default', 'even', 'first'], true)) {
+                $issues[] = 'invalid-' . $kind . '-reference-type';
+            }
+
+            $items[] = [
+                'index' => count($items),
+                'kind' => $kind,
+                'relationshipId' => $relationshipId,
+                'type' => $type,
+                'validType' => $issues === [] || !in_array('invalid-' . $kind . '-reference-type', $issues, true),
+                'issues' => $issues,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionPageSize(?\DOMElement $pageSize): array
+    {
+        if (!$pageSize instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'widthTwips' => null,
+                'heightTwips' => null,
+                'orientation' => null,
+                'code' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'widthTwips' => $this->wordOptionalIntAttr($pageSize, 'w'),
+            'heightTwips' => $this->wordOptionalIntAttr($pageSize, 'h'),
+            'orientation' => $this->emptyStringToNull($pageSize->getAttributeNS(self::NS_W, 'orient')),
+            'code' => $this->wordOptionalIntAttr($pageSize, 'code'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionPageMargins(?\DOMElement $pageMargins): array
+    {
+        $margins = ['top', 'right', 'bottom', 'left', 'header', 'footer', 'gutter'];
+        $values = ['present' => $pageMargins instanceof \DOMElement];
+        foreach ($margins as $margin) {
+            $values[$margin . 'Twips'] = $pageMargins instanceof \DOMElement
+                ? $this->wordOptionalIntAttr($pageMargins, $margin)
+                : null;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionColumns(?\DOMElement $columns): array
+    {
+        if (!$columns instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'count' => null,
+                'spaceTwips' => null,
+                'equalWidth' => null,
+                'separator' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'count' => $this->wordOptionalIntAttr($columns, 'num'),
+            'spaceTwips' => $this->wordOptionalIntAttr($columns, 'space'),
+            'equalWidth' => $this->wordOptionalBooleanAttr($columns, 'equalWidth'),
+            'separator' => $this->wordOptionalBooleanAttr($columns, 'sep'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionPageNumbering(?\DOMElement $pageNumbering): array
+    {
+        if (!$pageNumbering instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'start' => null,
+                'format' => null,
+                'chapterStyle' => null,
+                'chapterSeparator' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'start' => $this->wordOptionalIntAttr($pageNumbering, 'start'),
+            'format' => $this->emptyStringToNull($pageNumbering->getAttributeNS(self::NS_W, 'fmt')),
+            'chapterStyle' => $this->wordOptionalIntAttr($pageNumbering, 'chapStyle'),
+            'chapterSeparator' => $this->emptyStringToNull($pageNumbering->getAttributeNS(self::NS_W, 'chapSep')),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sectionDocumentGrid(?\DOMElement $documentGrid): array
+    {
+        if (!$documentGrid instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'type' => null,
+                'linePitch' => null,
+                'charSpace' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'type' => $this->emptyStringToNull($documentGrid->getAttributeNS(self::NS_W, 'type')),
+            'linePitch' => $this->wordOptionalIntAttr($documentGrid, 'linePitch'),
+            'charSpace' => $this->wordOptionalIntAttr($documentGrid, 'charSpace'),
         ];
     }
 
@@ -9257,6 +9545,26 @@ final class DocxOpenXmlReader
         $value = strtolower($element->getAttributeNS(self::NS_W, $attribute));
 
         return !in_array($value, ['0', 'false', 'off'], true);
+    }
+
+    private function wordOptionalIntAttr(\DOMElement $element, string $attribute): ?int
+    {
+        $value = trim($element->getAttributeNS(self::NS_W, $attribute));
+        if ($value === '' || preg_match('/^-?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function wordOptionalBooleanAttr(\DOMElement $element, string $attribute): ?bool
+    {
+        $value = $element->getAttributeNS(self::NS_W, $attribute);
+        if ($value === '') {
+            return null;
+        }
+
+        return $this->onOffStringValue($value);
     }
 
     /**

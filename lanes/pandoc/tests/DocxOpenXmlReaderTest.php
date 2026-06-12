@@ -852,6 +852,83 @@ XML;
         $t->same(1, $summary['footerMissingPartCount']);
         $t->same(1, $summary['footerIssueCount']);
     },
+    'preserves docx section property review metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderEven" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-even.xml"/>' . "\n" .
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer-default.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:type w:val="continuous"/>' . "\n" .
+            '      <w:headerReference w:type="even" r:id="rHeaderEven"/>' . "\n" .
+            '      <w:footerReference r:id="rFooterDefault"/>' . "\n" .
+            '      <w:footerReference w:type="odd"/>' . "\n" .
+            '      <w:pgSz w:w="16838" w:h="11906" w:orient="landscape" w:code="9"/>' . "\n" .
+            '      <w:pgMar w:top="720" w:right="900" w:bottom="720" w:left="900" w:header="360" w:footer="360" w:gutter="0"/>' . "\n" .
+            '      <w:cols w:num="2" w:space="360" w:sep="1"/>' . "\n" .
+            '      <w:pgNumType w:start="3" w:fmt="decimal"/>' . "\n" .
+            '      <w:docGrid w:type="lines" w:linePitch="360" w:charSpace="0"/>' . "\n" .
+            '      <w:titlePg/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $sections = $docx['sections'];
+        $section = $sections['items'][0];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same(1, $sections['count']);
+        $t->same(['continuous'], $sections['types']);
+        $t->same(['landscape'], $sections['orientations']);
+        $t->same(1, $sections['headerReferenceCount']);
+        $t->same(2, $sections['footerReferenceCount']);
+        $t->same(1, $sections['landscapeCount']);
+        $t->same(1, $sections['titlePageCount']);
+        $t->same(1, $sections['columnLayoutCount']);
+        $t->same(2, $sections['issueCount']);
+        $t->same(['invalid-footer-reference-type', 'missing-footer-reference-id'], $sections['issueCodes']);
+
+        $t->same('continuous', $section['type']);
+        $t->same('rHeaderEven', $section['headerReferences'][0]['relationshipId']);
+        $t->same('even', $section['headerReferences'][0]['type']);
+        $t->same('rFooterDefault', $section['footerReferences'][0]['relationshipId']);
+        $t->same('default', $section['footerReferences'][0]['type']);
+        $t->same('', $section['footerReferences'][1]['relationshipId']);
+        $t->same('odd', $section['footerReferences'][1]['type']);
+        $t->same(['missing-footer-reference-id', 'invalid-footer-reference-type'], $section['footerReferences'][1]['issues']);
+        $t->same(16838, $section['pageSize']['widthTwips']);
+        $t->same(11906, $section['pageSize']['heightTwips']);
+        $t->same('landscape', $section['pageSize']['orientation']);
+        $t->same(9, $section['pageSize']['code']);
+        $t->same(720, $section['pageMargins']['topTwips']);
+        $t->same(900, $section['pageMargins']['rightTwips']);
+        $t->same(2, $section['columns']['count']);
+        $t->same(360, $section['columns']['spaceTwips']);
+        $t->same(true, $section['columns']['separator']);
+        $t->same(3, $section['pageNumbering']['start']);
+        $t->same('decimal', $section['pageNumbering']['format']);
+        $t->same('lines', $section['documentGrid']['type']);
+        $t->same(360, $section['documentGrid']['linePitch']);
+        $t->same(true, $section['titlePage']);
+        $t->same(true, $section['landscape']);
+
+        $t->same(1, $summary['sectionCount']);
+        $t->same(1, $summary['sectionHeaderReferenceCount']);
+        $t->same(2, $summary['sectionFooterReferenceCount']);
+        $t->same(1, $summary['sectionLandscapeCount']);
+        $t->same(1, $summary['sectionTitlePageCount']);
+        $t->same(1, $summary['sectionColumnLayoutCount']);
+        $t->same(2, $summary['sectionIssueCount']);
+        $t->same(['invalid-footer-reference-type', 'missing-footer-reference-id'], $summary['sectionIssueCodes']);
+    },
     'flags docx relationship sidecars whose source part is missing' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/missing-header.xml.rels'] = <<<'XML'
