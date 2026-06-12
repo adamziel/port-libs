@@ -506,10 +506,20 @@ final class EpubPackage
         $spineMetadata = $this->spineMetadata();
         $guideReport = $this->guideReport();
         $ocfSidecars = $this->ocfSidecars();
+        $packageInventory = self::packageInventoryReport(
+            $this->package,
+            $this->opfPartName,
+            $this->rootfiles,
+            $this->manifestItems,
+            $this->spine,
+            $ocfSidecars,
+            $this->encryption,
+        );
 
         return [
             'opfPart' => $this->opfPartName,
             'mimetypeEntry' => $this->mimetypeEntry,
+            'packageInventory' => $packageInventory,
             'rootfiles' => $this->rootfiles,
             'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
@@ -547,6 +557,7 @@ final class EpubPackage
             'validation' => $validationReport,
             'wordpressImport' => [
                 'mimetypeEntry' => $this->mimetypeEntry,
+                'packageInventory' => $packageInventory,
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
                 'language' => $this->metadata['language'],
@@ -4867,6 +4878,368 @@ final class EpubPackage
     private static function metadataElementDirection(\DOMElement $element): ?string
     {
         return self::emptyToNull($element->getAttribute('dir'));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     * @param list<array<string, mixed>> $manifestItems
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $ocfSidecars
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageInventoryReport(
+        ZipPackage $package,
+        string $opfPartName,
+        array $rootfiles,
+        array $manifestItems,
+        array $spine,
+        array $ocfSidecars,
+        array $encryption
+    ): array {
+        $manifestByPackagePath = [];
+        $manifestDeclaredPartNames = [];
+        $missingManifestDeclaredPartNames = [];
+        foreach ($manifestItems as $index => $item) {
+            $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
+            if ($packagePath === null) {
+                continue;
+            }
+
+            $manifestByPackagePath[$packagePath][] = ['index' => $index] + $item;
+            $partName = self::packageInventoryPartName($packagePath);
+            $manifestDeclaredPartNames[$partName] = true;
+            if (($item['exists'] ?? false) !== true) {
+                $missingManifestDeclaredPartNames[$partName] = true;
+            }
+        }
+
+        $rootfilesByPackagePath = [];
+        foreach ($rootfiles as $index => $rootfile) {
+            $packagePath = self::packageInventoryEntryName($rootfile['partName'] ?? null);
+            if ($packagePath !== null) {
+                $rootfilesByPackagePath[$packagePath][] = ['index' => $index] + $rootfile;
+            }
+        }
+
+        $spineByPackagePath = [];
+        foreach ($spine as $index => $item) {
+            $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
+            if ($packagePath !== null) {
+                $spineByPackagePath[$packagePath][] = ['index' => $index] + $item;
+            }
+        }
+
+        $sidecarsByPackagePath = [];
+        foreach (is_array($ocfSidecars['items'] ?? null) ? $ocfSidecars['items'] : [] as $sidecar) {
+            if (!is_array($sidecar)) {
+                continue;
+            }
+
+            $packagePath = self::packageInventoryEntryName($sidecar['partName'] ?? $sidecar['part'] ?? null);
+            if ($packagePath !== null) {
+                $sidecarsByPackagePath[$packagePath][] = $sidecar;
+            }
+        }
+
+        $encryptionPackagePath = ($encryption['present'] ?? false) === true
+            ? self::packageInventoryEntryName($encryption['part'] ?? null)
+            : null;
+        $encryptedResourcesByPackagePath = [];
+        foreach (is_array($encryption['items'] ?? null) ? $encryption['items'] : [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $packagePath = self::packageInventoryEntryName($item['partName'] ?? null);
+            if ($packagePath !== null) {
+                $encryptedResourcesByPackagePath[$packagePath][] = $item;
+            }
+        }
+
+        $opfPackagePath = self::packageInventoryEntryName($opfPartName);
+        $localOrderByName = [];
+        foreach ($package->localNames() as $index => $name) {
+            $localOrderByName[$name] = $index;
+        }
+
+        $entries = [];
+        $byPackagePath = [];
+        $roleCounts = [];
+        $resourceKindCounts = [];
+        $undeclaredPartNames = [];
+        $unsupportedCompressionPartNames = [];
+        $encryptedPartNames = [];
+        $obfuscatedFontPartNames = [];
+        $spinePartNames = [];
+        $opfManifestDeclaredEntryCount = 0;
+        $spineEntryCount = 0;
+        $encryptedEntryCount = 0;
+        $obfuscatedFontEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $directoryEntryCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+
+        foreach ($package->entries() as $index => $entry) {
+            $packagePath = $entry->name;
+            $partName = self::packageInventoryPartName($packagePath);
+            $manifestMatches = $manifestByPackagePath[$packagePath] ?? [];
+            $rootfileMatches = $rootfilesByPackagePath[$packagePath] ?? [];
+            $spineMatches = $spineByPackagePath[$packagePath] ?? [];
+            $sidecarMatches = $sidecarsByPackagePath[$packagePath] ?? [];
+            $encryptedMatches = $encryptedResourcesByPackagePath[$packagePath] ?? [];
+            $declaredInOpfManifest = $manifestMatches !== [];
+            $inSpine = $spineMatches !== [];
+            $encrypted = $encryptedMatches !== [];
+            $obfuscatedFont = count(array_filter(
+                $encryptedMatches,
+                static fn (array $item): bool => ($item['obfuscatedFont'] ?? false) === true
+            )) > 0;
+            $manifestItem = $manifestMatches[0] ?? null;
+            $manifestIds = array_values(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['id'] ?? null) && $item['id'] !== '' ? $item['id'] : null,
+                    $manifestMatches
+                ),
+                static fn (?string $id): bool => $id !== null
+            ));
+            $spineIndexes = array_map(
+                static fn (array $item): int => (int) ($item['index'] ?? 0),
+                $spineMatches
+            );
+            $sidecarKinds = array_values(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['kind'] ?? null) && $item['kind'] !== '' ? $item['kind'] : null,
+                    $sidecarMatches
+                ),
+                static fn (?string $kind): bool => $kind !== null
+            ));
+            $mediaType = is_array($manifestItem) && is_string($manifestItem['mediaType'] ?? null)
+                ? $manifestItem['mediaType']
+                : null;
+            $mediaTypeBase = $mediaType === null ? null : self::mediaTypeBase($mediaType);
+            $properties = is_array($manifestItem['properties'] ?? null) ? array_values($manifestItem['properties']) : [];
+            $resourceKind = is_array($manifestItem)
+                ? self::packageInventoryResourceKind($mediaType, $packagePath, $properties)
+                : null;
+            $isMimetype = $packagePath === 'mimetype';
+            $isContainer = $packagePath === 'META-INF/container.xml';
+            $isOpfPackage = $opfPackagePath !== null && $packagePath === $opfPackagePath;
+            $isRootfile = $rootfileMatches !== [];
+            $isEncryptionSidecar = $encryptionPackagePath !== null && $packagePath === $encryptionPackagePath;
+            $isSidecar = $sidecarMatches !== [];
+            $declaredPackageEntry = $isMimetype
+                || $isContainer
+                || $isRootfile
+                || $isOpfPackage
+                || $isSidecar
+                || $isEncryptionSidecar
+                || $declaredInOpfManifest;
+            $undeclared = !$declaredPackageEntry;
+            $roles = [];
+            $addRole = static function (string $role) use (&$roles): void {
+                if (!in_array($role, $roles, true)) {
+                    $roles[] = $role;
+                }
+            };
+
+            if ($entry->isDirectory()) {
+                $addRole('zip-directory');
+                ++$directoryEntryCount;
+            }
+            if ($isMimetype) {
+                $addRole('epub-mimetype');
+                $addRole('ocf-core');
+            }
+            if ($isContainer) {
+                $addRole('ocf-container');
+                $addRole('ocf-core');
+            }
+            if (str_starts_with($packagePath, 'META-INF/')) {
+                $addRole('ocf-meta-inf');
+            }
+            if ($isRootfile) {
+                $addRole('container-rootfile');
+            }
+            if ($isOpfPackage) {
+                $addRole('opf-package-document');
+            }
+            if ($isSidecar) {
+                $addRole('ocf-sidecar');
+                foreach ($sidecarKinds as $kind) {
+                    $addRole('ocf-' . $kind . '-sidecar');
+                }
+            }
+            if ($isEncryptionSidecar) {
+                $addRole('ocf-encryption-sidecar');
+            }
+            if ($declaredInOpfManifest) {
+                $addRole('opf-manifest-declared');
+                ++$opfManifestDeclaredEntryCount;
+            }
+            if ($resourceKind !== null) {
+                $addRole('resource-kind-' . $resourceKind);
+                $resourceKindCounts[$resourceKind] = ($resourceKindCounts[$resourceKind] ?? 0) + 1;
+            }
+            if ($inSpine) {
+                $addRole('spine-reading-order');
+                ++$spineEntryCount;
+                $spinePartNames[$partName] = true;
+            }
+            if ($encrypted) {
+                $addRole('encrypted-resource');
+                ++$encryptedEntryCount;
+                $encryptedPartNames[$partName] = true;
+            }
+            if ($obfuscatedFont) {
+                $addRole('obfuscated-font');
+                ++$obfuscatedFontEntryCount;
+                $obfuscatedFontPartNames[$partName] = true;
+            }
+            if ($undeclared) {
+                $addRole('undeclared-package-entry');
+                $undeclaredPartNames[$partName] = true;
+            }
+
+            $provenance = self::zipEntryProvenance($entry);
+            if (($provenance['compressionSupported'] ?? false) !== true) {
+                ++$unsupportedCompressionMethodCount;
+                $unsupportedCompressionPartNames[$partName] = true;
+            }
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            $totalByteLength += $entry->uncompressedSize;
+            $totalCompressedByteLength += $entry->compressedSize;
+
+            $item = [
+                'index' => $index,
+                'localOrder' => $localOrderByName[$packagePath] ?? null,
+                'packagePath' => $packagePath,
+                'partName' => $partName,
+                'isDirectory' => $entry->isDirectory(),
+                'declaredPackageEntry' => $declaredPackageEntry,
+                'undeclared' => $undeclared,
+                'declaredInOpfManifest' => $declaredInOpfManifest,
+                'manifestIds' => $manifestIds,
+                'manifestItemCount' => count($manifestMatches),
+                'inSpine' => $inSpine,
+                'spineIndexes' => $spineIndexes,
+                'rootfile' => $isRootfile,
+                'rootfileIndexes' => array_map(
+                    static fn (array $item): int => (int) ($item['index'] ?? 0),
+                    $rootfileMatches
+                ),
+                'ocfSidecar' => $isSidecar,
+                'ocfSidecarKinds' => $sidecarKinds,
+                'encryptionSidecar' => $isEncryptionSidecar,
+                'encrypted' => $encrypted,
+                'obfuscatedFont' => $obfuscatedFont,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeBase,
+                'properties' => $properties,
+                'resourceKind' => $resourceKind,
+                'roles' => $roles,
+            ] + $provenance;
+            $item['byteExposurePolicy'] = 'epub-package-entry-metadata-only';
+            if ($encrypted) {
+                $item['canExposeBytes'] = false;
+                $item['byteExposurePolicy'] = $obfuscatedFont
+                    ? 'obfuscated-font-bytes-blocked'
+                    : 'encrypted-resource-bytes-blocked';
+            }
+
+            $entries[] = $item;
+            $byPackagePath[$packagePath] = $item;
+        }
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($resourceKindCounts, SORT_STRING);
+
+        return [
+            'entryCount' => count($entries),
+            'fileEntryCount' => count($entries) - $directoryEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'opfManifestDeclaredEntryCount' => $opfManifestDeclaredEntryCount,
+            'opfManifestDeclaredPartCount' => count($manifestDeclaredPartNames),
+            'missingOpfManifestDeclaredPartCount' => count($missingManifestDeclaredPartNames),
+            'undeclaredEntryCount' => count($undeclaredPartNames),
+            'spineEntryCount' => $spineEntryCount,
+            'encryptedEntryCount' => $encryptedEntryCount,
+            'obfuscatedFontEntryCount' => $obfuscatedFontEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'byteExposurePolicy' => 'epub-package-inventory-metadata-only',
+            'canExposeBytes' => false,
+            'roles' => array_keys($roleCounts),
+            'roleCounts' => $roleCounts,
+            'resourceKindCounts' => $resourceKindCounts,
+            'opfManifestDeclaredPartNames' => array_keys($manifestDeclaredPartNames),
+            'missingOpfManifestDeclaredPartNames' => array_keys($missingManifestDeclaredPartNames),
+            'undeclaredPartNames' => array_keys($undeclaredPartNames),
+            'spinePartNames' => array_keys($spinePartNames),
+            'encryptedPartNames' => array_keys($encryptedPartNames),
+            'obfuscatedFontPartNames' => array_keys($obfuscatedFontPartNames),
+            'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
+            'localPackagePaths' => $package->localNames(),
+            'centralPackagePaths' => $package->names(),
+            'byPackagePath' => $byPackagePath,
+            'entries' => $entries,
+        ];
+    }
+
+    private static function packageInventoryEntryName(mixed $partName): ?string
+    {
+        if (!is_string($partName)) {
+            return null;
+        }
+
+        $name = ltrim(trim($partName), '/');
+
+        return $name === '' ? null : $name;
+    }
+
+    private static function packageInventoryPartName(string $packagePath): string
+    {
+        return '/' . ltrim($packagePath, '/');
+    }
+
+    /**
+     * @param list<string> $properties
+     */
+    private static function packageInventoryResourceKind(?string $mediaType, string $packagePath, array $properties): string
+    {
+        if (in_array('nav', $properties, true)) {
+            return 'navigation';
+        }
+        if (in_array('cover-image', $properties, true)) {
+            return 'cover-image';
+        }
+
+        $baseMediaType = $mediaType === null ? '' : self::mediaTypeBase($mediaType);
+        if ($baseMediaType === self::OPF_MEDIA_TYPE) {
+            return 'package-document';
+        }
+        if (isset(self::CORE_MEDIA_TYPE_KINDS[$baseMediaType])) {
+            return self::CORE_MEDIA_TYPE_KINDS[$baseMediaType];
+        }
+        if (str_starts_with($baseMediaType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($baseMediaType, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($baseMediaType, 'video/')) {
+            return 'video';
+        }
+        if (self::isFontResource($baseMediaType, $packagePath)) {
+            return 'font';
+        }
+
+        return 'asset';
     }
 
     private static function emptyToNull(string $value): ?string

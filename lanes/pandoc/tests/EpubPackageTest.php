@@ -4685,6 +4685,112 @@ XML;
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 
+    'reports EPUB OCF ZIP package inventory roles without exposing payload bytes' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithInventoryResources = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/theme.mp3" media-type="audio/mpeg"/>
+    <item id="font" href="fonts/source.otf" media-type="font/otf"/>',
+            $epub3OpfXml
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <CipherData>
+      <CipherReference URI="EPUB/fonts/source.otf"/>
+    </CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'META-INF/rights.xml', 'data' => '<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>'],
+            ['name' => 'META-INF/signatures.xml', 'data' => '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"/>'],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithInventoryResources],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/audio/theme.mp3', 'data' => 'AUDIO'],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+            ['name' => 'EPUB/notes/source.txt', 'data' => 'review note'],
+        ]));
+        $summary = $epub->summary();
+        $inventory = $summary['packageInventory'];
+        $byPath = $inventory['byPackagePath'];
+
+        $t->same($inventory, $summary['wordpressImport']['packageInventory']);
+        $t->same(15, $inventory['entryCount']);
+        $t->same(14, $inventory['fileEntryCount']);
+        $t->same(1, $inventory['directoryEntryCount']);
+        $t->same(7, $inventory['opfManifestDeclaredEntryCount']);
+        $t->same(7, $inventory['opfManifestDeclaredPartCount']);
+        $t->same(0, $inventory['missingOpfManifestDeclaredPartCount']);
+        $t->same(2, $inventory['undeclaredEntryCount']);
+        $t->same(2, $inventory['spineEntryCount']);
+        $t->same(1, $inventory['encryptedEntryCount']);
+        $t->same(1, $inventory['obfuscatedFontEntryCount']);
+        $t->same(0, $inventory['unsupportedCompressionMethodCount']);
+        $t->same('epub-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
+        $t->same(false, $inventory['canExposeBytes']);
+        $t->same([
+            'audio' => 1,
+            'cover-image' => 1,
+            'font' => 1,
+            'navigation' => 1,
+            'style' => 1,
+            'xhtml' => 2,
+        ], $inventory['resourceKindCounts']);
+        $t->same([
+            '/EPUB/nav.xhtml',
+            '/EPUB/styles/book.css',
+            '/EPUB/images/cover.png',
+            '/EPUB/text/chapter1.xhtml',
+            '/EPUB/text/chapter2.xhtml',
+            '/EPUB/audio/theme.mp3',
+            '/EPUB/fonts/source.otf',
+        ], $inventory['opfManifestDeclaredPartNames']);
+        $t->same(['/EPUB/text/', '/EPUB/notes/source.txt'], $inventory['undeclaredPartNames']);
+        $t->same(['/EPUB/text/chapter1.xhtml', '/EPUB/text/chapter2.xhtml'], $inventory['spinePartNames']);
+        $t->same(['/EPUB/fonts/source.otf'], $inventory['encryptedPartNames']);
+        $t->same(['/EPUB/fonts/source.otf'], $inventory['obfuscatedFontPartNames']);
+        $t->same('mimetype', $inventory['localPackagePaths'][0]);
+        $t->same('EPUB/notes/source.txt', $inventory['centralPackagePaths'][14]);
+
+        $t->same(['epub-mimetype', 'ocf-core'], $byPath['mimetype']['roles']);
+        $t->same(['ocf-container', 'ocf-core', 'ocf-meta-inf'], $byPath['META-INF/container.xml']['roles']);
+        $t->true(in_array('ocf-encryption-sidecar', $byPath['META-INF/encryption.xml']['roles'], true), 'encryption sidecar role missing');
+        $t->true(in_array('ocf-rights-sidecar', $byPath['META-INF/rights.xml']['roles'], true), 'rights sidecar role missing');
+        $t->true(in_array('ocf-signatures-sidecar', $byPath['META-INF/signatures.xml']['roles'], true), 'signatures sidecar role missing');
+        $t->true(in_array('container-rootfile', $byPath['EPUB/package.opf']['roles'], true), 'rootfile role missing');
+        $t->true(in_array('opf-package-document', $byPath['EPUB/package.opf']['roles'], true), 'OPF document role missing');
+        $t->true(in_array('resource-kind-navigation', $byPath['EPUB/nav.xhtml']['roles'], true), 'navigation role missing');
+        $t->true(in_array('spine-reading-order', $byPath['EPUB/text/chapter1.xhtml']['roles'], true), 'spine role missing');
+        $t->true(in_array('zip-directory', $byPath['EPUB/text/']['roles'], true), 'directory role missing');
+        $t->true(in_array('undeclared-package-entry', $byPath['EPUB/text/']['roles'], true), 'directory undeclared role missing');
+        $t->true(in_array('undeclared-package-entry', $byPath['EPUB/notes/source.txt']['roles'], true), 'undeclared note role missing');
+
+        $font = $byPath['EPUB/fonts/source.otf'];
+        $t->same('font', $font['resourceKind']);
+        $t->same(['font'], $font['manifestIds']);
+        $t->same(true, $font['encrypted']);
+        $t->same(true, $font['obfuscatedFont']);
+        $t->same(false, $font['canExposeBytes']);
+        $t->same('obfuscated-font-bytes-blocked', $font['byteExposurePolicy']);
+        $t->true(in_array('encrypted-resource', $font['roles'], true), 'encrypted resource role missing');
+        $t->true(in_array('obfuscated-font', $font['roles'], true), 'obfuscated font role missing');
+        $t->same(7, $inventory['roleCounts']['opf-manifest-declared']);
+        $t->same(2, $inventory['roleCounts']['spine-reading-order']);
+        $t->same(2, $inventory['roleCounts']['undeclared-package-entry']);
+        $t->same(1, $inventory['roleCounts']['obfuscated-font']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',
