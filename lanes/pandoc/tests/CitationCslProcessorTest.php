@@ -26206,6 +26206,100 @@ XML);
         $t->contains('<dt>Rios 2024</dt><dd>Address Publisher Place Packet :: Madrid :: Madrid :: Field Press</dd>', $blocks);
         $t->contains('<dt>Nolan 2023</dt><dd>Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press</dd>', $blocks);
     },
+    'normalizes bounded direct csl json publisher list aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-publisher-list-camel',
+                'type' => 'book',
+                'title' => 'Direct Publisher List Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisherList' => ['Archive Press', 'Source Desk'],
+            ],
+            [
+                'id' => 'direct-publisher-list-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Publisher List Hyphen Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publisher-list' => 'Field Press; Review Lab',
+            ],
+            [
+                'id' => 'direct-publisher-scalar-wins',
+                'type' => 'book',
+                'title' => 'Direct Publisher Scalar Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'publisher' => 'Primary Press',
+                'publisherList' => ['Primary Press', 'Secondary Desk'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-publisher-list-camel');
+        $hyphen = $processor->item('direct-publisher-list-hyphen');
+        $scalar = $processor->item('direct-publisher-scalar-wins');
+        $t->same('Archive Press; Source Desk', $camel['publisher'] ?? null);
+        $t->same(['Archive Press', 'Source Desk'], $camel['publisherList'] ?? null);
+        $t->same('Field Press; Review Lab', $hyphen['publisher'] ?? null);
+        $t->same(['Field Press', 'Review Lab'], $hyphen['publisherList'] ?? null);
+        $t->same('Primary Press', $scalar['publisher'] ?? null);
+        $t->same(['Primary Press', 'Secondary Desk'], $scalar['publisherList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher List Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-list-alias-review</id>
+    <updated>2026-06-12T01:04:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher"/>
+        <text variable="publisher-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="publisher-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Publisher List Alias Review', $summary['title'] ?? null);
+        $t->same('publisher', $citationChildren[1]['variable'] ?? null);
+        $t->same('publisher-list', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ames | Archive Press; Source Desk | Archive Press; Source Desk; Bell | Field Press; Review Lab | Field Press; Review Lab; Chen | Primary Press | Primary Press; Secondary Desk]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-publisher-list-camel', 'text' => '[@direct-publisher-list-camel]']),
+            new AstNode('citation', ['id' => 'direct-publisher-list-hyphen', 'text' => '[@direct-publisher-list-hyphen]']),
+            new AstNode('citation', ['id' => 'direct-publisher-scalar-wins', 'text' => '[@direct-publisher-scalar-wins]']),
+        ]));
+        $t->same('Direct Publisher List Camel Packet :: Archive Press; Source Desk :: Archive Press; Source Desk', $styled->renderBibliographyEntry('direct-publisher-list-camel'));
+        $t->same('Direct Publisher List Hyphen Packet :: Field Press; Review Lab :: Field Press; Review Lab', $styled->renderBibliographyEntry('direct-publisher-list-hyphen'));
+        $t->same('Direct Publisher Scalar Packet :: Primary Press :: Primary Press; Secondary Desk', $styled->renderBibliographyEntry('direct-publisher-scalar-wins'));
+        $t->same('Ames, Ari. Direct Publisher List Camel Packet. Archive Press; Source Desk, 2026.', $processor->renderBibliographyEntry('direct-publisher-list-camel'));
+
+        $document = (new MarkdownReader())->read('Direct publisher list aliases [@direct-publisher-list-camel; @direct-publisher-list-hyphen; @direct-publisher-scalar-wins] keep publisher metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct publisher list aliases [Ames | Archive Press; Source Desk | Archive Press; Source Desk; Bell | Field Press; Review Lab | Field Press; Review Lab; Chen | Primary Press | Primary Press; Secondary Desk] keep publisher metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Publisher List Camel Packet :: Archive Press; Source Desk :: Archive Press; Source Desk</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Publisher Scalar Packet :: Primary Press :: Primary Press; Secondary Desk</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [

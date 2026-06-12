@@ -1048,6 +1048,9 @@ final class CitationCslProcessor
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
+        if ($publisher === '' && $publisherList !== []) {
+            $publisher = implode('; ', $publisherList);
+        }
         $publisherPlaceList = self::stringListFromFirstField($item, [
             'publisher-place-list',
             'publisherPlaceList',
