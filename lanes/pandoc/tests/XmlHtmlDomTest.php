@@ -1360,6 +1360,96 @@ XML, 'package reader XML');
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
+    'summarizes html form control constraint attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="constraints"><label for="slug">Slug</label><input id="slug" name="slug" type="text" value="post-42" minlength="3" maxlength="12" pattern="[a-z0-9-]+" autocomplete="section-review shipping url" dirname="slug.dir" required readonly size="24">'
+                . '<input id="score" name="score" type="number" min="-5" max="10" step="0.5" value="4"><input id="any-step" name="any" type="number" min="bad" max="20" step="any">'
+                . '<textarea id="summary" name="summary" minlength="10" maxlength="5" dirname="summary.dir" autocomplete="bad&lt;tag" required>Text</textarea>'
+                . '<select id="choices" name="choices" multiple size="3" autocomplete="off"><option selected>A</option><option>B</option></select></form>',
+            'form constraint review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/form-constraints-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $slug = $form['children'][1];
+        $score = $form['children'][2];
+        $anyStep = $form['children'][3];
+        $textarea = $form['children'][4];
+        $select = $form['children'][5];
+
+        $t->same('form-control', $slug['constraintValidation']);
+        $t->same(true, $slug['required']);
+        $t->same(true, $slug['readonly']);
+        $t->same('3', $slug['minLengthRaw']);
+        $t->same(3, $slug['minLength']);
+        $t->same(true, $slug['minLengthValid']);
+        $t->same('12', $slug['maxLengthRaw']);
+        $t->same(12, $slug['maxLength']);
+        $t->same(true, $slug['maxLengthValid']);
+        $t->same(true, $slug['lengthRangeValid']);
+        $t->same('[a-z0-9-]+', $slug['patternRaw']);
+        $t->same(strlen('[a-z0-9-]+'), $slug['patternLength']);
+        $t->same('pattern-source-no-regex-execution', $slug['patternReviewPolicy']);
+        $t->same('section-review shipping url', $slug['autocompleteRaw']);
+        $t->same(['section-review', 'shipping', 'url'], $slug['autocompleteTokens']);
+        $t->same(['section-review', 'shipping', 'url'], $slug['autocompleteNormalizedTokens']);
+        $t->same('detail', $slug['autocompleteState']);
+        $t->same(true, $slug['autocompleteValid']);
+        $t->same('slug.dir', $slug['dirnameRaw']);
+        $t->same('slug.dir', $slug['dirname']);
+        $t->same(true, $slug['dirnameValid']);
+        $t->same('24', $slug['controlSizeRaw']);
+        $t->same(24, $slug['controlSize']);
+        $t->same(true, $slug['controlSizeValid']);
+
+        $t->same('number', $score['inputType']);
+        $t->same('-5', $score['constraintMinRaw']);
+        $t->same(-5.0, $score['constraintMin']);
+        $t->same(true, $score['constraintMinValid']);
+        $t->same('10', $score['constraintMaxRaw']);
+        $t->same(10.0, $score['constraintMax']);
+        $t->same(true, $score['constraintMaxValid']);
+        $t->same(true, $score['constraintRangeValid']);
+        $t->same('0.5', $score['constraintStepRaw']);
+        $t->same(0.5, $score['constraintStep']);
+        $t->same(true, $score['constraintStepValid']);
+
+        $t->same('bad', $anyStep['constraintMinRaw']);
+        $t->same(null, $anyStep['constraintMin']);
+        $t->same(false, $anyStep['constraintMinValid']);
+        $t->same(20.0, $anyStep['constraintMax']);
+        $t->same(null, $anyStep['constraintRangeValid']);
+        $t->same('any', $anyStep['constraintStep']);
+        $t->same(true, $anyStep['constraintStepValid']);
+
+        $t->same('textarea', $textarea['formControl']);
+        $t->same(true, $textarea['required']);
+        $t->same(10, $textarea['minLength']);
+        $t->same(5, $textarea['maxLength']);
+        $t->same(false, $textarea['lengthRangeValid']);
+        $t->same('bad<tag', $textarea['autocompleteRaw']);
+        $t->same(['bad<tag'], $textarea['invalidAutocompleteTokens']);
+        $t->same(false, $textarea['autocompleteValid']);
+        $t->same('summary.dir', $textarea['dirname']);
+        $t->same(true, $textarea['dirnameValid']);
+
+        $t->same('select', $select['formControl']);
+        $t->same(true, $select['multiple']);
+        $t->same('3', $select['controlSizeRaw']);
+        $t->same(3, $select['controlSize']);
+        $t->same('off', $select['autocompleteState']);
+        $t->same(true, $select['autocompleteValid']);
+        $t->same(['A'], $select['selectedValues']);
+
+        $t->same('<form id="constraints"><label for="slug">Slug</label><input autocomplete="section-review shipping url" dirname="slug.dir" id="slug" maxlength="12" minlength="3" name="slug" pattern="[a-z0-9-]+" readonly required size="24" type="text" value="post-42"><input id="score" max="10" min="-5" name="score" step="0.5" type="number" value="4"><input id="any-step" max="20" min="bad" name="any" step="any" type="number"><textarea autocomplete="bad&lt;tag" dirname="summary.dir" id="summary" maxlength="5" minlength="10" name="summary" required>Text</textarea><select autocomplete="off" id="choices" multiple name="choices" size="3"><option selected>A</option><option>B</option></select></form>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/form-constraints-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html form submission state and submitter overrides for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="remote-review" action="https://forms.example.invalid/submit" method="POST" enctype="multipart/form-data" target="_blank" autocomplete="off" accept-charset="UTF-8 ISO-8859-1" novalidate><input name="title" value="Packet"><input type="image" src="submit.png" formaction="/image-submit" formmethod="POST" formenctype="multipart/form-data" formtarget="_parent" formnovalidate><button type="submit" formaction="/local-submit" formmethod="dialog" formenctype="text/plain" formtarget="_self" formnovalidate>Send</button></form>'

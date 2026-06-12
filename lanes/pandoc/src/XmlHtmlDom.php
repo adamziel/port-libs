@@ -812,6 +812,7 @@ final class XmlHtmlDom
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
+            $summary += self::formControlConstraintSummary($node, $name);
             $summary['selectOptions'] = $options;
             $summary['selectedValues'] = array_values(array_map(
                 static fn (array $option): string => (string) $option['value'],
@@ -829,6 +830,7 @@ final class XmlHtmlDom
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
+            $summary += self::formControlConstraintSummary($node, $name);
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -849,6 +851,7 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['readonly'] = $node->hasAttribute('readonly');
             $summary['required'] = $node->hasAttribute('required');
+            $summary += self::formControlConstraintSummary($node, $name);
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -3035,6 +3038,194 @@ final class XmlHtmlDom
         $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
 
         return $autocomplete === 'off' ? 'off' : 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formControlConstraintSummary(\DOMElement $control, string $name): array
+    {
+        $trackedAttributes = ['autocomplete', 'dirname', 'max', 'maxlength', 'min', 'minlength', 'pattern', 'size', 'step'];
+        $hasTrackedAttribute = false;
+        foreach ($trackedAttributes as $attribute) {
+            if ($control->hasAttribute($attribute)) {
+                $hasTrackedAttribute = true;
+                break;
+            }
+        }
+        if (!$hasTrackedAttribute && !$control->hasAttribute('multiple') && !$control->hasAttribute('readonly')) {
+            return [];
+        }
+
+        $summary = ['constraintValidation' => 'form-control'];
+
+        if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('readonly')) {
+            $summary['readonly'] = true;
+        }
+        if (($name === 'input' || $name === 'select') && $control->hasAttribute('multiple')) {
+            $summary['multiple'] = true;
+        }
+        if ($control->hasAttribute('minlength')) {
+            $minLength = self::nonNegativeIntegerToken($control->getAttribute('minlength'), 1000000);
+            $summary['minLengthRaw'] = $control->getAttribute('minlength');
+            $summary['minLength'] = $minLength;
+            $summary['minLengthValid'] = $minLength !== null;
+        }
+        if ($control->hasAttribute('maxlength')) {
+            $maxLength = self::nonNegativeIntegerToken($control->getAttribute('maxlength'), 1000000);
+            $summary['maxLengthRaw'] = $control->getAttribute('maxlength');
+            $summary['maxLength'] = $maxLength;
+            $summary['maxLengthValid'] = $maxLength !== null;
+        }
+        if (array_key_exists('minLength', $summary) || array_key_exists('maxLength', $summary)) {
+            $summary['lengthRangeValid'] = is_int($summary['minLength'] ?? null) && is_int($summary['maxLength'] ?? null)
+                ? $summary['maxLength'] >= $summary['minLength']
+                : null;
+        }
+        if ($control->hasAttribute('min')) {
+            $min = self::finiteNumericToken($control->getAttribute('min'));
+            $summary['constraintMinRaw'] = $control->getAttribute('min');
+            $summary['constraintMin'] = $min;
+            $summary['constraintMinValid'] = $min !== null;
+        }
+        if ($control->hasAttribute('max')) {
+            $max = self::finiteNumericToken($control->getAttribute('max'));
+            $summary['constraintMaxRaw'] = $control->getAttribute('max');
+            $summary['constraintMax'] = $max;
+            $summary['constraintMaxValid'] = $max !== null;
+        }
+        if (array_key_exists('constraintMin', $summary) || array_key_exists('constraintMax', $summary)) {
+            $summary['constraintRangeValid'] = is_float($summary['constraintMin'] ?? null) && is_float($summary['constraintMax'] ?? null)
+                ? $summary['constraintMax'] >= $summary['constraintMin']
+                : null;
+        }
+        if ($control->hasAttribute('step')) {
+            $step = self::stepConstraintToken($control->getAttribute('step'));
+            $summary['constraintStepRaw'] = $control->getAttribute('step');
+            $summary['constraintStep'] = $step;
+            $summary['constraintStepValid'] = $step !== null;
+        }
+        if ($control->hasAttribute('pattern')) {
+            $pattern = $control->getAttribute('pattern');
+            $summary['patternRaw'] = $pattern;
+            $summary['patternLength'] = strlen($pattern);
+            $summary['patternReviewPolicy'] = 'pattern-source-no-regex-execution';
+        }
+        if ($control->hasAttribute('autocomplete')) {
+            $autocomplete = self::formControlAutocompleteSummary($control->getAttribute('autocomplete'));
+            $summary['autocompleteRaw'] = $control->getAttribute('autocomplete');
+            $summary['autocompleteTokens'] = $autocomplete['tokens'];
+            $summary['autocompleteNormalizedTokens'] = $autocomplete['normalizedTokens'];
+            $summary['invalidAutocompleteTokens'] = $autocomplete['invalid'];
+            $summary['autocompleteState'] = $autocomplete['state'];
+            $summary['autocompleteValid'] = $autocomplete['valid'];
+        }
+        if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('dirname')) {
+            $dirname = self::formControlDirnameSummary($control->getAttribute('dirname'));
+            $summary['dirnameRaw'] = $control->getAttribute('dirname');
+            $summary['dirname'] = $dirname['name'];
+            $summary['dirnameValid'] = $dirname['valid'];
+        }
+        if ($control->hasAttribute('size')) {
+            $size = self::positiveIntegerToken($control->getAttribute('size'), 1000000);
+            $summary['controlSizeRaw'] = $control->getAttribute('size');
+            $summary['controlSize'] = $size;
+            $summary['controlSizeValid'] = $size !== null;
+        }
+
+        return $summary;
+    }
+
+    private static function nonNegativeIntegerToken(string $value, int $max): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^[0-9]+$/', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) && $integer >= 0 ? min($integer, $max) : null;
+    }
+
+    private static function positiveIntegerToken(string $value, int $max): ?int
+    {
+        $integer = self::nonNegativeIntegerToken($value, $max);
+
+        return $integer !== null && $integer > 0 ? $integer : null;
+    }
+
+    private static function finiteNumericToken(string $value): ?float
+    {
+        $value = trim($value);
+        if ($value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        return is_finite($number) ? $number : null;
+    }
+
+    private static function stepConstraintToken(string $value): float|string|null
+    {
+        $value = trim($value);
+        if (strtolower($value) === 'any') {
+            return 'any';
+        }
+
+        $number = self::finiteNumericToken($value);
+
+        return $number !== null && $number > 0.0 ? $number : null;
+    }
+
+    /**
+     * @return array{tokens:list<string>, normalizedTokens:list<string>, invalid:list<string>, state:?string, valid:bool}
+     */
+    private static function formControlAutocompleteSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $normalized = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            if (!self::isHtmlReferenceToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            $lower = strtolower($token);
+            if (!in_array($lower, $normalized, true)) {
+                $normalized[] = $lower;
+            }
+        }
+
+        $state = match ($normalized) {
+            ['on'] => 'on',
+            ['off'] => 'off',
+            [] => null,
+            default => 'detail',
+        };
+
+        return [
+            'tokens' => $tokens,
+            'normalizedTokens' => $normalized,
+            'invalid' => $invalid,
+            'state' => $state,
+            'valid' => $tokens !== [] && $invalid === [],
+        ];
+    }
+
+    /**
+     * @return array{name:?string, valid:bool}
+     */
+    private static function formControlDirnameSummary(string $value): array
+    {
+        $name = trim($value);
+
+        return [
+            'name' => $name === '' ? null : $name,
+            'valid' => $name !== '' && self::isHtmlReferenceToken($name),
+        ];
     }
 
     /**
