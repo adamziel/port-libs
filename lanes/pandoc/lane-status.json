@@ -235,5 +235,7 @@
     "mappedCslDirectPublisherAuthorityAliasCases": 1,
     "cslDirectPublisherAuthorityAliasAssertions": 20,
     "mappedOdtReaderRawZipNameProvenanceCases": 1,
-    "odtReaderRawZipNameProvenanceAssertions": 22
+    "odtReaderRawZipNameProvenanceAssertions": 22,
+    "mappedDocxOpenXmlMalformedContentTypeRecordCases": 1,
+    "docxOpenXmlMalformedContentTypeRecordAssertions": 37
 }

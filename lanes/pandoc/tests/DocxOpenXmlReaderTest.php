@@ -430,6 +430,76 @@ return [
         $t->same('duplicate-default-extension', $preflight['records'][1]['issues'][0]);
         $t->same('duplicate-override-part-name', $preflight['records'][4]['issues'][0]);
     },
+    'summarizes malformed docx content type records for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default ContentType="application/xml"/>' . "\n" .
+            '  <Default Extension=".bad" ContentType="application/xml"/>' . "\n" .
+            '  <Default Extension="raw" ContentType=""/>' . "\n" .
+            '  <Default Extension="odd" ContentType="invalid type"/>' . "\n" .
+            '  <Override ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="word/relative.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/raw source.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/bad.xml" ContentType=""/>' . "\n" .
+            '  <Override PartName="/word/odd.xml" ContentType="invalid type"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $contentTypesPart = $docx['packageProvenance']['contentTypesPart'];
+        $summary = $docx['packageProvenance']['summary'];
+        $invalidRecords = $summary['invalidContentTypeRecords'];
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same('word/document.xml', $docx['documentPart']);
+        $t->same(false, $contentTypesPart['valid']);
+        $t->same(14, $contentTypesPart['recordCount']);
+        $t->same(9, $contentTypesPart['invalidRecordCount']);
+        $t->same(14, $summary['contentTypeRecordCount']);
+        $t->same(9, $summary['contentTypeInvalidRecordCount']);
+        $t->same(9, $summary['contentTypeRecordIssueCount']);
+        $t->same([
+            'invalid-content-type',
+            'invalid-default-extension',
+            'invalid-override-part-name',
+            'missing-content-type',
+            'missing-default-extension',
+            'missing-override-part-name',
+        ], $summary['contentTypeRecordIssueCodes']);
+        $t->same(2, $contentTypesPart['issueCounts']['invalid-content-type']);
+        $t->same(2, $contentTypesPart['issueCounts']['invalid-override-part-name']);
+        $t->same(2, $contentTypesPart['issueCounts']['missing-content-type']);
+        $t->same(0, $summary['contentTypeDuplicateDefaultExtensionCount']);
+        $t->same(0, $summary['contentTypeDuplicateOverridePartNameCount']);
+        $t->same([5, 6, 7, 8, 9, 10, 11, 12, 13], array_column($invalidRecords, 'recordIndex'));
+        $t->same(['Default', 'Default', 'Default', 'Default', 'Override', 'Override', 'Override', 'Override', 'Override'], array_column($invalidRecords, 'kind'));
+
+        $t->same(null, $invalidRecords[0]['extension']);
+        $t->same(['missing-default-extension'], $invalidRecords[0]['issues']);
+        $t->same('.bad', $invalidRecords[1]['extension']);
+        $t->same(null, $invalidRecords[1]['normalizedExtension']);
+        $t->same(['invalid-default-extension'], $invalidRecords[1]['issues']);
+        $t->same('raw', $invalidRecords[2]['normalizedExtension']);
+        $t->same(['missing-content-type'], $invalidRecords[2]['issues']);
+        $t->same('odd', $invalidRecords[3]['normalizedExtension']);
+        $t->same('invalid type', $invalidRecords[3]['contentType']);
+        $t->same(['invalid-content-type'], $invalidRecords[3]['issues']);
+
+        $t->same(null, $invalidRecords[4]['partName']);
+        $t->same(['missing-override-part-name'], $invalidRecords[4]['issues']);
+        $t->same('word/relative.xml', $invalidRecords[5]['partName']);
+        $t->same(null, $invalidRecords[5]['normalizedPartName']);
+        $t->same(['invalid-override-part-name'], $invalidRecords[5]['issues']);
+        $t->same('/word/raw source.xml', $invalidRecords[6]['partName']);
+        $t->same(['invalid-override-part-name'], $invalidRecords[6]['issues']);
+        $t->same('/word/bad.xml', $invalidRecords[7]['normalizedPartName']);
+        $t->same(['missing-content-type'], $invalidRecords[7]['issues']);
+        $t->same('/word/odd.xml', $invalidRecords[8]['normalizedPartName']);
+        $t->same(['invalid-content-type'], $invalidRecords[8]['issues']);
+    },
     'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
