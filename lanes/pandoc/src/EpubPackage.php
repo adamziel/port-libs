@@ -85,6 +85,7 @@ final class EpubPackage
 
     /**
      * @param list<array<string, mixed>> $rootfiles
+     * @param array<string, mixed> $renditions
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $containerLinks
      * @param array<string, mixed> $ocfSidecars
@@ -106,6 +107,7 @@ final class EpubPackage
     private function __construct(
         private readonly ZipPackage $package,
         private readonly array $rootfiles,
+        private readonly array $renditions,
         private readonly array $containerLinks,
         private readonly array $ocfSidecars,
         private readonly string $opfPartName,
@@ -161,6 +163,7 @@ final class EpubPackage
         }
 
         $opf = self::parseOpfXml($package->read($opfPartName), $opfPartName, $package);
+        $renditions = self::summarizeRenditions($package, $rootfiles, $opfPartName, $opf);
         $containerLinks = self::parseContainerLinks($package, self::manifestByPart($opf['manifestById']));
         $ocfSidecars = self::summarizeOcfSidecars($package);
         $navigation = self::loadNavigation($package, $opfPartName, $opf['manifestById'], $opf['spineTocId']);
@@ -168,6 +171,7 @@ final class EpubPackage
         return new self(
             $package,
             $rootfiles,
+            $renditions,
             $containerLinks,
             $ocfSidecars,
             $opfPartName,
@@ -200,6 +204,14 @@ final class EpubPackage
     public function rootfiles(): array
     {
         return $this->rootfiles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function renditions(): array
+    {
+        return $this->renditions;
     }
 
     /**
@@ -487,6 +499,7 @@ final class EpubPackage
         return [
             'opfPart' => $this->opfPartName,
             'rootfiles' => $this->rootfiles,
+            'renditions' => $this->renditions,
             'containerLinks' => $this->containerLinks,
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
             'containerLinkRelCounts' => $containerLinkReport['relCounts'],
@@ -562,6 +575,8 @@ final class EpubPackage
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
+                'renditions' => $this->renditions,
+                'renditionDiagnostics' => $this->renditions['diagnostics'],
                 'spineMetadata' => $spineMetadata,
                 'pageProgressionDirection' => $spineMetadata['pageProgressionDirection'],
                 'readingProgression' => $spineMetadata['readingProgression'],
@@ -2022,6 +2037,305 @@ final class EpubPackage
         }
 
         return $rootfiles;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     * @param array<string, mixed> $selectedOpf
+     *
+     * @return array<string, mixed>
+     */
+    private static function summarizeRenditions(ZipPackage $package, array $rootfiles, string $selectedOpfPart, array $selectedOpf): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $selectedIndex = null;
+
+        foreach ($rootfiles as $index => $rootfile) {
+            $partName = (string) ($rootfile['partName'] ?? '');
+            $mediaTypeBase = is_string($rootfile['mediaTypeBase'] ?? null)
+                ? $rootfile['mediaTypeBase']
+                : self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
+            if ($mediaTypeBase !== self::OPF_MEDIA_TYPE) {
+                continue;
+            }
+
+            $selected = $selectedIndex === null && $partName === $selectedOpfPart;
+            $item = $selected
+                ? self::renditionSummaryFromParsedOpf($package, $rootfile, $index, $selectedOpf, true)
+                : self::alternateRenditionSummary($package, $rootfile, $index);
+
+            if ($selected) {
+                $selectedIndex = count($items);
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $item['index'],
+                    'path' => $item['partName'],
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'selectedPath' => $selectedOpfPart,
+            'selectedIndex' => $selectedIndex,
+            'count' => count($items),
+            'alternateCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => ($item['selected'] ?? false) !== true,
+            )),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rootfile
+     * @param array<string, mixed> $opf
+     *
+     * @return array<string, mixed>
+     */
+    private static function renditionSummaryFromParsedOpf(
+        ZipPackage $package,
+        array $rootfile,
+        int $index,
+        array $opf,
+        bool $selected
+    ): array {
+        $metadata = is_array($opf['metadata'] ?? null) ? $opf['metadata'] : [];
+        $packageSummary = is_array($metadata['package'] ?? null) ? $metadata['package'] : null;
+        if (is_array($packageSummary)) {
+            $packageSummary['opfPart'] = (string) ($rootfile['partName'] ?? '');
+        }
+
+        return self::baseRenditionSummary($package, $rootfile, $index, $selected) + [
+            'package' => $packageSummary,
+            'metadata' => self::renditionMetadataSummary($metadata),
+            'renditionProperties' => self::renditionProperties($metadata),
+            'renditionLayout' => is_array($metadata['renditionLayout'] ?? null)
+                ? $metadata['renditionLayout']
+                : self::metadataRenditionLayoutReport(is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : []),
+            'manifestCount' => is_array($opf['manifestItems'] ?? null) ? count($opf['manifestItems']) : null,
+            'spineCount' => is_array($opf['spine'] ?? null) ? count($opf['spine']) : null,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rootfile
+     *
+     * @return array<string, mixed>
+     */
+    private static function alternateRenditionSummary(ZipPackage $package, array $rootfile, int $index): array
+    {
+        $summary = self::baseRenditionSummary($package, $rootfile, $index, false) + [
+            'package' => null,
+            'metadata' => self::renditionMetadataSummary([]),
+            'renditionProperties' => [],
+            'renditionLayout' => self::metadataRenditionLayoutReport([]),
+            'manifestCount' => null,
+            'spineCount' => null,
+            'diagnostics' => [],
+        ];
+
+        if (($summary['exists'] ?? false) !== true) {
+            $summary['diagnostics'][] = [
+                'type' => 'missing-alternate-rendition-rootfile',
+                'message' => 'EPUB alternate rendition OPF rootfile is missing from the package',
+            ];
+
+            return $summary;
+        }
+
+        try {
+            $dom = self::loadXml($package->read((string) $summary['partName']), 'EPUB alternate rendition OPF package document');
+        } catch (\Throwable $exception) {
+            $summary['diagnostics'][] = [
+                'type' => 'invalid-alternate-rendition-opf',
+                'message' => $exception->getMessage(),
+            ];
+
+            return $summary;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'package' || $root->namespaceURI !== self::OPF_NAMESPACE) {
+            $summary['diagnostics'][] = [
+                'type' => 'invalid-alternate-rendition-opf',
+                'message' => 'EPUB alternate rendition root must be an OPF package element',
+            ];
+
+            return $summary;
+        }
+
+        $metadataElement = self::firstChildElement($root, 'metadata', self::OPF_NAMESPACE);
+        $manifestElement = self::firstChildElement($root, 'manifest', self::OPF_NAMESPACE);
+        $spineElement = self::firstChildElement($root, 'spine', self::OPF_NAMESPACE);
+        $metadata = [];
+
+        if ($metadataElement instanceof \DOMElement) {
+            $metadata = self::parseMetadata($metadataElement, $root);
+        } else {
+            $summary['diagnostics'][] = [
+                'type' => 'missing-alternate-rendition-metadata',
+                'message' => 'EPUB alternate rendition OPF package is missing metadata',
+            ];
+        }
+
+        if (!$manifestElement instanceof \DOMElement) {
+            $summary['diagnostics'][] = [
+                'type' => 'missing-alternate-rendition-manifest',
+                'message' => 'EPUB alternate rendition OPF package is missing manifest',
+            ];
+        }
+
+        if (!$spineElement instanceof \DOMElement) {
+            $summary['diagnostics'][] = [
+                'type' => 'missing-alternate-rendition-spine',
+                'message' => 'EPUB alternate rendition OPF package is missing spine',
+            ];
+        }
+
+        $packageSummary = is_array($metadata['package'] ?? null)
+            ? $metadata['package']
+            : [
+                'id' => self::emptyToNull($root->getAttribute('id')),
+                'version' => $root->getAttribute('version'),
+                'uniqueIdentifierId' => self::emptyToNull($root->getAttribute('unique-identifier')),
+                'language' => self::metadataElementLanguage($root),
+                'direction' => self::metadataElementDirection($root),
+                'prefix' => $root->hasAttribute('prefix') ? $root->getAttribute('prefix') : '',
+                'prefixDeclarations' => [],
+                'prefixBindings' => [],
+                'refinements' => [],
+            ];
+        $packageSummary['opfPart'] = (string) $summary['partName'];
+
+        $summary['package'] = $packageSummary;
+        $summary['metadata'] = self::renditionMetadataSummary($metadata);
+        $summary['renditionProperties'] = self::renditionProperties($metadata);
+        $summary['renditionLayout'] = is_array($metadata['renditionLayout'] ?? null)
+            ? $metadata['renditionLayout']
+            : self::metadataRenditionLayoutReport(is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : []);
+        $summary['manifestCount'] = $manifestElement instanceof \DOMElement
+            ? count(self::childElements($manifestElement, 'item', self::OPF_NAMESPACE))
+            : null;
+        $summary['spineCount'] = $spineElement instanceof \DOMElement
+            ? count(self::childElements($spineElement, 'itemref', self::OPF_NAMESPACE))
+            : null;
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $rootfile
+     *
+     * @return array<string, mixed>
+     */
+    private static function baseRenditionSummary(ZipPackage $package, array $rootfile, int $index, bool $selected): array
+    {
+        $partName = (string) ($rootfile['partName'] ?? '');
+        $exists = $partName !== '' && $package->has($partName);
+        $entry = $exists ? $package->entry($partName) : null;
+
+        return [
+            'index' => $index,
+            'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+            'path' => $partName,
+            'partName' => $partName,
+            'mediaType' => (string) ($rootfile['mediaType'] ?? ''),
+            'normalizedMediaType' => is_string($rootfile['normalizedMediaType'] ?? null)
+                ? $rootfile['normalizedMediaType']
+                : self::mediaTypeReport((string) ($rootfile['mediaType'] ?? ''))['normalizedMediaType'],
+            'mediaTypeBase' => is_string($rootfile['mediaTypeBase'] ?? null)
+                ? $rootfile['mediaTypeBase']
+                : self::mediaTypeBase((string) ($rootfile['mediaType'] ?? '')),
+            'mediaTypeHasParameters' => (bool) ($rootfile['mediaTypeHasParameters'] ?? false),
+            'mediaTypeParameterCount' => is_int($rootfile['mediaTypeParameterCount'] ?? null)
+                ? $rootfile['mediaTypeParameterCount']
+                : count(is_array($rootfile['mediaTypeParameters'] ?? null) ? $rootfile['mediaTypeParameters'] : []),
+            'mediaTypeParameters' => is_array($rootfile['mediaTypeParameters'] ?? null)
+                ? $rootfile['mediaTypeParameters']
+                : [],
+            'mediaTypeParameterMap' => is_array($rootfile['mediaTypeParameterMap'] ?? null)
+                ? $rootfile['mediaTypeParameterMap']
+                : [],
+            'mediaTypeSyntaxValid' => (bool) ($rootfile['mediaTypeSyntaxValid'] ?? true),
+            'mediaTypeDiagnostics' => is_array($rootfile['mediaTypeDiagnostics'] ?? null)
+                ? array_values($rootfile['mediaTypeDiagnostics'])
+                : [],
+            'exists' => $exists,
+            'selected' => $selected,
+        ] + self::zipEntryProvenance($entry);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{title:string, identifier:?string, language:?string, creators:list<string>, modified:?string}
+     */
+    private static function renditionMetadataSummary(array $metadata): array
+    {
+        return [
+            'title' => (string) ($metadata['title'] ?? ''),
+            'identifier' => isset($metadata['identifier']) ? (string) $metadata['identifier'] : null,
+            'language' => isset($metadata['language']) ? (string) $metadata['language'] : null,
+            'creators' => array_values(array_filter(
+                is_array($metadata['creators'] ?? null) ? $metadata['creators'] : [],
+                static fn (mixed $creator): bool => is_string($creator) && $creator !== '',
+            )),
+            'modified' => isset($metadata['modified']) ? (string) $metadata['modified'] : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, string>
+     */
+    private static function renditionProperties(array $metadata): array
+    {
+        $properties = [];
+        $metaProperties = is_array($metadata['metaProperties'] ?? null) ? $metadata['metaProperties'] : [];
+        foreach ($metaProperties as $property => $entries) {
+            if (!is_string($property) || !str_starts_with($property, 'rendition:') || !is_array($entries)) {
+                continue;
+            }
+
+            $key = substr($property, strlen('rendition:'));
+            if ($key === '') {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $value = trim((string) ($entry['content'] ?? ''));
+                if ($value === '') {
+                    $value = trim((string) ($entry['text'] ?? ''));
+                }
+                if ($value === '') {
+                    continue;
+                }
+
+                $properties[$key] = $value;
+                break;
+            }
+        }
+
+        ksort($properties);
+
+        return $properties;
     }
 
     /**

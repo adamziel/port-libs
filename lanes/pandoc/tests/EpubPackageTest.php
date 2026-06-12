@@ -4210,6 +4210,103 @@ XML;
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'summarizes compact EPUB rootfile renditions for package handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithRenditions = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=&quot;primary&quot;"/>
+    <rootfile full-path="EPUB/fixed/package.opf" media-type="application/oebps-package+xml; rendition=&quot;fixed-layout&quot;"/>
+    <rootfile full-path="EPUB/missing/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML;
+        $alternateOpfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" id="fixed-package" version="3.0" unique-identifier="fixed-id" xml:lang="en" dir="ltr">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixed-id">urn:uuid:fixed-layout-review</dc:identifier>
+    <dc:title>Fixed layout compact edition</dc:title>
+    <dc:creator>Layout Desk</dc:creator>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-12T02:10:08Z</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+    <meta property="rendition:orientation">landscape</meta>
+    <meta property="rendition:spread">none</meta>
+    <meta property="rendition:viewport">width=1024, height=768</meta>
+  </metadata>
+  <manifest>
+    <item id="fixed-nav" href="fixed-nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="fixed-page" href="fixed-page.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="fixed-page"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithRenditions],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $renditions = $epub->renditions();
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/package.opf', $renditions['selectedPath']);
+        $t->same(0, $renditions['selectedIndex']);
+        $t->same(3, $renditions['count']);
+        $t->same(2, $renditions['alternateCount']);
+        $t->same(1, $renditions['diagnosticCount']);
+        $t->same('missing-alternate-rendition-rootfile', $renditions['diagnostics'][0]['type']);
+        $t->same('/EPUB/missing/package.opf', $renditions['diagnostics'][0]['path']);
+
+        $selected = $renditions['items'][0];
+        $alternate = $renditions['items'][1];
+        $missing = $renditions['items'][2];
+        $t->same(true, $selected['selected']);
+        $t->same('/EPUB/package.opf', $selected['partName']);
+        $t->same('application/oebps-package+xml; profile="primary"', $selected['mediaType']);
+        $t->same(['profile' => 'primary'], $selected['mediaTypeParameterMap']);
+        $t->same('WordPress Migration Guide', $selected['metadata']['title']);
+        $t->same('bookid', $selected['package']['uniqueIdentifierId']);
+        $t->same('/EPUB/package.opf', $selected['package']['opfPart']);
+        $t->same(5, $selected['manifestCount']);
+        $t->same(2, $selected['spineCount']);
+        $t->same(strlen($epub3OpfXml), $selected['byteLength']);
+
+        $t->same(false, $alternate['selected']);
+        $t->same(true, $alternate['exists']);
+        $t->same('/EPUB/fixed/package.opf', $alternate['partName']);
+        $t->same(['rendition' => 'fixed-layout'], $alternate['mediaTypeParameterMap']);
+        $t->same('fixed-package', $alternate['package']['id']);
+        $t->same('ltr', $alternate['package']['direction']);
+        $t->same('/EPUB/fixed/package.opf', $alternate['package']['opfPart']);
+        $t->same('Fixed layout compact edition', $alternate['metadata']['title']);
+        $t->same('urn:uuid:fixed-layout-review', $alternate['metadata']['identifier']);
+        $t->same(['Layout Desk'], $alternate['metadata']['creators']);
+        $t->same('2026-06-12T02:10:08Z', $alternate['metadata']['modified']);
+        $t->same('pre-paginated', $alternate['renditionProperties']['layout']);
+        $t->same('landscape', $alternate['renditionProperties']['orientation']);
+        $t->same('none', $alternate['renditionProperties']['spread']);
+        $t->same('width=1024, height=768', $alternate['renditionProperties']['viewport']);
+        $t->same(true, $alternate['renditionLayout']['fixedLayout']);
+        $t->same(2, $alternate['manifestCount']);
+        $t->same(1, $alternate['spineCount']);
+        $t->same([], $alternate['diagnostics']);
+
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same('missing-alternate-rendition-rootfile', $missing['diagnostics'][0]['type']);
+        $t->same($renditions, $summary['renditions']);
+        $t->same($renditions, $summary['wordpressImport']['renditions']);
+        $t->same($renditions['diagnostics'], $summary['wordpressImport']['renditionDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
