@@ -432,6 +432,63 @@ XML, 'package reader XML');
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html definition list term and description groups for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dl id="glossary"><dt>Term <em>one</em></dt><dt>Alias</dt><dd>Definition <strong>primary</strong></dd><dd>Secondary note</dd><dt>Next</dt><dd><p>Nested text</p><dl><dt>Inner</dt><dd>Inside</dd></dl></dd></dl>'
+                . '<dl id="orphan"><dd>Leading definition</dd><dt>Recovered term</dt><dd>Recovered body</dd></dl>',
+            'definition list review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/definition-list-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $glossary = $summary[0];
+        $term = $glossary['children'][0];
+        $alias = $glossary['children'][1];
+        $definition = $glossary['children'][2];
+        $nestedDefinition = $glossary['children'][5];
+        $nestedList = $nestedDefinition['children'][1];
+        $orphan = $summary[1];
+
+        $t->same('dl', $glossary['name']);
+        $t->same('dl', $glossary['definitionList']);
+        $t->same(3, $glossary['termCount']);
+        $t->same(3, $glossary['definitionCount']);
+        $t->same(2, $glossary['itemCount']);
+        $t->same(['Term one', 'Alias', 'Next'], $glossary['terms']);
+        $t->same(['Definition primary', 'Secondary note', 'Nested textInnerInside'], $glossary['definitions']);
+        $t->same(['Term one', 'Alias'], $glossary['items'][0]['terms']);
+        $t->same(['Definition primary', 'Secondary note'], $glossary['items'][0]['definitions']);
+        $t->same(2, $glossary['items'][0]['termCount']);
+        $t->same(2, $glossary['items'][0]['definitionCount']);
+        $t->same(['Next'], $glossary['items'][1]['terms']);
+        $t->same(['Nested textInnerInside'], $glossary['items'][1]['definitions']);
+
+        $t->same('dt', $term['name']);
+        $t->same('term', $term['definitionListPart']);
+        $t->same('Term one', $term['termText']);
+        $t->same('Alias', $alias['termText']);
+        $t->same('dd', $definition['name']);
+        $t->same('definition', $definition['definitionListPart']);
+        $t->same('Definition primary', $definition['definitionText']);
+        $t->same('dl', $nestedList['definitionList']);
+        $t->same(['Inner'], $nestedList['terms']);
+        $t->same(['Inside'], $nestedList['definitions']);
+
+        $t->same('dl', $orphan['definitionList']);
+        $t->same(2, $orphan['itemCount']);
+        $t->same([], $orphan['items'][0]['terms']);
+        $t->same(['Leading definition'], $orphan['items'][0]['definitions']);
+        $t->same(['Recovered term'], $orphan['items'][1]['terms']);
+        $t->same(['Recovered body'], $orphan['items'][1]['definitions']);
+
+        $t->same('<dl id="glossary"><dt>Term <em>one</em></dt><dt>Alias</dt><dd>Definition <strong>primary</strong></dd><dd>Secondary note</dd><dt>Next</dt><dd><p>Nested text</p><dl><dt>Inner</dt><dd>Inside</dd></dl></dd></dl><dl id="orphan"><dd>Leading definition</dd><dt>Recovered term</dt><dd>Recovered body</dd></dl>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/definition-list-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'
