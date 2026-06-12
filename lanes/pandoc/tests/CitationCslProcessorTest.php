@@ -26299,6 +26299,81 @@ XML);
         $t->contains('<dt>Rios 2024</dt><dd>Address Publisher Place Packet :: Madrid :: Madrid :: Field Press</dd>', $blocks);
         $t->contains('<dt>Nolan 2023</dt><dd>Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press</dd>', $blocks);
     },
+    'normalizes bounded direct csl json publisher list compact aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-publisher-list-camel',
+                'type' => 'book',
+                'title' => 'Camel Publisher List Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisherList' => ['Review Press', 'Archive Desk'],
+            ],
+            [
+                'id' => 'direct-publisher-list-compact',
+                'type' => 'report',
+                'title' => 'Compact Publisher List Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publisherlist' => 'Field Press; Mirror Desk',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-publisher-list-camel');
+        $compact = $processor->item('direct-publisher-list-compact');
+        $t->same(['Review Press', 'Archive Desk'], $camel['publisherList'] ?? null);
+        $t->same(['Field Press', 'Mirror Desk'], $compact['publisherList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher List Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-list-alias-review</id>
+    <updated>2026-06-12T02:02:55+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisherList"/>
+        <text variable="publisherlist"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-list"/>
+      <text variable="publisherlist"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Publisher List Alias Review', $summary['title'] ?? null);
+        $t->same('publisherList', $citationChildren[1]['variable'] ?? null);
+        $t->same('publisherlist', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | Review Press; Archive Desk | Review Press; Archive Desk; Roe | Field Press; Mirror Desk | Field Press; Mirror Desk]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-publisher-list-camel', 'text' => '[@direct-publisher-list-camel]']),
+            new AstNode('citation', ['id' => 'direct-publisher-list-compact', 'text' => '[@direct-publisher-list-compact]']),
+        ]));
+        $t->same('Camel Publisher List Packet :: Review Press; Archive Desk :: Review Press; Archive Desk', $styled->renderBibliographyEntry('direct-publisher-list-camel'));
+        $t->same('Compact Publisher List Packet :: Field Press; Mirror Desk :: Field Press; Mirror Desk', $styled->renderBibliographyEntry('direct-publisher-list-compact'));
+
+        $document = (new MarkdownReader())->read('Publisher list aliases [@direct-publisher-list-camel; @direct-publisher-list-compact] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Publisher list aliases [Ng | Review Press; Archive Desk | Review Press; Archive Desk; Roe | Field Press; Mirror Desk | Field Press; Mirror Desk] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Camel Publisher List Packet :: Review Press; Archive Desk :: Review Press; Archive Desk</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Compact Publisher List Packet :: Field Press; Mirror Desk :: Field Press; Mirror Desk</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [

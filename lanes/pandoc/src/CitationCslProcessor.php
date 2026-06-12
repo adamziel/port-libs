@@ -1047,7 +1047,7 @@ final class CitationCslProcessor
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
-        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
+        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList', 'publisherlist']);
         $publisherPlaceList = self::stringListFromFirstField($item, [
             'publisher-place-list',
             'publisherPlaceList',
@@ -9321,7 +9321,7 @@ final class CitationCslProcessor
             'event-type', 'eventtype' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place', 'publisherplace', 'publisher-location', 'publisherlocation', 'publication-place', 'publicationplace', 'pubplace', 'address', 'location' => (string) $item['publisherPlace'],
-            'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
+            'publisher-list', 'publisherlist' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
             'publisher-place-list', 'publisherplacelist', 'publisher-location-list', 'publisherlocationlist', 'publication-place-list', 'publicationplacelist', 'pubplace-list', 'pubplacelist', 'address-list', 'addresslist', 'location-list', 'locationlist' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
             'page' => $this->formatCslPageRanges((string) $item['page']),
             'page-first' => (string) $item['pageFirst'],
