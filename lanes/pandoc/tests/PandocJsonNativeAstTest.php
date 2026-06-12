@@ -1387,6 +1387,61 @@ return [
         $t->same($packet['meta']['c'], $jsonPacket['meta']);
         $t->same($packet['meta']['c'], $nativePacket['meta']);
     },
+    'preserves metadata native value payloads through json and native writers until edited' => static function (TestRunner $t): void {
+        $titleNative = ['t' => 'MetaString', 'c' => 'Source title', 'reviewQueue' => 'title-source'];
+        $reviewNative = ['t' => 'MetaMap', 'c' => [
+            'status' => ['t' => 'MetaString', 'c' => 'queued', 'reviewQueue' => 'status-source'],
+            'draft' => ['t' => 'MetaBool', 'c' => false],
+        ], 'reviewQueue' => 'review-source'];
+        $bodyNative = ['t' => 'MetaBlocks', 'c' => [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Body'],
+            ]],
+        ], 'reviewQueue' => 'body-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'title' => $titleNative,
+                'review' => $reviewNative,
+                'body' => $bodyNative,
+            ]],
+            'blocks' => [],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $nativeValues = $document->attr('metaNativeValues');
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same($titleNative, $nativeValues['title'], "{$source} title native value payload");
+            $t->same($reviewNative, $nativeValues['review'], "{$source} map native value payload");
+            $t->same($bodyNative, $nativeValues['body'], "{$source} block native value payload");
+            $t->same($titleNative, $jsonPacket['meta']['title'], "{$source} json writer preserves title value payload");
+            $t->same($reviewNative, $jsonPacket['meta']['review'], "{$source} json writer preserves map value payload");
+            $t->same($bodyNative, $jsonPacket['meta']['body'], "{$source} json writer preserves block value payload");
+            $t->same($titleNative, $nativePacket['meta']['title'], "{$source} native writer preserves title value payload");
+            $t->same($reviewNative, $nativePacket['meta']['review'], "{$source} native writer preserves map value payload");
+            $t->same($bodyNative, $nativePacket['meta']['body'], "{$source} native writer preserves block value payload");
+
+            $meta = $document->attr('meta');
+            $meta['title'] = 'Edited title';
+            $editedDocument = new AstNode('document', array_replace($document->attrs, ['meta' => $meta]), $document->children);
+            $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+            $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(['t' => 'MetaString', 'c' => 'Edited title'], $editedJson['meta']['title'], "{$source} json writer regenerates edited title payload");
+            $t->same(['t' => 'MetaString', 'c' => 'Edited title'], $editedNative['meta']['title'], "{$source} native writer regenerates edited title payload");
+            $t->same($reviewNative, $editedJson['meta']['review'], "{$source} json writer keeps unchanged map payload");
+            $t->same($reviewNative, $editedNative['meta']['review'], "{$source} native writer keeps unchanged map payload");
+            $t->same($bodyNative, $editedJson['meta']['body'], "{$source} json writer keeps unchanged block payload");
+            $t->same($bodyNative, $editedNative['meta']['body'], "{$source} native writer keeps unchanged block payload");
+        }
+    },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

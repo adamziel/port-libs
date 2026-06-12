@@ -14,7 +14,7 @@ final class NativeWriter
 
         $native = [
             'pandoc-api-version' => $this->apiVersion($document->attr('pandocApiVersion', [1, 23, 1])),
-            'meta' => $this->metadata($document->attr('meta', [])),
+            'meta' => $this->metadata($document->attr('meta', []), $this->metaNativeValues($document)),
             'blocks' => $this->blocks($document->children),
         ];
 
@@ -47,22 +47,120 @@ final class NativeWriter
     /**
      * @return array<string, mixed>
      */
-    private function metadata(mixed $metadata): array
+    private function metaNativeValues(AstNode $document): array
+    {
+        $values = $document->attr('metaNativeValues', []);
+
+        return is_array($values) && !array_is_list($values) ? $values : [];
+    }
+
+    /**
+     * @param array<string, mixed> $nativeValues
+     * @return array<string, mixed>
+     */
+    private function metadata(mixed $metadata, array $nativeValues = []): array
     {
         if (!is_array($metadata)) {
             throw new \InvalidArgumentException('Pandoc native metadata must be an array');
         }
 
         $metadata = $this->normalizeStandardMeta($metadata);
-        $native = [];
+        $encoded = [];
         foreach ($metadata as $key => $value) {
             if (!is_string($key)) {
                 throw new \InvalidArgumentException('Pandoc native metadata keys must be strings');
             }
-            $native[$key] = $this->metaValue($value);
+            $sourceNative = $nativeValues[$key] ?? null;
+            $encoded[$key] = $this->canReuseMetaNativeValue($value, $sourceNative)
+                ? $sourceNative
+                : $this->metaValue($value);
         }
 
-        return $native;
+        return $encoded;
+    }
+
+    private function canReuseMetaNativeValue(mixed $value, mixed $sourceNative): bool
+    {
+        if (
+            !is_array($sourceNative)
+            || array_is_list($sourceNative)
+            || !$this->isTaggedMetaValue($sourceNative)
+            || $this->hasLegacyMetaMapWrapper($sourceNative)
+        ) {
+            return false;
+        }
+
+        try {
+            $document = (new PandocJsonReader())->readPacket([
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => ['__value' => $sourceNative],
+                'blocks' => [],
+            ]);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $meta = $document->attr('meta', []);
+
+        $currentValue = $this->metaComparisonValue($value);
+
+        return is_array($meta)
+            && array_key_exists('__value', $meta)
+            && $this->comparisonValue($currentValue) === $this->comparisonValue($meta['__value']);
+    }
+
+    private function metaComparisonValue(mixed $value): mixed
+    {
+        if (!is_array($value) || array_is_list($value) || !$this->isTaggedMetaValue($value)) {
+            return $value;
+        }
+
+        try {
+            $document = (new PandocJsonReader())->readPacket([
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => ['__value' => $value],
+                'blocks' => [],
+            ]);
+        } catch (\Throwable) {
+            return $value;
+        }
+
+        $meta = $document->attr('meta', []);
+
+        return is_array($meta) && array_key_exists('__value', $meta) ? $meta['__value'] : $value;
+    }
+
+    private function hasLegacyMetaMapWrapper(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (!array_is_list($value) && ($value['t'] ?? null) === 'MetaMap') {
+            $content = $value['c'] ?? null;
+            if (
+                is_array($content)
+                && !array_is_list($content)
+                && count($content) === 1
+                && array_key_exists('unMeta', $content)
+                && !$this->isTaggedObject($content['unMeta'])
+            ) {
+                return true;
+            }
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasLegacyMetaMapWrapper($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isTaggedObject(mixed $value): bool
+    {
+        return is_array($value) && !array_is_list($value) && isset($value['t']) && is_string($value['t']);
     }
 
     private function metaValue(mixed $value): mixed
