@@ -16,6 +16,7 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     public const CONFIG_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
+    private const MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT = 5;
 
     /** @var array<string, array<string, mixed>> */
     private array $manifestEntriesByPath;
@@ -411,6 +412,8 @@ final class OpenDocumentPackage
                 'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestEntry) ? $manifestEntry['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestEntry) ? $manifestEntry['preferredViewMode'] : null,
+                'manifestDeclaredSize' => is_array($manifestEntry) ? $manifestEntry['declaredSize'] : null,
+                'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
                 'manifestMissingMediaType' => is_array($manifestEntry) && ($manifestEntry['missingMediaType'] ?? false) === true,
                 'manifestDiagnostics' => is_array($manifestEntry) ? ($manifestEntry['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestEntry) ? $manifestEntry['encryption'] : null,
@@ -1241,6 +1244,11 @@ final class OpenDocumentPackage
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
             'declaredSize' => 0,
+            'declaredSizeItemCount' => 0,
+            'declaredSizeItems' => [],
+            'largestDeclaredSizeItemLimit' => self::MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT,
+            'largestDeclaredSizeItemCount' => 0,
+            'largestDeclaredSizeItems' => [],
             'storedCompressionMethodCount' => 0,
             'deflatedCompressionMethodCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
@@ -1341,6 +1349,7 @@ final class OpenDocumentPackage
             }
             if (is_int($entry['declaredSize'] ?? null)) {
                 $summary['declaredSize'] += $entry['declaredSize'];
+                $summary['declaredSizeItems'][] = $item;
             }
             if (($entry['compressionMethod'] ?? null) === 0) {
                 ++$summary['storedCompressionMethodCount'];
@@ -1352,9 +1361,40 @@ final class OpenDocumentPackage
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
         $summary['diagnosticCount'] = count($summary['diagnostics']);
+        $summary['declaredSizeItemCount'] = count($summary['declaredSizeItems']);
+        $summary['largestDeclaredSizeItems'] = self::largestDeclaredSizeItems(
+            $summary['declaredSizeItems'],
+            self::MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT
+        );
+        $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private static function largestDeclaredSizeItems(array $items, int $limit): array
+    {
+        usort($items, static function (array $left, array $right): int {
+            $byDeclaredSize = ((int) ($right['declaredSize'] ?? 0))
+                <=> ((int) ($left['declaredSize'] ?? 0));
+            if ($byDeclaredSize !== 0) {
+                return $byDeclaredSize;
+            }
+
+            $byStoredSize = ((int) ($right['storedByteLength'] ?? 0))
+                <=> ((int) ($left['storedByteLength'] ?? 0));
+            if ($byStoredSize !== 0) {
+                return $byStoredSize;
+            }
+
+            return strcmp((string) ($left['path'] ?? ''), (string) ($right['path'] ?? ''));
+        });
+
+        return array_slice($items, 0, max(0, $limit));
     }
 
     /**

@@ -606,6 +606,69 @@ XML;
         $t->same('missing-package-part', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
     },
+    'summarizes compact ODT manifest declared size provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $largeBytes = 'LARGE-ODT';
+        $tieAlphaBytes = 'AAAA';
+        $tieBetaBytes = 'BBBBBB';
+        $smallBytes = str_repeat('s', 12);
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="0007"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/large.bin" manifest:size="4096"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/missing.png" manifest:size="2048"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/tie-alpha.bin" manifest:size="120"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/tie-beta.bin" manifest:size="120"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/small.bin" manifest:size="12"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/large.bin', 'data' => $largeBytes, 'compressionMethod' => 0],
+                ['name' => 'Pictures/tie-alpha.bin', 'data' => $tieAlphaBytes, 'compressionMethod' => 0],
+                ['name' => 'Pictures/tie-beta.bin', 'data' => $tieBetaBytes, 'compressionMethod' => 0],
+                ['name' => 'Pictures/small.bin', 'data' => $smallBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory']['parts'];
+        $itemsByPath = [];
+        foreach ($review['items'] as $item) {
+            $itemsByPath[$item['path']] = $item;
+        }
+
+        $t->same(10, $review['count']);
+        $t->same(6, $review['declaredSizeItemCount']);
+        $t->same(4096 + 2048 + 120 + 120 + 12 + 7, $review['declaredSize']);
+        $t->same(3, $review['declaredSizeMismatchCount']);
+        $t->same(['Pictures/hero.png', 'Pictures/large.bin', 'Pictures/missing.png', 'Pictures/tie-alpha.bin', 'Pictures/tie-beta.bin', 'Pictures/small.bin'], array_column($review['declaredSizeItems'], 'path'));
+        $t->same(5, $review['largestDeclaredSizeItemLimit']);
+        $t->same(5, $review['largestDeclaredSizeItemCount']);
+        $t->same(['Pictures/large.bin', 'Pictures/missing.png', 'Pictures/tie-beta.bin', 'Pictures/tie-alpha.bin', 'Pictures/small.bin'], array_column($review['largestDeclaredSizeItems'], 'path'));
+        $t->same([4096, 2048, 120, 120, 12], array_column($review['largestDeclaredSizeItems'], 'declaredSize'));
+        $t->same([strlen($largeBytes), null, strlen($tieBetaBytes), strlen($tieAlphaBytes), strlen($smallBytes)], array_column($review['largestDeclaredSizeItems'], 'storedByteLength'));
+
+        $t->same(7, $itemsByPath['Pictures/hero.png']['declaredSize']);
+        $t->same(false, $itemsByPath['Pictures/hero.png']['declaredSizeMismatch']);
+        $t->same(4096, $itemsByPath['Pictures/large.bin']['declaredSize']);
+        $t->same(strlen($largeBytes), $itemsByPath['Pictures/large.bin']['storedByteLength']);
+        $t->same(true, $itemsByPath['Pictures/large.bin']['declaredSizeMismatch']);
+        $t->same(['odf-manifest-declared-size-mismatch'], $itemsByPath['Pictures/large.bin']['diagnostics']);
+        $t->same(2048, $itemsByPath['Pictures/missing.png']['declaredSize']);
+        $t->same(false, $itemsByPath['Pictures/missing.png']['exists']);
+        $t->same(false, $itemsByPath['Pictures/missing.png']['declaredSizeMismatch']);
+        $t->same('missing-package-part', $itemsByPath['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $itemsByPath['Pictures/missing.png']['diagnostics']);
+        $t->same('Pictures/tie-beta.bin', $review['largestDeclaredSizeItems'][2]['path']);
+        $t->same('Pictures/tie-alpha.bin', $review['largestDeclaredSizeItems'][3]['path']);
+        $t->same(4096, $inventory['Pictures/large.bin']['manifestDeclaredSize']);
+        $t->same(true, $inventory['Pictures/large.bin']['manifestDeclaredSizeMismatch']);
+        $t->same(null, $inventory['Pictures/missing.png']['manifestDeclaredSize'] ?? null);
+        $t->same(false, isset($inventory['Pictures/missing.png']));
+        $t->same(1, $review['missingCount']);
+        $t->same('Pictures/missing.png', $review['missingItems'][0]['path']);
+    },
     'reports compact ODT ZIP compression provenance without exposing unsupported bytes' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $sourceBytes = 'SIDECAR-RAW';
         $manifest = str_replace(
