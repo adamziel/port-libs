@@ -767,6 +767,9 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (in_array($name, ['dl', 'dt', 'dd'], true)) {
+            $summary += self::descriptionListSummary($node, $name);
+        }
         if (self::isHtmlHeadingElementName($name)) {
             $summary += self::headingSummary($node, $name);
         }
@@ -1718,6 +1721,152 @@ final class XmlHtmlDom
         return [
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function descriptionListSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'dl') {
+            $groups = self::descriptionListGroups($element);
+            $termCount = 0;
+            $descriptionCount = 0;
+            foreach ($groups as $group) {
+                $termCount += $group['termCount'];
+                $descriptionCount += $group['descriptionCount'];
+            }
+
+            return [
+                'descriptionList' => true,
+                'descriptionListGroupCount' => count($groups),
+                'descriptionTermCount' => $termCount,
+                'descriptionCount' => $descriptionCount,
+                'descriptionGroups' => $groups,
+            ];
+        }
+
+        if ($name === 'dt') {
+            return [
+                'descriptionListPart' => 'term',
+                'descriptionTermText' => self::normalizedText($element),
+            ];
+        }
+
+        return [
+            'descriptionListPart' => 'description',
+            'descriptionText' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return list<array{terms:list<string>, descriptions:list<string>, termCount:int, descriptionCount:int}>
+     */
+    private static function descriptionListGroups(\DOMElement $list): array
+    {
+        $groups = [];
+        $items = [];
+
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $childName = self::htmlElementName($child);
+            if ($childName === 'dt' || $childName === 'dd') {
+                $items[] = $child;
+                continue;
+            }
+
+            if ($childName !== 'div') {
+                continue;
+            }
+
+            if ($items !== []) {
+                array_push($groups, ...self::descriptionListGroupsFromItems($items));
+                $items = [];
+            }
+
+            $wrappedItems = self::descriptionListChildItems($child);
+            if ($wrappedItems !== []) {
+                array_push($groups, ...self::descriptionListGroupsFromItems($wrappedItems));
+            }
+        }
+
+        if ($items !== []) {
+            array_push($groups, ...self::descriptionListGroupsFromItems($items));
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param list<\DOMElement> $items
+     * @return list<array{terms:list<string>, descriptions:list<string>, termCount:int, descriptionCount:int}>
+     */
+    private static function descriptionListGroupsFromItems(array $items): array
+    {
+        $groups = [];
+        $terms = [];
+        $descriptions = [];
+
+        foreach ($items as $item) {
+            $itemName = self::htmlElementName($item);
+            if ($itemName === 'dt') {
+                if ($descriptions !== []) {
+                    $groups[] = self::descriptionListGroupSummary($terms, $descriptions);
+                    $terms = [];
+                    $descriptions = [];
+                }
+                $terms[] = self::normalizedText($item);
+                continue;
+            }
+
+            if ($itemName === 'dd') {
+                $descriptions[] = self::normalizedText($item);
+            }
+        }
+
+        if ($terms !== [] || $descriptions !== []) {
+            $groups[] = self::descriptionListGroupSummary($terms, $descriptions);
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function descriptionListChildItems(\DOMElement $element): array
+    {
+        $items = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $childName = self::htmlElementName($child);
+            if ($childName === 'dt' || $childName === 'dd') {
+                $items[] = $child;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $terms
+     * @param list<string> $descriptions
+     * @return array{terms:list<string>, descriptions:list<string>, termCount:int, descriptionCount:int}
+     */
+    private static function descriptionListGroupSummary(array $terms, array $descriptions): array
+    {
+        return [
+            'terms' => array_values($terms),
+            'descriptions' => array_values($descriptions),
+            'termCount' => count($terms),
+            'descriptionCount' => count($descriptions),
         ];
     }
 

@@ -480,6 +480,73 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/list-ordinal-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html description list group provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dl id="glossary"><dt>Alpha</dt><dt>Alias</dt><dd>Definition <strong>A</strong></dd><dd>Second detail</dd><dt>Beta</dt><dd>Definition B</dd><div><dt>Wrapped</dt><dd>Wrapped detail</dd></div></dl>',
+            'description list review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/description-list-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $glossary = $summary[0];
+        $alpha = $glossary['children'][0];
+        $alias = $glossary['children'][1];
+        $definitionA = $glossary['children'][2];
+        $secondDetail = $glossary['children'][3];
+        $beta = $glossary['children'][4];
+        $definitionB = $glossary['children'][5];
+        $wrapped = $glossary['children'][6];
+        $wrappedTerm = $wrapped['children'][0];
+        $wrappedDescription = $wrapped['children'][1];
+
+        $t->same(true, $glossary['descriptionList']);
+        $t->same(3, $glossary['descriptionListGroupCount']);
+        $t->same(4, $glossary['descriptionTermCount']);
+        $t->same(4, $glossary['descriptionCount']);
+        $t->same([
+            [
+                'terms' => ['Alpha', 'Alias'],
+                'descriptions' => ['Definition A', 'Second detail'],
+                'termCount' => 2,
+                'descriptionCount' => 2,
+            ],
+            [
+                'terms' => ['Beta'],
+                'descriptions' => ['Definition B'],
+                'termCount' => 1,
+                'descriptionCount' => 1,
+            ],
+            [
+                'terms' => ['Wrapped'],
+                'descriptions' => ['Wrapped detail'],
+                'termCount' => 1,
+                'descriptionCount' => 1,
+            ],
+        ], $glossary['descriptionGroups']);
+        $t->same('term', $alpha['descriptionListPart']);
+        $t->same('Alpha', $alpha['descriptionTermText']);
+        $t->same('term', $alias['descriptionListPart']);
+        $t->same('Alias', $alias['descriptionTermText']);
+        $t->same('description', $definitionA['descriptionListPart']);
+        $t->same('Definition A', $definitionA['descriptionText']);
+        $t->same('description', $secondDetail['descriptionListPart']);
+        $t->same('Second detail', $secondDetail['descriptionText']);
+        $t->same('term', $beta['descriptionListPart']);
+        $t->same('Beta', $beta['descriptionTermText']);
+        $t->same('description', $definitionB['descriptionListPart']);
+        $t->same('Definition B', $definitionB['descriptionText']);
+        $t->same('term', $wrappedTerm['descriptionListPart']);
+        $t->same('Wrapped', $wrappedTerm['descriptionTermText']);
+        $t->same('description', $wrappedDescription['descriptionListPart']);
+        $t->same('Wrapped detail', $wrappedDescription['descriptionText']);
+        $t->same('<dl id="glossary"><dt>Alpha</dt><dt>Alias</dt><dd>Definition <strong>A</strong></dd><dd>Second detail</dd><dt>Beta</dt><dd>Definition B</dd><div><dt>Wrapped</dt><dd>Wrapped detail</dd></div></dl>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/description-list-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'
