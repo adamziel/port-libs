@@ -5802,6 +5802,95 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
         $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
     },
+    'normalizes bounded pubmed compact identifier aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{compact-pubmed-article,
+  author       = {Ng, Nia},
+  title        = {Compact PubMed Alias Packet},
+  journaltitle = {Journal of Alias Medicine},
+  date         = {2026},
+  pubmedid     = {23456789},
+  pmc          = {PMC2345678}
+}
+
+@online{compact-pubmed-note,
+  author         = {{Migration Clinic}},
+  title          = {Compact PubMed Note},
+  date           = {2025},
+  pubmed         = {34567890},
+  pubmedcentral  = {PMC3456789},
+  url            = {https://example.test/compact-pubmed-note}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('23456789', $items[0]['PMID'] ?? null);
+        $t->same('PMC2345678', $items[0]['PMCID'] ?? null);
+        $t->same('34567890', $items[1]['PMID'] ?? null);
+        $t->same('PMC3456789', $items[1]['PMCID'] ?? null);
+        $t->same('23456789', $items[0]['rawBibtex']['fields']['pubmedid'] ?? null);
+        $t->same('PMC2345678', $items[0]['rawBibtex']['fields']['pmc'] ?? null);
+        $t->same('PMC3456789', $items[1]['rawBibtex']['fields']['pubmedcentral'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $article = $processor->item('compact-pubmed-article');
+        $note = $processor->item('compact-pubmed-note');
+        $t->same('23456789', $article['pmid'] ?? null);
+        $t->same('PMC2345678', $article['pmcid'] ?? null);
+        $t->same('34567890', $note['pmid'] ?? null);
+        $t->same('PMC3456789', $note['pmcid'] ?? null);
+        $t->same('(Ng 2026; Migration Clinic 2025)', $processor->renderCitationCluster([
+            $citation('compact-pubmed-article', '[@compact-pubmed-article]'),
+            $citation('compact-pubmed-note', '[@compact-pubmed-note]'),
+        ]));
+        $t->same('Ng, Nia. Compact PubMed Alias Packet. Journal of Alias Medicine. 2026. PMID 23456789. PMCID PMC2345678.', $processor->renderBibliographyEntry('compact-pubmed-article'));
+        $t->same('Migration Clinic. Compact PubMed Note. 2025. https://example.test/compact-pubmed-note. PMID 34567890. PMCID PMC3456789.', $processor->renderBibliographyEntry('compact-pubmed-note'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="pubmed"/>
+        <text variable="pmc"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pubmed-id"/>
+      <text variable="pubmedcentral"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 23456789 | PMC2345678; Migration Clinic | 34567890 | PMC3456789]', $styled->renderCitationCluster([
+            $citation('compact-pubmed-article', '[@compact-pubmed-article]'),
+            $citation('compact-pubmed-note', '[@compact-pubmed-note]'),
+        ]));
+        $t->same('Compact PubMed Alias Packet :: 23456789 :: PMC2345678', $styled->renderBibliographyEntry('compact-pubmed-article'));
+        $t->same('Compact PubMed Note :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('compact-pubmed-note'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-compact-pubmed',
+            'title' => 'Manual Compact PubMed',
+            'pubmed-id' => '45678901',
+            'pmc' => 'PMC4567890',
+        ]]);
+        $t->same('45678901', $direct->item('manual-compact-pubmed')['pmid'] ?? null);
+        $t->same('PMC4567890', $direct->item('manual-compact-pubmed')['pmcid'] ?? null);
+        $t->same('Manual Compact PubMed. PMID 45678901. PMCID PMC4567890.', $direct->renderBibliographyEntry('manual-compact-pubmed'));
+
+        $document = (new MarkdownReader())->read('Compact PubMed source @compact-pubmed-article and note [@compact-pubmed-note] preserve medical identifier aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact PubMed source Ng (2026) and note (Migration Clinic 2025) preserve medical identifier aliases.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Compact PubMed Alias Packet. Journal of Alias Medicine. 2026. PMID 23456789. PMCID PMC2345678.</dd>', $blocks);
+        $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Compact PubMed Note. 2025. https://example.test/compact-pubmed-note. PMID 34567890. PMCID PMC3456789.</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
