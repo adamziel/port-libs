@@ -5743,6 +5743,10 @@ final class PdfEngineHandoff
                 $values[] = substr($option, strlen('-f='));
                 continue;
             }
+            if (str_starts_with($option, '-f') && strlen($option) > 2) {
+                $values[] = substr($option, 2);
+                continue;
+            }
             if ($option === '--format') {
                 $next = $engineOptions[$index + 1] ?? '';
                 $values[] = is_string($next) && $next !== '' && !str_starts_with($next, '-')
