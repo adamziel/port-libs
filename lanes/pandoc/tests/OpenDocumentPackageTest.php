@@ -1132,6 +1132,38 @@ XML;
         $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
     },
+    'preserves compact ODT script package provenance in manifest file entry order' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
+        $javaScript = 'function ReviewLinkClick() { return false; }';
+        $scriptEntries =
+            '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/missing.js"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $scriptEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+                ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $manifestOrderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+
+        $t->same(4, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(true, $manifestOrderByPath['Basic/']['scriptPackagePart']);
+        $t->same(true, $manifestOrderByPath['Basic/Standard/Review.xml']['scriptPackagePart']);
+        $t->same(true, $manifestOrderByPath['Scripts/review-link.js']['scriptPackagePart']);
+        $t->same(true, $manifestOrderByPath['Scripts/missing.js']['scriptPackagePart']);
+        $t->same(false, $manifestOrderByPath['Pictures/hero.png']['scriptPackagePart']);
+        $t->same(false, $manifestOrderByPath['Scripts/review-link.js']['canExposeBytes']);
+        $t->same(false, $manifestOrderByPath['Scripts/missing.js']['exists']);
+    },
     'reports compact ODT package fonts as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewSansBytes = 'WOFF2DAT';
         $sourceBytes = 'WOFFDATA';

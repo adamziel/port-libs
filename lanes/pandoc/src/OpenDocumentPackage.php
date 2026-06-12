@@ -1430,6 +1430,7 @@ final class OpenDocumentPackage
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
