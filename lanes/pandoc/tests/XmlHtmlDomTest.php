@@ -1624,29 +1624,74 @@ XML, 'package reader XML');
     },
     'summarizes html disclosure state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
-            '<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details>'
-                . '<details id="missing-summary"><p>No summary</p></details>',
+            '<details id="packet" name="review" open><summary id="primary-summary">Package <span>review</span></summary><summary id="secondary-summary">Secondary label</summary><p>Body</p></details>'
+                . '<details id="review-next" name=" review " open><summary>Next packet</summary></details>'
+                . '<details id="missing-summary"><p>No summary</p></details>'
+                . '<summary id="loose-summary">Loose label</summary>',
             'disclosure review fragment'
         );
         $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
         $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/disclosure-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
 
         $details = $summary[0];
         $detailsSummary = $details['children'][0];
-        $missingSummary = $summary[1];
+        $secondarySummary = $details['children'][1];
+        $secondDetails = $summary[1];
+        $missingSummary = $summary[2];
+        $looseSummary = $summary[3];
 
         $t->same('details', $details['name']);
         $t->same('details', $details['disclosure']);
         $t->same(true, $details['open']);
+        $t->same('open', $details['detailsState']);
+        $t->same('review', $details['detailsNameRaw']);
+        $t->same('review', $details['detailsName']);
+        $t->same(1, $details['detailsGroupIndex']);
+        $t->same(2, $details['detailsGroupSize']);
+        $t->same(2, $details['detailsGroupOpenCount']);
+        $t->same(true, $details['detailsGroupOpenConflict']);
         $t->same('Package review', $details['summaryText']);
-        $t->same(1, $details['summaryElementCount']);
+        $t->same('primary-summary', $details['primarySummaryId']);
+        $t->same(2, $details['summaryElementCount']);
+        $t->same([
+            ['index' => 0, 'id' => 'primary-summary', 'text' => 'Package review', 'primary' => true, 'childElementCount' => 1],
+            ['index' => 1, 'id' => 'secondary-summary', 'text' => 'Secondary label', 'primary' => false, 'childElementCount' => 0],
+        ], $details['summaryElements']);
         $t->same('summary', $detailsSummary['name']);
         $t->same('summary', $detailsSummary['disclosure']);
         $t->same('Package review', $detailsSummary['label']);
+        $t->same('packet', $detailsSummary['summaryForDetailsId']);
+        $t->same('review', $detailsSummary['summaryForDetailsName']);
+        $t->same(0, $detailsSummary['summaryIndex']);
+        $t->same(true, $detailsSummary['summaryPrimary']);
+        $t->same(1, $secondarySummary['summaryIndex']);
+        $t->same(false, $secondarySummary['summaryPrimary']);
+
+        $t->same(' review ', $secondDetails['detailsNameRaw']);
+        $t->same('review', $secondDetails['detailsName']);
+        $t->same(2, $secondDetails['detailsGroupIndex']);
+        $t->same(true, $secondDetails['detailsGroupOpenConflict']);
+
         $t->same(false, $missingSummary['open']);
+        $t->same('closed', $missingSummary['detailsState']);
+        $t->same(null, $missingSummary['detailsName']);
+        $t->same(0, $missingSummary['detailsGroupSize']);
         $t->same(null, $missingSummary['summaryText']);
         $t->same(0, $missingSummary['summaryElementCount']);
-        $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
+        $t->same([], $missingSummary['summaryElements']);
+
+        $t->same('summary', $looseSummary['disclosure']);
+        $t->same('Loose label', $looseSummary['label']);
+        $t->same(null, $looseSummary['summaryForDetailsId']);
+        $t->same(null, $looseSummary['summaryIndex']);
+        $t->same(null, $looseSummary['summaryPrimary']);
+        $t->same('<details id="packet" name="review" open><summary id="primary-summary">Package <span>review</span></summary><summary id="secondary-summary">Secondary label</summary><p>Body</p></details><details id="review-next" name=" review " open><summary>Next packet</summary></details><details id="missing-summary"><p>No summary</p></details><summary id="loose-summary">Loose label</summary>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/disclosure-review.html', $document->children[0]->attr('part'));
     },
     'summarizes html dialog and popover state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

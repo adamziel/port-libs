@@ -872,11 +872,7 @@ final class XmlHtmlDom
             $summary += self::legendSummary($node);
         }
         if ($name === 'details') {
-            $summaryElements = self::detailsSummaryElements($node);
-            $summary['disclosure'] = 'details';
-            $summary['open'] = $node->hasAttribute('open');
-            $summary['summaryText'] = $summaryElements === [] ? null : self::normalizedText($summaryElements[0]);
-            $summary['summaryElementCount'] = count($summaryElements);
+            $summary += self::detailsDisclosureSummary($node);
         }
         if ($name === 'dialog') {
             $summary['dialog'] = 'dialog';
@@ -884,8 +880,7 @@ final class XmlHtmlDom
             $summary['dialogText'] = self::normalizedText($node);
         }
         if ($name === 'summary') {
-            $summary['disclosure'] = 'summary';
-            $summary['label'] = self::normalizedText($node);
+            $summary += self::summaryDisclosureSummary($node);
         }
         if ($name === 'dialog') {
             $summary += self::dialogSummary($node);
@@ -2958,6 +2953,130 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function detailsDisclosureSummary(\DOMElement $details): array
+    {
+        $summaryElements = self::detailsSummaryElements($details);
+        $detailsNameRaw = self::attributeOrNull($details, 'name');
+        $detailsName = self::normalizedNonEmptyAttribute($detailsNameRaw);
+        $group = self::detailsGroupElements($details, $detailsName);
+        $openGroup = array_values(array_filter(
+            $group,
+            static fn (\DOMElement $groupDetails): bool => $groupDetails->hasAttribute('open')
+        ));
+
+        return [
+            'disclosure' => 'details',
+            'open' => $details->hasAttribute('open'),
+            'detailsState' => $details->hasAttribute('open') ? 'open' : 'closed',
+            'detailsNameRaw' => $detailsNameRaw,
+            'detailsName' => $detailsName,
+            'detailsGroupIndex' => self::detailsGroupIndex($details, $group),
+            'detailsGroupSize' => count($group),
+            'detailsGroupOpenCount' => count($openGroup),
+            'detailsGroupOpenConflict' => count($openGroup) > 1,
+            'summaryText' => $summaryElements === [] ? null : self::normalizedText($summaryElements[0]),
+            'primarySummaryId' => $summaryElements === [] ? null : self::attributeOrNull($summaryElements[0], 'id'),
+            'summaryElementCount' => count($summaryElements),
+            'summaryElements' => self::detailsSummaryElementRecords($summaryElements),
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $summaryElements
+     * @return list<array<string, mixed>>
+     */
+    private static function detailsSummaryElementRecords(array $summaryElements): array
+    {
+        $records = [];
+        foreach ($summaryElements as $index => $summary) {
+            $records[] = [
+                'index' => $index,
+                'id' => self::attributeOrNull($summary, 'id'),
+                'text' => self::normalizedText($summary),
+                'primary' => $index === 0,
+                'childElementCount' => count(self::childElements($summary)),
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function detailsGroupElements(\DOMElement $details, ?string $detailsName): array
+    {
+        if ($detailsName === null) {
+            return [];
+        }
+
+        $document = $details->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $group = [];
+        foreach ($document->getElementsByTagName('details') as $candidate) {
+            if ($candidate instanceof \DOMElement && self::normalizedNonEmptyAttribute(self::attributeOrNull($candidate, 'name')) === $detailsName) {
+                $group[] = $candidate;
+            }
+        }
+
+        return $group;
+    }
+
+    /**
+     * @param list<\DOMElement> $group
+     */
+    private static function detailsGroupIndex(\DOMElement $details, array $group): ?int
+    {
+        foreach ($group as $index => $candidate) {
+            if ($candidate->isSameNode($details)) {
+                return $index + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function summaryDisclosureSummary(\DOMElement $summary): array
+    {
+        $details = self::summaryDetailsParent($summary);
+        $summaryIndex = null;
+        if ($details instanceof \DOMElement) {
+            foreach (self::detailsSummaryElements($details) as $index => $candidate) {
+                if ($candidate->isSameNode($summary)) {
+                    $summaryIndex = $index;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'disclosure' => 'summary',
+            'label' => self::normalizedText($summary),
+            'summaryForDetailsId' => $details instanceof \DOMElement ? self::attributeOrNull($details, 'id') : null,
+            'summaryForDetailsName' => $details instanceof \DOMElement ? self::normalizedNonEmptyAttribute(self::attributeOrNull($details, 'name')) : null,
+            'summaryIndex' => $summaryIndex,
+            'summaryPrimary' => $summaryIndex === null ? null : $summaryIndex === 0,
+        ];
+    }
+
+    private static function summaryDetailsParent(\DOMElement $summary): ?\DOMElement
+    {
+        $parent = $summary->parentNode;
+
+        return $parent instanceof \DOMElement && self::htmlElementName($parent) === 'details'
+            ? $parent
+            : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function dialogSummary(\DOMElement $dialog): array
     {
         $heading = self::firstScopedHeadingElement($dialog);
@@ -3653,6 +3772,17 @@ final class XmlHtmlDom
     private static function attributeOrNull(\DOMElement $element, string $name): ?string
     {
         return $element->hasAttribute($name) ? $element->getAttribute($name) : null;
+    }
+
+    private static function normalizedNonEmptyAttribute(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private static function mediaPreload(\DOMElement $media): string
