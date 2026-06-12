@@ -1019,6 +1019,10 @@ final class NativeWriter
      */
     private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
     {
+        if ($this->hasLegacyTargetInlinePayloadSidecars($native)) {
+            return false;
+        }
+
         foreach ($this->blockPayloadReaders($native) as $freshNode) {
             if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
                 return true;
@@ -1059,6 +1063,10 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
+        if ($this->hasLegacyTargetInlinePayloadSidecars($native)) {
+            return false;
+        }
+
         try {
             $packet = [
                 'pandoc-api-version' => [1, 23, 1],
@@ -1081,6 +1089,32 @@ final class NativeWriter
         $freshNode = $document->children[0]->children[0] ?? null;
 
         return $freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode);
+    }
+
+    private function hasLegacyTargetInlinePayloadSidecars(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (!array_is_list($value) && (($value['t'] ?? null) === 'Link' || ($value['t'] ?? null) === 'Image')) {
+            $content = $value['c'] ?? null;
+            if (is_array($content) && array_is_list($content) && count($content) === 2) {
+                foreach ($value as $key => $_item) {
+                    if ($key !== 't' && $key !== 'c') {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasLegacyTargetInlinePayloadSidecars($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
