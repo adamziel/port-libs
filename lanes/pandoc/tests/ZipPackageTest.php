@@ -6307,6 +6307,54 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
+    'preflights zip comment byte provenance before strict package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $packageComment = 'pkg-byte-note';
+        $entryComment = 'entry-byte-note';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>comment byte provenance</w:p></w:document>',
+                'method' => 8,
+                'comment' => $entryComment,
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'comment byte provenance remains bounded',
+                'method' => 0,
+            ],
+        ], $packageComment);
+
+        $summary = ZipPackage::commentPolicyPreflight($zip);
+        $centralFields = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $package = ZipPackage::fromString($zip);
+        $objectSummary = $package->commentPreflight();
+        $strictSummary = $package->strictImportPreflight(4096, 100.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $commentedEntry = $summary['commentedEntries'][0];
+        $centralCommentedEntry = $centralFields['entries'][0];
+
+        $t->same($centralFields['packageCommentOffset'], $summary['packageCommentOffset']);
+        $t->same($centralFields['packageCommentLength'], $summary['packageCommentLength']);
+        $t->same($centralFields['packageCommentEnd'], $summary['packageCommentEnd']);
+        $t->same(bin2hex($packageComment), $summary['packageCommentPreviewHex']);
+        $t->same(strlen($packageComment), $summary['packageCommentPreviewByteCount']);
+        $t->same($centralCommentedEntry['rawCommentOffset'], $commentedEntry['rawCommentOffset']);
+        $t->same($centralCommentedEntry['rawCommentLength'], $commentedEntry['commentLength']);
+        $t->same(
+            $centralCommentedEntry['rawCommentOffset'] + $centralCommentedEntry['rawCommentLength'],
+            $commentedEntry['rawCommentEnd']
+        );
+        $t->same(bin2hex($entryComment), $commentedEntry['rawCommentPreviewHex']);
+        $t->same(strlen($entryComment), $commentedEntry['rawCommentPreviewByteCount']);
+        $t->same($summary['packageCommentOffset'], $objectSummary['packageCommentOffset']);
+        $t->same($commentedEntry['rawCommentOffset'], $objectSummary['commentedEntries'][0]['rawCommentOffset']);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same($objectSummary, $strictSummary['comments']);
+        $t->same($summary, $rawStrict['comments']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+    },
 
     'rejects generated zip comment control bytes before package writing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
