@@ -2637,6 +2637,76 @@ return [
             return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
         }, $editedCite['c'][1])));
     },
+    'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $structuralInlines = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'reviewQueue' => 'strong-source'],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'underline']], 'reviewQueue' => 'underline-source'],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'strikeout']], 'reviewQueue' => 'strikeout-source'],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => 'superscript']], 'reviewQueue' => 'superscript-source'],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'subscript']], 'reviewQueue' => 'subscript-source'],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'smallcaps']], 'reviewQueue' => 'smallcaps-source'],
+            ['t' => 'Quoted', 'c' => [['t' => 'SingleQuote'], [['t' => 'Str', 'c' => 'quoted']]], 'reviewQueue' => 'quoted-source'],
+            ['t' => 'Span', 'c' => [
+                ['source-span', ['review'], [['data-source', 'first'], ['data-source', 'second']]],
+                [['t' => 'Str', 'c' => 'span']],
+            ], 'reviewQueue' => 'span-source', 'sourceOrdinal' => 91],
+            ['t' => 'Note', 'c' => [
+                ['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]],
+            ], 'reviewQueue' => 'note-source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $structuralInlines],
+            ],
+        ];
+        $expectedTypes = [
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
+            'span',
+            'note',
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $nodes = $document->children[0]->children;
+            $standalonePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+                new AstNode('paragraph', [], $nodes),
+            ]));
+
+            $t->same($expectedTypes, array_map(static fn (AstNode $node): string => $node->type, $nodes), "{$source} structural inline node types");
+            foreach ($nodes as $index => $node) {
+                $t->same($structuralInlines[$index], $node->attr('native'), "{$source} structural inline native payload {$index}");
+            }
+            $t->same($structuralInlines, $standalonePacket['blocks'][0]['c'], "{$source} standalone structural inline payloads are reused");
+        }
+
+        $emph = $documents['json']->children[0]->children[0];
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', $emph->attrs, [
+                    new AstNode('text', ['text' => 'edited emph']),
+                ]),
+            ]),
+        ]));
+        $editedEmph = $editedPacket['blocks'][0]['c'][0];
+
+        $t->same('Emph', $editedEmph['t']);
+        $t->same('edited emph', $editedEmph['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedEmph), 'edited structural inline drops stale provenance');
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];
