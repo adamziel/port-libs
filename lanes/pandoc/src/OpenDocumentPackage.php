@@ -16,6 +16,8 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     public const CONFIG_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
+    public const RDF_NAMESPACE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    public const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
     private const MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT = 5;
 
     /** @var array<string, array<string, mixed>> */
@@ -27,6 +29,7 @@ final class OpenDocumentPackage
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
      * @param array<string, mixed> $settings
+     * @param array<string, mixed> $rdfMetadata
      */
     private function __construct(
         private readonly ZipPackage $package,
@@ -36,6 +39,7 @@ final class OpenDocumentPackage
         private readonly array $stylesByName,
         private readonly array $metadata,
         private readonly array $settings,
+        private readonly array $rdfMetadata,
     ) {
         $this->manifestEntriesByPath = $manifestEntriesByPath;
     }
@@ -97,8 +101,9 @@ final class OpenDocumentPackage
         $styles = isset($manifestEntriesByPath['styles.xml']) ? self::parseStyles($package->read('styles.xml')) : [];
         $metadata = isset($manifestEntriesByPath['meta.xml']) ? self::parseMetadata($package->read('meta.xml')) : [];
         $settings = isset($manifestEntriesByPath['settings.xml']) ? self::parseSettings($package->read('settings.xml')) : self::emptySettings();
+        $rdfMetadata = self::readRdfMetadata($package, $manifestEntries);
 
-        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata, $settings);
+        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata, $settings, $rdfMetadata);
     }
 
     public function package(): ZipPackage
@@ -156,6 +161,14 @@ final class OpenDocumentPackage
         return $this->settings;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function rdfMetadata(): array
+    {
+        return $this->rdfMetadata;
+    }
+
     public function readContentDocument(): AstNode
     {
         $dom = self::loadXml($this->package->read('content.xml'), 'ODT content.xml');
@@ -203,6 +216,7 @@ final class OpenDocumentPackage
             'metadata' => $this->metadata,
             'styles' => $this->stylesByName,
             'settings' => $this->settings,
+            'rdfMetadata' => $this->rdfMetadata,
         ], $blocks);
     }
 
@@ -228,6 +242,7 @@ final class OpenDocumentPackage
      *     packageSignatures:array<string, mixed>,
      *     packageObjects:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
+     *     rdfMetadata:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
      *     styleNames:list<string>,
@@ -317,6 +332,7 @@ final class OpenDocumentPackage
             'packageSignatures' => $packageSignatures,
             'packageObjects' => $packageObjects,
             'packageFonts' => $packageFonts,
+            'rdfMetadata' => $this->rdfMetadata,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
@@ -379,6 +395,7 @@ final class OpenDocumentPackage
         $scriptPackagePartCount = 0;
         $configurationPackagePartCount = 0;
         $fontPackagePartCount = 0;
+        $rdfMetadataPartCount = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -441,6 +458,7 @@ final class OpenDocumentPackage
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
+                'rdfMetadataPart' => self::isRdfMetadataPart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => is_array($manifestEntry)
@@ -482,6 +500,9 @@ final class OpenDocumentPackage
             if (in_array('font-package', $roles, true)) {
                 ++$fontPackagePartCount;
             }
+            if (in_array('rdf-metadata', $roles, true)) {
+                ++$rdfMetadataPartCount;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -508,6 +529,7 @@ final class OpenDocumentPackage
             'scriptPackagePartCount' => $scriptPackagePartCount,
             'configurationPackagePartCount' => $configurationPackagePartCount,
             'fontPackagePartCount' => $fontPackagePartCount,
+            'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -561,6 +583,9 @@ final class OpenDocumentPackage
         if (self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null)) {
             $roles[] = 'font-package';
         }
+        if (self::isRdfMetadataPart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null)) {
+            $roles[] = 'rdf-metadata';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -600,6 +625,20 @@ final class OpenDocumentPackage
         }
 
         return $mediaType !== null && self::isFontMediaType($mediaType);
+    }
+
+    private static function isRdfMetadataPart(string $path, ?string $mediaType = null): bool
+    {
+        if (self::isRdfPartName($path)) {
+            return true;
+        }
+
+        return $mediaType !== null && self::mediaTypeReport($mediaType)['mediaTypeBase'] === 'application/rdf+xml';
+    }
+
+    private static function isRdfPartName(string $path): bool
+    {
+        return strtolower(basename($path)) === 'manifest.rdf';
     }
 
     private static function isFontPackagePartName(string $path): bool
@@ -769,6 +808,7 @@ final class OpenDocumentPackage
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
             $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
             $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
+            $rdfMetadataPart = is_string($packagePath) && self::isRdfMetadataPart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -833,6 +873,7 @@ final class OpenDocumentPackage
                 'scriptPackagePart' => $scriptPackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
                 'fontPackagePart' => $fontPackagePart,
+                'rdfMetadataPart' => $rdfMetadataPart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -924,6 +965,7 @@ final class OpenDocumentPackage
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
+                'rdfMetadataPart' => self::isRdfPartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -931,6 +973,393 @@ final class OpenDocumentPackage
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @return array<string, mixed>
+     */
+    private static function readRdfMetadata(ZipPackage $package, array $manifestEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifestEntries as $entry) {
+            if (!self::isRdfManifestEntry($entry)) {
+                continue;
+            }
+
+            $packagePath = $entry['packagePath'] ?? null;
+            if (is_string($packagePath) && $packagePath !== '' && !str_ends_with($packagePath, '/')) {
+                $entry['declared'] = true;
+                $candidatesByPart[$packagePath] = $entry;
+            }
+        }
+
+        $undeclaredCandidates = [];
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory() || !self::isRdfPartName($entry->name) || isset($candidatesByPart[$entry->name])) {
+                continue;
+            }
+
+            $undeclaredCandidates[$entry->name] = [
+                'path' => $entry->name,
+                'packagePath' => $entry->name,
+                'pathReference' => $entry->name,
+                'mediaType' => null,
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+            ];
+        }
+        ksort($undeclaredCandidates, SORT_STRING);
+        $candidatesByPart += $undeclaredCandidates;
+
+        $parts = [];
+        $subjectsBySubject = [];
+        $parsedPartCount = 0;
+        $parseErrorCount = 0;
+        $tripleCount = 0;
+        $literalCount = 0;
+        $resourceCount = 0;
+
+        foreach ($candidatesByPart as $part => $entry) {
+            $zipEntry = $package->has($part) ? $package->entry($part) : null;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $partMetadata = [
+                'fullPath' => $entry['path'] ?? $part,
+                'path' => $entry['path'] ?? $part,
+                'packagePath' => $part,
+                'part' => $part,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+                'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
+                'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $entry['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
+                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-rdf-metadata-only',
+                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'tripleCount' => 0,
+                'literalCount' => 0,
+                'resourceCount' => 0,
+                'subjectCount' => 0,
+                'subjects' => [],
+                'triples' => [],
+            ];
+
+            if (!$zipEntry instanceof ZipPackageEntry) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'missing-rdf-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            if ($encrypted) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'encrypted-rdf-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            try {
+                $parsed = self::parseRdfMetadataPart($package->read($part, 1048576), $part);
+            } catch (\InvalidArgumentException $exception) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'invalid-rdf-xml';
+                $partMetadata['error'] = $exception->getMessage();
+                ++$parseErrorCount;
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            $partMetadata = array_merge($partMetadata, $parsed, ['parseable' => true]);
+            if (!$declared) {
+                $partMetadata['diagnostic'] = 'odf-rdf-package-undeclared-part';
+            }
+            ++$parsedPartCount;
+            $tripleCount += (int) ($parsed['tripleCount'] ?? 0);
+            $literalCount += (int) ($parsed['literalCount'] ?? 0);
+            $resourceCount += (int) ($parsed['resourceCount'] ?? 0);
+
+            foreach ($parsed['subjectsBySubject'] ?? [] as $subject => $subjectMetadata) {
+                if (!is_string($subject) || !is_array($subjectMetadata)) {
+                    continue;
+                }
+
+                if (!isset($subjectsBySubject[$subject])) {
+                    $subjectsBySubject[$subject] = [
+                        'subject' => $subject,
+                        'partCount' => 0,
+                        'tripleCount' => 0,
+                        'literalCount' => 0,
+                        'resourceCount' => 0,
+                        'parts' => [],
+                        'predicates' => [],
+                    ];
+                }
+
+                ++$subjectsBySubject[$subject]['partCount'];
+                $subjectsBySubject[$subject]['tripleCount'] += (int) ($subjectMetadata['tripleCount'] ?? 0);
+                $subjectsBySubject[$subject]['literalCount'] += (int) ($subjectMetadata['literalCount'] ?? 0);
+                $subjectsBySubject[$subject]['resourceCount'] += (int) ($subjectMetadata['resourceCount'] ?? 0);
+                $subjectsBySubject[$subject]['parts'][] = $part;
+                foreach ($subjectMetadata['predicates'] ?? [] as $predicate) {
+                    if (is_string($predicate) && $predicate !== '' && !in_array($predicate, $subjectsBySubject[$subject]['predicates'], true)) {
+                        $subjectsBySubject[$subject]['predicates'][] = $predicate;
+                    }
+                }
+            }
+
+            $parts[] = $partMetadata;
+        }
+
+        foreach ($subjectsBySubject as &$subjectMetadata) {
+            $subjectMetadata['parts'] = array_values(array_unique($subjectMetadata['parts']));
+            sort($subjectMetadata['predicates'], SORT_STRING);
+        }
+        unset($subjectMetadata);
+
+        return [
+            'count' => count($parts),
+            'partCount' => count($parts),
+            'parsedPartCount' => $parsedPartCount,
+            'parseErrorCount' => $parseErrorCount,
+            'tripleCount' => $tripleCount,
+            'literalCount' => $literalCount,
+            'resourceCount' => $resourceCount,
+            'subjectCount' => count($subjectsBySubject),
+            'parts' => $parts,
+            'subjectsBySubject' => $subjectsBySubject,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function isRdfManifestEntry(array $entry): bool
+    {
+        $mediaTypeBase = strtolower((string) ($entry['mediaTypeBase'] ?? self::mediaTypeReport((string) ($entry['mediaType'] ?? ''))['mediaTypeBase']));
+        $packagePath = (string) ($entry['packagePath'] ?? '');
+
+        return $mediaTypeBase === 'application/rdf+xml' || self::isRdfPartName($packagePath);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseRdfMetadataPart(string $xml, string $part): array
+    {
+        $dom = self::loadXml($xml, 'ODT RDF metadata ' . $part);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !self::isElement($root, self::RDF_NAMESPACE, 'RDF')) {
+            throw new \InvalidArgumentException('ODT RDF metadata ' . $part . ' must use rdf:RDF as its root element');
+        }
+
+        $triples = [];
+        $subjectsBySubject = [];
+        foreach (self::childElements($root) as $descriptionIndex => $description) {
+            $subject = self::rdfSubject($description, $part, $descriptionIndex);
+            $descriptionTriples = self::rdfDescriptionTriples($description, $subject);
+            if (!self::isElement($description, self::RDF_NAMESPACE, 'Description')) {
+                array_unshift($descriptionTriples, [
+                    'subject' => $subject,
+                    'predicate' => 'rdf:type',
+                    'predicateNamespace' => self::RDF_NAMESPACE,
+                    'predicateName' => 'type',
+                    'objectType' => 'resource',
+                    'object' => self::rdfExpandedName($description),
+                ]);
+            }
+
+            foreach ($descriptionTriples as $triple) {
+                if ($triple === []) {
+                    continue;
+                }
+
+                $triples[] = $triple;
+                if (!isset($subjectsBySubject[$subject])) {
+                    $subjectsBySubject[$subject] = [
+                        'subject' => $subject,
+                        'tripleCount' => 0,
+                        'literalCount' => 0,
+                        'resourceCount' => 0,
+                        'predicates' => [],
+                    ];
+                }
+
+                ++$subjectsBySubject[$subject]['tripleCount'];
+                if (($triple['objectType'] ?? '') === 'resource') {
+                    ++$subjectsBySubject[$subject]['resourceCount'];
+                } else {
+                    ++$subjectsBySubject[$subject]['literalCount'];
+                }
+                $predicate = (string) ($triple['predicate'] ?? '');
+                if ($predicate !== '' && !in_array($predicate, $subjectsBySubject[$subject]['predicates'], true)) {
+                    $subjectsBySubject[$subject]['predicates'][] = $predicate;
+                }
+            }
+        }
+
+        foreach ($subjectsBySubject as &$subjectMetadata) {
+            sort($subjectMetadata['predicates'], SORT_STRING);
+        }
+        unset($subjectMetadata);
+
+        $literalCount = 0;
+        $resourceCount = 0;
+        foreach ($triples as $triple) {
+            if (($triple['objectType'] ?? '') === 'resource') {
+                ++$resourceCount;
+            } else {
+                ++$literalCount;
+            }
+        }
+
+        return [
+            'tripleCount' => count($triples),
+            'literalCount' => $literalCount,
+            'resourceCount' => $resourceCount,
+            'subjectCount' => count($subjectsBySubject),
+            'subjects' => array_values($subjectsBySubject),
+            'subjectsBySubject' => $subjectsBySubject,
+            'triples' => $triples,
+        ];
+    }
+
+    private static function rdfSubject(\DOMElement $description, string $part, int $index): string
+    {
+        foreach (['about', 'ID', 'nodeID'] as $name) {
+            $value = self::attributeValue($description, self::RDF_NAMESPACE, $name);
+            if ($value === '') {
+                continue;
+            }
+
+            if ($name === 'ID') {
+                return '#' . $value;
+            }
+            if ($name === 'nodeID') {
+                return '_:' . $value;
+            }
+
+            return $value;
+        }
+
+        return '_:' . $part . '#' . ($index + 1);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function rdfDescriptionTriples(\DOMElement $description, string $subject): array
+    {
+        $triples = [];
+        foreach ($description->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            if ($attribute->namespaceURI === self::RDF_NAMESPACE || $attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            $value = trim($attribute->value);
+            if ($value === '') {
+                continue;
+            }
+
+            $triples[] = [
+                'subject' => $subject,
+                'predicate' => self::rdfNodeName($attribute),
+                'predicateNamespace' => $attribute->namespaceURI,
+                'predicateName' => $attribute->localName,
+                'objectType' => 'literal',
+                'object' => $value,
+            ];
+        }
+
+        foreach (self::childElements($description) as $property) {
+            $triple = self::rdfPropertyTriple($property, $subject);
+            if ($triple !== []) {
+                $triples[] = $triple;
+            }
+        }
+
+        return $triples;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rdfPropertyTriple(\DOMElement $property, string $subject): array
+    {
+        $resource = self::attributeValue($property, self::RDF_NAMESPACE, 'resource');
+        $nodeId = self::attributeValue($property, self::RDF_NAMESPACE, 'nodeID');
+        $language = self::attributeValue($property, self::XML_NAMESPACE, 'lang');
+        $datatype = self::attributeValue($property, self::RDF_NAMESPACE, 'datatype');
+        $parseType = self::attributeValue($property, self::RDF_NAMESPACE, 'parseType');
+
+        $metadata = [
+            'subject' => $subject,
+            'predicate' => self::rdfNodeName($property),
+            'predicateNamespace' => $property->namespaceURI,
+            'predicateName' => $property->localName,
+        ];
+
+        if ($resource !== '') {
+            $metadata['objectType'] = 'resource';
+            $metadata['object'] = $resource;
+        } elseif ($nodeId !== '') {
+            $metadata['objectType'] = 'resource';
+            $metadata['object'] = '_:' . $nodeId;
+        } else {
+            $metadata['objectType'] = 'literal';
+            $metadata['object'] = self::normalizedText($property);
+        }
+
+        if ($language !== '') {
+            $metadata['language'] = $language;
+        }
+        if ($datatype !== '') {
+            $metadata['datatype'] = $datatype;
+        }
+        if ($parseType !== '') {
+            $metadata['parseType'] = $parseType;
+        }
+
+        return self::withoutEmptyValues($metadata);
+    }
+
+    private static function rdfNodeName(\DOMNode $node): string
+    {
+        $prefix = $node->prefix;
+        if (is_string($prefix) && $prefix !== '') {
+            return $prefix . ':' . $node->localName;
+        }
+
+        return $node->localName ?? $node->nodeName;
+    }
+
+    private static function rdfExpandedName(\DOMElement $element): string
+    {
+        $namespace = $element->namespaceURI;
+        if (is_string($namespace) && $namespace !== '') {
+            return $namespace . $element->localName;
+        }
+
+        return $element->localName;
     }
 
     /**
@@ -1616,6 +2045,8 @@ final class OpenDocumentPackage
             'configurationPackageItems' => [],
             'fontPackagePartCount' => 0,
             'fontPackageItems' => [],
+            'rdfMetadataPartCount' => 0,
+            'rdfMetadataItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'diagnosticCount' => 0,
@@ -1667,6 +2098,10 @@ final class OpenDocumentPackage
             if (($entry['fontPackagePart'] ?? false) === true) {
                 ++$summary['fontPackagePartCount'];
                 $summary['fontPackageItems'][] = $item;
+            }
+            if (($entry['rdfMetadataPart'] ?? false) === true) {
+                ++$summary['rdfMetadataPartCount'];
+                $summary['rdfMetadataItems'][] = $item;
             }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
@@ -1807,6 +2242,7 @@ final class OpenDocumentPackage
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
+            'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -1849,6 +2285,7 @@ final class OpenDocumentPackage
             'embeddedObjectRoot' => ($entry['embeddedObjectRoot'] ?? false) === true,
             'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
+            'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'diagnostics' => $entry['diagnostics'] ?? [],
@@ -2745,6 +3182,11 @@ final class OpenDocumentPackage
         return $element->hasAttributeNS($namespace, $localName) ? $element->getAttributeNS($namespace, $localName) : null;
     }
 
+    private static function attributeValue(\DOMElement $element, string $namespace, string $localName): string
+    {
+        return trim($element->getAttributeNS($namespace, $localName));
+    }
+
     private static function trimmedAttribute(\DOMElement $element, string $namespace, string $localName): string
     {
         return trim(self::namespacedAttribute($element, $namespace, $localName) ?? '');
@@ -2899,6 +3341,18 @@ final class OpenDocumentPackage
     private static function withoutNulls(array $values): array
     {
         return array_filter($values, static fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private static function withoutEmptyValues(array $values): array
+    {
+        return array_filter(
+            $values,
+            static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
+        );
     }
 
     private static function intAttribute(\DOMElement $element, string $namespace, string $localName, int $default): int
