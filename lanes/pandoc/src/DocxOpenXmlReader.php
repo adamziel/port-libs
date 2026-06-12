@@ -627,6 +627,20 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @return array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>
+     */
+    private function readRelationshipsPartForProvenance(array $parts, string $partName): array
+    {
+        $metadata = $this->relationshipPartXmlMetadata($parts, $partName);
+        if (($metadata['validRoot'] ?? null) !== true) {
+            return [];
+        }
+
+        return $this->readRelationshipsPart($parts, $partName);
+    }
+
+    /**
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      */
     private function officeDocumentPart(array $relationships): string
@@ -2338,6 +2352,12 @@ final class DocxOpenXmlReader
         $relationshipTargetFragmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
         $relationshipTargetsWithReferenceSuffix = [];
+        $relationshipPartIssueCount = 0;
+        $relationshipPartInvalidXmlCount = 0;
+        $relationshipPartInvalidRootCount = 0;
+        $relationshipPartsWithIssues = [];
+        $relationshipPartIssueCounts = [];
+        $relationshipPartIssues = [];
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
         $duplicateRelationshipRecordCount = 0;
@@ -2363,6 +2383,36 @@ final class DocxOpenXmlReader
         }
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            $issues = [];
+            foreach (($relationshipPart['issues'] ?? []) as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+
+                $issues[] = $issue;
+                $relationshipPartIssueCounts[$issue] = ($relationshipPartIssueCounts[$issue] ?? 0) + 1;
+            }
+            if ($issues !== []) {
+                $relationshipPartIssueCount += count($issues);
+                $relationshipPartsWithIssues[] = (string) $relationshipsPart;
+                if (in_array('invalid-relationship-part-xml', $issues, true)) {
+                    ++$relationshipPartInvalidXmlCount;
+                }
+                if (in_array('unexpected-relationship-part-root', $issues, true)) {
+                    ++$relationshipPartInvalidRootCount;
+                }
+                $relationshipPartIssues[] = [
+                    'relationshipsPart' => (string) $relationshipsPart,
+                    'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                    'issues' => $issues,
+                    'validXml' => $relationshipPart['validXml'] ?? null,
+                    'validRoot' => $relationshipPart['validRoot'] ?? null,
+                    'xmlParseError' => $relationshipPart['xmlParseError'] ?? null,
+                    'rootNamespace' => $relationshipPart['rootNamespace'] ?? null,
+                    'rootLocalName' => $relationshipPart['rootLocalName'] ?? null,
+                ];
+            }
+
             if (($relationshipPart['sourceExists'] ?? true) === false) {
                 ++$relationshipPartMissingSourceCount;
                 $relationshipPartsWithMissingSources[] = (string) $relationshipsPart;
@@ -2438,6 +2488,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipPartIssueCounts);
 
         return [
             'partCount' => count($partInventory),
@@ -2458,6 +2509,9 @@ final class DocxOpenXmlReader
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
+            'relationshipPartIssueCount' => $relationshipPartIssueCount,
+            'relationshipPartInvalidXmlCount' => $relationshipPartInvalidXmlCount,
+            'relationshipPartInvalidRootCount' => $relationshipPartInvalidRootCount,
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
@@ -2471,12 +2525,15 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
+            'relationshipPartsWithIssues' => $relationshipPartsWithIssues,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
+            'relationshipPartIssueCounts' => $relationshipPartIssueCounts,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
+            'relationshipPartIssues' => $relationshipPartIssues,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
@@ -3473,7 +3530,7 @@ final class DocxOpenXmlReader
                 $parts,
                 $partName,
                 $this->relationshipSourcePartForInventory($partName),
-                $this->readRelationshipsPart($parts, $partName),
+                $this->readRelationshipsPartForProvenance($parts, $partName),
                 $contentTypes,
             );
         }
@@ -3675,16 +3732,19 @@ final class DocxOpenXmlReader
         array $relationships,
         array $contentTypes,
     ): array {
+        $xmlMetadata = $this->relationshipPartXmlMetadata($parts, $relationshipsPart);
         $relationshipSummaries = [];
         foreach ($relationships as $id => $relationship) {
             $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
         }
-        $relationshipRecords = $this->relationshipRecordProvenance(
-            $parts,
-            $relationshipsPart,
-            $sourcePart,
-            $contentTypes,
-        );
+        $relationshipRecords = ($xmlMetadata['validRoot'] ?? null) === true
+            ? $this->relationshipRecordProvenance(
+                $parts,
+                $relationshipsPart,
+                $sourcePart,
+                $contentTypes,
+            )
+            : [];
         $duplicateIds = [];
         foreach ($relationshipRecords as $record) {
             if (($record['duplicateId'] ?? false) === true) {
@@ -3700,6 +3760,12 @@ final class DocxOpenXmlReader
             'sourceExists' => $this->relationshipSourceExists($parts, $sourcePart),
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
+            'validXml' => $xmlMetadata['validXml'],
+            'xmlParseError' => $xmlMetadata['xmlParseError'],
+            'rootNamespace' => $xmlMetadata['rootNamespace'],
+            'rootLocalName' => $xmlMetadata['rootLocalName'],
+            'validRoot' => $xmlMetadata['validRoot'],
+            'issues' => $xmlMetadata['issues'],
             'relationshipCount' => count($relationshipSummaries),
             'relationshipRecordCount' => count($relationshipRecords),
             'duplicateRelationshipIdCount' => count($duplicateIds),
@@ -3708,6 +3774,47 @@ final class DocxOpenXmlReader
             'duplicateRelationshipIdItems' => $duplicateItems,
             'relationships' => $relationshipSummaries,
             'relationshipRecords' => $relationshipRecords,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return array{validXml:?bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string, validRoot:?bool, issues:list<string>}
+     */
+    private function relationshipPartXmlMetadata(array $parts, string $relationshipsPart): array
+    {
+        if (!isset($parts[$relationshipsPart])) {
+            return [
+                'validXml' => null,
+                'xmlParseError' => null,
+                'rootNamespace' => null,
+                'rootLocalName' => null,
+                'validRoot' => null,
+                'issues' => [],
+            ];
+        }
+
+        $root = $this->xmlRootProvenance($parts[$relationshipsPart], $relationshipsPart);
+        if ($root['validXml'] === false) {
+            return [
+                'validXml' => false,
+                'xmlParseError' => $root['xmlParseError'],
+                'rootNamespace' => null,
+                'rootLocalName' => null,
+                'validRoot' => false,
+                'issues' => ['invalid-relationship-part-xml'],
+            ];
+        }
+
+        $validRoot = $root['namespace'] === self::NS_REL && $root['localName'] === 'Relationships';
+
+        return [
+            'validXml' => true,
+            'xmlParseError' => null,
+            'rootNamespace' => $root['namespace'],
+            'rootLocalName' => $root['localName'],
+            'validRoot' => $validRoot,
+            'issues' => $validRoot ? [] : ['unexpected-relationship-part-root'],
         ];
     }
 
@@ -3875,7 +3982,7 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            foreach ($this->readRelationshipsPart($parts, $relationshipPart) as $relationship) {
+            foreach ($this->readRelationshipsPartForProvenance($parts, $relationshipPart) as $relationship) {
                 if ($this->isExternalRelationshipTarget($relationship)) {
                     continue;
                 }

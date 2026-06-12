@@ -593,6 +593,48 @@ XML;
         $t->same(true, $orphanLink['external']);
         $t->same(null, $orphanLink['targetPart']);
     },
+    'reports malformed docx relationship sidecars without aborting package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/header-malformed.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/_rels/header-malformed.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rBrokenImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/broken.png">
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/header-malformed.xml.rels'];
+        $inventory = $package['parts']['word/_rels/header-malformed.xml.rels'];
+
+        $t->same('document', $document->type);
+        $t->same('word/header-malformed.xml', $relationshipPart['sourcePart']);
+        $t->same(true, $relationshipPart['sourceExists']);
+        $t->same(true, $relationshipPart['exists']);
+        $t->same(false, $relationshipPart['validXml']);
+        $t->same(false, $relationshipPart['validRoot']);
+        $t->same(null, $relationshipPart['rootNamespace']);
+        $t->same(null, $relationshipPart['rootLocalName']);
+        $t->same(['invalid-relationship-part-xml'], $relationshipPart['issues']);
+        $t->true(is_string($relationshipPart['xmlParseError']) && $relationshipPart['xmlParseError'] !== '', 'malformed relationship sidecar should retain the parser diagnostic');
+        $t->same(0, $relationshipPart['relationshipCount']);
+        $t->same(0, $relationshipPart['relationshipRecordCount']);
+        $t->same([], $relationshipPart['relationships']);
+        $t->same([], $relationshipPart['relationshipRecords']);
+
+        $t->same(1, $summary['relationshipPartIssueCount']);
+        $t->same(1, $summary['relationshipPartInvalidXmlCount']);
+        $t->same(0, $summary['relationshipPartInvalidRootCount']);
+        $t->same(['word/_rels/header-malformed.xml.rels'], $summary['relationshipPartsWithIssues']);
+        $t->same(1, $summary['relationshipPartIssueCounts']['invalid-relationship-part-xml']);
+        $t->same('word/_rels/header-malformed.xml.rels', $summary['relationshipPartIssues'][0]['relationshipsPart']);
+        $t->same(['invalid-relationship-part-xml'], $summary['relationshipPartIssues'][0]['issues']);
+
+        $t->same('word/header-malformed.xml', $inventory['relationshipSourcePart']);
+        $t->same(true, $inventory['relationshipSourceExists']);
+        $t->true(in_array('relationship-part', $inventory['roles'], true), 'malformed sidecar should stay in package inventory');
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
