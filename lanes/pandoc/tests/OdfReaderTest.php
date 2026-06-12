@@ -9326,7 +9326,7 @@ XML;
         $t->same(1, $packageProvenance['embeddedObjectPackageCount']);
         $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Pictures/']['roles']);
         $t->same(['zip-directory', 'embedded-object-root', 'manifest-declared'], $packageProvenance['parts']['Object 1/']['roles']);
-        $t->same(['zip-directory', 'manifest-declared'], $packageProvenance['parts']['Configurations2/']['roles']);
+        $t->same(['configuration-package', 'zip-directory', 'manifest-declared'], $packageProvenance['parts']['Configurations2/']['roles']);
         $t->same($manifestReport['directoryItems'], array_values(array_filter(
             $result['document']->attr('manifest')['items'],
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
@@ -10545,6 +10545,69 @@ XML;
         $t->same(false, $inventory['Thumbnails/thumbnail.png']['declaredInManifest']);
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'reports ODT configuration package sidecars without document media byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
+        $configIconBytes = 'CONFIGPNG';
+        $statusbarXml = '<statusbar:statusbar xmlns:statusbar="http://openoffice.org/2001/statusbar"/>';
+        $configurationEntries =
+            '  <manifest:file-entry manifest:full-path="Configurations2/" manifest:media-type=""/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml" manifest:size="' . strlen($acceleratorXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/images/Bitmaps/review.png" manifest:media-type="image/png" manifest:size="' . strlen($configIconBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Configurations2/toolbar/missing.xml" manifest:media-type="text/xml"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $configurationEntries . '</manifest:manifest>', $manifestXml);
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            overrideManifestXml: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/images/Bitmaps/review.png', 'data' => $configIconBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/statusbar/standardbar.xml', 'data' => $statusbarXml, 'compressionMethod' => 0],
+            ],
+        ));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(4, $provenance['configurationPackagePartCount']);
+        $t->same(4, $provenance['roleCounts']['configuration-package']);
+        $t->same(1, $provenance['undeclaredRoleCounts']['configuration-package']);
+        $t->same(['configuration-package', 'zip-directory', 'manifest-declared'], $parts['Configurations2/']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/accelerator/current.xml']['roles']);
+        $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/images/Bitmaps/review.png']['roles']);
+        $t->same(['configuration-package', 'undeclared-package-entry'], $parts['Configurations2/statusbar/standardbar.xml']['roles']);
+
+        $accelerator = $manifestByPart['Configurations2/accelerator/current.xml'];
+        $t->same(true, $accelerator['configurationPackagePart']);
+        $t->same(false, $accelerator['canExposeBytes']);
+        $t->same(null, $accelerator['byteLength']);
+        $t->same(strlen($acceleratorXml), $accelerator['storedByteLength']);
+        $t->same(null, $accelerator['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
+        $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
+
+        $configIcon = $manifestByPart['Configurations2/images/Bitmaps/review.png'];
+        $t->same(true, $configIcon['configurationPackagePart']);
+        $t->same(false, $configIcon['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $configIcon['byteExposurePolicy']);
+        $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
+
+        $missing = $manifestByPart['Configurations2/toolbar/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same('configuration-package-bytes-blocked', $missing['byteExposurePolicy']);
+        $t->same(['Configurations2/toolbar/missing.xml'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
+
+        $t->same(false, $parts['Configurations2/accelerator/current.xml']['canExposeBytes']);
+        $t->same(false, $parts['Configurations2/images/Bitmaps/review.png']['canExposeBytes']);
+        $t->same(true, $parts['Configurations2/statusbar/standardbar.xml']['undeclared']);
     },
     'reports ODT embedded object package provenance without exposing payload bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $chartContent = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body/></office:document-content>';

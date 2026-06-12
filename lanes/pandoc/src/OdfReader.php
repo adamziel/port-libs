@@ -468,10 +468,12 @@ final class OdfReader
                 && $declaredSize !== $storedByteLength;
 
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
+            $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
             $fontPackagePart = is_string($part) && $this->isFontPackagePart($part, $mediaType);
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$scriptPackagePart
+                && !$configurationPackagePart
                 && !$fontPackagePart
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
@@ -482,6 +484,7 @@ final class OdfReader
                 $isDirectory,
                 $encrypted,
                 $scriptPackagePart,
+                $configurationPackagePart,
                 $fontPackagePart,
                 $missingFileMediaType,
                 $hasSupportedCompression
@@ -514,6 +517,7 @@ final class OdfReader
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
+                'configurationPackagePart' => $configurationPackagePart,
                 'fontPackagePart' => $fontPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -718,6 +722,7 @@ final class OdfReader
         bool $isDirectory,
         bool $encrypted,
         bool $scriptPackagePart,
+        bool $configurationPackagePart,
         bool $fontPackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
@@ -733,6 +738,9 @@ final class OdfReader
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($configurationPackagePart) {
+            return 'configuration-package-bytes-blocked';
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
@@ -774,6 +782,7 @@ final class OdfReader
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $configurationPackagePartCount = 0;
         $packageFontPartCount = 0;
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
@@ -888,6 +897,7 @@ final class OdfReader
                 'manifestEncryptionIssueCodes' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
                     ? ($manifestItem['encryption']['issueCodes'] ?? [])
                     : [],
+                'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'fontPackagePart' => is_array($manifestItem) && ($manifestItem['fontPackagePart'] ?? false) === true,
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
@@ -912,6 +922,9 @@ final class OdfReader
             }
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
+            }
+            if (in_array('configuration-package', $roles, true)) {
+                ++$configurationPackagePartCount;
             }
             if (in_array('font-package', $roles, true)) {
                 ++$packageFontPartCount;
@@ -955,6 +968,7 @@ final class OdfReader
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'configurationPackagePartCount' => $configurationPackagePartCount,
             'packageFontPartCount' => $packageFontPartCount,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
             'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
@@ -1253,6 +1267,9 @@ final class OdfReader
         if ($this->isSignaturePartName($entry->name)) {
             $roles[] = 'package-signature';
         }
+        if (self::isConfigurationPackagePartName($entry->name)) {
+            $roles[] = 'configuration-package';
+        }
         if ($this->isFontPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null)) {
             $roles[] = 'font-package';
         }
@@ -1273,7 +1290,11 @@ final class OdfReader
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
             $part = (string) ($manifestItem['part'] ?? '');
-            if (!$entry->isDirectory() && !str_ends_with($part, '/') && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))) {
+            if (!$entry->isDirectory()
+                && !str_ends_with($part, '/')
+                && !self::isConfigurationPackagePartName($part)
+                && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))
+            ) {
                 $roles[] = 'media-resource';
             }
             if ($this->isScriptPackagePartName($part)) {
@@ -12186,6 +12207,11 @@ final class OdfReader
             || str_starts_with($normalized, 'scripts/');
     }
 
+    private static function isConfigurationPackagePartName(string $part): bool
+    {
+        return str_starts_with(strtolower(ltrim($part, '/')), 'configurations2/');
+    }
+
     private function scriptPartKind(string $part, string $mediaType): string
     {
         $normalized = strtolower(ltrim($part, '/'));
@@ -12380,6 +12406,9 @@ final class OdfReader
                 continue;
             }
             if ($this->isScriptPackagePartName($part)) {
+                continue;
+            }
+            if (self::isConfigurationPackagePartName($part)) {
                 continue;
             }
             if ($this->isThumbnailPackagePartName($part)) {
