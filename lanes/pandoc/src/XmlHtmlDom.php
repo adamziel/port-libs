@@ -768,6 +768,9 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (in_array($name, ['dl', 'dt', 'dd'], true)) {
+            $summary += self::definitionListSummary($node, $name);
+        }
         if (self::isHtmlHeadingElementName($name)) {
             $summary += self::headingSummary($node, $name);
         }
@@ -1958,6 +1961,97 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function definitionListSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'dt') {
+            return [
+                'definitionListPart' => 'term',
+                'termText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'dd') {
+            return [
+                'definitionListPart' => 'definition',
+                'definitionText' => self::normalizedText($element),
+            ];
+        }
+
+        $items = self::definitionListItems($element);
+        $terms = [];
+        $definitions = [];
+        foreach ($items as $item) {
+            array_push($terms, ...$item['terms']);
+            array_push($definitions, ...$item['definitions']);
+        }
+
+        return [
+            'definitionList' => 'dl',
+            'termCount' => count($terms),
+            'definitionCount' => count($definitions),
+            'itemCount' => count($items),
+            'terms' => $terms,
+            'definitions' => $definitions,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return list<array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int}>
+     */
+    private static function definitionListItems(\DOMElement $definitionList): array
+    {
+        $items = [];
+        $terms = [];
+        $definitions = [];
+
+        foreach ($definitionList->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower(self::htmlElementName($child));
+            if ($name === 'dt') {
+                if ($definitions !== []) {
+                    $items[] = self::definitionListItemSummary($terms, $definitions);
+                    $terms = [];
+                    $definitions = [];
+                }
+
+                $terms[] = self::normalizedText($child);
+                continue;
+            }
+
+            if ($name === 'dd') {
+                $definitions[] = self::normalizedText($child);
+            }
+        }
+
+        if ($terms !== [] || $definitions !== []) {
+            $items[] = self::definitionListItemSummary($terms, $definitions);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $terms
+     * @param list<string> $definitions
+     * @return array{terms:list<string>, definitions:list<string>, termCount:int, definitionCount:int}
+     */
+    private static function definitionListItemSummary(array $terms, array $definitions): array
+    {
+        return [
+            'terms' => $terms,
+            'definitions' => $definitions,
+            'termCount' => count($terms),
+            'definitionCount' => count($definitions),
+        ];
     }
 
     /**
