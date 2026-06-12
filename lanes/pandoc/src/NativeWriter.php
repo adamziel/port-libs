@@ -1023,7 +1023,7 @@ final class NativeWriter
                 'c' => [
                     $this->attrTuple($node),
                     $this->inlines($node->children),
-                    [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
+                    $this->targetTuple($node),
                 ],
             ]],
             'image' => [[
@@ -1031,7 +1031,7 @@ final class NativeWriter
                 'c' => [
                     $this->attrTuple($node),
                     $this->inlines($this->imageLabelInlines($node)),
-                    [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
+                    $this->targetTuple($node),
                 ],
             ]],
             'note' => [[
@@ -1888,6 +1888,27 @@ final class NativeWriter
         }
 
         return is_int($content) && $content === $integer ? $tagged : null;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function targetTuple(AstNode $node): array
+    {
+        $url = (string) $node->attr('url', '');
+        $title = (string) $node->attr('title', '');
+        $native = $node->attr('targetNative');
+        if (
+            is_array($native)
+            && array_is_list($native)
+            && count($native) >= 2
+            && $native[0] === $url
+            && $native[1] === $title
+        ) {
+            return $native;
+        }
+
+        return [$url, $title];
     }
 
     private function rawFormat(AstNode $node): string

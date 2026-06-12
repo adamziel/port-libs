@@ -2265,6 +2265,82 @@ return [
         $t->same($linkTarget, $nativePacket['blocks'][0]['c'][0]['c'][2]);
         $t->same($imageTarget, $nativePacket['blocks'][0]['c'][2]['c'][2]);
     },
+    'preserves target tuple sidecars when rebuilding link and image constructors' => static function (TestRunner $t): void {
+        $linkTarget = [
+            'https://example.test/source?x=1#review',
+            'Source title',
+            ['reviewQueue' => 'link-target', 'sourceOrdinal' => 11],
+        ];
+        $imageTarget = [
+            'media/cover.png',
+            'Cover title',
+            ['reviewQueue' => 'image-target', 'sourceOrdinal' => 12],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        ['source-link', ['review-link'], [['data-origin', 'json']]],
+                        [['t' => 'Str', 'c' => 'source']],
+                        $linkTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['cover-image', ['review-image'], [['data-origin', 'asset']]],
+                        [['t' => 'Str', 'c' => 'Cover']],
+                        $imageTarget,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $link = $document->children[0]->children[0];
+            $image = $document->children[0]->children[2];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($link->attrs, ['id' => 'edited-link']), $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($image->attrs, ['classes' => ['edited-image']]), $image->children),
+                ]),
+            ]);
+
+            $t->same($linkTarget, $link->attr('targetNative'), "{$source} link preserves target tuple sidecar on read");
+            $t->same($imageTarget, $image->attr('targetNative'), "{$source} image preserves target tuple sidecar on read");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedLink = $encoded['blocks'][0]['c'][0];
+                $encodedImage = $encoded['blocks'][0]['c'][2];
+
+                $t->same('edited-link', $encodedLink['c'][0][0], "{$source} {$writer} writer regenerates edited link attr");
+                $t->same(['edited-image'], $encodedImage['c'][0][1], "{$source} {$writer} writer regenerates edited image attr");
+                $t->same($linkTarget, $encodedLink['c'][2], "{$source} {$writer} writer preserves link target tuple sidecar");
+                $t->same($imageTarget, $encodedImage['c'][2], "{$source} {$writer} writer preserves image target tuple sidecar");
+            }
+
+            $editedTarget = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($link->attrs, ['url' => 'https://example.test/edited']), $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($image->attrs, ['title' => 'Edited title']), $image->children),
+                ]),
+            ]);
+            $editedJson = (new PandocJsonWriter())->toArray($editedTarget);
+
+            $t->same(['https://example.test/edited', 'Source title'], $editedJson['blocks'][0]['c'][0]['c'][2], "{$source} edited link target drops stale sidecar");
+            $t->same(['media/cover.png', 'Edited title'], $editedJson['blocks'][0]['c'][2]['c'][2], "{$source} edited image target drops stale sidecar");
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
