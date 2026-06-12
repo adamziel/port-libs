@@ -13623,6 +13623,100 @@ XML;
         $t->same(true, $relationshipsById['rIdEncrypted']['sourceAllowed']);
         $t->same([], $relationshipsById['rIdEncrypted']['issues']);
     },
+    'reports DOCX encrypted package relationship boundaries without decrypting payloads' => static function (TestRunner $t): void {
+        $encryptedBytes = 'opaque encrypted package bytes';
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdEncryptedPackage" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage"/>
+  <Relationship Id="rIdExternalEncryptedPackage" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="https://example.test/encrypted.docx" TargetMode="External"/>
+</Relationships>
+XML;
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNestedEncryptedPackage" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="encrypted-review.bin"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Encrypted package boundary packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'EncryptedPackage', 'data' => $encryptedBytes],
+            ['name' => 'word/encrypted-review.bin', 'data' => 'not an encrypted package'],
+        ]));
+        $metadata = $result['metadata']['docxEncryptedPackages'];
+        $report = $result['importReport']['encryptedPackages'];
+        $itemsById = [];
+        foreach ($report['items'] as $item) {
+            $itemsById[$item['id']] = $item;
+        }
+
+        $t->same($metadata, $report);
+        $t->same('Encrypted package boundary packet.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same(3, $report['count']);
+        $t->same(2, $report['presentCount']);
+        $t->same(0, $report['missingCount']);
+        $t->same(1, $report['externalCount']);
+        $t->same(2, $report['invalidCount']);
+        $t->same(2, $report['issueCount']);
+        $t->same([
+            'encrypted-package-source-not-package-root',
+            'external-encrypted-package-target',
+            'invalid-encrypted-package-content-type',
+        ], $report['issueCodes']);
+
+        $encrypted = $itemsById['rIdEncryptedPackage'];
+        $t->same('/', $encrypted['source']);
+        $t->same('/EncryptedPackage', $encrypted['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $encrypted['contentType']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $encrypted['expectedContentType']);
+        $t->same(true, $encrypted['sourceAllowed']);
+        $t->same(false, $encrypted['external']);
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['valid']);
+        $t->same(strlen($encryptedBytes), $encrypted['byteLength']);
+        $t->same(sprintf('%08x', crc32($encryptedBytes)), $encrypted['crc32']);
+        $t->true(is_int($encrypted['storedByteLength']), 'Encrypted package stored byte length should be recorded');
+        $t->same(sprintf('%08x', crc32($encryptedBytes)), $encrypted['storedCrc32']);
+        $t->same(false, $encrypted['canDecrypt']);
+        $t->same(false, $encrypted['canExposeAsDocumentContent']);
+        $t->same('encrypted-package-boundary', $encrypted['reviewPolicy']);
+        $t->same('encrypted-package-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same([], $encrypted['issues']);
+
+        $external = $itemsById['rIdExternalEncryptedPackage'];
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(false, $external['valid']);
+        $t->same(['external-encrypted-package-target'], $external['issues']);
+
+        $nested = $itemsById['rIdNestedEncryptedPackage'];
+        $t->same('/word/document.xml', $nested['source']);
+        $t->same('/word/encrypted-review.bin', $nested['targetPart']);
+        $t->same(false, $nested['sourceAllowed']);
+        $t->same('application/octet-stream', $nested['contentType']);
+        $t->same(false, $nested['valid']);
+        $t->same([
+            'encrypted-package-source-not-package-root',
+            'invalid-encrypted-package-content-type',
+        ], $nested['issues']);
+    },
     'surfaces invalid DOCX package-root relationship role summary in metadata' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -239,6 +239,7 @@ final class DocxReader
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
         $packageRelationships = $graph->preflightRelationshipRoleTargets('/');
         $packageThumbnails = $this->packageThumbnailMetadata($package, $packageRelationships);
+        $encryptedPackages = $this->encryptedPackageMetadata($package, $graph->preflightEncryptedPackages());
         $customXmlStore = $this->readCustomXmlStore($package, $graph);
         $this->currentCustomXmlPartsByStoreItemId = $customXmlStore['lookupByStoreItemID'] ?? [];
         $this->currentCustomXmlStoreItems = $customXmlStore['items'] ?? [];
@@ -296,6 +297,9 @@ final class DocxReader
         if ($packageThumbnails['count'] > 0) {
             $metadata['docxPackageThumbnails'] = $packageThumbnails;
         }
+        if ($encryptedPackages['count'] > 0) {
+            $metadata['docxEncryptedPackages'] = $encryptedPackages;
+        }
         if ($embeddedObjects['count'] > 0) {
             $metadata['docxEmbeddedObjects'] = $embeddedObjects;
         }
@@ -344,6 +348,7 @@ final class DocxReader
                 $glossary,
                 $packageRelationships,
                 $packageThumbnails,
+                $encryptedPackages,
                 $customXmlStore,
             ),
         ];
@@ -386,6 +391,7 @@ final class DocxReader
      * @param array<string, mixed> $glossary
      * @param array<string, mixed> $packageRelationships
      * @param array<string, mixed> $packageThumbnails
+     * @param array<string, mixed> $encryptedPackages
      * @param array<string, mixed> $customXmlStore
      * @return array<string, mixed>
      */
@@ -411,6 +417,7 @@ final class DocxReader
         array $glossary,
         array $packageRelationships,
         array $packageThumbnails,
+        array $encryptedPackages,
         array $customXmlStore
     ): array {
         $relationshipIssues = [];
@@ -458,6 +465,7 @@ final class DocxReader
             'glossary' => $glossary,
             'packageRelationships' => $packageRelationships,
             'packageThumbnails' => $packageThumbnails,
+            'encryptedPackages' => $encryptedPackages,
             'customXmlStore' => [
                 'count' => $customXmlStore['count'] ?? 0,
                 'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'] ?? 0,
@@ -474,6 +482,84 @@ final class DocxReader
                 'count' => count($document->attr('sectionProperties', [])),
                 'items' => $document->attr('sectionProperties', []),
             ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $encryptedPackages
+     * @return array{count:int, presentCount:int, missingCount:int, externalCount:int, invalidCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     */
+    private function encryptedPackageMetadata(ZipPackage $package, array $encryptedPackages): array
+    {
+        $items = [];
+        $issueCodes = [];
+
+        foreach ($encryptedPackages as $relationship) {
+            if (!is_array($relationship)) {
+                continue;
+            }
+
+            $targetPart = isset($relationship['targetPart']) && is_string($relationship['targetPart'])
+                ? $relationship['targetPart']
+                : null;
+            $exists = isset($relationship['exists']) && is_bool($relationship['exists']) ? $relationship['exists'] : null;
+            $issues = array_values(array_filter(
+                $relationship['issues'] ?? [],
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+            ));
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $entry = null;
+            if ($targetPart !== null && $exists === true) {
+                $entry = $package->entry($targetPart);
+            }
+
+            $items[] = [
+                'source' => isset($relationship['source']) && is_string($relationship['source']) ? $relationship['source'] : null,
+                'id' => isset($relationship['id']) && is_string($relationship['id']) ? $relationship['id'] : null,
+                'role' => isset($relationship['role']) && is_string($relationship['role']) ? $relationship['role'] : 'encrypted-package',
+                'type' => isset($relationship['type']) && is_string($relationship['type']) ? $relationship['type'] : null,
+                'target' => isset($relationship['target']) && is_string($relationship['target']) ? $relationship['target'] : null,
+                'targetPart' => $targetPart,
+                'contentType' => isset($relationship['contentType']) && is_string($relationship['contentType']) ? $relationship['contentType'] : null,
+                'expectedSource' => isset($relationship['expectedSource']) && is_string($relationship['expectedSource']) ? $relationship['expectedSource'] : '/',
+                'sourceAllowed' => isset($relationship['sourceAllowed']) && is_bool($relationship['sourceAllowed']) ? $relationship['sourceAllowed'] : null,
+                'expectedContentType' => isset($relationship['expectedContentType']) && is_string($relationship['expectedContentType']) ? $relationship['expectedContentType'] : 'application/vnd.openxmlformats-package.encrypted-package',
+                'expectedExternal' => isset($relationship['expectedExternal']) && is_bool($relationship['expectedExternal']) ? $relationship['expectedExternal'] : false,
+                'external' => isset($relationship['external']) && is_bool($relationship['external']) ? $relationship['external'] : null,
+                'exists' => $exists,
+                'valid' => isset($relationship['valid']) && is_bool($relationship['valid']) ? $relationship['valid'] : false,
+                'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'canDecrypt' => false,
+                'canExposeAsDocumentContent' => false,
+                'reviewPolicy' => 'encrypted-package-boundary',
+                'byteExposurePolicy' => 'encrypted-package-bytes-blocked',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'presentCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidCount' => count(array_filter($items, static fn (array $item): bool => $item['valid'] !== true)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
         ];
     }
 
