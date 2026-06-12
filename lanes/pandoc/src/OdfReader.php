@@ -451,7 +451,7 @@ final class OdfReader
             $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
-            $hasSupportedCompression = $compressionMethod === 0 || $compressionMethod === 8;
+            $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
             $missingFileMediaType = $mediaType === '' && is_string($part) && $part !== '' && !$isDirectory;
             $diagnostics = $missingFileMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
             $declaredSizeMismatch = !$encrypted
@@ -466,6 +466,15 @@ final class OdfReader
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
+            $byteExposurePolicy = self::byteExposurePolicy(
+                $part,
+                $exists,
+                $isDirectory,
+                $encrypted,
+                $scriptPackagePart,
+                $missingFileMediaType,
+                $hasSupportedCompression
+            );
             $item = [
                 'manifestIndex' => $manifestIndex,
                 'fullPath' => $fullPath,
@@ -495,6 +504,7 @@ final class OdfReader
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'encryption' => $encrypted ? $this->encryptionRecords($encryptionElements) : null,
             ];
             if ($diagnostics !== []) {
@@ -690,6 +700,37 @@ final class OdfReader
         };
     }
 
+    private static function byteExposurePolicy(
+        ?string $part,
+        bool $exists,
+        bool $isDirectory,
+        bool $encrypted,
+        bool $scriptPackagePart,
+        bool $missingFileMediaType,
+        bool $hasSupportedCompression
+    ): string {
+        if ($part === null) {
+            return 'package-root-no-bytes';
+        }
+        if ($isDirectory) {
+            return 'directory-entry-no-bytes';
+        }
+        if ($encrypted) {
+            return 'encrypted-resource-bytes-blocked';
+        }
+        if ($scriptPackagePart) {
+            return 'script-package-bytes-blocked';
+        }
+        if ($missingFileMediaType) {
+            return 'missing-media-type-bytes-blocked';
+        }
+        if (!$hasSupportedCompression) {
+            return 'unsupported-compression-bytes-blocked';
+        }
+
+        return $exists ? 'package-bytes-exposable' : 'missing-package-part';
+    }
+
     /**
      * @param list<array<string, mixed>> $manifest
      * @param list<array<string, mixed>> $undeclaredEntries
@@ -725,6 +766,7 @@ final class OdfReader
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
             if (is_string($part) && $part !== '') {
@@ -743,6 +785,7 @@ final class OdfReader
                     'isDirectory' => ($item['isDirectory'] ?? false) === true,
                     'encrypted' => ($item['encrypted'] ?? false) === true,
                     'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                    'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 ];
             }
             if (is_string($item['partQuery'] ?? null)) {
@@ -803,8 +846,16 @@ final class OdfReader
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
+                'manifestEncryption' => is_array($manifestItem) ? $manifestItem['encryption'] : null,
+                'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
+                    ? ($manifestItem['encryption']['recordCount'] ?? 0)
+                    : 0,
+                'manifestEncryptionIssueCodes' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
+                    ? ($manifestItem['encryption']['issueCodes'] ?? [])
+                    : [],
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($manifestItem) ? ($manifestItem['byteExposurePolicy'] ?? null) : null,
                 'undeclared' => $isUndeclared,
             ];
         }
@@ -12010,6 +12061,7 @@ final class OdfReader
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'encryption' => $item['encryption'] ?? null,
             ];
         }
@@ -12434,6 +12486,7 @@ final class OdfReader
                         'compressionMethod' => $compressionMethod,
                         'compressionMethodName' => $item['compressionMethodName'] ?? null,
                         'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                        'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                         'diagnostics' => $itemDiagnostics,
                     ]);
                 }
@@ -12625,6 +12678,9 @@ final class OdfReader
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'diagnostics' => ['odf-manifest-undeclared-package-entry'],
             ];
         }
 
