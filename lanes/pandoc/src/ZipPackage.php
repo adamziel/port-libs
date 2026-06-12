@@ -8030,6 +8030,8 @@ final class ZipPackage
      *     entryCountMismatchKind:?string,
      *     fileCount:int,
      *     directoryCount:int,
+     *     unknownExpansionRatioEntryCount:int,
+     *     hasUnknownExpansionRatioEntries:bool,
      *     compressedBytes:int,
      *     uncompressedBytes:int,
      *     totalsAreExact:bool,
@@ -8045,6 +8047,7 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     unknownByteCountEntries:list<array<string, mixed>>,
+     *     unknownExpansionRatioEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -8088,6 +8091,7 @@ final class ZipPackage
         $largestEntry = null;
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
+        $unknownExpansionRatioEntries = [];
 
         while ($cursor < $archive['centralDirectoryEnd']) {
             $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
@@ -8178,6 +8182,9 @@ final class ZipPackage
             } else {
                 $compressedBytes += $compressedSize;
                 $uncompressedBytes += $uncompressedSize;
+                if ($entryExpansionRatio === null) {
+                    $unknownExpansionRatioEntries[] = $entry;
+                }
                 if ($largestEntry === null || $uncompressedSize > $largestEntry['uncompressedSize']) {
                     $largestEntry = $entry;
                 }
@@ -8214,6 +8221,7 @@ final class ZipPackage
         }
 
         $hasUnknownByteCounts = $unknownByteCountEntries !== [];
+        $hasUnknownExpansionRatioEntries = $unknownExpansionRatioEntries !== [];
         $expansionRatio = $hasUnknownByteCounts ? null : self::expansionRatio($uncompressedBytes, $compressedBytes);
         $issues = [];
         if (!$archive['isSingleDisk']) {
@@ -8225,6 +8233,9 @@ final class ZipPackage
         if ($hasUnknownByteCounts) {
             $issues[] = 'central-directory-size-unknown';
         }
+        if ($hasUnknownExpansionRatioEntries && $maxExpansionRatio !== null) {
+            $issues[] = 'expansion-ratio-unknown';
+        }
         if (
             !$hasUnknownByteCounts
             && $maxTotalUncompressedBytes !== null
@@ -8232,7 +8243,7 @@ final class ZipPackage
         ) {
             $issues[] = 'total-uncompressed-size-exceeds-limit';
         }
-        if (!$hasUnknownByteCounts && $maxExpansionRatio !== null) {
+        if (!$hasUnknownByteCounts && !$hasUnknownExpansionRatioEntries && $maxExpansionRatio !== null) {
             if ($expansionRatio === null && $uncompressedBytes > 0) {
                 $issues[] = 'expansion-ratio-unknown';
             } elseif ($expansionRatio !== null && $expansionRatio > $maxExpansionRatio) {
@@ -8254,6 +8265,8 @@ final class ZipPackage
             'totalsAreExact' => !$hasUnknownByteCounts,
             'hasUnknownByteCounts' => $hasUnknownByteCounts,
             'zip64SizeSentinelEntryCount' => count($unknownByteCountEntries),
+            'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
+            'hasUnknownExpansionRatioEntries' => $hasUnknownExpansionRatioEntries,
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
@@ -8264,6 +8277,7 @@ final class ZipPackage
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'unknownByteCountEntries' => $unknownByteCountEntries,
+            'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
             'entries' => $entries,
         ];
     }
@@ -9358,6 +9372,12 @@ final class ZipPackage
      *     entryCount:int,
      *     fileCount:int,
      *     directoryCount:int,
+     *     zeroByteEntryCount:int,
+     *     zeroByteFileCount:int,
+     *     emptyDirectoryEntryCount:int,
+     *     hasZeroByteEntries:bool,
+     *     unknownExpansionRatioEntryCount:int,
+     *     hasUnknownExpansionRatioEntries:bool,
      *     compressedBytes:int,
      *     uncompressedBytes:int,
      *     storedEntryCount:int,
@@ -9365,6 +9385,8 @@ final class ZipPackage
      *     unsupportedCompressionMethodCount:int,
      *     expansionRatio:?float,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
+     *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
+     *     unknownExpansionRatioEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
      * }
      */
@@ -9383,6 +9405,7 @@ final class ZipPackage
         $largestEntry = null;
         $entrySummaries = [];
         $zeroByteEntries = [];
+        $unknownExpansionRatioEntries = [];
 
         foreach ($this->entries as $entry) {
             $isDirectory = $entry->isDirectory();
@@ -9411,6 +9434,9 @@ final class ZipPackage
                 'expansionRatio' => self::expansionRatio($entry->uncompressedSize, $entry->compressedSize),
             ];
             $entrySummaries[] = $entrySummary;
+            if ($entrySummary['expansionRatio'] === null) {
+                $unknownExpansionRatioEntries[] = $entrySummary;
+            }
 
             if ($entry->uncompressedSize === 0) {
                 $zeroByteEntryCount++;
@@ -9438,6 +9464,8 @@ final class ZipPackage
             'zeroByteFileCount' => $zeroByteFileCount,
             'emptyDirectoryEntryCount' => $emptyDirectoryEntryCount,
             'hasZeroByteEntries' => $zeroByteEntryCount > 0,
+            'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
+            'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntries !== [],
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
             'storedEntryCount' => $storedEntryCount,
@@ -9446,6 +9474,7 @@ final class ZipPackage
             'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
             'largestEntry' => $largestEntry,
             'zeroByteEntries' => $zeroByteEntries,
+            'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
             'entries' => $entrySummaries,
         ];
     }
@@ -9459,6 +9488,8 @@ final class ZipPackage
      *     zeroByteFileCount:int,
      *     emptyDirectoryEntryCount:int,
      *     hasZeroByteEntries:bool,
+     *     unknownExpansionRatioEntryCount:int,
+     *     hasUnknownExpansionRatioEntries:bool,
      *     compressedBytes:int,
      *     uncompressedBytes:int,
      *     storedEntryCount:int,
@@ -9467,6 +9498,7 @@ final class ZipPackage
      *     expansionRatio:?float,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
      *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
+     *     unknownExpansionRatioEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
      *     entries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>
      * }
      */
@@ -9488,6 +9520,17 @@ final class ZipPackage
         ) {
             throw new \RuntimeException(
                 "ZIP package expands to {$summary['uncompressedBytes']} bytes, exceeding maximum total uncompressed size {$maxTotalUncompressedBytes} bytes"
+            );
+        }
+
+        if ($maxExpansionRatio !== null && $summary['unknownExpansionRatioEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(static fn (array $entry): string => $entry['name'], $summary['unknownExpansionRatioEntries'])
+            );
+            throw new \RuntimeException(
+                'ZIP package contains entries with unknown expansion ratios that require explicit import review: '
+                . $entries
             );
         }
 
@@ -10778,7 +10821,9 @@ final class ZipPackage
             $diagnostics[] = 'total-uncompressed-size-exceeds-limit';
         }
 
-        if (
+        if ($maxExpansionRatio !== null && $size['unknownExpansionRatioEntryCount'] > 0) {
+            $diagnostics[] = 'expansion-ratio-unknown';
+        } elseif (
             $maxExpansionRatio !== null
             && $size['expansionRatio'] === null
             && $size['uncompressedBytes'] > 0

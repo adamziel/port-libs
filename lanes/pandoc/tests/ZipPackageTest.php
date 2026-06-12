@@ -9703,7 +9703,12 @@ return [
                 'localUncompressedSize' => 37,
             ],
         ]));
-        $t->same(null, $zeroCompressed->sizePreflight()['expansionRatio']);
+        $zeroCompressedSummary = $zeroCompressed->sizePreflight();
+        $t->same(null, $zeroCompressedSummary['expansionRatio']);
+        $t->same(1, $zeroCompressedSummary['unknownExpansionRatioEntryCount']);
+        $t->same(true, $zeroCompressedSummary['hasUnknownExpansionRatioEntries']);
+        $t->same('word/media/zero-compressed.bin', $zeroCompressedSummary['unknownExpansionRatioEntries'][0]['name']);
+        $t->same($zeroCompressedSummary['entries'][0], $zeroCompressedSummary['unknownExpansionRatioEntries'][0]);
         $t->throws(\RuntimeException::class, static fn (): array => $zeroCompressed->assertSizePreflight(null, 10.0));
     },
 
@@ -9827,6 +9832,9 @@ return [
         $t->same(2, $summary['storedEntryCount']);
         $t->same(1, $summary['deflatedEntryCount']);
         $t->same(0, $summary['unsupportedCompressionMethodCount']);
+        $t->same(0, $summary['unknownExpansionRatioEntryCount']);
+        $t->same(false, $summary['hasUnknownExpansionRatioEntries']);
+        $t->same([], $summary['unknownExpansionRatioEntries']);
         $t->same($totalCompressed, $summary['compressedBytes']);
         $t->same($totalUncompressed, $summary['uncompressedBytes']);
         $t->same(true, $summary['totalsAreExact']);
@@ -9852,6 +9860,73 @@ return [
         $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
+    'preflights zero compressed zip entry expansion provenance before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>zero compressed review</w:p></w:body></w:document>';
+        $zeroName = 'word/media/zero-compressed.bin';
+        $zeroUncompressedSize = 37;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => $zeroName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $zeroUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $zeroUncompressedSize,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $totalUncompressed = strlen($documentXml) + $zeroUncompressedSize;
+
+        $expectedSizeEntry = [
+            'name' => $zeroName,
+            'compressionMethod' => 12,
+            'isDirectory' => false,
+            'compressedSize' => 0,
+            'uncompressedSize' => $zeroUncompressedSize,
+            'expansionRatio' => null,
+        ];
+
+        $summary = $package->sizePreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $centralSummary = ZipPackage::centralDirectorySizePreflight($zip, null, 100.0);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, null, 100.0, 4096);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same($documentCompressed, $summary['compressedBytes']);
+        $t->same($totalUncompressed, $summary['uncompressedBytes']);
+        $t->same($totalUncompressed / $documentCompressed, $summary['expansionRatio']);
+        $t->same(1, $summary['unknownExpansionRatioEntryCount']);
+        $t->same(true, $summary['hasUnknownExpansionRatioEntries']);
+        $t->same($expectedSizeEntry, $summary['unknownExpansionRatioEntries'][0]);
+        $t->same($expectedSizeEntry, $summary['entries'][1]);
+
+        $t->same(1, $centralSummary['unknownExpansionRatioEntryCount']);
+        $t->same(true, $centralSummary['hasUnknownExpansionRatioEntries']);
+        $t->same($zeroName, $centralSummary['unknownExpansionRatioEntries'][0]['name']);
+        $t->same(0, $centralSummary['unknownExpansionRatioEntries'][0]['compressedSize']);
+        $t->same($zeroUncompressedSize, $centralSummary['unknownExpansionRatioEntries'][0]['uncompressedSize']);
+        $t->same(null, $centralSummary['unknownExpansionRatioEntries'][0]['expansionRatio']);
+        $t->same(false, $centralSummary['isSupportedByBoundedReader']);
+        $t->same(['expansion-ratio-unknown'], $centralSummary['issues']);
+
+        $t->contains('expansion-ratio-unknown', implode(',', $strict['diagnostics']));
+        $t->contains('unsupported-compression-methods', implode(',', $strict['diagnostics']));
+        $t->contains('unreadable-entries', implode(',', $strict['diagnostics']));
+        $t->same($summary, $strict['size']);
+
+        $t->contains('expansion-ratio-unknown', implode(',', $rawStrict['diagnostics']));
+        $t->same($centralSummary, $rawStrict['centralDirectorySize']);
+        $t->same($summary, $rawStrict['strictImport']['size']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertSizePreflight(null, 100.0));
     },
 
     'preflights readable zip entry payloads before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage, $corruptZipEntryPayload, $crc32): void {
