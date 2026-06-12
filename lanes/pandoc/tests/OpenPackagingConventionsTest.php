@@ -571,12 +571,85 @@ XML;
             'partName' => '/_rels/.rels',
             'role' => 'package-relationships',
             'handoffKind' => 'relationships+xml',
+            'compressionMethod' => 0,
+            'compressionMethodName' => 'stored',
             'compressedSize' => strlen($rootRelationshipsXml),
             'uncompressedSize' => strlen($rootRelationshipsXml),
         ], $summary['largestPayloadEntry']);
         $t->same('blocked', $entries['word/_rels/media/document.xml.rels']['handoffKind']);
         $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
         $t->same('directory', $entries['word/media/']['handoffKind']);
+    },
+    'summarizes OPC ZIP manifest compression provenance before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>';
+        $documentXml = str_repeat('<w:p/>', 12);
+        $documentRelationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>';
+        $imageBytes = str_repeat('PNG', 200);
+        $rawBytes = 'RAW';
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes],
+            ['name' => 'word/media/raw.bin', 'data' => $rawBytes, 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same([
+            'deflated' => 2,
+            'stored' => 4,
+        ], $summary['compressionMethodCounts']);
+        $t->same($summary['compressionMethodCounts'], $centralSummary['compressionMethodCounts']);
+        $t->same([
+            'deflated' => ['word/document.xml', 'word/media/image.png'],
+            'stored' => [
+                '[Content_Types].xml',
+                '_rels/.rels',
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+            ],
+        ], $summary['entryNamesByCompressionMethod']);
+        $t->same($summary['entryNamesByCompressionMethod'], $centralSummary['entryNamesByCompressionMethod']);
+        $t->same([
+            'binary-part' => ['stored'],
+            'content-types' => ['stored'],
+            'media' => ['deflated'],
+            'package-relationships' => ['stored'],
+            'part-relationships' => ['stored'],
+            'xml-part' => ['deflated'],
+        ], $summary['compressionMethodNamesByRole']);
+        $t->same($summary['compressionMethodNamesByRole'], $centralSummary['compressionMethodNamesByRole']);
+        $t->same([
+            'binary' => ['stored'],
+            'content-types+xml' => ['stored'],
+            'media' => ['deflated'],
+            'relationships+xml' => ['stored'],
+            'xml' => ['deflated'],
+        ], $summary['compressionMethodNamesByHandoffKind']);
+        $t->same($summary['compressionMethodNamesByHandoffKind'], $centralSummary['compressionMethodNamesByHandoffKind']);
+        $t->same('stored', $entries['_rels/.rels']['compressionMethodName']);
+        $t->same('deflated', $entries['word/document.xml']['compressionMethodName']);
+        $t->same('word/media/image.png', $summary['largestPayloadEntry']['entryName']);
+        $t->same(8, $summary['largestPayloadEntry']['compressionMethod']);
+        $t->same('deflated', $summary['largestPayloadEntry']['compressionMethodName']);
+        $t->same($summary['largestPayloadEntry'], $centralSummary['largestPayloadEntry']);
     },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

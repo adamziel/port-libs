@@ -317,6 +317,7 @@ final class OpcRelationshipGraph
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'crc32Hex' => $entry->crc32Hex(),
@@ -551,6 +552,10 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $compressionMethodCounts = [];
+        $entryNamesByCompressionMethod = [];
+        $compressionMethodNamesByRole = [];
+        $compressionMethodNamesByHandoffKind = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -642,6 +647,16 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            self::recordZipEntryManifestCompressionMethodProvenance(
+                $compressionMethodCounts,
+                $entryNamesByCompressionMethod,
+                $compressionMethodNamesByRole,
+                $compressionMethodNamesByHandoffKind,
+                $entry['compressionMethodName'],
+                $entry['entryName'],
+                $entry['role'],
+                $entry['handoffKind'],
+            );
 
             if (
                 $largestPayloadEntry === null
@@ -652,6 +667,8 @@ final class OpcRelationshipGraph
                     'partName' => $entry['partName'],
                     'role' => $entry['role'],
                     'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => $entry['compressionMethodName'],
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
                 ];
@@ -744,6 +761,12 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        self::sortZipManifestCompressionMethodProvenance(
+            $compressionMethodCounts,
+            $entryNamesByCompressionMethod,
+            $compressionMethodNamesByRole,
+            $compressionMethodNamesByHandoffKind,
+        );
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
         sort($missingContentTypeParts, SORT_STRING);
@@ -813,6 +836,10 @@ final class OpcRelationshipGraph
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
+            'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
+            'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
@@ -1006,6 +1033,10 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $compressionMethodCounts = [];
+        $entryNamesByCompressionMethod = [];
+        $compressionMethodNamesByRole = [];
+        $compressionMethodNamesByHandoffKind = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -1069,6 +1100,16 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            self::recordZipEntryManifestCompressionMethodProvenance(
+                $compressionMethodCounts,
+                $entryNamesByCompressionMethod,
+                $compressionMethodNamesByRole,
+                $compressionMethodNamesByHandoffKind,
+                $entry['compressionMethodName'],
+                $entry['entryName'],
+                $entry['role'],
+                $entry['handoffKind'],
+            );
 
             if (
                 $largestPayloadEntry === null
@@ -1079,6 +1120,8 @@ final class OpcRelationshipGraph
                     'partName' => $entry['partName'],
                     'role' => $entry['role'],
                     'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => $entry['compressionMethodName'],
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
                 ];
@@ -1152,6 +1195,12 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        self::sortZipManifestCompressionMethodProvenance(
+            $compressionMethodCounts,
+            $entryNamesByCompressionMethod,
+            $compressionMethodNamesByRole,
+            $compressionMethodNamesByHandoffKind,
+        );
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -1198,6 +1247,10 @@ final class OpcRelationshipGraph
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
+            'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
+            'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
@@ -7434,6 +7487,15 @@ final class OpcRelationshipGraph
         };
     }
 
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
+    }
+
     /**
      * @param array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}> $buckets
      */
@@ -7452,6 +7514,63 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['entryCount']++;
         $buckets[$bucket]['compressedBytes'] += $compressedSize;
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
+    }
+
+    /**
+     * @param array<string, int> $methodCounts
+     * @param array<string, list<string>> $entryNamesByMethod
+     * @param array<string, list<string>> $methodNamesByRole
+     * @param array<string, list<string>> $methodNamesByHandoffKind
+     */
+    private static function recordZipEntryManifestCompressionMethodProvenance(
+        array &$methodCounts,
+        array &$entryNamesByMethod,
+        array &$methodNamesByRole,
+        array &$methodNamesByHandoffKind,
+        string $methodName,
+        string $entryName,
+        string $role,
+        string $handoffKind
+    ): void {
+        $methodCounts[$methodName] = ($methodCounts[$methodName] ?? 0) + 1;
+        $entryNamesByMethod[$methodName] ??= [];
+        $entryNamesByMethod[$methodName][] = $entryName;
+        $methodNamesByRole[$role] ??= [];
+        self::appendUniqueString($methodNamesByRole[$role], $methodName);
+        $methodNamesByHandoffKind[$handoffKind] ??= [];
+        self::appendUniqueString($methodNamesByHandoffKind[$handoffKind], $methodName);
+    }
+
+    /**
+     * @param array<string, int> $methodCounts
+     * @param array<string, list<string>> $entryNamesByMethod
+     * @param array<string, list<string>> $methodNamesByRole
+     * @param array<string, list<string>> $methodNamesByHandoffKind
+     */
+    private static function sortZipManifestCompressionMethodProvenance(
+        array &$methodCounts,
+        array &$entryNamesByMethod,
+        array &$methodNamesByRole,
+        array &$methodNamesByHandoffKind
+    ): void {
+        ksort($methodCounts, SORT_STRING);
+        ksort($entryNamesByMethod, SORT_STRING);
+        foreach ($entryNamesByMethod as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+
+        ksort($methodNamesByRole, SORT_STRING);
+        foreach ($methodNamesByRole as &$methodNames) {
+            sort($methodNames, SORT_STRING);
+        }
+        unset($methodNames);
+
+        ksort($methodNamesByHandoffKind, SORT_STRING);
+        foreach ($methodNamesByHandoffKind as &$methodNames) {
+            sort($methodNames, SORT_STRING);
+        }
+        unset($methodNames);
     }
 
     /**
