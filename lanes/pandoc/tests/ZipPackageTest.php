@@ -10523,6 +10523,8 @@ return [
                 'dataDescriptorCompressedSize' => $commentsCompressedSize,
                 'dataDescriptorUncompressedSize' => strlen($commentsXml),
                 'dataDescriptorUsesZip64SizedFields' => false,
+                'dataDescriptorValuesMatchCentral' => true,
+                'dataDescriptorIssues' => [],
                 'localHeaderCrc32' => 0,
                 'localHeaderCompressedSize' => 0,
                 'localHeaderUncompressedSize' => 0,
@@ -10545,6 +10547,8 @@ return [
                 'dataDescriptorCompressedSize' => strlen($footnotesXml),
                 'dataDescriptorUncompressedSize' => strlen($footnotesXml),
                 'dataDescriptorUsesZip64SizedFields' => false,
+                'dataDescriptorValuesMatchCentral' => true,
+                'dataDescriptorIssues' => [],
                 'localHeaderCrc32' => 0,
                 'localHeaderCompressedSize' => 0,
                 'localHeaderUncompressedSize' => 0,
@@ -10559,6 +10563,78 @@ return [
         $t->same(null, $missingEntry['localHeaderCrc32']);
         $t->same(null, $missingEntry['hasZeroLocalHeaderPlaceholders']);
         $t->same([$documentEntry, $commentsEntry, $footnotesEntry], $summary['handoffEntries']);
+    },
+
+    'summarizes selected zip data descriptor review issues before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $commentsXml = '<w:comments><w:comment>descriptor issue rollup</w:comment></w:comments>';
+        $footnotesXml = '<w:footnotes><w:footnote>descriptor issue rollup</w:footnote></w:footnotes>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>descriptor issue-free handoff</w:p></w:body></w:document>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/footnotes.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+        ], 1024);
+
+        $t->same(2, $summary['selectedDataDescriptorEntryCount']);
+        $t->same(2, $summary['selectedDataDescriptorValuesMatchCentralEntryCount']);
+        $t->same(0, $summary['selectedDataDescriptorIssueEntryCount']);
+        $t->same([], $summary['selectedDataDescriptorIssues']);
+        $t->same([], $summary['selectedDataDescriptorIssueEntries']);
+
+        $commentsEntry = $summary['entries'][1];
+        $footnotesEntry = $summary['entries'][2];
+        $documentEntry = $summary['entries'][0];
+        $missingEntry = $summary['entries'][3];
+
+        $t->same(null, $documentEntry['dataDescriptorValuesMatchCentral']);
+        $t->same([], $documentEntry['dataDescriptorIssues']);
+        $t->same(true, $commentsEntry['dataDescriptorValuesMatchCentral']);
+        $t->same([], $commentsEntry['dataDescriptorIssues']);
+        $t->same(true, $footnotesEntry['dataDescriptorValuesMatchCentral']);
+        $t->same([], $footnotesEntry['dataDescriptorIssues']);
+        $t->same(null, $missingEntry['dataDescriptorValuesMatchCentral']);
+        $t->same([], $missingEntry['dataDescriptorIssues']);
+
+        $t->same([
+            [
+                'name' => 'word/comments.xml',
+                'dataDescriptorValuesMatchCentral' => true,
+                'dataDescriptorIssues' => [],
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'dataDescriptorValuesMatchCentral' => true,
+                'dataDescriptorIssues' => [],
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'dataDescriptorValuesMatchCentral' => $entry['dataDescriptorValuesMatchCentral'],
+                'dataDescriptorIssues' => $entry['dataDescriptorIssues'],
+            ],
+            $summary['selectedDataDescriptorProvenanceEntries']
+        ));
     },
 
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

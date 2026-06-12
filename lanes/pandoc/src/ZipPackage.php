@@ -5013,6 +5013,8 @@ final class ZipPackage
      *     selectedCommentedEntries:list<array<string, mixed>>,
      *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
+     *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
+     *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -5161,6 +5163,9 @@ final class ZipPackage
         $selectedUnsignedDataDescriptorEntryCount = 0;
         $selectedZip64SizedDataDescriptorEntryCount = 0;
         $selectedZeroLocalHeaderPlaceholderEntryCount = 0;
+        $selectedDataDescriptorValuesMatchCentralEntryCount = 0;
+        $selectedDataDescriptorIssueEntries = [];
+        $selectedDataDescriptorIssues = [];
         foreach ($selectedEntriesByName as $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
@@ -5273,9 +5278,20 @@ final class ZipPackage
                 if ($dataDescriptorProvenance['hasZeroLocalHeaderPlaceholders'] === true) {
                     $selectedZeroLocalHeaderPlaceholderEntryCount++;
                 }
+                if ($dataDescriptorProvenance['dataDescriptorValuesMatchCentral'] === true) {
+                    $selectedDataDescriptorValuesMatchCentralEntryCount++;
+                }
+                foreach ($dataDescriptorProvenance['dataDescriptorIssues'] as $descriptorIssue) {
+                    self::appendUniqueIssue($selectedDataDescriptorIssues, $descriptorIssue);
+                }
                 $selectedDataDescriptorProvenanceEntries[] = [
                     'name' => $entry->name,
                 ] + $dataDescriptorProvenance;
+                if ($dataDescriptorProvenance['dataDescriptorIssues'] !== []) {
+                    $selectedDataDescriptorIssueEntries[] = [
+                        'name' => $entry->name,
+                    ] + $dataDescriptorProvenance;
+                }
             }
         }
 
@@ -5392,6 +5408,8 @@ final class ZipPackage
                 'dataDescriptorCompressedSize' => null,
                 'dataDescriptorUncompressedSize' => null,
                 'dataDescriptorUsesZip64SizedFields' => false,
+                'dataDescriptorValuesMatchCentral' => null,
+                'dataDescriptorIssues' => [],
                 'localHeaderCrc32' => null,
                 'localHeaderCompressedSize' => null,
                 'localHeaderUncompressedSize' => null,
@@ -5572,6 +5590,9 @@ final class ZipPackage
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
             'selectedZip64SizedDataDescriptorEntryCount' => $selectedZip64SizedDataDescriptorEntryCount,
             'selectedZeroLocalHeaderPlaceholderEntryCount' => $selectedZeroLocalHeaderPlaceholderEntryCount,
+            'selectedDataDescriptorValuesMatchCentralEntryCount' => $selectedDataDescriptorValuesMatchCentralEntryCount,
+            'selectedDataDescriptorIssueEntryCount' => count($selectedDataDescriptorIssueEntries),
+            'selectedDataDescriptorIssues' => $selectedDataDescriptorIssues,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5588,6 +5609,7 @@ final class ZipPackage
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
+            'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -5613,6 +5635,8 @@ final class ZipPackage
      *     dataDescriptorCompressedSize:?int,
      *     dataDescriptorUncompressedSize:?int,
      *     dataDescriptorUsesZip64SizedFields:bool,
+     *     dataDescriptorValuesMatchCentral:?bool,
+     *     dataDescriptorIssues:list<string>,
      *     localHeaderCrc32:int,
      *     localHeaderCompressedSize:int,
      *     localHeaderUncompressedSize:int,
@@ -5638,6 +5662,8 @@ final class ZipPackage
             'dataDescriptorCompressedSize' => null,
             'dataDescriptorUncompressedSize' => null,
             'dataDescriptorUsesZip64SizedFields' => false,
+            'dataDescriptorValuesMatchCentral' => null,
+            'dataDescriptorIssues' => [],
             'localHeaderCrc32' => (int) $localHeader['crc32'],
             'localHeaderCompressedSize' => (int) $localHeader['compressedSize'],
             'localHeaderUncompressedSize' => (int) $localHeader['uncompressedSize'],
@@ -5671,6 +5697,8 @@ final class ZipPackage
         $summary['dataDescriptorCompressedSize'] = $entry->compressedSize;
         $summary['dataDescriptorUncompressedSize'] = $entry->uncompressedSize;
         $summary['dataDescriptorUsesZip64SizedFields'] = $descriptor['usesZip64SizedDescriptor'];
+        $summary['dataDescriptorValuesMatchCentral'] = $descriptor['descriptorValuesMatchCentral'];
+        $summary['dataDescriptorIssues'] = $descriptor['issues'];
 
         return $summary;
     }
@@ -14161,7 +14189,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:bool, issues:list<string>}
      */
     private function dataDescriptorMetadata(ZipPackageEntry $entry, int $offset, ?int $nextOffset = null): array
     {
@@ -14221,6 +14249,8 @@ final class ZipPackage
             'crc32' => $crc32,
             'crc32Hex' => sprintf('%08x', $crc32),
             'usesZip64SizedDescriptor' => false,
+            'descriptorValuesMatchCentral' => true,
+            'issues' => self::dataDescriptorLengthIssues($offset, $descriptorLength, $nextOffset),
         ];
     }
 
@@ -14273,7 +14303,7 @@ final class ZipPackage
 
     /**
      * @param array{crc32:int, compressedSize:int, uncompressedSize:int} $values
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:?int, descriptorSpan:?int, descriptorEnd:int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:int, crc32Hex:string, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:bool, issues:list<string>}
      */
     private static function standardDataDescriptorSummary(
         int $descriptorOffset,
@@ -14298,7 +14328,24 @@ final class ZipPackage
             'crc32' => $values['crc32'],
             'crc32Hex' => sprintf('%08x', $values['crc32']),
             'usesZip64SizedDescriptor' => false,
+            'descriptorValuesMatchCentral' => true,
+            'issues' => self::dataDescriptorLengthIssues($descriptorOffset, $descriptorLength, $nextOffset),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function dataDescriptorLengthIssues(
+        int $descriptorOffset,
+        int $descriptorLength,
+        ?int $nextOffset
+    ): array {
+        if ($nextOffset === null || $nextOffset - $descriptorOffset === $descriptorLength) {
+            return [];
+        }
+
+        return ['data-descriptor-length-mismatch'];
     }
 
     /**
