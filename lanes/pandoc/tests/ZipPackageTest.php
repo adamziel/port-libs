@@ -941,6 +941,73 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
     },
 
+    'summarizes zip local header span byte buckets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>span byte bucket document</w:p></w:document>';
+        $commentsXml = '<w:comments><w:comment>span descriptor bucket</w:comment></w:comments>';
+        $storedNote = "stored span bucket note\n";
+        $hiddenSlack = 'hidden-local-span-slack';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localSlack' => $hiddenSlack,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $storedNote,
+                'method' => 0,
+            ],
+        ]);
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
+        $commentsCompressedBytes = strlen(gzdeflate($commentsXml));
+        $localHeaderBytes = (30 + strlen('word/document.xml'))
+            + (30 + strlen('word/comments.xml'))
+            + (30 + strlen('word/media/review.txt'));
+        $compressedDataBytes = $documentCompressedBytes + $commentsCompressedBytes + strlen($storedNote);
+        $descriptorBytes = 16;
+
+        $summary = ZipPackage::localHeaderSpanPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $descriptorEntry = $summary['entries'][1];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['totalEntryCount']);
+        $t->same(3, $summary['availableLocalHeaderEntryCount']);
+        $t->same($localHeaderBytes, $summary['localHeaderBytes']);
+        $t->same($compressedDataBytes, $summary['compressedDataBytes']);
+        $t->same($descriptorBytes, $summary['dataDescriptorBytes']);
+        $t->same($localHeaderBytes + $compressedDataBytes + $descriptorBytes, $summary['claimedRecordBytes']);
+        $t->same(strlen($hiddenSlack), $summary['unclaimedBytes']);
+        $t->same(1, $summary['unclaimedByteEntryCount']);
+        $t->same(2, $summary['contiguousEntryCount']);
+        $t->same(1, $summary['issueEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['local-entry-unclaimed-bytes', 'data-descriptor-length-mismatch'], $summary['issues']);
+
+        $t->same('word/comments.xml', $descriptorEntry['name']);
+        $t->same(true, $descriptorEntry['usesDataDescriptor']);
+        $t->same($descriptorBytes, $descriptorEntry['descriptorLength']);
+        $t->same(strlen($hiddenSlack), $descriptorEntry['unclaimedBytes']);
+        $t->same(false, $descriptorEntry['isContiguousWithNext']);
+        $t->same(['local-entry-unclaimed-bytes', 'data-descriptor-length-mismatch'], $descriptorEntry['issues']);
+
+        $t->same(false, $rawPreflight['isValid']);
+        $t->same(false, $rawPreflight['canInstantiate']);
+        $t->same($summary, $rawPreflight['localHeaderSpans']);
+        $t->contains('local-header-span-issues', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('data-descriptor-length-mismatch', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('data-descriptor-entries', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
+    },
+
     'preflights zip package byte layout before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentName = 'word/document.xml';
         $mediaName = 'word/media/review.txt';
