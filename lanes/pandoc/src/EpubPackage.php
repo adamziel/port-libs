@@ -63,6 +63,12 @@ final class EpubPackage
         'switch' => 'switch',
     ];
     private const OCF_PACKAGE_SIDECARS = [
+        'metadata' => [
+            'partName' => '/META-INF/metadata.xml',
+            'expectedRootName' => 'metadata',
+            'expectedRootNamespace' => self::EPUB_METADATA_NAMESPACE,
+            'reviewPolicy' => 'ocf-metadata-sidecar-review',
+        ],
         'manifest' => [
             'partName' => '/META-INF/manifest.xml',
             'expectedRootName' => 'manifest',
@@ -1956,15 +1962,17 @@ final class EpubPackage
 
             $entry = $package->entry($partName);
             $provenance = self::zipEntryProvenance($entry);
+            $expectedRootNamespace = is_string($definition['expectedRootNamespace'] ?? null)
+                ? $definition['expectedRootNamespace']
+                : self::OCF_CONTAINER_NAMESPACE;
             $itemDiagnostics = [];
-            $expectedRootNamespace = (string) $definition['expectedRootNamespace'];
             $rootReport = ($provenance['compressionSupported'] ?? false) === true
                 ? self::ocfSidecarRootReport(
                     $package,
                     $kind,
                     $partName,
                     (string) $definition['expectedRootName'],
-                    $expectedRootNamespace,
+                    $expectedRootNamespace
                 )
                 : self::emptyOcfSidecarRootReport();
             $manifestReport = $kind === 'manifest'
@@ -2017,6 +2025,7 @@ final class EpubPackage
             'present' => $items !== [],
             'sidecarCount' => count($items),
             'count' => count($items),
+            'metadataPresent' => isset($itemsByKind['metadata']),
             'manifestPresent' => isset($itemsByKind['manifest']),
             'rightsPresent' => isset($itemsByKind['rights']),
             'signaturesPresent' => isset($itemsByKind['signatures']),
