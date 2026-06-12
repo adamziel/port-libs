@@ -1912,6 +1912,76 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans separated typst dependency stdout boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/deps-stdout-separated.pdf',
+            'source' => '= Typst Dependency Stdout Separated Packet',
+            'engineOptions' => [
+                '--deps',
+                '-',
+                '--deps-format',
+                'json',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst separated dependency stdout boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['dependency-output-stdout-boundary'],
+            'dependencyOutput' => [
+                'file' => [
+                    'raw' => '-',
+                    'path' => '-',
+                    'kind' => 'stdout',
+                    'safe' => false,
+                    'issues' => ['dependency-output-stdout-boundary'],
+                ],
+                'format' => [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'makeCompatible' => false,
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => ['dependency-output-stdout-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/deps-stdout-separated.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/deps-stdout-separated.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(null, $plan['engineDependencyFile']);
+        $t->same([], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:-', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-format:json', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

@@ -5479,7 +5479,7 @@ final class PdfEngineHandoff
             return null;
         }
 
-        $values = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true);
+        $values = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true, true);
         if ($values === []) {
             return null;
         }
@@ -5788,7 +5788,12 @@ final class PdfEngineHandoff
      * @param list<string> $names
      * @return list<string>
      */
-    private function engineOptionValues(array $engineOptions, array $names, bool $preserveMissing = false): array
+    private function engineOptionValues(
+        array $engineOptions,
+        array $names,
+        bool $preserveMissing = false,
+        bool $allowSingleDashValue = false
+    ): array
     {
         $values = [];
         $count = count($engineOptions);
@@ -5796,12 +5801,14 @@ final class PdfEngineHandoff
             $option = trim($option);
             foreach ($names as $name) {
                 if ($option === $name) {
+                    $next = $engineOptions[$index + 1] ?? null;
                     if (
                         $index + 1 < $count
-                        && $engineOptions[$index + 1] !== ''
-                        && !str_starts_with($engineOptions[$index + 1], '-')
+                        && is_string($next)
+                        && $next !== ''
+                        && ($next === '-' ? $allowSingleDashValue : !str_starts_with($next, '-'))
                     ) {
-                        $values[] = $engineOptions[$index + 1];
+                        $values[] = $next;
                         continue;
                     }
                     if ($preserveMissing) {
@@ -5956,7 +5963,7 @@ final class PdfEngineHandoff
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
         $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true);
-        $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true);
+        $dependencyOutputValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true, true);
         $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings', '-t'], true);
         $diagnosticFormatValues = $this->engineOptionValues($engineOptions, ['--diagnostic-format'], true);
         $diagnosticColorValues = $this->engineOptionValues($engineOptions, ['--color'], true);
