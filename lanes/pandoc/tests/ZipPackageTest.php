@@ -789,6 +789,71 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'summarizes zip local header data descriptor aggregates for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $commentsXml = '<w:comments><w:comment>signed local descriptor aggregate</w:comment></w:comments>';
+        $footnotesXml = '<w:footnotes><w:footnote>unsigned local descriptor aggregate</w:footnote></w:footnotes>';
+        $documentXml = '<w:document><w:p>descriptor aggregate follower</w:p></w:document>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $entries = $summary['entries'];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(true, $summary['hasDataDescriptors']);
+        $t->same(2, $summary['dataDescriptorEntryCount']);
+        $t->same(1, $summary['signedDataDescriptorEntryCount']);
+        $t->same(1, $summary['unsignedDataDescriptorEntryCount']);
+        $t->same(28, $summary['dataDescriptorBytes']);
+        $t->same(['word/comments.xml', 'word/footnotes.xml'], $summary['dataDescriptorEntryNames']);
+        $t->same([$entries[0]['descriptorOffset'], $entries[1]['descriptorOffset']], $summary['dataDescriptorOffsets']);
+        $t->same(2, $summary['zeroLocalHeaderPlaceholderEntryCount']);
+        $t->same(['word/comments.xml', 'word/footnotes.xml'], $summary['zeroLocalHeaderPlaceholderEntryNames']);
+
+        $t->same(true, $entries[0]['usesDataDescriptor']);
+        $t->same(16, $entries[0]['descriptorLength']);
+        $t->same($entries[0]['compressedDataEnd'], $entries[0]['descriptorOffset']);
+        $t->same(true, $entries[0]['hasZeroLocalHeaderPlaceholders']);
+        $t->same($entries[0]['descriptorOffset'] + 16, $entries[0]['recordEnd']);
+        $t->same($entries[1]['localHeaderOffset'], $entries[0]['nextOffset']);
+
+        $t->same(true, $entries[1]['usesDataDescriptor']);
+        $t->same(12, $entries[1]['descriptorLength']);
+        $t->same($entries[1]['compressedDataEnd'], $entries[1]['descriptorOffset']);
+        $t->same(true, $entries[1]['hasZeroLocalHeaderPlaceholders']);
+        $t->same($entries[1]['descriptorOffset'] + 12, $entries[1]['recordEnd']);
+        $t->same($entries[2]['localHeaderOffset'], $entries[1]['nextOffset']);
+
+        $t->same(false, $entries[2]['usesDataDescriptor']);
+        $t->same(null, $entries[2]['descriptorOffset']);
+        $t->same(null, $entries[2]['descriptorLength']);
+        $t->same(null, $entries[2]['hasZeroLocalHeaderPlaceholders']);
+        $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaders']);
+        $t->same($summary, ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048)['strictImport']['localHeaders']);
+        $t->same($commentsXml, $package->read('/word/comments.xml'));
+        $t->same($footnotesXml, $package->read('/word/footnotes.xml'));
+        $t->same($documentXml, $package->read('/word/document.xml'));
+    },
+
     'summarizes zip local header extra field records for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentReviewExtra = pack('vva*', 0xcafe, strlen('document-review'), 'document-review');
         $documentAuditExtra = pack('vva*', 0xbeef, strlen('document-audit'), 'document-audit');

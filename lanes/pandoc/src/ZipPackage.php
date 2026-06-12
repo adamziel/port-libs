@@ -593,6 +593,14 @@ final class ZipPackage
         $localExtraFieldEntryCount = 0;
         $localExtraFieldRecordCount = 0;
         $localExtraFieldRecordIds = [];
+        $dataDescriptorEntryCount = 0;
+        $signedDataDescriptorEntryCount = 0;
+        $unsignedDataDescriptorEntryCount = 0;
+        $dataDescriptorBytes = 0;
+        $dataDescriptorOffsets = [];
+        $dataDescriptorEntryNames = [];
+        $zeroLocalHeaderPlaceholderEntryCount = 0;
+        $zeroLocalHeaderPlaceholderEntryNames = [];
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -618,6 +626,19 @@ final class ZipPackage
                 $hasZeroLocalHeaderPlaceholders = $localHeader['crc32'] === 0
                     && $localHeader['compressedSize'] === 0
                     && $localHeader['uncompressedSize'] === 0;
+                $dataDescriptorEntryCount++;
+                $dataDescriptorBytes += $descriptorLength;
+                $dataDescriptorOffsets[] = $descriptorOffset;
+                $dataDescriptorEntryNames[] = $entry->name;
+                if ($descriptor['hasSignature']) {
+                    $signedDataDescriptorEntryCount++;
+                } else {
+                    $unsignedDataDescriptorEntryCount++;
+                }
+                if ($hasZeroLocalHeaderPlaceholders) {
+                    $zeroLocalHeaderPlaceholderEntryCount++;
+                    $zeroLocalHeaderPlaceholderEntryNames[] = $entry->name;
+                }
             }
 
             $hasLocalExtraFields = $localHeader['extraFieldLength'] > 0;
@@ -709,6 +730,15 @@ final class ZipPackage
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
             'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
             'localExtraFieldRecordIds' => $localExtraFieldRecordIds,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'signedDataDescriptorEntryCount' => $signedDataDescriptorEntryCount,
+            'unsignedDataDescriptorEntryCount' => $unsignedDataDescriptorEntryCount,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'dataDescriptorOffsets' => $dataDescriptorOffsets,
+            'dataDescriptorEntryNames' => $dataDescriptorEntryNames,
+            'zeroLocalHeaderPlaceholderEntryCount' => $zeroLocalHeaderPlaceholderEntryCount,
+            'zeroLocalHeaderPlaceholderEntryNames' => $zeroLocalHeaderPlaceholderEntryNames,
+            'hasDataDescriptors' => $dataDescriptorEntryCount > 0,
             'localHeaderVariableFieldBytes' => $localVariableFieldBytes,
             'localHeaderNameBytes' => $localNameBytes,
             'localHeaderExtraFieldBytes' => $localExtraFieldBytes,
