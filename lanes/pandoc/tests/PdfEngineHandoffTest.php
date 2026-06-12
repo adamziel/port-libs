@@ -1456,6 +1456,68 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst short equals boundary option provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/short-equals-boundary.pdf',
+            'source' => '= Typst Short Equals Boundary Packet',
+            'engineOptions' => ['-j=auto', '-t=build/short-equals-timings.json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst short equals boundary packet\n%%EOF\n";
+        $timingsBytes = '{"traceEvents":[{"name":"export","args":{"file":"build/short-equals-boundary.typ","line":1}}]}';
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'executionPolicy' => [
+                'jobs' => [
+                    'raw' => 'auto',
+                    'value' => 'auto',
+                    'mode' => 'auto',
+                    'jobCount' => null,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+            'timingsOutput' => [
+                'raw' => 'build/short-equals-timings.json',
+                'path' => 'build/short-equals-timings.json',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/short-equals-boundary.pdf' => $pdfBytes,
+                'build/short-equals-timings.json' => $timingsBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/short-equals-boundary.pdf' => $pdfBytes,
+                'build/short-equals-timings.json' => $timingsBytes,
+            ],
+        ]]);
+
+        $t->same(['typst', 'compile', '-j=auto', '-t=build/short-equals-timings.json', 'build/short-equals-boundary.typ', 'build/short-equals-boundary.pdf'], $plan['argv']);
+        $t->same(['build/short-equals-timings.json'], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-execution-jobs:auto', implode(',', $plan['diagnostics']));
+        $t->contains('typst-timings-output:build/short-equals-timings.json', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same(hash('sha256', $timingsBytes), $result['producedArtifactsSha256']['build/short-equals-timings.json']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

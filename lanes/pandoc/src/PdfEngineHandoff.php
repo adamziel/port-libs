@@ -5830,7 +5830,8 @@ final class PdfEngineHandoff
                     continue;
                 }
                 if (strlen($name) === 2 && str_starts_with($name, '-') && !str_starts_with($name, '--') && str_starts_with($option, $name) && strlen($option) > 2) {
-                    $values[] = substr($option, 2);
+                    $value = substr($option, 2);
+                    $values[] = str_starts_with($value, '=') ? substr($value, 1) : $value;
                 }
             }
         }
