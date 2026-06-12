@@ -1288,12 +1288,15 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $docx = $document->attr('docx');
         $embedded = $docx['embeddedObjects'];
+        $packageEmbedded = $docx['packageProvenance']['embeddedObjects'];
+        $summary = $docx['packageProvenance']['summary'];
         $workbook = $embedded['byRelationshipId']['rEmbeddedWorkbook'];
         $missing = $embedded['byRelationshipId']['rMissingOle'];
         $unknown = $embedded['byRelationshipId']['rUnknownOle'];
         $remote = $embedded['byRelationshipId']['rRemoteOle'];
         $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
 
+        $t->same($embedded, $packageEmbedded);
         $t->same(4, $embedded['count']);
         $t->same(3, $embedded['relationshipCount']);
         $t->same(3, $embedded['referencedCount']);
@@ -1307,6 +1310,26 @@ XML;
         $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle'], $embedded['referencedRelationshipIds']);
         $t->same(['rRemoteOle'], $embedded['unreferencedRelationshipIds']);
         $t->same(['word/embeddings/review.xlsx', 'word/embeddings/missing.bin'], $embedded['partNames']);
+        $t->same(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; profile=embedded-workbook'], $embedded['contentTypes']);
+        $t->same(['https://example.test/ole.bin?remote=1#object'], $embedded['externalTargets']);
+        $t->same(4, $embedded['issueCount']);
+        $t->same([
+            'external-embedded-object',
+            'missing-content-type',
+            'missing-in-package',
+            'unknown-relationship',
+        ], $embedded['issueCodes']);
+        $t->same(4, $summary['embeddedObjectCount']);
+        $t->same(3, $summary['embeddedObjectRelationshipCount']);
+        $t->same(3, $summary['embeddedObjectReferencedCount']);
+        $t->same(1, $summary['embeddedObjectUnreferencedRelationshipCount']);
+        $t->same(1, $summary['embeddedObjectExistingCount']);
+        $t->same(1, $summary['embeddedObjectMissingCount']);
+        $t->same(1, $summary['embeddedObjectExternalCount']);
+        $t->same(1, $summary['embeddedObjectUnresolvedCount']);
+        $t->same(1, $summary['embeddedObjectMissingContentTypeCount']);
+        $t->same(4, $summary['embeddedObjectIssueCount']);
+        $t->same($embedded['issueCodes'], $summary['embeddedObjectIssueCodes']);
 
         $t->same('Excel.Sheet.12', $workbook['progId']);
         $t->same('_x0000_i1025', $workbook['shapeId']);

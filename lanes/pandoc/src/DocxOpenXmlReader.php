@@ -307,6 +307,18 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
+        $packageProvenance['embeddedObjects'] = $embeddedObjects;
+        $packageProvenance['summary']['embeddedObjectCount'] = $embeddedObjects['count'];
+        $packageProvenance['summary']['embeddedObjectRelationshipCount'] = $embeddedObjects['relationshipCount'];
+        $packageProvenance['summary']['embeddedObjectReferencedCount'] = $embeddedObjects['referencedCount'];
+        $packageProvenance['summary']['embeddedObjectUnreferencedRelationshipCount'] = $embeddedObjects['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['embeddedObjectExistingCount'] = $embeddedObjects['existingCount'];
+        $packageProvenance['summary']['embeddedObjectMissingCount'] = $embeddedObjects['missingCount'];
+        $packageProvenance['summary']['embeddedObjectExternalCount'] = $embeddedObjects['externalCount'];
+        $packageProvenance['summary']['embeddedObjectUnresolvedCount'] = $embeddedObjects['unresolvedCount'];
+        $packageProvenance['summary']['embeddedObjectMissingContentTypeCount'] = $embeddedObjects['missingContentTypeCount'];
+        $packageProvenance['summary']['embeddedObjectIssueCount'] = $embeddedObjects['issueCount'];
+        $packageProvenance['summary']['embeddedObjectIssueCodes'] = $embeddedObjects['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
@@ -1270,6 +1282,22 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($partNames, $partName);
         }
 
+        $contentTypesSeen = [];
+        $externalTargets = [];
+        $issueCodes = [];
+        $issueCount = 0;
+        foreach ($items as $item) {
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                $issueCodes[(string) $issue] = true;
+                ++$issueCount;
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
         return [
             'count' => count($items),
             'relationshipCount' => count(array_filter($relationships, fn (array $relationship): bool => $this->isEmbeddedObjectRelationshipType($relationship['type']))),
@@ -1288,6 +1316,10 @@ final class DocxOpenXmlReader
             'referencedRelationshipIds' => $referencedRelationshipIds,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
+            'contentTypes' => $contentTypesSeen,
+            'externalTargets' => $externalTargets,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
