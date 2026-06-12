@@ -26938,6 +26938,91 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json short collection title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-short-collection-compact',
+                'type' => 'chapter',
+                'title' => 'Compact Short Collection Packet',
+                'author' => [
+                    ['family' => 'Ibarra', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'collectiontitle' => 'Migration Review Library',
+                'shortcollection' => 'MRL',
+            ],
+            [
+                'id' => 'direct-short-collection-hyphen',
+                'type' => 'chapter',
+                'title' => 'Hyphen Short Collection Packet',
+                'author' => [
+                    ['family' => 'Kline', 'given' => 'Kai'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'collection-title' => 'Archive Field Series',
+                'short-collection' => 'AFS',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-short-collection-compact');
+        $hyphen = $processor->item('direct-short-collection-hyphen');
+        $t->same('Migration Review Library', $compact['collectionTitle'] ?? null);
+        $t->same('MRL', $compact['collectionTitleShort'] ?? null);
+        $t->same('MRL', $compact['raw']['shortcollection'] ?? null);
+        $t->same('Archive Field Series', $hyphen['collectionTitle'] ?? null);
+        $t->same('AFS', $hyphen['collectionTitleShort'] ?? null);
+        $t->same('AFS', $hyphen['raw']['short-collection'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Short Collection Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-short-collection-title-alias-review</id>
+    <updated>2026-06-12T00:01:41+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-title-short"/>
+        <text variable="shortcollection"/>
+        <text variable="short-collection"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="shortcollection"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Short Collection Title Alias Review', $summary['title'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('shortcollection', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Ibarra | Migration Review Library | MRL | MRL | MRL | MRL; Kline | Archive Field Series | AFS | AFS | AFS | AFS]', $styled->renderCitationCluster([
+            $citation('direct-short-collection-compact', '[@direct-short-collection-compact]'),
+            $citation('direct-short-collection-hyphen', '[@direct-short-collection-hyphen]'),
+        ]));
+        $t->same('Compact Short Collection Packet :: Migration Review Library :: MRL :: MRL', $styled->renderBibliographyEntry('direct-short-collection-compact'));
+        $t->same('Hyphen Short Collection Packet :: Archive Field Series :: AFS :: AFS', $styled->renderBibliographyEntry('direct-short-collection-hyphen'));
+
+        $document = (new MarkdownReader())->read('Direct short collection aliases [@direct-short-collection-compact; @direct-short-collection-hyphen] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct short collection aliases [Ibarra | Migration Review Library | MRL | MRL | MRL | MRL; Kline | Archive Field Series | AFS | AFS | AFS | AFS] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ibarra 2026</dt><dd>Compact Short Collection Packet :: Migration Review Library :: MRL :: MRL</dd>', $blocks);
+        $t->contains('<dt>Kline 2025</dt><dd>Hyphen Short Collection Packet :: Archive Field Series :: AFS :: AFS</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
