@@ -266,6 +266,66 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/microdata-attribute-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html inherited language and direction provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="packet" lang="en-US" dir="rtl"><section id="translation" xml:lang="fr-CA"><p id="inherited">Bonjour</p><p id="reset" lang="" dir="sideways">Unknown</p><bdi id="auto" dir="auto">ABC</bdi></section><p id="english">Back</p></article>',
+            'language direction review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/language-direction-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $section = $article['children'][0];
+        $inherited = $section['children'][0];
+        $reset = $section['children'][1];
+        $auto = $section['children'][2];
+        $english = $article['children'][1];
+
+        $t->same('en-US', $article['effectiveLanguage']);
+        $t->same('lang-attribute', $article['effectiveLanguageSource']);
+        $t->same('packet', $article['effectiveLanguageSourceElementId']);
+        $t->same('rtl', $article['effectiveDirection']);
+        $t->same('dir-attribute', $article['effectiveDirectionSource']);
+
+        $t->same('fr-CA', $section['language']);
+        $t->same('fr-CA', $section['effectiveLanguage']);
+        $t->same('xml:lang-attribute', $section['effectiveLanguageSource']);
+        $t->same('rtl', $section['effectiveDirection']);
+        $t->same('ancestor-dir-attribute', $section['effectiveDirectionSource']);
+        $t->same('packet', $section['effectiveDirectionSourceElementId']);
+
+        $t->same('fr-CA', $inherited['effectiveLanguage']);
+        $t->same('ancestor-xml:lang-attribute', $inherited['effectiveLanguageSource']);
+        $t->same('translation', $inherited['effectiveLanguageSourceElementId']);
+        $t->same('rtl', $inherited['effectiveDirection']);
+        $t->same('ancestor-dir-attribute', $inherited['effectiveDirectionSource']);
+
+        $t->same('', $reset['languageRaw']);
+        $t->same('', $reset['language']);
+        $t->same(null, $reset['effectiveLanguage']);
+        $t->same('empty-lang-attribute', $reset['effectiveLanguageSource']);
+        $t->same('sideways', $reset['dirRaw']);
+        $t->same(null, $reset['direction']);
+        $t->same('rtl', $reset['effectiveDirection']);
+        $t->same('ancestor-dir-attribute', $reset['effectiveDirectionSource']);
+
+        $t->same('auto', $auto['direction']);
+        $t->same('auto', $auto['textDirection']);
+        $t->same('auto', $auto['effectiveDirection']);
+        $t->same('dir-attribute', $auto['effectiveDirectionSource']);
+        $t->same('fr-CA', $auto['effectiveLanguage']);
+
+        $t->same('en-US', $english['effectiveLanguage']);
+        $t->same('ancestor-lang-attribute', $english['effectiveLanguageSource']);
+        $t->same('rtl', $english['effectiveDirection']);
+        $t->same('<article dir="rtl" id="packet" lang="en-US"><section id="translation" xml:lang="fr-CA"><p id="inherited">Bonjour</p><p dir="sideways" id="reset" lang="">Unknown</p><bdi dir="auto" id="auto">ABC</bdi></section><p id="english">Back</p></article>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/language-direction-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'

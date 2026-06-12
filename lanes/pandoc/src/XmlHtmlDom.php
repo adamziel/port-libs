@@ -2011,6 +2011,16 @@ final class XmlHtmlDom
             $summary['direction'] = in_array($dir, ['ltr', 'rtl', 'auto'], true) ? $dir : null;
         }
 
+        $effectiveLanguage = self::effectiveLanguageSummary($element);
+        if ($effectiveLanguage['effectiveLanguageSource'] !== 'missing') {
+            $summary += $effectiveLanguage;
+        }
+
+        $effectiveDirection = self::effectiveDirectionSummary($element);
+        if ($effectiveDirection['effectiveDirectionSource'] !== 'missing') {
+            $summary += $effectiveDirection;
+        }
+
         if (array_key_exists('title', $attributes)) {
             $summary['titleAttribute'] = $attributes['title'];
         }
@@ -2342,6 +2352,89 @@ final class XmlHtmlDom
         return in_array($value, ['none', 'text', 'tel', 'email', 'url', 'numeric', 'decimal', 'search'], true)
             ? $value
             : null;
+    }
+
+    /**
+     * @return array{effectiveLanguage:?string, effectiveLanguageSource:string, effectiveLanguageSourceElement:?string, effectiveLanguageSourceElementId:?string}
+     */
+    private static function effectiveLanguageSummary(\DOMElement $element): array
+    {
+        $current = $element;
+        $depth = 0;
+        while ($current instanceof \DOMElement) {
+            $attributes = self::htmlAttributes($current);
+            $attributeName = array_key_exists('lang', $attributes)
+                ? 'lang'
+                : (array_key_exists('xml:lang', $attributes) ? 'xml:lang' : null);
+
+            if ($attributeName !== null) {
+                $language = trim($attributes[$attributeName]);
+                $source = ($depth === 0 ? '' : 'ancestor-') . $attributeName . '-attribute';
+                if ($language === '') {
+                    $source = ($depth === 0 ? 'empty-' : 'ancestor-empty-') . $attributeName . '-attribute';
+                }
+
+                return [
+                    'effectiveLanguage' => $language === '' ? null : $language,
+                    'effectiveLanguageSource' => $source,
+                    'effectiveLanguageSourceElement' => self::htmlElementName($current),
+                    'effectiveLanguageSourceElementId' => self::attributeOrNull($current, 'id'),
+                ];
+            }
+
+            $parent = $current->parentNode;
+            $current = $parent instanceof \DOMElement ? $parent : null;
+            ++$depth;
+        }
+
+        return [
+            'effectiveLanguage' => null,
+            'effectiveLanguageSource' => 'missing',
+            'effectiveLanguageSourceElement' => null,
+            'effectiveLanguageSourceElementId' => null,
+        ];
+    }
+
+    /**
+     * @return array{effectiveDirection:?string, effectiveDirectionSource:string, effectiveDirectionSourceElement:?string, effectiveDirectionSourceElementId:?string}
+     */
+    private static function effectiveDirectionSummary(\DOMElement $element): array
+    {
+        $current = $element;
+        $depth = 0;
+        while ($current instanceof \DOMElement) {
+            $direction = self::validDirectionAttribute($current);
+            if ($direction !== null) {
+                return [
+                    'effectiveDirection' => $direction,
+                    'effectiveDirectionSource' => ($depth === 0 ? '' : 'ancestor-') . 'dir-attribute',
+                    'effectiveDirectionSourceElement' => self::htmlElementName($current),
+                    'effectiveDirectionSourceElementId' => self::attributeOrNull($current, 'id'),
+                ];
+            }
+
+            $parent = $current->parentNode;
+            $current = $parent instanceof \DOMElement ? $parent : null;
+            ++$depth;
+        }
+
+        return [
+            'effectiveDirection' => null,
+            'effectiveDirectionSource' => 'missing',
+            'effectiveDirectionSourceElement' => null,
+            'effectiveDirectionSourceElementId' => null,
+        ];
+    }
+
+    private static function validDirectionAttribute(\DOMElement $element): ?string
+    {
+        if (!$element->hasAttribute('dir')) {
+            return null;
+        }
+
+        $direction = strtolower(trim($element->getAttribute('dir')));
+
+        return in_array($direction, ['ltr', 'rtl', 'auto'], true) ? $direction : null;
     }
 
     private static function enterKeyHintState(string $value): ?string
