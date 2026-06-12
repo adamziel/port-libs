@@ -564,6 +564,8 @@ final class PdfEngineHandoff
      *     pdfXmpMetadata: array<string, mixed>,
      *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
+     *     pdfDocumentParts: list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}>,
+     *     pdfDocumentPartPolicy: array<string, mixed>,
      *     pdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
@@ -1155,6 +1157,8 @@ final class PdfEngineHandoff
         $pdfXmpMetadata = [];
         $pdfPageMetadata = [];
         $pdfPieceInfo = [];
+        $pdfDocumentParts = [];
+        $pdfDocumentPartPolicy = [];
         $pdfWebCaptureMetadata = [];
         $pdfOutputIntents = [];
         $pdfPageOutputIntents = [];
@@ -1296,6 +1300,8 @@ final class PdfEngineHandoff
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfPieceInfo = $pdfInspection['pieceInfo'];
+                $pdfDocumentParts = $pdfInspection['documentParts'];
+                $pdfDocumentPartPolicy = $pdfInspection['documentPartPolicy'];
                 $pdfWebCaptureMetadata = $pdfInspection['webCaptureMetadata'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfPageOutputIntents = $pdfInspection['pageOutputIntents'];
@@ -2278,6 +2284,68 @@ final class PdfEngineHandoff
                     }
                     foreach (array_keys($pieceInfoStreamSkips) as $skipReason) {
                         $diagnostics[] = 'pdf-byte-piece-info-private-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfDocumentParts !== []) {
+                    $diagnostics[] = 'pdf-byte-document-parts:' . count($pdfDocumentParts);
+                    $documentPartRootCount = 0;
+                    $documentPartNodeCount = 0;
+                    $documentPartPageReferences = 0;
+                    $documentPartMetadataEntries = 0;
+                    $documentPartReviewEntries = 0;
+                    foreach ($pdfDocumentParts as $documentPart) {
+                        $kind = is_string($documentPart['kind'] ?? null) ? $documentPart['kind'] : '';
+                        if ($kind === 'root') {
+                            $documentPartRootCount++;
+                        } elseif ($kind === 'part') {
+                            $documentPartNodeCount++;
+                        } elseif ($kind === 'page-reference') {
+                            $documentPartPageReferences++;
+                        }
+                        if (isset($documentPart['metadata']) && is_array($documentPart['metadata'])) {
+                            $documentPartMetadataEntries += count($documentPart['metadata']);
+                        }
+                        if (($documentPart['reviewStatus'] ?? null) === 'review') {
+                            $documentPartReviewEntries++;
+                        }
+                    }
+                    if ($documentPartRootCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-roots:' . $documentPartRootCount;
+                    }
+                    if ($documentPartNodeCount > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-nodes:' . $documentPartNodeCount;
+                    }
+                    if ($documentPartPageReferences > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-page-references:' . $documentPartPageReferences;
+                    }
+                    if ($documentPartMetadataEntries > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-metadata:' . $documentPartMetadataEntries;
+                    }
+                    if ($documentPartReviewEntries > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-review-entries:' . $documentPartReviewEntries;
+                    }
+                }
+                if ($pdfDocumentPartPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-document-part-policy:' . ($pdfDocumentPartPolicy['reviewStatus'] ?? 'unknown');
+                    if (isset($pdfDocumentPartPolicy['rootCount']) && is_int($pdfDocumentPartPolicy['rootCount'])) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-roots:' . $pdfDocumentPartPolicy['rootCount'];
+                    }
+                    if (isset($pdfDocumentPartPolicy['partCount']) && is_int($pdfDocumentPartPolicy['partCount'])) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-parts:' . $pdfDocumentPartPolicy['partCount'];
+                    }
+                    if (isset($pdfDocumentPartPolicy['pageReferenceCount']) && is_int($pdfDocumentPartPolicy['pageReferenceCount'])) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-page-references:' . $pdfDocumentPartPolicy['pageReferenceCount'];
+                    }
+                    if (isset($pdfDocumentPartPolicy['missingReferenceCount']) && is_int($pdfDocumentPartPolicy['missingReferenceCount']) && $pdfDocumentPartPolicy['missingReferenceCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-missing-references:' . $pdfDocumentPartPolicy['missingReferenceCount'];
+                    }
+                    if (isset($pdfDocumentPartPolicy['issues']) && is_array($pdfDocumentPartPolicy['issues']) && $pdfDocumentPartPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-document-part-policy-issues:' . count($pdfDocumentPartPolicy['issues']);
+                        foreach ($pdfDocumentPartPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-document-part-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfWebCaptureMetadata !== []) {
@@ -4454,6 +4522,8 @@ final class PdfEngineHandoff
             'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfPageMetadata' => $pdfPageMetadata,
             'pdfPieceInfo' => $pdfPieceInfo,
+            'pdfDocumentParts' => $pdfDocumentParts,
+            'pdfDocumentPartPolicy' => $pdfDocumentPartPolicy,
             'pdfWebCaptureMetadata' => $pdfWebCaptureMetadata,
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfPageOutputIntents' => $pdfPageOutputIntents,
@@ -4616,6 +4686,8 @@ final class PdfEngineHandoff
      *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
+     *     finalPdfDocumentParts: list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}>,
+     *     finalPdfDocumentPartPolicy: array<string, mixed>,
      *     finalPdfWebCaptureMetadata: list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfPageOutputIntents: list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
@@ -4933,6 +5005,8 @@ final class PdfEngineHandoff
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
+            'finalPdfDocumentParts' => is_array($finalRun) && is_array($finalRun['pdfDocumentParts'] ?? null) ? $finalRun['pdfDocumentParts'] : [],
+            'finalPdfDocumentPartPolicy' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartPolicy'] ?? null) ? $finalRun['pdfDocumentPartPolicy'] : [],
             'finalPdfWebCaptureMetadata' => is_array($finalRun) && is_array($finalRun['pdfWebCaptureMetadata'] ?? null) ? $finalRun['pdfWebCaptureMetadata'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfPageOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfPageOutputIntents'] ?? null) ? $finalRun['pdfPageOutputIntents'] : [],
@@ -8037,6 +8111,8 @@ final class PdfEngineHandoff
      *     xmpMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
      *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
+     *     documentParts:list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}>,
+     *     documentPartPolicy:array<string, mixed>,
      *     webCaptureMetadata:list<array{source:string, page:int|null, pageObject:string|null, spiderInfoObject:string|null, version:float|null, commandCount:int, sourceUrls:list<string>, captures:list<array{commandObject:string|null, sourceUrl:string|null, sourceTitle:string|null, commandName:string|null, commandType:string|null, identifier:string|null, timestamp:string|null, flags:int|null, depth:int|null, pageReferences:list<string>, parentCommand:string|null, nextCommand:string|null}>}>,
      *     outputIntents:list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pageOutputIntents:list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
@@ -8169,6 +8245,7 @@ final class PdfEngineHandoff
         $streamDecodeParameters = $this->summarizePdfStreamDecodeParameters($streamFilterPolicy, $pdfBytes);
         $documentInfo = $this->extractPdfDocumentInfo($pdfBytes);
         $xmpMetadata = $this->extractPdfXmpMetadata($pdfBytes, $catalog);
+        $documentParts = $this->extractPdfDocumentParts($pdfBytes, $catalog);
         $outputIntents = $this->extractPdfOutputIntents($pdfBytes, $catalog);
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
@@ -8252,6 +8329,8 @@ final class PdfEngineHandoff
             'xmpMetadata' => $xmpMetadata,
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
+            'documentParts' => $documentParts,
+            'documentPartPolicy' => $this->summarizePdfDocumentPartPolicy($documentParts, $this->extractPdfPageCount($pdfBytes)),
             'webCaptureMetadata' => $this->extractPdfWebCaptureMetadata($pdfBytes, $catalog),
             'outputIntents' => $outputIntents,
             'pageOutputIntents' => $pageOutputIntents,
@@ -10641,6 +10720,468 @@ final class PdfEngineHandoff
         }
 
         return ['ok' => false, 'value' => null];
+    }
+
+    /**
+     * @return list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}>
+     */
+    private function extractPdfDocumentParts(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || (!str_contains($catalog, '/DPartRoot') && !str_contains($pdfBytes, '/DPart'))) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $entries = [];
+        $partObjects = [];
+        $rootValue = $this->extractPdfValueForName($catalog, 'DPartRoot');
+        if ($rootValue !== null) {
+            $root = $this->resolvePdfDictionaryValue($rootValue, $objects);
+            $rootObject = $root['object'];
+            $rootIssues = [];
+            if ($root['dictionary'] === null) {
+                $rootIssues[] = 'missing-document-part-root-object';
+            }
+
+            $rootNodeValue = $root['dictionary'] === null
+                ? null
+                : $this->extractPdfValueForName($root['dictionary'], 'DPartRootNode');
+            $rootChildren = $this->pdfDocumentPartReferencesFromValue($rootNodeValue);
+            if ($root['dictionary'] !== null && $rootChildren === []) {
+                $rootIssues[] = 'missing-document-part-root-node';
+            }
+
+            $entries[] = [
+                'source' => 'catalog.DPartRoot',
+                'kind' => 'root',
+                'object' => $rootObject,
+                'parent' => null,
+                'children' => $rootChildren,
+                'page' => null,
+                'pageObject' => null,
+                'metadataObject' => null,
+                'metadata' => [],
+                'reviewStatus' => $rootIssues === [] ? 'accepted' : 'review',
+                'issues' => $rootIssues,
+            ];
+
+            $visited = [];
+            $this->collectPdfDocumentPartNode(
+                $entries,
+                $partObjects,
+                $rootNodeValue,
+                'catalog.DPartRoot.DPartRootNode',
+                $rootObject,
+                $objects,
+                $visited,
+                0
+            );
+        }
+
+        array_push(
+            $entries,
+            ...$this->extractPdfDocumentPartPageReferences($pdfBytes, $catalog, $objects, $partObjects)
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @return list<string>
+     */
+    private function pdfDocumentPartReferencesFromValue(?array $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if ($value['kind'] === 'reference') {
+            return [$value['value']];
+        }
+
+        if ($value['kind'] !== 'array') {
+            return [];
+        }
+
+        $references = [];
+        foreach ($this->pdfTopLevelArrayValues($value['value']) as $item) {
+            if ($item['kind'] === 'reference') {
+                $references[] = $item['value'];
+            }
+        }
+
+        return $this->uniqueStrings($references);
+    }
+
+    /**
+     * @param list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}> $entries
+     * @param array<string, bool> $partObjects
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfDocumentPartNode(
+        array &$entries,
+        array &$partObjects,
+        ?array $value,
+        string $source,
+        ?string $expectedParent,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($value === null || $depth > 32) {
+            return;
+        }
+
+        $dictionary = null;
+        $object = null;
+        $issues = [];
+        if ($value['kind'] === 'reference') {
+            $object = $value['value'];
+            $key = $this->pdfReferenceKey($object);
+            if (isset($visited[$key])) {
+                return;
+            }
+            $visited[$key] = true;
+            $dictionary = $objects[$key] ?? null;
+            if ($dictionary === null) {
+                $issues[] = 'missing-document-part-object';
+            }
+        } elseif ($value['kind'] === 'dictionary') {
+            $object = 'inline';
+            $dictionary = $value['value'];
+        } else {
+            return;
+        }
+
+        $parent = $dictionary === null ? null : $this->extractPdfReferenceToken($dictionary, 'Parent');
+        if ($expectedParent !== null && $dictionary !== null && $parent !== $expectedParent) {
+            $issues[] = $parent === null ? 'missing-document-part-parent' : 'document-part-parent-mismatch';
+        }
+        if ($dictionary !== null) {
+            $type = $this->extractPdfNameToken($dictionary, 'Type');
+            if ($type !== null && $type !== 'DPart') {
+                $issues[] = 'unexpected-document-part-type';
+            }
+        }
+
+        $childReferences = $dictionary === null ? [] : array_map(
+            static fn (string $reference): string => $reference . ' R',
+            $this->extractPdfReferenceArray($dictionary, 'DParts')
+        );
+        $metadata = $dictionary === null
+            ? ['object' => null, 'entries' => [], 'issues' => []]
+            : $this->summarizePdfDocumentPartMetadata($dictionary, $objects);
+        array_push($issues, ...$metadata['issues']);
+        $issues = $this->uniqueStrings($issues);
+        sort($issues, SORT_STRING);
+
+        if ($object !== null && $object !== 'inline') {
+            $partObjects[$object] = true;
+        }
+
+        $entries[] = [
+            'source' => $source,
+            'kind' => 'part',
+            'object' => $object,
+            'parent' => $parent,
+            'children' => $childReferences,
+            'page' => null,
+            'pageObject' => null,
+            'metadataObject' => $metadata['object'],
+            'metadata' => $metadata['entries'],
+            'reviewStatus' => $issues === [] ? 'accepted' : 'review',
+            'issues' => $issues,
+        ];
+
+        if ($dictionary === null) {
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'DParts') as $index => $childReference) {
+            $this->collectPdfDocumentPartNode(
+                $entries,
+                $partObjects,
+                ['kind' => 'reference', 'value' => $childReference . ' R'],
+                $source . '.DParts[' . $index . ']',
+                $object,
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string|null, entries:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, issues:list<string>}
+     */
+    private function summarizePdfDocumentPartMetadata(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'DPM');
+        if ($value === null) {
+            return ['object' => null, 'entries' => [], 'issues' => []];
+        }
+
+        $resolved = $this->resolvePdfDictionaryValue($value, $objects);
+        if ($resolved['dictionary'] === null) {
+            return [
+                'object' => $resolved['object'],
+                'entries' => [],
+                'issues' => ['missing-document-part-metadata-object'],
+            ];
+        }
+
+        $entries = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($resolved['dictionary']) as $entry) {
+            if ($entry['key'] === 'Type') {
+                continue;
+            }
+
+            $summary = $this->summarizePdfFileSpecCollectionItemValue($entry['value'], $objects, 0);
+            if ($summary === null) {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $entry['key'],
+                'value' => $summary['value'],
+                'valueType' => $summary['valueType'],
+            ];
+        }
+        usort($entries, static fn (array $left, array $right): int => strcmp($left['name'], $right['name']));
+
+        return [
+            'object' => $resolved['object'],
+            'entries' => $entries,
+            'issues' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $partObjects
+     * @return list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}>
+     */
+    private function extractPdfDocumentPartPageReferences(string $pdfBytes, ?string $catalog, array $objects, array $partObjects): array
+    {
+        if (!str_contains($pdfBytes, '/DPart')) {
+            return [];
+        }
+
+        $entries = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+        if ($pagesReference !== null) {
+            $this->collectPdfDocumentPartPageReferencesFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $entries,
+                $pageNumber,
+                $partObjects,
+                0
+            );
+        }
+
+        if ($entries === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $summary = $this->summarizePdfDocumentPartPageReference(
+                    $body,
+                    $reference,
+                    $pageNumber,
+                    $partObjects,
+                    $objects
+                );
+                if ($summary !== null) {
+                    $entries[] = $summary;
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}> $entries
+     * @param array<string, bool> $partObjects
+     */
+    private function collectPdfDocumentPartPageReferencesFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$entries,
+        int &$pageNumber,
+        array $partObjects,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        if ($this->extractPdfNameToken($body, 'Type') === 'Page') {
+            $pageNumber++;
+            $summary = $this->summarizePdfDocumentPartPageReference(
+                $body,
+                $reference,
+                $pageNumber,
+                $partObjects,
+                $objects
+            );
+            if ($summary !== null) {
+                $entries[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfDocumentPartPageReferencesFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $entries,
+                $pageNumber,
+                $partObjects,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, bool> $partObjects
+     * @param array<string, string> $objects
+     * @return array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}|null
+     */
+    private function summarizePdfDocumentPartPageReference(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $partObjects,
+        array $objects
+    ): ?array {
+        $value = $this->extractPdfValueForName($pageDictionary, 'DPart');
+        if ($value === null) {
+            return null;
+        }
+
+        $object = null;
+        $issues = [];
+        if ($value['kind'] === 'reference') {
+            $object = $value['value'];
+            if (!isset($objects[$this->pdfReferenceKey($object)])) {
+                $issues[] = 'missing-document-part-object';
+            } elseif (!isset($partObjects[$object])) {
+                $issues[] = 'unrooted-document-part-reference';
+            }
+        } else {
+            $issues[] = 'invalid-document-part-value';
+        }
+
+        return [
+            'source' => 'page:' . $pageReference . ' R.DPart',
+            'kind' => 'page-reference',
+            'object' => $object,
+            'parent' => null,
+            'children' => [],
+            'page' => $pageNumber,
+            'pageObject' => $pageReference . ' R',
+            'metadataObject' => null,
+            'metadata' => [],
+            'reviewStatus' => $issues === [] ? 'accepted' : 'review',
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array{source:string, kind:string, object:string|null, parent:string|null, children:list<string>, page:int|null, pageObject:string|null, metadataObject:string|null, metadata:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, reviewStatus:string, issues:list<string>}> $documentParts
+     * @return array<string, mixed>
+     */
+    private function summarizePdfDocumentPartPolicy(array $documentParts, ?int $pageCount): array
+    {
+        if ($documentParts === []) {
+            return [];
+        }
+
+        $rootCount = 0;
+        $partCount = 0;
+        $pageReferenceCount = 0;
+        $metadataEntryCount = 0;
+        $missingReferenceCount = 0;
+        $unrootedReferenceCount = 0;
+        $parentMismatchCount = 0;
+        $reviewEntryCount = 0;
+        $pagesWithParts = [];
+        $issues = [];
+        foreach ($documentParts as $documentPart) {
+            $kind = is_string($documentPart['kind'] ?? null) ? $documentPart['kind'] : '';
+            if ($kind === 'root') {
+                $rootCount++;
+            } elseif ($kind === 'part') {
+                $partCount++;
+            } elseif ($kind === 'page-reference') {
+                $pageReferenceCount++;
+                if (is_int($documentPart['page'] ?? null)) {
+                    $pagesWithParts[$documentPart['page']] = true;
+                }
+            }
+
+            if (isset($documentPart['metadata']) && is_array($documentPart['metadata'])) {
+                $metadataEntryCount += count($documentPart['metadata']);
+            }
+            if (($documentPart['reviewStatus'] ?? null) === 'review') {
+                $reviewEntryCount++;
+            }
+            foreach (($documentPart['issues'] ?? []) as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+
+                $issues[$issue] = true;
+                if (str_contains($issue, 'missing-document-part')) {
+                    $missingReferenceCount++;
+                }
+                if ($issue === 'unrooted-document-part-reference') {
+                    $unrootedReferenceCount++;
+                }
+                if ($issue === 'document-part-parent-mismatch' || $issue === 'missing-document-part-parent') {
+                    $parentMismatchCount++;
+                }
+            }
+        }
+
+        $pageNumbers = array_map('intval', array_keys($pagesWithParts));
+        sort($pageNumbers, SORT_NUMERIC);
+        $issueList = array_keys($issues);
+        sort($issueList, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issueList === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'rootCount' => $rootCount,
+            'partCount' => $partCount,
+            'pageReferenceCount' => $pageReferenceCount,
+            'pagesWithParts' => $pageNumbers,
+            'metadataEntryCount' => $metadataEntryCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'unrootedReferenceCount' => $unrootedReferenceCount,
+            'parentMismatchCount' => $parentMismatchCount,
+            'reviewEntryCount' => $reviewEntryCount,
+            'issues' => $issueList,
+        ];
     }
 
     /**

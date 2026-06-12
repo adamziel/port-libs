@@ -6349,6 +6349,160 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPieceInfo']);
     },
 
+    'fake runner extracts bounded pdf document part provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'typst', 'outputPath' => 'packets/document-parts.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /DPartRoot 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /DPart 9 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /DPart 99 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /DPartRootNode 9 0 R /RecordLevel 2 /ParentTreeNextKey 7 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /DPart /Parent 8 0 R /DPM << /Title (Chapter one) /Lang (en-US) /CustomName (Value) >> /DParts [10 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /DPart /Parent 9 0 R /DPM 11 0 R >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Title (Section A) /Role /Sect /PageCount 1 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/document-parts.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/document-parts.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedParts = [
+            [
+                'source' => 'catalog.DPartRoot',
+                'kind' => 'root',
+                'object' => '8 0 R',
+                'parent' => null,
+                'children' => ['9 0 R'],
+                'page' => null,
+                'pageObject' => null,
+                'metadataObject' => null,
+                'metadata' => [],
+                'reviewStatus' => 'accepted',
+                'issues' => [],
+            ],
+            [
+                'source' => 'catalog.DPartRoot.DPartRootNode',
+                'kind' => 'part',
+                'object' => '9 0 R',
+                'parent' => '8 0 R',
+                'children' => ['10 0 R'],
+                'page' => null,
+                'pageObject' => null,
+                'metadataObject' => 'inline',
+                'metadata' => [
+                    ['name' => 'CustomName', 'value' => 'Value', 'valueType' => 'string'],
+                    ['name' => 'Lang', 'value' => 'en-US', 'valueType' => 'string'],
+                    ['name' => 'Title', 'value' => 'Chapter one', 'valueType' => 'string'],
+                ],
+                'reviewStatus' => 'accepted',
+                'issues' => [],
+            ],
+            [
+                'source' => 'catalog.DPartRoot.DPartRootNode.DParts[0]',
+                'kind' => 'part',
+                'object' => '10 0 R',
+                'parent' => '9 0 R',
+                'children' => [],
+                'page' => null,
+                'pageObject' => null,
+                'metadataObject' => '11 0 R',
+                'metadata' => [
+                    ['name' => 'PageCount', 'value' => 1, 'valueType' => 'integer'],
+                    ['name' => 'Role', 'value' => 'Sect', 'valueType' => 'name'],
+                    ['name' => 'Title', 'value' => 'Section A', 'valueType' => 'string'],
+                ],
+                'reviewStatus' => 'accepted',
+                'issues' => [],
+            ],
+            [
+                'source' => 'page:3 0 R.DPart',
+                'kind' => 'page-reference',
+                'object' => '9 0 R',
+                'parent' => null,
+                'children' => [],
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'metadataObject' => null,
+                'metadata' => [],
+                'reviewStatus' => 'accepted',
+                'issues' => [],
+            ],
+            [
+                'source' => 'page:4 0 R.DPart',
+                'kind' => 'page-reference',
+                'object' => '99 0 R',
+                'parent' => null,
+                'children' => [],
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'metadataObject' => null,
+                'metadata' => [],
+                'reviewStatus' => 'review',
+                'issues' => ['missing-document-part-object'],
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'rootCount' => 1,
+            'partCount' => 2,
+            'pageReferenceCount' => 2,
+            'pagesWithParts' => [1, 2],
+            'metadataEntryCount' => 6,
+            'missingReferenceCount' => 1,
+            'unrootedReferenceCount' => 0,
+            'parentMismatchCount' => 0,
+            'reviewEntryCount' => 1,
+            'issues' => ['missing-document-part-object'],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedParts, $result['pdfDocumentParts']);
+        $t->same($expectedPolicy, $result['pdfDocumentPartPolicy']);
+        $t->contains('pdf-byte-document-parts:5', $diagnostics);
+        $t->contains('pdf-byte-document-part-nodes:2', $diagnostics);
+        $t->contains('pdf-byte-document-part-page-references:2', $diagnostics);
+        $t->contains('pdf-byte-document-part-metadata:6', $diagnostics);
+        $t->contains('pdf-byte-document-part-policy:review', $diagnostics);
+        $t->contains('pdf-byte-document-part-policy-missing-references:1', $diagnostics);
+        $t->contains('pdf-byte-document-part-policy-issue:missing-document-part-object:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedParts, $sequence['finalPdfDocumentParts']);
+        $t->same($expectedPolicy, $sequence['finalPdfDocumentPartPolicy']);
+    },
+
     'fake runner extracts bounded pdf output intent and profile metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/output-intent.pdf']);
