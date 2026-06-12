@@ -902,7 +902,7 @@ final class XmlHtmlDom
                 }
             }
         }
-        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
+        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param', 'canvas'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
         if (in_array($name, ['a', 'area'], true)) {
@@ -2554,8 +2554,42 @@ final class XmlHtmlDom
             'embed' => self::embedSummary($element),
             'object' => self::objectSummary($element),
             'param' => self::paramElementSummary($element),
+            'canvas' => self::canvasSummary($element),
             default => [],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function canvasSummary(\DOMElement $canvas): array
+    {
+        $fallbackText = self::normalizedText($canvas);
+        $fallbackElementNames = [];
+        foreach ($canvas->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $fallbackElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $summary = [
+            'embeddedResource' => 'canvas',
+            'width' => self::attributeOrNull($canvas, 'width'),
+            'height' => self::attributeOrNull($canvas, 'height'),
+            'bitmapWidth' => self::nonNegativeIntegerAttribute($canvas, 'width', 300, 100000),
+            'bitmapHeight' => self::nonNegativeIntegerAttribute($canvas, 'height', 150, 100000),
+            'fallbackElementNames' => $fallbackElementNames,
+            'fallbackElementCount' => count($fallbackElementNames),
+            'fallbackTextLength' => strlen($fallbackText),
+            'fallbackTextSha256' => hash('sha256', $fallbackText),
+            'canvasReviewPolicy' => 'canvas-fallback-source',
+        ];
+
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
     }
 
     /**

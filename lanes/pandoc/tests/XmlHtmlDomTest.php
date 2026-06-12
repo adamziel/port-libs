@@ -1448,6 +1448,53 @@ XML, 'package reader XML');
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes html canvas fallback state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<canvas id="chart" width="640" height="360"><p>Quarterly <a href="chart-data.csv">data table</a></p><img src="chart.png" alt="Static chart"></canvas>'
+                . '<canvas width="-1" height="bad">Fallback only</canvas>',
+            'canvas fallback review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/canvas-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $canvas = $summary[0];
+        $invalidCanvas = $summary[1];
+
+        $t->same('canvas', $canvas['name']);
+        $t->same('canvas', $canvas['embeddedResource']);
+        $t->same('640', $canvas['width']);
+        $t->same('360', $canvas['height']);
+        $t->same(640, $canvas['bitmapWidth']);
+        $t->same(360, $canvas['bitmapHeight']);
+        $t->same(['p', 'img'], $canvas['fallbackElementNames']);
+        $t->same(2, $canvas['fallbackElementCount']);
+        $t->same('Quarterly data table', $canvas['fallbackText']);
+        $t->same(strlen('Quarterly data table'), $canvas['fallbackTextLength']);
+        $t->same(hash('sha256', 'Quarterly data table'), $canvas['fallbackTextSha256']);
+        $t->same('canvas-fallback-source', $canvas['canvasReviewPolicy']);
+        $t->same('a', $canvas['children'][0]['children'][1]['name']);
+        $t->same('chart-data.csv', $canvas['children'][0]['children'][1]['href']);
+        $t->same('image', $canvas['children'][1]['embeddedResource']);
+        $t->same('chart.png', $canvas['children'][1]['src']);
+
+        $t->same('canvas', $invalidCanvas['embeddedResource']);
+        $t->same('-1', $invalidCanvas['width']);
+        $t->same('bad', $invalidCanvas['height']);
+        $t->same(300, $invalidCanvas['bitmapWidth']);
+        $t->same(150, $invalidCanvas['bitmapHeight']);
+        $t->same([], $invalidCanvas['fallbackElementNames']);
+        $t->same(0, $invalidCanvas['fallbackElementCount']);
+        $t->same('Fallback only', $invalidCanvas['fallbackText']);
+        $t->same(strlen('Fallback only'), $invalidCanvas['fallbackTextLength']);
+        $t->same(hash('sha256', 'Fallback only'), $invalidCanvas['fallbackTextSha256']);
+        $t->same('<canvas height="360" id="chart" width="640"><p>Quarterly <a href="chart-data.csv">data table</a></p><img alt="Static chart" src="chart.png"></canvas><canvas height="bad" width="-1">Fallback only</canvas>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/canvas-fallback-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html embedded image and media source candidates for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<picture><source media="(min-width: 60em)" type="image/avif" srcset="hero.avif 1x, hero@2x.avif 2x"><source type="image/webp" srcset="hero.webp 800w"><img src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w" sizes="100vw" alt="Hero &amp; Source" loading="lazy" decoding="async"></picture>'
