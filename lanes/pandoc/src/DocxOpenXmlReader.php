@@ -78,6 +78,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
+    private const CT_PACKAGE_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
     private const CT_ACTIVEX_XML = 'application/vnd.ms-office.activex+xml';
     private const CT_ACTIVEX_BINARY = 'application/vnd.ms-office.activex';
@@ -4520,6 +4521,13 @@ final class DocxOpenXmlReader
             'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
+            'contentTypeOverrideDeclarationCount' => (int) ($contentTypesPart['overrideDeclarationCount'] ?? 0),
+            'contentTypeUsedOverrideDeclarationCount' => (int) ($contentTypesPart['usedOverrideDeclarationCount'] ?? 0),
+            'contentTypeUnusedOverrideDeclarationCount' => (int) ($contentTypesPart['unusedOverrideDeclarationCount'] ?? 0),
+            'contentTypeInvalidOverrideDeclarationCount' => (int) ($contentTypesPart['invalidOverrideDeclarationCount'] ?? 0),
+            'contentTypeUnusedOverridePartNames' => $contentTypesPart['unusedOverridePartNames'] ?? [],
+            'contentTypeOverrideDeclarationIssueCounts' => $contentTypesPart['overrideDeclarationIssueCounts'] ?? [],
+            'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
@@ -5970,6 +5978,7 @@ final class DocxOpenXmlReader
             ] + $this->contentTypeReport($contentType);
         }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
+        $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
 
         return [
             'partName' => '[Content_Types].xml',
@@ -5979,6 +5988,14 @@ final class DocxOpenXmlReader
             'overrideCount' => count($overrides),
             'defaults' => $defaults,
             'overrides' => $overrides,
+            'overrideDeclarationCount' => $overrideDeclarationSummary['declarationCount'],
+            'usedOverrideDeclarationCount' => $overrideDeclarationSummary['usedDeclarationCount'],
+            'unusedOverrideDeclarationCount' => $overrideDeclarationSummary['unusedDeclarationCount'],
+            'invalidOverrideDeclarationCount' => $overrideDeclarationSummary['invalidDeclarationCount'],
+            'unusedOverridePartNames' => $overrideDeclarationSummary['unusedPartNames'],
+            'overrideDeclarationIssueCounts' => $overrideDeclarationSummary['issueCounts'],
+            'overrideDeclarationIssues' => $overrideDeclarationSummary['issues'],
+            'overrideDeclarations' => $overrideDeclarationSummary['declarations'],
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),
             'parameterizedContentTypes' => $parameterizedContentTypes,
             'preflight' => $preflight,
@@ -5991,6 +6008,93 @@ final class DocxOpenXmlReader
             'duplicateOverridePartNameCount' => $preflight === null ? 0 : $preflight['duplicateOverridePartNameCount'],
             'duplicateDefaultExtensions' => $preflight === null ? [] : $preflight['duplicateDefaultExtensions'],
             'duplicateOverridePartNames' => $preflight === null ? [] : $preflight['duplicateOverridePartNames'],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array<string, mixed>> $overrides
+     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, invalidDeclarationCount:int, unusedPartNames:list<string>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>}
+     */
+    private function contentTypeOverrideDeclarationSummary(array $parts, array $overrides): array
+    {
+        $declarations = [];
+        $unusedPartNames = [];
+        $issueCounts = [];
+        $usedDeclarationCount = 0;
+        $invalidDeclarationCount = 0;
+
+        foreach ($overrides as $partName => $override) {
+            $exists = isset($parts[$partName]);
+            $relationshipPart = $this->isRelationshipPartName($partName);
+            $relationshipSource = null;
+            $relationshipSourceExists = null;
+            $issues = [];
+
+            if ($exists) {
+                ++$usedDeclarationCount;
+            } else {
+                $issues[] = 'override-target-missing-part';
+                $unusedPartNames[] = $partName;
+            }
+
+            $contentTypeBase = is_string($override['contentTypeBase'] ?? null)
+                ? $override['contentTypeBase']
+                : '';
+
+            if ($partName === '[Content_Types].xml') {
+                $issues[] = 'content-types-override-target';
+            }
+
+            if ($relationshipPart) {
+                $relationshipSource = $this->relationshipSourcePartForInventory($partName);
+                $relationshipSourceExists = $this->relationshipSourceExists($parts, $relationshipSource);
+
+                if ($contentTypeBase !== self::CT_PACKAGE_RELATIONSHIPS) {
+                    $issues[] = 'invalid-relationship-content-type';
+                }
+                if (!$relationshipSourceExists) {
+                    $issues[] = 'relationship-override-source-missing';
+                }
+            } elseif ($contentTypeBase === self::CT_PACKAGE_RELATIONSHIPS) {
+                $issues[] = 'relationship-content-type-on-non-relationship-part';
+            }
+
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+            if ($issues !== []) {
+                ++$invalidDeclarationCount;
+                foreach ($issues as $issue) {
+                    $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                }
+            }
+
+            $declarations[] = [
+                'partName' => $partName,
+                'contentType' => is_string($override['contentType'] ?? null) ? $override['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'exists' => $exists,
+                'matchKind' => $exists ? 'exact' : 'missing',
+                'relationshipPart' => $relationshipPart,
+                'relationshipSource' => $relationshipSource,
+                'relationshipSourceExists' => $relationshipSourceExists,
+                'valid' => $issues === [],
+                'issues' => $issues,
+            ];
+        }
+
+        sort($unusedPartNames, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+
+        return [
+            'declarationCount' => count($declarations),
+            'usedDeclarationCount' => $usedDeclarationCount,
+            'unusedDeclarationCount' => count($unusedPartNames),
+            'invalidDeclarationCount' => $invalidDeclarationCount,
+            'unusedPartNames' => $unusedPartNames,
+            'issueCounts' => $issueCounts,
+            'issues' => array_keys($issueCounts),
+            'declarations' => $declarations,
         ];
     }
 

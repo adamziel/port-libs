@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3248,
-        "latestSlice": "pandoc-json-native-meta-constructor-provenance maps one bounded PandocJsonNativeAst case for escaped-path metaConstructorProvenance over Pandoc metadata constructors, preserving MetaString, MetaBool, MetaInlines, MetaBlocks, MetaList, and MetaMap native payload paths across PandocJsonReader and NativeReader while keeping existing metaConstructors/metaNativeValues sidecars, Cite source inline payloads, and writer output stable. Mapped denominator moves 3247 -> 3248 after preserving current main counters, mappedPandocJsonNativeMetaConstructorProvenanceCases is 1, pandocJsonNativeMetaConstructorProvenanceAssertions is 39, mappedJsonNativeCaptionMaybeConstructorCases from current main remains 1, jsonNativeCaptionMaybeConstructorAssertions from current main remains 47, mappedPandocJsonNativeHelperConstructorCases from current main remains 1, and mappedPandocJsonNativeAttrTupleProvenanceCases from current main remains 1. Verification passed php -l for PandocJsonReader.php, NativeReader.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1934 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73516 assertions, 0 failures) after refresh onto origin/main 29dafdc63 without running Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3249,
+        "latestSlice": "pandoc-docx-content-type-override-declarations maps one native DOCX/OpenXML package-ingestion case for [Content_Types].xml Override declaration provenance in DocxOpenXmlReader packageProvenance, including used and missing override targets, relationship override source existence, content-types self-target diagnostics, relationship content-type misuse, and summary issue rollups. Mapped denominator moves 3248 -> 3249 after preserving current main counters, mappedDocxContentTypeOverrideDeclarationCases is 1, docxContentTypeOverrideDeclarationAssertions is 28, mappedPandocJsonNativeMetaConstructorProvenanceCases from current main remains 1, mappedJsonNativeCaptionMaybeConstructorCases from current main remains 1, and mappedDocxOpenXmlContentTypeParameterCases from current main remains 1. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php, focused DocxOpenXmlReaderTest.php (1 file, 2266 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73608 assertions, 0 failures) after final rebase onto current main d987e849d without running Pandoc, Cabal/Haskell runners, Word, LibreOffice, office suites, zip/unzip, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc JSON/native metadata constructor provenance is verified over current main 29dafdc63 with focused and full Pandoc lane PHP verification passing.",
-        "latestFocusedSource": "2026-06-12 JSON/native AST slice inspected metadata constructor provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 29dafdc63; focused PandocJsonNativeAstTest.php passed 1 file, 1934 assertions, 0 failures.",
+        "status": "DOCX/OpenXML content-type override declaration provenance is verified over current main d987e849d with focused and full Pandoc lane PHP verification passing.",
+        "latestFocusedSource": "2026-06-12 DOCX/OpenXML package ingestion slice inspected content-type override declaration provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main d987e849d; focused DocxOpenXmlReaderTest.php passed 1 file, 2266 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -117,7 +117,9 @@
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
         "xmlHtmlDomLinkResourceReviewAssertions": 38,
         "mappedPandocJsonNativeMetaConstructorProvenanceCases": 1,
-        "pandocJsonNativeMetaConstructorProvenanceAssertions": 39
+        "pandocJsonNativeMetaConstructorProvenanceAssertions": 39,
+        "mappedDocxContentTypeOverrideDeclarationCases": 1,
+        "docxContentTypeOverrideDeclarationAssertions": 28
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
