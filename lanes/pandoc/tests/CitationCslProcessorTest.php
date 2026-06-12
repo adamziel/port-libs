@@ -27045,6 +27045,98 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note</dd>', $blocks);
     },
+    'normalizes bounded direct csl json pubmed identifier aliases' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-pubmed-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct PubMed Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'pubmedId' => '12345678',
+                'pmc' => 'PMC1234567',
+            ],
+            [
+                'id' => 'direct-pubmed-hyphen',
+                'type' => 'webpage',
+                'title' => 'Direct PubMed Hyphen Packet',
+                'author' => [
+                    ['literal' => 'Archive Clinic'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'pubmed-id' => '87654321',
+                'pubmed-central-id' => 'PMC7654321',
+            ],
+            [
+                'id' => 'direct-pubmed-flat',
+                'type' => 'article',
+                'title' => 'Direct PubMed Flat Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'pubmedid' => '13572468',
+                'pubmedcentral' => 'PMC1357246',
+            ],
+        ]);
+
+        $camel = $processor->item('direct-pubmed-camel');
+        $hyphen = $processor->item('direct-pubmed-hyphen');
+        $flat = $processor->item('direct-pubmed-flat');
+        $t->same('12345678', $camel['pmid'] ?? null);
+        $t->same('PMC1234567', $camel['pmcid'] ?? null);
+        $t->same('87654321', $hyphen['pmid'] ?? null);
+        $t->same('PMC7654321', $hyphen['pmcid'] ?? null);
+        $t->same('13572468', $flat['pmid'] ?? null);
+        $t->same('PMC1357246', $flat['pmcid'] ?? null);
+        $t->same('Ng, Nia. Direct PubMed Camel Packet. 2026. PMID 12345678. PMCID PMC1234567.', $processor->renderBibliographyEntry('direct-pubmed-camel'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL PubMed Identifier Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-pubmed-identifier-alias-review</id>
+    <updated>2026-06-12T00:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="PMID"/>
+        <text variable="PMCID"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL PubMed Identifier Alias Review', $summary['title'] ?? null);
+        $t->same('PMID', $citationChildren[1]['variable'] ?? null);
+        $t->same('PMCID', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | 12345678 | PMC1234567; Archive Clinic | 87654321 | PMC7654321; Roe | 13572468 | PMC1357246]', $styled->renderCitationCluster([
+            $citation('direct-pubmed-camel', '[@direct-pubmed-camel]'),
+            $citation('direct-pubmed-hyphen', '[@direct-pubmed-hyphen]'),
+            $citation('direct-pubmed-flat', '[@direct-pubmed-flat]'),
+        ]));
+        $t->same('Direct PubMed Hyphen Packet :: 87654321 :: PMC7654321', $styled->renderBibliographyEntry('direct-pubmed-hyphen'));
+
+        $document = (new MarkdownReader())->read('Direct PubMed aliases [@direct-pubmed-camel; @direct-pubmed-hyphen; @direct-pubmed-flat] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct PubMed aliases [Ng | 12345678 | PMC1234567; Archive Clinic | 87654321 | PMC7654321; Roe | 13572468 | PMC1357246] stay visible.</p>', $blocks);
+        $t->contains('<dt>Archive Clinic 2025</dt><dd>Direct PubMed Hyphen Packet :: 87654321 :: PMC7654321</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
