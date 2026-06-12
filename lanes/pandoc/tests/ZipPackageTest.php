@@ -10113,6 +10113,74 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertSizePreflight(null, 100.0));
     },
 
+    'summarizes zip size compression method buckets before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>method bucket review</w:p></w:body></w:document>';
+        $storedBytes = "stored review bytes\n";
+        $unsupportedBytes = "unsupported method bytes\n";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/stored.txt',
+                'data' => $storedBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/legacy.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+            ],
+        ]);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $expectedBuckets = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($storedBytes),
+                'uncompressedBytes' => strlen($storedBytes),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $documentCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($unsupportedBytes),
+                'uncompressedBytes' => strlen($unsupportedBytes),
+                'isSupported' => false,
+            ],
+        ];
+
+        $package = ZipPackage::fromString($zip);
+        $size = $package->sizePreflight();
+        $strict = $package->strictImportPreflight(null, null, 4096);
+        $centralSize = ZipPackage::centralDirectorySizePreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, null, null, 4096);
+
+        $t->same(3, $size['entryCount']);
+        $t->same(1, $size['storedEntryCount']);
+        $t->same(1, $size['deflatedEntryCount']);
+        $t->same(1, $size['unsupportedCompressionMethodCount']);
+        $t->same($expectedBuckets, $size['methodBuckets']);
+        $t->same($expectedBuckets, $strict['size']['methodBuckets']);
+        $t->same(false, $strict['isValid']);
+        $t->contains('unsupported-compression-methods', implode(',', $strict['diagnostics']));
+        $t->same($expectedBuckets, $centralSize['methodBuckets']);
+        $t->same($expectedBuckets, $rawStrict['centralDirectorySize']['methodBuckets']);
+        $t->same($expectedBuckets, $rawStrict['strictImport']['size']['methodBuckets']);
+    },
+
     'preflights readable zip entry payloads before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage, $corruptZipEntryPayload, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>integrity preflight</w:p></w:body></w:document>';
         $mediaBytes = "review media payload bytes\n";

@@ -8119,6 +8119,7 @@ final class ZipPackage
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
+     *     methodBuckets:list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>,
      *     expansionRatio:?float,
      *     maxTotalUncompressedBytes:?int,
      *     maxExpansionRatio:?float,
@@ -8167,6 +8168,7 @@ final class ZipPackage
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
         $unsupportedCompressionMethodCount = 0;
+        $methodBuckets = [];
         $largestEntry = null;
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
@@ -8236,6 +8238,12 @@ final class ZipPackage
             $entryExpansionRatio = $hasZip64SizeSentinel
                 ? null
                 : self::expansionRatio($uncompressedSize, $compressedSize);
+            self::addCompressionMethodBucket(
+                $methodBuckets,
+                $method,
+                $hasZip64SizeSentinel ? 0 : $compressedSize,
+                $hasZip64SizeSentinel ? 0 : $uncompressedSize
+            );
 
             $entry = [
                 'name' => $name,
@@ -8349,6 +8357,7 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
             'expansionRatio' => $expansionRatio,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'maxExpansionRatio' => $maxExpansionRatio,
@@ -9462,6 +9471,7 @@ final class ZipPackage
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
+     *     methodBuckets:list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>,
      *     expansionRatio:?float,
      *     largestEntry:?array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float},
      *     zeroByteEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int, expansionRatio:?float}>,
@@ -9481,6 +9491,7 @@ final class ZipPackage
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
         $unsupportedCompressionMethodCount = 0;
+        $methodBuckets = [];
         $largestEntry = null;
         $entrySummaries = [];
         $zeroByteEntries = [];
@@ -9504,6 +9515,12 @@ final class ZipPackage
 
             $compressedBytes += $entry->compressedSize;
             $uncompressedBytes += $entry->uncompressedSize;
+            self::addCompressionMethodBucket(
+                $methodBuckets,
+                $entry->compressionMethod,
+                $entry->compressedSize,
+                $entry->uncompressedSize
+            );
             $entrySummary = [
                 'name' => $entry->name,
                 'compressionMethod' => $entry->compressionMethod,
@@ -9550,6 +9567,7 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
             'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
             'largestEntry' => $largestEntry,
             'zeroByteEntries' => $zeroByteEntries,
