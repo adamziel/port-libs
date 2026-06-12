@@ -261,6 +261,63 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html input hint attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="entry" autocapitalize="on"><input id="amount" inputmode="Decimal" enterkeyhint="Done" autocapitalize="characters">'
+                . '<textarea id="message" inputmode="search" enterkeyhint="send" autocapitalize="off">Note</textarea></form>'
+                . '<p id="fallback" inputmode="kana" enterkeyhint="compose" autocapitalize="maybe">Fallback</p>',
+            'input hint review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/input-hints-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $input = $form['children'][0];
+        $textarea = $form['children'][1];
+        $fallback = $summary[1];
+
+        $t->same('entry', $form['elementId']);
+        $t->same('on', $form['autocapitalizeRaw']);
+        $t->same('sentences', $form['autocapitalize']);
+        $t->same(true, $form['autocapitalizeValid']);
+
+        $t->same('input', $input['formControl']);
+        $t->same('Decimal', $input['inputModeRaw']);
+        $t->same('decimal', $input['inputMode']);
+        $t->same(true, $input['inputModeValid']);
+        $t->same('Done', $input['enterKeyHintRaw']);
+        $t->same('done', $input['enterKeyHint']);
+        $t->same(true, $input['enterKeyHintValid']);
+        $t->same('characters', $input['autocapitalizeRaw']);
+        $t->same('characters', $input['autocapitalize']);
+        $t->same(true, $input['autocapitalizeValid']);
+
+        $t->same('textarea', $textarea['formControl']);
+        $t->same('search', $textarea['inputMode']);
+        $t->same(true, $textarea['inputModeValid']);
+        $t->same('send', $textarea['enterKeyHint']);
+        $t->same(true, $textarea['enterKeyHintValid']);
+        $t->same('none', $textarea['autocapitalize']);
+        $t->same(true, $textarea['autocapitalizeValid']);
+
+        $t->same('kana', $fallback['inputModeRaw']);
+        $t->same(null, $fallback['inputMode']);
+        $t->same(false, $fallback['inputModeValid']);
+        $t->same('compose', $fallback['enterKeyHintRaw']);
+        $t->same(null, $fallback['enterKeyHint']);
+        $t->same(false, $fallback['enterKeyHintValid']);
+        $t->same('maybe', $fallback['autocapitalizeRaw']);
+        $t->same(null, $fallback['autocapitalize']);
+        $t->same(false, $fallback['autocapitalizeValid']);
+
+        $t->same('<form autocapitalize="on" id="entry"><input autocapitalize="characters" enterkeyhint="Done" id="amount" inputmode="Decimal"><textarea autocapitalize="off" enterkeyhint="send" id="message" inputmode="search">Note</textarea></form><p autocapitalize="maybe" enterkeyhint="compose" id="fallback" inputmode="kana">Fallback</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/input-hints-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'

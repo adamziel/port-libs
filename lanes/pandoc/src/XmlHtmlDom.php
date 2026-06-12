@@ -1593,6 +1593,27 @@ final class XmlHtmlDom
             $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
         }
 
+        if (array_key_exists('inputmode', $attributes)) {
+            $inputMode = self::inputModeState($attributes['inputmode']);
+            $summary['inputModeRaw'] = $attributes['inputmode'];
+            $summary['inputMode'] = $inputMode;
+            $summary['inputModeValid'] = $inputMode !== null;
+        }
+
+        if (array_key_exists('enterkeyhint', $attributes)) {
+            $enterKeyHint = self::enterKeyHintState($attributes['enterkeyhint']);
+            $summary['enterKeyHintRaw'] = $attributes['enterkeyhint'];
+            $summary['enterKeyHint'] = $enterKeyHint;
+            $summary['enterKeyHintValid'] = $enterKeyHint !== null;
+        }
+
+        if (array_key_exists('autocapitalize', $attributes)) {
+            $autocapitalize = self::autocapitalizeState($attributes['autocapitalize']);
+            $summary['autocapitalizeRaw'] = $attributes['autocapitalize'];
+            $summary['autocapitalize'] = $autocapitalize;
+            $summary['autocapitalizeValid'] = $autocapitalize !== null;
+        }
+
         if (array_key_exists('popover', $attributes)) {
             $popover = self::popoverState($attributes['popover']);
             $summary['popoverRaw'] = $attributes['popover'];
@@ -1615,6 +1636,37 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    private static function inputModeState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['none', 'text', 'tel', 'email', 'url', 'numeric', 'decimal', 'search'], true)
+            ? $value
+            : null;
+    }
+
+    private static function enterKeyHintState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['enter', 'done', 'go', 'next', 'previous', 'search', 'send'], true)
+            ? $value
+            : null;
+    }
+
+    private static function autocapitalizeState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            'off', 'none' => 'none',
+            'on', 'sentences' => 'sentences',
+            'words' => 'words',
+            'characters' => 'characters',
+            default => null,
+        };
     }
 
     private static function popoverState(string $value): ?string
