@@ -791,6 +791,7 @@ final class XmlHtmlDom
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
+            $summary += self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
@@ -804,6 +805,7 @@ final class XmlHtmlDom
         if ($name === 'input') {
             $inputType = self::inputType($node);
             $summary['formControl'] = 'input';
+            $summary += self::formOwnerSummary($node);
             $summary['inputType'] = $inputType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
@@ -824,6 +826,7 @@ final class XmlHtmlDom
         }
         if ($name === 'textarea') {
             $summary['formControl'] = 'textarea';
+            $summary += self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->textContent;
             $summary['disabled'] = $node->hasAttribute('disabled');
@@ -837,6 +840,7 @@ final class XmlHtmlDom
         if ($name === 'button') {
             $buttonType = self::buttonType($node);
             $summary['formControl'] = 'button';
+            $summary += self::formOwnerSummary($node);
             $summary['buttonType'] = $buttonType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
@@ -850,6 +854,7 @@ final class XmlHtmlDom
         if ($name === 'output') {
             $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
             $summary['formControl'] = 'output';
+            $summary += self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->textContent;
             $summary['forRaw'] = $forRaw;
@@ -2636,6 +2641,7 @@ final class XmlHtmlDom
     private static function formSubmissionSummary(\DOMElement $form): array
     {
         $acceptCharsetRaw = self::attributeOrNull($form, 'accept-charset');
+        $controls = self::formOwnedControlSummaries($form);
 
         return [
             'formSubmission' => 'form',
@@ -2647,7 +2653,140 @@ final class XmlHtmlDom
             'novalidate' => $form->hasAttribute('novalidate'),
             'acceptCharsetRaw' => $acceptCharsetRaw,
             'acceptCharsets' => $acceptCharsetRaw === null ? [] : self::spaceSeparatedTokens($acceptCharsetRaw),
+            'controlCount' => count($controls),
+            'externalControlCount' => count(array_filter(
+                $controls,
+                static fn (array $control): bool => ($control['formOwnerSource'] ?? null) === 'form-attribute'
+            )),
+            'controls' => $controls,
+            'controlNames' => self::formOwnedControlNames($controls),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formOwnerSummary(\DOMElement $control): array
+    {
+        $form = self::formOwnerElement($control);
+        $formAttribute = self::attributeOrNull($control, 'form');
+        $formTargetId = $formAttribute === null ? null : trim($formAttribute);
+        $source = 'none';
+        if ($formAttribute !== null) {
+            $source = $form instanceof \DOMElement ? 'form-attribute' : 'missing-form-attribute';
+        } elseif ($form instanceof \DOMElement) {
+            $source = 'ancestor';
+        }
+
+        return [
+            'formOwnerRaw' => $formAttribute,
+            'formOwnerTargetId' => $formTargetId === '' ? null : $formTargetId,
+            'formOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'formOwnerSource' => $source,
+            'formOwnerFound' => $form instanceof \DOMElement,
+            'formOwnerAction' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'action') : null,
+            'formOwnerMethod' => $form instanceof \DOMElement ? self::formMethod($form, 'method', 'get') : null,
+            'formOwnerEnctype' => $form instanceof \DOMElement ? self::formEnctype($form, 'enctype', 'application/x-www-form-urlencoded') : null,
+            'formOwnerTarget' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'target') : null,
+        ];
+    }
+
+    private static function formOwnerElement(\DOMElement $control): ?\DOMElement
+    {
+        $formAttribute = self::attributeOrNull($control, 'form');
+        if ($formAttribute !== null) {
+            $formId = trim($formAttribute);
+            if ($formId === '') {
+                return null;
+            }
+
+            $candidate = self::htmlElementById($control, $formId);
+
+            return $candidate instanceof \DOMElement && self::htmlElementName($candidate) === 'form'
+                ? $candidate
+                : null;
+        }
+
+        $parent = $control->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::htmlElementName($parent) === 'form') {
+                return $parent;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function formOwnedControlSummaries(\DOMElement $form): array
+    {
+        $document = $form->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $controls = [];
+        foreach ($document->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || !self::isFormControlElement($control)) {
+                continue;
+            }
+            if (!self::formOwnerElement($control)?->isSameNode($form)) {
+                continue;
+            }
+
+            $name = self::htmlElementName($control);
+            $summary = [
+                'tag' => $name,
+                'id' => self::attributeOrNull($control, 'id'),
+                'controlName' => self::attributeOrNull($control, 'name'),
+                'formOwnerSource' => self::attributeOrNull($control, 'form') === null ? 'ancestor' : 'form-attribute',
+                'effectiveDisabled' => self::isEffectivelyDisabledFormControl($control),
+            ];
+
+            if ($name === 'input') {
+                $summary['type'] = self::inputType($control);
+                $summary['value'] = self::attributeOrNull($control, 'value');
+                $summary['checked'] = $control->hasAttribute('checked');
+            } elseif ($name === 'button') {
+                $summary['type'] = self::buttonType($control);
+                $summary['value'] = self::attributeOrNull($control, 'value');
+                $summary['label'] = self::normalizedText($control);
+            } elseif ($name === 'select') {
+                $summary['selectedValues'] = array_values(array_map(
+                    static fn (array $option): string => (string) $option['value'],
+                    array_filter(
+                        self::selectOptionSummaries($control),
+                        static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+                    )
+                ));
+            } elseif ($name === 'textarea' || $name === 'output') {
+                $summary['value'] = $control->textContent;
+            }
+
+            $controls[] = $summary;
+        }
+
+        return $controls;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function formOwnedControlNames(array $controls): array
+    {
+        $names = [];
+        foreach ($controls as $control) {
+            $name = $control['controlName'] ?? null;
+            if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**
