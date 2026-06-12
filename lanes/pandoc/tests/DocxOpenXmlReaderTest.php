@@ -779,6 +779,81 @@ XML;
         $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
         $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
+    'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSelfDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="document.xml?self=1#source"/>' . "\n" .
+            '  <Relationship Id="rCoreParent" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="../docProps/core.xml?audit=up#core"/>' . "\n" .
+            '  <Relationship Id="rAbsoluteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="/word/media/review.png?absolute=1#root"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header package path audit</w:t></w:r></w:p></w:hdr>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderParentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/review.png?scope=header#media"/>
+  <Relationship Id="rHeaderSelf" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="header1.xml#self"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $documentRelationships = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $headerRelationships = $package['relationshipParts']['word/header/_rels/header1.xml.rels']['relationships'];
+        $selfDocument = $documentRelationships['rSelfDocument'];
+        $coreParent = $documentRelationships['rCoreParent'];
+        $absoluteImage = $documentRelationships['rAbsoluteImage'];
+        $headerParent = $headerRelationships['rHeaderParentImage'];
+        $headerSelf = $headerRelationships['rHeaderSelf'];
+
+        $t->same(2, $summary['relationshipTargetParentTraversalCount']);
+        $t->same(2, $summary['relationshipTargetParentTraversalSegmentCount']);
+        $t->same(2, $summary['sameSourceRelationshipCount']);
+        $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $summary['relationshipPartsWithParentTraversalTargets']);
+        $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $summary['relationshipPartsWithSameSourceTargets']);
+        $t->same(['rCoreParent', 'rHeaderParentImage'], array_column($summary['relationshipTargetsWithParentTraversal'], 'id'));
+        $t->same(['rSelfDocument', 'rHeaderSelf'], array_column($summary['relationshipsWithSameSourceTargets'], 'id'));
+
+        $t->same('word/document.xml', $selfDocument['targetPart']);
+        $t->same(true, $selfDocument['sameSourcePart']);
+        $t->same(0, $selfDocument['targetParentTraversalCount']);
+        $t->same(false, $selfDocument['targetHasParentTraversal']);
+        $t->same(false, $selfDocument['targetStartsAtPackageRoot']);
+
+        $t->same('../docProps/core.xml?audit=up#core', $coreParent['target']);
+        $t->same('docProps/core.xml', $coreParent['targetPart']);
+        $t->same(1, $coreParent['targetParentTraversalCount']);
+        $t->same(true, $coreParent['targetHasParentTraversal']);
+        $t->same(false, $coreParent['sameSourcePart']);
+        $t->same('?audit=up#core', $coreParent['targetReferenceSuffix']);
+
+        $t->same('/word/media/review.png?absolute=1#root', $absoluteImage['target']);
+        $t->same('word/media/review.png', $absoluteImage['targetPart']);
+        $t->same(true, $absoluteImage['targetStartsAtPackageRoot']);
+        $t->same(false, $absoluteImage['targetHasParentTraversal']);
+
+        $t->same('word/media/review.png', $headerParent['targetPart']);
+        $t->same(1, $headerParent['targetParentTraversalCount']);
+        $t->same(true, $headerParent['targetHasParentTraversal']);
+        $t->same(false, $headerParent['sameSourcePart']);
+        $t->same('word/header/header1.xml', $headerSelf['targetPart']);
+        $t->same(true, $headerSelf['sameSourcePart']);
+
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $coreType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+        $customXmlType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $t->same(1, $package['relationshipTypes'][$imageType]['parentTraversalTargetCount']);
+        $t->same(0, $package['relationshipTypes'][$imageType]['sameSourceTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$coreType]['parentTraversalTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$customXmlType]['sameSourceTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$hyperlinkType]['sameSourceTargetCount']);
+        $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][1]['targetStartsAtPackageRoot']);
+        $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][2]['targetHasParentTraversal']);
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';

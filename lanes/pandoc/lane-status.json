@@ -237,5 +237,7 @@
     "mappedOdtReaderRawZipNameProvenanceCases": 1,
     "odtReaderRawZipNameProvenanceAssertions": 22,
     "mappedCslDirectUppercaseUrlDateAliasCases": 1,
-    "cslDirectUppercaseUrlDateAliasAssertions": 14
+    "cslDirectUppercaseUrlDateAliasAssertions": 14,
+    "mappedDocxOpenXmlRelationshipTargetPathShapeCases": 1,
+    "docxOpenXmlRelationshipTargetPathShapeAssertions": 35
 }
