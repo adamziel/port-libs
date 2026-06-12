@@ -26771,6 +26771,119 @@ XML);
         ]));
         $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
     },
+    'normalizes bounded direct csl json container collection aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-container-compact',
+                'type' => 'article-journal',
+                'title' => 'Direct Container Alias Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'container' => 'Migration Container Review',
+                'containerTitleShort' => 'MCR',
+                'collection' => 'Reviewer Series',
+                'collectionTitleShort' => 'RS',
+            ],
+            [
+                'id' => 'direct-container-text',
+                'type' => 'chapter',
+                'title' => 'Direct Container Text Alias Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'containerTitleText' => 'Source Container Journal',
+                'container-title-short' => 'SCJ',
+                'collectionTitleText' => 'Archive Collection',
+                'collection-title-short' => 'AC',
+            ],
+            [
+                'id' => 'direct-container-flat',
+                'type' => 'report',
+                'title' => 'Direct Container Flat Alias Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'containertitletext' => 'Compact Container Ledger',
+                'containertitleshort' => 'CCL',
+                'collectiontitletext' => 'Compact Collection Ledger',
+                'collectiontitleshort' => 'C-Series',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-container-compact');
+        $text = $processor->item('direct-container-text');
+        $flat = $processor->item('direct-container-flat');
+        $t->same('Migration Container Review', $compact['containerTitle'] ?? null);
+        $t->same('Reviewer Series', $compact['collectionTitle'] ?? null);
+        $t->same('MCR', $compact['containerTitleShort'] ?? null);
+        $t->same('RS', $compact['collectionTitleShort'] ?? null);
+        $t->same('Source Container Journal', $text['containerTitle'] ?? null);
+        $t->same('Archive Collection', $text['collectionTitle'] ?? null);
+        $t->same('Compact Container Ledger', $flat['containerTitle'] ?? null);
+        $t->same('Compact Collection Ledger', $flat['collectionTitle'] ?? null);
+        $t->same('Compact Container Ledger', $flat['raw']['containertitletext'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Container Collection Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-container-collection-alias-review</id>
+    <updated>2026-06-12T21:56:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="container"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="container-title"/>
+        <text variable="container" form="short"/>
+        <text variable="collection-title"/>
+        <text variable="collection" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title-text"/>
+      <text variable="collection-title-text"/>
+      <text variable="collection-title" form="short"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Container Collection Alias Review', $summary['title'] ?? null);
+        $t->same('container', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('container-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[2]['form'] ?? null);
+        $t->same('collection-title', $citationChildren[3]['variable'] ?? null);
+        $t->same('collection', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC]', $styled->renderCitationCluster([
+            $citation('direct-container-compact', '[@direct-container-compact]'),
+            $citation('direct-container-text', '[@direct-container-text]'),
+            $citation('direct-container-flat', '[@direct-container-flat]'),
+        ]));
+        $t->same('Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS', $styled->renderBibliographyEntry('direct-container-compact'));
+        $t->same('Direct Container Text Alias Packet :: Source Container Journal :: Archive Collection :: AC', $styled->renderBibliographyEntry('direct-container-text'));
+        $t->same('Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series', $styled->renderBibliographyEntry('direct-container-flat'));
+
+        $document = (new MarkdownReader())->read('Direct container aliases [@direct-container-compact; @direct-container-text; @direct-container-flat] keep imported source families visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct container aliases [Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS; Bell | Source Container Journal | SCJ | Archive Collection | AC] keep imported source families visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series</dd>', $blocks);
+    },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
