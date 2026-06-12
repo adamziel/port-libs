@@ -19651,6 +19651,91 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
     },
+    'maps bounded bibtex shelfmark and archivelocation aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@misc{compact-archive-shelfmark,
+  author            = {{Archive Catalog Desk}},
+  title             = {Compact Archive Shelfmark Packet},
+  date              = {2026},
+  archive           = {City Archive},
+  archiveCollection = {Migration Papers},
+  archiveLocation   = {Box 4 Folder 2},
+  shelfmark         = {MS 42 Box 4}
+}
+
+@misc{hyphen-shelfmark,
+  author     = {Ng, Nia},
+  title      = {Hyphen Shelfmark Packet},
+  date       = {2025},
+  archive    = {Field Notes Library},
+  shelf-mark = {Folio A-9}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Migration Papers', $items[0]['archive-collection'] ?? null);
+        $t->same('Box 4 Folder 2', $items[0]['archive_location'] ?? null);
+        $t->same('MS 42 Box 4', $items[0]['call-number'] ?? null);
+        $t->same('Folio A-9', $items[1]['call-number'] ?? null);
+        $t->same('Box 4 Folder 2', $items[0]['rawBibtex']['fields']['archivelocation'] ?? null);
+        $t->same('MS 42 Box 4', $items[0]['rawBibtex']['fields']['shelfmark'] ?? null);
+        $t->same('Folio A-9', $items[1]['rawBibtex']['fields']['shelf-mark'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibTeX Shelfmark Archive Alias Review</title>
+    <id>https://example.test/styles/bounded-bibtex-shelfmark-archive-alias-review</id>
+    <updated>2026-06-12T02:46:30+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="archive"/>
+        <text variable="archive_collection"/>
+        <text variable="archive_location"/>
+        <text variable="call-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-summary"/>
+      <text variable="call-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $compact = $processor->item('compact-archive-shelfmark');
+        $hyphen = $processor->item('hyphen-shelfmark');
+        $t->same('Bounded BibTeX Shelfmark Archive Alias Review', $summary['title'] ?? null);
+        $t->same('archive_location', $citationChildren[3]['variable'] ?? null);
+        $t->same('call-number', $citationChildren[4]['variable'] ?? null);
+        $t->same('Box 4 Folder 2', $compact['archiveLocation'] ?? null);
+        $t->same('MS 42 Box 4', $compact['callNumber'] ?? null);
+        $t->same('City Archive:Migration Papers:Box 4 Folder 2', $compact['archiveSummary'] ?? null);
+        $t->same('Folio A-9', $hyphen['callNumber'] ?? null);
+
+        $t->same('[Archive Catalog Desk | City Archive | Migration Papers | Box 4 Folder 2 | MS 42 Box 4; Ng | Field Notes Library | Folio A-9]', $processor->renderCitationCluster([
+            $citation('compact-archive-shelfmark', '[@compact-archive-shelfmark]'),
+            $citation('hyphen-shelfmark', '[@hyphen-shelfmark]'),
+        ]));
+        $t->same('Compact Archive Shelfmark Packet :: City Archive:Migration Papers:Box 4 Folder 2 :: MS 42 Box 4', $processor->renderBibliographyEntry('compact-archive-shelfmark'));
+        $t->same('Hyphen Shelfmark Packet :: Field Notes Library :: Folio A-9', $processor->renderBibliographyEntry('hyphen-shelfmark'));
+
+        $document = (new MarkdownReader())->read('BibTeX shelfmarks [@compact-archive-shelfmark; @hyphen-shelfmark] keep compact archive locations visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibTeX shelfmarks [Archive Catalog Desk | City Archive | Migration Papers | Box 4 Folder 2 | MS 42 Box 4; Ng | Field Notes Library | Folio A-9] keep compact archive locations visible.</p>', $blocks);
+        $t->contains('<dt>Archive Catalog Desk 2026</dt><dd>Compact Archive Shelfmark Packet :: City Archive:Migration Papers:Box 4 Folder 2 :: MS 42 Box 4</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Hyphen Shelfmark Packet :: Field Notes Library :: Folio A-9</dd>', $blocks);
+    },
     'maps bounded direct csl shelfmark aliases into call-number metadata' => static function (TestRunner $t) use ($citation): void {
         $items = [
             [
