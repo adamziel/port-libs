@@ -2834,8 +2834,13 @@ final class DocxOpenXmlReader
         $relationshipTargetReferenceSuffixCount = 0;
         $relationshipTargetQueryCount = 0;
         $relationshipTargetFragmentCount = 0;
+        $relationshipTargetParentTraversalSegmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
+        $relationshipPartsWithParentTraversalTargets = [];
+        $relationshipPartsWithSameSourceTargets = [];
         $relationshipTargetsWithReferenceSuffix = [];
+        $relationshipTargetsWithParentTraversal = [];
+        $relationshipsWithSameSourceTargets = [];
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
         $duplicateRelationshipRecordCount = 0;
@@ -2911,6 +2916,15 @@ final class DocxOpenXmlReader
                 }
 
                 ++$internalRelationshipCount;
+                if (($relationship['targetHasParentTraversal'] ?? false) === true) {
+                    $relationshipTargetsWithParentTraversal[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    $relationshipPartsWithParentTraversalTargets[(string) $relationshipsPart] = true;
+                    $relationshipTargetParentTraversalSegmentCount += (int) ($relationship['targetParentTraversalCount'] ?? 0);
+                }
+                if (($relationship['sameSourcePart'] ?? false) === true) {
+                    $relationshipsWithSameSourceTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    $relationshipPartsWithSameSourceTargets[(string) $relationshipsPart] = true;
+                }
                 $targetPart = $relationship['targetPart'] ?? null;
                 if (is_string($targetPart) && $targetPart !== '') {
                     $targetParts[$targetPart] = true;
@@ -3043,6 +3057,9 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'relationshipTargetParentTraversalCount' => count($relationshipTargetsWithParentTraversal),
+            'relationshipTargetParentTraversalSegmentCount' => $relationshipTargetParentTraversalSegmentCount,
+            'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -3056,6 +3073,8 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
+            'relationshipPartsWithParentTraversalTargets' => array_keys($relationshipPartsWithParentTraversalTargets),
+            'relationshipPartsWithSameSourceTargets' => array_keys($relationshipPartsWithSameSourceTargets),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
@@ -3065,6 +3084,8 @@ final class DocxOpenXmlReader
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
+            'relationshipTargetsWithParentTraversal' => $relationshipTargetsWithParentTraversal,
+            'relationshipsWithSameSourceTargets' => $relationshipsWithSameSourceTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
@@ -4049,6 +4070,10 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
             'targetQuery' => $relationship['targetQuery'] ?? null,
             'targetFragment' => $relationship['targetFragment'] ?? null,
+            'targetParentTraversalCount' => (int) ($relationship['targetParentTraversalCount'] ?? 0),
+            'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
+            'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
+            'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
             'exists' => (bool) ($relationship['exists'] ?? false),
             'contentType' => $relationship['contentType'] ?? null,
             'contentTypeBase' => $relationship['contentTypeBase'] ?? null,
@@ -4214,6 +4239,8 @@ final class DocxOpenXmlReader
                         'externalCount' => 0,
                         'existingTargetCount' => 0,
                         'missingTargetCount' => 0,
+                        'parentTraversalTargetCount' => 0,
+                        'sameSourceTargetCount' => 0,
                         'relationshipParts' => [],
                         'sourceParts' => [],
                         'targetParts' => [],
@@ -4244,6 +4271,12 @@ final class DocxOpenXmlReader
                     $this->appendUniqueString($types[$typeKey]['externalTargets'], $target);
                 } else {
                     $types[$typeKey]['internalCount']++;
+                    if (($relationship['targetHasParentTraversal'] ?? false) === true) {
+                        $types[$typeKey]['parentTraversalTargetCount']++;
+                    }
+                    if (($relationship['sameSourcePart'] ?? false) === true) {
+                        $types[$typeKey]['sameSourceTargetCount']++;
+                    }
                     $this->appendUniqueString($types[$typeKey]['targetParts'], $targetPart);
                     if ($exists) {
                         $types[$typeKey]['existingTargetCount']++;
@@ -4278,6 +4311,10 @@ final class DocxOpenXmlReader
                     'targetReferenceSuffix' => is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '',
                     'targetQuery' => is_string($relationship['targetQuery'] ?? null) ? $relationship['targetQuery'] : null,
                     'targetFragment' => is_string($relationship['targetFragment'] ?? null) ? $relationship['targetFragment'] : null,
+                    'targetParentTraversalCount' => (int) ($relationship['targetParentTraversalCount'] ?? 0),
+                    'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
+                    'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
+                    'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
                 ];
             }
         }
@@ -4551,6 +4588,13 @@ final class DocxOpenXmlReader
         $contentTypeResolution = $targetPart === null
             ? $this->missingContentTypeResolution(null)
             : $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+        $targetPath = $this->relationshipTargetPathProvenance(
+            $relationship['target'],
+            $relationship['targetMode'],
+            $sourcePart,
+            $targetPart,
+            $external,
+        );
 
         return [
             'id' => $relationship['id'],
@@ -4565,6 +4609,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $suffix['query'],
             'targetFragment' => $suffix['fragment'],
             'targetReferenceSuffix' => $suffix['suffix'],
+            'targetParentTraversalCount' => $targetPath['parentTraversalCount'],
+            'targetHasParentTraversal' => $targetPath['hasParentTraversal'],
+            'targetStartsAtPackageRoot' => $targetPath['startsAtPackageRoot'],
+            'sameSourcePart' => $targetPath['sameSourcePart'],
             'exists' => $targetPart !== null && isset($parts[$targetPart]),
             'contentType' => $contentTypeResolution['contentType'],
             'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
@@ -4575,6 +4623,44 @@ final class DocxOpenXmlReader
             'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
             'defaultExtension' => $contentTypeResolution['defaultExtension'],
             'overridePartName' => $contentTypeResolution['overridePartName'],
+        ];
+    }
+
+    /**
+     * @return array{parentTraversalCount:int, hasParentTraversal:bool, startsAtPackageRoot:bool, sameSourcePart:bool}
+     */
+    private function relationshipTargetPathProvenance(
+        string $target,
+        string $targetMode,
+        string $sourcePart,
+        ?string $targetPart,
+        bool $external,
+    ): array {
+        if ($external || $target === '' || $targetMode === 'External') {
+            return [
+                'parentTraversalCount' => 0,
+                'hasParentTraversal' => false,
+                'startsAtPackageRoot' => false,
+                'sameSourcePart' => false,
+            ];
+        }
+
+        $rawTargetPart = preg_replace('/[#?].*$/', '', $target) ?? $target;
+        $rawTargetPart = str_replace('\\', '/', $rawTargetPart);
+        $segments = array_values(array_filter(
+            explode('/', ltrim($rawTargetPart, '/')),
+            static fn (string $segment): bool => $segment !== '' && $segment !== '.',
+        ));
+        $parentTraversalCount = count(array_filter($segments, static fn (string $segment): bool => $segment === '..'));
+        $normalizedSourcePart = $this->normalizePartName($sourcePart);
+
+        return [
+            'parentTraversalCount' => $parentTraversalCount,
+            'hasParentTraversal' => $parentTraversalCount > 0,
+            'startsAtPackageRoot' => str_starts_with($rawTargetPart, '/'),
+            'sameSourcePart' => $targetPart !== null
+                && $normalizedSourcePart !== ''
+                && $targetPart === $normalizedSourcePart,
         ];
     }
 
