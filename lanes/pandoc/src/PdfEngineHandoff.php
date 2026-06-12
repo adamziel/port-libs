@@ -7067,6 +7067,9 @@ final class PdfEngineHandoff
                 } elseif (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
                     $kind = 'range-from';
                     $start = (int) $matches[1];
+                } elseif (preg_match('/\A-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+                    $kind = 'range-to';
+                    $end = (int) $matches[1];
                 } else {
                     $segmentIssues[] = 'pages-invalid-segment-boundary:' . $segment;
                 }

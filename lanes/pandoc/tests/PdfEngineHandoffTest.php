@@ -1108,6 +1108,62 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst open-start pdf page range boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-page-range-to-boundary.pdf',
+            'source' => '= Typst PDF Page Range-To Boundary Packet',
+            'engineOptions' => [
+                '--pages=-2,4,8-',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF range-to packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '-2,4,8-',
+                    'value' => '-2,4,8-',
+                    'segments' => [
+                        ['raw' => '-2', 'kind' => 'range-to', 'start' => null, 'end' => 2, 'issues' => []],
+                        ['raw' => '4', 'kind' => 'page', 'start' => 4, 'end' => 4, 'issues' => []],
+                        ['raw' => '8-', 'kind' => 'range-from', 'start' => 8, 'end' => null, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-page-range-to-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-page-range-to-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:-2,4,8-', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst pdf ppi boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
