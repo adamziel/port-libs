@@ -4740,6 +4740,7 @@ final class ZipPackage
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
+     *     requestedRoleCount:int,
      *     selectedRawNameProvenanceEntryCount:int,
      *     selectedLegacyEncodedNameEntryCount:int,
      *     selectedUnicodePathExtraEntryCount:int,
@@ -4749,6 +4750,7 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     roleSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
@@ -5179,7 +5181,17 @@ final class ZipPackage
                     'selectedUniqueEntryCount' => 0,
                     'selectedCompressedBytes' => 0,
                     'selectedUncompressedBytes' => 0,
+                    'selectedExpansionRatio' => null,
+                    'selectedStoredEntryCount' => 0,
+                    'selectedDeflatedEntryCount' => 0,
+                    'selectedUnsupportedCompressionMethodCount' => 0,
+                    'selectedSupportedCompressionMethodEntryCount' => 0,
+                    'selectedUnknownExpansionRatioEntryCount' => 0,
+                    'selectedHasUnknownExpansionRatioEntries' => false,
                     'selectedEntryNames' => [],
+                    'selectedCompressionMethodBuckets' => [],
+                    'selectedUnsupportedCompressionMethodEntries' => [],
+                    'selectedUnknownExpansionRatioEntries' => [],
                     'missingEntryNames' => [],
                     'failedEntryNames' => [],
                     'issues' => [],
@@ -5203,6 +5215,42 @@ final class ZipPackage
                     $summaries[$key]['selectedEntryNames'][] = $name;
                     $summaries[$key]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
                     $summaries[$key]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                    $compressionMethod = is_int($entry['compressionMethod'] ?? null)
+                        ? $entry['compressionMethod']
+                        : -1;
+                    $compressedSize = (int) ($entry['compressedSize'] ?? 0);
+                    $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+                    if ($compressionMethod === 0) {
+                        ++$summaries[$key]['selectedStoredEntryCount'];
+                    } elseif ($compressionMethod === 8) {
+                        ++$summaries[$key]['selectedDeflatedEntryCount'];
+                    } else {
+                        ++$summaries[$key]['selectedUnsupportedCompressionMethodCount'];
+                        $summaries[$key]['selectedUnsupportedCompressionMethodEntries'][] = [
+                            'name' => $name,
+                            'compressionMethod' => $compressionMethod,
+                            'isDirectory' => (bool) ($entry['isDirectory'] ?? false),
+                            'compressedSize' => $compressedSize,
+                            'uncompressedSize' => $uncompressedSize,
+                        ];
+                    }
+                    self::addCompressionMethodBucket(
+                        $summaries[$key]['selectedCompressionMethodBuckets'],
+                        $compressionMethod,
+                        $compressedSize,
+                        $uncompressedSize
+                    );
+                    if (($entry['expansionRatio'] ?? null) === null && $uncompressedSize > 0) {
+                        ++$summaries[$key]['selectedUnknownExpansionRatioEntryCount'];
+                        $summaries[$key]['selectedUnknownExpansionRatioEntries'][] = [
+                            'name' => $name,
+                            'compressionMethod' => $compressionMethod,
+                            'isDirectory' => (bool) ($entry['isDirectory'] ?? false),
+                            'compressedSize' => $compressedSize,
+                            'uncompressedSize' => $uncompressedSize,
+                            'expansionRatio' => null,
+                        ];
+                    }
                 }
             } else {
                 ++$summaries[$key]['missingEntryCount'];
@@ -5230,6 +5278,20 @@ final class ZipPackage
                 }
             }
         }
+
+        foreach ($summaries as &$summary) {
+            $summary['selectedSupportedCompressionMethodEntryCount'] = $summary['selectedUniqueEntryCount']
+                - $summary['selectedUnsupportedCompressionMethodCount'];
+            $summary['selectedExpansionRatio'] = self::expansionRatio(
+                $summary['selectedUncompressedBytes'],
+                $summary['selectedCompressedBytes']
+            );
+            $summary['selectedHasUnknownExpansionRatioEntries'] = $summary['selectedUnknownExpansionRatioEntries'] !== [];
+            $summary['selectedCompressionMethodBuckets'] = self::compressionMethodBuckets(
+                $summary['selectedCompressionMethodBuckets']
+            );
+        }
+        unset($summary);
 
         ksort($summaries, SORT_STRING);
 
