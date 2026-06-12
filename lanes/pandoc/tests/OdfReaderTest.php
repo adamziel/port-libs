@@ -10460,6 +10460,84 @@ XML;
         $t->same(false, $result['media'][1]['exists']);
         $t->same(null, $result['media'][1]['byteLength']);
     },
+    'summarizes ODT XML package part office versions for provenance review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $contentWithVersion = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.3">
+  <office:body><office:text><text:p>Versioned content packet.</text:p></office:text></office:body>
+</office:document-content>
+XML;
+        $stylesWithVersionMismatch = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  office:version="1.2">
+  <office:styles/>
+</office:document-styles>
+XML;
+        $metaWithoutVersion = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:meta/>
+</office:document-meta>
+XML;
+        $settingsWithVersionMismatch = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  office:version="1.4">
+  <office:settings/>
+</office:document-settings>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithVersion,
+            $manifestWithSettings,
+            $stylesWithVersionMismatch,
+            $metaWithoutVersion,
+            [['name' => 'settings.xml', 'data' => $settingsWithVersionMismatch, 'compressionMethod' => 0]]
+        ));
+        $versionReport = $result['importReport']['manifest']['documentPartVersions'];
+        $versionsByPart = [];
+        foreach ($versionReport['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+
+        $t->same($versionReport, $result['document']->attr('manifest')['documentPartVersions']);
+        $t->same($versionReport, $result['documentPartVersions']);
+        $t->same('1.3', $versionReport['manifestVersion']);
+        $t->same(4, $versionReport['count']);
+        $t->same(3, $versionReport['versionedCount']);
+        $t->same(1, $versionReport['missingVersionCount']);
+        $t->same(['meta.xml'], $versionReport['missingVersionParts']);
+        $t->same(2, $versionReport['versionMismatchCount']);
+        $t->same([
+            ['part' => 'styles.xml', 'officeVersion' => '1.2', 'manifestVersion' => '1.3'],
+            ['part' => 'settings.xml', 'officeVersion' => '1.4', 'manifestVersion' => '1.3'],
+        ], $versionReport['versionMismatches']);
+        $t->same(['1.2' => 1, '1.3' => 1, '1.4' => 1], $versionReport['versionCounts']);
+
+        $t->same('document-content', $versionsByPart['content.xml']['rootName']);
+        $t->same('1.3', $versionsByPart['content.xml']['officeVersion']);
+        $t->same([], $versionsByPart['content.xml']['diagnostics']);
+        $t->same(true, $versionsByPart['content.xml']['validRoot']);
+        $t->same('text/xml', $versionsByPart['content.xml']['manifestMediaType']);
+
+        $t->same('1.2', $versionsByPart['styles.xml']['officeVersion']);
+        $t->same(['odf-xml-part-version-mismatch'], $versionsByPart['styles.xml']['diagnostics']);
+        $t->same(null, $versionsByPart['meta.xml']['officeVersion']);
+        $t->same(['odf-xml-part-missing-office-version'], $versionsByPart['meta.xml']['diagnostics']);
+        $t->same('1.4', $versionsByPart['settings.xml']['officeVersion']);
+        $t->same('settings.xml', $versionsByPart['settings.xml']['manifestFullPath']);
+        $t->same(sprintf('%08x', crc32($settingsWithVersionMismatch)), $versionsByPart['settings.xml']['crc32']);
+        $t->same(['odf-xml-part-version-mismatch'], $versionsByPart['settings.xml']['diagnostics']);
+    },
     'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
