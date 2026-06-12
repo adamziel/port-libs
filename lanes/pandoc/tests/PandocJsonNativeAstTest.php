@@ -1905,6 +1905,97 @@ return [
         $t->same($linkTarget, $nativePacket['blocks'][0]['c'][0]['c'][2]);
         $t->same($imageTarget, $nativePacket['blocks'][0]['c'][2]['c'][2]);
     },
+    'preserves current target inline native payloads without helper sidecars until edited' => static function (TestRunner $t): void {
+        $linkNative = [
+            't' => 'Link',
+            'c' => [
+                ['target-link', ['review-link'], [['data-source', 'first'], ['data-source', 'second']]],
+                [
+                    ['t' => 'Str', 'c' => 'source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'link'],
+                ],
+                ['https://example.test/source', 'Source title'],
+            ],
+            'reviewQueue' => 'link-source',
+            'sourceOrdinal' => 101,
+        ];
+        $imageNative = [
+            't' => 'Image',
+            'c' => [
+                ['target-image', ['review-image'], [['data-media', 'first'], ['data-media', 'second']]],
+                [
+                    ['t' => 'Str', 'c' => 'Source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'image'],
+                ],
+                ['media/source.png', 'Source image'],
+            ],
+            'reviewQueue' => 'image-source',
+            'sourceOrdinal' => 102,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    $linkNative,
+                    ['t' => 'Space'],
+                    $imageNative,
+                ]],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $link = $document->children[0]->children[0];
+            $image = $document->children[0]->children[2];
+            $linkAttrs = $link->attrs;
+            $imageAttrs = $image->attrs;
+            unset($linkAttrs['targetNative'], $imageAttrs['targetNative']);
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', $linkAttrs, $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', $imageAttrs, $image->children),
+                ]),
+            ]);
+
+            foreach ([
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($rebuilt),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($linkNative, $encoded['blocks'][0]['c'][0], "{$writer} preserves source-tagged link payload");
+                $t->same($imageNative, $encoded['blocks'][0]['c'][2], "{$writer} preserves source-tagged image payload");
+            }
+
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($linkAttrs, ['url' => 'https://example.test/edited']), $link->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($imageAttrs, ['title' => 'Edited image']), $image->children),
+                ]),
+            ]);
+            $editedJson = (new PandocJsonWriter())->toArray($edited);
+            $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+            foreach (["{$source} json writer" => $editedJson, "{$source} native writer" => $editedNative] as $writer => $encoded) {
+                $editedLink = $encoded['blocks'][0]['c'][0];
+                $editedImage = $encoded['blocks'][0]['c'][2];
+
+                $t->same('Link', $editedLink['t'], "{$writer} edited link constructor");
+                $t->same('https://example.test/edited', $editedLink['c'][2][0], "{$writer} edited link target regenerates");
+                $t->same(false, array_key_exists('reviewQueue', $editedLink), "{$writer} edited link drops stale provenance");
+                $t->same('Image', $editedImage['t'], "{$writer} edited image constructor");
+                $t->same('Edited image', $editedImage['c'][2][1], "{$writer} edited image target regenerates");
+                $t->same(false, array_key_exists('reviewQueue', $editedImage), "{$writer} edited image drops stale provenance");
+            }
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
