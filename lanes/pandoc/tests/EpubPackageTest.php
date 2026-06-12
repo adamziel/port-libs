@@ -1091,6 +1091,74 @@ XML;
         $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
     },
 
+    'summarizes compact OPF creator contributor display order for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithAgentOrder = str_replace(
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>',
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>
+    <dc:contributor id="editor" xml:lang="en">Review Editor</dc:contributor>
+    <dc:contributor id="illustrator">Illustration Desk</dc:contributor>
+    <dc:contributor id="untyped">Untyped Reviewer</dc:contributor>',
+            $epub3OpfXml
+        );
+        $opfWithAgentOrder = str_replace(
+            '</metadata>',
+            '    <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+    <meta refines="#creator" property="display-seq">2</meta>
+    <meta refines="#creator" property="file-as">Team, Data Liberation</meta>
+    <meta refines="#editor" property="role" scheme="marc:relators">edt</meta>
+    <meta refines="#editor" property="display-seq">1</meta>
+    <meta refines="#illustrator" property="role" scheme="marc:relators">ill</meta>
+    <meta refines="#illustrator" property="display-seq">appendix</meta>
+    <meta refines="#untyped" property="alternate-script" xml:lang="en">Untyped reviewer alternate</meta>
+  </metadata>',
+            $opfWithAgentOrder
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithAgentOrder],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $agentOrder = $metadata['agentDisplayOrder'];
+
+        $t->same(true, $agentOrder['present']);
+        $t->same(4, $agentOrder['count']);
+        $t->same(2, $agentOrder['sequencedCount']);
+        $t->same(1, $agentOrder['invalidDisplaySeqCount']);
+        $t->same(1, $agentOrder['unsequencedCount']);
+        $t->same(['Review Editor', 'Data Liberation Team', 'Illustration Desk', 'Untyped Reviewer'], array_map(
+            static fn (array $item): string => $item['text'],
+            $agentOrder['items']
+        ));
+        $t->same('contributor', $agentOrder['items'][0]['kind']);
+        $t->same(1, $agentOrder['items'][0]['displaySeqNumber']);
+        $t->same('edt', $agentOrder['items'][0]['primaryRole']);
+        $t->same('creator', $agentOrder['items'][1]['kind']);
+        $t->same(2, $agentOrder['items'][1]['displaySeqNumber']);
+        $t->same('Team, Data Liberation', $agentOrder['items'][1]['fileAs']);
+        $t->same('appendix', $agentOrder['items'][2]['displaySeq']);
+        $t->same(false, $agentOrder['items'][2]['displaySeqValid']);
+        $t->same('invalid-agent-display-seq', $agentOrder['items'][2]['diagnostics'][0]['type']);
+        $t->same(true, $agentOrder['items'][3]['unsequenced']);
+        $t->same('Untyped reviewer alternate', $agentOrder['items'][3]['alternateScripts'][0]['text']);
+        $t->same(1, count($agentOrder['byKind']['creator']));
+        $t->same(3, count($agentOrder['byKind']['contributor']));
+        $t->same('Review Editor', $agentOrder['byRole']['edt'][0]['text']);
+        $t->same('invalid-agent-display-seq', $agentOrder['diagnostics'][0]['type']);
+        $t->same('Illustration Desk', $agentOrder['diagnostics'][0]['text']);
+        $t->same(['Review Editor', 'Illustration Desk', 'Untyped Reviewer'], $metadata['contributors']);
+        $t->same($metadata['contributorDetails'], $summary['wordpressImport']['metadataDetails']['contributorDetails']);
+        $t->same($agentOrder, $summary['wordpressImport']['metadataDetails']['agentDisplayOrder']);
+    },
+
     'preflights OPF unique identifier and duplicate identifier diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithIdentifierDiagnostics = str_replace(
             '<dc:identifier id="bookid">urn:isbn:9780000000001</dc:identifier>',
