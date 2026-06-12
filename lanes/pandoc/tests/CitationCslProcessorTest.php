@@ -5802,6 +5802,126 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
         $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
     },
+    'maps compact pubmed and registry identifier aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{compact-medical-registry,
+  author       = {Curie, Ada},
+  title        = {Compact Registry Trial},
+  journaltitle = {Medical Registry Review},
+  date         = {2026},
+  pubmed       = {34567890},
+  pmc-id       = {PMC3456789},
+  jstor-id     = {10.2307/compact}
+}
+
+@book{compact-library-registry,
+  author      = {{Catalog Desk}},
+  title       = {Compact Library Registry},
+  date        = {2025},
+  hdl-id      = {20.500/compact},
+  lccn-number = {2026123987},
+  oclc-number = {99887766}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('34567890', $items[0]['PMID'] ?? null);
+        $t->same('PMC3456789', $items[0]['PMCID'] ?? null);
+        $t->same('10.2307/compact', $items[0]['JSTOR'] ?? null);
+        $t->same('20.500/compact', $items[1]['HDL'] ?? null);
+        $t->same('2026123987', $items[1]['LCCN'] ?? null);
+        $t->same('99887766', $items[1]['OCLC'] ?? null);
+        $t->same('34567890', $items[0]['rawBibtex']['fields']['pubmed'] ?? null);
+        $t->same('PMC3456789', $items[0]['rawBibtex']['fields']['pmc-id'] ?? null);
+        $t->same('20.500/compact', $items[1]['rawBibtex']['fields']['hdl-id'] ?? null);
+        $t->same('99887766', $items[1]['rawBibtex']['fields']['oclc-number'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $medical = $processor->item('compact-medical-registry');
+        $library = $processor->item('compact-library-registry');
+        $t->same('34567890', $medical['pmid'] ?? null);
+        $t->same('PMC3456789', $medical['pmcid'] ?? null);
+        $t->same('10.2307/compact', $medical['jstor'] ?? null);
+        $t->same('20.500/compact', $library['hdl'] ?? null);
+        $t->same('2026123987', $library['lccn'] ?? null);
+        $t->same('99887766', $library['oclc'] ?? null);
+        $t->same('Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.', $processor->renderBibliographyEntry('compact-medical-registry'));
+        $t->same('Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.', $processor->renderBibliographyEntry('compact-library-registry'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Compact Registry Identifier Alias Review</title>
+    <id>https://example.test/styles/compact-registry-identifier-alias-review</id>
+    <updated>2026-06-12T02:18:27+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="pubmed-id"/>
+        <text variable="pmc-id"/>
+        <text variable="jstor-id"/>
+        <text variable="hdl-id"/>
+        <text variable="lccn-number"/>
+        <text variable="oclc-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pubmed"/>
+      <text variable="pmc"/>
+      <text variable="jstorid"/>
+      <text variable="handle-id"/>
+      <text variable="lccn-number"/>
+      <text variable="oclc-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Compact Registry Identifier Alias Review', $summary['title'] ?? null);
+        $t->same('pubmed-id', $citationChildren[1]['variable'] ?? null);
+        $t->same('oclc-number', $citationChildren[6]['variable'] ?? null);
+        $t->same('[Curie | 34567890 | PMC3456789 | 10.2307/compact; Catalog Desk | 20.500/compact | 2026123987 | 99887766]', $styled->renderCitationCluster([
+            $citation('compact-medical-registry', '[@compact-medical-registry]'),
+            $citation('compact-library-registry', '[@compact-library-registry]'),
+        ]));
+        $t->same('Compact Registry Trial :: 34567890 :: PMC3456789 :: 10.2307/compact', $styled->renderBibliographyEntry('compact-medical-registry'));
+        $t->same('Compact Library Registry :: 20.500/compact :: 2026123987 :: 99887766', $styled->renderBibliographyEntry('compact-library-registry'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-compact-registry',
+            'title' => 'Direct Compact Registry',
+            'pubmed-id' => '99887766',
+            'pmc' => 'PMC9988776',
+            'jstorid' => '10.2307/direct',
+            'handle-id' => '20.500/direct-compact',
+            'lccnnumber' => '2026123999',
+            'oclc-number' => '11223344',
+        ]]);
+        $directItem = $direct->item('direct-compact-registry');
+        $t->same('99887766', $directItem['pmid'] ?? null);
+        $t->same('PMC9988776', $directItem['pmcid'] ?? null);
+        $t->same('10.2307/direct', $directItem['jstor'] ?? null);
+        $t->same('20.500/direct-compact', $directItem['hdl'] ?? null);
+        $t->same('2026123999', $directItem['lccn'] ?? null);
+        $t->same('11223344', $directItem['oclc'] ?? null);
+        $t->same('pubmed-id', array_key_exists('pubmed-id', $directItem['raw'] ?? []) ? 'pubmed-id' : null);
+        $t->same('oclc-number', array_key_exists('oclc-number', $directItem['raw'] ?? []) ? 'oclc-number' : null);
+        $t->same('Direct Compact Registry. PMID 99887766. PMCID PMC9988776. JSTOR 10.2307/direct. HDL 20.500/direct-compact. LCCN 2026123999. OCLC 11223344.', $direct->renderBibliographyEntry('direct-compact-registry'));
+
+        $document = (new MarkdownReader())->read('Compact registry aliases [@compact-medical-registry; @compact-library-registry] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact registry aliases (Curie 2026; Catalog Desk 2025) stay visible.</p>', $blocks);
+        $t->contains('<dt>Curie 2026</dt><dd>Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.</dd>', $blocks);
+        $t->contains('<dt>Catalog Desk 2025</dt><dd>Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
