@@ -63,6 +63,12 @@ final class EpubPackage
         'switch' => 'switch',
     ];
     private const OCF_PACKAGE_SIDECARS = [
+        'metadata' => [
+            'partName' => '/META-INF/metadata.xml',
+            'expectedRootName' => 'metadata',
+            'expectedRootNamespace' => self::EPUB_METADATA_NAMESPACE,
+            'reviewPolicy' => 'ocf-metadata-sidecar-review',
+        ],
         'manifest' => [
             'partName' => '/META-INF/manifest.xml',
             'expectedRootName' => 'manifest',
@@ -2445,6 +2451,7 @@ final class EpubPackage
             'present' => $items !== [],
             'sidecarCount' => count($items),
             'count' => count($items),
+            'metadataPresent' => isset($itemsByKind['metadata']),
             'manifestPresent' => isset($itemsByKind['manifest']),
             'rightsPresent' => isset($itemsByKind['rights']),
             'signaturesPresent' => isset($itemsByKind['signatures']),
