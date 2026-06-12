@@ -2046,6 +2046,55 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes iframe srcdoc as inert parsed review provenance' => static function (TestRunner $t): void {
+        $srcdoc = implode("\n", [
+            '<article data-review="srcdoc">',
+            '<h1>Preview</h1>',
+            '<p>Open <a href="chapter.html#one">chapter</a><img src="cover.jpg" alt="Cover"></p>',
+            '<form action="/review" method="post"><input name="q" value="ok"></form>',
+            '<iframe src="nested.html">Nested</iframe>',
+            '<canvas>Fallback chart</canvas>',
+            '</article>',
+        ]);
+        $unsafeSrcdoc = '<section><!DOCTYPE html [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><p>Unsafe</p></section>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe src="frame.html" srcdoc="' . htmlspecialchars($srcdoc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">Legacy frame fallback</iframe>'
+                . '<iframe srcdoc="' . htmlspecialchars($unsafeSrcdoc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">Unsafe fallback</iframe>',
+            'iframe srcdoc review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $iframe = $summary[0];
+        $unsafeIframe = $summary[1];
+
+        $t->same('iframe', $iframe['embeddedResource']);
+        $t->same($srcdoc, $iframe['srcdoc']);
+        $t->same('iframe-srcdoc-inert-fragment-review', $iframe['srcdocReviewPolicy']);
+        $t->same(strlen($srcdoc), $iframe['srcdocByteLength']);
+        $t->same(hash('sha256', $srcdoc), $iframe['srcdocSha256']);
+        $t->same(true, $iframe['srcdocParsed']);
+        $t->same([], $iframe['srcdocDiagnostics']);
+        $t->same(['article'], $iframe['srcdocTopLevelElementNames']);
+        $t->same(1, $iframe['srcdocTopLevelElementCount']);
+        $t->same('Preview Open chapter Nested Fallback chart', $iframe['srcdocText']);
+        $t->same(strlen('Preview Open chapter Nested Fallback chart'), $iframe['srcdocTextLength']);
+        $t->same(hash('sha256', 'Preview Open chapter Nested Fallback chart'), $iframe['srcdocTextSha256']);
+        $t->same(['chapter.html#one'], $iframe['srcdocLinkHrefs']);
+        $t->same(['cover.jpg'], $iframe['srcdocImageSources']);
+        $t->same(1, $iframe['srcdocFormCount']);
+        $t->same(['/review'], $iframe['srcdocFormActions']);
+        $t->same([], $iframe['srcdocActiveElementNames']);
+        $t->same(['iframe', 'canvas'], $iframe['srcdocEmbeddedElementNames']);
+        $t->same('Legacy frame fallback', $iframe['fallbackText']);
+
+        $t->same($unsafeSrcdoc, $unsafeIframe['srcdoc']);
+        $t->same(false, $unsafeIframe['srcdocParsed']);
+        $t->same(['srcdoc-unsafe-or-unparseable'], $unsafeIframe['srcdocDiagnostics']);
+        $t->contains('document type', $unsafeIframe['srcdocError']);
+        $t->same('Unsafe fallback', $unsafeIframe['fallbackText']);
+        $t->contains('srcdoc="&lt;article data-review=&quot;srcdoc&quot;&gt;', $html);
+    },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'

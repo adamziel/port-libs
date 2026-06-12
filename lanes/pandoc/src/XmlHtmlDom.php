@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class XmlHtmlDom
 {
     private const FRAGMENT_ROOT_ATTRIBUTE = 'data-port-libs-pandoc-fragment-root';
+    private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -3413,10 +3414,11 @@ final class XmlHtmlDom
      */
     private static function iframeSummary(\DOMElement $iframe): array
     {
+        $srcdoc = self::attributeOrNull($iframe, 'srcdoc');
         $summary = [
             'embeddedResource' => 'iframe',
             'src' => self::attributeOrNull($iframe, 'src'),
-            'srcdoc' => self::attributeOrNull($iframe, 'srcdoc'),
+            'srcdoc' => $srcdoc,
             'nameAttribute' => self::attributeOrNull($iframe, 'name'),
             'width' => self::attributeOrNull($iframe, 'width'),
             'height' => self::attributeOrNull($iframe, 'height'),
@@ -3432,7 +3434,116 @@ final class XmlHtmlDom
             $summary['fallbackText'] = $fallbackText;
         }
 
+        if ($srcdoc !== null) {
+            $summary += self::iframeSrcdocReviewSummary($srcdoc);
+        }
+
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeSrcdocReviewSummary(string $srcdoc): array
+    {
+        $summary = [
+            'srcdocReviewPolicy' => 'iframe-srcdoc-inert-fragment-review',
+            'srcdocByteLength' => strlen($srcdoc),
+            'srcdocSha256' => hash('sha256', $srcdoc),
+            'srcdocParsed' => false,
+            'srcdocDiagnostics' => [],
+        ];
+
+        if (strlen($srcdoc) > self::IFRAME_SRCDOC_REVIEW_MAX_BYTES) {
+            $summary['srcdocDiagnostics'] = ['srcdoc-review-limit-exceeded'];
+
+            return $summary;
+        }
+
+        try {
+            $fragment = self::loadHtmlFragment($srcdoc, 'iframe srcdoc fragment');
+        } catch (\InvalidArgumentException $exception) {
+            $summary['srcdocDiagnostics'] = ['srcdoc-unsafe-or-unparseable'];
+            $summary['srcdocError'] = $exception->getMessage();
+
+            return $summary;
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $text = self::normalizedText($root);
+        $topLevelElementNames = [];
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $topLevelElementNames[] = self::htmlElementName($child);
+            }
+        }
+
+        $summary['srcdocParsed'] = true;
+        $summary['srcdocTopLevelElementNames'] = $topLevelElementNames;
+        $summary['srcdocTopLevelElementCount'] = count($topLevelElementNames);
+        $summary['srcdocTextLength'] = strlen($text);
+        $summary['srcdocTextSha256'] = hash('sha256', $text);
+        if ($text !== '') {
+            $summary['srcdocText'] = $text;
+        }
+        $summary['srcdocLinkHrefs'] = self::iframeSrcdocAttributeValues($root, ['a', 'area'], 'href');
+        $summary['srcdocImageSources'] = self::iframeSrcdocAttributeValues($root, ['img'], 'src');
+        $forms = self::descendantHtmlElements($root, 'form');
+        $summary['srcdocFormCount'] = count($forms);
+        $summary['srcdocFormActions'] = array_values(array_filter(
+            array_map(static fn (\DOMElement $form): ?string => self::attributeOrNull($form, 'action'), $forms),
+            static fn (?string $action): bool => $action !== null && $action !== ''
+        ));
+        $summary['srcdocActiveElementNames'] = self::iframeSrcdocDescendantNames($root, ['script' => true, 'style' => true]);
+        $summary['srcdocEmbeddedElementNames'] = self::iframeSrcdocDescendantNames($root, [
+            'audio' => true,
+            'canvas' => true,
+            'embed' => true,
+            'iframe' => true,
+            'object' => true,
+            'video' => true,
+        ]);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private static function iframeSrcdocAttributeValues(\DOMElement $root, array $names, string $attribute): array
+    {
+        $values = [];
+        foreach ($names as $name) {
+            foreach (self::descendantHtmlElements($root, $name) as $element) {
+                $value = self::attributeOrNull($element, $attribute);
+                if ($value !== null && $value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, true> $names
+     * @return list<string>
+     */
+    private static function iframeSrcdocDescendantNames(\DOMElement $root, array $names): array
+    {
+        $elementNames = [];
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            $name = strtolower(self::htmlElementName($element));
+            if (isset($names[$name])) {
+                $elementNames[] = $name;
+            }
+        }
+
+        return $elementNames;
     }
 
     /**
