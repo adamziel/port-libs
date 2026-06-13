@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3298,
-        "latestSlice": "pandoc-odf-compact-manifest-custom-attributes maps one native ODF/ODT compact manifest custom attribute provenance slice after DOCX note/comment relationship diagnostics. OpenDocumentPackage preserves custom manifest:file-entry attributes, namespace metadata, structural/custom classification, deterministic custom attribute maps, and aggregate manifest custom-attribute buckets in package review summaries without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, Node tooling, online validators, live provider tests, or external validators. Mapped denominator moves 3297 -> 3298, mappedOdfCompactManifestCustomAttributeCases is 1, and odfCompactManifestCustomAttributeAssertions is 27. ODF/ODT remains ship-ready at 51 local mapped cases / 20 upstream rows with 0 critical ODF/ODT gaps. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1181 assertions, 0 failures; focused ODF/ODT gate passed 4 files, 5942 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75148 assertions, 0 failures after final rebase onto base 6ae1fcc83.",
+        "mapped": 3301,
+        "latestSlice": "pandoc-format-registry-tabular-data-options maps three format-registry/options harness cases for CSV and TSV input tokens after ODF compact manifest custom attributes. PandocFormatRegistry exposes extension inference, input-only direction buckets, upstream readCSV/readTSV source provenance, delimiter/quote/escape/first-row-header option profiles, and tabular review packets while reporting bounded DelimitedTextReader input support as partial and no CSV/TSV output writer. Mapped denominator moves 3298 -> 3301, mappedPandocFormatRegistryTabularDataOptionCases is 3, and pandocFormatRegistryTabularDataOptionAssertions is 76. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1425 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75224 assertions, 0 failures after final rebase onto base f4c55b05f.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "ODF/ODT compact manifest custom attribute provenance is verified over base 6ae1fcc83 after DOCX note/comment relationship diagnostics; ODF/ODT remains ship-ready with 0 critical gaps.",
-        "latestFocusedSource": "2026-06-13 ODF/ODT slice inspected compact manifest custom attribute provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 6ae1fcc83 following DOCX note/comment relationship diagnostics; focused OpenDocumentPackageTest.php passed 1 file, 1181 assertions, 0 failures; focused ODF/ODT gate passed 4 files, 5942 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75148 assertions, 0 failures.",
+        "status": "Tabular data registry option profiles are verified over base f4c55b05f after ODF compact manifest custom attributes; CSV/TSV remains partial, not ship-ready.",
+        "latestFocusedSource": "2026-06-13 tabular data registry/options slice inspected CSV/TSV option profiles against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base f4c55b05f following ODF compact manifest custom attributes; focused PandocFormatRegistryTest.php passed 1 file, 1425 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75224 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -215,7 +215,9 @@
         "mappedDocxOpenXmlNoteRelationshipDiagnosticsCases": 1,
         "docxOpenXmlNoteRelationshipDiagnosticsAssertions": 31,
         "mappedOdfCompactManifestCustomAttributeCases": 1,
-        "odfCompactManifestCustomAttributeAssertions": 27
+        "odfCompactManifestCustomAttributeAssertions": 27,
+        "mappedPandocFormatRegistryTabularDataOptionCases": 3,
+        "pandocFormatRegistryTabularDataOptionAssertions": 76
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1127,12 +1129,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "ODF/ODT package review packets now expose compact manifest custom attribute provenance without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, online validators, or external services.",
+    "wordpressScenario": "Tabular data registry review packets now expose CSV/TSV option profiles and source provenance without invoking Pandoc, office suites, TeX/Typst/PDF engines, browser renderers, Node tooling, online services, or external validators.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "ODF/ODT compact manifest custom attribute provenance is verified over base 6ae1fcc83 after DOCX note/comment relationship diagnostics; ODF/ODT remains ship-ready with 0 critical gaps.",
-    "mapping": "Accounts for one bounded native PHP ODF/ODT compact manifest custom attribute mapping while preserving prior DOCX note/comment relationship diagnostics, Markdown generic raw HTML serialization, Typst package source-class policy, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX subdocument, EPUB definition-list, EPUB manifest/spine, PDF/Typst dependency conflict policy, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
+    "status": "Tabular data registry option profiles are verified over base f4c55b05f after ODF compact manifest custom attributes; CSV/TSV remains partial, not ship-ready.",
+    "mapping": "Accounts for three bounded native PHP PandocFormatRegistry tabular data option mappings while preserving prior ODF compact manifest custom attributes, DOCX note/comment relationship diagnostics, Markdown generic raw HTML serialization, Typst package source-class policy, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX subdocument, EPUB definition-list, EPUB manifest/spine, PDF/Typst dependency conflict policy, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-odf-compact-manifest-custom-attributes maps one native ODF/ODT compact manifest custom attribute provenance slice after DOCX note/comment relationship diagnostics. OpenDocumentPackage preserves custom manifest:file-entry attributes, namespace metadata, structural/custom classification, deterministic custom attribute maps, and aggregate manifest custom-attribute buckets in package review summaries without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, Node tooling, online validators, live provider tests, or external validators. Mapped denominator moves 3297 -> 3298, mappedOdfCompactManifestCustomAttributeCases is 1, and odfCompactManifestCustomAttributeAssertions is 27. ODF/ODT remains ship-ready at 51 local mapped cases / 20 upstream rows with 0 critical ODF/ODT gaps. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1181 assertions, 0 failures; focused ODF/ODT gate passed 4 files, 5942 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75148 assertions, 0 failures after final rebase onto base 6ae1fcc83.",
+    "latestSlice": "pandoc-format-registry-tabular-data-options maps three format-registry/options harness cases for CSV and TSV input tokens after ODF compact manifest custom attributes. PandocFormatRegistry exposes extension inference, input-only direction buckets, upstream readCSV/readTSV source provenance, delimiter/quote/escape/first-row-header option profiles, and tabular review packets while reporting bounded DelimitedTextReader input support as partial and no CSV/TSV output writer. Mapped denominator moves 3298 -> 3301, mappedPandocFormatRegistryTabularDataOptionCases is 3, and pandocFormatRegistryTabularDataOptionAssertions is 76. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1425 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75224 assertions, 0 failures after final rebase onto base f4c55b05f.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1274,7 +1276,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 ODF/ODT slice inspected compact manifest custom attribute provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 6ae1fcc83 following DOCX note/comment relationship diagnostics; focused OpenDocumentPackageTest.php passed 1 file, 1181 assertions, 0 failures; focused ODF/ODT gate passed 4 files, 5942 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75148 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 tabular data registry/options slice inspected CSV/TSV option profiles against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base f4c55b05f following ODF compact manifest custom attributes; focused PandocFormatRegistryTest.php passed 1 file, 1425 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75224 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1506,5 +1508,7 @@
     "mappedDocxOpenXmlNoteRelationshipDiagnosticsCases": 1,
     "docxOpenXmlNoteRelationshipDiagnosticsAssertions": 31,
     "mappedOdfCompactManifestCustomAttributeCases": 1,
-    "odfCompactManifestCustomAttributeAssertions": 27
+    "odfCompactManifestCustomAttributeAssertions": 27,
+    "mappedPandocFormatRegistryTabularDataOptionCases": 3,
+    "pandocFormatRegistryTabularDataOptionAssertions": 76
 }

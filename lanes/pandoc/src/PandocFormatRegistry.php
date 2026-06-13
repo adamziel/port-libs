@@ -552,6 +552,69 @@ final class PandocFormatRegistry
         ],
     ];
 
+    /** @var list<string> */
+    private const TABULAR_DATA_INPUT_FORMATS = [
+        'csv',
+        'tsv',
+    ];
+
+    /** @var list<string> */
+    private const TABULAR_DATA_OUTPUT_FORMATS = [];
+
+    /** @var array<string, string> */
+    private const TABULAR_DATA_EXTENSION_INFERENCE = [
+        '.csv' => 'csv',
+        '.tsv' => 'tsv',
+    ];
+
+    /**
+     * @var array<string, array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}>
+     */
+    private const TABULAR_DATA_READER_OPTION_PROFILES = [
+        'csv' => [
+            'delimiter' => ',',
+            'delimiterName' => 'comma',
+            'quote' => '"',
+            'keepSpace' => false,
+            'escape' => null,
+            'firstRowHeader' => true,
+            'emptyInputPolicy' => 'empty-document',
+            'multilineCellPolicy' => 'linebreak-separated-plain-blocks',
+            'readerOptionsUsed' => false,
+        ],
+        'tsv' => [
+            'delimiter' => "\t",
+            'delimiterName' => 'tab',
+            'quote' => null,
+            'keepSpace' => false,
+            'escape' => null,
+            'firstRowHeader' => true,
+            'emptyInputPolicy' => 'empty-document',
+            'multilineCellPolicy' => 'linebreak-separated-plain-blocks',
+            'readerOptionsUsed' => false,
+        ],
+    ];
+
+    /**
+     * @var array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>
+     */
+    private const TABULAR_DATA_INPUT_SOURCE_PROVENANCE = [
+        'csv' => [
+            'module' => 'Text.Pandoc.Readers.CSV',
+            'function' => 'readCSV',
+            'registry' => '("csv"          , TextReader readCSV)',
+            'csvOptions' => 'defaultCSVOptions',
+            'readerOptions' => 'ignored by readCSV',
+        ],
+        'tsv' => [
+            'module' => 'Text.Pandoc.Readers.CSV',
+            'function' => 'readTSV',
+            'registry' => '("tsv"          , TextReader readTSV)',
+            'csvOptions' => 'CSVOptions with tab delimiter, no quote, no escape, keepSpace false',
+            'readerOptions' => 'ignored by readTSV',
+        ],
+    ];
+
     /** @var array<string, string> */
     private const INPUT_ALIASES = [
         'bits' => 'jats',
@@ -2537,6 +2600,294 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return list<string>
+     */
+    public static function tabularDataInputFormats(): array
+    {
+        return self::TABULAR_DATA_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataOutputFormats(): array
+    {
+        return self::TABULAR_DATA_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function tabularDataExtensionInference(): array
+    {
+        return self::TABULAR_DATA_EXTENSION_INFERENCE;
+    }
+
+    public static function inferTabularDataFormatFromExtension(string $extension): ?string
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        return self::TABULAR_DATA_EXTENSION_INFERENCE[$normalized] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataFormatsWithExtensionInference(): array
+    {
+        return array_values(array_unique(array_values(self::TABULAR_DATA_EXTENSION_INFERENCE)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataFormatsWithoutExtensionInference(): array
+    {
+        $inferred = array_flip(self::tabularDataFormatsWithExtensionInference());
+        $formats = array_values(array_unique(array_merge(self::TABULAR_DATA_INPUT_FORMATS, self::TABULAR_DATA_OUTPUT_FORMATS)));
+        $withoutInference = [];
+
+        foreach ($formats as $format) {
+            if (!array_key_exists($format, $inferred)) {
+                $withoutInference[] = $format;
+            }
+        }
+
+        return $withoutInference;
+    }
+
+    /**
+     * @return array<string, array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}>
+     */
+    public static function tabularDataReaderOptionProfiles(): array
+    {
+        return self::TABULAR_DATA_READER_OPTION_PROFILES;
+    }
+
+    /**
+     * @return array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>
+     */
+    public static function tabularDataInputSourceProvenance(): array
+    {
+        return self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE;
+    }
+
+    /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function tabularDataFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::tabularDataInputSupport(),
+            [],
+            self::TABULAR_DATA_INPUT_FORMATS,
+            self::TABULAR_DATA_OUTPUT_FORMATS
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataBidirectionalFormats(): array
+    {
+        return self::formatsWithDirection(self::tabularDataFormatDirections(), 'input-output');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataInputOnlyFormats(): array
+    {
+        return self::formatsWithDirection(self::tabularDataFormatDirections(), 'input-only');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function tabularDataOutputOnlyFormats(): array
+    {
+        return self::formatsWithDirection(self::tabularDataFormatDirections(), 'output-only');
+    }
+
+    /**
+     * @return array{
+     *     anyUnsupported:list<string>,
+     *     unsupportedBoth:list<string>,
+     *     unsupportedInputOnly:list<string>,
+     *     unsupportedOutputOnly:list<string>,
+     *     noNativeReader:list<string>,
+     *     noNativeWriter:list<string>
+     * }
+     */
+    public static function tabularDataUnsupportedFormatSummary(): array
+    {
+        $directions = self::tabularDataFormatDirections();
+        $anyUnsupported = [];
+        $unsupportedBoth = [];
+        $unsupportedInputOnly = [];
+        $unsupportedOutputOnly = [];
+
+        foreach ($directions as $format => $direction) {
+            $inputUnsupported = $direction['inputStatus'] === 'unsupported';
+            $outputUnsupported = $direction['outputStatus'] === 'unsupported';
+
+            if ($inputUnsupported || $outputUnsupported) {
+                $anyUnsupported[] = $format;
+            }
+            if ($inputUnsupported && $outputUnsupported) {
+                $unsupportedBoth[] = $format;
+            }
+            if ($direction['direction'] === 'input-only' && $inputUnsupported) {
+                $unsupportedInputOnly[] = $format;
+            }
+            if ($direction['direction'] === 'output-only' && $outputUnsupported) {
+                $unsupportedOutputOnly[] = $format;
+            }
+        }
+
+        return [
+            'anyUnsupported' => $anyUnsupported,
+            'unsupportedBoth' => $unsupportedBoth,
+            'unsupportedInputOnly' => $unsupportedInputOnly,
+            'unsupportedOutputOnly' => $unsupportedOutputOnly,
+            'noNativeReader' => self::unsupportedTabularDataInputFormats(),
+            'noNativeWriter' => self::unsupportedTabularDataOutputFormats(),
+        ];
+    }
+
+    /**
+     * @return array{extension:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, unsupportedInput:bool, unsupportedOutput:bool, inputImplementation:string, outputImplementation:string, delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool, sourceModule:string, sourceFunction:string}|null
+     */
+    public static function tabularDataUnsupportedFormatForExtension(string $extension): ?array
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        $format = self::TABULAR_DATA_EXTENSION_INFERENCE[$normalized] ?? null;
+        if ($format === null) {
+            return null;
+        }
+
+        $directions = self::tabularDataFormatDirections();
+        $inputSupport = self::tabularDataInputSupport();
+        $direction = $directions[$format];
+        $profile = self::TABULAR_DATA_READER_OPTION_PROFILES[$format];
+        $source = self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format];
+
+        return [
+            'extension' => $normalized,
+            'format' => $format,
+            'input' => $direction['input'],
+            'output' => $direction['output'],
+            'direction' => $direction['direction'],
+            'inputStatus' => $direction['inputStatus'],
+            'outputStatus' => $direction['outputStatus'],
+            'unsupportedInput' => $direction['input'] && $direction['inputStatus'] === 'unsupported',
+            'unsupportedOutput' => $direction['output'] && $direction['outputStatus'] === 'unsupported',
+            'inputImplementation' => $inputSupport[$format]['implementation'],
+            'outputImplementation' => '',
+            'delimiter' => $profile['delimiter'],
+            'delimiterName' => $profile['delimiterName'],
+            'quote' => $profile['quote'],
+            'keepSpace' => $profile['keepSpace'],
+            'escape' => $profile['escape'],
+            'firstRowHeader' => $profile['firstRowHeader'],
+            'emptyInputPolicy' => $profile['emptyInputPolicy'],
+            'multilineCellPolicy' => $profile['multilineCellPolicy'],
+            'readerOptionsUsed' => $profile['readerOptionsUsed'],
+            'sourceModule' => $source['module'],
+            'sourceFunction' => $source['function'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     extensionInference:array<string, string>,
+     *     extensionInferredFormats:list<string>,
+     *     nonExtensionInferredFormats:list<string>,
+     *     readerOptionProfiles:array<string, array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}>,
+     *     inputSourceProvenance:array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     unsupportedFormatSummary:array{
+     *         anyUnsupported:list<string>,
+     *         unsupportedBoth:list<string>,
+     *         unsupportedInputOnly:list<string>,
+     *         unsupportedOutputOnly:list<string>,
+     *         noNativeReader:list<string>,
+     *         noNativeWriter:list<string>
+     *     },
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}}>
+     * }
+     */
+    public static function tabularDataFormatReviewPacket(): array
+    {
+        $directions = self::tabularDataFormatDirections();
+        $inputSupport = self::tabularDataInputSupport();
+        $extensionsByFormat = [];
+
+        foreach (self::TABULAR_DATA_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $formats = [];
+        foreach ($directions as $format => $direction) {
+            $formats[$format] = [
+                'input' => $direction['input'],
+                'output' => $direction['output'],
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
+                'inputImplementation' => $inputSupport[$format]['implementation'],
+                'outputImplementation' => '',
+                'readerOptions' => self::TABULAR_DATA_READER_OPTION_PROFILES[$format],
+                'sourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format],
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::TABULAR_DATA_INPUT_FORMATS,
+            'outputFormats' => self::TABULAR_DATA_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::tabularDataBidirectionalFormats(),
+                'inputOnly' => self::tabularDataInputOnlyFormats(),
+                'outputOnly' => self::tabularDataOutputOnlyFormats(),
+            ],
+            'extensionInference' => self::TABULAR_DATA_EXTENSION_INFERENCE,
+            'extensionInferredFormats' => self::tabularDataFormatsWithExtensionInference(),
+            'nonExtensionInferredFormats' => self::tabularDataFormatsWithoutExtensionInference(),
+            'readerOptionProfiles' => self::TABULAR_DATA_READER_OPTION_PROFILES,
+            'inputSourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE,
+            'unsupportedInputFormats' => self::unsupportedTabularDataInputFormats(),
+            'unsupportedOutputFormats' => self::unsupportedTabularDataOutputFormats(),
+            'unsupportedFormatSummary' => self::tabularDataUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function inputAliases(): array
@@ -2617,6 +2968,22 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function tabularDataInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::TABULAR_DATA_INPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function tabularDataOutputSupport(): array
+    {
+        return [];
+    }
+
+    /**
      * @return list<string>
      */
     public static function unsupportedInputFormats(): array
@@ -2678,6 +3045,22 @@ final class PandocFormatRegistry
     public static function unsupportedRichPackageOutputFormats(): array
     {
         return self::formatsWithStatus(self::richPackageOutputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedTabularDataInputFormats(): array
+    {
+        return self::formatsWithStatus(self::tabularDataInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedTabularDataOutputFormats(): array
+    {
+        return self::formatsWithStatus(self::tabularDataOutputSupport(), 'unsupported');
     }
 
     /**
