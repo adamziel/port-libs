@@ -1260,7 +1260,36 @@ XML;
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $configurationByPath = [];
+        foreach ($summary['packageConfigurations']['items'] as $item) {
+            $configurationByPath[$item['packagePath']] = $item;
+        }
         $inventory = $summary['packageInventory'];
+
+        $t->same(5, $summary['packageConfigurations']['count']);
+        $t->same(3, $summary['packageConfigurations']['readableCount']);
+        $t->same(4, $summary['packageConfigurations']['declaredCount']);
+        $t->same(1, $summary['packageConfigurations']['undeclaredCount']);
+        $t->same(1, $summary['packageConfigurations']['missingCount']);
+        $t->same(1, $summary['packageConfigurations']['directoryCount']);
+        $t->same(0, $summary['packageConfigurations']['encryptedCount']);
+        $t->same(0, $summary['packageConfigurations']['invalidMediaTypeCount']);
+        $t->same(2, $summary['packageConfigurations']['issueCount']);
+        $t->same([
+            'odf-configuration-missing-package-part',
+            'odf-configuration-undeclared-package-part',
+        ], $summary['packageConfigurations']['issueCodes']);
+        $t->same(['accelerator', 'images', 'statusbar', 'toolbar'], $summary['packageConfigurations']['configurationAreas']);
+        $t->same(['configuration-image', 'configuration-root', 'configuration-xml'], $summary['packageConfigurations']['configurationKinds']);
+        $t->same('configuration-package-bytes-blocked', $summary['packageConfigurations']['byteExposurePolicy']);
+        $t->same('configuration-package-metadata-only', $summary['packageConfigurations']['reviewPolicy']);
+        $t->same([
+            'Configurations2/',
+            'Configurations2/accelerator/current.xml',
+            'Configurations2/images/Bitmaps/review.png',
+            'Configurations2/statusbar/standardbar.xml',
+            'Configurations2/toolbar/missing.xml',
+        ], array_column($summary['packageConfigurations']['items'], 'packagePath'));
 
         $t->same(4, $summary['manifestReview']['configurationPackagePartCount']);
         $t->same([
@@ -1287,11 +1316,39 @@ XML;
         $t->same(sprintf('%08x', crc32($acceleratorXml)), $accelerator['storedCrc32']);
         $t->same('configuration-package-bytes-blocked', $accelerator['byteExposurePolicy']);
 
+        $configurationRoot = $configurationByPath['Configurations2/'];
+        $t->same(true, $configurationRoot['isDirectory']);
+        $t->same('configuration-root', $configurationRoot['configurationKind']);
+        $t->same(null, $configurationRoot['byteLength']);
+        $t->same('directory-entry-no-bytes', $configurationRoot['byteExposurePolicy']);
+
+        $acceleratorConfiguration = $configurationByPath['Configurations2/accelerator/current.xml'];
+        $t->same('accelerator', $acceleratorConfiguration['configurationArea']);
+        $t->same('configuration-xml', $acceleratorConfiguration['configurationKind']);
+        $t->same('accelerator/current.xml', $acceleratorConfiguration['configurationPath']);
+        $t->same('xml', $acceleratorConfiguration['extension']);
+        $t->same(true, $acceleratorConfiguration['declared']);
+        $t->same(false, $acceleratorConfiguration['undeclared']);
+        $t->same(true, $acceleratorConfiguration['valid']);
+        $t->same(strlen($acceleratorXml), $acceleratorConfiguration['byteLength']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $acceleratorConfiguration['crc32']);
+        $t->same(false, $acceleratorConfiguration['canExposeAsDocumentMedia']);
+        $t->same('configuration-package-bytes-blocked', $acceleratorConfiguration['byteExposurePolicy']);
+        $t->same('configuration-package-metadata-only', $acceleratorConfiguration['reviewPolicy']);
+        $t->same([], $acceleratorConfiguration['issues']);
+
         $configIcon = $reviewByPath['Configurations2/images/Bitmaps/review.png'];
         $t->same(true, $configIcon['configurationPackagePart']);
         $t->same(false, $configIcon['canExposeBytes']);
         $t->same('configuration-package-bytes-blocked', $configIcon['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+
+        $iconConfiguration = $configurationByPath['Configurations2/images/Bitmaps/review.png'];
+        $t->same('images', $iconConfiguration['configurationArea']);
+        $t->same('configuration-image', $iconConfiguration['configurationKind']);
+        $t->same('image/png', $iconConfiguration['mediaType']);
+        $t->same(strlen($configIconBytes), $iconConfiguration['byteLength']);
+        $t->same(sprintf('%08x', crc32($configIconBytes)), $iconConfiguration['crc32']);
 
         $missing = $reviewByPath['Configurations2/toolbar/missing.xml'];
         $t->same(false, $missing['exists']);
@@ -1299,11 +1356,109 @@ XML;
         $t->same('configuration-package-bytes-blocked', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
 
+        $missingConfiguration = $configurationByPath['Configurations2/toolbar/missing.xml'];
+        $t->same(false, $missingConfiguration['exists']);
+        $t->same(false, $missingConfiguration['valid']);
+        $t->same(['odf-configuration-missing-package-part'], $missingConfiguration['issues']);
+
         $orphan = $summary['undeclaredPackageEntries'][0];
         $t->same('Configurations2/statusbar/standardbar.xml', $orphan['path']);
         $t->same(true, $orphan['configurationPackagePart']);
         $t->same(false, $orphan['canExposeBytes']);
         $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+
+        $orphanConfiguration = $configurationByPath['Configurations2/statusbar/standardbar.xml'];
+        $t->same(false, $orphanConfiguration['declared']);
+        $t->same(true, $orphanConfiguration['undeclared']);
+        $t->same('statusbar', $orphanConfiguration['configurationArea']);
+        $t->same('text/xml', $orphanConfiguration['mediaType']);
+        $t->same(strlen($statusbarXml), $orphanConfiguration['byteLength']);
+        $t->same(['odf-configuration-undeclared-package-part'], $orphanConfiguration['issues']);
+    },
+    'reports compact ODT configuration package issue buckets as metadata-only review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedXml = '<toolbar encrypted="true"/>';
+        $invalidImageBytes = 'not-image-review';
+        $orphanXml = '<statusbar orphan="true"/>';
+        $configurationEntries =
+            '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/toolbar/encrypted.xml" manifest:size="' . strlen($encryptedXml) . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="config-checksum"/></manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/plain" manifest:full-path="Configurations2/images/Bitmaps/invalid.png" manifest:size="' . strlen($invalidImageBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/toolbar/missing.xml"/>' . "\n";
+        $manifest = str_replace('</manifest:manifest>', $configurationEntries . '</manifest:manifest>', $manifestXml);
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/toolbar/encrypted.xml', 'data' => $encryptedXml, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/images/Bitmaps/invalid.png', 'data' => $invalidImageBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/statusbar/orphan.xml', 'data' => $orphanXml, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $configurations = $summary['packageConfigurations'];
+        $itemsByPath = [];
+        foreach ($configurations['items'] as $item) {
+            $itemsByPath[$item['packagePath']] = $item;
+        }
+
+        $t->same(4, $configurations['count']);
+        $t->same(2, $configurations['readableCount']);
+        $t->same(3, $configurations['declaredCount']);
+        $t->same(1, $configurations['undeclaredCount']);
+        $t->same(1, $configurations['missingCount']);
+        $t->same(0, $configurations['directoryCount']);
+        $t->same(1, $configurations['encryptedCount']);
+        $t->same(1, $configurations['invalidMediaTypeCount']);
+        $t->same(4, $configurations['issueCount']);
+        $t->same([
+            'odf-configuration-encrypted-package-part',
+            'odf-configuration-invalid-media-type',
+            'odf-configuration-missing-package-part',
+            'odf-configuration-undeclared-package-part',
+        ], $configurations['issueCodes']);
+        $t->same(['images', 'statusbar', 'toolbar'], $configurations['configurationAreas']);
+        $t->same(['configuration-part', 'configuration-xml'], $configurations['configurationKinds']);
+        $t->same('configuration-package-bytes-blocked', $configurations['byteExposurePolicy']);
+        $t->same('configuration-package-metadata-only', $configurations['reviewPolicy']);
+
+        $encrypted = $itemsByPath['Configurations2/toolbar/encrypted.xml'];
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(false, $encrypted['valid']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedXml), $encrypted['storedByteLength']);
+        $t->same(null, $encrypted['crc32']);
+        $t->same(sprintf('%08x', crc32($encryptedXml)), $encrypted['storedCrc32']);
+        $t->same(['odf-configuration-encrypted-package-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPath['Configurations2/images/Bitmaps/invalid.png'];
+        $t->same('images', $invalid['configurationArea']);
+        $t->same('configuration-part', $invalid['configurationKind']);
+        $t->same('text/plain', $invalid['mediaType']);
+        $t->same(false, $invalid['valid']);
+        $t->same(strlen($invalidImageBytes), $invalid['byteLength']);
+        $t->same(sprintf('%08x', crc32($invalidImageBytes)), $invalid['crc32']);
+        $t->same(['odf-configuration-invalid-media-type'], $invalid['issues']);
+
+        $missing = $itemsByPath['Configurations2/toolbar/missing.xml'];
+        $t->same(false, $missing['exists']);
+        $t->same('configuration-xml', $missing['configurationKind']);
+        $t->same(['odf-configuration-missing-package-part'], $missing['issues']);
+
+        $orphan = $itemsByPath['Configurations2/statusbar/orphan.xml'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(true, $orphan['valid']);
+        $t->same('text/xml', $orphan['mediaType']);
+        $t->same(strlen($orphanXml), $orphan['byteLength']);
+        $t->same(['odf-configuration-undeclared-package-part'], $orphan['issues']);
+
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['configurationPackageItems'] as $item) {
+            $reviewByPath[$item['packagePath']] = $item;
+        }
+        $t->same(true, $reviewByPath['Configurations2/toolbar/encrypted.xml']['configurationPackagePart']);
+        $t->same('encrypted-resource-bytes-blocked', $reviewByPath['Configurations2/toolbar/encrypted.xml']['byteExposurePolicy']);
+        $t->same(true, $summary['packageInventory']['parts']['Configurations2/statusbar/orphan.xml']['configurationPackagePart']);
+        $t->same(['configuration-package', 'undeclared-package-entry'], $summary['packageInventory']['parts']['Configurations2/statusbar/orphan.xml']['roles']);
     },
     'reports compact ODT embedded object package provenance without media byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $chartContent = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body/></office:document-content>';
