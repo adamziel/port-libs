@@ -6417,6 +6417,7 @@ final class XmlHtmlDom
             $summary['useMapRaw'] = $useMap['raw'];
             $summary['useMapName'] = $useMap['name'];
             $summary['useMapValid'] = $useMap['valid'];
+            $summary += self::imageUseMapAssociationSummary($image, $useMap);
         }
 
         return $summary;
@@ -6428,16 +6429,31 @@ final class XmlHtmlDom
     private static function imageMapSummary(\DOMElement $map): array
     {
         $name = self::attributeOrNull($map, 'name');
+        $normalizedName = $name === null ? null : trim($name);
+        $nameValid = $normalizedName !== null && self::isHtmlReferenceToken($normalizedName);
         $areas = array_map(
             static fn (\DOMElement $area): array => self::hyperlinkSummary($area, 'area'),
             self::descendantHtmlElements($map, 'area'),
         );
+        $referencingImages = $nameValid ? self::htmlImagesUsingMapName($map, $normalizedName) : [];
+        $duplicateNameCount = $nameValid ? count(self::htmlImageMapsByName($map, $normalizedName)) : 0;
+        $issues = [];
+        if (!$nameValid) {
+            $issues[] = ['code' => 'invalid-map-name', 'mapNameRaw' => $name];
+        } else {
+            if ($duplicateNameCount > 1) {
+                $issues[] = ['code' => 'duplicate-map-name', 'mapName' => $normalizedName, 'count' => $duplicateNameCount];
+            }
+            if ($referencingImages === []) {
+                $issues[] = ['code' => 'unreferenced-image-map', 'mapName' => $normalizedName];
+            }
+        }
 
         return [
             'imageMap' => 'map',
             'mapNameRaw' => $name,
-            'mapName' => $name === null ? null : trim($name),
-            'mapNameValid' => $name !== null && self::isHtmlReferenceToken(trim($name)),
+            'mapName' => $normalizedName,
+            'mapNameValid' => $nameValid,
             'areaCount' => count($areas),
             'areaHrefs' => array_values(array_filter(
                 array_map(static fn (array $area): ?string => $area['href'] ?? null, $areas),
@@ -6448,6 +6464,74 @@ final class XmlHtmlDom
                 static fn (?string $label): bool => $label !== null && $label !== ''
             )),
             'areas' => $areas,
+            'imageMapReferenceCount' => count($referencingImages),
+            'imageMapReferenceSources' => array_values(array_filter(
+                array_map(static fn (\DOMElement $image): ?string => self::attributeOrNull($image, 'src'), $referencingImages),
+                static fn (?string $src): bool => $src !== null && $src !== ''
+            )),
+            'imageMapDuplicateNameCount' => $duplicateNameCount,
+            'imageMapAssociationState' => $nameValid
+                ? ($duplicateNameCount > 1 ? 'duplicate-map-name' : ($referencingImages === [] ? 'unreferenced' : 'referenced'))
+                : 'invalid-map-name',
+            'imageMapIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{raw:string, name:?string, valid:bool} $useMap
+     * @return array<string, mixed>
+     */
+    private static function imageUseMapAssociationSummary(\DOMElement $image, array $useMap): array
+    {
+        if ($useMap['valid'] !== true || $useMap['name'] === null) {
+            return [
+                'useMapAssociationState' => 'invalid-reference',
+                'useMapTargetCount' => 0,
+                'useMapAreaCount' => 0,
+                'useMapAreaHrefs' => [],
+                'useMapAreaLabels' => [],
+                'useMapIssues' => [[
+                    'code' => 'invalid-usemap-reference',
+                    'useMapRaw' => $useMap['raw'],
+                ]],
+            ];
+        }
+
+        $maps = self::htmlImageMapsByName($image, $useMap['name']);
+        $areaHrefs = [];
+        $areaLabels = [];
+        $areaCount = 0;
+        foreach ($maps as $map) {
+            $areas = self::descendantHtmlElements($map, 'area');
+            $areaCount += count($areas);
+            foreach ($areas as $area) {
+                $href = self::attributeOrNull($area, 'href');
+                if ($href !== null && $href !== '') {
+                    $areaHrefs[] = $href;
+                }
+                $label = self::attributeOrNull($area, 'alt');
+                if ($label !== null && $label !== '') {
+                    $areaLabels[] = $label;
+                }
+            }
+        }
+
+        $issues = [];
+        if ($maps === []) {
+            $issues[] = ['code' => 'missing-image-map', 'mapName' => $useMap['name']];
+        } elseif (count($maps) > 1) {
+            $issues[] = ['code' => 'duplicate-map-name', 'mapName' => $useMap['name'], 'count' => count($maps)];
+        }
+
+        return [
+            'useMapAssociationState' => $maps === []
+                ? 'missing-map'
+                : (count($maps) > 1 ? 'duplicate-map-name' : 'resolved'),
+            'useMapTargetCount' => count($maps),
+            'useMapAreaCount' => $areaCount,
+            'useMapAreaHrefs' => $areaHrefs,
+            'useMapAreaLabels' => $areaLabels,
+            'useMapIssues' => $issues,
         ];
     }
 
@@ -6464,6 +6548,62 @@ final class XmlHtmlDom
             'name' => $name === '' ? null : $name,
             'valid' => str_starts_with($raw, '#') && self::isHtmlReferenceToken($name),
         ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlImageMapsByName(\DOMElement $context, string $name): array
+    {
+        $root = self::htmlFragmentScope($context);
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $maps = [];
+        foreach (self::descendantHtmlElements($root, 'map') as $map) {
+            $mapName = self::attributeOrNull($map, 'name');
+            $normalizedName = $mapName === null ? null : trim($mapName);
+            if ($normalizedName !== null && $normalizedName === $name && self::isHtmlReferenceToken($normalizedName)) {
+                $maps[] = $map;
+            }
+        }
+
+        return $maps;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function htmlImagesUsingMapName(\DOMElement $context, string $name): array
+    {
+        $root = self::htmlFragmentScope($context);
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $images = [];
+        foreach (self::descendantHtmlElements($root, 'img') as $image) {
+            if (!$image->hasAttribute('usemap')) {
+                continue;
+            }
+            $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
+            if ($useMap['valid'] === true && $useMap['name'] === $name) {
+                $images[] = $image;
+            }
+        }
+
+        return $images;
+    }
+
+    private static function htmlFragmentScope(\DOMElement $context): ?\DOMElement
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        return self::fragmentRoot($document);
     }
 
     /**
