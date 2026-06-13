@@ -38,10 +38,10 @@
     "scope": "Native PHP ODF/ODT input import for OpenDocument text packages, including package manifest, styles/content ingestion, metadata, embedded media/objects, and downstream Markdown/WordPress writer handoff.",
     "upstreamFormatCases": 20,
     "upstreamFormatAssertions": 575,
-    "localMappedCases": 51,
-    "localFocusedAssertions": 5966,
-    "caseCoveragePercent": 255,
-    "assertionCoveragePercent": 1037.6,
+    "localMappedCases": 52,
+    "localFocusedAssertions": 6101,
+    "caseCoveragePercent": 260,
+    "assertionCoveragePercent": 1061,
     "localFocusedTestFiles": [
       "lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php",
       "lanes/pandoc/tests/OdfReaderTest.php",
@@ -49,20 +49,20 @@
       "lanes/pandoc/tests/OpenDocumentReaderTest.php",
       "lanes/pandoc/tests/OpenDocumentPackageTest.php"
     ],
-    "localFocusedTestCases": 220,
+    "localFocusedTestCases": 224,
     "verification": {
       "json": "jq empty lanes/pandoc/lane-status.json",
       "diffCheck": "git diff --check -- progress.md lanes/pandoc/lane-status.json",
       "focusedOdfOdtTests": {
         "command": "php tools/run-tests.php lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php lanes/pandoc/tests/OdfReaderTest.php lanes/pandoc/tests/OdtReaderTest.php lanes/pandoc/tests/OpenDocumentReaderTest.php lanes/pandoc/tests/OpenDocumentPackageTest.php",
         "files": 5,
-        "assertions": 5966,
+        "assertions": 6101,
         "failures": 0
       },
       "fullPandocTests": {
         "command": "php tools/run-tests.php lanes/pandoc/tests",
         "files": 46,
-        "assertions": 75505,
+        "assertions": 79667,
         "failures": 0
       }
     },
@@ -485,8 +485,8 @@
   "mappedPdfStructureNamespaceCases": 1,
   "pdfStructureNamespaceAssertions": 9,
   "mappedOdfCompactObjectReplacementPackageCases": 1,
-  "mappedOdfReaderMetadataOnlySidecarPolicyCases": 3,
-  "odfReaderMetadataOnlySidecarPolicyAssertions": 27,
+  "mappedOdfReaderMetadataOnlySidecarPolicyCases": 4,
+  "odfReaderMetadataOnlySidecarPolicyAssertions": 39,
   "odfCompactObjectReplacementPackageAssertions": 47,
   "mappedDocxOpenXmlChartEmbeddedPackageCases": 1,
   "docxOpenXmlChartEmbeddedPackageAssertions": 58,

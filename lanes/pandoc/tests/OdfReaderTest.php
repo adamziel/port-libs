@@ -10210,9 +10210,29 @@ XML;
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(['/', 'content.xml', 'Basic/', 'Basic/Standard/Review.xml', 'manifest.rdf', 'Pictures/declared.png', 'Pictures/missing.png', 'Pictures/unsupported.webp', 'styles.xml', 'meta.xml'], array_column($provenance['manifestFileEntryOrder'], 'fullPath'));
+        $t->same([
+            'package-root-no-bytes',
+            'package-bytes-exposable',
+            'directory-entry-no-bytes',
+            'script-package-bytes-blocked',
+            'rdf-metadata-bytes-blocked',
+            'package-bytes-exposable',
+            'missing-package-part',
+            'unsupported-compression-bytes-blocked',
+            'package-bytes-exposable',
+            'package-bytes-exposable',
+        ], array_column($provenance['manifestFileEntryOrder'], 'byteExposurePolicy'));
         $t->same(array_column($parts, 'name'), $provenance['localHeaderOrder']['localHeaderOrderNames']);
         $t->same($centralOrder, $provenance['localHeaderOrder']['centralDirectoryOrderNames']);
         $t->same(true, $provenance['localHeaderOrder']['hasCentralDirectoryOrderMismatch']);
+        $t->same($centralOrder, array_keys($inventory));
+        $t->same(10, $provenance['entryCount']);
+        $t->same(9, $provenance['manifestDeclaredPartCount']);
+        $t->same(10, $provenance['manifestFileEntryCount']);
+        $t->same(5, $provenance['corePackagePartCount']);
+        $t->same(2, $provenance['mediaResourcePartCount']);
+        $t->same(1, $provenance['rdfMetadataPartCount']);
+        $t->same(0, $provenance['undeclaredEntryCount']);
         $t->same(['Pictures/declared.png', 'Pictures/missing.png', 'Pictures/unsupported.webp'], array_column($result['media'], 'part'));
         $t->same(['Pictures/missing.png'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
 
