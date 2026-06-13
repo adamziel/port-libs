@@ -1052,6 +1052,106 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookReviewPacket($docbook, 'xml'));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook bibliography reference diagnostics without reader parity claims' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book xmlns="http://docbook.org/ns/docbook" version="5.2" xml:lang="en">
+  <info><title>Reviewer Reference Packet</title></info>
+  <chapter xml:id="ch1">
+    <title>Body References</title>
+    <para>See <xref linkend="ref-good"/> plus <citation>[ref-missing]</citation> and <link linkend="ref-dup">duplicate reference</link>.</para>
+  </chapter>
+  <bibliography xml:id="refs">
+    <title>Works Cited</title>
+    <biblioentry xml:id="ref-good">
+      <title>Portable Imports</title>
+      <author><personname><firstname>Ada</firstname><surname>Zed</surname></personname></author>
+      <pubdate>2026</pubdate>
+      <mediaobject><imageobject/></mediaobject>
+    </biblioentry>
+    <bibliomixed xml:id="ref-dup">
+      <title>Mixed Reference</title>
+      <author><personname><firstname>Bob</firstname><surname>Mix</surname></personname></author>
+      <year>2025</year>
+    </bibliomixed>
+    <biblioentry xml:id="ref-dup">
+      <title>Duplicate Reference</title>
+      <date>2024-05</date>
+    </biblioentry>
+    <bibliodiv xml:id="legacy">
+      <title>Legacy References</title>
+      <simpara>unsupported div text</simpara>
+    </bibliodiv>
+  </bibliography>
+</book>
+XML, 'DocBook bibliography XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookBibliography($dom);
+
+        $t->same('xml-html5-docbook-dom', $packet['formatFamily']);
+        $t->same('docbook', $packet['format']);
+        $t->same('docbook-bibliography-reference-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'bibliography-review-only',
+            'bibliography-id-duplicates',
+            'reference-targets-missing',
+            'unsupported-bibliography-children',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(5, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
+        $t->same('docbook', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][1]['details']['bibliographyCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][1]['details']['entryCount'] ?? null);
+        $t->same(['ref-dup'], $packet['directReaderDiagnostics'][2]['details']['duplicateIds'] ?? null);
+        $t->same(['ref-missing'], $packet['directReaderDiagnostics'][3]['details']['missingTargets'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][4]['details']['unsupportedChildCount'] ?? null);
+        $t->same('book', $packet['rootName']);
+        $t->same('5.2', $packet['docbookVersion']);
+        $t->same('en', $packet['language']);
+        $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
+        $t->same(1, $packet['bibliographyCount']);
+        $t->same(['refs'], $packet['bibliographyIds']);
+        $t->same('Works Cited', $packet['bibliographies'][0]['title'] ?? null);
+        $t->same(['ref-good', 'ref-dup'], $packet['bibliographies'][0]['entryIds'] ?? null);
+        $t->same(3, $packet['bibliographies'][0]['entryCount'] ?? null);
+        $t->same(3, $packet['bibliographyEntryCount']);
+        $t->same(['ref-good', 'ref-dup'], $packet['bibliographyEntryIds']);
+        $t->same(['ref-good', 'ref-dup'], $packet['biblioentryIds']);
+        $t->same(['ref-dup'], $packet['bibliomixedIds']);
+        $t->same(['refs' => 1, 'ref-good' => 1, 'ref-dup' => 2, 'legacy' => 1], $packet['bibliographicIdOccurrences']);
+        $t->same(['ref-dup'], $packet['duplicateBibliographyIds']);
+        $t->same('biblioentry', $packet['bibliographyEntries'][0]['element'] ?? null);
+        $t->same('ref-good', $packet['bibliographyEntries'][0]['id'] ?? null);
+        $t->same('Portable Imports', $packet['bibliographyEntries'][0]['title'] ?? null);
+        $t->same(['Ada Zed'], $packet['bibliographyEntries'][0]['authors'] ?? null);
+        $t->same([['element' => 'pubdate', 'value' => '2026']], $packet['bibliographyEntries'][0]['yearLikeMetadata'] ?? null);
+        $t->same(['2026'], $packet['bibliographyEntries'][0]['yearLikeValues'] ?? null);
+        $t->same('bibliomixed', $packet['bibliographyEntries'][1]['element'] ?? null);
+        $t->same('Mixed Reference', $packet['bibliographyEntries'][1]['title'] ?? null);
+        $t->same(['Bob Mix'], $packet['bibliographyEntries'][1]['authors'] ?? null);
+        $t->same(['2025'], $packet['bibliographyEntries'][1]['yearLikeValues'] ?? null);
+        $t->same(['2024-05'], $packet['bibliographyEntries'][2]['yearLikeValues'] ?? null);
+        $t->same(['ref-good', 'ref-dup', 'ref-missing'], $packet['referenceLinkTargets']);
+        $t->same(3, $packet['referenceLinkTargetCount']);
+        $t->same(['ref-good', 'ref-dup'], $packet['xrefTargets']);
+        $t->same(['ref-missing'], $packet['citationTargets']);
+        $t->same(['ref-missing'], $packet['missingReferenceTargets']);
+        $t->same(1, $packet['missingReferenceTargetCount']);
+        $t->same('xref', $packet['referenceLinks'][0]['element'] ?? null);
+        $t->same('ref-good', $packet['referenceLinks'][0]['target'] ?? null);
+        $t->same('citation-text', $packet['referenceLinks'][2]['targetSource'] ?? null);
+        $t->same(2, $packet['unsupportedBibliographyChildCount']);
+        $t->same('biblioentry', $packet['unsupportedBibliographyChildren'][0]['parentElement'] ?? null);
+        $t->same('ref-good', $packet['unsupportedBibliographyChildren'][0]['parentId'] ?? null);
+        $t->same('mediaobject', $packet['unsupportedBibliographyChildren'][0]['childName'] ?? null);
+        $t->same('bibliodiv', $packet['unsupportedBibliographyChildren'][1]['parentElement'] ?? null);
+        $t->same('legacy', $packet['unsupportedBibliographyChildren'][1]['parentId'] ?? null);
+        $t->same('simpara', $packet['unsupportedBibliographyChildren'][1]['childName'] ?? null);
+        $t->same('unsupported div text', $packet['unsupportedBibliographyChildren'][1]['childText'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookBibliography(new DOMDocument()));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes docbook structure review packets without direct reader parity claims' => static function (TestRunner $t): void {
         $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:lang="en">
