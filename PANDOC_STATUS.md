@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Updated: 2026-06-13 UTC
+Updated: 2026-06-13 UTC after Pandoc wiki alias collision taxonomy on current main `68363c588e`.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
@@ -25,3 +25,7 @@ ODF/ODT is marked ship-ready: 52 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Shared ZIP / OPC package | 107 | audit needed |
 | PDF import | 49 | audit needed |
 | Legacy DOC / CFB | 7 | audit needed |
+
+Latest registry evidence: `PandocFormatRegistry` records bounded wiki-family alias collision diagnostics for the `wiki` token suffix and `.wiki` MediaWiki/Vimwiki fixture-extension conflict while keeping `.wiki => mediawiki` extension inference unchanged. The slice keeps stable unsupported reader/writer reason payloads, empty native implementation records, `externalToolFree=true`, `directReaderParitySupported=false`, and `directWriterParitySupported=false`; native wiki reader/writer parity remains unsupported.
+
+Current Pandoc counters: 3,442 PHP passes / 0 failures and 3,391 mapped upstream cases. Verification passed `php -l` for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php` (`1` file, `2,082` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `80,170` assertions, `0` failures), `jq empty`, and `git diff --check`.

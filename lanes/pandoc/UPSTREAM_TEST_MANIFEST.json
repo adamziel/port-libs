@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3390,
-        "latestSlice": "pandoc-docbook-media-caption-crossrefs maps one native XML/HTML5 DOM DocBook review case after HTML hyperlink navigation review on current main 14f7bd8d2b. XmlHtmlDom now reports bounded media caption/title cross-reference summaries, bibliography-to-media caption crosslinks, missing caption target diagnostics, repeated media role-caption pair diagnostics, and media target manifest linkage while keeping directReaderParity=false. Mapped denominator moves 3389 -> 3390, mappedXmlHtmlDomDocBookStructureReviewCases moves 1 -> 2, and xmlHtmlDomDocBookStructureReviewAssertions moves 56 -> 112. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 3376 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80098 assertions, 0 failures; jq empty; and git diff --check. No Pandoc binary, XML validators, browsers, Node tooling, online services, live providers, or external validators were invoked.",
+        "mapped": 3391,
+        "latestSlice": "pandoc-wiki-alias-collision-taxonomy maps one PandocFormatRegistry wiki-family alias collision taxonomy slice after DocBook media caption cross-reference review on current main 68363c588e. The registry exposes wikiAliasCollisionDiagnostics() and wikiAliasCollisionReviewPacket() for the wiki token-suffix collision plus the .wiki MediaWiki/Vimwiki fixture-extension collision while keeping .wiki => mediawiki extension inference unchanged; unsupported payloads keep stable wiki reader/writer reason codes, empty native implementation records, externalToolFree=true, directReaderParitySupported=false, and directWriterParitySupported=false without invoking Pandoc, wiki converters, browsers, Node tooling, online services, live providers, or external validators. Mapped denominator moves 3390 -> 3391, mappedPandocFormatRegistryWikiAliasCollisionCases is 1, and pandocFormatRegistryWikiAliasCollisionAssertions is 72. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 2082 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80170 assertions, 0 failures; jq empty; and git diff --check.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -42,8 +42,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "DocBook media caption cross-reference review packets are verified over current main 14f7bd8d2b with directReaderParity=false; broader XML/HTML5 DOM DocBook/JATS review closure remains partial.",
-        "latestFocusedSource": "2026-06-13 DocBook media caption cross-reference slice inspected XML/HTML5 DOM DocBook review packets against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 14f7bd8d2b; focused XmlHtmlDomTest.php passed 1 file, 3376 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80098 assertions, 0 failures.",
+        "status": "Pandoc wiki alias collision taxonomy is verified over current main 68363c588e with stable unsupported wiki reader/writer payloads and directReaderParitySupported=false/directWriterParitySupported=false; native wiki reader/writer parity remains unsupported.",
+        "latestFocusedSource": "2026-06-13 Pandoc wiki alias collision taxonomy inspected PandocFormatRegistry wiki-suffix and .wiki MediaWiki/Vimwiki diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 68363c588e following DocBook media caption cross-reference review; focused PandocFormatRegistryTest.php passed 1 file, 2082 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80170 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -349,7 +349,9 @@
         "mappedJsonNativeNullaryBlockPayloadCases": 2,
         "jsonNativeNullaryBlockPayloadAssertions": 64,
         "mappedPandocXmlNamespaceRegistryReviewCases": 1,
-        "pandocXmlNamespaceRegistryReviewAssertions": 51
+        "pandocXmlNamespaceRegistryReviewAssertions": 51,
+        "mappedPandocFormatRegistryWikiAliasCollisionCases": 1,
+        "pandocFormatRegistryWikiAliasCollisionAssertions": 72
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
