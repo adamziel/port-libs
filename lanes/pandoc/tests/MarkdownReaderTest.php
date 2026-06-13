@@ -16333,6 +16333,70 @@ HTML);
         $t->contains('<path d="M0 0L10 10"></path>', $inlineSvg->attr('html'));
         $t->contains('<p>Before <svg', $htmlOutput);
     },
+    'preserves raw html boundaries through markdown and wordpress writers' => static function (TestRunner $t): void {
+        $script = '<script type="application/json" data-boundary="raw">{"safe":"<keep>"}</script>';
+        $svg = '<svg viewBox="0 0 8 8" data-boundary="inline"><path d="M0 0L8 8"></path></svg>';
+        $kbd = '<kbd data-boundary="typed">Ctrl+S</kbd>';
+        $latex = '\begin{comment}' . "\n" . 'keep TeX boundary' . "\n" . '\end{comment}';
+        $markdownDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Press']),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', [
+                    'html' => $kbd,
+                ]),
+                new AstNode('space'),
+                new AstNode('raw_inline', [
+                    'format' => 'html',
+                    'text' => '<span>generic markdown raw stays disabled</span>',
+                ]),
+                new AstNode('raw_inline', [
+                    'format' => 'opml',
+                    'text' => '<outline text="drop"/>',
+                ]),
+                new AstNode('text', ['text' => 'before publishing.']),
+            ]),
+        ]);
+        $wordpressDocument = new AstNode('document', [], [
+            new AstNode('raw_block', [
+                'format' => 'html5',
+                'text' => $script,
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before']),
+                new AstNode('space'),
+                new AstNode('raw_inline', [
+                    'format' => 'html',
+                    'text' => $svg,
+                ]),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', [
+                    'html' => $kbd,
+                ]),
+                new AstNode('space'),
+                new AstNode('raw_inline', [
+                    'format' => 'opml',
+                    'text' => '<outline text="drop"/>',
+                ]),
+                new AstNode('text', ['text' => 'after']),
+            ]),
+            new AstNode('raw_block', [
+                'format' => 'latex',
+                'text' => $latex,
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($markdownDocument);
+        $blocks = (new WordPressBlockWriter())->write($wordpressDocument);
+
+        $t->same('Press ' . $kbd . ' before publishing.', $markdown);
+        $t->contains('<!-- wp:html -->' . "\n" . $script . "\n" . '<!-- /wp:html -->', $blocks);
+        $t->contains('<p>Before ' . $svg . ' ' . $kbd . ' after</p>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-tex">' . $latex . '</code></pre>', $blocks);
+        $t->true(!str_contains($markdown, 'generic markdown raw'), 'Generic raw HTML remains disabled in Markdown output');
+        $t->true(!str_contains($markdown, '<outline'), 'Unsupported raw inline formats stay disabled in Markdown output');
+        $t->true(!str_contains($blocks, '<outline'), 'Unsupported raw inline formats stay disabled in WordPress output');
+    },
     'maps upstream html reader mathml fragments as raw review markup' => static function (TestRunner $t): void {
         $math = '<math data-source="batch-57"><mi>x</mi><mo>=</mo><mn>1</mn></math>';
         $document = (new MarkdownReader())->read($math . "\n\nAfter the MathML.");

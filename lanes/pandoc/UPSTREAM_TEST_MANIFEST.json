@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3252,
-        "latestSlice": "pandoc-epub-ncx-document-audio-provenance maps one EPUB3 package ingestion coverage slice for NCX docTitle/docAuthor metadata review. EpubReader now preserves docTitle/docAuthor text attributes plus local, missing, and remote label audio provenance in docTitleEntries/docAuthorDetails and the aggregate audioLabelReport. phpPass moves 3291 -> 3292, phpFail remains 0, mappedEpubNcxDocumentAudioProvenanceCases is 1, and epubNcxDocumentAudioProvenanceAssertions is 39. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php (1 file, 4276 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73896 assertions, 0 failures) after rebase onto current main a3a7fee107 without running Pandoc, EPUBCheck, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3253,
+        "latestSlice": "pandoc-markdown-wordpress-raw-html-boundary maps one cross-format raw/HTML writer boundary slice. MarkdownWriter now emits typed raw_html_inline payloads while keeping generic format=html raw disabled, and WordPressBlockWriter renders generic raw_block/raw_inline format html/html4/html5/xhtml plus TeX aliases through existing raw HTML/code paths without exposing unsupported raw formats. phpPass moves 3292 -> 3293, phpFail remains 0, mappedMarkdownWordpressRawHtmlBoundaryCases is 1, and markdownWordpressRawHtmlBoundaryAssertions is 8. Verification passed php -l for MarkdownWriter.php, WordPressBlockWriter.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php (1 file, 6581 assertions, 0 failures); focused PandocJsonNativeAstTest.php (1 file, 1944 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 73903 assertions, 0 failures) after rebase onto current main d7a0bfb42d.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB3 NCX document metadata audio provenance is verified over current main a3a7fee107; EPUB3 remains partial/not shippable.",
-        "latestFocusedSource": "2026-06-12 EPUB3 slice inspected NCX docTitle/docAuthor audio provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main a3a7fee107; focused EpubReaderTest.php passed 1 file, 4276 assertions, 0 failures.",
+        "status": "Markdown/WordPress raw HTML writer boundary preservation is verified over current main d7a0bfb42d.",
+        "latestFocusedSource": "2026-06-12 Markdown/WordPress raw HTML boundary slice inspected typed raw_html_inline Markdown writer output and generic raw_block/raw_inline format html/html5 WordPress writer output against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main d7a0bfb42d; focused MarkdownReaderTest.php passed 1 file, 6581 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -129,7 +129,9 @@
         "mappedDocxOpenXmlSectionPropertyCases": 1,
         "docxOpenXmlSectionPropertyAssertions": 41,
         "mappedEpubNcxDocumentAudioProvenanceCases": 1,
-        "epubNcxDocumentAudioProvenanceAssertions": 39
+        "epubNcxDocumentAudioProvenanceAssertions": 39,
+        "mappedMarkdownWordpressRawHtmlBoundaryCases": 1,
+        "markdownWordpressRawHtmlBoundaryAssertions": 8
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
