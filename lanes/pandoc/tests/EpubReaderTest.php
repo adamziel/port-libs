@@ -7424,6 +7424,126 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML table section semantics for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $tableXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Table semantics</title></head>
+  <body>
+    <section id="tables">
+      <h1>Table review</h1>
+      <table id="inventory" class="review wide" summary="Migration inventory state">
+        <caption id="inventory-caption">Migration inventory</caption>
+        <colgroup><col class="file"/><col class="status"/></colgroup>
+        <thead>
+          <tr id="heading-row">
+            <th id="h-file" scope="col" abbr="File">Source file</th>
+            <th id="h-status" scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="row-1">
+            <td id="file-1" headers="h-file" rowspan="2">chapter1.xhtml</td>
+            <td id="status-1" headers="h-status">ready</td>
+          </tr>
+          <tr id="row-2">
+            <td id="status-2" headers="h-status">reviewed</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr id="summary-row">
+            <th id="summary-label" scope="row" colspan="2">2 rows imported</th>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  </body>
+</html>
+XML;
+        $opfWithTableContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="table-content" href="text/table.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithTableContent = str_replace(
+            '</spine>',
+            '<itemref idref="table-content"/></spine>',
+            $opfWithTableContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithTableContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/table.xhtml', 'data' => $tableXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/table.xhtml'];
+        $table = $asset['tables'][0];
+        $tableBlock = $result['document']->children[2];
+
+        $t->same(1, $report['tableAssetCount']);
+        $t->same(1, $report['tableCount']);
+        $t->same(4, $report['tableRowCount']);
+        $t->same(3, $report['tableHeaderCellCount']);
+        $t->same(1, $report['tableCaptionCount']);
+        $t->same(1, $report['tableHeadSectionCount']);
+        $t->same(1, $report['tableBodySectionCount']);
+        $t->same(1, $report['tableFootSectionCount']);
+        $t->same([], $report['tableDiagnostics']);
+
+        $t->same(true, $asset['flags']['tables']);
+        $t->same(['tables'], $asset['reviewFlags']);
+        $t->same(1, $asset['tableCount']);
+        $t->same(4, $asset['tableRowCount']);
+        $t->same(6, $table['cellCount']);
+        $t->same(3, $table['dataCellCount']);
+        $t->same('/OEBPS/text/table.xhtml', $table['sourcePart']);
+        $t->same('inventory', $table['id']);
+        $t->same(['review', 'wide'], $table['classes']);
+        $t->same('Migration inventory state', $table['summary']);
+        $t->same(['Migration inventory'], $table['captionTexts']);
+        $t->same(['inventory-caption'], $table['captionIds']);
+        $t->same(1, $table['colgroupCount']);
+        $t->same(2, $table['columnDeclarationCount']);
+        $t->same(['caption', 'colgroup', 'thead', 'tbody', 'tfoot'], $table['sectionOrder']);
+        $t->same(['thead' => 1, 'tbody' => 1, 'tfoot' => 1, 'implicit-body' => 0], $table['sectionCounts']);
+        $t->same(['thead' => 1, 'tbody' => 2, 'tfoot' => 1, 'implicit-body' => 0], $table['rowCountsBySection']);
+        $t->same(['col', 'row'], $table['headerScopes']);
+        $t->same(3, $table['headerReferenceCount']);
+        $t->same(0, $table['nestedTableCount']);
+
+        $header = $table['cells'][0];
+        $t->same('thead', $header['section']);
+        $t->same('th', $header['element']);
+        $t->same(true, $header['header']);
+        $t->same('h-file', $header['id']);
+        $t->same('col', $header['scope']);
+        $t->same('File', $header['abbr']);
+        $t->same('Source file', $header['text']);
+
+        $bodyCell = $table['cells'][2];
+        $t->same('tbody', $bodyCell['section']);
+        $t->same('td', $bodyCell['element']);
+        $t->same(false, $bodyCell['header']);
+        $t->same(['h-file'], $bodyCell['headers']);
+        $t->same(2, $bodyCell['rowspan']);
+        $t->same('2', $bodyCell['rowspanRaw']);
+        $t->same(1, $bodyCell['colspan']);
+
+        $footHeader = $table['cells'][5];
+        $t->same('tfoot', $footHeader['section']);
+        $t->same(true, $footHeader['header']);
+        $t->same('row', $footHeader['scope']);
+        $t->same(2, $footHeader['colspan']);
+        $t->same('2 rows imported', $footHeader['text']);
+
+        $t->same($asset['tables'], $tableBlock->attr('contentTables'));
+        $t->same($asset['tableDiagnostics'], $tableBlock->attr('contentTableDiagnostics'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $declaredRemoteXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3289,
-        "latestSlice": "pandoc-plain-writer-table-body-groups maps one plain-writer table body-group coverage slice after the Markdown HTML list item attribute slice. PlainWriter now separates consecutive native Pandoc table_body groups with a blank line in plain text while preserving body-local headRows in each group, without invoking Pandoc, TeX, Typst, browser renderers, Node tooling, office suites, online services, live provider tests, or external validators. Mapped denominator moves 3288 -> 3289, mappedPlainWriterBodyGroupCases is 1, and plainWriterBodyGroupAssertions is 7. Verification passed php -l for PlainWriter.php and PlainWriterTest.php; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures after final rebase onto current main 0072af8b00.",
+        "mapped": 3290,
+        "latestSlice": "pandoc-epub-xhtml-table-semantics maps one EPUB3 XHTML spine-content table semantics slice after PlainWriter table body-group boundaries. EpubReader now preserves XHTML table caption text and ids, colgroup counts, direct section order, thead/tbody/tfoot and implicit-body row counts, header-cell scope/header associations, row/column spans, nested-table counts, diagnostics, aggregate XHTML resource report counters, import-report propagation, and raw_html handoff attributes without converting the full XHTML tree. Mapped denominator moves 3289 -> 3290, mappedEpubXhtmlTableSemanticsCases is 1, and epubXhtmlTableSemanticsAssertions is 52. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures after final rebase onto current main 437a269855 without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, Node tooling, online services, live provider tests, or external validators.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "PlainWriter multiple table body-group boundaries are verified over current main 0072af8b00 after Markdown HTML list item attributes.",
-        "latestFocusedSource": "2026-06-13 PlainWriter table slice inspected multiple native Pandoc table body groups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 0072af8b00; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures.",
+        "status": "EPUB XHTML table semantics review metadata is verified over current main 437a269855 after PlainWriter table body-group boundaries.",
+        "latestFocusedSource": "2026-06-13 EPUB slice inspected bounded XHTML table caption, section, span, and header-cell review metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 437a269855; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -199,7 +199,9 @@
         "mappedMarkdownHtmlListItemAttributeCases": 1,
         "markdownHtmlListItemAttributeAssertions": 12,
         "mappedPlainWriterBodyGroupCases": 1,
-        "plainWriterBodyGroupAssertions": 7
+        "plainWriterBodyGroupAssertions": 7,
+        "mappedEpubXhtmlTableSemanticsCases": 1,
+        "epubXhtmlTableSemanticsAssertions": 52
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1111,12 +1113,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "LaTeX longtable output now preserves Pandoc table body-local head rows in body position while Markdown and AsciiDoc continue to report their body-head-row writer handoff diagnostics, without invoking Pandoc, TeX, browser renderers, office suites, Node tooling, online services, live provider tests, or external validators.",
+    "wordpressScenario": "EPUB handoff now preserves XHTML table section, caption, span, and header-cell review metadata on raw_html spine nodes and import reports without invoking Pandoc, EPUBCheck, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "LaTeX table body-local head row preservation is verified over current main f286538a3b; remaining table geometry gaps are multiple body-group semantics in non-HTML writers and true LaTeX rowspan output beyond diagnostics.",
-    "mapping": "Adds one bounded native PHP LaTeX writer case for Pandoc table_body headRows rendered in body position, with the corresponding TableGeometry LaTeX diagnostic removed, while preserving prior JSON/native, PDF/Typst, Markdown, MediaBag, CSV/TSV, and table-foot counters.",
+    "status": "EPUB XHTML table semantics review metadata is verified over current main 437a269855 after PlainWriter table body-group boundaries.",
+    "mapping": "Adds one bounded native PHP EPUB3 spine XHTML content case for table caption, colgroup, section order, thead/tbody/tfoot and implicit-body rows, header-cell scope/header associations, spans, nested-table counts, diagnostics, aggregate XHTML reports, import-report propagation, and raw_html handoff attributes while preserving prior closure-wave matrix, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-latex-table-body-head-writer maps one LaTeX longtable writer slice for Pandoc table body-local head rows after JSON/native nullary helper payload validation. LatexWriter now keeps each table_body headRows group in body position instead of promoting those rows into the global table head, and TableGeometry no longer reports latex-body-head-rows-review-required for this covered writer path while Markdown and AsciiDoc diagnostics remain. phpPass moves 3313 -> 3314, phpFail remains 0, mappedLatexTableBodyHeadWriterCases is 1, and latexTableBodyHeadWriterAssertions is 1. Verification passed php -l for LatexWriter.php, TableGeometry.php, LatexWriterTest.php, TableGeometryTest.php, and wordpress-table-geometry-handoff.php; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; wordpress-table-geometry-handoff.php --self-test passed; and full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures. No external Pandoc, TeX, browser, Node, office, online service, live provider, or external validator was invoked.",
+    "latestSlice": "pandoc-epub-xhtml-table-semantics maps one EPUB3 XHTML spine-content table semantics slice after PlainWriter table body-group boundaries. EpubReader now preserves XHTML table caption text and ids, colgroup counts, direct section order, thead/tbody/tfoot and implicit-body row counts, header-cell scope/header associations, row/column spans, nested-table counts, diagnostics, aggregate XHTML resource report counters, import-report propagation, and raw_html handoff attributes without converting the full XHTML tree. Mapped denominator moves 3289 -> 3290, mappedEpubXhtmlTableSemanticsCases is 1, and epubXhtmlTableSemanticsAssertions is 52. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures after final rebase onto current main 437a269855 without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, Node tooling, online services, live provider tests, or external validators.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1258,7 +1260,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 LaTeX table body-head writer slice inspected Pandoc table_body headRows/rowGroups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main f286538a3b; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 EPUB slice inspected bounded XHTML table caption, section, span, and header-cell review metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 437a269855; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1474,5 +1476,7 @@
     "mappedJsonNativeNullaryHelperPayloadCases": 1,
     "jsonNativeNullaryHelperPayloadAssertions": 82,
     "mappedLatexTableBodyHeadWriterCases": 1,
-    "latexTableBodyHeadWriterAssertions": 1
+    "latexTableBodyHeadWriterAssertions": 1,
+    "mappedEpubXhtmlTableSemanticsCases": 1,
+    "epubXhtmlTableSemanticsAssertions": 52
 }

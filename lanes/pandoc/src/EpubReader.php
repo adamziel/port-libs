@@ -14485,6 +14485,8 @@ final class EpubReader
                 'contentSemantics' => $contentReport['semantics'],
                 'contentSemanticTypes' => $contentReport['semanticTypes'],
                 'contentSemanticDiagnostics' => $contentReport['semanticDiagnostics'],
+                'contentTables' => $contentReport['tables'],
+                'contentTableDiagnostics' => $contentReport['tableDiagnostics'],
                 'contentDiagnostics' => $contentReport['diagnostics'],
             ];
         }
@@ -16891,6 +16893,16 @@ final class EpubReader
         $switchDefaultCount = 0;
         $validSwitchCount = 0;
         $invalidSwitchCount = 0;
+        $tableAssetCount = 0;
+        $tableCount = 0;
+        $tableRowCount = 0;
+        $tableHeaderCellCount = 0;
+        $tableCaptionCount = 0;
+        $tableHeadSectionCount = 0;
+        $tableBodySectionCount = 0;
+        $tableFootSectionCount = 0;
+        $tableItems = [];
+        $tableDiagnostics = [];
         $semanticAssetCount = 0;
         $semanticItemCount = 0;
         $semanticItems = [];
@@ -17151,6 +17163,34 @@ final class EpubReader
                 'triggers' => is_array($report['triggers'] ?? null) ? array_values($report['triggers']) : [],
                 'validTriggerCount' => is_int($report['validTriggerCount'] ?? null) ? $report['validTriggerCount'] : 0,
                 'invalidTriggerCount' => is_int($report['invalidTriggerCount'] ?? null) ? $report['invalidTriggerCount'] : 0,
+                'tableCount' => count(is_array($report['tables'] ?? null) ? $report['tables'] : []),
+                'tables' => is_array($report['tables'] ?? null) ? array_values($report['tables']) : [],
+                'tableRowCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['rowCount'] ?? null) ? $table['rowCount'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableHeaderCellCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['headerCellCount'] ?? null) ? $table['headerCellCount'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableCaptionCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['captionCount'] ?? null) ? $table['captionCount'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableHeadSectionCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['sectionCounts']['thead'] ?? null) ? $table['sectionCounts']['thead'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableBodySectionCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['sectionCounts']['tbody'] ?? null) ? $table['sectionCounts']['tbody'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableFootSectionCount' => array_sum(array_map(
+                    static fn (array $table): int => is_int($table['sectionCounts']['tfoot'] ?? null) ? $table['sectionCounts']['tfoot'] : 0,
+                    is_array($report['tables'] ?? null) ? $report['tables'] : [],
+                )),
+                'tableDiagnosticCount' => count(is_array($report['tableDiagnostics'] ?? null) ? $report['tableDiagnostics'] : []),
+                'tableDiagnostics' => is_array($report['tableDiagnostics'] ?? null) ? array_values($report['tableDiagnostics']) : [],
                 'semanticCount' => count(is_array($report['semantics'] ?? null) ? $report['semantics'] : []),
                 'semantics' => is_array($report['semantics'] ?? null) ? array_values($report['semantics']) : [],
                 'semanticTypes' => is_array($report['semanticTypes'] ?? null) ? array_values($report['semanticTypes']) : [],
@@ -17219,6 +17259,17 @@ final class EpubReader
             $validSwitchCount += $item['validSwitchCount'];
             $invalidSwitchCount += $item['invalidSwitchCount'];
             $triggerCount += $item['triggerCount'];
+            $tableCount += $item['tableCount'];
+            $tableRowCount += $item['tableRowCount'];
+            $tableHeaderCellCount += $item['tableHeaderCellCount'];
+            $tableCaptionCount += $item['tableCaptionCount'];
+            $tableHeadSectionCount += $item['tableHeadSectionCount'];
+            $tableBodySectionCount += $item['tableBodySectionCount'];
+            $tableFootSectionCount += $item['tableFootSectionCount'];
+            if ($item['tableCount'] > 0) {
+                ++$tableAssetCount;
+                array_push($tableItems, ...$item['tables']);
+            }
             $semanticItemCount += $item['semanticCount'];
             $viewportCount += $item['viewportCount'];
             $validViewportCount += $item['validViewportCount'];
@@ -17283,6 +17334,11 @@ final class EpubReader
             }
             foreach ($item['semanticDiagnostics'] as $diagnostic) {
                 $semanticDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
+            foreach ($item['tableDiagnostics'] as $diagnostic) {
+                $tableDiagnostics[] = [
                     'part' => $part,
                 ] + $diagnostic;
             }
@@ -17393,6 +17449,16 @@ final class EpubReader
             'invalidSwitchCount' => $invalidSwitchCount,
             'triggerAssetCount' => $triggerAssetCount,
             'triggerCount' => $triggerCount,
+            'tableAssetCount' => $tableAssetCount,
+            'tableCount' => $tableCount,
+            'tableRowCount' => $tableRowCount,
+            'tableHeaderCellCount' => $tableHeaderCellCount,
+            'tableCaptionCount' => $tableCaptionCount,
+            'tableHeadSectionCount' => $tableHeadSectionCount,
+            'tableBodySectionCount' => $tableBodySectionCount,
+            'tableFootSectionCount' => $tableFootSectionCount,
+            'tableItems' => $tableItems,
+            'tableDiagnostics' => $tableDiagnostics,
             'semanticAssetCount' => $semanticAssetCount,
             'semanticItemCount' => $semanticItemCount,
             'semanticTypes' => self::xhtmlSemanticTypes($semanticItems),
@@ -17440,6 +17506,7 @@ final class EpubReader
         $switches = [];
         $triggers = [];
         $semantics = [];
+        $tables = [];
         $elementIds = [];
         $diagnostics = [];
 
@@ -17467,6 +17534,8 @@ final class EpubReader
                 'javascriptReferences' => [],
                 'scriptDiagnostics' => [],
                 'switches' => [],
+                'tables' => [],
+                'tableDiagnostics' => [],
                 'switchCaseCount' => 0,
                 'switchDefaultCount' => 0,
                 'validSwitchCount' => 0,
@@ -17506,6 +17575,7 @@ final class EpubReader
                 $switches,
                 $triggers,
                 $semantics,
+                $tables,
                 $elementIds
             );
         }
@@ -17610,6 +17680,15 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        $tableDiagnostics = [];
+        foreach ($tables as $table) {
+            foreach ($table['diagnostics'] as $diagnostic) {
+                $tableDiagnostics[] = [
+                    'tableIndex' => $table['index'],
+                    'tableId' => $table['id'],
+                ] + $diagnostic;
+            }
+        }
         $semanticDiagnostics = [];
         foreach ($semantics as $semantic) {
             foreach ($semantic['diagnostics'] as $diagnostic) {
@@ -17648,6 +17727,8 @@ final class EpubReader
             'javascriptReferences' => $javascriptReferences,
             'scriptDiagnostics' => $scriptDiagnostics,
             'switches' => $switches,
+            'tables' => $tables,
+            'tableDiagnostics' => $tableDiagnostics,
             'switchCaseCount' => array_sum(array_map(
                 static fn (array $switch): int => is_int($switch['caseCount'] ?? null) ? $switch['caseCount'] : 0,
                 $switches,
@@ -17976,6 +18057,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $switches
      * @param list<array<string, mixed>> $triggers
      * @param list<array<string, mixed>> $semantics
+     * @param list<array<string, mixed>> $tables
      * @param array<string, array<string, mixed>> $elementIds
      */
     private function scanXhtmlContentElement(
@@ -17995,6 +18077,7 @@ final class EpubReader
         array &$switches,
         array &$triggers,
         array &$semantics,
+        array &$tables,
         array &$elementIds
     ): void {
         $namespace = (string) $element->namespaceURI;
@@ -18144,6 +18227,10 @@ final class EpubReader
             $flags['trigger'] = true;
             $triggers[] = self::xhtmlTriggerReport($element, count($triggers));
         }
+        if ($namespace === self::XHTML_NS && $localName === 'table') {
+            $flags['tables'] = true;
+            $tables[] = self::xhtmlTableReport($part, $element, count($tables));
+        }
         $epubTypes = self::epubTypes($element);
         if ($epubTypes !== []) {
             $semantics[] = $this->xhtmlSemanticReport(
@@ -18284,6 +18371,7 @@ final class EpubReader
                 $switches,
                 $triggers,
                 $semantics,
+                $tables,
                 $elementIds
             );
         }
@@ -19544,6 +19632,280 @@ final class EpubReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlTableReport(string $part, \DOMElement $table, int $index): array
+    {
+        $captionElements = [];
+        $colgroupElements = [];
+        $sectionElements = [];
+        $directRows = [];
+        $sectionOrder = [];
+
+        foreach (self::childElements($table) as $child) {
+            if ($child->namespaceURI !== self::XHTML_NS) {
+                continue;
+            }
+
+            $localName = strtolower($child->localName);
+            if ($localName === 'caption') {
+                $captionElements[] = $child;
+                $sectionOrder[] = 'caption';
+            } elseif ($localName === 'colgroup') {
+                $colgroupElements[] = $child;
+                $sectionOrder[] = 'colgroup';
+            } elseif (in_array($localName, ['thead', 'tbody', 'tfoot'], true)) {
+                $sectionElements[] = $child;
+                $sectionOrder[] = $localName;
+            } elseif ($localName === 'tr') {
+                $directRows[] = $child;
+                $sectionOrder[] = 'implicit-body';
+            }
+        }
+
+        $rows = [];
+        $cells = [];
+        $diagnostics = [];
+        $sectionCounts = [
+            'thead' => 0,
+            'tbody' => 0,
+            'tfoot' => 0,
+            'implicit-body' => $directRows === [] ? 0 : 1,
+        ];
+        $rowCountsBySection = [
+            'thead' => 0,
+            'tbody' => 0,
+            'tfoot' => 0,
+            'implicit-body' => count($directRows),
+        ];
+
+        foreach ($sectionElements as $sectionElement) {
+            $sectionName = strtolower($sectionElement->localName);
+            ++$sectionCounts[$sectionName];
+            $sectionRows = self::childElements($sectionElement, 'tr', self::XHTML_NS);
+            $rowCountsBySection[$sectionName] += count($sectionRows);
+            self::appendXhtmlTableRows($sectionRows, $sectionName, $rows, $cells, $diagnostics);
+        }
+        self::appendXhtmlTableRows($directRows, 'implicit-body', $rows, $cells, $diagnostics);
+
+        if (count($captionElements) > 1) {
+            $diagnostics[] = [
+                'type' => 'multiple-xhtml-table-captions',
+                'captionCount' => count($captionElements),
+                'message' => 'EPUB XHTML table has multiple caption elements; bounded review preserves all captions but downstream table conversion should choose one caption policy',
+            ];
+        }
+
+        foreach (['thead', 'tfoot'] as $sectionName) {
+            if ($sectionCounts[$sectionName] > 1) {
+                $diagnostics[] = [
+                    'type' => 'multiple-xhtml-table-' . $sectionName . '-sections',
+                    'section' => $sectionName,
+                    'sectionCount' => $sectionCounts[$sectionName],
+                    'message' => 'EPUB XHTML table declares multiple ' . $sectionName . ' sections; bounded review preserves the structure for explicit import policy',
+                ];
+            }
+        }
+
+        $headerCells = array_values(array_filter(
+            $cells,
+            static fn (array $cell): bool => ($cell['header'] ?? false) === true,
+        ));
+        $dataCells = array_values(array_filter(
+            $cells,
+            static fn (array $cell): bool => ($cell['header'] ?? false) !== true,
+        ));
+        $headerScopes = [];
+        $headerReferenceCount = 0;
+        foreach ($cells as $cell) {
+            if (is_string($cell['scope'] ?? null) && $cell['scope'] !== '' && !in_array($cell['scope'], $headerScopes, true)) {
+                $headerScopes[] = $cell['scope'];
+            }
+            $headers = is_array($cell['headers'] ?? null) ? $cell['headers'] : [];
+            if ($headers !== []) {
+                $headerReferenceCount += count($headers);
+            }
+        }
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => 'table',
+            'namespace' => $table->namespaceURI,
+            'id' => self::nullableAttribute($table, 'id'),
+            'class' => self::nullableAttribute($table, 'class'),
+            'classes' => self::spaceDelimited($table->getAttribute('class')),
+            'summary' => self::nullableAttribute($table, 'summary'),
+            'captionCount' => count($captionElements),
+            'captionTexts' => array_map(
+                static fn (\DOMElement $caption): string => self::normalizedText($caption),
+                $captionElements,
+            ),
+            'captionIds' => array_map(
+                static fn (\DOMElement $caption): ?string => self::nullableAttribute($caption, 'id'),
+                $captionElements,
+            ),
+            'captionAttributes' => array_map(
+                static fn (\DOMElement $caption): array => self::elementAttributes($caption),
+                $captionElements,
+            ),
+            'colgroupCount' => count($colgroupElements),
+            'columnDeclarationCount' => array_sum(array_map(
+                static fn (\DOMElement $colgroup): int => count(self::childElements($colgroup, 'col', self::XHTML_NS)),
+                $colgroupElements,
+            )),
+            'sectionOrder' => $sectionOrder,
+            'sectionCounts' => $sectionCounts,
+            'rowCountsBySection' => $rowCountsBySection,
+            'rowCount' => count($rows),
+            'rows' => $rows,
+            'cellCount' => count($cells),
+            'headerCellCount' => count($headerCells),
+            'dataCellCount' => count($dataCells),
+            'headerScopes' => $headerScopes,
+            'headerReferenceCount' => $headerReferenceCount,
+            'cells' => $cells,
+            'nestedTableCount' => $table->getElementsByTagNameNS(self::XHTML_NS, 'table')->length,
+            'attributes' => self::elementAttributes($table),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $sourceRows
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $cells
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function appendXhtmlTableRows(
+        array $sourceRows,
+        string $section,
+        array &$rows,
+        array &$cells,
+        array &$diagnostics
+    ): void {
+        foreach ($sourceRows as $sectionRowIndex => $row) {
+            $rowCells = [];
+            foreach (self::childElements($row) as $cell) {
+                if ($cell->namespaceURI !== self::XHTML_NS || !in_array(strtolower($cell->localName), ['th', 'td'], true)) {
+                    continue;
+                }
+
+                $rowCells[] = self::xhtmlTableCellReport($cell, $section, count($rows), $sectionRowIndex, count($rowCells));
+            }
+
+            $rows[] = [
+                'index' => count($rows),
+                'section' => $section,
+                'sectionRowIndex' => $sectionRowIndex,
+                'id' => self::nullableAttribute($row, 'id'),
+                'class' => self::nullableAttribute($row, 'class'),
+                'classes' => self::spaceDelimited($row->getAttribute('class')),
+                'cellCount' => count($rowCells),
+                'headerCellCount' => count(array_filter(
+                    $rowCells,
+                    static fn (array $cell): bool => ($cell['header'] ?? false) === true,
+                )),
+                'dataCellCount' => count(array_filter(
+                    $rowCells,
+                    static fn (array $cell): bool => ($cell['header'] ?? false) !== true,
+                )),
+                'attributes' => self::elementAttributes($row),
+            ];
+
+            foreach ($rowCells as $cellReport) {
+                foreach ($cellReport['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = [
+                        'rowIndex' => $cellReport['rowIndex'],
+                        'columnIndex' => $cellReport['columnIndex'],
+                        'cellId' => $cellReport['id'],
+                        'element' => $cellReport['element'],
+                    ] + $diagnostic;
+                }
+                $cells[] = $cellReport;
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlTableCellReport(
+        \DOMElement $cell,
+        string $section,
+        int $rowIndex,
+        int $sectionRowIndex,
+        int $columnIndex
+    ): array {
+        $rowspan = self::xhtmlPositiveIntegerAttribute($cell, 'rowspan');
+        $colspan = self::xhtmlPositiveIntegerAttribute($cell, 'colspan');
+        $diagnostics = [];
+        foreach (['rowspan' => $rowspan, 'colspan' => $colspan] as $attribute => $span) {
+            if (($span['valid'] ?? true) !== true) {
+                $diagnostics[] = [
+                    'type' => 'invalid-xhtml-table-cell-' . $attribute,
+                    'attribute' => $attribute,
+                    'value' => $span['raw'],
+                    'message' => 'EPUB XHTML table cell span attributes must be positive integers',
+                ];
+            }
+        }
+
+        return [
+            'section' => $section,
+            'rowIndex' => $rowIndex,
+            'sectionRowIndex' => $sectionRowIndex,
+            'columnIndex' => $columnIndex,
+            'element' => strtolower($cell->localName),
+            'header' => strtolower($cell->localName) === 'th',
+            'id' => self::nullableAttribute($cell, 'id'),
+            'class' => self::nullableAttribute($cell, 'class'),
+            'classes' => self::spaceDelimited($cell->getAttribute('class')),
+            'scope' => self::nullableAttribute($cell, 'scope'),
+            'headers' => self::spaceDelimited($cell->getAttribute('headers')),
+            'abbr' => self::nullableAttribute($cell, 'abbr'),
+            'rowspan' => $rowspan['value'],
+            'rowspanRaw' => $rowspan['raw'],
+            'rowspanValid' => $rowspan['valid'],
+            'colspan' => $colspan['value'],
+            'colspanRaw' => $colspan['raw'],
+            'colspanValid' => $colspan['valid'],
+            'text' => self::normalizedText($cell),
+            'attributes' => self::elementAttributes($cell),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, value:int, valid:bool}
+     */
+    private static function xhtmlPositiveIntegerAttribute(\DOMElement $element, string $name): array
+    {
+        $raw = self::nullableAttribute($element, $name);
+        if ($raw === null) {
+            return [
+                'raw' => null,
+                'value' => 1,
+                'valid' => true,
+            ];
+        }
+
+        if (preg_match('/^[1-9][0-9]*$/', $raw) === 1) {
+            return [
+                'raw' => $raw,
+                'value' => (int) $raw,
+                'valid' => true,
+            ];
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => 1,
+            'valid' => false,
+        ];
+    }
+
+    /**
      * @param list<string> $types
      * @param array<string, array<string, mixed>> $manifestByPart
      *
@@ -19743,7 +20105,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, inlineStyles:bool, switch:bool, trigger:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, inlineStyles:bool, switch:bool, trigger:bool, tables:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -19755,6 +20117,7 @@ final class EpubReader
             'inlineStyles' => false,
             'switch' => false,
             'trigger' => false,
+            'tables' => false,
             'sideEffects' => false,
             'remoteResources' => false,
             'missingReferences' => false,
@@ -19778,6 +20141,7 @@ final class EpubReader
             'inlineStyles' => 'inline-styles',
             'switch' => 'switch',
             'trigger' => 'trigger',
+            'tables' => 'tables',
             'sideEffects' => 'side-effects',
             'remoteResources' => 'remote-resources',
             'missingReferences' => 'missing-references',
@@ -20882,6 +21246,8 @@ final class EpubReader
                 'contentSemantics' => $asset['contentSemantics'] ?? [],
                 'contentSemanticTypes' => $asset['contentSemanticTypes'] ?? [],
                 'contentSemanticDiagnostics' => $asset['contentSemanticDiagnostics'] ?? [],
+                'contentTables' => $asset['contentTables'] ?? [],
+                'contentTableDiagnostics' => $asset['contentTableDiagnostics'] ?? [],
                 'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
