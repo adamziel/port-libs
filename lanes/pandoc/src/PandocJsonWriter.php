@@ -1308,6 +1308,10 @@ final class PandocJsonWriter
                 && count($content) === ($tag === 'Figure' ? 3 : 6);
         }
 
+        if ($tag === 'HorizontalRule' || $tag === 'Null') {
+            return !array_key_exists('c', $native);
+        }
+
         return in_array($tag, [
             'Header',
             'CodeBlock',
@@ -1317,8 +1321,6 @@ final class PandocJsonWriter
             'BulletList',
             'DefinitionList',
             'LineBlock',
-            'HorizontalRule',
-            'Null',
             'Div',
         ], true);
     }

@@ -4311,6 +4311,38 @@ return [
             $t->same($expectedInlines, $nativePacket['blocks'][0]['c'], "{$source} native writer regenerates nullary constructors");
         }
     },
+    'regenerates nullary block constructors with stale native content sidecars' => static function (TestRunner $t): void {
+        $ruleBlock = ['t' => 'HorizontalRule', 'c' => ['stale'], 'reviewQueue' => 'rule-source'];
+        $nullBlock = ['t' => 'Null', 'c' => ['stale'], 'reviewQueue' => 'null-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $ruleBlock,
+                $nullBlock,
+            ],
+        ];
+        $expectedBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(['horizontal_rule', 'null_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} nullary block node types");
+            $t->same($ruleBlock, $document->children[0]->attr('native'), "{$source} source horizontal rule native sidecar");
+            $t->same($nullBlock, $document->children[1]->attr('native'), "{$source} source null native sidecar");
+            $t->same($expectedBlocks, $jsonPacket['blocks'], "{$source} JSON writer regenerates nullary block constructors");
+            $t->same($expectedBlocks, $nativePacket['blocks'], "{$source} native writer regenerates nullary block constructors");
+        }
+    },
     'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $structuralInlines = [
             ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],

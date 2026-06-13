@@ -1180,12 +1180,39 @@ final class NativeWriter
      */
     private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || $this->hasNonReusableNativeInlinePayload($native)) {
+        if (
+            $this->hasLegacyTargetInlinePayloadSidecars($native)
+            || $this->hasNonReusableNativeBlockPayload($native)
+            || $this->hasNonReusableNativeInlinePayload($native)
+        ) {
             return false;
         }
 
         foreach ($this->blockPayloadReaders($native) as $freshNode) {
             if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasNonReusableNativeBlockPayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && (($value['t'] ?? null) === 'HorizontalRule' || ($value['t'] ?? null) === 'Null')
+            && array_key_exists('c', $value)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonReusableNativeBlockPayload($item)) {
                 return true;
             }
         }
