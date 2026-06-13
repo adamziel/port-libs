@@ -293,6 +293,69 @@ return [
         $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
         $t->same('thumbnail', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
     },
+    'preserves compact ODT manifest custom file-entry attributes in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:names:experimental:office:xmlns:loext:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" loext:checksum="sha256-content" wp:review-priority="high"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" loext:media-type-hint="review-cover" wp:empty-note="" xml:lang="en-US"/>',
+            ],
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $content = $odt->manifestEntry('content.xml');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $contentAttributes = [];
+        foreach ($content['manifestAttributes'] as $attribute) {
+            $contentAttributes[$attribute['name']] = $attribute;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $order = $summary['manifestReview']['manifestFileEntryOrder'];
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(4, $content['manifestAttributeCount']);
+        $t->same(['loext:checksum', 'manifest:full-path', 'manifest:media-type', 'wp:review-priority'], $content['manifestAttributeNames']);
+        $t->same(true, $contentAttributes['manifest:full-path']['structural']);
+        $t->same(false, $contentAttributes['loext:checksum']['structural']);
+        $t->same('urn:libreoffice:names:experimental:office:xmlns:loext:1.0', $contentAttributes['loext:checksum']['namespaceUri']);
+        $t->same('loext', $contentAttributes['loext:checksum']['prefix']);
+        $t->same('sha256-content', $contentAttributes['loext:checksum']['value']);
+        $t->same(2, $content['customManifestAttributeCount']);
+        $t->same(['loext:checksum', 'wp:review-priority'], $content['customManifestAttributeNames']);
+        $t->same([
+            'loext:checksum' => 'sha256-content',
+            'wp:review-priority' => 'high',
+        ], $content['customManifestAttributeMap']);
+
+        $t->same(6, $hero['manifestAttributeCount']);
+        $t->same(['loext:media-type-hint', 'wp:empty-note', 'xml:lang'], $hero['customManifestAttributeNames']);
+        $t->same('review-cover', $hero['customManifestAttributeMap']['loext:media-type-hint']);
+        $t->same('', $hero['customManifestAttributeMap']['wp:empty-note']);
+        $t->same('en-US', $hero['customManifestAttributeMap']['xml:lang']);
+
+        $t->same(2, $summary['manifestReview']['manifestCustomAttributeEntryCount']);
+        $t->same(5, $summary['manifestReview']['manifestCustomAttributeCount']);
+        $t->same(['loext:checksum', 'loext:media-type-hint', 'wp:empty-note', 'wp:review-priority', 'xml:lang'], $summary['manifestReview']['manifestCustomAttributeNames']);
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($summary['manifestReview']['manifestCustomAttributeItems'], 'path'));
+        $t->same(['loext:checksum', 'wp:review-priority'], $reviewByPath['content.xml']['customManifestAttributeNames']);
+        $t->same(['loext:media-type-hint', 'wp:empty-note', 'xml:lang'], $reviewByPath['Pictures/hero.png']['customManifestAttributeNames']);
+        $t->same(['loext:checksum', 'wp:review-priority'], $order[1]['customManifestAttributeNames']);
+        $t->same(['loext:media-type-hint', 'wp:empty-note', 'xml:lang'], $order[4]['customManifestAttributeNames']);
+        $t->same(2, $inventory['content.xml']['customManifestAttributeCount']);
+        $t->same('sha256-content', $inventory['content.xml']['customManifestAttributeMap']['loext:checksum']);
+        $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
+        $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
+    },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
