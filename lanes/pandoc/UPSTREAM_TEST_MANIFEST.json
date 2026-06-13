@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3288,
-        "latestSlice": "pandoc-markdown-html-list-item-attrs maps one native PHP Markdown/HTML-to-WordPress list-item attribute slice after the Markdown math attribute round-trip slice. MarkdownReader now carries HTML li id, class, data, and title attributes into list_item attrs; WordPressBlockWriter emits safe li attributes and continues to filter unsafe event/style attributes. Mapped denominator moves 3287 -> 3288, mappedMarkdownHtmlListItemAttributeCases is 1, and markdownHtmlListItemAttributeAssertions is 12. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6716 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74759 assertions, 0 failures without invoking Pandoc, Cabal/Haskell runners, browser renderers, Node tooling, TeX/PDF engines, Typst engines, office suites, online services, live provider tests, or external validators.",
+        "mapped": 3289,
+        "latestSlice": "pandoc-plain-writer-table-body-groups maps one plain-writer table body-group coverage slice after the Markdown HTML list item attribute slice. PlainWriter now separates consecutive native Pandoc table_body groups with a blank line in plain text while preserving body-local headRows in each group, without invoking Pandoc, TeX, Typst, browser renderers, Node tooling, office suites, online services, live provider tests, or external validators. Mapped denominator moves 3288 -> 3289, mappedPlainWriterBodyGroupCases is 1, and plainWriterBodyGroupAssertions is 7. Verification passed php -l for PlainWriter.php and PlainWriterTest.php; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures after final rebase onto current main 0072af8b00.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Markdown HTML list item attribute handoff is verified in focused and full native PHP Pandoc coverage over current main 6d30f5c54b without external tools.",
-        "latestFocusedSource": "2026-06-13 Markdown HTML list item attribute slice inspected list-item-id parity for MarkdownReader HTML import to WordPress handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 6d30f5c54b; focused MarkdownReaderTest.php passed 1 file, 6716 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74759 assertions, 0 failures.",
+        "status": "PlainWriter multiple table body-group boundaries are verified over current main 0072af8b00 after Markdown HTML list item attributes.",
+        "latestFocusedSource": "2026-06-13 PlainWriter table slice inspected multiple native Pandoc table body groups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 0072af8b00; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -197,7 +197,9 @@
         "mappedMarkdownMathAttributeCases": 1,
         "markdownMathAttributeAssertions": 19,
         "mappedMarkdownHtmlListItemAttributeCases": 1,
-        "markdownHtmlListItemAttributeAssertions": 12
+        "markdownHtmlListItemAttributeAssertions": 12,
+        "mappedPlainWriterBodyGroupCases": 1,
+        "plainWriterBodyGroupAssertions": 7
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
