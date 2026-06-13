@@ -1312,6 +1312,9 @@ final class PandocJsonWriter
 
             return is_array($content) && array_is_list($content) && !$this->hasLegacyTargetInlinePayload($content);
         }
+        if ($tag === 'HorizontalRule' || $tag === 'Null') {
+            return !array_key_exists('c', $native);
+        }
         if ($tag === 'Figure' || $tag === 'Table') {
             $content = $native['c'] ?? null;
 
@@ -1329,8 +1332,6 @@ final class PandocJsonWriter
             'BulletList',
             'DefinitionList',
             'LineBlock',
-            'HorizontalRule',
-            'Null',
             'Div',
         ], true);
     }
@@ -1346,7 +1347,6 @@ final class PandocJsonWriter
             && is_string($value['t'] ?? null)
             && $this->isNullaryNativeBlockConstructor($value['t'])
             && array_key_exists('c', $value)
-            && $value['c'] !== []
         ) {
             return true;
         }

@@ -1316,7 +1316,6 @@ final class NativeWriter
             && is_string($value['t'] ?? null)
             && $this->isNullaryNativeBlockConstructor($value['t'])
             && array_key_exists('c', $value)
-            && $value['c'] !== []
         ) {
             return true;
         }

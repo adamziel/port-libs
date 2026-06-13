@@ -994,6 +994,43 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'regenerates present nullary block constructor payloads through json and native writers' => static function (TestRunner $t): void {
+        $horizontalRule = ['t' => 'HorizontalRule', 'c' => ['stale'], 'reviewQueue' => 'rule-source'];
+        $nullBlock = ['t' => 'Null', 'c' => 'stale', 'reviewQueue' => 'null-source'];
+        $emptyHorizontalRule = ['t' => 'HorizontalRule', 'c' => [], 'reviewQueue' => 'empty-rule-source'];
+        $emptyNullBlock = ['t' => 'Null', 'c' => [], 'reviewQueue' => 'empty-null-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$horizontalRule, $nullBlock, $emptyHorizontalRule, $emptyNullBlock],
+        ];
+        $expectedBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $t->same(['horizontal_rule', 'null_block', 'horizontal_rule', 'null_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} records nullary block nodes");
+            $t->same($horizontalRule, $document->children[0]->attr('native'), "{$source} records stale horizontal rule payload");
+            $t->same($nullBlock, $document->children[1]->attr('native'), "{$source} records stale null payload");
+            $t->same($emptyHorizontalRule, $document->children[2]->attr('native'), "{$source} records empty horizontal rule payload");
+            $t->same($emptyNullBlock, $document->children[3]->attr('native'), "{$source} records empty null payload");
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($expectedBlocks, $encoded['blocks'], "{$source} {$writer} regenerates present nullary block payloads");
+            }
+        }
+    },
     'regenerates stale nullary helper constructor payloads through json and native writers' => static function (TestRunner $t): void {
         $quoteType = ['t' => 'DoubleQuote', 'c' => ['stale'], 'reviewQueue' => 'quote-type-source'];
         $mathType = ['t' => 'DisplayMath', 'c' => ['stale'], 'reviewQueue' => 'math-type-source'];
