@@ -155,18 +155,22 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'direct-reader-unsupported',
             'body-sections-review-only',
             'references-review-only',
+            'bibliography-xrefs-unresolved',
             'figures-review-only',
             'table-wraps-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(5, $packet['directReaderDiagnosticCount']);
+        $t->same(6, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][1]['details']['sectionCount'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][2]['details']['resolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['unresolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['unresolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['figureCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -223,10 +227,30 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('fig', $packet['xrefs'][2]['refType'] ?? null);
         $t->same(['missing-fig'], $packet['xrefs'][2]['missingTargets'] ?? null);
         $t->same(['r1', 'r2'], $packet['referenceIds']);
+        $t->same('jats-bits-ref-list-metadata-only', $packet['referenceReviewPolicy']);
+        $t->same(1, $packet['referenceListCount']);
+        $t->same('refs', $packet['referenceLists'][0]['id'] ?? null);
+        $t->same('References', $packet['referenceLists'][0]['title'] ?? null);
+        $t->same(['r1', 'r2'], $packet['referenceLists'][0]['referenceIds'] ?? null);
+        $t->same(2, $packet['referenceCount']);
+        $t->same(2, $packet['referenceMetadataSummaryCount']);
+        $t->same(['r1', 'r2'], $packet['resolvedReferenceIds']);
+        $t->same(2, $packet['resolvedBibrXrefCount']);
+        $t->same(['missing-ref'], $packet['unresolvedReferenceIds']);
+        $t->same(1, $packet['unresolvedBibrXrefCount']);
+        $t->same([], $packet['unreferencedReferenceIds']);
         $t->same('1', $packet['references'][0]['label'] ?? null);
         $t->same(1, $packet['references'][0]['referenceCount'] ?? null);
+        $t->same('resolved-by-bibr-xref', $packet['references'][0]['status'] ?? null);
+        $t->same(true, $packet['references'][0]['metadataOnly'] ?? null);
+        $t->same(1, $packet['references'][0]['inboundBibrXrefCount'] ?? null);
         $t->same('2', $packet['references'][1]['label'] ?? null);
         $t->same(1, $packet['references'][1]['referenceCount'] ?? null);
+        $t->same('resolved-by-bibr-xref', $packet['references'][1]['status'] ?? null);
+        $t->same('r1', $packet['bibliographyXrefs'][0]['targetId'] ?? null);
+        $t->same('resolved', $packet['bibliographyXrefs'][0]['status'] ?? null);
+        $t->same('missing-ref', $packet['bibliographyXrefs'][2]['targetId'] ?? null);
+        $t->same('unresolved', $packet['bibliographyXrefs'][2]['status'] ?? null);
         $t->same(true, $packet['hasBackMatter']);
         $t->same('back', $packet['backMatterRoot']);
         $t->same(1, $packet['backMatterReferenceListCount']);
@@ -367,6 +391,10 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(false, $bitsPacket['directReaderParity']);
         $t->same('unsupported', $bitsPacket['directReaderParityStatus']);
         $t->same('bounded-review-packet-only', $bitsPacket['unsupportedDirectReaderReason']);
+        $t->same(1, $bitsPacket['referenceListCount']);
+        $t->same(1, $bitsPacket['referenceCount']);
+        $t->same(['bref1'], $bitsPacket['resolvedReferenceIds']);
+        $t->same([], $bitsPacket['unresolvedReferenceIds']);
         $t->same([
             'direct-reader-unsupported',
             'references-review-only',
@@ -716,6 +744,123 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
             XmlHtmlDom::loadXmlDocument('<topic><title>Not DocBook</title></topic>', 'non DocBook XML')
         ));
         json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'summarizes jats and bits bibliography reference diagnostics without citation text leakage' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front><article-meta><title-group><article-title>Reference Diagnostics</article-title></title-group></article-meta></front>
+  <body>
+    <sec id="refs-sec"><title>References</title><p>See <xref ref-type="bibr" rid="ref-a ref-missing">[1, missing]</xref>.</p></sec>
+  </body>
+  <back>
+    <ref-list id="refs"><title>References</title>
+      <ref id="ref-a">
+        <label>1</label>
+        <element-citation publication-type="journal">
+          <person-group person-group-type="author"><name><surname>Ng</surname><given-names>Lin</given-names></name></person-group>
+          <article-title>Bounded Citation Metadata</article-title>
+          <source>Journal of Native Ports</source>
+          <year>2026</year>
+          <pub-id pub-id-type="doi">10.5555/native.1</pub-id>
+          <uri>https://example.invalid/ref-a</uri>
+        </element-citation>
+      </ref>
+      <ref id="ref-b">
+        <label>2</label>
+        <mixed-citation publication-type="book"><collab>Review Group</collab><source>Back Matter Handbook</source><year>2025</year><ext-link ext-link-type="uri" xlink:href="https://example.invalid/book">Book</ext-link></mixed-citation>
+      </ref>
+      <ref><mixed-citation>Unidentified safe citation</mixed-citation></ref>
+    </ref-list>
+  </back>
+</article>
+XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'references-review-only',
+            'bibliography-xrefs-unresolved',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(1, $packet['referenceListCount']);
+        $t->same('refs', $packet['referenceLists'][0]['id'] ?? null);
+        $t->same('References', $packet['referenceLists'][0]['title'] ?? null);
+        $t->same(3, $packet['referenceLists'][0]['referenceCount'] ?? null);
+        $t->same(['ref-a', 'ref-b'], $packet['referenceLists'][0]['referenceIds'] ?? null);
+        $t->same(3, $packet['referenceCount']);
+        $t->same(3, $packet['referenceMetadataSummaryCount']);
+        $t->same(1, $packet['missingIdReferenceCount']);
+        $t->same(2, $packet['bibliographyXrefCount']);
+        $t->same(1, $packet['resolvedBibrXrefCount']);
+        $t->same(1, $packet['unresolvedBibrXrefCount']);
+        $t->same(['ref-a'], $packet['resolvedReferenceIds']);
+        $t->same(['ref-missing'], $packet['unresolvedReferenceIds']);
+        $t->same(['ref-b'], $packet['unreferencedReferenceIds']);
+        $t->same(1, $packet['unreferencedReferenceCount']);
+        $t->same('ref-a', $packet['bibliographyXrefs'][0]['targetId'] ?? null);
+        $t->same('resolved', $packet['bibliographyXrefs'][0]['status'] ?? null);
+        $t->same(12, $packet['bibliographyXrefs'][0]['sourceTextLength'] ?? null);
+        $t->same('ref-missing', $packet['bibliographyXrefs'][1]['targetId'] ?? null);
+        $t->same('unresolved', $packet['bibliographyXrefs'][1]['status'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['resolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['unresolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['unresolvedBibrXrefCount'] ?? null);
+
+        $resolved = $packet['references'][0];
+        $t->same('ref-a', $resolved['id'] ?? null);
+        $t->same('1', $resolved['label'] ?? null);
+        $t->same('resolved-by-bibr-xref', $resolved['status'] ?? null);
+        $t->same(true, $resolved['metadataOnly'] ?? null);
+        $t->same(['element-citation'], $resolved['citationElementNames'] ?? null);
+        $t->same(['journal'], $resolved['publicationTypes'] ?? null);
+        $t->same([['element' => 'pub-id', 'type' => 'doi', 'value' => '10.5555/native.1']], $resolved['publicationIds'] ?? null);
+        $t->same('Bounded Citation Metadata', $resolved['articleTitle'] ?? null);
+        $t->same('Journal of Native Ports', $resolved['sourceTitle'] ?? null);
+        $t->same('2026', $resolved['year'] ?? null);
+        $t->same(['author'], $resolved['personGroupTypes'] ?? null);
+        $t->same(1, $resolved['nameCount'] ?? null);
+        $t->same(1, $resolved['uriCount'] ?? null);
+        $t->same(0, $resolved['extLinkCount'] ?? null);
+        $t->true(($resolved['textLength'] ?? 0) > 0);
+        $t->same(1, preg_match('/^[a-f0-9]{64}$/', (string) ($resolved['textSha256'] ?? '')));
+        $t->true(!array_key_exists('text', $resolved), 'Expected reference summaries to avoid raw citation text');
+
+        $unreferenced = $packet['references'][1];
+        $t->same('ref-b', $unreferenced['id'] ?? null);
+        $t->same('unreferenced', $unreferenced['status'] ?? null);
+        $t->same(['mixed-citation'], $unreferenced['citationElementNames'] ?? null);
+        $t->same(1, $unreferenced['collabCount'] ?? null);
+        $t->same(1, $unreferenced['extLinkCount'] ?? null);
+        $t->same('missing-id', $packet['references'][2]['status'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="edited-book" xml:lang="en">
+  <book-meta><book-id book-id-type="isbn">978-1-55555-111-3</book-id><title-group><book-title>BITS Bibliography</book-title></title-group></book-meta>
+  <book-body>
+    <book-part id="bp1"><book-part-meta><title-group><title>Chapter</title></title-group></book-part-meta><body><p>See <xref ref-type="bibr" rid="book-ref lost-ref">bibliography</xref>.</p></body></book-part>
+  </book-body>
+  <back><ref-list id="bibliography"><title>Bibliography</title><ref id="book-ref"><mixed-citation publication-type="book"><source>Native BITS References</source><year>2024</year></mixed-citation></ref></ref-list></back>
+</book>
+XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'references-review-only',
+            'bibliography-xrefs-unresolved',
+            'book-parts-review-only',
+        ], $bitsPacket['directReaderDiagnosticCodes']);
+        $t->same('bibliography', $bitsPacket['referenceLists'][0]['id'] ?? null);
+        $t->same(['book-ref'], $bitsPacket['referenceIds']);
+        $t->same(['book-ref'], $bitsPacket['resolvedReferenceIds']);
+        $t->same(['lost-ref'], $bitsPacket['unresolvedReferenceIds']);
+        $t->same('resolved-by-bibr-xref', $bitsPacket['references'][0]['status'] ?? null);
+        $t->same('Native BITS References', $bitsPacket['references'][0]['sourceTitle'] ?? null);
+        $t->same(1, $bitsPacket['bookPartCount']);
+        json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

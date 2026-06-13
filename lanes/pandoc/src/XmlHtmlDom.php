@@ -918,10 +918,10 @@ final class XmlHtmlDom
         $xrefs = self::jatsXrefSummaries($root, $elementIdMap);
         $bodyXrefs = $body instanceof \DOMElement ? self::jatsXrefSummaries($body, $elementIdMap) : [];
         $xrefTargets = self::jatsXrefTargetsFromSummaries($xrefs);
-        $referenceIds = self::jatsElementIds($root, 'ref');
+        $referenceBackMatter = self::jatsReferenceBackMatterSummary($root, $xrefs);
+        $referenceIds = $referenceBackMatter['referenceIds'];
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
-        $references = self::jatsReferenceSummaries($root, $xrefs);
         $backMatterReferenceLists = $backMatter instanceof \DOMElement ? self::jatsReferenceListSummaries($backMatter) : [];
         $backMatterReferences = $backMatter instanceof \DOMElement ? self::jatsBackMatterReferenceSummaries($backMatter) : [];
         $backMatterReferenceIds = self::jatsFlattenUniqueStringField($backMatterReferences, 'id');
@@ -957,10 +957,15 @@ final class XmlHtmlDom
             $format,
             $body instanceof \DOMElement,
             $directBodySectionCount,
-            count($referenceIds),
+            (int) $referenceBackMatter['referenceCount'],
             count($figureIds),
             count($tableWrapIds),
-            $bookPartCount
+            $bookPartCount,
+            (int) $referenceBackMatter['refListCount'],
+            (int) $referenceBackMatter['resolvedBibrXrefCount'],
+            (int) $referenceBackMatter['unresolvedBibrXrefCount'],
+            (int) $referenceBackMatter['unreferencedReferenceCount'],
+            (int) $referenceBackMatter['referenceMetadataSummaryCount']
         );
 
         return [
@@ -1036,9 +1041,22 @@ final class XmlHtmlDom
             'resolvedXrefTargets' => self::jatsResolvedXrefTargets($xrefs),
             'unresolvedXrefTargets' => self::jatsUnresolvedXrefTargets($xrefs),
             'unresolvedXrefCount' => count(self::jatsUnresolvedXrefTargets($xrefs)),
+            'referenceReviewPolicy' => 'jats-bits-ref-list-metadata-only',
+            'referenceLists' => $referenceBackMatter['refLists'],
+            'referenceListCount' => $referenceBackMatter['refListCount'],
             'referenceIds' => $referenceIds,
-            'referenceCount' => count($referenceIds),
-            'references' => $references,
+            'referenceCount' => $referenceBackMatter['referenceCount'],
+            'references' => $referenceBackMatter['references'],
+            'bibliographyXrefs' => $referenceBackMatter['bibliographyXrefs'],
+            'bibliographyXrefCount' => $referenceBackMatter['bibliographyXrefCount'],
+            'resolvedReferenceIds' => $referenceBackMatter['resolvedReferenceIds'],
+            'resolvedBibrXrefCount' => $referenceBackMatter['resolvedBibrXrefCount'],
+            'unresolvedReferenceIds' => $referenceBackMatter['unresolvedReferenceIds'],
+            'unresolvedBibrXrefCount' => $referenceBackMatter['unresolvedBibrXrefCount'],
+            'unreferencedReferenceIds' => $referenceBackMatter['unreferencedReferenceIds'],
+            'unreferencedReferenceCount' => $referenceBackMatter['unreferencedReferenceCount'],
+            'missingIdReferenceCount' => $referenceBackMatter['missingIdReferenceCount'],
+            'referenceMetadataSummaryCount' => $referenceBackMatter['referenceMetadataSummaryCount'],
             'backReferenceIds' => $backMatterReferenceIds,
             'backReferenceCount' => count($backMatterReferenceIds),
             'hasBackMatter' => $backMatter instanceof \DOMElement,
@@ -1110,7 +1128,12 @@ final class XmlHtmlDom
         int $referenceCount,
         int $figureCount,
         int $tableWrapCount,
-        int $bookPartCount
+        int $bookPartCount,
+        int $refListCount,
+        int $resolvedBibrXrefCount,
+        int $unresolvedBibrXrefCount,
+        int $unreferencedReferenceCount,
+        int $referenceMetadataSummaryCount
     ): array {
         $formatLabel = strtoupper($format);
         $diagnostics = [
@@ -1143,14 +1166,35 @@ final class XmlHtmlDom
             );
         }
 
-        if ($referenceCount > 0) {
+        if ($referenceCount > 0 || $refListCount > 0) {
             $diagnostics[] = self::jatsDirectReaderDiagnostic(
                 'references-review-only',
                 'unsupported',
                 'Reference elements are inventoried for review but are not mapped as full citation-reader output.',
                 false,
                 false,
-                ['referenceCount' => $referenceCount]
+                [
+                    'referenceCount' => $referenceCount,
+                    'refListCount' => $refListCount,
+                    'resolvedBibrXrefCount' => $resolvedBibrXrefCount,
+                    'unresolvedBibrXrefCount' => $unresolvedBibrXrefCount,
+                    'unreferencedReferenceCount' => $unreferencedReferenceCount,
+                    'referenceMetadataSummaryCount' => $referenceMetadataSummaryCount,
+                ]
+            );
+        }
+
+        if ($unresolvedBibrXrefCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'bibliography-xrefs-unresolved',
+                'warning',
+                'Some bibliography xref targets do not resolve to ref-list reference entries.',
+                false,
+                true,
+                [
+                    'unresolvedBibrXrefCount' => $unresolvedBibrXrefCount,
+                    'resolvedBibrXrefCount' => $resolvedBibrXrefCount,
+                ]
             );
         }
 
@@ -2019,6 +2063,187 @@ final class XmlHtmlDom
         self::collectJatsSectionSummaries($body, 1, null, [], $ordinal, $sections);
 
         return $sections;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return array<string, mixed>
+     */
+    private static function jatsReferenceBackMatterSummary(\DOMElement $root, array $xrefs): array
+    {
+        $refLists = [];
+        foreach (self::descendantElements($root, 'ref-list') as $refList) {
+            $referenceIds = [];
+            foreach (self::childElements($refList, 'ref') as $reference) {
+                $id = self::jatsTrimmedAttribute($reference, 'id');
+                if ($id !== null) {
+                    $referenceIds[] = $id;
+                }
+            }
+
+            $title = self::firstChildElement($refList, 'title');
+            $refLists[] = [
+                'id' => self::jatsTrimmedAttribute($refList, 'id'),
+                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
+                'referenceCount' => count(self::childElements($refList, 'ref')),
+                'referenceIds' => self::jatsUniqueNonEmptyStrings($referenceIds),
+                'nestedRefListCount' => count(self::childElements($refList, 'ref-list')),
+            ];
+        }
+
+        $referenceElements = self::descendantElements($root, 'ref');
+        $referenceIds = [];
+        $missingIdReferenceCount = 0;
+        foreach ($referenceElements as $reference) {
+            $id = self::jatsTrimmedAttribute($reference, 'id');
+            if ($id === null) {
+                ++$missingIdReferenceCount;
+                continue;
+            }
+
+            $referenceIds[] = $id;
+        }
+
+        $referenceIds = self::jatsUniqueNonEmptyStrings($referenceIds);
+        $referenceIdLookup = array_fill_keys($referenceIds, true);
+        $allXrefCounts = self::jatsXrefCountsByTarget($xrefs);
+        $bibliographyXrefs = [];
+        $resolvedReferenceIds = [];
+        $unresolvedReferenceIds = [];
+        $inboundBibrXrefCounts = [];
+        $resolvedBibrXrefCount = 0;
+
+        foreach ($xrefs as $xref) {
+            $refType = $xref['refType'] ?? null;
+            if (!is_string($refType) || strtolower(trim($refType)) !== 'bibr') {
+                continue;
+            }
+
+            $targets = $xref['targets'] ?? [];
+            if (!is_array($targets)) {
+                continue;
+            }
+
+            $xrefText = is_string($xref['text'] ?? null) ? $xref['text'] : '';
+            foreach ($targets as $targetId) {
+                if (!is_string($targetId) || trim($targetId) === '') {
+                    continue;
+                }
+
+                $targetId = trim($targetId);
+                $resolved = isset($referenceIdLookup[$targetId]);
+                if ($resolved) {
+                    ++$resolvedBibrXrefCount;
+                    $resolvedReferenceIds[] = $targetId;
+                    $inboundBibrXrefCounts[$targetId] = ($inboundBibrXrefCounts[$targetId] ?? 0) + 1;
+                } else {
+                    $unresolvedReferenceIds[] = $targetId;
+                }
+
+                $bibliographyXrefs[] = [
+                    'targetId' => $targetId,
+                    'refType' => $refType,
+                    'status' => $resolved ? 'resolved' : 'unresolved',
+                    'resolved' => $resolved,
+                    'sourceTextLength' => strlen($xrefText),
+                    'sourceTextSha256' => hash('sha256', $xrefText),
+                ];
+            }
+        }
+
+        $resolvedReferenceIds = self::jatsUniqueNonEmptyStrings($resolvedReferenceIds);
+        $unresolvedReferenceIds = self::jatsUniqueNonEmptyStrings($unresolvedReferenceIds);
+        $unreferencedReferenceIds = array_values(array_filter(
+            $referenceIds,
+            static fn (string $id): bool => !isset($inboundBibrXrefCounts[$id])
+        ));
+
+        $references = [];
+        foreach ($referenceElements as $reference) {
+            $id = self::jatsTrimmedAttribute($reference, 'id');
+            $references[] = self::jatsBibliographyReferenceSummary(
+                $reference,
+                $id !== null ? ($inboundBibrXrefCounts[$id] ?? 0) : 0,
+                $id !== null ? ($allXrefCounts[$id] ?? 0) : 0
+            );
+        }
+
+        return [
+            'refLists' => $refLists,
+            'refListCount' => count($refLists),
+            'references' => $references,
+            'referenceIds' => $referenceIds,
+            'referenceCount' => count($referenceElements),
+            'bibliographyXrefs' => $bibliographyXrefs,
+            'bibliographyXrefCount' => count($bibliographyXrefs),
+            'resolvedReferenceIds' => $resolvedReferenceIds,
+            'resolvedBibrXrefCount' => $resolvedBibrXrefCount,
+            'unresolvedReferenceIds' => $unresolvedReferenceIds,
+            'unresolvedBibrXrefCount' => count($bibliographyXrefs) - $resolvedBibrXrefCount,
+            'unreferencedReferenceIds' => $unreferencedReferenceIds,
+            'unreferencedReferenceCount' => count($unreferencedReferenceIds),
+            'missingIdReferenceCount' => $missingIdReferenceCount,
+            'referenceMetadataSummaryCount' => count($references),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsBibliographyReferenceSummary(
+        \DOMElement $reference,
+        int $inboundBibrXrefCount,
+        int $allXrefCount
+    ): array {
+        $id = self::jatsTrimmedAttribute($reference, 'id');
+        $citationElementNames = [];
+        $publicationTypes = [];
+        foreach (self::descendantElements($reference) as $element) {
+            if (!in_array($element->localName, ['element-citation', 'mixed-citation', 'nlm-citation'], true)) {
+                continue;
+            }
+
+            $citationElementNames[] = $element->localName;
+            $publicationType = self::jatsTrimmedAttribute($element, 'publication-type');
+            if ($publicationType !== null) {
+                $publicationTypes[] = $publicationType;
+            }
+        }
+
+        $personGroupTypes = [];
+        foreach (self::descendantElements($reference, 'person-group') as $personGroup) {
+            $type = self::jatsTrimmedAttribute($personGroup, 'person-group-type');
+            if ($type !== null) {
+                $personGroupTypes[] = $type;
+            }
+        }
+
+        $text = self::normalizedText($reference);
+
+        return [
+            'id' => $id,
+            'label' => self::jatsFirstText($reference, ['label']),
+            'status' => $id === null
+                ? 'missing-id'
+                : ($inboundBibrXrefCount > 0 ? 'resolved-by-bibr-xref' : 'unreferenced'),
+            'referenceCount' => $allXrefCount,
+            'inboundBibrXrefCount' => $inboundBibrXrefCount,
+            'metadataOnly' => true,
+            'citationElementNames' => self::jatsUniqueNonEmptyStrings($citationElementNames),
+            'publicationTypes' => self::jatsUniqueNonEmptyStrings($publicationTypes),
+            'publicationIds' => self::jatsTypedTextRecords($reference, ['pub-id'], ['pub-id-type']),
+            'articleTitle' => self::jatsFirstText($reference, ['article-title']),
+            'sourceTitle' => self::jatsFirstText($reference, ['source', 'journal-title', 'book-title']),
+            'year' => self::jatsFirstText($reference, ['year']),
+            'personGroupTypes' => self::jatsUniqueNonEmptyStrings($personGroupTypes),
+            'nameCount' => count(self::descendantElements($reference, 'name')),
+            'collabCount' => count(self::descendantElements($reference, 'collab')),
+            'etalCount' => count(self::descendantElements($reference, 'etal')),
+            'uriCount' => count(self::descendantElements($reference, 'uri')),
+            'extLinkCount' => count(self::descendantElements($reference, 'ext-link')),
+            'textLength' => strlen($text),
+            'textSha256' => hash('sha256', $text),
+        ];
     }
 
     /**
