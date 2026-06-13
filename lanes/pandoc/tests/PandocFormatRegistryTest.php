@@ -15,6 +15,7 @@ use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\UpstreamRunnerDependencyAudit;
+use PortLibs\Pandoc\XmlHtmlDom;
 
 return [
     'tracks upstream wiki formats and php support status in the pandoc registry' => static function (TestRunner $t): void {
@@ -91,6 +92,61 @@ return [
 
         $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
+    },
+    'tracks xml jats bits direct reader capabilities without parity claims' => static function (TestRunner $t): void {
+        $inputSupport = PandocFormatRegistry::xmlJatsBitsInputSupport();
+        $directions = PandocFormatRegistry::xmlJatsBitsFormatDirections();
+        $packet = PandocFormatRegistry::xmlJatsBitsDirectReaderCapabilityPacket();
+
+        $t->same(['xml', 'jats', 'bits'], PandocFormatRegistry::xmlJatsBitsInputFormats());
+        $t->same(['xml', 'jats', 'bits'], array_keys($inputSupport));
+        $t->same(['xml', 'jats', 'bits'], PandocFormatRegistry::unsupportedXmlJatsBitsInputFormats());
+        $t->same(['xml', 'jats', 'bits'], array_keys($directions));
+
+        foreach (['xml', 'jats', 'bits'] as $format) {
+            $t->same('unsupported', $inputSupport[$format]['status'], "XML/JATS/BITS input {$format} must not claim direct reader parity");
+            $t->same('', $inputSupport[$format]['implementation'], "XML/JATS/BITS input {$format} must not register a direct reader implementation");
+            $t->same(true, $directions[$format]['input']);
+            $t->same(false, $directions[$format]['output']);
+            $t->same('input-only', $directions[$format]['direction']);
+            $t->same('unsupported', $directions[$format]['inputStatus']);
+            $t->same('not-applicable', $directions[$format]['outputStatus']);
+            $t->same(false, $packet['formats'][$format]['directReaderParity']);
+            $t->same(XmlHtmlDom::class, $packet['formats'][$format]['diagnosticImplementation']);
+            $t->same('', $packet['formats'][$format]['inputImplementation']);
+        }
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(['xml', 'jats', 'bits'], $packet['inputFormats']);
+        $t->same(['xml', 'jats', 'bits'], $packet['unsupportedInputFormats']);
+        $t->same(3, $packet['unsupportedInputCount']);
+        $t->same(['unsupported' => 3], $packet['inputSupportStatusCounts']);
+        $t->same(false, $packet['directReaderParitySupported']);
+        $t->same(0, $packet['registeredDirectReaderImplementations']);
+        $t->same(3, $packet['boundedDiagnosticSurfaceCount']);
+        $t->same(true, $packet['explicitUnsupportedVerdict']);
+        $t->contains('no full direct reader parity is registered', $packet['reviewNote']);
+
+        $t->same('loadXmlDocument', $packet['formats']['xml']['reviewMethod']);
+        $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
+        $t->same(null, $packet['formats']['xml']['aliasedTo']);
+        $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
+        $t->contains('no full native PHP XML direct reader is registered yet', $packet['formats']['xml']['inputNotes']);
+
+        $t->same('summarizeJatsFrontMatter', $packet['formats']['jats']['reviewMethod']);
+        $t->same('jats-bits-front-matter-review-only', $packet['formats']['jats']['reviewPolicy']);
+        $t->same(null, $packet['formats']['jats']['aliasedTo']);
+        $t->contains('article front-matter identifiers', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
+        $t->contains('full JATS body and back-matter mapping', implode('; ', $packet['formats']['jats']['remainingReaderGaps']));
+
+        $t->same('summarizeJatsFrontMatter', $packet['formats']['bits']['reviewMethod']);
+        $t->same('jats-bits-front-matter-review-only', $packet['formats']['bits']['reviewPolicy']);
+        $t->same('jats', $packet['formats']['bits']['aliasedTo']);
+        $t->contains('book and book-part metadata identifiers', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
+        $t->contains('full BITS book body and book-part mapping', implode('; ', $packet['formats']['bits']['remainingReaderGaps']));
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
         $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
