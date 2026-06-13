@@ -432,6 +432,101 @@ return [
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
     },
+    'preserves OPF package root authoring attributes for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithPackageAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="pub-id" xml:lang="en" dir="rtl" xml:base="https://example.invalid/packages/source/" data-review="primary" review:source="wp-import">',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithPackageAuthoring));
+        $package = $result['package'];
+        $authoring = $package['authoring'];
+
+        $t->same('3.0', $package['version']);
+        $t->same('pub-id', $package['uniqueIdentifierId']);
+        $t->same('en', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('https://example.invalid/packages/source/', $package['base']);
+        $t->same(7, $package['attributeCount']);
+        $t->same('https://example.invalid/packages/source/', $package['attributes']['xml:base']);
+        $t->same('primary', $package['attributes']['data-review']);
+        $t->same('wp-import', $package['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $package['customAttributes']);
+        $t->same(2, $package['customAttributeCount']);
+
+        $t->same(true, $authoring['present']);
+        $t->same('en', $authoring['language']);
+        $t->same('rtl', $authoring['direction']);
+        $t->same('https://example.invalid/packages/source/', $authoring['base']);
+        $t->same(7, $authoring['attributeCount']);
+        $t->same(5, $authoring['structuralAttributeCount']);
+        $t->same('pub-id', $authoring['structuralAttributes']['unique-identifier']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $authoring['customAttributes']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same(true, $authoring['hasCustomAttributes']);
+        $t->same(true, $authoring['hasBase']);
+        $t->same('reported-not-applied-to-package-paths', $authoring['baseResolutionPolicy']);
+        $t->same($package, $result['importReport']['package']);
+        $t->same($authoring, $result['metadata']['packageAuthoring']);
+        $t->same($authoring, $result['importReport']['metadata']['packageAuthoring']);
+        $t->same($authoring, $result['document']->attr('metadata')['packageAuthoring']);
+        $t->same($authoring, $result['document']->attr('package')['authoring']);
+    },
+    'reports OPF package root authoring conflicts for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithPackageConflicts = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="pub-id" xml:lang="en" lang="fr" dir="rtl" review:direction="ltr" xml:base="https://example.invalid/packages/source/" base="../relative/" review:base="https://cdn.example.invalid/package/" data-review="primary" review:source="wp-import">',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithPackageConflicts));
+        $package = $result['package'];
+        $authoring = $package['authoring'];
+
+        $t->same('en', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('https://example.invalid/packages/source/', $package['base']);
+        $t->same(11, $authoring['attributeCount']);
+        $t->same(5, $authoring['structuralAttributeCount']);
+        $t->same(6, $authoring['customAttributeCount']);
+        $t->same('fr', $authoring['customAttributes']['lang']);
+        $t->same('../relative/', $authoring['customAttributes']['base']);
+        $t->same('ltr', $authoring['customAttributes']['review:direction']);
+
+        $t->same(3, $authoring['baseSourceCount']);
+        $t->same(['base', 'review:base', 'xml:base'], array_map(static fn (array $source): string => $source['attribute'], $authoring['baseSources']));
+        $t->same([false, false, true], array_map(static fn (array $source): bool => $source['selected'], $authoring['baseSources']));
+        $t->same(2, $authoring['languageSourceCount']);
+        $t->same(['lang', 'xml:lang'], array_map(static fn (array $source): string => $source['attribute'], $authoring['languageSources']));
+        $t->same([false, true], array_map(static fn (array $source): bool => $source['selected'], $authoring['languageSources']));
+        $t->same(2, $authoring['directionSourceCount']);
+        $t->same(['dir', 'review:direction'], array_map(static fn (array $source): string => $source['attribute'], $authoring['directionSources']));
+        $t->same([true, false], array_map(static fn (array $source): bool => $source['selected'], $authoring['directionSources']));
+
+        $t->same(['base', 'language', 'direction'], $authoring['duplicateAuthoringFields']);
+        $t->same(3, $authoring['duplicateAuthoringFieldCount']);
+        $t->same(3, $authoring['conflictCount']);
+        $t->same(3, $authoring['customConflictCount']);
+        $t->same(true, $authoring['hasConflicts']);
+        $t->same([
+            'conflicting-opf-package-base-authoring',
+            'conflicting-opf-package-language-authoring',
+            'conflicting-opf-package-direction-authoring',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $authoring['diagnostics']));
+        $t->same('base', $authoring['conflicts'][0]['field']);
+        $t->same(2, $authoring['conflicts'][0]['customAttributeCount']);
+        $t->same('https://example.invalid/packages/source/', $authoring['conflicts'][0]['selectedValue']);
+        $t->same(['base', 'review:base', 'xml:base'], $authoring['conflicts'][0]['attributes']);
+        $t->same(false, $authoring['baseResolution']['appliesToPackagePaths']);
+        $t->same(true, $authoring['baseResolution']['metadataOnly']);
+
+        $t->same($package, $result['importReport']['package']);
+        $t->same($authoring, $result['metadata']['packageAuthoring']);
+        $t->same($authoring, $result['importReport']['metadata']['packageAuthoring']);
+        $t->same($authoring, $result['document']->attr('metadata')['packageAuthoring']);
+        $t->same($authoring, $result['document']->attr('package')['authoring']);
+    },
     'reports OCF container links with package targets and diagnostics' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $containerRecord = '{"source":"wordpress-export","kind":"epub-container-link"}';
         $containerXml = <<<'XML'

@@ -93,6 +93,15 @@ final class EpubReader
         'xml:lang' => true,
         'dir' => true,
     ];
+    private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
+        'id' => true,
+        'version' => true,
+        'unique-identifier' => true,
+        'prefix' => true,
+        'xml:lang' => true,
+        'xml:base' => true,
+        'dir' => true,
+    ];
 
     /**
      * @return array{
@@ -145,6 +154,7 @@ final class EpubReader
             $opf['metadata'],
             $mimetypeEntry,
             $opfPart,
+            $opf['package'],
             $opf['spine'],
             $opf['spineProperties'],
             $opf['xhtmlAssets'],
@@ -633,15 +643,28 @@ final class EpubReader
         }
 
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
+        $packageLanguage = self::xmlLang($root);
+        $packageDirection = self::direction($root);
+        $packageBase = self::xmlBase($root);
+        $packageAttributes = self::packageElementAttributes($root);
+        $packageCustomAttributes = self::packageElementCustomAttributes($packageAttributes);
+        $packageAuthoring = self::packageAuthoringReport(
+            $packageAttributes,
+            $packageLanguage,
+            $packageDirection,
+            $packageBase,
+            $packageCustomAttributes
+        );
         $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
         $metadata = $this->readMetadata(
             $metadataElement,
             $uniqueIdentifier,
             true,
             $prefixReport['bindingsByPrefix'],
-            self::xmlLang($root),
-            self::direction($root)
+            $packageLanguage,
+            $packageDirection
         );
+        $metadata['packageAuthoring'] = $packageAuthoring;
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
         $manifestById = $this->readManifest(
@@ -713,8 +736,14 @@ final class EpubReader
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
                 'uniqueIdentifier' => $metadata['uniqueIdentifier'],
                 'opfPart' => $opfPart,
-                'language' => self::xmlLang($root),
-                'direction' => self::direction($root),
+                'language' => $packageLanguage,
+                'direction' => $packageDirection,
+                'base' => $packageBase,
+                'attributes' => $packageAttributes,
+                'attributeCount' => count($packageAttributes),
+                'customAttributes' => $packageCustomAttributes,
+                'customAttributeCount' => count($packageCustomAttributes),
+                'authoring' => $packageAuthoring,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
                 'linkedResources' => self::metadataLinkedResourcesForId($linkedResourcesById, $packageId),
                 'prefix' => $prefixReport['raw'],
@@ -4899,9 +4928,42 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function packageElementCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+            if ($name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function manifestItemAttributes(\DOMElement $element): array
+    {
+        return self::opfElementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function packageElementAttributes(\DOMElement $element): array
     {
         return self::opfElementAttributes($element);
     }
@@ -4938,6 +5000,197 @@ final class EpubReader
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageAuthoringReport(
+        array $attributes,
+        ?string $language,
+        ?string $direction,
+        ?string $base,
+        array $customAttributes
+    ): array {
+        $structuralAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (!isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $structuralAttributes[$name] = $value;
+        }
+        $baseSources = self::packageAuthoringFieldSources($attributes, $customAttributes, 'base', $base);
+        $languageSources = self::packageAuthoringFieldSources($attributes, $customAttributes, 'language', $language);
+        $directionSources = self::packageAuthoringFieldSources($attributes, $customAttributes, 'direction', $direction);
+        $sourceReports = [
+            'base' => $baseSources,
+            'language' => $languageSources,
+            'direction' => $directionSources,
+        ];
+        $diagnostics = self::packageAuthoringDiagnostics($sourceReports, [
+            'base' => $base,
+            'language' => $language,
+            'direction' => $direction,
+        ]);
+        $conflicts = array_values(array_filter(
+            $diagnostics,
+            static fn (array $diagnostic): bool => str_starts_with((string) $diagnostic['type'], 'conflicting-')
+        ));
+        $duplicateFields = [];
+        foreach ($sourceReports as $field => $sources) {
+            if (count($sources) > 1) {
+                $duplicateFields[] = $field;
+            }
+        }
+        $customConflictCount = count(array_filter(
+            $conflicts,
+            static fn (array $diagnostic): bool => (int) ($diagnostic['customAttributeCount'] ?? 0) > 0
+        ));
+
+        return [
+            'present' => $attributes !== [],
+            'language' => $language,
+            'direction' => $direction,
+            'base' => $base,
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'structuralAttributes' => $structuralAttributes,
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+            'hasBase' => $base !== null,
+            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            'baseResolution' => [
+                'metadataOnly' => $base !== null,
+                'appliesToPackagePaths' => false,
+                'policy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+            ],
+            'baseSources' => $baseSources,
+            'baseSourceCount' => count($baseSources),
+            'languageSources' => $languageSources,
+            'languageSourceCount' => count($languageSources),
+            'directionSources' => $directionSources,
+            'directionSourceCount' => count($directionSources),
+            'duplicateAuthoringFields' => $duplicateFields,
+            'duplicateAuthoringFieldCount' => count($duplicateFields),
+            'conflicts' => $conflicts,
+            'conflictCount' => count($conflicts),
+            'customConflictCount' => $customConflictCount,
+            'hasConflicts' => $conflicts !== [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function packageAuthoringFieldSources(
+        array $attributes,
+        array $customAttributes,
+        string $field,
+        ?string $selectedValue
+    ): array {
+        $sources = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value) || !self::packageAuthoringAttributeMatchesField($name, $field)) {
+                continue;
+            }
+
+            $structural = isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name]);
+            $sources[] = [
+                'attribute' => $name,
+                'value' => $value,
+                'structural' => $structural,
+                'custom' => isset($customAttributes[$name]),
+                'selected' => self::packageAuthoringSelectedAttribute($field) === $name && $selectedValue === $value,
+            ];
+        }
+
+        return $sources;
+    }
+
+    private static function packageAuthoringAttributeMatchesField(string $attribute, string $field): bool
+    {
+        $localName = str_contains($attribute, ':') ? substr($attribute, (int) strrpos($attribute, ':') + 1) : $attribute;
+        $normalizedLocalName = strtolower($localName);
+
+        return match ($field) {
+            'base' => $attribute === 'xml:base' || $normalizedLocalName === 'base',
+            'language' => $attribute === 'xml:lang' || in_array($normalizedLocalName, ['lang', 'language'], true),
+            'direction' => $attribute === 'dir' || in_array($normalizedLocalName, ['dir', 'direction'], true),
+            default => false,
+        };
+    }
+
+    private static function packageAuthoringSelectedAttribute(string $field): ?string
+    {
+        return [
+            'base' => 'xml:base',
+            'language' => 'xml:lang',
+            'direction' => 'dir',
+        ][$field] ?? null;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $sourceReports
+     * @param array<string, ?string> $selectedValues
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function packageAuthoringDiagnostics(array $sourceReports, array $selectedValues): array
+    {
+        $diagnostics = [];
+        foreach ($sourceReports as $field => $sources) {
+            if (count($sources) < 2) {
+                continue;
+            }
+
+            $values = [];
+            foreach ($sources as $source) {
+                $value = (string) ($source['value'] ?? '');
+                $values[self::packageAuthoringComparableValue($field, $value)] = $value;
+            }
+
+            $conflicting = count($values) > 1;
+            $diagnostics[] = [
+                'type' => ($conflicting ? 'conflicting' : 'duplicate') . '-opf-package-' . $field . '-authoring',
+                'field' => $field,
+                'sourceCount' => count($sources),
+                'customAttributeCount' => count(array_filter(
+                    $sources,
+                    static fn (array $source): bool => (bool) ($source['custom'] ?? false)
+                )),
+                'selectedValue' => $selectedValues[$field] ?? null,
+                'attributes' => array_map(static fn (array $source): string => (string) $source['attribute'], $sources),
+                'values' => array_values($values),
+                'message' => $conflicting
+                    ? 'EPUB OPF package root has conflicting authoring attributes for ' . $field . '; the OPF structural value is retained for package summaries.'
+                    : 'EPUB OPF package root repeats authoring attributes for ' . $field . '; duplicate provenance is retained for review.',
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private static function packageAuthoringComparableValue(string $field, string $value): string
+    {
+        $value = trim($value);
+        if ($field === 'language' || $field === 'direction') {
+            return strtolower($value);
+        }
+
+        return $value;
     }
 
     /**
@@ -21092,6 +21345,7 @@ final class EpubReader
 
     /**
      * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $package
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $spineProperties
      * @param list<array<string, mixed>> $xhtmlAssets
@@ -21118,6 +21372,7 @@ final class EpubReader
         array $metadata,
         array $mimetypeEntry,
         string $opfPart,
+        array $package,
         array $spine,
         array $spineProperties,
         array $xhtmlAssets,
@@ -21270,6 +21525,7 @@ final class EpubReader
             'source' => 'epub3',
             'mimetypeEntry' => $mimetypeEntry,
             'opfPart' => $opfPart,
+            'package' => $package,
             'metadata' => $metadata,
             'guide' => $guide,
             'collections' => $collections,
@@ -21688,6 +21944,16 @@ final class EpubReader
         }
 
         return $lang === '' ? null : $lang;
+    }
+
+    private static function xmlBase(\DOMElement $element): ?string
+    {
+        $base = trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        if ($base === '') {
+            $base = trim($element->getAttribute('xml:base'));
+        }
+
+        return $base === '' ? null : $base;
     }
 
     private static function direction(\DOMElement $element): ?string
