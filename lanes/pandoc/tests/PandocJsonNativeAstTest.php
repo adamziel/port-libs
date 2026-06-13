@@ -4235,6 +4235,144 @@ return [
             }
         }
     },
+    'preserves table caption native payloads until caption text is edited' => static function (TestRunner $t): void {
+        $shortCaptionNative = [
+            't' => 'ShortCaption',
+            'c' => [[
+                ['t' => 'Str', 'c' => 'Short'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'queue'],
+            ]],
+            'reviewQueue' => 'short-caption-source',
+            'sourceOrdinal' => 104,
+        ];
+        $shortMaybeNative = [
+            't' => 'Just',
+            'c' => $shortCaptionNative,
+            'reviewQueue' => 'short-maybe-source',
+            'sourceOrdinal' => 103,
+        ];
+        $longCaptionNative = [
+            't' => 'Plain',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Source'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'caption'],
+            ],
+            'reviewQueue' => 'long-caption-source',
+            'sourceOrdinal' => 102,
+        ];
+        $captionNative = [
+            't' => 'Caption',
+            'c' => [
+                $shortMaybeNative,
+                [$longCaptionNative],
+            ],
+            'reviewQueue' => 'caption-source',
+            'sourceOrdinal' => 101,
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['caption-edge-table', [], []],
+                $captionNative,
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $captionBlocks = $table->attr('captionBlocks');
+
+            $t->same($captionNative, $table->attr('captionNative'), "{$source} reader preserves table caption native payload");
+            $t->same($shortMaybeNative, $table->attr('shortCaptionMaybeNative'), "{$source} reader preserves short maybe payload");
+            $t->same($shortCaptionNative, $table->attr('shortCaptionNative'), "{$source} reader preserves short caption payload");
+            $t->same($longCaptionNative, $captionBlocks[0]->attr('native'), "{$source} reader preserves long caption block payload");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'rebuilt-caption-table']), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+
+                $t->same('rebuilt-caption-table', $encodedTable['c'][0][0], "{$source} {$writer} writer regenerates edited table attr");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$source} {$writer} writer drops stale table sidecar");
+                $t->same($captionNative, $encodedTable['c'][1], "{$source} {$writer} writer preserves unchanged table caption payload");
+            }
+
+            $editedLongTable = new AstNode('table', array_replace($table->attrs, [
+                'caption' => 'Edited caption',
+                'captionBlocks' => [new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'caption']),
+                ])],
+            ]), $table->children);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedLongTable])),
+                'native' => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedLongTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCaption = $encoded['blocks'][0]['c'][1];
+
+                $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited long caption keeps constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited long caption drops stale caption sidecar");
+                $t->same('short-maybe-source', $encodedCaption['c'][0]['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short maybe sidecar");
+                $t->same('short-caption-source', $encodedCaption['c'][0]['c']['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short caption sidecar");
+                $t->same('Edited', $encodedCaption['c'][1][0]['c'][0]['c'], "{$source} {$writer} edited long caption regenerates text");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][1][0]), "{$source} {$writer} edited long caption drops stale long block sidecar");
+            }
+
+            $editedShortTable = new AstNode('table', array_replace($table->attrs, [
+                'shortCaption' => 'Edited queue',
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'queue']),
+                ],
+            ]), $table->children);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedShortTable])),
+                'native' => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedShortTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCaption = $encoded['blocks'][0]['c'][1];
+
+                $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited short caption keeps constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited short caption drops stale caption sidecar");
+                $t->same('Just', $encodedCaption['c'][0]['t'], "{$source} {$writer} edited short caption keeps maybe constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]), "{$source} {$writer} edited short caption drops stale short maybe sidecar");
+                $t->same('ShortCaption', $encodedCaption['c'][0]['c']['t'], "{$source} {$writer} edited short caption keeps helper constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]['c']), "{$source} {$writer} edited short caption drops stale short caption sidecar");
+                $t->same('Edited', $encodedCaption['c'][0]['c']['c'][0][0]['c'], "{$source} {$writer} edited short caption regenerates text");
+                $t->same($longCaptionNative, $encodedCaption['c'][1][0], "{$source} {$writer} edited short caption preserves unchanged long block payload");
+            }
+        }
+    },
     'preserves table body head row native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $headCellNative = [
             't' => 'Cell',
