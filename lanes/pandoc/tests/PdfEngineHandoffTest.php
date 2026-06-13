@@ -3610,6 +3610,18 @@ return [
             'metadataOnly' => true,
             'byteExposurePolicy' => 'metadata-only',
             'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => 1,
+            'unsupportedPackageReasons' => [
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2',
+                    'reference' => '@preview/cetz:0.3.2',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+            ],
+            'unsupportedReasonCounts' => [
+                'preview-registry-network-not-executed' => 1,
+            ],
             'versionConflictCount' => 0,
             'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:1'],
@@ -3641,6 +3653,7 @@ return [
         $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-source:preview-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:preview-registry-network-not-executed:1', implode(',', $result['diagnostics']));
         $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
         $t->contains('engine-boundary-root:.', implode(',', $result['diagnostics']));
         $t->contains('artifact-provenance-review:review', implode(',', $result['diagnostics']));
@@ -3924,6 +3937,32 @@ return [
             'metadataOnly' => true,
             'byteExposurePolicy' => 'metadata-only',
             'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => 3,
+            'unsupportedPackageReasons' => [
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                    'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@team/private:1.2.0/theme.typ',
+                    'reference' => '@team/private:1.2.0/theme.typ',
+                    'sourceClass' => 'custom-namespace',
+                    'reason' => 'custom-namespace-not-resolved',
+                ],
+                [
+                    'input' => 'typst-package:@typst/symbols:0.1.0',
+                    'reference' => '@typst/symbols:0.1.0',
+                    'sourceClass' => 'typst-registry',
+                    'reason' => 'typst-registry-network-not-executed',
+                ],
+            ],
+            'unsupportedReasonCounts' => [
+                'custom-namespace-not-resolved' => 1,
+                'preview-registry-network-not-executed' => 1,
+                'typst-registry-network-not-executed' => 1,
+            ],
             'versionConflictCount' => 0,
             'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:3'],
@@ -3957,6 +3996,9 @@ return [
         $t->contains('typst-package-dependency-source:custom-namespace:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-source:preview-registry:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-source:typst-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:custom-namespace-not-resolved:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:preview-registry-network-not-executed:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:typst-registry-network-not-executed:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
@@ -4050,6 +4092,31 @@ return [
             'metadataOnly' => true,
             'byteExposurePolicy' => 'metadata-only',
             'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => 3,
+            'unsupportedPackageReasons' => [
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                    'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@preview/cetz:0.4.0/src/lib.typ',
+                    'reference' => '@preview/cetz:0.4.0/src/lib.typ',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@typst/symbols:0.1.0',
+                    'reference' => '@typst/symbols:0.1.0',
+                    'sourceClass' => 'typst-registry',
+                    'reason' => 'typst-registry-network-not-executed',
+                ],
+            ],
+            'unsupportedReasonCounts' => [
+                'preview-registry-network-not-executed' => 2,
+                'typst-registry-network-not-executed' => 1,
+            ],
             'versionConflictCount' => 1,
             'versionConflicts' => [
                 [
@@ -4090,6 +4157,8 @@ return [
         $t->contains('typst-package-dependency-policy-packages:3', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-source:preview-registry:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-source:typst-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:preview-registry-network-not-executed:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:typst-registry-network-not-executed:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-sidecars:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-conflicts:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-issues:2', implode(',', $result['diagnostics']));
