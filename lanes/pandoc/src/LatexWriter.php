@@ -125,7 +125,7 @@ final class LatexWriter
 
         $caption = $this->renderCaptionCommand($node);
         if ($caption !== '') {
-            $lines[] = $caption;
+            $lines[] = $caption . $this->renderCaptionLabel($node);
         }
         $lines[] = '\end{figure}';
 
@@ -323,7 +323,7 @@ final class LatexWriter
         $lines = ['\begin{longtable}{' . implode('', $alignments) . '}'];
         $caption = $this->renderCaptionCommand($node);
         if ($caption !== '') {
-            $lines[] = $caption . '\\\\';
+            $lines[] = $caption . $this->renderCaptionLabel($node) . '\\\\';
         }
 
         $rowGroups = $this->tableRowGroups($node);
@@ -1038,6 +1038,13 @@ final class LatexWriter
         }
 
         return '';
+    }
+
+    private function renderCaptionLabel(AstNode $node): string
+    {
+        $anchor = $this->nodeAnchorName($node);
+
+        return $anchor === '' ? '' : '\label{' . $anchor . '}';
     }
 
     private function latexAnchorName(string $identifier): string
