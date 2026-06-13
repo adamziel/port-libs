@@ -10,6 +10,7 @@ final class XmlHtmlDom
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
+    private const DOCBOOK_REVIEW_TEXT_MAX_BYTES = 2048;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -1036,7 +1037,16 @@ final class XmlHtmlDom
         $admonitions = self::docBookAdmonitionSummaries($root);
         $contributors = $metadata instanceof \DOMElement ? self::docBookContributorSummaries($metadata) : [];
         $identifiers = $metadata instanceof \DOMElement ? self::docBookIdentifierSummaries($metadata) : [];
+        $elementIdMap = self::docBookElementIdMap($root);
+        $xrefs = self::docBookCrossReferenceSummaries($root, $elementIdMap);
         [$xrefTargets, $externalTargets] = self::docBookLinkTargets($root);
+        $captionTargets = self::docBookCaptionTargetSummaries($root, $xrefs);
+        $mediaTargetManifest = self::docBookMediaTargetManifest($root, $xrefs);
+        $repeatedRoleCaptionPairs = self::docBookRepeatedRoleCaptionPairs($mediaTargetManifest);
+        $captionDiagnostics = self::docBookCaptionDiagnostics($xrefs, $repeatedRoleCaptionPairs);
+        $captionCrossReferences = self::docBookCaptionCrossReferences($xrefs);
+        $missingCaptionTargets = self::docBookMissingCaptionTargets($xrefs);
+        $bibliographyMediaCaptionCrosslinks = self::docBookBibliographyMediaCaptionCrosslinks($xrefs);
 
         return [
             'formatFamily' => 'xml-html5-docbook-dom',
@@ -1094,10 +1104,34 @@ final class XmlHtmlDom
             )),
             'admonitionCount' => count($admonitions),
             'admonitions' => $admonitions,
+            'xrefs' => $xrefs,
+            'xrefCount' => count($xrefs),
             'xrefTargets' => $xrefTargets,
             'xrefTargetCount' => count($xrefTargets),
             'externalTargets' => $externalTargets,
             'externalTargetCount' => count($externalTargets),
+            'captionCrossReferences' => $captionCrossReferences,
+            'captionCrossReferenceCount' => count($captionCrossReferences),
+            'captionTargets' => $captionTargets,
+            'captionTargetCount' => count($captionTargets),
+            'captionTargetIds' => array_values(array_filter(
+                array_map(static fn (array $target): ?string => $target['id'], $captionTargets),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'missingCaptionTargets' => $missingCaptionTargets,
+            'missingCaptionTargetCount' => count($missingCaptionTargets),
+            'captionDiagnostics' => $captionDiagnostics,
+            'captionDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $captionDiagnostics
+            ))),
+            'captionDiagnosticCount' => count($captionDiagnostics),
+            'repeatedRoleCaptionPairs' => $repeatedRoleCaptionPairs,
+            'repeatedRoleCaptionPairCount' => count($repeatedRoleCaptionPairs),
+            'bibliographyMediaCaptionCrosslinks' => $bibliographyMediaCaptionCrosslinks,
+            'bibliographyMediaCaptionCrosslinkCount' => count($bibliographyMediaCaptionCrosslinks),
+            'mediaTargetManifest' => $mediaTargetManifest,
+            'mediaTargetManifestCount' => count($mediaTargetManifest),
             'bibliographyCount' => count(self::descendantElements($root, 'bibliography')),
             'bibliographyEntryCount' => count(self::descendantElements($root, 'biblioentry'))
                 + count(self::descendantElements($root, 'bibliomixed')),
@@ -1278,6 +1312,24 @@ final class XmlHtmlDom
         return $id === null || trim($id) === '' ? null : trim($id);
     }
 
+    /**
+     * @return array<string, \DOMElement>
+     */
+    private static function docBookElementIdMap(\DOMElement $root): array
+    {
+        $map = [];
+        foreach ([$root, ...self::descendantElements($root)] as $element) {
+            $id = self::docBookElementId($element);
+            if ($id === null || isset($map[$id])) {
+                continue;
+            }
+
+            $map[$id] = $element;
+        }
+
+        return $map;
+    }
+
     private static function docBookChildTitleText(\DOMElement $element): ?string
     {
         $title = self::firstChildElement($element, 'title');
@@ -1293,6 +1345,62 @@ final class XmlHtmlDom
         $text = self::normalizedText($title);
 
         return $text === '' ? null : $text;
+    }
+
+    private static function docBookChildCaptionText(\DOMElement $element): ?string
+    {
+        $caption = self::firstChildElement($element, 'caption');
+        if (!$caption instanceof \DOMElement
+            && in_array($element->localName, ['figure', 'informalfigure', 'mediaobject', 'inlinemediaobject'], true)
+        ) {
+            $caption = self::firstDescendantElement($element, 'caption');
+        }
+
+        if (!$caption instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::docBookReviewText(self::normalizedText($caption));
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function docBookCaptionText(\DOMElement $element): ?string
+    {
+        $caption = self::docBookChildCaptionText($element);
+        if ($caption !== null) {
+            return $caption;
+        }
+
+        if ($element->localName === 'caption' || $element->localName === 'title') {
+            $text = self::docBookReviewText(self::normalizedText($element));
+
+            return $text === '' ? null : $text;
+        }
+
+        return self::docBookChildTitleText($element);
+    }
+
+    private static function docBookCaptionSource(\DOMElement $element): ?string
+    {
+        if (self::docBookChildCaptionText($element) !== null) {
+            return 'caption';
+        }
+
+        if ($element->localName === 'caption' || $element->localName === 'title') {
+            return $element->localName;
+        }
+
+        return self::docBookChildTitleText($element) !== null ? 'title' : null;
+    }
+
+    private static function docBookReviewText(string $text): string
+    {
+        if (strlen($text) <= self::DOCBOOK_REVIEW_TEXT_MAX_BYTES) {
+            return $text;
+        }
+
+        return rtrim(substr($text, 0, self::DOCBOOK_REVIEW_TEXT_MAX_BYTES)) . '...';
     }
 
     private static function docBookParagraphCount(\DOMElement $element): int
@@ -1344,20 +1452,41 @@ final class XmlHtmlDom
 
     /**
      * @param list<string> $localNames
-     * @return list<array{element:string, id:?string, title:?string}>
+     * @return list<array{element:string, id:?string, role:?string, title:?string, caption:?string, captionText:?string, captionSource:?string, imageDataRefs:list<string>}>
      */
     private static function docBookElementSummaries(\DOMElement $root, array $localNames): array
     {
         $summaries = [];
         foreach (self::docBookElementsByNames($root, $localNames) as $element) {
+            $caption = self::docBookChildCaptionText($element);
             $summaries[] = [
                 'element' => $element->localName,
                 'id' => self::docBookElementId($element),
+                'role' => self::attribute($element, 'role'),
                 'title' => self::docBookChildTitleText($element),
+                'caption' => $caption,
+                'captionText' => $caption ?? self::docBookChildTitleText($element),
+                'captionSource' => self::docBookCaptionSource($element),
+                'imageDataRefs' => self::docBookImageDataRefs($element),
             ];
         }
 
         return $summaries;
+    }
+
+    private static function docBookTargetKind(\DOMElement $element): string
+    {
+        return match ($element->localName) {
+            'figure', 'informalfigure' => 'figure',
+            'mediaobject', 'inlinemediaobject', 'imageobject', 'imagedata' => 'media',
+            'biblioentry', 'bibliomixed', 'biblioset' => 'bibliography',
+            'caption' => 'caption',
+            'title' => 'title',
+            'table', 'informaltable' => 'table',
+            default => isset(self::DOCBOOK_SECTION_ELEMENTS[$element->localName])
+                ? 'section'
+                : $element->localName,
+        };
     }
 
     /**
@@ -1519,6 +1648,352 @@ final class XmlHtmlDom
             array_values(array_unique($xrefTargets)),
             array_values(array_unique($externalTargets)),
         ];
+    }
+
+    /**
+     * @param array<string, \DOMElement> $elementIdMap
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookCrossReferenceSummaries(\DOMElement $root, array $elementIdMap): array
+    {
+        $xrefs = [];
+        foreach ([$root, ...self::descendantElements($root)] as $element) {
+            foreach (self::docBookElementReferenceTargets($element) as $reference) {
+                $target = $reference['target'];
+                $targetElement = $elementIdMap[$target] ?? null;
+                $sourceBibliography = self::docBookNearestAncestorByNames($element, ['biblioentry', 'bibliomixed', 'biblioset']);
+                $sourceMedia = self::docBookNearestAncestorByNames($element, ['figure', 'informalfigure', 'mediaobject', 'inlinemediaobject']);
+                $targetCaptionText = $targetElement instanceof \DOMElement ? self::docBookCaptionText($targetElement) : null;
+
+                $xrefs[] = [
+                    'sourceElement' => $element->localName,
+                    'sourceId' => self::docBookElementId($element),
+                    'sourceRole' => self::attribute($element, 'role'),
+                    'sourceText' => self::docBookReviewText(self::normalizedText($element)),
+                    'sourceBibliographyId' => $sourceBibliography instanceof \DOMElement
+                        ? self::docBookElementId($sourceBibliography)
+                        : null,
+                    'sourceMediaId' => $sourceMedia instanceof \DOMElement
+                        ? self::docBookElementId($sourceMedia)
+                        : null,
+                    'attribute' => $reference['attribute'],
+                    'target' => $target,
+                    'resolved' => $targetElement instanceof \DOMElement,
+                    'missingTargets' => $targetElement instanceof \DOMElement ? [] : [$target],
+                    'targetElement' => $targetElement instanceof \DOMElement ? $targetElement->localName : null,
+                    'targetKind' => $targetElement instanceof \DOMElement ? self::docBookTargetKind($targetElement) : null,
+                    'targetId' => $targetElement instanceof \DOMElement ? self::docBookElementId($targetElement) : null,
+                    'targetRole' => $targetElement instanceof \DOMElement ? self::attribute($targetElement, 'role') : null,
+                    'targetTitle' => $targetElement instanceof \DOMElement ? self::docBookChildTitleText($targetElement) : null,
+                    'targetCaption' => $targetElement instanceof \DOMElement ? self::docBookChildCaptionText($targetElement) : null,
+                    'targetCaptionText' => $targetCaptionText,
+                    'targetCaptionSource' => $targetElement instanceof \DOMElement
+                        ? self::docBookCaptionSource($targetElement)
+                        : null,
+                    'targetImageDataRefs' => $targetElement instanceof \DOMElement
+                        ? self::docBookImageDataRefs($targetElement)
+                        : [],
+                ];
+            }
+        }
+
+        return $xrefs;
+    }
+
+    /**
+     * @return list<array{attribute:string, target:string}>
+     */
+    private static function docBookElementReferenceTargets(\DOMElement $element): array
+    {
+        $references = [];
+        foreach (['linkend', 'endterm'] as $attribute) {
+            $target = self::attribute($element, $attribute);
+            if ($target === null) {
+                continue;
+            }
+
+            foreach (self::spaceSeparatedTokens($target) as $token) {
+                $references[] = ['attribute' => $attribute, 'target' => $token];
+            }
+        }
+
+        $href = self::attribute($element, 'href', 'http://www.w3.org/1999/xlink');
+        if ($href !== null && str_starts_with(trim($href), '#')) {
+            $references[] = ['attribute' => 'xlink:href', 'target' => substr(trim($href), 1)];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function docBookNearestAncestorByNames(\DOMElement $element, array $localNames): ?\DOMElement
+    {
+        $nameMap = array_fill_keys($localNames, true);
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (isset($nameMap[$parent->localName])) {
+                return $parent;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return array<string, int>
+     */
+    private static function docBookReferenceCountsByTarget(array $xrefs): array
+    {
+        $counts = [];
+        foreach ($xrefs as $xref) {
+            $target = (string) $xref['target'];
+            $counts[$target] = ($counts[$target] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookCaptionCrossReferences(array $xrefs): array
+    {
+        return array_values(array_filter(
+            $xrefs,
+            static fn (array $xref): bool => !($xref['resolved'] ?? false)
+                || in_array($xref['targetKind'] ?? null, ['figure', 'media', 'caption', 'title', 'bibliography'], true)
+                || ($xref['targetCaptionText'] ?? null) !== null
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<string>
+     */
+    private static function docBookMissingCaptionTargets(array $xrefs): array
+    {
+        $targets = [];
+        foreach ($xrefs as $xref) {
+            if ($xref['resolved'] ?? false) {
+                continue;
+            }
+
+            $targets[] = (string) $xref['target'];
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookCaptionTargetSummaries(\DOMElement $root, array $xrefs): array
+    {
+        $counts = self::docBookReferenceCountsByTarget($xrefs);
+        $targets = [];
+        foreach (self::docBookElementsByNames($root, ['figure', 'informalfigure', 'mediaobject', 'inlinemediaobject', 'biblioentry', 'bibliomixed']) as $element) {
+            $id = self::docBookElementId($element);
+            $captionText = self::docBookCaptionText($element);
+            if ($id === null && $captionText === null) {
+                continue;
+            }
+
+            $targets[] = [
+                'element' => $element->localName,
+                'kind' => self::docBookTargetKind($element),
+                'id' => $id,
+                'role' => self::attribute($element, 'role'),
+                'title' => self::docBookChildTitleText($element),
+                'caption' => self::docBookChildCaptionText($element),
+                'captionText' => $captionText,
+                'captionSource' => self::docBookCaptionSource($element),
+                'imageDataRefs' => self::docBookImageDataRefs($element),
+                'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
+                'referenced' => $id !== null && ($counts[$id] ?? 0) > 0,
+            ];
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaTargetManifest(\DOMElement $root, array $xrefs): array
+    {
+        $counts = self::docBookReferenceCountsByTarget($xrefs);
+        $manifest = [];
+        foreach (self::docBookElementsByNames($root, ['figure', 'informalfigure', 'mediaobject', 'inlinemediaobject']) as $element) {
+            $id = self::docBookElementId($element);
+            $imageDataRefs = self::docBookImageDataRefs($element);
+            if ($id === null && $imageDataRefs === []) {
+                continue;
+            }
+
+            $manifest[] = [
+                'element' => $element->localName,
+                'id' => $id,
+                'role' => self::attribute($element, 'role'),
+                'title' => self::docBookChildTitleText($element),
+                'caption' => self::docBookChildCaptionText($element),
+                'captionText' => self::docBookCaptionText($element),
+                'captionSource' => self::docBookCaptionSource($element),
+                'imageDataRefs' => $imageDataRefs,
+                'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
+                'referenced' => $id !== null && ($counts[$id] ?? 0) > 0,
+            ];
+        }
+
+        return $manifest;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $mediaTargetManifest
+     * @return list<array{role:string, captionText:string, targetIds:list<string>, imageDataRefs:list<string>, count:int}>
+     */
+    private static function docBookRepeatedRoleCaptionPairs(array $mediaTargetManifest): array
+    {
+        $groups = [];
+        foreach ($mediaTargetManifest as $target) {
+            if (!in_array($target['element'] ?? null, ['mediaobject', 'inlinemediaobject'], true)) {
+                continue;
+            }
+
+            $role = $target['role'] ?? null;
+            $captionText = $target['captionText'] ?? null;
+            if (!is_string($role) || trim($role) === '' || !is_string($captionText) || trim($captionText) === '') {
+                continue;
+            }
+
+            $key = trim($role) . "\0" . trim($captionText);
+            $groups[$key] ??= [
+                'role' => trim($role),
+                'captionText' => trim($captionText),
+                'targetIds' => [],
+                'imageDataRefs' => [],
+                'count' => 0,
+            ];
+            if (is_string($target['id'] ?? null) && $target['id'] !== '') {
+                $groups[$key]['targetIds'][] = $target['id'];
+            }
+            foreach ($target['imageDataRefs'] ?? [] as $ref) {
+                if (is_string($ref) && $ref !== '') {
+                    $groups[$key]['imageDataRefs'][] = $ref;
+                }
+            }
+            $groups[$key]['count']++;
+        }
+
+        $repeated = [];
+        foreach ($groups as $group) {
+            if ($group['count'] < 2) {
+                continue;
+            }
+
+            $group['targetIds'] = array_values(array_unique($group['targetIds']));
+            $group['imageDataRefs'] = array_values(array_unique($group['imageDataRefs']));
+            $repeated[] = $group;
+        }
+
+        return $repeated;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @param list<array<string, mixed>> $repeatedRoleCaptionPairs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookCaptionDiagnostics(array $xrefs, array $repeatedRoleCaptionPairs): array
+    {
+        $diagnostics = [];
+        foreach ($xrefs as $xref) {
+            if (!($xref['resolved'] ?? false)) {
+                $diagnostics[] = self::docBookCaptionDiagnostic(
+                    'missing-caption-target',
+                    'warning',
+                    'DocBook cross-reference target is not present in the review packet.',
+                    $xref
+                );
+                continue;
+            }
+
+            if (in_array($xref['targetKind'] ?? null, ['figure', 'media'], true)
+                && ($xref['targetCaptionText'] ?? null) === null
+            ) {
+                $diagnostics[] = self::docBookCaptionDiagnostic(
+                    'captionless-media-target',
+                    'notice',
+                    'DocBook media target is referenced without a caption or title summary.',
+                    $xref
+                );
+            }
+        }
+
+        foreach ($repeatedRoleCaptionPairs as $pair) {
+            $diagnostics[] = [
+                'code' => 'repeated-role-caption-pair',
+                'severity' => 'notice',
+                'message' => 'DocBook media targets share the same role and caption text.',
+                'directReaderParity' => false,
+                'coveredByPacket' => true,
+                'details' => [
+                    'role' => $pair['role'] ?? null,
+                    'captionText' => $pair['captionText'] ?? null,
+                    'targetIds' => $pair['targetIds'] ?? [],
+                    'count' => $pair['count'] ?? 0,
+                ],
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $xref
+     * @return array<string, mixed>
+     */
+    private static function docBookCaptionDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        array $xref
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => false,
+            'coveredByPacket' => true,
+            'details' => [
+                'target' => $xref['target'] ?? null,
+                'sourceElement' => $xref['sourceElement'] ?? null,
+                'sourceId' => $xref['sourceId'] ?? null,
+                'sourceBibliographyId' => $xref['sourceBibliographyId'] ?? null,
+                'targetElement' => $xref['targetElement'] ?? null,
+                'targetKind' => $xref['targetKind'] ?? null,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookBibliographyMediaCaptionCrosslinks(array $xrefs): array
+    {
+        return array_values(array_filter(
+            $xrefs,
+            static fn (array $xref): bool => ($xref['sourceBibliographyId'] ?? null) !== null
+                && in_array($xref['targetKind'] ?? null, ['figure', 'media', 'caption', 'title'], true)
+        ));
     }
 
     /**

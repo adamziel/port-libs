@@ -301,11 +301,20 @@ XML, 'DocBook 5 structure XML', preserveWhiteSpace: false);
         $t->same(['fig1'], $packet['figureIds']);
         $t->same(1, $packet['figureCount']);
         $t->same('Figure A', $packet['figures'][0]['title'] ?? null);
+        $t->same('Figure A', $packet['figures'][0]['captionText'] ?? null);
+        $t->same(['images/a.png'], $packet['figures'][0]['imageDataRefs'] ?? null);
         $t->same(['tbl1'], $packet['tableIds']);
         $t->same(1, $packet['tableCount']);
         $t->same(['n1'], $packet['admonitionIds']);
         $t->same('note', $packet['admonitions'][0]['type'] ?? null);
         $t->same(['fig1', 'ref1'], $packet['xrefTargets']);
+        $t->same(2, $packet['xrefCount']);
+        $t->same(2, $packet['captionCrossReferenceCount']);
+        $t->same([], $packet['missingCaptionTargets']);
+        $t->same([], $packet['captionDiagnosticCodes']);
+        $t->same(2, $packet['mediaTargetManifestCount']);
+        $t->same('fig1', $packet['mediaTargetManifest'][0]['id'] ?? null);
+        $t->same(1, $packet['mediaTargetManifest'][0]['referenceCount'] ?? null);
         $t->same(['https://example.invalid/review'], $packet['externalTargets']);
         $t->same(1, $packet['bibliographyCount']);
         $t->same(1, $packet['bibliographyEntryCount']);
@@ -341,6 +350,95 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook, 'jats'));
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook = XmlHtmlDom::loadXmlDocument('<topic><title>Nope</title></topic>', 'non docbook XML')));
         json_encode($legacyPacket, JSON_THROW_ON_ERROR);
+    },
+    'summarizes docbook media caption cross-reference review packets' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2" xml:lang="en">
+  <info><title>Caption Crosslinks</title></info>
+  <section xml:id="media-review" role="media-review">
+    <title>Media Review</title>
+    <para>See <xref linkend="fig-hero"/> and <link linkend="cap-hero">caption text</link> and <xref linkend="missing-caption"/>.</para>
+    <figure xml:id="fig-hero" role="screenshot">
+      <title>Hero Figure</title>
+      <mediaobject xml:id="media-hero" role="screenshot">
+        <imageobject><imagedata fileref="images/hero.png"/></imageobject>
+        <caption xml:id="cap-hero"><para>Hero screenshot import</para></caption>
+      </mediaobject>
+    </figure>
+    <figure xml:id="fig-hero-repeat" role="screenshot">
+      <title>Hero Figure Duplicate</title>
+      <mediaobject xml:id="media-hero-repeat" role="screenshot">
+        <imageobject><imagedata fileref="images/hero-repeat.png"/></imageobject>
+        <caption><para>Hero screenshot import</para></caption>
+      </mediaobject>
+    </figure>
+    <mediaobject xml:id="media-loose" role="poster">
+      <imageobject><imagedata fileref="images/poster.png"/></imageobject>
+    </mediaobject>
+    <para>Captionless <xref linkend="media-loose"/>.</para>
+  </section>
+  <bibliography>
+    <biblioentry xml:id="ref-hero">
+      <title>Hero Reference</title>
+      <para>Bibliography <link linkend="fig-hero">figure</link> <xref linkend="media-hero"/></para>
+    </biblioentry>
+  </bibliography>
+</article>
+XML, 'DocBook media caption cross-reference XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookStructure($docbook, 'docbook5');
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('docbook-structure-review-only', $packet['reviewPolicy']);
+        $t->same(['fig-hero', 'cap-hero', 'missing-caption', 'media-loose', 'media-hero'], $packet['xrefTargets']);
+        $t->same(6, $packet['xrefCount']);
+        $t->same(6, $packet['captionCrossReferenceCount']);
+        $t->same('fig-hero', $packet['xrefs'][0]['target'] ?? null);
+        $t->same('figure', $packet['xrefs'][0]['targetKind'] ?? null);
+        $t->same('Hero Figure', $packet['xrefs'][0]['targetTitle'] ?? null);
+        $t->same('Hero screenshot import', $packet['xrefs'][0]['targetCaptionText'] ?? null);
+        $t->same(['images/hero.png'], $packet['xrefs'][0]['targetImageDataRefs'] ?? null);
+        $t->same('cap-hero', $packet['xrefs'][1]['target'] ?? null);
+        $t->same('caption', $packet['xrefs'][1]['targetKind'] ?? null);
+        $t->same('Hero screenshot import', $packet['xrefs'][1]['targetCaptionText'] ?? null);
+        $t->same(false, $packet['xrefs'][2]['resolved'] ?? null);
+        $t->same(['missing-caption'], $packet['xrefs'][2]['missingTargets'] ?? null);
+        $t->same('media-loose', $packet['xrefs'][3]['target'] ?? null);
+        $t->same('media', $packet['xrefs'][3]['targetKind'] ?? null);
+        $t->same(null, $packet['xrefs'][3]['targetCaptionText'] ?? null);
+        $t->same(['missing-caption'], $packet['missingCaptionTargets']);
+        $t->same(1, $packet['missingCaptionTargetCount']);
+        $t->same([
+            'missing-caption-target',
+            'captionless-media-target',
+            'repeated-role-caption-pair',
+        ], $packet['captionDiagnosticCodes']);
+        $t->same(3, $packet['captionDiagnosticCount']);
+        $t->same('missing-caption', $packet['captionDiagnostics'][0]['details']['target'] ?? null);
+        $t->same('media-loose', $packet['captionDiagnostics'][1]['details']['target'] ?? null);
+        $t->same(1, $packet['repeatedRoleCaptionPairCount']);
+        $t->same('screenshot', $packet['repeatedRoleCaptionPairs'][0]['role'] ?? null);
+        $t->same('Hero screenshot import', $packet['repeatedRoleCaptionPairs'][0]['captionText'] ?? null);
+        $t->same(['media-hero', 'media-hero-repeat'], $packet['repeatedRoleCaptionPairs'][0]['targetIds'] ?? null);
+        $t->same(['images/hero.png', 'images/hero-repeat.png'], $packet['repeatedRoleCaptionPairs'][0]['imageDataRefs'] ?? null);
+        $t->same(2, $packet['bibliographyMediaCaptionCrosslinkCount']);
+        $t->same('ref-hero', $packet['bibliographyMediaCaptionCrosslinks'][0]['sourceBibliographyId'] ?? null);
+        $t->same('fig-hero', $packet['bibliographyMediaCaptionCrosslinks'][0]['target'] ?? null);
+        $t->same('media-hero', $packet['bibliographyMediaCaptionCrosslinks'][1]['target'] ?? null);
+        $t->same(5, $packet['mediaTargetManifestCount']);
+        $t->same('fig-hero', $packet['mediaTargetManifest'][0]['id'] ?? null);
+        $t->same(2, $packet['mediaTargetManifest'][0]['referenceCount'] ?? null);
+        $t->same(['images/hero.png'], $packet['mediaTargetManifest'][0]['imageDataRefs'] ?? null);
+        $t->same('media-hero', $packet['mediaTargetManifest'][1]['id'] ?? null);
+        $t->same(1, $packet['mediaTargetManifest'][1]['referenceCount'] ?? null);
+        $t->same('media-loose', $packet['mediaTargetManifest'][4]['id'] ?? null);
+        $t->same(['images/poster.png'], $packet['mediaTargetManifest'][4]['imageDataRefs'] ?? null);
+        $t->same(['fig-hero', 'media-hero', 'fig-hero-repeat', 'media-hero-repeat', 'media-loose', 'ref-hero'], $packet['captionTargetIds']);
+        $t->same(1, $packet['bibliographyCount']);
+        $t->same(1, $packet['bibliographyEntryCount']);
+        $t->same(3, $packet['mediaObjectCount']);
+        $t->same(3, $packet['imageObjectCount']);
+        $t->same(['images/hero.png', 'images/hero-repeat.png', 'images/poster.png'], $packet['imageDataRefs']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
