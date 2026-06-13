@@ -2079,6 +2079,12 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
             ['id' => 'ref-b', 'years' => ['2025']],
         ], $packet['safeReferenceYears']);
         $t->same(2, $packet['safeReferenceYearCount']);
+        $t->same('safe-reference-title-source-summaries-block-citation-text-payloads', $packet['referenceTitleSourceReviewPolicy']);
+        $t->same(1, $packet['safeReferenceTitleFieldCount']);
+        $t->same(2, $packet['safeReferenceSourceCount']);
+        $t->same(['journal', 'book'], $packet['referenceSourceTypes']);
+        $t->same(2, $packet['referencesMissingTitleCount']);
+        $t->same(1, $packet['referencesMissingSourceCount']);
         $t->same('safe-reference-identifier-provenance-only-block-citation-text-payloads', $packet['referenceIdentifierReviewPolicy']);
         $t->same(7, $packet['referenceIdentifierCount']);
         $t->same(['doi', 'pmid', 'pmcid', 'uri', 'isbn'], $packet['referenceIdentifierTypes']);
@@ -2268,6 +2274,11 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(1, $bitsPacket['safeReferenceDateCount']);
         $t->same([['id' => 'book-ref', 'years' => ['2024']]], $bitsPacket['safeReferenceYears']);
         $t->same(1, $bitsPacket['safeReferenceYearCount']);
+        $t->same(0, $bitsPacket['safeReferenceTitleFieldCount']);
+        $t->same(1, $bitsPacket['safeReferenceSourceCount']);
+        $t->same(['book'], $bitsPacket['referenceSourceTypes']);
+        $t->same(1, $bitsPacket['referencesMissingTitleCount']);
+        $t->same(0, $bitsPacket['referencesMissingSourceCount']);
         $t->same(2, $bitsPacket['referenceIdentifierCount']);
         $t->same(['isbn', 'uri'], $bitsPacket['referenceIdentifierTypes']);
         $t->same(0, $bitsPacket['referencesMissingIdentifierCount']);
@@ -2290,6 +2301,140 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         ]], $bitsPacket['references'][0]['dates'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
+    },
+    'summarizes jats reference title source diagnostics without citation payload text leakage' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front><article-meta><title-group><article-title>Reference Title Source Diagnostics</article-title></title-group></article-meta></front>
+  <body><sec id="body"><title>Body</title><p>See <xref ref-type="bibr" rid="ref-a ref-b ref-missing">citations</xref>.</p></sec></body>
+  <back>
+    <ref-list id="refs"><title>References</title>
+      <ref id="ref-a">
+        <label>1</label>
+        <element-citation publication-type="journal">
+          <article-title>Shared Diagnostic Title</article-title>
+          <source>Shared Source</source>
+          <pub-id pub-id-type="doi">10.5555/title.1</pub-id>
+        </element-citation>
+      </ref>
+      <ref id="ref-b">
+        <label>2</label>
+        <mixed-citation publication-type="book">Blocked chapter citation payload <chapter-title>Chapter Diagnostics</chapter-title><source>Back Matter Manual</source><isbn>978-1-55555-333-5</isbn></mixed-citation>
+      </ref>
+      <ref id="ref-c">
+        <label>3</label>
+        <mixed-citation publication-type="web">Blocked duplicate citation payload <article-title>Shared Diagnostic Title</article-title><source>Shared Source</source><uri>https://example.invalid/ref-c</uri></mixed-citation>
+      </ref>
+      <ref id="ref-d">
+        <label>4</label>
+        <mixed-citation publication-type="web">Blocked missing title source payload <pub-id pub-id-type="doi">10.5555/missing.4</pub-id></mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</article>
+XML, 'JATS title source diagnostics XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('safe-reference-title-source-summaries-block-citation-text-payloads', $packet['referenceTitleSourceReviewPolicy']);
+        $t->same(4, $packet['referenceCount']);
+        $t->same(3, $packet['safeReferenceTitleFieldCount']);
+        $t->same(3, $packet['safeReferenceSourceCount']);
+        $t->same(['journal', 'book', 'web'], $packet['referenceSourceTypes']);
+        $t->same([
+            ['sourceType' => 'book', 'referenceCount' => 1],
+            ['sourceType' => 'journal', 'referenceCount' => 1],
+            ['sourceType' => 'web', 'referenceCount' => 2],
+        ], $packet['referenceSourceTypeSummaries']);
+        $t->same([
+            'reference-title-source-policy',
+            'reference-citation-target-linkage',
+            'reference-titles-duplicate',
+            'reference-sources-duplicate',
+            'reference-titles-missing',
+            'reference-sources-missing',
+        ], $packet['referenceTitleSourceDiagnosticCodes']);
+        $t->same(6, $packet['referenceTitleSourceDiagnosticCount']);
+
+        $t->same('ref-a', $packet['safeReferenceTitles'][0]['id'] ?? null);
+        $t->same([[
+            'element' => 'article-title',
+            'value' => 'Shared Diagnostic Title',
+            'sourceType' => 'journal',
+            'sourceCitationElement' => 'element-citation',
+        ]], $packet['safeReferenceTitles'][0]['titleFields'] ?? null);
+        $t->same('ref-b', $packet['safeReferenceTitles'][1]['id'] ?? null);
+        $t->same([[
+            'element' => 'chapter-title',
+            'value' => 'Chapter Diagnostics',
+            'sourceType' => 'book',
+            'sourceCitationElement' => 'mixed-citation',
+        ]], $packet['safeReferenceTitles'][1]['titleFields'] ?? null);
+        $t->same([[
+            'element' => 'source',
+            'value' => 'Back Matter Manual',
+            'sourceType' => 'book',
+            'sourceCitationElement' => 'mixed-citation',
+        ]], $packet['safeReferenceSources'][1]['sourceFields'] ?? null);
+
+        $t->same('Shared Diagnostic Title', $packet['duplicateReferenceTitles'][0]['value'] ?? null);
+        $t->same(['ref-a', 'ref-c'], $packet['duplicateReferenceTitles'][0]['referenceIds'] ?? null);
+        $t->same(['article-title'], $packet['duplicateReferenceTitles'][0]['elements'] ?? null);
+        $t->same(['journal', 'web'], $packet['duplicateReferenceTitles'][0]['sourceTypes'] ?? null);
+        $t->same(1, $packet['duplicateReferenceTitleCount']);
+        $t->same('Shared Source', $packet['duplicateReferenceSources'][0]['value'] ?? null);
+        $t->same(['ref-a', 'ref-c'], $packet['duplicateReferenceSources'][0]['referenceIds'] ?? null);
+        $t->same(['source'], $packet['duplicateReferenceSources'][0]['elements'] ?? null);
+        $t->same(1, $packet['duplicateReferenceSourceCount']);
+
+        $t->same([[
+            'id' => 'ref-d',
+            'status' => 'unreferenced',
+            'inboundBibrXrefCount' => 0,
+            'citationElementNames' => ['mixed-citation'],
+        ]], $packet['referencesMissingTitles']);
+        $t->same(1, $packet['referencesMissingTitleCount']);
+        $t->same([[
+            'id' => 'ref-d',
+            'status' => 'unreferenced',
+            'inboundBibrXrefCount' => 0,
+            'citationElementNames' => ['mixed-citation'],
+        ]], $packet['referencesMissingSources']);
+        $t->same(1, $packet['referencesMissingSourceCount']);
+        $t->same([
+            'resolvedReferenceIds' => ['ref-a', 'ref-b'],
+            'resolvedBibrXrefCount' => 2,
+            'unresolvedReferenceIds' => ['ref-missing'],
+            'unresolvedBibrXrefCount' => 1,
+            'unreferencedReferenceIds' => ['ref-c', 'ref-d'],
+            'unreferencedReferenceCount' => 2,
+        ], $packet['citationTargetLinkage']);
+
+        $t->same(['Shared Diagnostic Title'], $packet['references'][0]['articleTitles'] ?? null);
+        $t->same([], $packet['references'][0]['chapterTitles'] ?? null);
+        $t->same(['Shared Source'], $packet['references'][0]['sourceTitles'] ?? null);
+        $t->same('journal', $packet['references'][0]['referenceSourceType'] ?? null);
+        $t->same([], $packet['references'][1]['articleTitles'] ?? null);
+        $t->same(['Chapter Diagnostics'], $packet['references'][1]['chapterTitles'] ?? null);
+        $t->same(['Back Matter Manual'], $packet['references'][1]['sourceTitles'] ?? null);
+        $t->same('book', $packet['references'][1]['referenceSourceType'] ?? null);
+        $t->same(0, $packet['references'][3]['titleFieldCount'] ?? null);
+        $t->same(0, $packet['references'][3]['sourceFieldCount'] ?? null);
+        $t->same('web', $packet['references'][3]['referenceSourceType'] ?? null);
+
+        $t->same(4, $packet['referenceTitleSourceDiagnostics'][0]['details']['referenceCount'] ?? null);
+        $t->same(3, $packet['referenceTitleSourceDiagnostics'][0]['details']['safeReferenceTitleFieldCount'] ?? null);
+        $t->same(3, $packet['referenceTitleSourceDiagnostics'][0]['details']['safeReferenceSourceCount'] ?? null);
+        $t->same(2, $packet['referenceTitleSourceDiagnostics'][1]['details']['resolvedBibrXrefCount'] ?? null);
+        $t->same(1, $packet['referenceTitleSourceDiagnostics'][2]['details']['duplicateReferenceTitleCount'] ?? null);
+        $t->same(1, $packet['referenceTitleSourceDiagnostics'][3]['details']['duplicateReferenceSourceCount'] ?? null);
+        $t->same(1, $packet['referenceTitleSourceDiagnostics'][4]['details']['referencesMissingTitleCount'] ?? null);
+        $t->same(1, $packet['referenceTitleSourceDiagnostics'][5]['details']['referencesMissingSourceCount'] ?? null);
+
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked chapter citation payload'), 'Expected raw chapter mixed-citation payload text to stay blocked');
+        $t->true(!str_contains($encodedPacket, 'Blocked duplicate citation payload'), 'Expected raw duplicate mixed-citation payload text to stay blocked');
+        $t->true(!str_contains($encodedPacket, 'Blocked missing title source payload'), 'Expected raw missing title/source citation payload text to stay blocked');
     },
     'diagnoses jats and bits section id label language metadata review packets' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
