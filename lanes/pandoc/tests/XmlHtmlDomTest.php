@@ -157,9 +157,10 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'references-review-only',
             'bibliography-xrefs-unresolved',
             'figures-review-only',
+            'figure-title-metadata-missing',
             'table-wraps-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(6, $packet['directReaderDiagnosticCount']);
+        $t->same(7, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
@@ -170,7 +171,14 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['unresolvedBibrXrefCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][3]['details']['unresolvedBibrXrefCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][4]['details']['figureCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['tableWrapCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['withLabelCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['withCaptionCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][4]['details']['withTitleCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][4]['details']['missingLabelCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][4]['details']['missingCaptionCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['missingTitleCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['missingTitleCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -286,8 +294,25 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'jats-bits-citation-target-missing',
         ], $packet['diagnostics']);
         $t->same(['f1'], $packet['figureIds']);
+        $t->same(1, $packet['figureCount']);
+        $t->same([
+            'total' => 1,
+            'withLabel' => 1,
+            'withCaption' => 1,
+            'withTitle' => 0,
+            'missingLabel' => 0,
+            'missingCaption' => 0,
+            'missingTitle' => 1,
+            'incomplete' => 1,
+        ], $packet['figureMetadataCounts']);
+        $t->same(['Figure 1'], $packet['figureLabels']);
+        $t->same([], $packet['figureTitles']);
+        $t->same(['Figure caption'], $packet['figureCaptionTexts']);
         $t->same('Figure 1', $packet['figures'][0]['label'] ?? null);
         $t->same('Figure caption', $packet['figures'][0]['caption'] ?? null);
+        $t->same('Figure caption', $packet['figures'][0]['captionText'] ?? null);
+        $t->same(['Figure caption'], $packet['figures'][0]['captionParagraphs'] ?? null);
+        $t->same(['title'], $packet['figures'][0]['missingMetadata'] ?? null);
         $t->same(['figures/f1.png'], $packet['figures'][0]['graphicHrefs'] ?? null);
         $t->same(1, $packet['figures'][0]['referenceCount'] ?? null);
         $t->same([], $packet['unreferencedFigureIds']);
@@ -411,6 +436,72 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(1, $bitsPacket['directReaderDiagnostics'][3]['details']['bookPartCount'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
+    },
+    'summarizes jats bits figure label caption and title metadata diagnostics' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="review">
+  <front><article-meta><title-group><article-title>Figure metadata</article-title></title-group></article-meta></front>
+  <body>
+    <fig id="complete"><label>Fig. 1</label><caption><title>Workflow</title><p>Caption body.</p></caption></fig>
+    <fig id="caption-only"><caption><p>Caption only.</p></caption></fig>
+  </body>
+</article>
+XML, 'JATS figure metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'figures-review-only',
+            'figure-label-metadata-missing',
+            'figure-title-metadata-missing',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(['complete', 'caption-only'], $packet['figureIds']);
+        $t->same(2, $packet['figureCount']);
+        $t->same([
+            'total' => 2,
+            'withLabel' => 1,
+            'withCaption' => 2,
+            'withTitle' => 1,
+            'missingLabel' => 1,
+            'missingCaption' => 0,
+            'missingTitle' => 1,
+            'incomplete' => 1,
+        ], $packet['figureMetadataCounts']);
+        $t->same(['Fig. 1'], $packet['figureLabels']);
+        $t->same(['Workflow'], $packet['figureTitles']);
+        $t->same(['Workflow Caption body.', 'Caption only.'], $packet['figureCaptionTexts']);
+        $t->same('complete', $packet['figures'][0]['id'] ?? null);
+        $t->same('Fig. 1', $packet['figures'][0]['label'] ?? null);
+        $t->same('Workflow', $packet['figures'][0]['title'] ?? null);
+        $t->same('Workflow Caption body.', $packet['figures'][0]['captionText'] ?? null);
+        $t->same(['Caption body.'], $packet['figures'][0]['captionParagraphs'] ?? null);
+        $t->same([], $packet['figures'][0]['missingMetadata'] ?? null);
+        $t->same('caption-only', $packet['figures'][1]['id'] ?? null);
+        $t->same(['label', 'title'], $packet['figures'][1]['missingMetadata'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['missingLabelCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['missingTitleCount'] ?? null);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="collection">
+  <book-meta><title-group><book-title>BITS figures</book-title></title-group></book-meta>
+  <book-body><fig id="bits-complete"><label>Figure B</label><caption><title>BITS workflow</title><p>BITS caption body.</p></caption></fig></book-body>
+</book>
+XML, 'BITS figure metadata XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'figures-review-only',
+        ], $bitsPacket['directReaderDiagnosticCodes']);
+        $t->same(['bits-complete'], $bitsPacket['figureIds']);
+        $t->same(['Figure B'], $bitsPacket['figureLabels']);
+        $t->same(['BITS workflow'], $bitsPacket['figureTitles']);
+        $t->same(['BITS workflow BITS caption body.'], $bitsPacket['figureCaptionTexts']);
+        $t->same([], $bitsPacket['figures'][0]['missingMetadata'] ?? null);
+        $t->same(0, $bitsPacket['figureMetadataCounts']['missingLabel'] ?? null);
+        json_encode([$packet, $bitsPacket], JSON_THROW_ON_ERROR);
     },
     'summarizes jats and bits inline xref citation diagnostics for reviewer handoff' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
