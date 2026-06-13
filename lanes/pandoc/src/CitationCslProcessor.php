@@ -65,6 +65,11 @@ final class CitationCslProcessor
         return self::fromItems(self::risItems($ris));
     }
 
+    public static function fromEndnoteXml(string $xml): self
+    {
+        return self::fromItems(self::endnoteXmlItems($xml));
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -115,6 +120,28 @@ final class CitationCslProcessor
         }
 
         return $records;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function endnoteXmlItems(string $xml): array
+    {
+        $document = XmlHtmlDom::loadXmlDocument($xml, 'EndNote XML', false);
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $records = $root->localName === 'record'
+            ? [$root]
+            : XmlHtmlDom::descendantElements($root, 'record');
+        $items = [];
+        foreach ($records as $index => $record) {
+            $items[] = self::endnoteRecordToItem($record, $index + 1);
+        }
+
+        return $items;
     }
 
     /**
@@ -1807,6 +1834,325 @@ final class CitationCslProcessor
         $compact = strtoupper(str_replace(['-', ' '], '', trim($value)));
 
         return preg_match('/^\d{4}\d{3}[\dX]$/', $compact) === 1 ? 'ISSN' : 'ISBN';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function endnoteRecordToItem(\DOMElement $record, int $index): array
+    {
+        $refType = self::endnoteRefType($record);
+        $electronicResource = self::endnoteFirstText($record, ['electronic-resource-num', 'doi']);
+        $url = self::endnoteFirstRelatedUrl($record);
+        $doi = preg_match('/^(?:doi:\s*)?10\.\S+/i', $electronicResource) === 1
+            ? preg_replace('/^doi:\s*/i', '', $electronicResource)
+            : '';
+        if ($url === '' && preg_match('/^https?:\/\//i', $electronicResource) === 1) {
+            $url = $electronicResource;
+        }
+
+        $item = [
+            'id' => self::endnoteRecordId($record, $index),
+            'type' => self::endnoteCslType($refType),
+            'title' => self::endnoteFirstText($record, ['title']),
+            'short-title' => self::endnoteFirstText($record, ['short-title']),
+            'container-title' => self::endnoteFirstText($record, ['secondary-title', 'full-title', 'periodical-title']),
+            'container-title-short' => self::endnoteFirstText($record, ['abbr-1', 'abbr-2', 'abbr-3']),
+            'publisher' => self::endnoteFirstText($record, ['publisher']),
+            'publisher-place' => self::endnoteFirstText($record, ['pub-location', 'place-published', 'city']),
+            'volume' => self::endnoteFirstText($record, ['volume']),
+            'issue' => self::endnoteFirstText($record, ['number', 'issue']),
+            'page' => self::endnoteFirstText($record, ['pages']),
+            'edition' => self::endnoteFirstText($record, ['edition']),
+            'section' => self::endnoteFirstText($record, ['section']),
+            'doi' => $doi,
+            'url' => $url,
+            'language' => self::endnoteFirstText($record, ['language']),
+            'abstract' => self::endnoteFirstText($record, ['abstract']),
+            'note' => self::endnoteFirstText($record, ['notes']),
+            'issued' => self::endnoteDate($record),
+            'author' => self::endnoteContributorNames($record, ['authors']),
+            'editor' => self::endnoteContributorNames($record, ['secondary-authors', 'editors']),
+            'translator' => self::endnoteContributorNames($record, ['tertiary-authors', 'translators']),
+            'keyword' => self::endnoteTextList($record, ['keyword']),
+            'sourceFileDiagnostics' => self::endnoteSourceFileDiagnostics($record),
+            'rawEndnoteXml' => [
+                'refType' => $refType,
+                'recordNumber' => self::endnoteFirstText($record, ['rec-number']),
+                'accessionNumber' => self::endnoteFirstText($record, ['accession-num']),
+                'database' => self::endnoteDatabaseName($record),
+                'unsupportedFields' => self::endnoteUnsupportedFields($record),
+            ],
+        ];
+
+        if ($doi === '' && $electronicResource !== '' && $electronicResource !== $url) {
+            $item['rawEndnoteXml']['electronicResourceNumber'] = $electronicResource;
+            $item['rawEndnoteXml']['unsupportedFields'][] = [
+                'field' => 'electronic-resource-num',
+                'value' => $electronicResource,
+                'reason' => 'endnote-electronic-resource-preserved-raw-only',
+            ];
+        }
+
+        return array_filter($item, static fn (mixed $value): bool => $value !== '' && $value !== [] && $value !== null);
+    }
+
+    private static function endnoteRecordId(\DOMElement $record, int $index): string
+    {
+        $id = self::endnoteFirstText($record, ['accession-num', 'label', 'rec-number']);
+        if ($id === '') {
+            return 'endnote-' . $index;
+        }
+
+        $id = preg_replace('/\s+/u', '-', trim($id)) ?? trim($id);
+
+        return $id === '' ? 'endnote-' . $index : $id;
+    }
+
+    private static function endnoteRefType(\DOMElement $record): string
+    {
+        $element = self::endnoteFirstElement($record, ['ref-type']);
+        if (!$element instanceof \DOMElement) {
+            return '';
+        }
+
+        $name = trim($element->getAttribute('name'));
+
+        return $name !== '' ? $name : XmlHtmlDom::normalizedText($element);
+    }
+
+    private static function endnoteCslType(string $type): string
+    {
+        $normalized = strtolower(trim($type));
+        $normalized = preg_replace('/[^a-z0-9]+/', '-', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '-');
+
+        return match ($normalized) {
+            'journal-article', 'electronic-article' => 'article-journal',
+            'magazine-article' => 'article-magazine',
+            'newspaper-article' => 'article-newspaper',
+            'book' => 'book',
+            'book-section', 'book-chapter' => 'chapter',
+            'conference-paper', 'conference-proceedings' => 'paper-conference',
+            'report' => 'report',
+            'thesis' => 'thesis',
+            'patent' => 'patent',
+            'dataset' => 'dataset',
+            'web-page', 'webpage' => 'webpage',
+            'film-or-broadcast', 'video-recording' => 'motion_picture',
+            'artwork', 'figure' => 'graphic',
+            default => 'document',
+        };
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function endnoteFirstElement(\DOMElement $record, array $localNames): ?\DOMElement
+    {
+        foreach ($localNames as $localName) {
+            foreach (XmlHtmlDom::descendantElements($record, $localName) as $element) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function endnoteFirstText(\DOMElement $record, array $localNames): string
+    {
+        foreach ($localNames as $localName) {
+            foreach (XmlHtmlDom::descendantElements($record, $localName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<string>
+     */
+    private static function endnoteTextList(\DOMElement $record, array $localNames): array
+    {
+        $values = [];
+        foreach ($localNames as $localName) {
+            foreach (XmlHtmlDom::descendantElements($record, $localName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                if ($value !== '' && !in_array($value, $values, true)) {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<string> $groupNames
+     * @return list<array<string, mixed>>
+     */
+    private static function endnoteContributorNames(\DOMElement $record, array $groupNames): array
+    {
+        $names = [];
+        foreach ($groupNames as $groupName) {
+            foreach (XmlHtmlDom::descendantElements($record, $groupName) as $group) {
+                foreach (XmlHtmlDom::childElements($group) as $child) {
+                    if (!in_array($child->localName, ['author', 'editor', 'translator'], true)) {
+                        continue;
+                    }
+
+                    $value = XmlHtmlDom::normalizedText($child);
+                    if ($value !== '') {
+                        $names[] = self::risName($value);
+                    }
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function endnoteDate(\DOMElement $record): ?array
+    {
+        $value = self::endnoteFirstText($record, ['year']);
+        if ($value === '') {
+            $value = self::endnoteFirstText($record, ['date']);
+        }
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(['.', '/'], '-', trim($value));
+        if (preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $normalized, $matches) === 1) {
+            $parts = [(int) $matches[1]];
+            if (isset($matches[2]) && $matches[2] !== '' && (int) $matches[2] > 0) {
+                $parts[] = (int) $matches[2];
+            }
+            if (isset($matches[3]) && $matches[3] !== '' && (int) $matches[3] > 0) {
+                $parts[] = (int) $matches[3];
+            }
+
+            return ['date-parts' => [$parts], 'raw' => $value];
+        }
+
+        if (preg_match('/\b(\d{4})\b/', $value, $matches) === 1) {
+            return ['date-parts' => [[(int) $matches[1]]], 'raw' => $value];
+        }
+
+        return ['literal' => $value, 'raw' => $value];
+    }
+
+    private static function endnoteFirstRelatedUrl(\DOMElement $record): string
+    {
+        foreach (self::endnoteUrlRecordsByParent($record, ['related-urls', 'web-urls']) as $entry) {
+            return $entry['url'];
+        }
+
+        foreach (self::endnoteUrlRecordsByParent($record, ['urls']) as $entry) {
+            return $entry['url'];
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<string> $parentNames
+     * @return list<array{url:string, parent:string}>
+     */
+    private static function endnoteUrlRecordsByParent(\DOMElement $record, array $parentNames): array
+    {
+        $records = [];
+        foreach (XmlHtmlDom::descendantElements($record, 'url') as $urlElement) {
+            $parent = $urlElement->parentNode;
+            if (!$parent instanceof \DOMElement || !in_array($parent->localName, $parentNames, true)) {
+                continue;
+            }
+
+            $url = XmlHtmlDom::normalizedText($urlElement);
+            if ($url !== '') {
+                $records[] = ['url' => $url, 'parent' => $parent->localName];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>
+     */
+    private static function endnoteSourceFileDiagnostics(\DOMElement $record): array
+    {
+        $diagnostics = [];
+        foreach (self::endnoteUrlRecordsByParent($record, ['pdf-urls', 'image-urls']) as $entry) {
+            $isPdf = $entry['parent'] === 'pdf-urls';
+            $diagnostics[] = [
+                'label' => $isPdf ? 'EndNote PDF URL' : 'EndNote image URL',
+                'path' => $entry['url'],
+                'mediaType' => $isPdf ? 'application/pdf' : 'image/*',
+                'reason' => 'endnote-attachment-not-imported',
+                'importable' => false,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private static function endnoteDatabaseName(\DOMElement $record): string
+    {
+        $database = self::endnoteFirstElement($record, ['database']);
+        if (!$database instanceof \DOMElement) {
+            return '';
+        }
+
+        $name = trim($database->getAttribute('name'));
+
+        return $name !== '' ? $name : XmlHtmlDom::normalizedText($database);
+    }
+
+    /**
+     * @return list<array{field:string, value:string, reason:string}>
+     */
+    private static function endnoteUnsupportedFields(\DOMElement $record): array
+    {
+        $fields = [];
+        $fieldNames = [
+            'caption',
+            'custom1',
+            'custom2',
+            'custom3',
+            'custom4',
+            'custom5',
+            'custom6',
+            'custom7',
+            'custom8',
+            'remote-database-name',
+            'research-notes',
+        ];
+        foreach ($fieldNames as $fieldName) {
+            foreach (XmlHtmlDom::descendantElements($record, $fieldName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                if ($value !== '') {
+                    $fields[] = [
+                        'field' => $fieldName,
+                        'value' => $value,
+                        'reason' => 'endnote-field-preserved-raw-only',
+                    ];
+                }
+            }
+        }
+
+        return $fields;
     }
 
     /**
