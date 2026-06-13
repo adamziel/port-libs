@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,311 pass / 0 fail | [3,271 / 2,276 (143.7%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Typst reader parity after package dependency conflict policy | typst-package-dependency-conflict-policy-d099006810 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,312 pass / 0 fail | [3,272 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue inline math/code attr closure after Markdown math-attribute handoff | markdown-math-attrs-3a4bf7596e |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -32,7 +32,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 
 | Input family | In-scope input tokens | Current input status | Local passing | Upstream denominator | Remaining input work |
 | --- | --- | --- | ---: | ---: | --- |
-| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 443 | 1,096 | Nested-list fixture round-trip is covered; complete extension and variant parity. |
+| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 444 | 1,096 | Nested-list fixture round-trip and Markdown math attrs are covered; complete extension and variant parity. |
 | HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 275 | 29 | JATS/BITS front-matter review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS readers. |
 | JSON/native AST | `json`, `native` | partial | 48 | 252 | Note label sidecars and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `d099006810`: 3,311 PHP passes, 0 failures, and 3,271 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74226` assertions, `0` failures).
+Current-main counters are reconciled through `3a4bf7596e`: 3,311 PHP passes, 0 failures, and 3,271 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74226` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -70,6 +70,14 @@ Current-main counters are reconciled through `d099006810`: 3,311 PHP passes, 0 f
 | Notes/references | Landed footnote label anchors and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/citation and JSON/native evidence; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, backlinks, and constructor parity. |
 | Table geometry | Landed LaTeX table-foot longtable handoff | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot slice | Body-local headers, multi-body semantics, rowspan output, and package-specific table internals. |
 | PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+
+### Markdown Math Attribute Round-Trip Update (2026-06-13)
+
+Bounded native PHP inline attribute handoff advanced by one Markdown reader/writer slice. `MarkdownReader` now attaches immediate `{#id .class key="value"}` attribute tuples to inline and display `math` nodes, and `MarkdownWriter` emits those tuples so math ids, classes, and key-value attrs survive Markdown read/write/read round trips alongside existing Code/Span attr output.
+
+Verification passed `php -l` for `MarkdownReader.php`, `MarkdownWriter.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderTest.php` passed (`1` file, `6645` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74245` assertions, `0` failures). No Pandoc, TeX engine, browser renderer, Node tooling, online service, live provider, or external validator was invoked.
+
+Remaining inline gaps: pending `plib-xc5vm` covers WordPress semantic/math safe attrs and LaTeX inline id anchors; still open are cite/wbr/bdo preservation and broader writer consistency across Native/Markdown/HTML/LaTeX/WordPress.
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 

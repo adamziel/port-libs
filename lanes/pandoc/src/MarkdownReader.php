@@ -15415,6 +15415,14 @@ final class MarkdownReader
 
             $math = $this->tryParseMath($text, $offset);
             if ($math !== null) {
+                $attribute = $this->tryParseInlineAttributeSpec($text, $math['next']);
+                if ($attribute !== null) {
+                    $math['node'] = new AstNode(
+                        'math',
+                        array_replace($math['node']->attrs, $attribute['attrs'])
+                    );
+                    $math['next'] = $attribute['next'];
+                }
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $math['node'];
                 $offset = $math['next'];

@@ -10128,6 +10128,38 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'round trips markdown math inline attributes' => static function (TestRunner $t): void {
+        $markdown = 'Inline $E = mc^2${#einstein .physics data-source="manual"} and display $$x + y$${.review-math key="value"}.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $inlineMath = $paragraph->children[1] ?? new AstNode('missing');
+        $displayMath = $paragraph->children[3] ?? new AstNode('missing');
+
+        $t->same('math', $inlineMath->type);
+        $t->same('einstein', $inlineMath->attr('id'));
+        $t->same(['physics'], $inlineMath->attr('classes'));
+        $t->same(['data-source' => 'manual'], $inlineMath->attr('attributes'));
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same('E = mc^2', $inlineMath->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same(['review-math'], $displayMath->attr('classes'));
+        $t->same(['key' => 'value'], $displayMath->attr('attributes'));
+        $t->same(true, $displayMath->attr('display'));
+        $t->same('x + y', $displayMath->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+
+        $roundTripped = (new MarkdownReader())->read((new MarkdownWriter())->write($document));
+        $roundTripInlineMath = $roundTripped->children[0]->children[1] ?? new AstNode('missing');
+        $roundTripDisplayMath = $roundTripped->children[0]->children[3] ?? new AstNode('missing');
+
+        $t->same('math', $roundTripInlineMath->type);
+        $t->same('einstein', $roundTripInlineMath->attr('id'));
+        $t->same(['physics'], $roundTripInlineMath->attr('classes'));
+        $t->same(['data-source' => 'manual'], $roundTripInlineMath->attr('attributes'));
+        $t->same('math', $roundTripDisplayMath->type);
+        $t->same(['review-math'], $roundTripDisplayMath->attr('classes'));
+        $t->same(['key' => 'value'], $roundTripDisplayMath->attr('attributes'));
+    },
     'maps upstream markdown writer raw block emission' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

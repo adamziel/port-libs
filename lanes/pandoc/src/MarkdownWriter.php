@@ -2077,10 +2077,10 @@ final class MarkdownWriter
     {
         $text = (string) $node->attr('text', '');
         if ($node->attr('display') === true) {
-            return '$$' . $text . '$$';
+            return '$$' . $text . '$$' . $this->renderLinkAttributes($node);
         }
 
-        return '$' . $text . '$';
+        return '$' . $text . '$' . $this->renderLinkAttributes($node);
     }
 
     private function softBreakMarkdown(): string
