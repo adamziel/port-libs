@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3259,
-        "latestSlice": "pandoc-json-native-table-caption-block-writers maps one JSON/native table caption writer slice after Markdown/WordPress raw HTML boundary preservation. MarkdownWriter now renders shared table captionBlocks and shortCaptionBlocks/shortCaptionInlines into pipe-table captions instead of falling back to plain caption text, LatexWriter now emits short captions as optional caption arguments for figures and longtables, and TableGeometry writer diagnostics no longer report a LaTeX short-caption optional-argument gap. phpPass moves 3298 -> 3299, phpFail remains 0, mappedJsonNativeTableCaptionBlockWriterCases is 1, and jsonNativeTableCaptionBlockWriterAssertions is 4. Verification passed php -l for MarkdownWriter.php, LatexWriter.php, TableGeometry.php, NativeReaderTest.php, and TableGeometryTest.php; focused NativeReaderTest.php, LatexWriterTest.php, and TableGeometryTest.php (3 files, 2265 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 74019 assertions, 0 failures) after final rebase onto current main 78237badde.",
+        "mapped": 3260,
+        "latestSlice": "pandoc-json-native-task-list-sidecars maps one JSON/native AST list-semantics coverage slice for task-list checkbox preservation. PandocJsonWriter and NativeWriter now attach taskChecked sidecars to generated list-item block payloads, while PandocJsonReader and NativeReader restore taskChecked/taskList metadata so Markdown, WordPress, and LaTeX writer handoffs preserve unchecked, checked, and nested task items after JSON/native round trips, without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3299 -> 3300, phpFail remains 0, mappedJsonNativeTaskListSidecarCases is 1, and jsonNativeTaskListSidecarAssertions is 28. Verification passed php -l for PandocJsonReader.php, NativeReader.php, PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1996 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 74047 assertions, 0 failures) after final rebase onto current main 5cd9038b4c.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "JSON/native table caption writer handoff is covered for formatted long caption blocks and short-caption metadata through Markdown and LaTeX writers; broader JSON/native and table parity remains partial.",
-        "latestFocusedSource": "2026-06-12 JSON/native table caption writer slice inspected shared AST captionBlocks, shortCaptionBlocks, and shortCaptionInlines against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 78237badde; focused NativeReaderTest.php, LatexWriterTest.php, and TableGeometryTest.php passed 3 files, 2265 assertions, 0 failures; full lanes/pandoc/tests passed 44 files, 74019 assertions, 0 failures.",
+        "status": "JSON/native AST task-list checkbox sidecar preservation is verified over current main 5cd9038b4c; JSON/native remains partial/not shippable.",
+        "latestFocusedSource": "2026-06-13 JSON/native AST slice inspected task-list checkbox sidecar preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 5cd9038b4c; focused PandocJsonNativeAstTest.php passed 1 file, 1996 assertions, 0 failures, and full lanes/pandoc/tests passed 44 files, 74047 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -143,7 +143,9 @@
         "mappedMarkdownWordpressRawHtmlBoundaryCases": 1,
         "markdownWordpressRawHtmlBoundaryAssertions": 8,
         "mappedJsonNativeTableCaptionBlockWriterCases": 1,
-        "jsonNativeTableCaptionBlockWriterAssertions": 4
+        "jsonNativeTableCaptionBlockWriterAssertions": 4,
+        "mappedJsonNativeTaskListSidecarCases": 1,
+        "jsonNativeTaskListSidecarAssertions": 28
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1021,14 +1023,16 @@
         "mappedMarkdownWordpressRawHtmlBoundaryCases": 1,
         "markdownWordpressRawHtmlBoundaryAssertions": 8,
         "mappedJsonNativeTableCaptionBlockWriterCases": 1,
-        "jsonNativeTableCaptionBlockWriterAssertions": 4
+        "jsonNativeTableCaptionBlockWriterAssertions": 4,
+        "mappedJsonNativeTaskListSidecarCases": 1,
+        "jsonNativeTaskListSidecarAssertions": 28
     },
-    "wordpressScenario": "Shared AST table captions now retain formatted long caption blocks and short-caption metadata across Markdown, LaTeX, native JSON/native writer, and WordPress review handoff paths without invoking Pandoc, TeX, browser renderers, office suites, Node tooling, online services, live provider tests, or external validators.",
+    "wordpressScenario": "JSON/native AST handoff now preserves task-list checkbox metadata through generated list-item sidecars so downstream Markdown, WordPress, and LaTeX handoffs keep unchecked, checked, and nested task items after JSON/native round trips without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Continue JSON/native AST constructor parity with broader upstream native/json fixture coverage and remaining table/citation/metadata round-trip edges while keeping phpFail at zero.",
-    "status": "JSON/native AST target tuple sidecar preservation is verified in focused and full native PHP coverage over current main b30fb70127 without external JSON/native tools.",
-    "mapping": "Accounts for one bounded native PHP JSON/native table caption writer mapping on current main 78237badde while preserving prior raw/HTML, PDF/Typst, plain-writer, JSON/native, RIS, XML/HTML/JATS, and EPUB counters.",
-    "audit": "updated 2026-06-12: PandocJsonReader, NativeReader, PandocJsonWriter, and NativeWriter preserve compatible Link/Image target tuple sidecars while regenerating bare tuples after URL/title edits. Verified after rebase onto current main b30fb70127 with php -l lanes/pandoc/src/PandocJsonReader.php, php -l lanes/pandoc/src/NativeReader.php, php -l lanes/pandoc/src/PandocJsonWriter.php, php -l lanes/pandoc/src/NativeWriter.php, php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php (1 test file, 1968 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73988 assertions, 0 failures).",
-    "latestSlice": "pandoc-json-native-table-caption-block-writers maps one JSON/native table caption writer slice after Markdown/WordPress raw HTML boundary preservation. MarkdownWriter now renders shared table captionBlocks and shortCaptionBlocks/shortCaptionInlines into pipe-table captions instead of falling back to plain caption text, LatexWriter now emits short captions as optional caption arguments for figures and longtables, and TableGeometry writer diagnostics no longer report a LaTeX short-caption optional-argument gap. phpPass moves 3298 -> 3299, phpFail remains 0, mappedJsonNativeTableCaptionBlockWriterCases is 1, and jsonNativeTableCaptionBlockWriterAssertions is 4. Verification passed php -l for MarkdownWriter.php, LatexWriter.php, TableGeometry.php, NativeReaderTest.php, and TableGeometryTest.php; focused NativeReaderTest.php, LatexWriterTest.php, and TableGeometryTest.php (3 files, 2265 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 74019 assertions, 0 failures) after final rebase onto current main 78237badde.",
+    "status": "JSON/native AST task-list checkbox sidecar preservation is verified in focused and full native PHP coverage over current main 5cd9038b4c without external JSON/native tools.",
+    "mapping": "Accounts for one bounded native PHP JSON/native AST task-list checkbox sidecar mapping on current main 5cd9038b4c while preserving prior table-caption, Markdown/raw HTML, PDF/Typst, plain-writer, target tuple, RIS, EPUB, and XML/HTML5/JATS counters.",
+    "audit": "updated 2026-06-13: PandocJsonWriter and NativeWriter attach taskChecked sidecars to generated list-item block payloads, while PandocJsonReader and NativeReader restore taskChecked/taskList metadata for downstream Markdown, WordPress, and LaTeX handoffs. Verified after rebase onto current main 5cd9038b4c with php -l lanes/pandoc/src/PandocJsonReader.php, php -l lanes/pandoc/src/NativeReader.php, php -l lanes/pandoc/src/PandocJsonWriter.php, php -l lanes/pandoc/src/NativeWriter.php, php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php (1 test file, 1996 assertions, 0 failures), and php tools/run-tests.php lanes/pandoc/tests (44 test files, 74047 assertions, 0 failures).",
+    "latestSlice": "pandoc-json-native-task-list-sidecars maps one JSON/native AST list-semantics coverage slice for task-list checkbox preservation. PandocJsonWriter and NativeWriter now attach taskChecked sidecars to generated list-item block payloads, while PandocJsonReader and NativeReader restore taskChecked/taskList metadata so Markdown, WordPress, and LaTeX writer handoffs preserve unchecked, checked, and nested task items after JSON/native round trips, without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3299 -> 3300, phpFail remains 0, mappedJsonNativeTaskListSidecarCases is 1, and jsonNativeTaskListSidecarAssertions is 28. Verification passed php -l for PandocJsonReader.php, NativeReader.php, PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 file, 1996 assertions, 0 failures); and full lanes/pandoc/tests (44 files, 74047 assertions, 0 failures) after final rebase onto current main 5cd9038b4c.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1170,7 +1174,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-12 JSON/native table caption writer slice inspected shared AST captionBlocks, shortCaptionBlocks, and shortCaptionInlines against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 78237badde; focused NativeReaderTest.php, LatexWriterTest.php, and TableGeometryTest.php passed 3 files, 2265 assertions, 0 failures; full lanes/pandoc/tests passed 44 files, 74019 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 JSON/native AST slice inspected task-list checkbox sidecar preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 5cd9038b4c; focused PandocJsonNativeAstTest.php passed 1 file, 1996 assertions, 0 failures, and full lanes/pandoc/tests passed 44 files, 74047 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1362,5 +1366,7 @@
     "mappedMarkdownWordpressRawHtmlBoundaryCases": 1,
     "markdownWordpressRawHtmlBoundaryAssertions": 8,
     "mappedJsonNativeTableCaptionBlockWriterCases": 1,
-    "jsonNativeTableCaptionBlockWriterAssertions": 4
+    "jsonNativeTableCaptionBlockWriterAssertions": 4,
+    "mappedJsonNativeTaskListSidecarCases": 1,
+    "jsonNativeTaskListSidecarAssertions": 28
 }

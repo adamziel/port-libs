@@ -869,11 +869,31 @@ final class NativeWriter
             if (!$item instanceof AstNode || $item->type !== 'list_item') {
                 continue;
             }
-            $blocks = $this->childrenAsBlocks($item);
+            $blocks = $this->withTaskListSidecar($this->childrenAsBlocks($item), $item);
             $encoded[] = $this->reusableBlockListPayload($item->attr('listItemNative'), $blocks) ?? $blocks;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @return list<array<string, mixed>>
+     */
+    private function withTaskListSidecar(array $blocks, AstNode $item): array
+    {
+        $taskChecked = $item->attr('taskChecked', null);
+        if (!is_bool($taskChecked)) {
+            return $blocks;
+        }
+
+        if ($blocks === []) {
+            $blocks[] = ['t' => 'Plain', 'c' => []];
+        }
+
+        $blocks[0]['taskChecked'] = $taskChecked;
+
+        return $blocks;
     }
 
     /**

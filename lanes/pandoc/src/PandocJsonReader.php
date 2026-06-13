@@ -645,7 +645,10 @@ final class PandocJsonReader
 
     private function readBulletList(mixed $content): AstNode
     {
-        return new AstNode('bullet_list', [], $this->readListItems($this->listContent($content, 'BulletList')));
+        $items = $this->readListItems($this->listContent($content, 'BulletList'));
+        $attrs = $this->allListItemsAreTasks($items) ? ['taskList' => true] : [];
+
+        return new AstNode('bullet_list', $attrs, $items);
     }
 
     /**
@@ -654,14 +657,51 @@ final class PandocJsonReader
      */
     private function readListItems(array $items): array
     {
-        return array_map(
-            fn (mixed $item): AstNode => new AstNode(
+        return array_map(function (mixed $item): AstNode {
+            $attrs = ['listItemNative' => $item];
+            $taskChecked = $this->listItemTaskChecked($item);
+            if ($taskChecked !== null) {
+                $attrs['taskChecked'] = $taskChecked;
+            }
+
+            return new AstNode(
                 'list_item',
-                ['listItemNative' => $item],
+                $attrs,
                 $this->readBlocks($this->listContent($item, 'list item'))
-            ),
-            $items
-        );
+            );
+        }, $items);
+    }
+
+    private function listItemTaskChecked(mixed $item): ?bool
+    {
+        if (!is_array($item) || !array_is_list($item) || $item === []) {
+            return null;
+        }
+
+        $firstBlock = $item[0];
+        if (!is_array($firstBlock) || array_is_list($firstBlock) || !array_key_exists('taskChecked', $firstBlock)) {
+            return null;
+        }
+
+        return is_bool($firstBlock['taskChecked']) ? $firstBlock['taskChecked'] : null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function allListItemsAreTasks(array $children): bool
+    {
+        if ($children === []) {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'list_item' || !is_bool($child->attr('taskChecked', null))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function readDefinitionList(mixed $content): AstNode
