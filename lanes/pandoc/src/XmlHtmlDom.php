@@ -1320,6 +1320,11 @@ final class XmlHtmlDom
             (int) $referenceBackMatter['safeReferenceAuthorCount'],
             (int) $referenceBackMatter['safeReferenceDateCount'],
             (int) $referenceBackMatter['safeReferenceYearCount'],
+            (int) $referenceBackMatter['referenceIdentifierCount'],
+            (int) $referenceBackMatter['referenceIdentifierSourceSummaryCount'],
+            (int) $referenceBackMatter['resolvedBibrIdentifierTargetCount'],
+            (int) $referenceBackMatter['duplicateReferenceIdentifierCount'],
+            (int) $referenceBackMatter['referencesMissingIdentifierCount'],
             (int) $referenceBackMatter['blockedCitationTextPayloadCount'],
             count($sectionMetadataDiagnostics)
         );
@@ -1423,6 +1428,18 @@ final class XmlHtmlDom
             'safeReferenceDateCount' => $referenceBackMatter['safeReferenceDateCount'],
             'safeReferenceYears' => $referenceBackMatter['safeReferenceYears'],
             'safeReferenceYearCount' => $referenceBackMatter['safeReferenceYearCount'],
+            'referenceIdentifierReviewPolicy' => 'safe-reference-identifier-provenance-only-block-citation-text-payloads',
+            'referenceIdentifiers' => $referenceBackMatter['referenceIdentifiers'],
+            'referenceIdentifierCount' => $referenceBackMatter['referenceIdentifierCount'],
+            'referenceIdentifierTypes' => $referenceBackMatter['referenceIdentifierTypes'],
+            'referenceIdentifierSourceSummaries' => $referenceBackMatter['referenceIdentifierSourceSummaries'],
+            'referenceIdentifierSourceSummaryCount' => $referenceBackMatter['referenceIdentifierSourceSummaryCount'],
+            'resolvedBibrIdentifierTargets' => $referenceBackMatter['resolvedBibrIdentifierTargets'],
+            'resolvedBibrIdentifierTargetCount' => $referenceBackMatter['resolvedBibrIdentifierTargetCount'],
+            'duplicateReferenceIdentifiers' => $referenceBackMatter['duplicateReferenceIdentifiers'],
+            'duplicateReferenceIdentifierCount' => $referenceBackMatter['duplicateReferenceIdentifierCount'],
+            'referencesMissingIdentifiers' => $referenceBackMatter['referencesMissingIdentifiers'],
+            'referencesMissingIdentifierCount' => $referenceBackMatter['referencesMissingIdentifierCount'],
             'blockedCitationTextPayloadCount' => $referenceBackMatter['blockedCitationTextPayloadCount'],
             'blockedCitationTextPayloadElementNames' => $referenceBackMatter['blockedCitationTextPayloadElementNames'],
             'bibliographyXrefs' => $referenceBackMatter['bibliographyXrefs'],
@@ -1536,6 +1553,11 @@ final class XmlHtmlDom
         int $safeReferenceAuthorCount,
         int $safeReferenceDateCount,
         int $safeReferenceYearCount,
+        int $referenceIdentifierCount,
+        int $referenceIdentifierSourceSummaryCount,
+        int $resolvedBibrIdentifierTargetCount,
+        int $duplicateReferenceIdentifierCount,
+        int $referencesMissingIdentifierCount,
         int $blockedCitationTextPayloadCount,
         int $sectionMetadataDiagnosticCount
     ): array {
@@ -1600,6 +1622,11 @@ final class XmlHtmlDom
                     'safeReferenceAuthorCount' => $safeReferenceAuthorCount,
                     'safeReferenceDateCount' => $safeReferenceDateCount,
                     'safeReferenceYearCount' => $safeReferenceYearCount,
+                    'referenceIdentifierCount' => $referenceIdentifierCount,
+                    'referenceIdentifierSourceSummaryCount' => $referenceIdentifierSourceSummaryCount,
+                    'resolvedBibrIdentifierTargetCount' => $resolvedBibrIdentifierTargetCount,
+                    'duplicateReferenceIdentifierCount' => $duplicateReferenceIdentifierCount,
+                    'referencesMissingIdentifierCount' => $referencesMissingIdentifierCount,
                     'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
                 ]
             );
@@ -1631,6 +1658,52 @@ final class XmlHtmlDom
                     'safeReferenceDateCount' => $safeReferenceDateCount,
                     'safeReferenceYearCount' => $safeReferenceYearCount,
                     'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+                ]
+            );
+        }
+
+        if ($referenceIdentifierCount > 0 || $referencesMissingIdentifierCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-identifier-policy',
+                'warning',
+                'Reference identifiers are exposed as bounded DOI/PMID/PMCID/ISBN/URI provenance summaries while citation text payloads stay blocked.',
+                false,
+                true,
+                [
+                    'referenceIdentifierCount' => $referenceIdentifierCount,
+                    'referenceIdentifierSourceSummaryCount' => $referenceIdentifierSourceSummaryCount,
+                    'resolvedBibrIdentifierTargetCount' => $resolvedBibrIdentifierTargetCount,
+                    'duplicateReferenceIdentifierCount' => $duplicateReferenceIdentifierCount,
+                    'referencesMissingIdentifierCount' => $referencesMissingIdentifierCount,
+                    'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+                ]
+            );
+        }
+
+        if ($duplicateReferenceIdentifierCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-identifiers-duplicate',
+                'warning',
+                'Duplicate reference identifiers were found across back-matter references.',
+                false,
+                true,
+                [
+                    'duplicateReferenceIdentifierCount' => $duplicateReferenceIdentifierCount,
+                    'referenceIdentifierCount' => $referenceIdentifierCount,
+                ]
+            );
+        }
+
+        if ($referencesMissingIdentifierCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-identifiers-missing',
+                'warning',
+                'Some back-matter references do not expose DOI/PMID/PMCID/ISBN/URI identifiers.',
+                false,
+                true,
+                [
+                    'referencesMissingIdentifierCount' => $referencesMissingIdentifierCount,
+                    'referenceCount' => $referenceCount,
                 ]
             );
         }
@@ -3870,6 +3943,12 @@ final class XmlHtmlDom
         $safeReferenceAuthors = [];
         $safeReferenceDates = [];
         $safeReferenceYears = [];
+        $referenceIdentifiers = [];
+        $referenceIdentifierSourceCounts = [];
+        $referenceIdentifierTypes = [];
+        $referenceIdentifierBuckets = [];
+        $referenceIdentifierLookup = [];
+        $referencesMissingIdentifiers = [];
         $blockedCitationTextPayloadCount = 0;
         $blockedCitationTextPayloadElementNames = [];
         foreach ($referenceElements as $reference) {
@@ -3907,6 +3986,54 @@ final class XmlHtmlDom
                     'years' => $years,
                 ];
             }
+            $identifiers = $summary['identifiers'] ?? [];
+            if (is_array($identifiers) && $identifiers !== []) {
+                $contextIdentifiers = [];
+                foreach ($identifiers as $identifier) {
+                    if (!is_array($identifier)) {
+                        continue;
+                    }
+
+                    $contextIdentifier = [
+                        'id' => $summary['id'] ?? null,
+                        'status' => $summary['status'] ?? null,
+                        'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                        ...$identifier,
+                    ];
+                    $contextIdentifiers[] = $contextIdentifier;
+                    $referenceIdentifiers[] = $contextIdentifier;
+
+                    $type = (string) ($identifier['type'] ?? '');
+                    $normalizedValue = (string) ($identifier['normalizedValue'] ?? '');
+                    if ($type !== '') {
+                        $referenceIdentifierTypes[] = $type;
+                    }
+                    if ($type !== '' && $normalizedValue !== '') {
+                        $bucketKey = $type . "\0" . $normalizedValue;
+                        $referenceIdentifierBuckets[$bucketKey][] = $contextIdentifier;
+                    }
+
+                    $sourceKey = implode("\0", [
+                        (string) ($identifier['sourceElement'] ?? ''),
+                        (string) ($identifier['sourceAttribute'] ?? ''),
+                        (string) ($identifier['sourceType'] ?? ''),
+                        $type,
+                    ]);
+                    $referenceIdentifierSourceCounts[$sourceKey] = ($referenceIdentifierSourceCounts[$sourceKey] ?? 0) + 1;
+                }
+
+                $referenceId = $summary['id'] ?? null;
+                if (is_string($referenceId) && $referenceId !== '') {
+                    $referenceIdentifierLookup[$referenceId] = $contextIdentifiers;
+                }
+            } elseif (($summary['citationElementNames'] ?? []) !== []) {
+                $referencesMissingIdentifiers[] = [
+                    'id' => $summary['id'] ?? null,
+                    'status' => $summary['status'] ?? null,
+                    'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                    'citationElementNames' => $summary['citationElementNames'] ?? [],
+                ];
+            }
             $blockedCitationTextPayloadCount += (int) ($summary['blockedCitationTextPayloadCount'] ?? 0);
             foreach (($summary['citationElementNames'] ?? []) as $elementName) {
                 if (is_string($elementName) && $elementName !== '') {
@@ -3915,6 +4042,34 @@ final class XmlHtmlDom
             }
             $references[] = $summary;
         }
+
+        $resolvedBibrIdentifierTargets = [];
+        foreach ($bibliographyXrefs as $index => $xref) {
+            $targetId = (string) ($xref['targetId'] ?? '');
+            $targetIdentifiers = (bool) ($xref['resolved'] ?? false) && $targetId !== ''
+                ? ($referenceIdentifierLookup[$targetId] ?? [])
+                : [];
+            $targetIdentifierTypes = self::jatsUniqueNonEmptyStrings(array_filter(
+                array_map(static fn (array $identifier): ?string => $identifier['type'] ?? null, $targetIdentifiers),
+                static fn (?string $type): bool => $type !== null && $type !== ''
+            ));
+
+            $bibliographyXrefs[$index]['targetIdentifiers'] = $targetIdentifiers;
+            $bibliographyXrefs[$index]['targetIdentifierCount'] = count($targetIdentifiers);
+            $bibliographyXrefs[$index]['targetIdentifierTypes'] = $targetIdentifierTypes;
+
+            if ($targetIdentifiers !== []) {
+                $resolvedBibrIdentifierTargets[] = [
+                    'targetId' => $targetId,
+                    'targetIdentifierCount' => count($targetIdentifiers),
+                    'targetIdentifierTypes' => $targetIdentifierTypes,
+                    'targetIdentifiers' => $targetIdentifiers,
+                ];
+            }
+        }
+
+        $duplicateReferenceIdentifiers = self::jatsDuplicateReferenceIdentifiers($referenceIdentifierBuckets);
+        $referenceIdentifierSourceSummaries = self::jatsReferenceIdentifierSourceSummaries($referenceIdentifierSourceCounts);
 
         return [
             'refLists' => $refLists,
@@ -3939,6 +4094,17 @@ final class XmlHtmlDom
                 static fn (array $summary): int => count($summary['years'] ?? []),
                 $safeReferenceYears
             )),
+            'referenceIdentifiers' => $referenceIdentifiers,
+            'referenceIdentifierCount' => count($referenceIdentifiers),
+            'referenceIdentifierTypes' => self::jatsUniqueNonEmptyStrings($referenceIdentifierTypes),
+            'referenceIdentifierSourceSummaries' => $referenceIdentifierSourceSummaries,
+            'referenceIdentifierSourceSummaryCount' => count($referenceIdentifierSourceSummaries),
+            'resolvedBibrIdentifierTargets' => $resolvedBibrIdentifierTargets,
+            'resolvedBibrIdentifierTargetCount' => count($resolvedBibrIdentifierTargets),
+            'duplicateReferenceIdentifiers' => $duplicateReferenceIdentifiers,
+            'duplicateReferenceIdentifierCount' => count($duplicateReferenceIdentifiers),
+            'referencesMissingIdentifiers' => $referencesMissingIdentifiers,
+            'referencesMissingIdentifierCount' => count($referencesMissingIdentifiers),
             'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
             'blockedCitationTextPayloadElementNames' => array_values(array_unique($blockedCitationTextPayloadElementNames)),
             'bibliographyXrefs' => $bibliographyXrefs,
@@ -3992,6 +4158,7 @@ final class XmlHtmlDom
         $authors = self::jatsReferenceAuthorSummaries($reference);
         $dates = self::jatsReferenceDateSummaries($reference);
         $years = self::jatsReferenceYears($reference);
+        $identifiers = self::jatsReferenceIdentifierSummaries($reference);
         $text = self::normalizedText($reference);
 
         return [
@@ -4020,6 +4187,12 @@ final class XmlHtmlDom
                 $authors
             )),
             'authorCount' => count($authors),
+            'identifiers' => $identifiers,
+            'identifierCount' => count($identifiers),
+            'identifierTypes' => self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $identifier): string => (string) $identifier['type'],
+                $identifiers
+            )),
             'personGroupTypes' => self::jatsUniqueNonEmptyStrings($personGroupTypes),
             'nameCount' => count(self::descendantElements($reference, 'name')),
             'collabCount' => count(self::descendantElements($reference, 'collab')),
@@ -4029,6 +4202,210 @@ final class XmlHtmlDom
             'textLength' => strlen($text),
             'textSha256' => hash('sha256', $text),
         ];
+    }
+
+    /**
+     * @return list<array{type:string, value:string, normalizedValue:string, sourceElement:string, sourceAttribute:?string, sourceType:?string, sourceCitationElement:?string}>
+     */
+    private static function jatsReferenceIdentifierSummaries(\DOMElement $reference): array
+    {
+        $identifiers = [];
+        foreach (self::descendantElements($reference) as $element) {
+            if (!in_array($element->localName, ['pub-id', 'isbn', 'uri', 'ext-link'], true)) {
+                continue;
+            }
+
+            $sourceType = self::jatsReferenceIdentifierSourceType($element);
+            $sourceAttribute = null;
+            $value = self::normalizedText($element);
+            if (in_array($element->localName, ['uri', 'ext-link'], true)) {
+                $xlinkHref = self::attribute($element, 'href', 'http://www.w3.org/1999/xlink');
+                $plainHref = self::jatsTrimmedAttribute($element, 'href');
+                if ($xlinkHref !== null && trim($xlinkHref) !== '') {
+                    $value = trim($xlinkHref);
+                    $sourceAttribute = 'xlink:href';
+                } elseif ($plainHref !== null) {
+                    $value = $plainHref;
+                    $sourceAttribute = 'href';
+                }
+            }
+
+            $value = trim($value);
+            if ($value === '') {
+                continue;
+            }
+
+            $type = self::jatsReferenceIdentifierType($element->localName, $sourceType, $sourceAttribute);
+            if ($type === null) {
+                continue;
+            }
+
+            self::appendUniqueJatsReferenceIdentifier($identifiers, [
+                'type' => $type,
+                'value' => $value,
+                'normalizedValue' => self::jatsReferenceIdentifierNormalizedValue($type, $value),
+                'sourceElement' => $element->localName,
+                'sourceAttribute' => $sourceAttribute,
+                'sourceType' => $sourceType,
+                'sourceCitationElement' => self::jatsNearestAncestorElementName($element, [
+                    'element-citation',
+                    'mixed-citation',
+                    'nlm-citation',
+                ]),
+            ]);
+        }
+
+        return $identifiers;
+    }
+
+    private static function jatsReferenceIdentifierSourceType(\DOMElement $element): ?string
+    {
+        foreach (['pub-id-type', 'ext-link-type', 'content-type', 'specific-use'] as $attribute) {
+            $value = self::jatsTrimmedAttribute($element, $attribute);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsReferenceIdentifierType(string $sourceElement, ?string $sourceType, ?string $sourceAttribute): ?string
+    {
+        if ($sourceElement === 'isbn') {
+            return 'isbn';
+        }
+        if ($sourceElement === 'uri') {
+            return 'uri';
+        }
+        if ($sourceElement === 'ext-link' && $sourceAttribute !== null && $sourceType === null) {
+            return 'uri';
+        }
+
+        $type = strtolower(trim((string) $sourceType));
+        $type = str_replace(['_', ' '], '-', $type);
+
+        return match ($type) {
+            'doi' => 'doi',
+            'pmid', 'pubmed', 'pubmed-id' => 'pmid',
+            'pmcid', 'pmc', 'pmc-id' => 'pmcid',
+            'isbn', 'isbn-10', 'isbn-13' => 'isbn',
+            'uri', 'url', 'href', 'link', 'web', 'web-url' => 'uri',
+            default => null,
+        };
+    }
+
+    private static function jatsReferenceIdentifierNormalizedValue(string $type, string $value): string
+    {
+        $normalized = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $value) ?? $value);
+
+        return match ($type) {
+            'doi' => strtolower((string) preg_replace(
+                '~\A(?:doi:\s*|https?://(?:dx\.)?doi\.org/)~i',
+                '',
+                $normalized
+            )),
+            'pmid' => preg_replace('/\D+/', '', $normalized) ?? $normalized,
+            'pmcid' => strtoupper((string) preg_replace('/\s+/', '', $normalized)),
+            'isbn' => strtoupper((string) preg_replace('/[\s-]+/', '', $normalized)),
+            default => $normalized,
+        };
+    }
+
+    /**
+     * @param list<array{type:string, value:string, normalizedValue:string, sourceElement:string, sourceAttribute:?string, sourceType:?string, sourceCitationElement:?string}> $identifiers
+     * @param array{type:string, value:string, normalizedValue:string, sourceElement:string, sourceAttribute:?string, sourceType:?string, sourceCitationElement:?string} $identifier
+     */
+    private static function appendUniqueJatsReferenceIdentifier(array &$identifiers, array $identifier): void
+    {
+        foreach ($identifiers as $existing) {
+            if (
+                $existing['type'] === $identifier['type']
+                && $existing['normalizedValue'] === $identifier['normalizedValue']
+                && $existing['sourceElement'] === $identifier['sourceElement']
+                && $existing['sourceAttribute'] === $identifier['sourceAttribute']
+                && $existing['sourceCitationElement'] === $identifier['sourceCitationElement']
+            ) {
+                return;
+            }
+        }
+
+        $identifiers[] = $identifier;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $buckets
+     * @return list<array{type:string, value:string, normalizedValue:string, referenceIds:list<string>, referenceCount:int, sourceCount:int}>
+     */
+    private static function jatsDuplicateReferenceIdentifiers(array $buckets): array
+    {
+        $duplicates = [];
+        ksort($buckets);
+        foreach ($buckets as $identifiers) {
+            if (count($identifiers) < 2) {
+                continue;
+            }
+
+            $first = $identifiers[0];
+            $referenceIds = [];
+            foreach ($identifiers as $identifier) {
+                $id = $identifier['id'] ?? null;
+                if (is_string($id) && $id !== '') {
+                    $referenceIds[] = $id;
+                }
+            }
+            $referenceIds = self::jatsUniqueNonEmptyStrings($referenceIds);
+
+            $duplicates[] = [
+                'type' => (string) ($first['type'] ?? ''),
+                'value' => (string) ($first['value'] ?? ''),
+                'normalizedValue' => (string) ($first['normalizedValue'] ?? ''),
+                'referenceIds' => $referenceIds,
+                'referenceCount' => count($referenceIds),
+                'sourceCount' => count($identifiers),
+            ];
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * @param array<string, int> $sourceCounts
+     * @return list<array{sourceElement:string, sourceAttribute:?string, sourceType:?string, type:string, count:int}>
+     */
+    private static function jatsReferenceIdentifierSourceSummaries(array $sourceCounts): array
+    {
+        $summaries = [];
+        ksort($sourceCounts);
+        foreach ($sourceCounts as $key => $count) {
+            [$sourceElement, $sourceAttribute, $sourceType, $type] = array_pad(explode("\0", $key), 4, '');
+            $summaries[] = [
+                'sourceElement' => $sourceElement,
+                'sourceAttribute' => $sourceAttribute === '' ? null : $sourceAttribute,
+                'sourceType' => $sourceType === '' ? null : $sourceType,
+                'type' => $type,
+                'count' => $count,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function jatsNearestAncestorElementName(\DOMElement $element, array $localNames): ?string
+    {
+        $lookup = array_fill_keys($localNames, true);
+        $current = $element->parentNode;
+        while ($current instanceof \DOMElement) {
+            if (isset($lookup[$current->localName])) {
+                return $current->localName;
+            }
+            $current = $current->parentNode;
+        }
+
+        return null;
     }
 
     /**
