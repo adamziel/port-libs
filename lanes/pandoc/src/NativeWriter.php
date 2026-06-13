@@ -828,7 +828,26 @@ final class NativeWriter
             return [['t' => 'Plain', 'c' => $this->inlines($node->children)]];
         }
 
-        return $this->blocks($node->children);
+        $blocks = [];
+        $inlines = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
+                $inlines = [];
+            }
+            $blocks[] = $this->blocks([$child])[0];
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
+        }
+
+        return $blocks;
     }
 
     /**

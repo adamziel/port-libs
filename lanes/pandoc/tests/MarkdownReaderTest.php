@@ -6,6 +6,9 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -8320,6 +8323,121 @@ MD;
         $t->same('c', $list->children[2]->children[0]->attr('text'));
         $t->same('bullet_list', $nested->type);
         $t->same('d', $nested->children[0]->children[0]->attr('text'));
+    },
+    'round trips wordpress markdown fixture nested lists through json native and block writers' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $sourceMarkdown = (new MarkdownWriter())->write($document);
+        $roundTripMarkdown = (new MarkdownWriter())->write($roundTrip);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $plainText = static function (array $block): string {
+            if (($block['t'] ?? null) !== 'Plain') {
+                return '';
+            }
+
+            $text = '';
+            foreach (($block['c'] ?? []) as $inline) {
+                if (!is_array($inline)) {
+                    continue;
+                }
+
+                $text .= match ($inline['t'] ?? null) {
+                    'Str' => (string) ($inline['c'] ?? ''),
+                    'Space' => ' ',
+                    'SoftBreak', 'LineBreak' => "\n",
+                    default => '',
+                };
+            }
+
+            return $text;
+        };
+
+        $findItemBlocks = static function (array $blocks, string $text) use (&$findItemBlocks, $plainText): ?array {
+            foreach ($blocks as $block) {
+                if (!is_array($block)) {
+                    continue;
+                }
+
+                $tag = $block['t'] ?? null;
+                if ($tag !== 'BulletList' && $tag !== 'OrderedList') {
+                    continue;
+                }
+
+                $items = $tag === 'OrderedList' ? ($block['c'][1] ?? []) : ($block['c'] ?? []);
+                if (!is_array($items)) {
+                    continue;
+                }
+
+                foreach ($items as $itemBlocks) {
+                    if (!is_array($itemBlocks)) {
+                        continue;
+                    }
+                    if (isset($itemBlocks[0]) && is_array($itemBlocks[0]) && $plainText($itemBlocks[0]) === $text) {
+                        return $itemBlocks;
+                    }
+
+                    $found = $findItemBlocks($itemBlocks, $text);
+                    if ($found !== null) {
+                        return $found;
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        $findAstListItem = static function (AstNode $node, string $text) use (&$findAstListItem): ?AstNode {
+            if ($node->type === 'list_item') {
+                $first = $node->children[0] ?? null;
+                if ($first instanceof AstNode && $first->type === 'plain') {
+                    $inlineText = '';
+                    foreach ($first->children as $inline) {
+                        $inlineText .= match ($inline->type) {
+                            'text', 'code' => (string) $inline->attr('text', ''),
+                            'space' => ' ',
+                            'softbreak', 'linebreak' => "\n",
+                            default => '',
+                        };
+                    }
+                    if ($inlineText === $text) {
+                        return $node;
+                    }
+                }
+            }
+
+            foreach ($node->children as $child) {
+                $found = $findAstListItem($child, $text);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+
+            return null;
+        };
+
+        $jsonItem = $findItemBlocks($jsonPacket['blocks'], 'Keep completed reviewer tasks');
+        $nativeItem = $findItemBlocks($nativePacket['blocks'], 'Keep completed reviewer tasks');
+        $roundTripItem = $findAstListItem($roundTrip, 'Keep completed reviewer tasks');
+
+        $t->same(177, count($jsonPacket['blocks']));
+        $t->same(177, count($nativePacket['blocks']));
+        $t->true($jsonItem !== null, 'JSON writer should emit nested task-list item blocks from fixture');
+        $t->true($nativeItem !== null, 'Native writer should emit nested task-list item blocks from fixture');
+        $t->true($roundTripItem !== null, 'JSON reader should recover the nested task-list item from fixture');
+        if ($jsonItem === null || $nativeItem === null || $roundTripItem === null) {
+            return;
+        }
+
+        $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $jsonItem));
+        $t->same(['Plain', 'BulletList'], array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $nativeItem));
+        $t->same(['plain', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $roundTripItem->children));
+        $t->contains("-\n  Keep completed reviewer tasks\n  -\n    Attach media checklist follow-up", $roundTripMarkdown);
+        $t->contains("- [x] Keep completed reviewer tasks\n  - [ ] Attach media checklist follow-up", $sourceMarkdown);
+        $t->contains('<li><label><input type="checkbox" checked="" />Keep completed reviewer tasks</label><ul class="task-list"><li><label><input type="checkbox" />Attach media checklist follow-up</label></li></ul></li>', $blocks);
     },
     'maps upstream command task list items into ast attrs and checkbox html' => static function (TestRunner $t): void {
         $reader = new MarkdownReader();
