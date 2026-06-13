@@ -1637,6 +1637,7 @@ final class OdfReader
                 && !$this->isObjectReplacementPackagePartName($part)
                 && !$embeddedObjectPackagePart
                 && !$rdfMetadataPart
+                && !$this->isSignaturePartName($part)
                 && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))
             ) {
                 $roles[] = 'media-resource';
@@ -12783,6 +12784,9 @@ final class OdfReader
                 continue;
             }
             if ($this->isObjectReplacementPackagePartName($part)) {
+                continue;
+            }
+            if ($this->isSignaturePartName($part)) {
                 continue;
             }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {

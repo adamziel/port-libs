@@ -10125,7 +10125,8 @@ XML;
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
             . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>'
-            . '<manifest:file-entry manifest:full-path="META-INF/macrosignatures.xml" manifest:media-type="text/xml"/>',
+            . '<manifest:file-entry manifest:full-path="META-INF/macrosignatures.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/packagesignatures.xml" manifest:media-type="image/png"/>',
             $manifestXml
         );
         $signatureXml = <<<'XML'
@@ -10155,6 +10156,8 @@ XML;
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignatures, null, null, [
             ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
             ['name' => 'META-INF/macrosignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature'],
+            ['name' => 'META-INF/packagesignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>'],
+            ['name' => 'META-INF/orphan-signatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>'],
         ]));
         $signatures = $result['signatureMetadata'];
         $packageProvenance = $result['importReport']['manifest']['packageProvenance'];
@@ -10162,18 +10165,20 @@ XML;
 
         $t->same($signatures, $result['document']->attr('signatureMetadata'));
         $t->same($signatures, $result['importReport']['signatureMetadata']);
-        $t->same(2, $signatures['partCount']);
-        $t->same(1, $signatures['parsedPartCount']);
+        $t->same(4, $signatures['partCount']);
+        $t->same(3, $signatures['parsedPartCount']);
         $t->same(1, $signatures['parseErrorCount']);
         $t->same(1, $signatures['signatureCount']);
         $t->same(2, $signatures['referenceCount']);
         $t->same(['Pictures/hero.png', 'content.xml'], $signatures['signedParts']);
-        $t->same(7, $result['importReport']['manifest']['count']);
-        $t->same(1, count($result['media']), 'signature XML sidecars must stay out of media byte handoff');
-        $t->same(2, $packageProvenance['packageSignaturePartCount']);
-        $t->same(2, $packageProvenance['roleCounts']['package-signature']);
+        $t->same(8, $result['importReport']['manifest']['count']);
+        $t->same(1, count($result['media']), 'signature XML sidecars must stay out of media byte handoff even with image media types');
+        $t->same(4, $packageProvenance['packageSignaturePartCount']);
+        $t->same(4, $packageProvenance['roleCounts']['package-signature']);
         $t->same(['package-signature', 'manifest-declared'], $packageParts['META-INF/documentsignatures.xml']['roles']);
         $t->same(['package-signature', 'manifest-declared'], $packageParts['META-INF/macrosignatures.xml']['roles']);
+        $t->same(['package-signature', 'manifest-declared'], $packageParts['META-INF/packagesignatures.xml']['roles']);
+        $t->same(['package-signature', 'undeclared-package-entry'], $packageParts['META-INF/orphan-signatures.xml']['roles']);
 
         $documentSignatures = $signatures['parts'][0];
         $macroSignatures = $signatures['parts'][1];
