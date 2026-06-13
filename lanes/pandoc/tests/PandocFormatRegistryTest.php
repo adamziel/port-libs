@@ -1193,6 +1193,50 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'checks wiki input token status gates with stable unsupported reasons' => static function (TestRunner $t): void {
+        $mediaWikiGate = PandocFormatRegistry::wikiInputTokenStatusGate('.wiki');
+
+        $t->same([
+            'token' => '.wiki',
+            'normalizedToken' => '.wiki',
+            'kind' => 'extension-alias',
+            'format' => 'mediawiki',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'verdict' => 'unsupported',
+            'reasonCode' => 'wiki-native-reader-unregistered',
+            'reason' => 'No native PHP reader or writer is registered for this upstream Pandoc format yet.',
+            'serializedReason' => 'format=mediawiki;kind=extension-alias;normalizedToken=.wiki;inputStatus=unsupported;reasonCode=wiki-native-reader-unregistered',
+            'unsupported' => true,
+            'partial' => false,
+            'inputImplementation' => '',
+            'directReaderParitySupported' => false,
+        ], $mediaWikiGate);
+
+        $dokuWikiGate = PandocFormatRegistry::wikiInputTokenStatusGate('.dokuwiki');
+        $t->same('extension-alias', $dokuWikiGate['kind']);
+        $t->same('dokuwiki', $dokuWikiGate['format']);
+        $t->same('unsupported', $dokuWikiGate['verdict']);
+        $t->same('wiki-native-reader-unregistered', $dokuWikiGate['reasonCode']);
+        $t->same('format=dokuwiki;kind=extension-alias;normalizedToken=.dokuwiki;inputStatus=unsupported;reasonCode=wiki-native-reader-unregistered', $dokuWikiGate['serializedReason']);
+        $t->same('', $dokuWikiGate['inputImplementation']);
+        $t->same(false, $dokuWikiGate['directReaderParitySupported']);
+        $t->contains('No native PHP reader or writer is registered', $dokuWikiGate['reason']);
+
+        $tokenGate = PandocFormatRegistry::wikiInputTokenStatusGate('dokuwiki');
+        $t->same('input-token', $tokenGate['kind']);
+        $t->same('dokuwiki', $tokenGate['normalizedToken']);
+        $t->same('dokuwiki', $tokenGate['format']);
+        $t->same('unsupported', $tokenGate['verdict']);
+        $t->same('format=dokuwiki;kind=input-token;normalizedToken=dokuwiki;inputStatus=unsupported;reasonCode=wiki-native-reader-unregistered', $tokenGate['serializedReason']);
+
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate(''));
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate('xwiki'));
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate('.xwiki'));
+    },
     'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::wikiFormatParitySummary();
 

@@ -804,6 +804,67 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{token:string, normalizedToken:string, kind:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, verdict:string, reasonCode:string, reason:string, serializedReason:string, unsupported:bool, partial:bool, inputImplementation:string, directReaderParitySupported:bool}|null
+     */
+    public static function wikiInputTokenStatusGate(string $token): ?array
+    {
+        $trimmed = trim($token);
+        $normalized = strtolower($trimmed);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $inputSupport = self::wikiInputSupport();
+        $kind = 'input-token';
+        $format = array_key_exists($normalized, $inputSupport) ? $normalized : null;
+        $normalizedToken = $normalized;
+
+        if ($format === null) {
+            $extension = $normalized[0] === '.' ? $normalized : '.' . $normalized;
+            $candidateFormat = self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+            if ($candidateFormat === null || !array_key_exists($candidateFormat, $inputSupport)) {
+                return null;
+            }
+
+            $kind = 'extension-alias';
+            $format = $candidateFormat;
+            $normalizedToken = $extension;
+        }
+
+        $directions = self::wikiFormatDirections();
+        $direction = $directions[$format];
+        $support = $inputSupport[$format];
+        $verdict = $support['status'];
+        $reasonCode = self::wikiInputTokenStatusReasonCode($verdict, $support['implementation']);
+
+        return [
+            'token' => $trimmed,
+            'normalizedToken' => $normalizedToken,
+            'kind' => $kind,
+            'format' => $format,
+            'input' => $direction['input'],
+            'output' => $direction['output'],
+            'direction' => $direction['direction'],
+            'inputStatus' => $direction['inputStatus'],
+            'outputStatus' => $direction['outputStatus'],
+            'verdict' => $verdict,
+            'reasonCode' => $reasonCode,
+            'reason' => $support['notes'],
+            'serializedReason' => self::serializedWikiInputTokenStatusReason(
+                $format,
+                $kind,
+                $normalizedToken,
+                $verdict,
+                $reasonCode
+            ),
+            'unsupported' => $verdict === 'unsupported',
+            'partial' => $verdict === 'partial',
+            'inputImplementation' => $support['implementation'],
+            'directReaderParitySupported' => $verdict === 'supported' && $support['implementation'] !== '',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function wikiFormatsWithExtensionInference(): array
@@ -2719,6 +2780,37 @@ final class PandocFormatRegistry
         $extensionOffset = strcspn($normalized, '+-');
 
         return substr($normalized, 0, $extensionOffset);
+    }
+
+    private static function wikiInputTokenStatusReasonCode(string $verdict, string $implementation): string
+    {
+        if ($verdict === 'unsupported') {
+            return 'wiki-native-reader-unregistered';
+        }
+        if ($verdict === 'partial') {
+            return 'wiki-native-reader-partial';
+        }
+        if ($implementation !== '') {
+            return 'wiki-native-reader-registered';
+        }
+
+        return 'wiki-native-reader-status-unknown';
+    }
+
+    private static function serializedWikiInputTokenStatusReason(
+        string $format,
+        string $kind,
+        string $normalizedToken,
+        string $verdict,
+        string $reasonCode
+    ): string {
+        return implode(';', [
+            'format=' . $format,
+            'kind=' . $kind,
+            'normalizedToken=' . $normalizedToken,
+            'inputStatus=' . $verdict,
+            'reasonCode=' . $reasonCode,
+        ]);
     }
 
     /**
