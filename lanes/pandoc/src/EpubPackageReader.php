@@ -19,6 +19,7 @@ final class EpubPackageReader
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
+        $tocReport = $this->tocReport($root, $toc, $package['spine'], $package['manifest']);
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -50,6 +51,7 @@ final class EpubPackageReader
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
+                'tocReport' => $tocReport,
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -349,6 +351,7 @@ final class EpubPackageReader
         $externalItems = [];
         $missingPackagePartItems = [];
         $missingManifestItems = [];
+        $idrefItems = [];
         $diagnostics = [];
 
         foreach ($spine as $index => $item) {
@@ -367,6 +370,17 @@ final class EpubPackageReader
             if (($item['external'] ?? false) !== true && ($item['path'] ?? '') !== '' && ($item['exists'] ?? true) !== true) {
                 $missingPackagePartItems[] = $item;
             }
+            if (($item['idref'] ?? '') !== '') {
+                $idrefItems[(string) $item['idref']][] = [
+                    'index' => $index,
+                    'idref' => (string) $item['idref'],
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'path' => (string) ($item['path'] ?? ''),
+                    'linear' => (bool) ($item['linear'] ?? true),
+                    'readable' => (bool) ($item['readable'] ?? false),
+                ];
+            }
 
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
@@ -374,6 +388,31 @@ final class EpubPackageReader
                 }
                 $diagnostics[] = ['index' => $index] + $diagnostic;
             }
+        }
+
+        $duplicateIdrefItems = [];
+        foreach ($idrefItems as $idref => $items) {
+            if (count($items) <= 1) {
+                continue;
+            }
+
+            $indexes = array_column($items, 'index');
+            $duplicate = [
+                'idref' => $idref,
+                'indexes' => $indexes,
+                'paths' => array_values(array_unique(array_column($items, 'path'))),
+                'targets' => array_values(array_unique(array_column($items, 'target'))),
+                'items' => $items,
+            ];
+            $duplicateIdrefItems[] = $duplicate;
+            $diagnostics[] = [
+                'index' => $indexes[1],
+                'type' => 'duplicate-spine-idref',
+                'idref' => $idref,
+                'indexes' => $indexes,
+                'paths' => $duplicate['paths'],
+                'targets' => $duplicate['targets'],
+            ];
         }
 
         return [
@@ -388,9 +427,375 @@ final class EpubPackageReader
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItemCount' => count($missingPackagePartItems),
             'missingPackagePartItems' => $missingPackagePartItems,
+            'duplicateIdrefGroupCount' => count($duplicateIdrefItems),
+            'duplicateIdrefItems' => $duplicateIdrefItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $toc
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function tocReport(string $root, array $toc, array $spine, array $manifest): array
+    {
+        $flatEntries = $this->flattenedTocEntries($toc);
+        $typeCounts = [];
+        $pageListEntries = [];
+
+        foreach ($flatEntries as $flat) {
+            $entry = $flat['entry'];
+            $type = is_string($entry['type'] ?? null) ? $entry['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+
+            $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+            if ($type === 'page-list') {
+                $pageListEntries[] = $flat;
+            }
+        }
+
+        $pageListReport = $this->pageListTargetReport($root, $pageListEntries, $spine, $manifest);
+        $diagnostics = [];
+        foreach ($pageListReport['diagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostics[] = ['section' => 'page-list'] + $diagnostic;
+        }
+
+        return [
+            'entryCount' => count($flatEntries),
+            'typeCounts' => $typeCounts,
+            'tocEntryCount' => $typeCounts['toc'] ?? 0,
+            'landmarksEntryCount' => $typeCounts['landmarks'] ?? 0,
+            'pageListEntryCount' => $typeCounts['page-list'] ?? 0,
+            'pageList' => $pageListReport,
+            'issueCount' => count($diagnostics),
+            'issues' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array{index:int, depth:int, entry:array<string, mixed>}> $pageListEntries
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function pageListTargetReport(string $root, array $pageListEntries, array $spine, array $manifest): array
+    {
+        $manifestByPath = $this->manifestByPath($manifest);
+        $spineByPath = $this->spineByPath($spine);
+        $targetCounts = [];
+        $firstTargetIndexes = [];
+
+        foreach ($pageListEntries as $pageListIndex => $flat) {
+            $target = $this->tocEntryTarget($flat['entry']);
+            if ($target === '') {
+                continue;
+            }
+
+            $targetCounts[$target] = ($targetCounts[$target] ?? 0) + 1;
+            $firstTargetIndexes[$target] ??= $pageListIndex;
+        }
+
+        $items = [];
+        $itemsByTarget = [];
+        $itemsBySpineIndex = [];
+        $diagnostics = [];
+        $seenTargets = [];
+        $mappedItemCount = 0;
+        $linearTargetCount = 0;
+        $nonlinearTargetCount = 0;
+        $missingManifestTargetCount = 0;
+        $missingPackagePartTargetCount = 0;
+        $outsideSpineTargetCount = 0;
+        $duplicateSpineIdrefTargetCount = 0;
+        $repeatedTargetCount = 0;
+        $repeatedTargetGroups = 0;
+
+        foreach ($pageListEntries as $flat) {
+            $entry = $flat['entry'];
+            $index = count($items);
+            $href = is_string($entry['href'] ?? null) ? $entry['href'] : '';
+            $path = is_string($entry['path'] ?? null) ? $entry['path'] : '';
+            $fragment = is_string($entry['fragment'] ?? null) ? $entry['fragment'] : '';
+            $target = $this->tocEntryTarget($entry);
+            $external = $href !== '' && $this->isExternalHref($href);
+            $manifestItem = (!$external && $path !== '') ? ($manifestByPath[$path] ?? null) : null;
+            $exists = false;
+            if (!$external && is_array($manifestItem)) {
+                $exists = (bool) ($manifestItem['exists'] ?? false);
+            } elseif (!$external && $path !== '') {
+                $exists = $this->packagePathExists($root, $path);
+            }
+
+            $spineMatches = (!$external && $path !== '') ? ($spineByPath[$path] ?? []) : [];
+            $spineIndexes = array_column($spineMatches, 'index');
+            $spineIdrefs = array_column($spineMatches, 'idref');
+            $linearSpineIndexes = array_values(array_map(
+                static fn (array $item): int => (int) $item['index'],
+                array_filter($spineMatches, static fn (array $item): bool => ($item['linear'] ?? false) === true)
+            ));
+            $nonlinearSpineIndexes = array_values(array_map(
+                static fn (array $item): int => (int) $item['index'],
+                array_filter($spineMatches, static fn (array $item): bool => ($item['linear'] ?? false) !== true)
+            ));
+            $primarySpineItem = $spineMatches[0] ?? null;
+            $duplicateSpineIdref = count($spineIdrefs) > count(array_unique($spineIdrefs));
+            $repeatedTarget = $target !== '' && ($targetCounts[$target] ?? 0) > 1;
+            $targetOccurrence = 0;
+            if ($target !== '') {
+                $seenTargets[$target] = ($seenTargets[$target] ?? 0) + 1;
+                $targetOccurrence = $seenTargets[$target];
+            }
+
+            if ($spineMatches !== []) {
+                ++$mappedItemCount;
+            }
+            if ($linearSpineIndexes !== []) {
+                ++$linearTargetCount;
+            }
+            if ($spineMatches !== [] && $linearSpineIndexes === []) {
+                ++$nonlinearTargetCount;
+            }
+            if ($duplicateSpineIdref) {
+                ++$duplicateSpineIdrefTargetCount;
+            }
+            if ($repeatedTarget) {
+                ++$repeatedTargetCount;
+            }
+
+            $itemDiagnostics = [];
+            $addDiagnostic = static function (array $diagnostic) use (&$itemDiagnostics, &$diagnostics, $index): void {
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            };
+
+            if ($href === '' || $target === '') {
+                $addDiagnostic([
+                    'type' => 'missing-page-list-target',
+                    'href' => $href,
+                ]);
+            } elseif ($external) {
+                $addDiagnostic([
+                    'type' => 'external-page-list-reference',
+                    'target' => $target,
+                ]);
+            } elseif (!is_array($manifestItem)) {
+                ++$missingManifestTargetCount;
+                $addDiagnostic([
+                    'type' => 'missing-page-list-manifest-target',
+                    'target' => $target,
+                    'path' => $path,
+                ]);
+            } elseif (!$exists) {
+                ++$missingPackagePartTargetCount;
+                $addDiagnostic([
+                    'type' => 'missing-page-list-reference',
+                    'target' => $target,
+                    'path' => $path,
+                    'manifestId' => $manifestItem['id'],
+                ]);
+            } elseif ($spineMatches === []) {
+                ++$outsideSpineTargetCount;
+                $addDiagnostic([
+                    'type' => 'page-list-target-outside-spine',
+                    'target' => $target,
+                    'path' => $path,
+                    'manifestId' => $manifestItem['id'],
+                ]);
+            } elseif ($linearSpineIndexes === []) {
+                $addDiagnostic([
+                    'type' => 'page-list-target-nonlinear',
+                    'target' => $target,
+                    'path' => $path,
+                    'spineIndexes' => $spineIndexes,
+                    'spineIdrefs' => $spineIdrefs,
+                ]);
+            }
+
+            if ($duplicateSpineIdref) {
+                $addDiagnostic([
+                    'type' => 'page-list-target-duplicate-spine-idref',
+                    'target' => $target,
+                    'path' => $path,
+                    'spineIndexes' => $spineIndexes,
+                    'spineIdrefs' => $spineIdrefs,
+                ]);
+            }
+
+            if ($repeatedTarget && $targetOccurrence > 1) {
+                if ($targetOccurrence === 2) {
+                    ++$repeatedTargetGroups;
+                }
+                $addDiagnostic([
+                    'type' => 'repeated-page-list-target',
+                    'target' => $target,
+                    'firstIndex' => $firstTargetIndexes[$target] ?? null,
+                    'occurrence' => $targetOccurrence,
+                    'occurrenceCount' => $targetCounts[$target] ?? 0,
+                ]);
+            }
+
+            $item = [
+                'index' => $index,
+                'tocIndex' => (int) $flat['index'],
+                'depth' => (int) $flat['depth'],
+                'label' => is_string($entry['label'] ?? null) ? $entry['label'] : '',
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $fragment,
+                'external' => $external,
+                'exists' => $exists,
+                'manifestId' => is_array($manifestItem) ? (string) $manifestItem['id'] : '',
+                'mediaType' => is_array($manifestItem) ? (string) $manifestItem['mediaType'] : '',
+                'spineIndexes' => $spineIndexes,
+                'spineIdrefs' => $spineIdrefs,
+                'linearSpineIndexes' => $linearSpineIndexes,
+                'nonlinearSpineIndexes' => $nonlinearSpineIndexes,
+                'primarySpineIndex' => is_array($primarySpineItem) ? (int) $primarySpineItem['index'] : null,
+                'primarySpineIdref' => is_array($primarySpineItem) ? (string) $primarySpineItem['idref'] : null,
+                'linear' => is_array($primarySpineItem) ? (bool) $primarySpineItem['linear'] : null,
+                'readable' => is_array($primarySpineItem) ? (bool) $primarySpineItem['readable'] : null,
+                'duplicateSpineIdref' => $duplicateSpineIdref,
+                'repeatedTarget' => $repeatedTarget,
+                'repeatedTargetCount' => $target !== '' ? ($targetCounts[$target] ?? 0) : 0,
+                'diagnostics' => $itemDiagnostics,
+            ];
+            $items[] = $item;
+
+            if ($target !== '') {
+                $itemsByTarget[$target][] = $item;
+            }
+            foreach ($spineIndexes as $spineIndex) {
+                $itemsBySpineIndex[$spineIndex][] = $item;
+            }
+        }
+        ksort($itemsBySpineIndex);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'mappedItemCount' => $mappedItemCount,
+            'linearTargetCount' => $linearTargetCount,
+            'nonlinearTargetCount' => $nonlinearTargetCount,
+            'missingManifestTargetCount' => $missingManifestTargetCount,
+            'missingPackagePartTargetCount' => $missingPackagePartTargetCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'duplicateSpineIdrefTargetCount' => $duplicateSpineIdrefTargetCount,
+            'repeatedTargetCount' => $repeatedTargetCount,
+            'repeatedTargetGroupCount' => $repeatedTargetGroups,
+            'items' => $items,
+            'itemsByTarget' => $itemsByTarget,
+            'itemsBySpineIndex' => $itemsBySpineIndex,
+            'issueCount' => count($diagnostics),
+            'issues' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array{index:int, depth:int, entry:array<string, mixed>}>
+     */
+    private function flattenedTocEntries(array $entries): array
+    {
+        $flat = [];
+        $this->appendFlattenedTocEntries($entries, 0, $flat);
+
+        return $flat;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array{index:int, depth:int, entry:array<string, mixed>}> $flat
+     */
+    private function appendFlattenedTocEntries(array $entries, int $depth, array &$flat): void
+    {
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $flat[] = [
+                'index' => count($flat),
+                'depth' => $depth,
+                'entry' => $entry,
+            ];
+            $children = is_array($entry['children'] ?? null) ? $entry['children'] : [];
+            if ($children !== []) {
+                $this->appendFlattenedTocEntries($children, $depth + 1, $flat);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, array<string, mixed>>
+     */
+    private function manifestByPath(array $manifest): array
+    {
+        $manifestByPath = [];
+        foreach ($manifest as $item) {
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $item;
+            }
+        }
+
+        return $manifestByPath;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function spineByPath(array $spine): array
+    {
+        $spineByPath = [];
+        foreach ($spine as $index => $item) {
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            if ($path === '') {
+                continue;
+            }
+
+            $spineByPath[$path][] = [
+                'index' => $index,
+                'idref' => (string) ($item['idref'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => (string) ($item['target'] ?? ''),
+                'path' => $path,
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'linear' => (bool) ($item['linear'] ?? true),
+                'readable' => (bool) ($item['readable'] ?? false),
+            ];
+        }
+
+        return $spineByPath;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function tocEntryTarget(array $entry): string
+    {
+        $path = is_string($entry['path'] ?? null) ? $entry['path'] : '';
+        $fragment = is_string($entry['fragment'] ?? null) ? $entry['fragment'] : '';
+        if ($path === '') {
+            return '';
+        }
+
+        return $path . ($fragment === '' ? '' : '#' . $fragment);
     }
 
     /**
