@@ -748,7 +748,23 @@ final class XmlHtmlDom
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
-        $figureIds = self::jatsElementIds($root, 'fig');
+        $figures = self::jatsFigureSummaries($root);
+        $figureIds = array_values(array_unique(array_filter(
+            array_map(static fn (array $figure): ?string => $figure['id'], $figures),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        )));
+        $figureMediaReferences = self::jatsFigureMediaReferenceList($figures);
+        $figureMediaIssueCodes = self::jatsFigureMediaIssueCodes($figureMediaReferences);
+        $figureMediaMissingTargetCount = self::jatsFigureMediaIssueCount($figureMediaReferences, 'missing-target');
+        $figureMediaExternalReferenceCount = self::jatsFigureMediaIssueCount($figureMediaReferences, 'unsupported-external-reference');
+        $duplicateFigureLabels = self::jatsDuplicateFigureLabels($figures);
+        $figureMetadataIssues = self::jatsFigureMetadataIssues($figures, $duplicateFigureLabels);
+        $figureMetadataIssueCodes = self::jatsFigureIssueCodes($figureMetadataIssues);
+        $figureCaptionMissingCount = self::jatsFigureIssueCount($figureMetadataIssues, 'missing-caption');
+        $figureTitleMissingCount = self::jatsFigureIssueCount($figureMetadataIssues, 'missing-title');
+        $figureDuplicateLabelCount = self::jatsFigureIssueCount($figureMetadataIssues, 'duplicate-label');
+        $figureXrefLinks = self::jatsFigureXrefLinks($root, $figureIds);
+        $figureXrefTargetIds = self::jatsFigureXrefTargetIds($figureXrefLinks);
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
@@ -757,6 +773,12 @@ final class XmlHtmlDom
             count($sections),
             count($referenceIds),
             count($figureIds),
+            count($figureMediaReferences),
+            $figureMediaMissingTargetCount,
+            $figureMediaExternalReferenceCount,
+            $figureCaptionMissingCount,
+            $figureTitleMissingCount,
+            $figureDuplicateLabelCount,
             count($tableWrapIds),
             $bookPartCount
         );
@@ -815,6 +837,21 @@ final class XmlHtmlDom
             'referenceCount' => count($referenceIds),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
+            'figures' => $figures,
+            'figureMetadataIssues' => $figureMetadataIssues,
+            'figureMetadataIssueCodes' => $figureMetadataIssueCodes,
+            'figureMetadataIssueCount' => count($figureMetadataIssues),
+            'duplicateFigureLabels' => $duplicateFigureLabels,
+            'duplicateFigureLabelCount' => count($duplicateFigureLabels),
+            'figureXrefLinks' => $figureXrefLinks,
+            'figureXrefLinkCount' => count($figureXrefLinks),
+            'figureXrefTargetIds' => $figureXrefTargetIds,
+            'figureXrefTargetCount' => count($figureXrefTargetIds),
+            'figureMediaReferences' => $figureMediaReferences,
+            'figureMediaReferenceCount' => count($figureMediaReferences),
+            'figureMediaIssueCodes' => $figureMediaIssueCodes,
+            'figureMediaIssueCount' => count($figureMediaIssueCodes),
+            'figureMediaPayloadBytesExposed' => false,
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'bookPartCount' => $bookPartCount,
@@ -830,6 +867,12 @@ final class XmlHtmlDom
         int $sectionCount,
         int $referenceCount,
         int $figureCount,
+        int $figureMediaReferenceCount,
+        int $figureMediaMissingTargetCount,
+        int $figureMediaExternalReferenceCount,
+        int $figureCaptionMissingCount,
+        int $figureTitleMissingCount,
+        int $figureDuplicateLabelCount,
         int $tableWrapCount,
         int $bookPartCount
     ): array {
@@ -883,6 +926,75 @@ final class XmlHtmlDom
                 false,
                 false,
                 ['figureCount' => $figureCount]
+            );
+        }
+
+        if ($figureMediaReferenceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-references-review-only',
+                'unsupported',
+                'Figure graphic/media references are exposed as metadata-only targets; payload bytes are not extracted.',
+                false,
+                true,
+                [
+                    'mediaReferenceCount' => $figureMediaReferenceCount,
+                    'payloadBytesExposed' => false,
+                ]
+            );
+        }
+
+        if ($figureMediaMissingTargetCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-target-missing',
+                'warning',
+                'One or more figure graphic/media elements omit an href target.',
+                false,
+                true,
+                ['missingTargetCount' => $figureMediaMissingTargetCount]
+            );
+        }
+
+        if ($figureMediaExternalReferenceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-external-reference-unsupported',
+                'unsupported',
+                'External figure graphic/media references are recorded for review but are not fetched.',
+                false,
+                true,
+                ['externalReferenceCount' => $figureMediaExternalReferenceCount]
+            );
+        }
+
+        if ($figureCaptionMissingCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-caption-missing',
+                'warning',
+                'One or more figure elements omit a non-empty caption.',
+                false,
+                true,
+                ['missingCaptionCount' => $figureCaptionMissingCount]
+            );
+        }
+
+        if ($figureTitleMissingCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-title-missing',
+                'warning',
+                'One or more figure elements omit a non-empty title.',
+                false,
+                true,
+                ['missingTitleCount' => $figureTitleMissingCount]
+            );
+        }
+
+        if ($figureDuplicateLabelCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-label-duplicate',
+                'warning',
+                'One or more figure labels are duplicated across figure ids.',
+                false,
+                true,
+                ['duplicateLabelFigureCount' => $figureDuplicateLabelCount]
             );
         }
 
@@ -1206,6 +1318,623 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureSummaries(\DOMElement $root): array
+    {
+        $figures = [];
+        foreach (self::descendantElements($root, 'fig') as $figure) {
+            $labelElement = self::firstChildElement($figure, 'label');
+            $titleElement = self::jatsFigureTitleElement($figure);
+            $captionElement = self::firstChildElement($figure, 'caption');
+            $altTextElement = self::jatsFigureAltTextElement($figure);
+            $label = self::jatsElementTextOrNull($labelElement);
+            $title = self::jatsElementTextOrNull($titleElement);
+            $captionText = self::jatsFigureCaptionText($figure);
+            $altText = self::jatsElementTextOrNull($altTextElement);
+            $mediaReferences = self::jatsFigureMediaReferences($figure);
+
+            $figures[] = [
+                'id' => self::attribute($figure, 'id'),
+                'sourcePosition' => self::jatsElementSourcePosition($figure, $root),
+                'label' => $label,
+                'title' => $title,
+                'captionText' => $captionText,
+                'captionParagraphCount' => self::jatsFigureCaptionParagraphCount($figure),
+                'altText' => $altText,
+                'metadataIssueCodes' => self::jatsFigureLocalMetadataIssueCodes($captionText, $title),
+                'metadataPositions' => [
+                    'label' => $labelElement instanceof \DOMElement ? self::jatsElementSourcePosition($labelElement, $figure) : null,
+                    'title' => $titleElement instanceof \DOMElement ? self::jatsElementSourcePosition($titleElement, $figure) : null,
+                    'caption' => $captionElement instanceof \DOMElement ? self::jatsElementSourcePosition($captionElement, $figure) : null,
+                    'altText' => $altTextElement instanceof \DOMElement ? self::jatsElementSourcePosition($altTextElement, $figure) : null,
+                ],
+                'xrefTargets' => self::jatsXrefTargets($figure),
+                'mediaReferences' => $mediaReferences,
+                'mediaReferenceCount' => count($mediaReferences),
+                'mediaIssueCodes' => self::jatsFigureMediaIssueCodes($mediaReferences),
+            ];
+        }
+
+        return $figures;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $figures
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMediaReferenceList(array $figures): array
+    {
+        $references = [];
+        foreach ($figures as $figure) {
+            foreach (($figure['mediaReferences'] ?? []) as $reference) {
+                if (is_array($reference)) {
+                    $references[] = $reference;
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return list<string>
+     */
+    private static function jatsFigureMediaIssueCodes(array $references): array
+    {
+        $codes = [];
+        foreach ($references as $reference) {
+            foreach (($reference['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $codes[] = $issue;
+                }
+            }
+        }
+
+        return self::jatsOrderedIssueCodes($codes, [
+            'missing-target' => 0,
+            'unsupported-external-reference' => 1,
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     */
+    private static function jatsFigureMediaIssueCount(array $references, string $code): int
+    {
+        $count = 0;
+        foreach ($references as $reference) {
+            $issues = $reference['issues'] ?? [];
+            if (is_array($issues) && in_array($code, $issues, true)) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $figures
+     * @return list<array{label:string, figureIds:list<string>, figureCount:int}>
+     */
+    private static function jatsDuplicateFigureLabels(array $figures): array
+    {
+        $buckets = [];
+        foreach ($figures as $figure) {
+            $label = $figure['label'] ?? null;
+            if (!is_string($label) || trim($label) === '') {
+                continue;
+            }
+
+            $key = strtolower(trim($label));
+            $id = $figure['id'] ?? null;
+            $buckets[$key]['label'] ??= trim($label);
+            if (is_string($id) && trim($id) !== '') {
+                $buckets[$key]['figureIds'][] = trim($id);
+            }
+        }
+
+        $duplicates = [];
+        foreach ($buckets as $bucket) {
+            $figureIds = array_values(array_unique($bucket['figureIds'] ?? []));
+            if (count($figureIds) < 2) {
+                continue;
+            }
+
+            $duplicates[] = [
+                'label' => (string) $bucket['label'],
+                'figureIds' => $figureIds,
+                'figureCount' => count($figureIds),
+            ];
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $figures
+     * @param list<array{label:string, figureIds:list<string>, figureCount:int}> $duplicateLabels
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMetadataIssues(array $figures, array $duplicateLabels): array
+    {
+        $duplicateLabelKeys = [];
+        foreach ($duplicateLabels as $duplicate) {
+            $duplicateLabelKeys[strtolower(trim($duplicate['label']))] = true;
+        }
+
+        $issues = [];
+        foreach ($figures as $figure) {
+            $captionText = $figure['captionText'] ?? null;
+            $title = $figure['title'] ?? null;
+            $label = $figure['label'] ?? null;
+            $positions = is_array($figure['metadataPositions'] ?? null) ? $figure['metadataPositions'] : [];
+            $figurePosition = $figure['sourcePosition'] ?? null;
+
+            if (!is_string($captionText) || trim($captionText) === '') {
+                $issues[] = self::jatsFigureMetadataIssue(
+                    'missing-caption',
+                    'warning',
+                    'Figure omits a non-empty caption.',
+                    $figure,
+                    is_array($figurePosition) ? $figurePosition : null
+                );
+            }
+
+            if (!is_string($title) || trim($title) === '') {
+                $issues[] = self::jatsFigureMetadataIssue(
+                    'missing-title',
+                    'warning',
+                    'Figure omits a non-empty title.',
+                    $figure,
+                    is_array($figurePosition) ? $figurePosition : null
+                );
+            }
+
+            if (is_string($label) && isset($duplicateLabelKeys[strtolower(trim($label))])) {
+                $position = $positions['label'] ?? null;
+                $issues[] = self::jatsFigureMetadataIssue(
+                    'duplicate-label',
+                    'warning',
+                    'Figure label is duplicated across figure ids.',
+                    $figure,
+                    is_array($position) ? $position : null
+                );
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<string, mixed> $figure
+     * @param array<string, mixed>|null $sourcePosition
+     * @return array<string, mixed>
+     */
+    private static function jatsFigureMetadataIssue(
+        string $code,
+        string $severity,
+        string $message,
+        array $figure,
+        ?array $sourcePosition
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'figureId' => $figure['id'] ?? null,
+            'label' => $figure['label'] ?? null,
+            'sourcePosition' => $sourcePosition,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function jatsFigureIssueCodes(array $issues): array
+    {
+        $codes = [];
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (is_string($code) && $code !== '') {
+                $codes[] = $code;
+            }
+        }
+
+        return self::jatsOrderedIssueCodes($codes, [
+            'missing-caption' => 0,
+            'missing-title' => 1,
+            'duplicate-label' => 2,
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     */
+    private static function jatsFigureIssueCount(array $issues, string $code): int
+    {
+        $count = 0;
+        foreach ($issues as $issue) {
+            if (($issue['code'] ?? null) === $code) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $codes
+     * @param array<string, int> $priority
+     * @return list<string>
+     */
+    private static function jatsOrderedIssueCodes(array $codes, array $priority): array
+    {
+        $codes = array_values(array_unique(array_filter(
+            $codes,
+            static fn (string $code): bool => $code !== ''
+        )));
+        usort($codes, static function (string $left, string $right) use ($priority): int {
+            return ($priority[$left] ?? 99) <=> ($priority[$right] ?? 99)
+                ?: $left <=> $right;
+        });
+
+        return $codes;
+    }
+
+    /**
+     * @param list<string> $figureIds
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureXrefLinks(\DOMElement $root, array $figureIds): array
+    {
+        $figureIdSet = array_fill_keys($figureIds, true);
+        $links = [];
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            $rid = self::attribute($xref, 'rid');
+            if ($rid === null || trim($rid) === '') {
+                continue;
+            }
+
+            $targetIds = self::spaceSeparatedTokens($rid);
+            $resolvedFigureIds = array_values(array_filter(
+                $targetIds,
+                static fn (string $target): bool => isset($figureIdSet[$target])
+            ));
+            $refType = self::attribute($xref, 'ref-type');
+            $normalizedRefType = is_string($refType) && trim($refType) !== '' ? strtolower(trim($refType)) : null;
+            $missingFigureIds = $normalizedRefType === 'fig'
+                ? array_values(array_filter(
+                    $targetIds,
+                    static fn (string $target): bool => !isset($figureIdSet[$target])
+                ))
+                : [];
+
+            if ($resolvedFigureIds === [] && $missingFigureIds === []) {
+                continue;
+            }
+
+            $links[] = [
+                'refType' => $refType === null || trim($refType) === '' ? null : trim($refType),
+                'rid' => trim($rid),
+                'targetIds' => $targetIds,
+                'figureIds' => $resolvedFigureIds,
+                'missingFigureIds' => $missingFigureIds,
+                'text' => self::normalizedText($xref),
+                'sourcePosition' => self::jatsElementSourcePosition($xref, $root),
+            ];
+        }
+
+        return $links;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return list<string>
+     */
+    private static function jatsFigureXrefTargetIds(array $links): array
+    {
+        $ids = [];
+        foreach ($links as $link) {
+            foreach (($link['figureIds'] ?? []) as $id) {
+                if (is_string($id) && $id !== '') {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private static function jatsElementTextOrNull(?\DOMElement $element): ?string
+    {
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($element);
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function jatsFigureTitleElement(\DOMElement $figure): ?\DOMElement
+    {
+        $title = self::firstChildElement($figure, 'title');
+        if ($title instanceof \DOMElement && self::jatsElementTextOrNull($title) !== null) {
+            return $title;
+        }
+
+        $caption = self::firstChildElement($figure, 'caption');
+        if ($caption instanceof \DOMElement) {
+            $title = self::firstChildElement($caption, 'title');
+            if ($title instanceof \DOMElement) {
+                return $title;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsFigureAltTextElement(\DOMElement $figure): ?\DOMElement
+    {
+        $altText = self::firstChildElement($figure, 'alt-text');
+        if ($altText instanceof \DOMElement) {
+            return $altText;
+        }
+
+        return self::firstDescendantElement($figure, 'alt-text');
+    }
+
+    private static function jatsFigureCaptionText(\DOMElement $figure): ?string
+    {
+        $caption = self::firstChildElement($figure, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return null;
+        }
+
+        $segments = [];
+        foreach ($caption->childNodes as $child) {
+            $text = self::normalizedText($child);
+            if ($text !== '') {
+                $segments[] = $text;
+            }
+        }
+        $text = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', implode(' ', $segments)) ?? implode(' ', $segments));
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function jatsFigureCaptionParagraphCount(\DOMElement $figure): int
+    {
+        $caption = self::firstChildElement($figure, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return 0;
+        }
+
+        return count(self::descendantElements($caption, 'p'));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsFigureLocalMetadataIssueCodes(?string $captionText, ?string $title): array
+    {
+        $codes = [];
+        if ($captionText === null || trim($captionText) === '') {
+            $codes[] = 'missing-caption';
+        }
+        if ($title === null || trim($title) === '') {
+            $codes[] = 'missing-title';
+        }
+
+        return $codes;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMediaReferences(\DOMElement $figure): array
+    {
+        $references = [];
+        $figureId = self::attribute($figure, 'id');
+
+        foreach (self::descendantElements($figure) as $element) {
+            if (!in_array($element->localName, ['graphic', 'media'], true)) {
+                continue;
+            }
+
+            $href = self::jatsFigureMediaHref($element);
+            $target = $href['target'];
+            $issues = self::jatsFigureMediaIssues($target);
+
+            $references[] = [
+                'figureId' => $figureId,
+                'element' => $element->localName,
+                'id' => self::attribute($element, 'id'),
+                'sourcePosition' => self::jatsElementSourcePosition($element, $figure),
+                'hrefAttribute' => $href['attribute'],
+                'target' => $target,
+                'targetBasename' => self::jatsFigureMediaTargetBasename($target),
+                'targetKind' => self::jatsFigureMediaTargetKind($target),
+                'mimetype' => self::attribute($element, 'mimetype'),
+                'mimeSubtype' => self::attribute($element, 'mime-subtype'),
+                'contentType' => self::jatsFigureMediaContentType($element),
+                'specificUse' => self::attribute($element, 'specific-use'),
+                'position' => self::attribute($element, 'position'),
+                'orientation' => self::attribute($element, 'orientation'),
+                'payloadBytesExposed' => false,
+                'issues' => $issues,
+                'issueCount' => count($issues),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return array{attribute:?string, target:?string}
+     */
+    private static function jatsFigureMediaHref(\DOMElement $element): array
+    {
+        $xlinkHref = self::attribute($element, 'href', 'http://www.w3.org/1999/xlink');
+        if ($xlinkHref !== null) {
+            return [
+                'attribute' => 'xlink:href',
+                'target' => trim($xlinkHref) === '' ? null : trim($xlinkHref),
+            ];
+        }
+
+        $href = self::attribute($element, 'href');
+        if ($href !== null) {
+            return [
+                'attribute' => 'href',
+                'target' => trim($href) === '' ? null : trim($href),
+            ];
+        }
+
+        return [
+            'attribute' => null,
+            'target' => null,
+        ];
+    }
+
+    private static function jatsFigureMediaContentType(\DOMElement $element): ?string
+    {
+        $mimetype = self::attribute($element, 'mimetype');
+        $subtype = self::attribute($element, 'mime-subtype');
+        if ($mimetype === null || trim($mimetype) === '' || $subtype === null || trim($subtype) === '') {
+            return null;
+        }
+
+        return strtolower(trim($mimetype)) . '/' . strtolower(trim($subtype));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsFigureMediaIssues(?string $target): array
+    {
+        if ($target === null || trim($target) === '') {
+            return ['missing-target'];
+        }
+
+        if (self::jatsFigureMediaTargetKind($target) === 'external') {
+            return ['unsupported-external-reference'];
+        }
+
+        return [];
+    }
+
+    private static function jatsFigureMediaTargetKind(?string $target): string
+    {
+        if ($target === null || trim($target) === '') {
+            return 'missing';
+        }
+
+        $target = trim($target);
+        if (str_starts_with($target, '//') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
+            return 'external';
+        }
+
+        if (str_starts_with($target, '#')) {
+            return 'fragment';
+        }
+
+        return 'internal';
+    }
+
+    private static function jatsFigureMediaTargetBasename(?string $target): ?string
+    {
+        if ($target === null || trim($target) === '') {
+            return null;
+        }
+
+        $target = trim($target);
+        $cut = strcspn($target, '?#');
+        $path = $cut === 0 ? $target : substr($target, 0, $cut);
+        $path = str_replace('\\', '/', $path);
+        $basename = basename($path);
+
+        return $basename === '' || $basename === '.' ? null : $basename;
+    }
+
+    /**
+     * @return array{element:string, path:string, parent:?string, childIndex:int, siblingIndex:int, sourceLine:int}
+     */
+    private static function jatsElementSourcePosition(\DOMElement $element, \DOMElement $scope): array
+    {
+        $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode : null;
+
+        return [
+            'element' => $element->localName,
+            'path' => self::jatsElementPathWithin($element, $scope),
+            'parent' => $parent instanceof \DOMElement ? $parent->localName : null,
+            'childIndex' => self::jatsElementChildIndex($element),
+            'siblingIndex' => self::jatsElementSiblingIndex($element),
+            'sourceLine' => max(0, $element->getLineNo()),
+        ];
+    }
+
+    private static function jatsElementPathWithin(\DOMElement $element, \DOMElement $scope): string
+    {
+        $parts = [$element->localName];
+        $node = $element->parentNode;
+        while ($node instanceof \DOMElement) {
+            array_unshift($parts, $node->localName);
+            if ($node->isSameNode($scope)) {
+                break;
+            }
+            $node = $node->parentNode;
+        }
+
+        return implode('/', $parts);
+    }
+
+    private static function jatsElementChildIndex(\DOMElement $element): int
+    {
+        $parent = $element->parentNode;
+        if (!$parent instanceof \DOMNode) {
+            return 0;
+        }
+
+        $index = 0;
+        foreach ($parent->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->isSameNode($element)) {
+                return $index;
+            }
+            ++$index;
+        }
+
+        return 0;
+    }
+
+    private static function jatsElementSiblingIndex(\DOMElement $element): int
+    {
+        $parent = $element->parentNode;
+        if (!$parent instanceof \DOMNode) {
+            return 0;
+        }
+
+        $index = 0;
+        foreach ($parent->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== $element->localName) {
+                continue;
+            }
+            if ($child->isSameNode($element)) {
+                return $index;
+            }
+            ++$index;
+        }
+
+        return 0;
     }
 
     /**
