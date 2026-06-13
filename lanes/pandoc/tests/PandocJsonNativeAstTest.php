@@ -5958,6 +5958,147 @@ return [
         $t->same(2, $nativeRoundTrip->children[0]->children[0]->children[0]->attr('rowspan'));
         $t->same(3, $nativeRoundTrip->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'regenerates edited table cell span and attr sidecars while preserving neighbors' => static function (TestRunner $t): void {
+        $columnAlignment = ['t' => 'AlignLeft', 'reviewQueue' => 'column-alignment-source'];
+        $columnWidth = ['t' => 'ColWidth', 'c' => 0.5, 'reviewQueue' => 'column-width-source'];
+        $sourceAttr = ['t' => 'Attr', 'c' => [
+            'source-span',
+            ['source-cell'],
+            [['data-source', 'original']],
+            ['reviewQueue' => 'source-attr-sidecar'],
+        ]];
+        $neighborAttr = ['t' => 'Attr', 'c' => [
+            'neighbor-span',
+            ['neighbor-cell'],
+            [['data-neighbor', 'kept']],
+            ['reviewQueue' => 'neighbor-attr-sidecar'],
+        ]];
+        $sourceAlignment = ['t' => 'AlignCenter', 'reviewQueue' => 'source-alignment-sidecar'];
+        $sourceRowSpan = ['t' => 'RowSpan', 'c' => 2, 'reviewQueue' => 'source-rowspan-sidecar'];
+        $sourceColSpan = ['t' => 'ColSpan', 'c' => 3, 'reviewQueue' => 'source-colspan-sidecar'];
+        $neighborCell = [
+            't' => 'Cell',
+            'c' => [
+                $neighborAttr,
+                ['t' => 'AlignRight', 'reviewQueue' => 'neighbor-alignment-sidecar'],
+                ['t' => 'RowSpan', 'c' => 1, 'reviewQueue' => 'neighbor-rowspan-sidecar'],
+                ['t' => 'ColSpan', 'c' => 1, 'reviewQueue' => 'neighbor-colspan-sidecar'],
+                [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Neighbor']]]],
+            ],
+            'reviewQueue' => 'neighbor-cell-wrapper',
+            'sourceOrdinal' => 11,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Table', 'c' => [
+                    ['span-table', ['review'], [['data-table', 'spans']]],
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [
+                        [$columnAlignment, $columnWidth],
+                        [
+                            ['t' => 'AlignDefault', 'reviewQueue' => 'neighbor-column-alignment'],
+                            ['t' => 'ColWidthDefault', 'reviewQueue' => 'neighbor-column-width'],
+                        ],
+                    ],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['body-span', ['tbody'], [['data-body', 'source']]],
+                            ['t' => 'RowHeadColumns', 'c' => 1, 'reviewQueue' => 'row-head-sidecar'],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['row-span', ['source-row'], [['data-row', '1']]],
+                                    [
+                                        [
+                                            't' => 'Cell',
+                                            'c' => [
+                                                $sourceAttr,
+                                                $sourceAlignment,
+                                                $sourceRowSpan,
+                                                $sourceColSpan,
+                                                [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Source']]]],
+                                            ],
+                                            'reviewQueue' => 'source-cell-wrapper',
+                                            'sourceOrdinal' => 10,
+                                        ],
+                                        $neighborCell,
+                                    ],
+                                ], 'reviewQueue' => 'row-wrapper'],
+                            ],
+                        ], 'reviewQueue' => 'body-wrapper'],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $sourceCell = $row->children[0];
+            $unchangedNeighbor = $row->children[1];
+
+            $t->same($sourceAttr, $sourceCell->attr('attrNative'), "{$source} records source cell Attr sidecar");
+            $t->same($sourceRowSpan, $sourceCell->attr('rowSpanNative'), "{$source} records source row span sidecar");
+            $t->same($sourceColSpan, $sourceCell->attr('colSpanNative'), "{$source} records source column span sidecar");
+            $t->same($neighborCell, $unchangedNeighbor->attr('native'), "{$source} records neighbor cell wrapper sidecar");
+
+            $editedCell = new AstNode('table_cell', array_replace($sourceCell->attrs, [
+                'id' => 'edited-span',
+                'classes' => ['source-cell', 'edited-cell'],
+                'attributes' => ['data-source' => 'edited', 'data-cell' => 'span'],
+                'rowspan' => 4,
+                'colspan' => 2,
+            ]), $sourceCell->children);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', $table->attrs, [
+                    new AstNode('table_body', $body->attrs, [
+                        new AstNode('table_row', $row->attrs, [$editedCell, $unchangedNeighbor]),
+                    ]),
+                ]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedBody = $encoded['blocks'][0]['c'][4][0];
+                $bodyPayload = $encodedBody['c'] ?? $encodedBody;
+                $encodedRow = $bodyPayload[3][0];
+                $rowPayload = $encodedRow['c'] ?? $encodedRow;
+                $encodedSourceCell = $rowPayload[1][0];
+                $sourceCellPayload = $encodedSourceCell['c'] ?? $encodedSourceCell;
+
+                $t->same(['t' => 'RowHeadColumns', 'c' => 1, 'reviewQueue' => 'row-head-sidecar'], $bodyPayload[1], "{$source} {$writer} preserves unchanged row-head helper sidecar");
+                $t->same($columnAlignment, $encoded['blocks'][0]['c'][2][0][0], "{$source} {$writer} preserves unchanged column alignment helper sidecar");
+                $t->same($columnWidth, $encoded['blocks'][0]['c'][2][0][1], "{$source} {$writer} preserves unchanged column width helper sidecar");
+                $t->same(false, array_key_exists('t', $encodedSourceCell), "{$source} {$writer} drops stale edited cell wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encodedSourceCell), "{$source} {$writer} drops stale edited cell wrapper sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $encodedSourceCell), "{$source} {$writer} drops stale edited cell ordinal");
+                $t->same(
+                    ['edited-span', ['source-cell', 'edited-cell'], [['data-source', 'edited'], ['data-cell', 'span']]],
+                    $sourceCellPayload[0],
+                    "{$source} {$writer} regenerates edited cell Attr tuple"
+                );
+                $t->same(false, array_key_exists('reviewQueue', $sourceCellPayload[0]), "{$source} {$writer} drops stale edited Attr sidecar");
+                $t->same($sourceAlignment, $sourceCellPayload[1], "{$source} {$writer} preserves unchanged cell alignment helper sidecar");
+                $t->same(['t' => 'RowSpan', 'c' => 4], $sourceCellPayload[2], "{$source} {$writer} regenerates edited RowSpan helper");
+                $t->same(false, array_key_exists('reviewQueue', $sourceCellPayload[2]), "{$source} {$writer} drops stale RowSpan sidecar");
+                $t->same(['t' => 'ColSpan', 'c' => 2], $sourceCellPayload[3], "{$source} {$writer} regenerates edited ColSpan helper");
+                $t->same(false, array_key_exists('reviewQueue', $sourceCellPayload[3]), "{$source} {$writer} drops stale ColSpan sidecar");
+                $t->same($neighborCell, $rowPayload[1][1], "{$source} {$writer} preserves neighboring cell sidecars");
+            }
+        }
+    },
     'writes shared short caption blocks as pandoc json caption inlines' => static function (TestRunner $t): void {
         $sourceTable = new AstNode('table', [
             'captionBlocks' => [
