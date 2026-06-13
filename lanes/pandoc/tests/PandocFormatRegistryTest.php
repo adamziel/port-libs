@@ -133,18 +133,21 @@ return [
         $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('root, element, language, id, and attribute provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('no full native PHP XML direct reader is registered yet', $packet['formats']['xml']['inputNotes']);
 
         $t->same('summarizeJatsFrontMatter', $packet['formats']['jats']['reviewMethod']);
         $t->same('jats-bits-front-matter-review-only', $packet['formats']['jats']['reviewPolicy']);
         $t->same(null, $packet['formats']['jats']['aliasedTo']);
+        $t->contains('root element qualified name', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
         $t->contains('article front-matter identifiers', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
         $t->contains('full JATS body and back-matter mapping', implode('; ', $packet['formats']['jats']['remainingReaderGaps']));
 
         $t->same('summarizeJatsFrontMatter', $packet['formats']['bits']['reviewMethod']);
         $t->same('jats-bits-front-matter-review-only', $packet['formats']['bits']['reviewPolicy']);
         $t->same('jats', $packet['formats']['bits']['aliasedTo']);
+        $t->contains('root element qualified name', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
         $t->contains('book and book-part metadata identifiers', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
         $t->contains('full BITS book body and book-part mapping', implode('; ', $packet['formats']['bits']['remainingReaderGaps']));
     },

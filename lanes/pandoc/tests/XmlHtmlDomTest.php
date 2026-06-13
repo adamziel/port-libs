@@ -84,7 +84,7 @@ XML, 'package reader XML');
     },
     'summarizes jats and bits front matter review packets without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
-<article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
+<jats:article xmlns:jats="http://jats.nlm.nih.gov" xmlns:xlink="http://www.w3.org/1999/xlink" id="article-root" xml:id="xml-root" article-type="research-article" dtd-version="1.3" xml:lang="en">
   <front>
     <journal-meta>
       <journal-title-group><journal-title>Journal &amp; Review</journal-title></journal-title-group>
@@ -111,7 +111,7 @@ XML, 'package reader XML');
     <table-wrap id="t1"><caption><p>Table</p></caption></table-wrap>
   </body>
   <back><ref-list><ref id="r1"><label>1</label></ref></ref-list></back>
-</article>
+</jats:article>
 XML, 'JATS article XML', preserveWhiteSpace: false);
         $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
 
@@ -130,15 +130,33 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
+        $t->same('jats:article', $packet['directReaderDiagnostics'][0]['details']['rootQualifiedName'] ?? null);
+        $t->same('http://jats.nlm.nih.gov', $packet['directReaderDiagnostics'][0]['details']['rootNamespaceUri'] ?? null);
+        $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['rootPrefix'] ?? null);
+        $t->same('article-root', $packet['directReaderDiagnostics'][0]['details']['rootId'] ?? null);
+        $t->same('xml-root', $packet['directReaderDiagnostics'][0]['details']['rootXmlId'] ?? null);
+        $t->same('en', $packet['directReaderDiagnostics'][0]['details']['rootLanguage'] ?? null);
+        $t->same(['article-type', 'dtd-version', 'id', 'xml:id', 'xml:lang'], $packet['directReaderDiagnostics'][0]['details']['rootAttributeNames'] ?? null);
+        $t->same('research-article', $packet['directReaderDiagnostics'][0]['details']['rootAttributes']['article-type'] ?? null);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][1]['details']['sectionCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
+        $t->same('jats:article', $packet['rootProvenance']['qualifiedName']);
+        $t->same('http://jats.nlm.nih.gov', $packet['rootProvenance']['namespaceUri']);
+        $t->same('jats', $packet['rootProvenance']['prefix']);
+        $t->same('article-root', $packet['rootProvenance']['id']);
+        $t->same('xml-root', $packet['rootProvenance']['xmlId']);
+        $t->same('en', $packet['rootProvenance']['language']);
+        $t->same(5, $packet['rootProvenance']['attributeCount']);
+        $t->same(['article-type', 'dtd-version', 'id', 'xml:id', 'xml:lang'], $packet['rootProvenance']['attributeNames']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
         $t->same('en', $packet['language']);
+        $t->same('article-root', $packet['rootAttributes']['id'] ?? null);
+        $t->same('xml-root', $packet['rootAttributes']['xml:id'] ?? null);
         $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
         $t->same('article-meta', $packet['metadataRoot']);
         $t->same('Import Safety Study', $packet['title']);

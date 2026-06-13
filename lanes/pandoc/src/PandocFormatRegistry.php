@@ -517,7 +517,7 @@ final class PandocFormatRegistry
             'reviewPolicy' => 'safe-xml-dom-primitives-only',
             'boundedDiagnostics' => [
                 'safe XML loading with external entity and processing-instruction rejection',
-                'namespace-aware element and attribute queries for package-reader handoff',
+                'namespace-aware root, element, language, id, and attribute provenance for package-reader handoff',
             ],
             'remainingReaderGaps' => [
                 'full Pandoc XML input mapping into the shared AST',
@@ -529,6 +529,7 @@ final class PandocFormatRegistry
             'reviewMethod' => 'summarizeJatsFrontMatter',
             'reviewPolicy' => 'jats-bits-front-matter-review-only',
             'boundedDiagnostics' => [
+                'root element qualified name, namespace, xml:id/id, language, and attribute provenance',
                 'article front-matter identifiers, titles, abstracts, keywords, contributors, dates, and cross-reference targets',
                 'bounded body, reference, figure, and table-wrap inventories',
             ],
@@ -542,6 +543,7 @@ final class PandocFormatRegistry
             'reviewMethod' => 'summarizeJatsFrontMatter',
             'reviewPolicy' => 'jats-bits-front-matter-review-only',
             'boundedDiagnostics' => [
+                'root element qualified name, namespace, xml:id/id, language, and attribute provenance',
                 'book and book-part metadata identifiers, titles, contributors, dates, and part counts',
                 'bounded body, reference, figure, and table-wrap inventories',
             ],
