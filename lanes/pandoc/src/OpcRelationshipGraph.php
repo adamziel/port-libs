@@ -566,6 +566,8 @@ final class OpcRelationshipGraph
         $byteCountsByHandoffKind = [];
         $byteCountsByContentType = [];
         $byteCountsByContentTypeSource = [];
+        $entryNamesByContentType = [];
+        $entryNamesByContentTypeSource = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -669,6 +671,9 @@ final class OpcRelationshipGraph
                     $entry['compressedSize'],
                     $entry['uncompressedSize'],
                 );
+                $contentTypeSource = $entry['contentTypeSource'] ?? 'unavailable';
+                $entryNamesByContentTypeSource[$contentTypeSource] ??= [];
+                self::appendUniqueString($entryNamesByContentTypeSource[$contentTypeSource], $entry['entryName']);
                 if (is_string($entry['contentType'])) {
                     self::incrementZipEntryManifestByteBucket(
                         $byteCountsByContentType,
@@ -676,6 +681,8 @@ final class OpcRelationshipGraph
                         $entry['compressedSize'],
                         $entry['uncompressedSize'],
                     );
+                    $entryNamesByContentType[$entry['contentType']] ??= [];
+                    self::appendUniqueString($entryNamesByContentType[$entry['contentType']], $entry['entryName']);
                 }
             }
             self::recordZipEntryManifestCompressionMethodProvenance(
@@ -804,6 +811,8 @@ final class OpcRelationshipGraph
         ksort($byteCountsByHandoffKind);
         ksort($byteCountsByContentType);
         ksort($byteCountsByContentTypeSource);
+        self::sortStringListMap($entryNamesByContentType);
+        self::sortStringListMap($entryNamesByContentTypeSource);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -885,6 +894,8 @@ final class OpcRelationshipGraph
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
             'byteCountsByContentType' => $byteCountsByContentType,
             'byteCountsByContentTypeSource' => $byteCountsByContentTypeSource,
+            'entryNamesByContentType' => $entryNamesByContentType,
+            'entryNamesByContentTypeSource' => $entryNamesByContentTypeSource,
             'compressionMethodCounts' => $compressionMethodCounts,
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
@@ -8607,6 +8618,18 @@ final class OpcRelationshipGraph
         if (!in_array($value, $values, true)) {
             $values[] = $value;
         }
+    }
+
+    /**
+     * @param array<string, list<string>> $map
+     */
+    private static function sortStringListMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$values) {
+            sort($values, SORT_STRING);
+        }
+        unset($values);
     }
 
     /**

@@ -4546,6 +4546,8 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        $targetCollisions = $this->relatedPartInternalExternalTargetCollisions($items);
+        $repeatedTargetSuffixes = $this->relatedPartRepeatedTargetReferenceSuffixes($items);
 
         return [
             'sourcePart' => $sourcePart,
@@ -4561,10 +4563,123 @@ final class DocxOpenXmlReader
             'targetParts' => $targetParts,
             'externalTargets' => $externalTargets,
             'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'internalExternalTargetCollisionCount' => $targetCollisions['groupCount'],
+            'internalExternalTargetCollisionRelationshipCount' => $targetCollisions['relationshipCount'],
+            'internalExternalTargetCollisions' => $targetCollisions['groups'],
+            'repeatedTargetReferenceSuffixCount' => $repeatedTargetSuffixes['groupCount'],
+            'repeatedTargetReferenceSuffixRelationshipCount' => $repeatedTargetSuffixes['relationshipCount'],
+            'repeatedTargetReferenceSuffixes' => $repeatedTargetSuffixes['suffixes'],
+            'repeatedTargetReferenceSuffixGroups' => $repeatedTargetSuffixes['groups'],
             'issueCount' => $issueCount,
             'issueCodes' => array_keys($issueCodes),
             'byId' => $byId,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{groupCount:int, relationshipCount:int, groups:list<array<string, mixed>>}
+     */
+    private function relatedPartInternalExternalTargetCollisions(array $items): array
+    {
+        $byTarget = [];
+        foreach ($items as $item) {
+            $target = is_string($item['target'] ?? null) ? $this->stripQueryAndFragment($item['target']) : '';
+            $relationshipId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            if ($target === '' || $relationshipId === '') {
+                continue;
+            }
+
+            $byTarget[$target] ??= [
+                'target' => $target,
+                'relationshipIds' => [],
+                'internalRelationshipIds' => [],
+                'externalRelationshipIds' => [],
+                'targetParts' => [],
+                'externalTargets' => [],
+                'targetReferenceSuffixes' => [],
+                'relationships' => [],
+            ];
+            $this->appendUniqueString($byTarget[$target]['relationshipIds'], $relationshipId);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($byTarget[$target]['externalRelationshipIds'], $relationshipId);
+                $this->appendUniqueString($byTarget[$target]['externalTargets'], is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : null);
+            } else {
+                $this->appendUniqueString($byTarget[$target]['internalRelationshipIds'], $relationshipId);
+                $this->appendUniqueString($byTarget[$target]['targetParts'], is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            }
+            $this->appendUniqueString($byTarget[$target]['targetReferenceSuffixes'], is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : null);
+            $byTarget[$target]['relationships'][] = $item;
+        }
+
+        $groups = [];
+        $relationshipCount = 0;
+        foreach ($byTarget as $group) {
+            if ($group['internalRelationshipIds'] === [] || $group['externalRelationshipIds'] === []) {
+                continue;
+            }
+
+            $groups[] = $group;
+            $relationshipCount += count($group['relationshipIds']);
+        }
+
+        return [
+            'groupCount' => count($groups),
+            'relationshipCount' => $relationshipCount,
+            'groups' => $groups,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{groupCount:int, relationshipCount:int, suffixes:list<string>, groups:list<array<string, mixed>>}
+     */
+    private function relatedPartRepeatedTargetReferenceSuffixes(array $items): array
+    {
+        $bySuffix = [];
+        foreach ($items as $item) {
+            $suffix = is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : '';
+            $relationshipId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            if ($suffix === '' || $relationshipId === '') {
+                continue;
+            }
+
+            $bySuffix[$suffix] ??= [
+                'targetReferenceSuffix' => $suffix,
+                'relationshipIds' => [],
+                'targetParts' => [],
+                'externalTargets' => [],
+                'targets' => [],
+                'relationships' => [],
+            ];
+            $this->appendUniqueString($bySuffix[$suffix]['relationshipIds'], $relationshipId);
+            $this->appendUniqueString($bySuffix[$suffix]['targetParts'], is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($bySuffix[$suffix]['externalTargets'], is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : null);
+            }
+            $this->appendUniqueString($bySuffix[$suffix]['targets'], is_string($item['target'] ?? null) ? $item['target'] : null);
+            $bySuffix[$suffix]['relationships'][] = $item;
+        }
+
+        $groups = [];
+        $suffixes = [];
+        $relationshipCount = 0;
+        foreach ($bySuffix as $suffix => $group) {
+            if (count($group['relationshipIds']) < 2) {
+                continue;
+            }
+
+            $groups[] = $group;
+            $suffixes[] = $suffix;
+            $relationshipCount += count($group['relationshipIds']);
+        }
+
+        return [
+            'groupCount' => count($groups),
+            'relationshipCount' => $relationshipCount,
+            'suffixes' => $suffixes,
+            'groups' => $groups,
         ];
     }
 
@@ -4576,11 +4691,88 @@ final class DocxOpenXmlReader
      */
     private function noteCollectionSummary(array $items, array $byId, array $relationshipDiagnostics): array
     {
+        $relationshipBacklinks = [];
+        $referencedRelationshipIds = [];
+        $missingReferencedRelationshipIds = [];
+        $reconciledItems = [];
+        $reconciledById = [];
+        $relationships = is_array($relationshipDiagnostics['byId'] ?? null) ? $relationshipDiagnostics['byId'] : [];
+
+        foreach ($items as $item) {
+            $relationshipIds = is_array($item['relationshipIds'] ?? null) ? $item['relationshipIds'] : [];
+            $knownRelationshipIds = [];
+            $itemRelationshipBacklinks = [];
+            foreach ($relationshipIds as $relationshipId) {
+                if (!is_string($relationshipId) || $relationshipId === '') {
+                    continue;
+                }
+
+                $itemId = is_string($item['id'] ?? null) ? $item['id'] : '';
+                $backlink = [
+                    'relationshipId' => $relationshipId,
+                    'itemId' => $itemId,
+                    'sourceType' => is_string($item['sourceType'] ?? null) ? $item['sourceType'] : null,
+                    'known' => isset($relationships[$relationshipId]),
+                ];
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if (isset($relationships[$relationshipId])) {
+                    $this->appendUniqueString($knownRelationshipIds, $relationshipId);
+                } else {
+                    $this->appendUniqueString($missingReferencedRelationshipIds, $relationshipId);
+                }
+
+                $relationshipBacklinks[$relationshipId] ??= [];
+                $relationshipBacklinks[$relationshipId][] = $backlink;
+                $itemRelationshipBacklinks[] = $backlink;
+            }
+
+            $item['knownRelationshipIds'] = $knownRelationshipIds;
+            $item['knownRelationshipCount'] = count($knownRelationshipIds);
+            $item['missingRelationshipCount'] = count(is_array($item['missingRelationshipIds'] ?? null) ? $item['missingRelationshipIds'] : []);
+            $item['relationshipBacklinks'] = $itemRelationshipBacklinks;
+            $reconciledItems[] = $item;
+            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
+                $reconciledById[$item['id']] = $item;
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach (($relationshipDiagnostics['relationshipIds'] ?? []) as $relationshipId) {
+            if (!is_string($relationshipId) || $relationshipId === '') {
+                continue;
+            }
+
+            $referenced = in_array($relationshipId, $referencedRelationshipIds, true);
+            if (!$referenced) {
+                $unreferencedRelationshipIds[] = $relationshipId;
+            }
+
+            if (isset($relationships[$relationshipId])) {
+                $relationships[$relationshipId]['referenced'] = $referenced;
+                $relationships[$relationshipId]['orphaned'] = !$referenced;
+                $relationships[$relationshipId]['referencedItemIds'] = array_values(array_unique(array_map(
+                    static fn (array $backlink): string => is_string($backlink['itemId'] ?? null) ? $backlink['itemId'] : '',
+                    $relationshipBacklinks[$relationshipId] ?? [],
+                )));
+                $relationships[$relationshipId]['referencedItemIds'] = array_values(array_filter($relationships[$relationshipId]['referencedItemIds'], static fn (string $value): bool => $value !== ''));
+                $relationships[$relationshipId]['referencedItemCount'] = count($relationships[$relationshipId]['referencedItemIds']);
+                $relationships[$relationshipId]['referenceBacklinks'] = $relationshipBacklinks[$relationshipId] ?? [];
+            }
+        }
+
+        $relationshipDiagnostics['referencedRelationshipIds'] = $referencedRelationshipIds;
+        $relationshipDiagnostics['unreferencedRelationshipIds'] = $unreferencedRelationshipIds;
+        $relationshipDiagnostics['orphanedRelationshipIds'] = $unreferencedRelationshipIds;
+        $relationshipDiagnostics['missingReferencedRelationshipIds'] = $missingReferencedRelationshipIds;
+        $relationshipDiagnostics['relationshipBacklinks'] = $relationshipBacklinks;
+        $relationshipDiagnostics['byId'] = $relationships;
+        $relationshipDiagnostics['items'] = array_values($relationships);
+
         return [
-            'count' => count($items),
-            'ids' => array_column($items, 'id'),
-            'byId' => $byId,
-            'items' => $items,
+            'count' => count($reconciledItems),
+            'ids' => array_column($reconciledItems, 'id'),
+            'byId' => $reconciledById,
+            'items' => $reconciledItems,
             'relationshipsPart' => $relationshipDiagnostics['relationshipsPart'],
             'relationshipCount' => $relationshipDiagnostics['relationshipCount'],
             'internalRelationshipCount' => $relationshipDiagnostics['internalRelationshipCount'],
@@ -4590,11 +4782,28 @@ final class DocxOpenXmlReader
             'missingRelationshipContentTypeCount' => $relationshipDiagnostics['missingContentTypeCount'],
             'relationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['targetReferenceSuffixCount'],
             'relationshipIds' => $relationshipDiagnostics['relationshipIds'],
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'orphanedRelationshipIds' => $unreferencedRelationshipIds,
+            'missingReferencedRelationshipIds' => $missingReferencedRelationshipIds,
+            'referencedRelationshipCount' => count($referencedRelationshipIds),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'orphanedRelationshipCount' => count($unreferencedRelationshipIds),
+            'missingReferencedRelationshipCount' => count($missingReferencedRelationshipIds),
             'relationshipTargetParts' => $relationshipDiagnostics['targetParts'],
             'relationshipExternalTargets' => $relationshipDiagnostics['externalTargets'],
+            'relationshipTargetReferenceSuffixes' => $relationshipDiagnostics['targetReferenceSuffixes'],
+            'internalExternalRelationshipTargetCollisionCount' => $relationshipDiagnostics['internalExternalTargetCollisionCount'],
+            'internalExternalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['internalExternalTargetCollisionRelationshipCount'],
+            'internalExternalRelationshipTargetCollisions' => $relationshipDiagnostics['internalExternalTargetCollisions'],
+            'repeatedRelationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['repeatedTargetReferenceSuffixCount'],
+            'repeatedRelationshipTargetReferenceSuffixRelationshipCount' => $relationshipDiagnostics['repeatedTargetReferenceSuffixRelationshipCount'],
+            'repeatedRelationshipTargetReferenceSuffixes' => $relationshipDiagnostics['repeatedTargetReferenceSuffixes'],
+            'repeatedRelationshipTargetReferenceSuffixGroups' => $relationshipDiagnostics['repeatedTargetReferenceSuffixGroups'],
             'relationshipIssueCount' => $relationshipDiagnostics['issueCount'],
             'relationshipIssueCodes' => $relationshipDiagnostics['issueCodes'],
-            'relationships' => $relationshipDiagnostics['byId'],
+            'relationshipBacklinks' => $relationshipBacklinks,
+            'relationships' => $relationships,
             'relationshipDiagnostics' => $relationshipDiagnostics,
         ];
     }

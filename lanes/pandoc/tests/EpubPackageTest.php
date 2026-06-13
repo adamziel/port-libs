@@ -1617,6 +1617,106 @@ XML;
         $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
     },
 
+    'summarizes OPF subject authority metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $subjectRecord = '{"@context":"https://schema.org","about":"subject review"}';
+        $opfWithSubjects = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:subject id="subject-genre" scheme="BISAC" xml:lang="en" dir="ltr">Computers / Data Migration</dc:subject>
+    <dc:subject id="subject-tag">WordPress import</dc:subject>
+    <dc:subject>Review orphan</dc:subject>
+    <dc:language>en-US</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithSubjects = str_replace(
+            '</metadata>',
+            '    <meta refines="#subject-genre" property="authority">BISAC Subject Headings</meta>
+    <meta refines="#subject-genre" property="term">COM051000</meta>
+    <meta refines="#subject-genre" property="display-seq">1</meta>
+    <meta refines="#subject-genre" property="file-as">Data migration</meta>
+    <meta refines="#subject-genre" property="alternate-script" xml:lang="es" dir="ltr">Migracion de datos</meta>
+    <meta refines="#subject-tag" property="term">wordpress-import</meta>
+    <meta refines="#subject-tag" property="display-seq">appendix</meta>
+    <link id="subject-record" rel="record" refines="#subject-genre" href="meta/subject.json" media-type="application/ld+json"/>
+    <link id="subject-missing" rel="record" refines="#subject-tag" href="meta/missing.json" media-type="application/json"/>
+  </metadata>',
+            $opfWithSubjects
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSubjects],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/subject.json', 'data' => $subjectRecord],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $subjectDetails = $metadata['subjectDetails'];
+        $subjectSummary = $metadata['subjectSummary'];
+
+        $t->same(['Computers / Data Migration', 'WordPress import', 'Review orphan'], $metadata['subjects']);
+        $t->same(3, count($subjectDetails));
+
+        $t->same('subject-genre', $subjectDetails[0]['id']);
+        $t->same('BISAC', $subjectDetails[0]['scheme']);
+        $t->same('en', $subjectDetails[0]['language']);
+        $t->same('ltr', $subjectDetails[0]['direction']);
+        $t->same('BISAC Subject Headings', $subjectDetails[0]['authority']);
+        $t->same('COM051000', $subjectDetails[0]['term']);
+        $t->same('1', $subjectDetails[0]['displaySeq']);
+        $t->same(1, $subjectDetails[0]['displaySeqNumber']);
+        $t->same(true, $subjectDetails[0]['displaySeqValid']);
+        $t->same('Data migration', $subjectDetails[0]['fileAs']);
+        $t->same('Migracion de datos', $subjectDetails[0]['alternateScripts'][0]['text']);
+        $t->same('es', $subjectDetails[0]['alternateScripts'][0]['language']);
+        $t->same('subject-record', $subjectDetails[0]['linkedResources'][0]['id']);
+        $t->same('/EPUB/meta/subject.json', $subjectDetails[0]['linkedResources'][0]['partName']);
+        $t->same(strlen($subjectRecord), $subjectDetails[0]['linkedResources'][0]['byteLength']);
+        $t->same(1, $subjectDetails[0]['localLinkedResourceCount']);
+
+        $t->same('subject-tag', $subjectDetails[1]['id']);
+        $t->same('wordpress-import', $subjectDetails[1]['term']);
+        $t->same('appendix', $subjectDetails[1]['displaySeq']);
+        $t->same(null, $subjectDetails[1]['displaySeqNumber']);
+        $t->same(false, $subjectDetails[1]['displaySeqValid']);
+        $t->same('invalid-subject-display-seq', $subjectDetails[1]['diagnostics'][0]['type']);
+        $t->same('subject-missing', $subjectDetails[1]['linkedResources'][0]['id']);
+        $t->same('/EPUB/meta/missing.json', $subjectDetails[1]['linkedResources'][0]['partName']);
+        $t->same(1, $subjectDetails[1]['missingLinkedResourceCount']);
+
+        $t->same('Review orphan', $subjectDetails[2]['text']);
+        $t->same(null, $subjectDetails[2]['id']);
+        $t->same([], $subjectDetails[2]['linkedResources']);
+
+        $t->same(true, $subjectSummary['present']);
+        $t->same(3, $subjectSummary['count']);
+        $t->same(1, $subjectSummary['schemeCount']);
+        $t->same(1, $subjectSummary['authorityCount']);
+        $t->same(2, $subjectSummary['termCount']);
+        $t->same(1, $subjectSummary['sequencedCount']);
+        $t->same(1, $subjectSummary['invalidDisplaySeqCount']);
+        $t->same(1, $subjectSummary['alternateScriptCount']);
+        $t->same(2, $subjectSummary['linkedResourceCount']);
+        $t->same(2, $subjectSummary['localLinkedResourceCount']);
+        $t->same(1, $subjectSummary['missingLinkedResourceCount']);
+        $t->same(['BISAC'], $subjectSummary['schemes']);
+        $t->same(['BISAC Subject Headings'], $subjectSummary['authorities']);
+        $t->same(['COM051000', 'wordpress-import'], $subjectSummary['terms']);
+        $t->same('invalid-subject-display-seq', $subjectSummary['diagnostics'][0]['type']);
+
+        $t->same('Computers / Data Migration', $metadata['subjectsByScheme']['BISAC'][0]['text']);
+        $t->same('Computers / Data Migration', $metadata['subjectsByAuthority']['BISAC Subject Headings'][0]['text']);
+        $t->same('WordPress import', $metadata['subjectsByTerm']['wordpress-import'][0]['text']);
+        $t->same($subjectDetails, $summary['wordpressImport']['metadataDetails']['subjectDetails']);
+        $t->same($metadata['subjectsByAuthority'], $summary['wordpressImport']['metadataDetails']['subjectsByAuthority']);
+        $t->same($subjectSummary, $summary['wordpressImport']['metadataDetails']['subjectSummary']);
+    },
+
     'summarizes OPF bibliographic Dublin Core metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithBibliographicMetadata = str_replace(
             '<dc:language>en-US</dc:language>',

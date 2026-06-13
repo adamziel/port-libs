@@ -1068,6 +1068,53 @@ XML;
             ],
         ], $summary['byteCountsByContentType']);
     },
+    'summarizes OPC ZIP entry manifest content type entry name provenance before graph construction' => static function (TestRunner $t): void {
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relationshipsContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="{$relationshipsContentType}"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+</Types>
+XML;
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>', 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/source', 'data' => 'RAW', 'compressionMethod' => 0],
+        ]));
+
+        $t->same([
+            $documentContentType => [
+                'word/document.xml',
+            ],
+            $relationshipsContentType => [
+                '_rels/.rels',
+            ],
+            'application/xml' => [
+                'customXml/item1.xml',
+                'word/styles.xml',
+            ],
+        ], $summary['entryNamesByContentType']);
+        $t->same([
+            'default' => [
+                '_rels/.rels',
+                'customXml/item1.xml',
+                'word/styles.xml',
+            ],
+            'missing' => [
+                'word/media/source',
+            ],
+            'override' => [
+                'word/document.xml',
+            ],
+        ], $summary['entryNamesByContentTypeSource']);
+        $t->same(['/word/media/source'], $summary['missingContentTypeParts']);
+    },
     'preflights OPC ZIP manifest content type override declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

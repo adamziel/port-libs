@@ -50,7 +50,7 @@ return [
 
         $t->same(implode("\n\n", [
             '\section{Migration \emph{Review}}',
-            'See \href{https://example.test/source?a=1\&b=2}{source} and \footnote{kept note with \texttt{raw\_\$}}; badge \includegraphics[alt={Review badge}]{media/badge.png}',
+            'See \href{https://example.test/source?a=1\&b=2}{source} and \protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}kept note with \texttt{raw\_\$}}; badge \includegraphics[alt={Review badge}]{media/badge.png}',
             implode("\n", [
                 '\begin{quote}',
                 'Quoted \textbf{source}',
@@ -147,8 +147,8 @@ return [
 
         $t->contains('Review note[^review-note] and generated.[^1]', $markdown);
         $t->contains('[^review-note]: Labelled note keeps [source](https://example.test/source).', $markdown);
-        $t->contains('\footnote{\protect\hypertarget{fn-review-note}{}Labelled note keeps \href{https://example.test/source}{source}.}', $latex);
-        $t->contains('\footnote{Generated note.}', $latex);
+        $t->contains('\protect\hypertarget{fnref-review-note}{}\footnote{\protect\hypertarget{fn-review-note}{}Labelled note keeps \href{https://example.test/source}{source}.}', $latex);
+        $t->contains('\protect\hypertarget{fnref-2}{}\footnote{\protect\hypertarget{fn-2}{}Generated note.}', $latex);
         $t->contains('<sup id="fnref-review-note" data-pandoc-note-label="review-note"><a href="#fn-review-note" role="doc-noteref">1</a></sup>', $blocks);
         $t->contains('<li id="fn-review-note" data-pandoc-note-label="review-note"><p>Labelled note keeps <a href="https://example.test/source">source</a>.</p> <a href="#fnref-review-note" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
 
@@ -161,8 +161,88 @@ return [
         ]);
         $duplicateLatex = (new LatexWriter())->write($duplicate);
 
-        $t->contains('\footnote{\protect\hypertarget{fn-review-note}{}First}', $duplicateLatex);
-        $t->contains('\footnote{\protect\hypertarget{fn-review-note-2}{}Second}', $duplicateLatex);
+        $t->contains('\protect\hypertarget{fnref-review-note}{}\footnote{\protect\hypertarget{fn-review-note}{}First}', $duplicateLatex);
+        $t->contains('\protect\hypertarget{fnref-review-note-2}{}\footnote{\protect\hypertarget{fn-review-note-2}{}Second}', $duplicateLatex);
+        $t->contains('% pandoc-note-anchor duplicate source=label:review-note original=fn-review-note resolved=fn-review-note-2', $duplicateLatex);
+    },
+    'groups latex endnotes with stable note and backlink anchors when enabled' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+        $note = static fn (array $attrs, string $body): AstNode => new AstNode('note', $attrs, [
+            new AstNode('plain', [], [$text($body)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('First'),
+                $space(),
+                $note([], 'Generated footnote'),
+                $space(),
+                $text('then'),
+                $space(),
+                $note(['noteClass' => 'endnote', 'label' => 'review-end'], 'Grouped endnote'),
+                $space(),
+                $text('after'),
+                $space(),
+                $note([], 'Trailing generated note'),
+            ]),
+        ]);
+
+        $latex = (new LatexWriter(null, ['groupEndnotes' => true]))->write($document);
+
+        $t->contains('\protect\hypertarget{fnref-1}{}\footnote{\protect\hypertarget{fn-1}{}Generated footnote}', $latex);
+        $t->contains('\protect\hypertarget{fnref-review-end}{}\endnote{\protect\hypertarget{fn-review-end}{}Grouped endnote}', $latex);
+        $t->contains('\protect\hypertarget{fnref-3}{}\footnote{\protect\hypertarget{fn-3}{}Trailing generated note}', $latex);
+        $t->contains("\n\n" . '\theendnotes', $latex);
+    },
+    'orders grouped latex endnote anchors across duplicate labels and generated fallbacks' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+        $note = static fn (array $attrs, string $body): AstNode => new AstNode('note', $attrs, [
+            new AstNode('plain', [], [$text($body)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Foot'),
+                $space(),
+                $note(['sourceType' => 'footnote', 'label' => 'shared'], 'Foot body'),
+                $space(),
+                $text('End'),
+                $space(),
+                $note(['sourceType' => 'endnote', 'label' => 'shared'], 'Duplicate end body'),
+                $space(),
+                $text('Generated'),
+                $space(),
+                $note(['noteType' => 'endnote'], 'Generated end body'),
+                $space(),
+                $text('Csl'),
+                $space(),
+                $note(['cslNoteType' => 'endnote', 'label' => 'csl-end'], 'CSL end body'),
+            ]),
+        ]);
+
+        $latex = (new LatexWriter(null, ['groupEndnotes' => true]))->write($document);
+
+        $t->contains('\protect\hypertarget{fnref-shared}{}\footnote{\protect\hypertarget{fn-shared}{}Foot body}', $latex);
+        $t->contains('\protect\hypertarget{fnref-shared-2}{}\endnote{\protect\hypertarget{fn-shared-2}{}Duplicate end body}', $latex);
+        $t->contains('\protect\hypertarget{fnref-3}{}\endnote{\protect\hypertarget{fn-3}{}Generated end body}', $latex);
+        $t->contains('\protect\hypertarget{fnref-csl-end}{}\endnote{\protect\hypertarget{fn-csl-end}{}CSL end body}', $latex);
+        $t->contains('% pandoc-note-anchor duplicate source=label:shared original=fn-shared resolved=fn-shared-2', $latex);
+
+        $duplicateReference = strpos($latex, '\protect\hypertarget{fnref-shared-2}{}');
+        $duplicateTarget = strpos($latex, '\protect\hypertarget{fn-shared-2}{}Duplicate end body');
+        $theEndnotes = strpos($latex, "\n\n" . '\theendnotes');
+        $diagnostic = strpos($latex, '% pandoc-note-anchor duplicate source=label:shared');
+
+        $t->true(is_int($duplicateReference) && is_int($duplicateTarget) && $duplicateReference < $duplicateTarget, 'duplicate fnref anchor should precede its fn anchor');
+        $t->true(is_int($theEndnotes) && is_int($diagnostic) && $theEndnotes < $diagnostic, 'grouped endnotes should render before duplicate diagnostics');
+
+        $plainLatex = (new LatexWriter())->write($document);
+
+        $t->contains('\protect\hypertarget{fnref-shared-2}{}\footnote{\protect\hypertarget{fn-shared-2}{}Duplicate end body}', $plainLatex);
+        $t->true(!str_contains($plainLatex, '\endnote{'), 'source endnote nodes should stay footnotes without groupEndnotes');
+        $t->true(!str_contains($plainLatex, '\theendnotes'), 'non-grouped note output should not append theendnotes');
     },
     'renders line blocks and definition lists without dropping native ast nodes' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
