@@ -2904,7 +2904,7 @@ final class WordPressBlockWriter
                 : '';
             $items[] = '<li id="fn-' . $this->esc($footnote['id']) . '"' . $labelAttr . '>'
                 . $this->renderBlocksAsHtml($footnote['node']->children)
-                . ' <a href="#fnref-' . $this->esc($footnote['id']) . '" aria-label="Back to content">Back</a>'
+                . ' <a href="#fnref-' . $this->esc($footnote['id']) . '" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a>'
                 . '</li>';
         }
 
