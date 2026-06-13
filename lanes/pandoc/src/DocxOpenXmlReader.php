@@ -43,6 +43,7 @@ final class DocxOpenXmlReader
     private const COMMENTS_EXTENDED_REL = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+    private const SUBDOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
     private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     private const CUSTOM_XML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
@@ -322,6 +323,13 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $subdocuments = $this->readSubdocuments(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $packageProvenance['alternativeFormats'] = $alternativeFormats;
         $packageProvenance['summary']['alternativeFormatCount'] = $alternativeFormats['count'];
         $packageProvenance['summary']['alternativeFormatRelationshipCount'] = $alternativeFormats['relationshipCount'];
@@ -340,6 +348,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['embeddedObjectExternalCount'] = $embeddedObjects['externalCount'];
         $packageProvenance['summary']['embeddedObjectIssueCount'] = $embeddedObjects['issueCount'];
         $packageProvenance['summary']['embeddedObjectIssueCodes'] = $embeddedObjects['issueCodes'];
+        $packageProvenance['subdocuments'] = $subdocuments;
+        $packageProvenance['summary']['subdocumentCount'] = $subdocuments['count'];
+        $packageProvenance['summary']['subdocumentRelationshipCount'] = $subdocuments['relationshipCount'];
+        $packageProvenance['summary']['subdocumentReferencedCount'] = $subdocuments['referencedCount'];
+        $packageProvenance['summary']['subdocumentExistingCount'] = $subdocuments['existingCount'];
+        $packageProvenance['summary']['subdocumentMissingCount'] = $subdocuments['missingCount'];
+        $packageProvenance['summary']['subdocumentExternalCount'] = $subdocuments['externalCount'];
+        $packageProvenance['summary']['subdocumentInternalCount'] = $subdocuments['internalCount'];
+        $packageProvenance['summary']['subdocumentUnsupportedCount'] = $subdocuments['unsupportedCount'];
+        $packageProvenance['summary']['subdocumentIssueCount'] = $subdocuments['issueCount'];
+        $packageProvenance['summary']['subdocumentIssueCodes'] = $subdocuments['issueCodes'];
         $chartParts = $this->readChartParts(
             $parts,
             $parts[$documentPart],
@@ -514,6 +533,7 @@ final class DocxOpenXmlReader
                 'sections' => $sectionProperties,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
+                'subdocuments' => $subdocuments,
                 'chartParts' => $chartParts,
                 'activeXControls' => $activeXControls,
                 'vbaProjects' => $vbaProjects,
@@ -1810,6 +1830,248 @@ final class DocxOpenXmlReader
         }
 
         if ($item['contentTypeSource'] === 'missing') {
+            $item['issues'][] = 'missing-content-type';
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readSubdocuments(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedSubdocumentRelationshipIds = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        if ($xml !== '') {
+            $dom = $this->loadXml($xml, $documentPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '//w:subDoc') as $subdocument) {
+                $relationshipId = $subdocument->getAttributeNS(self::NS_R, 'id');
+                $item = $this->subdocumentItem(
+                    $parts,
+                    $relationships[$relationshipId] ?? null,
+                    $documentPart,
+                    $relationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($item['relationshipType'] === self::SUBDOCUMENT_REL) {
+                    $this->appendUniqueString($referencedSubdocumentRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::SUBDOCUMENT_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedSubdocumentRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->subdocumentItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::SUBDOCUMENT_REL)),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'internalCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => is_array($item['relationship']) && $item['external'] !== true,
+            )),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'unsupportedCount' => count(array_filter($items, static fn (array $item): bool => $item['directReaderParity'] === false)),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'directReaderParity' => false,
+            'unsupportedReason' => 'subdocument-master-document-expansion-not-implemented',
+            'byteExposurePolicy' => 'subdocument-package-bytes-blocked',
+            'reviewPolicy' => 'subdocument-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function subdocumentItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'bytes' => 0,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'relationship' => null,
+            'directReaderParity' => false,
+            'unsupportedReason' => 'subdocument-master-document-expansion-not-implemented',
+            'byteExposurePolicy' => 'subdocument-package-bytes-blocked',
+            'reviewPolicy' => 'subdocument-metadata-only',
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $exists && $targetPart !== null ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== self::SUBDOCUMENT_REL) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] !== true) {
+            $item['issues'][] = 'internal-subdocument-target';
+        }
+
+        if ($item['external'] !== true && !$exists) {
+            $item['issues'][] = 'missing-in-package';
+        }
+
+        if ($item['external'] !== true && $item['contentTypeSource'] === 'missing') {
             $item['issues'][] = 'missing-content-type';
         }
 
@@ -6810,6 +7072,7 @@ final class DocxOpenXmlReader
             self::FONT_REL => 'embedded-font',
             self::HEADER_REL => 'header-part',
             self::FOOTER_REL => 'footer-part',
+            self::SUBDOCUMENT_REL => 'subdocument',
             self::ALT_CHUNK_REL => 'alternative-format-import',
             self::GLOSSARY_DOCUMENT_REL => 'glossary-document',
             self::OLE_OBJECT_REL => 'embedded-object',
