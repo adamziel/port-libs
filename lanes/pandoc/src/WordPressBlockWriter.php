@@ -2667,6 +2667,7 @@ final class WordPressBlockWriter
     private function renderBlocksAsHtml(array $blocks): string
     {
         $html = '';
+        $wrapPlainBlocks = count($blocks) > 1;
         foreach ($blocks as $block) {
             if ($block->type === 'paragraph') {
                 $html .= '<p' . $this->renderParagraphAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
@@ -2674,9 +2675,10 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'plain') {
                 $attrs = $this->renderParagraphAttrs($block);
+                $content = $this->renderInlines($block);
                 $html .= $attrs === ''
-                    ? $this->renderInlines($block)
-                    : '<p' . $attrs . '>' . $this->renderInlines($block) . '</p>';
+                    ? ($wrapPlainBlocks ? '<p>' . $content . '</p>' : $content)
+                    : '<p' . $attrs . '>' . $content . '</p>';
                 continue;
             }
             if ($block->type === 'heading') {
