@@ -142,9 +142,9 @@ final class MediaBag
     {
         $diagnostics = [];
         $resourcesByCanonicalSource = self::canonicalResourceMap($resources);
-        $document = $this->mapImages($document, function (AstNode $image) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
+        $document = $this->mapResourceNodes($document, function (AstNode $image) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
-            if ($source === '' || $this->lookupImageSource($source) !== null) {
+            if ($source === '' || $this->lookupMediaSource($source) !== null) {
                 return $image;
             }
 
@@ -177,6 +177,39 @@ final class MediaBag
             $diagnostics[] = 'media-resource-missing:' . self::diagnosticSource($source);
 
             return $this->placeholderFor($image);
+        }, function (AstNode $link) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
+            $source = (string) $link->attr('url', '');
+            if ($source === '' || $this->lookupMediaSource($source) !== null) {
+                return $link;
+            }
+
+            if (str_starts_with($source, 'data:')) {
+                try {
+                    $this->insertDataUri($source);
+                } catch (\InvalidArgumentException) {
+                    $diagnostics[] = 'media-resource-link-invalid:data-uri';
+
+                    return $link;
+                }
+
+                $diagnostics[] = 'media-resource-link-loaded:data-uri';
+
+                return $link;
+            }
+
+            $resource = self::lookupResource($source, $resources, $resourcesByCanonicalSource);
+            if ($resource !== null) {
+                $contents = is_array($resource)
+                    ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
+                    : (string) $resource;
+                $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
+                $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
+                $diagnostics[] = 'media-resource-link-loaded:' . self::diagnosticSource($source);
+
+                return $link;
+            }
+
+            return $link;
         });
 
         return ['document' => $document, 'diagnostics' => $diagnostics];
@@ -213,9 +246,9 @@ final class MediaBag
 
         usort($entries, static fn (array $a, array $b): int => $a['path'] <=> $b['path']);
 
-        $document = $this->mapImages($document, function (AstNode $image) use ($destination, $plannedPaths, &$diagnostics): AstNode {
+        $document = $this->mapResourceNodes($document, function (AstNode $image) use ($destination, $plannedPaths, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
-            $item = $this->lookupImageSource($source);
+            $item = $this->lookupMediaSource($source);
             if ($item === null) {
                 return $image;
             }
@@ -228,6 +261,21 @@ final class MediaBag
             $diagnostics[] = 'media-resource-mapped:' . self::diagnosticSource($source);
 
             return new AstNode($image->type, $attrs, $image->children);
+        }, function (AstNode $link) use ($destination, $plannedPaths, &$diagnostics): AstNode {
+            $source = (string) $link->attr('url', '');
+            $item = $this->lookupMediaSource($source);
+            if ($item === null) {
+                return $link;
+            }
+
+            $attrs = $link->attrs;
+            $mediaPath = $plannedPaths[$item['canonicalSource']] ?? $item['path'];
+            $mappedUrl = $destination . '/' . $mediaPath;
+            $attrs['url'] = $mappedUrl;
+            $attrs['attributes'] = $this->mediaProvenanceAttributes($attrs, $item, $mediaPath, $mappedUrl);
+            $diagnostics[] = 'media-resource-link-mapped:' . self::diagnosticSource($source);
+
+            return new AstNode($link->type, $attrs, $link->children);
         });
 
         return [
@@ -573,7 +621,7 @@ final class MediaBag
     /**
      * @return array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}|null
      */
-    private function lookupImageSource(string $source): ?array
+    private function lookupMediaSource(string $source): ?array
     {
         foreach (self::resourceLookupKeys($source) as $key) {
             $item = $this->lookup($key);
@@ -627,13 +675,18 @@ final class MediaBag
 
     /**
      * @param callable(AstNode): AstNode $mapImage
+     * @param callable(AstNode): AstNode $mapLink
      */
-    private function mapImages(AstNode $node, callable $mapImage): AstNode
+    private function mapResourceNodes(AstNode $node, callable $mapImage, callable $mapLink): AstNode
     {
-        $children = array_map(fn (AstNode $child): AstNode => $this->mapImages($child, $mapImage), $node->children);
+        $children = array_map(fn (AstNode $child): AstNode => $this->mapResourceNodes($child, $mapImage, $mapLink), $node->children);
         $mapped = new AstNode($node->type, $node->attrs, $children);
 
-        return $mapped->type === 'image' ? $mapImage($mapped) : $mapped;
+        return match ($mapped->type) {
+            'image' => $mapImage($mapped),
+            'link' => $mapLink($mapped),
+            default => $mapped,
+        };
     }
 
     private static function diagnosticSource(string $source): string

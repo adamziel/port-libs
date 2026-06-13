@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaBag;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -500,6 +501,78 @@ return [
         $roundTripImage = $roundTrip->children[0]->children[0];
         $t->same('media/Pictures/review.png', $roundTripImage->attr('url'));
         $t->same(sha1($bytes), $roundTripImage->attr('attributes')['data-pandoc-media-sha1']);
+    },
+
+    'rebases linked media resources across markdown and native ast handoff' => static function (TestRunner $t): void {
+        $markdownBag = new MediaBag();
+        $packetBytes = "%PDF linked packet\n";
+        $chartBytes = "<svg><text>linked chart</text></svg>\n";
+        $markdownDocument = (new MarkdownReader())->read(
+            'Download [review packet](downloads/review.pdf "Review packet") and inspect ![Chart](figures/chart.svg).'
+        );
+
+        $filled = $markdownBag->fillDocument($markdownDocument, [
+            'downloads/review.pdf' => [
+                'contents' => $packetBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            'figures/chart.svg' => [
+                'contents' => $chartBytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+        ]);
+        $extracted = $markdownBag->extractMedia($filled['document'], 'media');
+        $mappedParagraph = $extracted['document']->children[0];
+        $mappedLink = $mappedParagraph->children[1];
+        $mappedImage = $mappedParagraph->children[3];
+
+        $t->same([
+            'media-resource-link-loaded:downloads/review.pdf',
+            'media-resource-loaded:figures/chart.svg',
+        ], $filled['diagnostics']);
+        $t->same([
+            'media-resource-link-mapped:downloads/review.pdf',
+            'media-resource-mapped:figures/chart.svg',
+        ], $extracted['diagnostics']);
+        $t->same('media/downloads/review.pdf', $mappedLink->attr('url'));
+        $t->same('media/figures/chart.svg', $mappedImage->attr('url'));
+        $t->same('downloads/review.pdf', $mappedLink->attr('attributes')['data-pandoc-media-source']);
+        $t->same('application/pdf', $mappedLink->attr('attributes')['data-pandoc-media-type']);
+        $t->same(sha1($packetBytes), $mappedLink->attr('attributes')['data-pandoc-media-sha1']);
+
+        $markdown = (new MarkdownWriter())->write($extracted['document']);
+        $t->contains('[review packet](media/downloads/review.pdf "Review packet"){', $markdown);
+        $t->contains('data-pandoc-media-source="downloads/review.pdf"', $markdown);
+        $blocks = (new WordPressBlockWriter())->write($extracted['document']);
+        $t->contains('<a href="media/downloads/review.pdf" title="Review packet" data-pandoc-media-source="downloads/review.pdf"', $blocks);
+        $t->contains('<img src="media/figures/chart.svg" alt="Chart"', $blocks);
+
+        $nativeBag = new MediaBag();
+        $nativeBytes = "source attachment bytes\n";
+        $nativeDocument = (new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Para',
+                'c' => [[
+                    't' => 'Link',
+                    'c' => [
+                        ['', [], []],
+                        [['t' => 'Str', 'c' => 'attachment']],
+                        ['assets/source.txt', 'Source attachment'],
+                    ],
+                ]],
+            ]],
+        ]);
+
+        $nativeBag->insertMedia('assets/source.txt', 'text/plain', $nativeBytes);
+        $nativeExtracted = $nativeBag->extractMedia($nativeDocument, 'native-media');
+        $nativePacket = (new PandocJsonWriter())->toArray($nativeExtracted['document']);
+
+        $t->same(['media-resource-link-mapped:assets/source.txt'], $nativeExtracted['diagnostics']);
+        $t->same('native-media/assets/source.txt', $nativeExtracted['document']->children[0]->children[0]->attr('url'));
+        $t->same('native-media/assets/source.txt', $nativePacket['blocks'][0]['c'][0]['c'][2][0]);
+        $t->same('Source attachment', $nativePacket['blocks'][0]['c'][0]['c'][2][1]);
     },
 
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
