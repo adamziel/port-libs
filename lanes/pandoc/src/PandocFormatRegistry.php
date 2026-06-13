@@ -2232,6 +2232,94 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     format:string,
+     *     capability:string,
+     *     direction:string,
+     *     status:string,
+     *     state:string,
+     *     code:string,
+     *     verdict:string,
+     *     inputStatus:string,
+     *     outputStatus:string,
+     *     readerStatus:string,
+     *     writerStatus:string,
+     *     inputImplementation:string,
+     *     outputImplementation:string,
+     *     countsAsDirectSupport:bool,
+     *     nativeWriterParity:bool,
+     *     requiresNotebookExecution:bool,
+     *     externalToolFree:bool,
+     *     externalValidators:list<string>,
+     *     unsupportedDirections:list<string>,
+     *     gates:list<string>,
+     *     diagnostics:list<string>,
+     *     sourceExtensions:list<string>,
+     *     reason:string,
+     *     reasonPacket:array{code:string, summary:string, details:list<string>},
+     *     reasonJson:string,
+     *     inputNotes:string,
+     *     outputNotes:string
+     * }
+     */
+    public static function ipynbNativeWriterCapabilityReport(): array
+    {
+        $format = 'ipynb';
+        $directions = self::richPackageFormatDirections();
+        $inputSupport = self::richPackageInputSupport();
+        $outputSupport = self::richPackageOutputSupport();
+        $unsupportedPacket = self::richPackageUnsupportedFormatReviewPacket();
+        $unsupportedReview = $unsupportedPacket['formats'][$format];
+        $writerStatus = RichPackageUnsupportedFormatRegistry::formatStatus($format, 'output');
+        $reasonPacket = [
+            'code' => 'native-ipynb-writer-not-implemented',
+            'summary' => 'Native PHP IPYNB writer output is not registered.',
+            'details' => [
+                'bounded-reader-only',
+                'notebook-json-assembly-not-implemented',
+                'notebook-execution-not-run',
+                'external-notebook-tooling-disallowed',
+            ],
+        ];
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'format' => $format,
+            'capability' => 'native-ipynb-writer',
+            'direction' => 'output',
+            'status' => $directions[$format]['outputStatus'],
+            'state' => $writerStatus['state'],
+            'code' => $writerStatus['code'],
+            'verdict' => 'partial-input-unsupported-output',
+            'inputStatus' => $directions[$format]['inputStatus'],
+            'outputStatus' => $directions[$format]['outputStatus'],
+            'readerStatus' => $directions[$format]['inputStatus'],
+            'writerStatus' => $directions[$format]['outputStatus'],
+            'inputImplementation' => $inputSupport[$format]['implementation'],
+            'outputImplementation' => $outputSupport[$format]['implementation'],
+            'countsAsDirectSupport' => $writerStatus['countsAsDirectSupport'],
+            'nativeWriterParity' => false,
+            'requiresNotebookExecution' => false,
+            'externalToolFree' => $unsupportedReview['externalToolFree'],
+            'externalValidators' => [],
+            'unsupportedDirections' => $unsupportedReview['unsupportedDirections'],
+            'gates' => $writerStatus['gates'],
+            'diagnostics' => $writerStatus['diagnostics'],
+            'sourceExtensions' => $writerStatus['sourceExtensions'],
+            'reason' => $reasonPacket['code'],
+            'reasonPacket' => $reasonPacket,
+            'reasonJson' => json_encode($reasonPacket, JSON_THROW_ON_ERROR),
+            'inputNotes' => $inputSupport[$format]['notes'],
+            'outputNotes' => $outputSupport[$format]['notes'],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function xmlJatsBitsInputFormats(): array
