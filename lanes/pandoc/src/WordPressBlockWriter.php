@@ -2388,13 +2388,26 @@ final class WordPressBlockWriter
 
     private function renderFigureBlock(AstNode $node): string
     {
-        return '<!-- wp:image -->'
+        $block = $this->isSimpleImageFigure($node) ? 'image' : 'html';
+
+        return '<!-- wp:' . $block . ' -->'
             . "\n" . $this->renderFigureHtml($node)
-            . "\n" . '<!-- /wp:image -->';
+            . "\n" . '<!-- /wp:' . $block . ' -->';
     }
 
     private function renderFigureHtml(AstNode $node): string
     {
+        $contentBlocks = $this->figureContentBlocks($node);
+        if (!$this->isSimpleImageFigure($node) && $contentBlocks !== []) {
+            $html = '<figure' . $this->renderHtmlWriterAttrs($node, true) . '>' . $this->renderBlocksAsHtml($contentBlocks);
+            $caption = (string) $node->attr('caption', '');
+            if ($caption !== '') {
+                $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+            }
+
+            return $html . '</figure>';
+        }
+
         $image = $this->firstFigureImage($node);
         if (!$image instanceof AstNode) {
             $image = new AstNode('image', [
@@ -2410,6 +2423,50 @@ final class WordPressBlockWriter
         }
 
         return $html . '</figure>';
+    }
+
+    private function isSimpleImageFigure(AstNode $node): bool
+    {
+        $blocks = $this->figureContentBlocks($node);
+        if (count($blocks) !== 1) {
+            return false;
+        }
+
+        $block = $blocks[0];
+        if ($block->type === 'image') {
+            return true;
+        }
+
+        return in_array($block->type, ['paragraph', 'plain'], true)
+            && count($block->children) === 1
+            && $block->children[0]->type === 'image';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function figureContentBlocks(AstNode $node): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('plain', [], $inlines);
+                $inlines = [];
+            }
+            $blocks[] = $child;
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = new AstNode('plain', [], $inlines);
+        }
+
+        return $blocks;
     }
 
     private function firstFigureImage(AstNode $node): ?AstNode

@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3277,
-        "latestSlice": "pandoc-epub-direct-manifest-spine-report maps one native direct EPUB package-reader case for OPF manifest query/fragment suffixes, external and missing manifest diagnostics, and spine readability/skipped-entry reports after the Pandoc text markup reader ship-gate slice on current main. Direct package ingestion keeps stripped local package paths for readable XHTML handoff while preserving review targets and skipping external or missing linear XHTML itemrefs instead of aborting. phpPass moves 3317 -> 3318, phpFail remains 0, mappedEpubDirectManifestSpineReportCases is 1, and epubDirectManifestSpineReportAssertions is 38. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 187 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74472 assertions, 0 failures after final rebase onto current main 2b00b60b67. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3278,
+        "latestSlice": "pandoc-json-native-mixed-figure-handoff maps one JSON/native AST case for mixed Figure child content containing Link, RawInline HTML, a nested CodeBlock, and WordPress handoff after EPUB direct manifest/spine diagnostics. WordPressBlockWriter now keeps simple single-image figures on wp:image but emits complex figures as wp:html rendered from all figure child blocks, preserving link/raw inline payloads around nested blocks plus figcaption metadata. phpPass moves 3318 -> 3319, phpFail remains 0, mappedJsonNativeMixedFigureHandoffCases is 1, and jsonNativeMixedFigureHandoffAssertions is 38. Verification passed php -l for WordPressBlockWriter.php and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 2135 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74510 assertions, 0 failures after rebase onto current main 4487923aa2. No Pandoc binary, JSON filters, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB direct manifest/spine diagnostics are verified over current main 2b00b60b67 after Pandoc text markup reader ship-gate accounting; broader EPUB3 package reader parity remains partial.",
-        "latestFocusedSource": "2026-06-13 EPUB direct manifest/spine report slice inspected direct EpubPackageReader package diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 2b00b60b67; focused EpubPackageReaderTest.php passed 1 file, 187 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74472 assertions, 0 failures.",
+        "status": "JSON/native mixed Figure link/raw/code handoff is verified over current main 4487923aa2 after EPUB direct manifest/spine diagnostics; broader JSON/native constructor parity remains partial.",
+        "latestFocusedSource": "2026-06-13 JSON/native mixed Figure handoff slice inspected Pandoc JSON/native Figure child flushing and WordPress complex figure rendering against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 4487923aa2; focused PandocJsonNativeAstTest.php passed 1 file, 2135 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74510 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -175,7 +175,9 @@
         "mappedPandocTextMarkupReaderShipGateCases": 1,
         "pandocTextMarkupReaderShipGateAssertions": 85,
         "mappedEpubDirectManifestSpineReportCases": 1,
-        "epubDirectManifestSpineReportAssertions": 38
+        "epubDirectManifestSpineReportAssertions": 38,
+        "mappedJsonNativeMixedFigureHandoffCases": 1,
+        "jsonNativeMixedFigureHandoffAssertions": 38
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
