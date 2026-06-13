@@ -4469,6 +4469,179 @@ return [
             $t->same(false, array_key_exists('reviewQueue', $editedCellPayload), "{$source} edited cell drops stale cell wrapper sidecar");
         }
     },
+    'regenerates edited table cell attr and span helpers while preserving neighbor sidecars' => static function (TestRunner $t): void {
+        $editedCellAttrNative = [
+            't' => 'Attr',
+            'c' => ['edit-cell', ['source-edit'], [['data-cell', 'edit-source']]],
+            'reviewQueue' => 'edit-cell-attr-source',
+            'sourceOrdinal' => 101,
+        ];
+        $editedCellAlignmentNative = [
+            't' => 'AlignCenter',
+            'reviewQueue' => 'edit-cell-align-source',
+            'sourceOrdinal' => 102,
+        ];
+        $editedCellRowSpanNative = [
+            't' => 'RowSpan',
+            'c' => [1],
+            'reviewQueue' => 'edit-cell-rowspan-source',
+            'sourceOrdinal' => 103,
+        ];
+        $editedCellColSpanNative = [
+            't' => 'ColSpan',
+            'c' => [1],
+            'reviewQueue' => 'edit-cell-colspan-source',
+            'sourceOrdinal' => 104,
+        ];
+        $editedCellNative = [
+            't' => 'Cell',
+            'c' => [
+                $editedCellAttrNative,
+                $editedCellAlignmentNative,
+                $editedCellRowSpanNative,
+                $editedCellColSpanNative,
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Edited-target'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'edit-cell-wrapper-source',
+            'sourceOrdinal' => 105,
+        ];
+        $neighborCellNative = [
+            't' => 'Cell',
+            'c' => [
+                [
+                    't' => 'Attr',
+                    'c' => ['neighbor-cell', ['source-neighbor'], [['data-cell', 'neighbor-source']]],
+                    'reviewQueue' => 'neighbor-cell-attr-source',
+                    'sourceOrdinal' => 111,
+                ],
+                [
+                    't' => 'AlignRight',
+                    'reviewQueue' => 'neighbor-cell-align-source',
+                    'sourceOrdinal' => 112,
+                ],
+                [
+                    't' => 'RowSpan',
+                    'c' => [1],
+                    'reviewQueue' => 'neighbor-cell-rowspan-source',
+                    'sourceOrdinal' => 113,
+                ],
+                [
+                    't' => 'ColSpan',
+                    'c' => [2],
+                    'reviewQueue' => 'neighbor-cell-colspan-source',
+                    'sourceOrdinal' => 114,
+                ],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Neighbor'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'neighbor-cell-wrapper-source',
+            'sourceOrdinal' => 115,
+        ];
+        $rowNative = [
+            't' => 'Row',
+            'c' => [
+                ['', [], []],
+                [$editedCellNative, $neighborCellNative],
+            ],
+            'reviewQueue' => 'row-wrapper-source',
+            'sourceOrdinal' => 120,
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                    [['t' => 'AlignRight'], ['t' => 'ColWidthDefault']],
+                    [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => [0]],
+                        [],
+                        [$rowNative],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $editCell = $row->children[0];
+            $neighborCell = $row->children[1];
+
+            $t->same($editedCellAttrNative, $editCell->attr('attrNative'), "{$source} source edit cell attr sidecar captured");
+            $t->same($editedCellRowSpanNative, $editCell->attr('rowSpanNative'), "{$source} source edit cell RowSpan sidecar captured");
+            $t->same($editedCellColSpanNative, $editCell->attr('colSpanNative'), "{$source} source edit cell ColSpan sidecar captured");
+            $t->same($neighborCellNative, $neighborCell->attr('native'), "{$source} source neighbor cell wrapper sidecar captured");
+
+            $editedCell = new AstNode('table_cell', array_replace($editCell->attrs, [
+                'id' => 'merged-cell',
+                'classes' => ['merged-edit'],
+                'attributes' => [
+                    'data-cell' => 'merged-source',
+                    'data-review' => 'span-attr',
+                ],
+                'rowspan' => 2,
+                'colspan' => 3,
+            ]), $editCell->children);
+            $editedRow = new AstNode('table_row', $row->attrs, [$editedCell, $neighborCell]);
+            $editedBody = new AstNode('table_body', $body->attrs, [$editedRow]);
+            $editedTable = new AstNode('table', $table->attrs, [$editedBody]);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedTable]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedBody = $encoded['blocks'][0]['c'][4][0];
+                $encodedBodyPayload = $encodedBody['c'] ?? $encodedBody;
+                $encodedRow = $encodedBodyPayload[3][0];
+                $encodedRowPayload = $encodedRow['c'] ?? $encodedRow;
+                $encodedCells = $encodedRowPayload[1];
+                $editedCellPayload = $encodedCells[0]['c'] ?? $encodedCells[0];
+
+                $t->same([
+                    'merged-cell',
+                    ['merged-edit'],
+                    [
+                        ['data-cell', 'merged-source'],
+                        ['data-review', 'span-attr'],
+                    ],
+                ], $editedCellPayload[0], "{$source} {$writer} writer regenerates edited cell Attr tuple");
+                $t->same($editedCellAlignmentNative, $editedCellPayload[1], "{$source} {$writer} writer preserves unchanged edited-cell alignment helper sidecar");
+                $t->same(['t' => 'RowSpan', 'c' => 2], $editedCellPayload[2], "{$source} {$writer} writer regenerates edited RowSpan helper without stale sidecar");
+                $t->same(['t' => 'ColSpan', 'c' => 3], $editedCellPayload[3], "{$source} {$writer} writer regenerates edited ColSpan helper without stale sidecar");
+                $t->same('Edited-target', $editedCellPayload[4][0]['c'][0]['c'], "{$source} {$writer} writer keeps edited cell block content");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCells[0]), "{$source} {$writer} writer drops stale edited cell wrapper sidecar");
+                $t->same($neighborCellNative, $encodedCells[1], "{$source} {$writer} writer preserves neighboring cell wrapper and helper sidecars");
+            }
+        }
+    },
     'preserves table section and body native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $cellNative = [
             't' => 'Cell',
