@@ -1083,6 +1083,19 @@ final class PdfEngineHandoff
             foreach (($typstPackageDependencyPolicy['sourceClassCounts'] ?? []) as $sourceClass => $count) {
                 $diagnostics[] = 'typst-package-dependency-source:' . $sourceClass . ':' . $count;
             }
+            foreach (($typstPackageDependencyPolicy['unsupportedReasonCounts'] ?? []) as $reasonKey => $count) {
+                $diagnostics[] = 'typst-package-unsupported-reason:' . $reasonKey . ':' . $count;
+            }
+            if (($typstPackageDependencyPolicy['duplicateDependencyCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-package-dependency-duplicates:' . $typstPackageDependencyPolicy['duplicateDependencyCount'];
+                $diagnostics[] = 'typst-package-dependency-duplicate-groups:' . count($typstPackageDependencyPolicy['duplicateDependencySummaries'] ?? []);
+                foreach (($typstPackageDependencyPolicy['duplicateDependencySummaries'] ?? []) as $summary) {
+                    if (!is_array($summary) || !is_string($summary['packageCoordinate'] ?? null)) {
+                        continue;
+                    }
+                    $diagnostics[] = 'typst-package-dependency-duplicate:' . $summary['packageCoordinate'] . ':' . ($summary['dependencyCount'] ?? 0);
+                }
+            }
             if ($typstPackageDependencyPolicy['sidecarFileCount'] > 0) {
                 $diagnostics[] = 'typst-package-dependency-policy-sidecars:' . $typstPackageDependencyPolicy['sidecarFileCount'];
             }
@@ -8389,8 +8402,11 @@ final class PdfEngineHandoff
         $versions = [];
         $versionsByPackage = [];
         $inputsByPackageVersion = [];
+        $inputsByCoordinate = [];
         $sourceClasses = [];
         $sourceClassCounts = [];
+        $unsupportedPackageReasons = [];
+        $unsupportedReasonCounts = [];
         $subpathDependencyCount = 0;
         foreach ($dependencies as $dependency) {
             $namespace = $dependency['namespace'];
@@ -8405,9 +8421,18 @@ final class PdfEngineHandoff
             $versions[$version] = true;
             $versionsByPackage[$packageName][$version] = true;
             $inputsByPackageVersion[$packageName][$version][] = $dependency['input'];
+            $inputsByCoordinate[$coordinate][$dependency['input']] = true;
             $sourceClass = $dependency['sourceClass'];
             $sourceClasses[$sourceClass] = true;
             $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
+            $unsupportedReason = $this->typstPackageUnsupportedReason($sourceClass);
+            $unsupportedReasonCounts[$unsupportedReason] = ($unsupportedReasonCounts[$unsupportedReason] ?? 0) + 1;
+            $unsupportedPackageReasons[] = [
+                'input' => $dependency['input'],
+                'reference' => $dependency['reference'],
+                'sourceClass' => $sourceClass,
+                'reason' => $unsupportedReason,
+            ];
             if ($dependency['subpath'] !== null) {
                 $subpathDependencyCount++;
             }
@@ -8425,6 +8450,7 @@ final class PdfEngineHandoff
         sort($sourceClassList);
         ksort($namespaceCounts);
         ksort($sourceClassCounts);
+        ksort($unsupportedReasonCounts);
 
         $versionConflicts = [];
         foreach ($versionsByPackage as $packageName => $packageVersions) {
@@ -8449,6 +8475,24 @@ final class PdfEngineHandoff
             ];
         }
         usort($versionConflicts, static fn (array $a, array $b): int => $a['package'] <=> $b['package']);
+
+        $duplicateDependencyCount = 0;
+        $duplicateDependencySummaries = [];
+        ksort($inputsByCoordinate);
+        foreach ($inputsByCoordinate as $coordinate => $inputs) {
+            $inputList = array_keys($inputs);
+            sort($inputList);
+            if (count($inputList) < 2) {
+                continue;
+            }
+
+            $duplicateDependencyCount += count($inputList) - 1;
+            $duplicateDependencySummaries[] = [
+                'packageCoordinate' => $coordinate,
+                'dependencyCount' => count($inputList),
+                'inputs' => $inputList,
+            ];
+        }
 
         $sidecarFiles = array_keys($engineDependencyArtifactsSha256);
         sort($sidecarFiles);
@@ -8483,6 +8527,9 @@ final class PdfEngineHandoff
         foreach ($versionConflicts as $conflict) {
             $issues[] = 'package-version-conflict:' . $conflict['package'];
         }
+        foreach ($duplicateDependencySummaries as $summary) {
+            $issues[] = 'duplicate-package-dependency:' . $summary['packageCoordinate'];
+        }
 
         return [
             'reviewStatus' => 'review',
@@ -8503,10 +8550,27 @@ final class PdfEngineHandoff
             'metadataOnly' => true,
             'byteExposurePolicy' => 'metadata-only',
             'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => count($unsupportedPackageReasons),
+            'unsupportedPackageReasons' => $unsupportedPackageReasons,
+            'unsupportedReasonCounts' => $unsupportedReasonCounts,
+            'duplicateDependencyCount' => $duplicateDependencyCount,
+            'duplicateDependencySummaries' => $duplicateDependencySummaries,
             'versionConflictCount' => count($versionConflicts),
             'versionConflicts' => $versionConflicts,
             'issues' => $issues,
         ];
+    }
+
+    private function typstPackageUnsupportedReason(string $sourceClass): string
+    {
+        if ($sourceClass === 'preview-registry') {
+            return 'preview-registry-network-not-executed';
+        }
+        if ($sourceClass === 'typst-registry') {
+            return 'typst-registry-network-not-executed';
+        }
+
+        return 'custom-namespace-not-resolved';
     }
 
     /**
