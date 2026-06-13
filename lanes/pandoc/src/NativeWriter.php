@@ -14,7 +14,11 @@ final class NativeWriter
 
         $native = [
             'pandoc-api-version' => $this->apiVersion($document->attr('pandocApiVersion', [1, 23, 1])),
-            'meta' => $this->metadata($document->attr('meta', []), $this->metaNativeValues($document)),
+            'meta' => $this->metadata(
+                $document->attr('meta', []),
+                $this->metaNativeValues($document),
+                $this->metaConstructorProvenance($document)
+            ),
             'blocks' => $this->blocks($document->children),
         ];
 
@@ -55,10 +59,22 @@ final class NativeWriter
     }
 
     /**
-     * @param array<string, mixed> $nativeValues
      * @return array<string, mixed>
      */
-    private function metadata(mixed $metadata, array $nativeValues = []): array
+    private function metaConstructorProvenance(AstNode $document): array
+    {
+        $provenance = $document->attr('metaConstructorProvenance', []);
+
+        return is_array($provenance) && !array_is_list($provenance) ? $provenance : [];
+    }
+
+    /**
+     * @param array<string, mixed> $nativeValues
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
+     * @return array<string, mixed>
+     */
+    private function metadata(mixed $metadata, array $nativeValues = [], array $provenance = [], array $path = []): array
     {
         if (!is_array($metadata)) {
             throw new \InvalidArgumentException('Pandoc native metadata must be an array');
@@ -70,13 +86,40 @@ final class NativeWriter
             if (!is_string($key)) {
                 throw new \InvalidArgumentException('Pandoc native metadata keys must be strings');
             }
-            $sourceNative = $nativeValues[$key] ?? null;
+            $fieldPath = [...$path, $key];
+            $sourceNative = $nativeValues[$key] ?? $this->metaNativeFromProvenance($provenance, $fieldPath);
             $encoded[$key] = $this->canReuseMetaNativeValue($value, $sourceNative)
                 ? $sourceNative
-                : $this->metaValue($value);
+                : $this->metaValue($value, $provenance, $fieldPath);
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
+     */
+    private function metaNativeFromProvenance(array $provenance, array $path): mixed
+    {
+        $entry = $provenance[$this->metaProvenancePath($path)] ?? null;
+
+        return is_array($entry) && array_key_exists('native', $entry) ? $entry['native'] : null;
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
     }
 
     private function canReuseMetaNativeValue(mixed $value, mixed $sourceNative): bool
@@ -163,8 +206,17 @@ final class NativeWriter
         return is_array($value) && !array_is_list($value) && isset($value['t']) && is_string($value['t']);
     }
 
-    private function metaValue(mixed $value): mixed
+    /**
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
+     */
+    private function metaValue(mixed $value, array $provenance = [], array $path = []): mixed
     {
+        $sourceNative = $this->metaNativeFromProvenance($provenance, $path);
+        if ($this->canReuseMetaNativeValue($value, $sourceNative)) {
+            return $sourceNative;
+        }
+
         if (is_bool($value)) {
             return ['t' => 'MetaBool', 'c' => $value];
         }
@@ -189,7 +241,7 @@ final class NativeWriter
             }
 
             if (isset($value['type']) && is_string($value['type'])) {
-                return $this->typedMetaValue($value);
+                return $this->typedMetaValue($value, $provenance, $path);
             }
 
             if (array_is_list($value)) {
@@ -203,10 +255,15 @@ final class NativeWriter
                     ];
                 }
 
-                return ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): mixed => $this->metaValue($item), $value)];
+                $items = [];
+                foreach ($value as $index => $item) {
+                    $items[] = $this->metaValue($item, $provenance, [...$path, (string) $index]);
+                }
+
+                return ['t' => 'MetaList', 'c' => $items];
             }
 
-            return ['t' => 'MetaMap', 'c' => $this->metadata($value)];
+            return ['t' => 'MetaMap', 'c' => $this->metadata($value, [], $provenance, $path)];
         }
 
         throw new \InvalidArgumentException('Pandoc native metadata values must be JSON-compatible values or tagged constructors');
@@ -317,15 +374,19 @@ final class NativeWriter
 
     /**
      * @param array<string, mixed> $value
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
      * @return array<string, mixed>
      */
-    private function typedMetaValue(array $value): array
+    private function typedMetaValue(array $value, array $provenance = [], array $path = []): array
     {
+        $items = is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [];
+
         return match ($value['type']) {
             'inlines' => ['t' => 'MetaInlines', 'c' => $this->inlines($this->metaChildren($value))],
             'blocks' => ['t' => 'MetaBlocks', 'c' => $this->blocks($this->metaChildren($value))],
-            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): mixed => $this->metaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
-            'map' => ['t' => 'MetaMap', 'c' => $this->metadata(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
+            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item, int $index): mixed => $this->metaValue($item, $provenance, [...$path, (string) $index]), $items, array_keys($items))],
+            'map' => ['t' => 'MetaMap', 'c' => $this->metadata(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], [], $provenance, $path)],
             default => ['t' => 'MetaString', 'c' => ''],
         };
     }

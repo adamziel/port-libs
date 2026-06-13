@@ -1843,6 +1843,72 @@ return [
             $t->same($bodyNative, $editedNative['meta']['body'], "{$source} native writer keeps unchanged block payload");
         }
     },
+    'preserves nested metadata native payloads when rebuilding edited containers' => static function (TestRunner $t): void {
+        $queueNative = ['t' => 'MetaString', 'c' => 'json-native', 'reviewQueue' => 'queue-source'];
+        $flagNative = ['t' => 'MetaBool', 'c' => true, 'reviewQueue' => 'flag-source'];
+        $slashKeyNative = ['t' => 'MetaString', 'c' => 'escaped-key', 'reviewQueue' => 'slash-key-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'queue' => $queueNative,
+                    'flags' => ['t' => 'MetaList', 'c' => [
+                        $flagNative,
+                        ['t' => 'MetaString', 'c' => 'stale', 'reviewQueue' => 'stale-flag-source'],
+                    ], 'reviewQueue' => 'flags-source'],
+                    'owner/team' => $slashKeyNative,
+                ], 'reviewQueue' => 'review-source'],
+            ]],
+            'blocks' => [],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $meta['review'] = [
+                'type' => 'map',
+                'items' => [
+                    'queue' => 'json-native',
+                    'flags' => [
+                        'type' => 'list',
+                        'items' => [
+                            true,
+                            'edited',
+                        ],
+                    ],
+                    'owner/team' => 'escaped-key',
+                    'added' => 'new-field',
+                ],
+            ];
+            $editedDocument = new AstNode('document', array_replace($document->attrs, ['meta' => $meta]), $document->children);
+
+            $provenance = $document->attr('metaConstructorProvenance');
+            $jsonPacket = (new PandocJsonWriter())->toArray($editedDocument);
+            $nativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same($queueNative, $provenance['/review/queue']['native'], "{$source} reader indexes nested string metadata native payload");
+            $t->same($slashKeyNative, $provenance['/review/owner~1team']['native'], "{$source} reader escapes slash metadata paths");
+
+            foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $writer => $encoded) {
+                $encodedReview = $encoded['meta']['review'];
+                $encodedFlags = $encodedReview['c']['flags'];
+
+                $t->same('MetaMap', $encodedReview['t'], "{$source} {$writer} writer rebuilds edited metadata map");
+                $t->same(false, array_key_exists('reviewQueue', $encodedReview), "{$source} {$writer} writer drops stale edited map sidecar");
+                $t->same($queueNative, $encodedReview['c']['queue'], "{$source} {$writer} writer preserves unchanged nested string sidecar");
+                $t->same($slashKeyNative, $encodedReview['c']['owner/team'], "{$source} {$writer} writer preserves escaped-key nested sidecar");
+                $t->same('MetaList', $encodedFlags['t'], "{$source} {$writer} writer rebuilds edited metadata list");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFlags), "{$source} {$writer} writer drops stale edited list sidecar");
+                $t->same($flagNative, $encodedFlags['c'][0], "{$source} {$writer} writer preserves unchanged nested list item sidecar");
+                $t->same(['t' => 'MetaString', 'c' => 'edited'], $encodedFlags['c'][1], "{$source} {$writer} writer regenerates edited list item");
+                $t->same(['t' => 'MetaString', 'c' => 'new-field'], $encodedReview['c']['added'], "{$source} {$writer} writer emits new map field");
+            }
+        }
+    },
     'preserves metadata child native payloads when rebuilding typed meta wrappers' => static function (TestRunner $t): void {
         $headlineStr = ['t' => 'Str', 'c' => 'Alpha', 'reviewQueue' => 'headline-str-source'];
         $headlineSpace = ['t' => 'Space', 'reviewQueue' => 'headline-space-source'];
