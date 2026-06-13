@@ -3622,6 +3622,8 @@ return [
             'unsupportedReasonCounts' => [
                 'preview-registry-network-not-executed' => 1,
             ],
+            'duplicateDependencyCount' => 0,
+            'duplicateDependencySummaries' => [],
             'versionConflictCount' => 0,
             'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:1'],
@@ -3963,6 +3965,8 @@ return [
                 'preview-registry-network-not-executed' => 1,
                 'typst-registry-network-not-executed' => 1,
             ],
+            'duplicateDependencyCount' => 0,
+            'duplicateDependencySummaries' => [],
             'versionConflictCount' => 0,
             'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:3'],
@@ -4002,6 +4006,146 @@ return [
         $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
+    },
+
+    'fake runner summarizes typst package namespace policy duplicates without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Namespace Policy Packet\n\n#import \"@preview/cetz:0.3.2\": canvas\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/namespace-policy.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/namespace-policy.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst namespace policy packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/namespace-policy.pdf: build/namespace-policy.typ \\',
+            '  @preview/cetz:0.3.2 @preview/cetz:0.3.2/src/lib.typ \\',
+            '  @typst/symbols:0.1.0 @team/private:1.2.0/theme.typ',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'packageDependencyCount' => 4,
+            'namespaces' => ['preview', 'team', 'typst'],
+            'packages' => ['preview/cetz', 'team/private', 'typst/symbols'],
+            'versions' => ['0.1.0', '0.3.2', '1.2.0'],
+            'sourceClasses' => ['custom-namespace', 'preview-registry', 'typst-registry'],
+            'sourceClassCounts' => [
+                'custom-namespace' => 1,
+                'preview-registry' => 2,
+                'typst-registry' => 1,
+            ],
+            'subpathDependencyCount' => 2,
+            'packageCount' => 3,
+            'namespaceCounts' => [
+                'preview' => 2,
+                'team' => 1,
+                'typst' => 1,
+            ],
+            'packageCoordinates' => [
+                'preview/cetz:0.3.2',
+                'team/private:1.2.0',
+                'typst/symbols:0.1.0',
+            ],
+            'packageNames' => ['preview/cetz', 'team/private', 'typst/symbols'],
+            'sidecarFileCount' => 1,
+            'sidecarFiles' => ['build/namespace-policy.d'],
+            'sidecarPackageInputCounts' => [
+                [
+                    'artifact' => 'build/namespace-policy.d',
+                    'packageInputCount' => 4,
+                    'packageInputs' => [
+                        'typst-package:@preview/cetz:0.3.2',
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@team/private:1.2.0/theme.typ',
+                        'typst-package:@typst/symbols:0.1.0',
+                    ],
+                ],
+            ],
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => 4,
+            'unsupportedPackageReasons' => [
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2',
+                    'reference' => '@preview/cetz:0.3.2',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                    'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@team/private:1.2.0/theme.typ',
+                    'reference' => '@team/private:1.2.0/theme.typ',
+                    'sourceClass' => 'custom-namespace',
+                    'reason' => 'custom-namespace-not-resolved',
+                ],
+                [
+                    'input' => 'typst-package:@typst/symbols:0.1.0',
+                    'reference' => '@typst/symbols:0.1.0',
+                    'sourceClass' => 'typst-registry',
+                    'reason' => 'typst-registry-network-not-executed',
+                ],
+            ],
+            'unsupportedReasonCounts' => [
+                'custom-namespace-not-resolved' => 1,
+                'preview-registry-network-not-executed' => 2,
+                'typst-registry-network-not-executed' => 1,
+            ],
+            'duplicateDependencyCount' => 1,
+            'duplicateDependencySummaries' => [
+                [
+                    'packageCoordinate' => 'preview/cetz:0.3.2',
+                    'dependencyCount' => 2,
+                    'inputs' => [
+                        'typst-package:@preview/cetz:0.3.2',
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                    ],
+                ],
+            ],
+            'versionConflictCount' => 0,
+            'versionConflicts' => [],
+            'issues' => [
+                'typst-package-dependencies:4',
+                'duplicate-package-dependency:preview/cetz:0.3.2',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/namespace-policy.d' => $depfile,
+                'build/namespace-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/namespace-policy.d' => $depfile,
+                'build/namespace-policy.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstPackageDependencyPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
+        $t->contains('typst-package-dependency-count:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:custom-namespace:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:preview-registry:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:typst-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:custom-namespace-not-resolved:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:preview-registry-network-not-executed:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:typst-registry-network-not-executed:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-duplicates:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-duplicate-groups:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-duplicate:preview/cetz:0.3.2:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
     },
 
     'fake runner reports typst package dependency conflict policy from sidecars' => static function (TestRunner $t) use ($document): void {
@@ -4117,6 +4261,8 @@ return [
                 'preview-registry-network-not-executed' => 2,
                 'typst-registry-network-not-executed' => 1,
             ],
+            'duplicateDependencyCount' => 0,
+            'duplicateDependencySummaries' => [],
             'versionConflictCount' => 1,
             'versionConflicts' => [
                 [
