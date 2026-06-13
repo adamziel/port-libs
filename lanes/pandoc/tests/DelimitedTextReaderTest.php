@@ -83,6 +83,153 @@ return [
         $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
     },
+    'records csv and tsv control character row repair interaction summaries' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv("\xEF\xBB\xBF" . implode("\n", [
+            'id,title,note',
+            '1,"quoted' . "\x00" . 'short"',
+            '2,plain' . "\x1F" . 'field,ok,extra',
+            '3,tail,done',
+            '',
+        ]), ['sourcePath' => 'imports/control-repair.csv']);
+        $tsvDocument = $reader->readTsv(implode("\n", [
+            "key\tvalue\tflag",
+            'alpha' . "\t" . 'plain' . "\x1B" . 'field',
+            'beta' . "\t" . '"quoted' . "\x07" . 'field"' . "\t" . 'ok' . "\t" . 'extra',
+            "gamma\t30\t",
+            '',
+        ]), ['sourcePath' => 'imports/control-repair.tsv']);
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+        $csvWidth = $csvPacket['rowWidthSummary'] ?? [];
+        $tsvWidth = $tsvPacket['rowWidthSummary'] ?? [];
+        $csvRepair = $csvPacket['rowRepairSummary'] ?? [];
+        $tsvRepair = $tsvPacket['rowRepairSummary'] ?? [];
+        $csvControl = $csvPacket['controlCharacters'] ?? [];
+        $tsvControl = $tsvPacket['controlCharacters'] ?? [];
+        $csvControlRepair = $csvPacket['controlRepairSummary'] ?? [];
+        $tsvControlRepair = $tsvPacket['controlRepairSummary'] ?? [];
+        $csvSamples = $csvControl['samples'] ?? [];
+        $tsvSamples = $tsvControl['samples'] ?? [];
+        $csvCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $csvPacket['diagnostics'] ?? []);
+        $tsvCodes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $tsvPacket['diagnostics'] ?? []);
+
+        $t->same('csv', $csvPacket['format'] ?? null);
+        $t->same(['id', 'title', 'note', ''], $csvPacket['columnNames'] ?? null);
+        $t->same([3, 2, 4, 3], $csvWidth['rowWidths'] ?? null);
+        $t->same([0, 1, 2, 3], $csvWidth['sourceRowIndexes'] ?? null);
+        $t->same(false, $csvWidth['strict']['consistent'] ?? null);
+        $t->same(2, $csvWidth['strict']['mismatchCount'] ?? null);
+        $t->same('source-row-1', $csvWidth['strict']['mismatches'][0]['rowLabel'] ?? null);
+        $t->same(1, $csvWidth['strict']['mismatches'][0]['missingFields'] ?? null);
+        $t->same(1, $csvWidth['strict']['mismatches'][1]['extraFields'] ?? null);
+        $t->same(3, $csvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(2, $csvWidth['header']['mismatchCount'] ?? null);
+        $t->same('relaxed-pad-to-wide-row', $csvRepair['policy'] ?? null);
+        $t->same(4, $csvRepair['repairedColumnCount'] ?? null);
+        $t->same(3, $csvRepair['changedRowCount'] ?? null);
+        $t->same('padded', $csvRepair['rows'][1]['repair'] ?? null);
+        $t->same(2, $csvRepair['rows'][1]['originalColumnCount'] ?? null);
+        $t->same(4, $csvRepair['rows'][1]['repairedColumnCount'] ?? null);
+        $t->same(2, $csvRepair['rows'][1]['missingFieldsAdded'] ?? null);
+        $t->same('unchanged', $csvRepair['rows'][2]['repair'] ?? null);
+        $t->same([
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+            'delimited-text-control-characters',
+        ], $csvCodes);
+
+        $t->same('report-c0-del-controls-except-ht-lf-cr', $csvControl['policy'] ?? null);
+        $t->same('imports/control-repair.csv', $csvControl['sourcePath'] ?? null);
+        $t->same(2, $csvControl['totalCount'] ?? null);
+        $t->same(1, $csvControl['nulCount'] ?? null);
+        $t->same(['U+0000' => 1, 'U+001F' => 1], $csvControl['byCodepoint'] ?? null);
+        $t->same(1, $csvControl['fieldQuoteBuckets']['quoted']['controlCount'] ?? null);
+        $t->same([0], $csvControl['fieldQuoteBuckets']['quoted']['sampleIndexes'] ?? null);
+        $t->same(1, $csvControl['fieldQuoteBuckets']['unquoted']['controlCount'] ?? null);
+        $t->same([1], $csvControl['fieldQuoteBuckets']['unquoted']['sampleIndexes'] ?? null);
+        $t->same(1, $csvSamples[0]['positionBeforeRepair']['sourceRow'] ?? null);
+        $t->same(1, $csvSamples[0]['positionBeforeRepair']['sourceColumn'] ?? null);
+        $t->same(1, $csvSamples[0]['positionAfterRepair']['row'] ?? null);
+        $t->same(1, $csvSamples[0]['positionAfterRepair']['columnIndex'] ?? null);
+        $t->same(true, $csvSamples[0]['positionAfterRepair']['columnWithinRepairedWidth'] ?? null);
+        $t->same('padded', $csvSamples[0]['rowRepair']['repair'] ?? null);
+        $t->same(2, $csvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
+        $t->same(true, $csvSamples[0]['fieldQuoted'] ?? null);
+        $t->same('00', $csvSamples[0]['byteHex'] ?? null);
+        $t->same('NUL', $csvSamples[0]['name'] ?? null);
+        $t->same(2, $csvSamples[1]['positionBeforeRepair']['sourceRow'] ?? null);
+        $t->same(1, $csvSamples[1]['positionBeforeRepair']['sourceColumn'] ?? null);
+        $t->same('unchanged', $csvSamples[1]['rowRepair']['repair'] ?? null);
+        $t->same(false, $csvSamples[1]['fieldQuoted'] ?? null);
+        $t->same('1F', $csvSamples[1]['byteHex'] ?? null);
+        $t->same('US', $csvSamples[1]['name'] ?? null);
+        $t->same('annotate-controls-after-relaxed-row-repair', $csvControlRepair['policy'] ?? null);
+        $t->same('imports/control-repair.csv', $csvControlRepair['sourcePath'] ?? null);
+        $t->same(1, $csvControlRepair['controlsInPaddedRows'] ?? null);
+        $t->same(1, $csvControlRepair['controlsInChangedRows'] ?? null);
+        $t->same(1, $csvControlRepair['controlsInUnchangedRows'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 1, 'truncated' => 0, 'unmapped' => 0], $csvControlRepair['byRepair'] ?? null);
+        $t->same('padded', $csvControlRepair['sourceRows'][0]['repair'] ?? null);
+        $t->same([1], $csvControlRepair['sourceRows'][0]['columns'] ?? null);
+        $t->same('quoted' . "\x00" . 'short', $csvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('', $csvTable->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('extra', $csvTable->children[1]->children[1]->children[3]->attr('text'));
+
+        $t->same('tsv', $tsvPacket['format'] ?? null);
+        $t->same('tab', $tsvPacket['delimiter'] ?? null);
+        $t->same([3, 2, 4, 3], $tsvWidth['rowWidths'] ?? null);
+        $t->same([3], $tsvWidth['trailingEmptyFieldRows'] ?? null);
+        $t->same(2, $tsvWidth['strict']['mismatchCount'] ?? null);
+        $t->same(3, $tsvWidth['relaxed']['paddedRowCount'] ?? null);
+        $t->same(2, $tsvWidth['header']['mismatchCount'] ?? null);
+        $t->same('relaxed-pad-to-wide-row', $tsvRepair['policy'] ?? null);
+        $t->same(4, $tsvRepair['repairedColumnCount'] ?? null);
+        $t->same(3, $tsvRepair['changedRowCount'] ?? null);
+        $t->same('padded', $tsvRepair['rows'][1]['repair'] ?? null);
+        $t->same(2, $tsvRepair['rows'][1]['missingFieldsAdded'] ?? null);
+        $t->same('unchanged', $tsvRepair['rows'][2]['repair'] ?? null);
+        $t->same([
+            'delimited-text-trailing-delimiter-empty-field',
+            'delimited-text-trailing-empty-fields-preserved',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+            'delimited-text-control-characters',
+        ], $tsvCodes);
+
+        $t->same('imports/control-repair.tsv', $tsvControl['sourcePath'] ?? null);
+        $t->same(2, $tsvControl['totalCount'] ?? null);
+        $t->same(['U+0007' => 1, 'U+001B' => 1], $tsvControl['byCodepoint'] ?? null);
+        $t->same(0, $tsvControl['fieldQuoteBuckets']['quoted']['controlCount'] ?? null);
+        $t->same([], $tsvControl['fieldQuoteBuckets']['quoted']['sampleIndexes'] ?? null);
+        $t->same(2, $tsvControl['fieldQuoteBuckets']['unquoted']['controlCount'] ?? null);
+        $t->same([0, 1], $tsvControl['fieldQuoteBuckets']['unquoted']['sampleIndexes'] ?? null);
+        $t->same(1, $tsvSamples[0]['positionBeforeRepair']['sourceRow'] ?? null);
+        $t->same(1, $tsvSamples[0]['positionBeforeRepair']['sourceColumn'] ?? null);
+        $t->same('padded', $tsvSamples[0]['rowRepair']['repair'] ?? null);
+        $t->same(2, $tsvSamples[0]['rowRepair']['missingFieldsAdded'] ?? null);
+        $t->same(false, $tsvSamples[0]['fieldQuoted'] ?? null);
+        $t->same('1B', $tsvSamples[0]['byteHex'] ?? null);
+        $t->same('ESC', $tsvSamples[0]['name'] ?? null);
+        $t->same(2, $tsvSamples[1]['positionAfterRepair']['row'] ?? null);
+        $t->same(1, $tsvSamples[1]['positionAfterRepair']['columnIndex'] ?? null);
+        $t->same('unchanged', $tsvSamples[1]['rowRepair']['repair'] ?? null);
+        $t->same(false, $tsvSamples[1]['fieldQuoted'] ?? null);
+        $t->same('07', $tsvSamples[1]['byteHex'] ?? null);
+        $t->same('BEL', $tsvSamples[1]['name'] ?? null);
+        $t->same(1, $tsvControlRepair['controlsInPaddedRows'] ?? null);
+        $t->same(1, $tsvControlRepair['controlsInChangedRows'] ?? null);
+        $t->same(1, $tsvControlRepair['controlsInUnchangedRows'] ?? null);
+        $t->same(['padded' => 1, 'unchanged' => 1, 'truncated' => 0, 'unmapped' => 0], $tsvControlRepair['byRepair'] ?? null);
+        $t->same('plain' . "\x1B" . 'field', $tsvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('', $tsvTable->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('"quoted' . "\x07" . 'field"', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('', $tsvTable->children[1]->children[2]->children[2]->attr('text'));
+    },
     'honors no-header option for csv and tsv table imports' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $csvDocument = $reader->readCsv(implode("\n", [
@@ -150,10 +297,13 @@ return [
         $t->same(2, $packet['quoteInUnquotedFieldCount'] ?? null);
         $t->same(1, $packet['unclosedQuoteCount'] ?? null);
         $t->same(1, $packet['partialRecordCount'] ?? null);
-        $t->same(7, $packet['diagnosticCount'] ?? null);
+        $t->same(10, $packet['diagnosticCount'] ?? null);
         $t->same([
             'delimited-text-unterminated-quote-eof',
             'delimited-text-partial-final-record',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
             'delimited-text-backslash-quote-preserved',
             'delimited-text-backslash-quote-preserved',
             'delimited-text-quote-in-unquoted-field',
@@ -227,6 +377,10 @@ return [
             'delimited-text-trailing-delimiter-empty-field',
             'delimited-text-unterminated-quote-eof',
             'delimited-text-partial-final-record',
+            'delimited-text-trailing-empty-fields-preserved',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
             'delimited-text-unclosed-quoted-field',
         ], $codes);
         $t->same("two\nline", $table->children[1]->children[0]->children[1]->attr('text'));
@@ -265,6 +419,10 @@ return [
         $t->same([
             'delimited-text-trailing-delimiter-empty-field',
             'delimited-text-partial-final-record',
+            'delimited-text-trailing-empty-fields-preserved',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
         ], $codes);
         $t->same('literal quote "two', $table->children[1]->children[0]->children[1]->attr('text'));
         $t->same('', $table->children[1]->children[0]->children[3]->attr('text'));
