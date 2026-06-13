@@ -764,6 +764,19 @@ final class PandocFormatRegistry
         ],
     ];
 
+    /** @var list<string> */
+    private const TABULAR_DATA_READER_OPTION_PROFILE_ORDER = [
+        'delimiter',
+        'delimiterName',
+        'quote',
+        'keepSpace',
+        'escape',
+        'firstRowHeader',
+        'emptyInputPolicy',
+        'multilineCellPolicy',
+        'readerOptionsUsed',
+    ];
+
     /**
      * @var array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>
      */
@@ -3931,6 +3944,14 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return list<string>
+     */
+    public static function tabularDataReaderOptionProfileOrder(): array
+    {
+        return self::TABULAR_DATA_READER_OPTION_PROFILE_ORDER;
+    }
+
+    /**
      * @return array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>
      */
     public static function tabularDataInputSourceProvenance(): array
@@ -4003,6 +4024,26 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{bucket:string, module:string, function:string, registry:string, formats:list<string>}>
+     */
+    public static function tabularDataInputSourceProvenanceBuckets(): array
+    {
+        $buckets = [];
+
+        foreach (self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE as $format => $source) {
+            $buckets[$format] = [
+                'bucket' => $source['module'] . '::' . $source['function'],
+                'module' => $source['module'],
+                'function' => $source['function'],
+                'registry' => $source['registry'],
+                'formats' => [$format],
+            ];
+        }
+
+        return $buckets;
+    }
+
+    /**
      * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
      */
     public static function tabularDataFormatDirections(): array
@@ -4048,6 +4089,48 @@ final class PandocFormatRegistry
             'inputOutput' => count(self::tabularDataBidirectionalFormats()),
             'inputOnly' => count(self::tabularDataInputOnlyFormats()),
             'outputOnly' => count(self::tabularDataOutputOnlyFormats()),
+        ];
+    }
+
+    /**
+     * @return array{inputOutput:int, inputOnly:int, outputOnly:int, readerOnly:int, writerOnly:int, registeredReaders:int, registeredWriters:int}
+     */
+    public static function tabularDataDirectionCounts(): array
+    {
+        $directions = self::tabularDataFormatDirections();
+        $inputOnly = 0;
+        $outputOnly = 0;
+        $inputOutput = 0;
+        $registeredReaders = 0;
+        $registeredWriters = 0;
+        $inputSupport = self::tabularDataInputSupport();
+        $outputSupport = self::tabularDataOutputSupport();
+
+        foreach ($directions as $format => $direction) {
+            if ($direction['direction'] === 'input-output') {
+                $inputOutput++;
+            } elseif ($direction['direction'] === 'input-only') {
+                $inputOnly++;
+            } elseif ($direction['direction'] === 'output-only') {
+                $outputOnly++;
+            }
+
+            if (($inputSupport[$format]['implementation'] ?? '') !== '') {
+                $registeredReaders++;
+            }
+            if (($outputSupport[$format]['implementation'] ?? '') !== '') {
+                $registeredWriters++;
+            }
+        }
+
+        return [
+            'inputOutput' => $inputOutput,
+            'inputOnly' => $inputOnly,
+            'outputOnly' => $outputOnly,
+            'readerOnly' => $inputOnly,
+            'writerOnly' => $outputOnly,
+            'registeredReaders' => $registeredReaders,
+            'registeredWriters' => $registeredWriters,
         ];
     }
 
@@ -4138,6 +4221,100 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{status:string, reasonCode:string, reason:string, upstreamOutputToken:bool, nativeWriterRegistered:bool, implementation:string, outputStatus:string}>
+     */
+    public static function tabularDataUnsupportedWriterReasons(): array
+    {
+        $directions = self::tabularDataFormatDirections();
+        $outputSupport = self::tabularDataOutputSupport();
+        $reasons = [];
+
+        foreach (self::TABULAR_DATA_INPUT_FORMATS as $format) {
+            $upstreamOutputToken = in_array($format, self::TABULAR_DATA_OUTPUT_FORMATS, true);
+            $implementation = $outputSupport[$format]['implementation'] ?? '';
+            $reasons[$format] = [
+                'status' => 'unsupported',
+                'reasonCode' => $upstreamOutputToken ? 'native-writer-not-registered' : 'no-upstream-tabular-writer-token',
+                'reason' => $upstreamOutputToken
+                    ? "No native PHP {$format} writer is registered for the tabular data registry."
+                    : "Pandoc does not list {$format} as an output format; the native registry keeps {$format} reader-only.",
+                'upstreamOutputToken' => $upstreamOutputToken,
+                'nativeWriterRegistered' => $implementation !== '',
+                'implementation' => $implementation,
+                'outputStatus' => $directions[$format]['outputStatus'],
+            ];
+        }
+
+        return $reasons;
+    }
+
+    /**
+     * @return array<string, array<string, array{extension:string, explicitFormat:string, extensionInferredFormat:string, conflict:bool, selectedFormat:string, rejectedInferredFormat:string|null, resolution:string, selectedSourceBucket:string, inferredSourceBucket:string, selectedDelimiterName:string}>>
+     */
+    public static function tabularDataExplicitExtensionConflictMatrix(): array
+    {
+        $buckets = self::tabularDataInputSourceProvenanceBuckets();
+        $matrix = [];
+
+        foreach (self::TABULAR_DATA_INPUT_FORMATS as $explicitFormat) {
+            foreach (self::TABULAR_DATA_EXTENSION_INFERENCE as $extension => $inferredFormat) {
+                $conflict = $explicitFormat !== $inferredFormat;
+                $profile = self::TABULAR_DATA_READER_OPTION_PROFILES[$explicitFormat];
+                $matrix[$explicitFormat][$extension] = [
+                    'extension' => $extension,
+                    'explicitFormat' => $explicitFormat,
+                    'extensionInferredFormat' => $inferredFormat,
+                    'conflict' => $conflict,
+                    'selectedFormat' => $explicitFormat,
+                    'rejectedInferredFormat' => $conflict ? $inferredFormat : null,
+                    'resolution' => $conflict ? 'explicit-format-wins' : 'explicit-format-matches-extension',
+                    'selectedSourceBucket' => $buckets[$explicitFormat]['bucket'],
+                    'inferredSourceBucket' => $buckets[$inferredFormat]['bucket'],
+                    'selectedDelimiterName' => $profile['delimiterName'],
+                ];
+            }
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @return array<string, array{format:string, dialectProfileId:string, explicitFormat:string, inputOnly:bool, readerOnly:bool, extensionInferred:bool, extensions:list<string>, readerOptionProfileOrder:list<string>, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenanceBucket:array{bucket:string, module:string, function:string, registry:string, formats:list<string>}, unsupportedWriterReason:array{status:string, reasonCode:string, reason:string, upstreamOutputToken:bool, nativeWriterRegistered:bool, implementation:string, outputStatus:string}, extensionConflictProbes:array<string, array{extension:string, explicitFormat:string, extensionInferredFormat:string, conflict:bool, selectedFormat:string, rejectedInferredFormat:string|null, resolution:string, selectedSourceBucket:string, inferredSourceBucket:string, selectedDelimiterName:string}>}>
+     */
+    public static function tabularDataDialectProfileReviewPackets(): array
+    {
+        $extensionsByFormat = [];
+        foreach (self::TABULAR_DATA_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $directions = self::tabularDataFormatDirections();
+        $buckets = self::tabularDataInputSourceProvenanceBuckets();
+        $writerReasons = self::tabularDataUnsupportedWriterReasons();
+        $conflictMatrix = self::tabularDataExplicitExtensionConflictMatrix();
+        $packets = [];
+
+        foreach (self::TABULAR_DATA_INPUT_FORMATS as $format) {
+            $packets[$format] = [
+                'format' => $format,
+                'dialectProfileId' => 'pandoc-' . $format . '-reader-default',
+                'explicitFormat' => $format,
+                'inputOnly' => $directions[$format]['direction'] === 'input-only',
+                'readerOnly' => $directions[$format]['input'] && !$directions[$format]['output'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
+                'readerOptionProfileOrder' => self::TABULAR_DATA_READER_OPTION_PROFILE_ORDER,
+                'readerOptions' => self::TABULAR_DATA_READER_OPTION_PROFILES[$format],
+                'sourceProvenanceBucket' => $buckets[$format],
+                'unsupportedWriterReason' => $writerReasons[$format],
+                'extensionConflictProbes' => $conflictMatrix[$format],
+            ];
+        }
+
+        return $packets;
+    }
+
+    /**
      * @return array{extension:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, unsupportedInput:bool, unsupportedOutput:bool, inputImplementation:string, outputImplementation:string, delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool, sourceModule:string, sourceFunction:string}|null
      */
     public static function tabularDataUnsupportedFormatForExtension(string $extension): ?array
@@ -4203,11 +4380,16 @@ final class PandocFormatRegistry
      *     extensionInference:array<string, string>,
      *     extensionInferredFormats:list<string>,
      *     nonExtensionInferredFormats:list<string>,
+     *     directionCounts:array{inputOutput:int, inputOnly:int, outputOnly:int, readerOnly:int, writerOnly:int, registeredReaders:int, registeredWriters:int},
+     *     readerOptionProfileOrder:list<string>,
      *     readerOptionProfiles:array<string, array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}>,
      *     inputSourceProvenance:array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>,
      *     formatInferenceBuckets:array<string, array{priority:int, sourceFields:list<string>, selectedFormatPolicy:string, conflictPolicy:string, diagnosticCode:string|null}>,
      *     sourceProvenanceBuckets:array<string, array{module:string, formats:list<string>, functions:list<string>, registryEntries:list<string>, csvOptions:list<string>, readerOptions:list<string>, directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>}, inputImplementations:list<string>, outputImplementations:list<string>}>,
      *     optionConflictProfiles:array<string, array{conflictId:string, explicitFormat:string, extension:string, extensionFormat:string, selectedFormat:string, rejectedFormat:string, selectedSourceBucket:string, rejectedSourceBucket:string, resolution:string, diagnosticCode:string, optionConflictFields:list<string>, selectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, rejectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, selectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, rejectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, parserBehaviorChanged:bool, externalToolFree:bool}>,
+     *     inputSourceProvenanceBuckets:array<string, array{bucket:string, module:string, function:string, registry:string, formats:list<string>}>,
+     *     explicitExtensionConflictMatrix:array<string, array<string, array{extension:string, explicitFormat:string, extensionInferredFormat:string, conflict:bool, selectedFormat:string, rejectedInferredFormat:string|null, resolution:string, selectedSourceBucket:string, inferredSourceBucket:string, selectedDelimiterName:string}>>,
+     *     unsupportedWriterReasons:array<string, array{status:string, reasonCode:string, reason:string, upstreamOutputToken:bool, nativeWriterRegistered:bool, implementation:string, outputStatus:string}>,
      *     unsupportedInputFormats:list<string>,
      *     unsupportedOutputFormats:list<string>,
      *     unsupportedFormatSummary:array{
@@ -4218,13 +4400,17 @@ final class PandocFormatRegistry
      *         noNativeReader:list<string>,
      *         noNativeWriter:list<string>
      *     },
-     *     formats:array<string, array{input:bool, output:bool, direction:string, directionBucket:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, explicitFormatToken:string, inputImplementation:string, outputImplementation:string, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, sourceProvenanceBucket:string, fullReaderParity:bool, externalToolFree:bool}>
+     *     dialectProfileReviewPackets:array<string, array{format:string, dialectProfileId:string, explicitFormat:string, inputOnly:bool, readerOnly:bool, extensionInferred:bool, extensions:list<string>, readerOptionProfileOrder:list<string>, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenanceBucket:array{bucket:string, module:string, function:string, registry:string, formats:list<string>}, unsupportedWriterReason:array{status:string, reasonCode:string, reason:string, upstreamOutputToken:bool, nativeWriterRegistered:bool, implementation:string, outputStatus:string}, extensionConflictProbes:array<string, array{extension:string, explicitFormat:string, extensionInferredFormat:string, conflict:bool, selectedFormat:string, rejectedInferredFormat:string|null, resolution:string, selectedSourceBucket:string, inferredSourceBucket:string, selectedDelimiterName:string}>}>,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, directionBucket:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, explicitFormatToken:string, inputImplementation:string, outputImplementation:string, readerOptionProfileOrder:list<string>, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, sourceProvenanceBucket:array{bucket:string, module:string, function:string, registry:string, formats:list<string>}, fullReaderParity:bool, externalToolFree:bool, unsupportedWriterReason:array{status:string, reasonCode:string, reason:string, upstreamOutputToken:bool, nativeWriterRegistered:bool, implementation:string, outputStatus:string}, extensionConflictProbes:array<string, array{extension:string, explicitFormat:string, extensionInferredFormat:string, conflict:bool, selectedFormat:string, rejectedInferredFormat:string|null, resolution:string, selectedSourceBucket:string, inferredSourceBucket:string, selectedDelimiterName:string}>}>
      * }
      */
     public static function tabularDataFormatReviewPacket(): array
     {
         $directions = self::tabularDataFormatDirections();
         $inputSupport = self::tabularDataInputSupport();
+        $sourceBuckets = self::tabularDataInputSourceProvenanceBuckets();
+        $writerReasons = self::tabularDataUnsupportedWriterReasons();
+        $conflictMatrix = self::tabularDataExplicitExtensionConflictMatrix();
         $extensionsByFormat = [];
 
         foreach (self::TABULAR_DATA_EXTENSION_INFERENCE as $extension => $format) {
@@ -4245,11 +4431,14 @@ final class PandocFormatRegistry
                 'explicitFormatToken' => $format,
                 'inputImplementation' => $inputSupport[$format]['implementation'],
                 'outputImplementation' => '',
+                'readerOptionProfileOrder' => self::TABULAR_DATA_READER_OPTION_PROFILE_ORDER,
                 'readerOptions' => self::TABULAR_DATA_READER_OPTION_PROFILES[$format],
                 'sourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format],
-                'sourceProvenanceBucket' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format]['module'],
+                'sourceProvenanceBucket' => $sourceBuckets[$format],
                 'fullReaderParity' => false,
                 'externalToolFree' => true,
+                'unsupportedWriterReason' => $writerReasons[$format],
+                'extensionConflictProbes' => $conflictMatrix[$format],
             ];
         }
 
@@ -4272,14 +4461,20 @@ final class PandocFormatRegistry
             'extensionInference' => self::TABULAR_DATA_EXTENSION_INFERENCE,
             'extensionInferredFormats' => self::tabularDataFormatsWithExtensionInference(),
             'nonExtensionInferredFormats' => self::tabularDataFormatsWithoutExtensionInference(),
+            'directionCounts' => self::tabularDataDirectionCounts(),
+            'readerOptionProfileOrder' => self::TABULAR_DATA_READER_OPTION_PROFILE_ORDER,
             'readerOptionProfiles' => self::TABULAR_DATA_READER_OPTION_PROFILES,
             'inputSourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE,
             'formatInferenceBuckets' => self::TABULAR_DATA_FORMAT_INFERENCE_BUCKETS,
             'sourceProvenanceBuckets' => self::tabularDataSourceProvenanceBuckets(),
             'optionConflictProfiles' => self::tabularDataOptionConflictProfiles(),
+            'inputSourceProvenanceBuckets' => $sourceBuckets,
+            'explicitExtensionConflictMatrix' => $conflictMatrix,
+            'unsupportedWriterReasons' => $writerReasons,
             'unsupportedInputFormats' => self::unsupportedTabularDataInputFormats(),
             'unsupportedOutputFormats' => self::unsupportedTabularDataOutputFormats(),
             'unsupportedFormatSummary' => self::tabularDataUnsupportedFormatSummary(),
+            'dialectProfileReviewPackets' => self::tabularDataDialectProfileReviewPackets(),
             'formats' => $formats,
         ];
     }
