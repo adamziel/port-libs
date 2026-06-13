@@ -501,7 +501,7 @@ final class PandocFormatRegistry
         'ipynb' => [
             'status' => 'partial',
             'implementation' => IpynbReader::class,
-            'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving execution/output metadata; full Jupyter notebook parity remains open.',
+            'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving metadata keys, cell tags, execution/output metadata, and metadata-only blocked resource diagnostics; full Jupyter notebook parity remains open.',
         ],
         'json' => [
             'status' => 'partial',

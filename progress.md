@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,315 pass / 0 fail | [3,274 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Markdown fenced Div/section parity after escaped-attribute preservation | markdown-fenced-div-escaped-attributes-17c91bad52 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,316 pass / 0 fail | [3,275 / 2,276 (143.9%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue bounded IPYNB reader parity after metadata/resource diagnostics | ipynb-metadata-resource-diagnostics-a9ce0ba74f |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `17c91bad52`: 3,315 PHP passes, 0 failures, and 3,274 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for the touched Markdown files, focused `MarkdownReaderTest.php` (`1` file, `6635` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74345` assertions, `0` failures).
+Current-main counters are reconciled through `a9ce0ba74f`: 3,316 PHP passes, 0 failures, and 3,275 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `IpynbReaderTest.php` (`1` file, `86` assertions, `0` failures), focused registry tests (`2` files, `1122` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74388` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -70,6 +70,15 @@ Current-main counters are reconciled through `17c91bad52`: 3,315 PHP passes, 0 f
 | Notes/references | Landed footnote label anchors and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/citation and JSON/native evidence; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, backlinks, and constructor parity. |
 | Table geometry | Landed LaTeX table-foot longtable and body-local head-row handoffs | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot and body-head-row slices | Multi-body semantics, rowspan output, and package-specific table internals. |
 | PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+| IPYNB/notebook reader diagnostics | Landed metadata keys, cell tags, MIME summaries, and blocked resource diagnostics | 1 IPYNB rich-package reader bucket | Focused `IpynbReaderTest.php` run 86 assertions | Covered bounded reader diagnostics | Full Jupyter notebook reader parity, rich output rendering, attachment/media extraction, broader nbformat diagnostics, and native IPYNB writer support remain open. |
+
+### IPYNB Notebook Metadata/Resource Diagnostic Update (2026-06-13)
+
+Bounded native PHP IPYNB reader parity advanced by one metadata/resource diagnostic slice. `IpynbReader` now exposes top-level notebook metadata keys, per-cell metadata keys and sorted tags, attachment/output MIME-type summaries, and a metadata-only resource policy that blocks notebook attachment/output byte exposure while preserving safe `data-ipynb-*` review attributes for WordPress handoff.
+
+Verification passed `php -l` for `IpynbReader.php`, `PandocFormatRegistry.php`, and `IpynbReaderTest.php`; focused `IpynbReaderTest.php` passed (`1` file, `86` assertions, `0` failures); focused registry tests passed (`2` files, `1122` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74388` assertions, `0` failures). No Pandoc binary, Jupyter, Python notebook runner, Node tooling, browser renderer, online service, live provider, or external validator was invoked.
+
+Remaining notebook gaps: full Jupyter notebook reader parity, rich output rendering, attachment/media extraction, broader nbformat diagnostics, and native IPYNB writer support remain partial or unsupported.
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 

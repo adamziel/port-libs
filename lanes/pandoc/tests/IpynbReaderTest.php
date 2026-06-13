@@ -24,15 +24,29 @@ return [
         $t->same(1, $document->attr('notebookRawCellCount'));
         $t->same(1, $document->attr('notebookAttachmentCount'));
         $t->same(2, $document->attr('notebookOutputCount'));
+        $t->same(3, $document->attr('notebookUnsupportedResourceCount'));
+        $t->same(['kernelspec', 'language_info'], $document->attr('notebookMetadataKeys'));
         $t->same('python3', $document->attr('notebookKernelName'));
         $t->same('python', $document->attr('notebookLanguage'));
+        $t->same([
+            'state' => 'metadata-only',
+            'byteExposure' => 'blocked',
+            'diagnostics' => ['external-notebook-resource-bytes-blocked'],
+        ], $document->attr('notebookResourcePolicy'));
 
         $intro = $document->children[0];
         $t->same('div', $intro->type);
         $t->same(['ipynb-cell', 'ipynb-markdown-cell'], $intro->attr('classes'));
         $t->same('markdown', $intro->attr('attributes')['data-ipynb-cell-type']);
         $t->same('1', $intro->attr('attributes')['data-ipynb-attachment-count']);
+        $t->same('review', $intro->attr('attributes')['data-ipynb-cell-tags']);
+        $t->same('attachment-bytes-blocked', $intro->attr('attributes')['data-ipynb-diagnostics']);
         $t->same(['diagram.png'], $intro->attr('ipynbAttachmentNames'));
+        $t->same(['image/png'], $intro->attr('ipynbAttachmentMimeTypes'));
+        $t->same(1, $intro->attr('ipynbUnsupportedResourceCount'));
+        $t->same(['attachment-bytes-blocked'], $intro->attr('ipynbUnsupportedResourceDiagnostics'));
+        $t->same(['tags'], $intro->attr('ipynbCellMetadataKeys'));
+        $t->same(['review'], $intro->attr('ipynbCellTags'));
         $t->same('heading', $intro->children[0]->type);
         $t->same('paragraph', $intro->children[1]->type);
         $t->same('Notebook import', $intro->children[0]->attr('text'));
@@ -44,10 +58,22 @@ return [
         $t->same('code', $code->attr('ipynbCellType'));
         $t->same(2, $code->attr('ipynbOutputCount'));
         $t->same(['stream', 'display_data'], $code->attr('ipynbOutputTypes'));
+        $t->same(['text/plain'], $code->attr('ipynbOutputMimeTypes'));
+        $t->same(2, $code->attr('ipynbUnsupportedResourceCount'));
+        $t->same(['output-bytes-blocked', 'output-mime-bundle-metadata-only'], $code->attr('ipynbUnsupportedResourceDiagnostics'));
+        $t->same([], $code->attr('ipynbCellMetadataKeys'));
+        $t->same([], $code->attr('ipynbCellTags'));
         $t->same('code_block', $source->type);
         $t->same(['python', 'ipynb-code-cell-source'], $source->attr('classes'));
         $t->same('7', $source->attr('attributes')['data-ipynb-execution-count']);
         $t->contains('print("ready")', $source->attr('text'));
+
+        $cellSummaries = $document->attr('notebookCells');
+        $t->same(['image/png'], $cellSummaries[0]['attachmentMimeTypes']);
+        $t->same(['attachment-bytes-blocked'], $cellSummaries[0]['diagnostics']);
+        $t->same(['review'], $cellSummaries[0]['tags']);
+        $t->same(['text/plain'], $cellSummaries[1]['outputMimeTypes']);
+        $t->same(['output-bytes-blocked', 'output-mime-bundle-metadata-only'], $cellSummaries[1]['diagnostics']);
 
         $raw = $document->children[2]->children[0];
         $t->same('code_block', $raw->type);
@@ -60,9 +86,91 @@ return [
 
         $t->contains('class="ipynb-cell ipynb-markdown-cell"', $html);
         $t->contains('data-ipynb-attachment-count="1"', $html);
+        $t->contains('data-ipynb-cell-tags="review"', $html);
+        $t->contains('data-ipynb-diagnostics="attachment-bytes-blocked"', $html);
+        $t->contains('data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only"', $html);
         $t->contains('<h1 id="notebook-import">Notebook import</h1>', $html);
         $t->contains('class="language-python"', $html);
         $t->contains('print(&quot;ready&quot;)', $html);
+    },
+    'preserves ipynb metadata keys and unsupported resource diagnostics without exposing resource bytes' => static function (TestRunner $t): void {
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'metadata' => [
+                        'tags' => ['beta', '', 'alpha'],
+                        'review' => ['owner' => 'qa'],
+                    ],
+                    'attachments' => [
+                        'plot.svg' => [
+                            'image/svg+xml' => '<svg><text>hidden</text></svg>',
+                        ],
+                    ],
+                    'source' => 'Attachment cell.',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => null,
+                    'metadata' => [
+                        'collapsed' => false,
+                    ],
+                    'outputs' => [
+                        [
+                            'output_type' => 'display_data',
+                            'data' => [
+                                'application/json' => ['points' => [1, 2]],
+                                'image/png' => 'iVBORw0KGgo=',
+                            ],
+                        ],
+                        [
+                            'output_type' => 'stream',
+                            'name' => 'stdout',
+                            'text' => 'done',
+                        ],
+                    ],
+                    'source' => 'display(points)',
+                ],
+            ],
+            'metadata' => [
+                'custom' => true,
+                'kernelspec' => [
+                    'language' => 'python',
+                    'name' => 'python3',
+                ],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $html = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['custom', 'kernelspec'], $document->attr('notebookMetadataKeys'));
+        $t->same(3, $document->attr('notebookUnsupportedResourceCount'));
+        $t->same('metadata-only', $document->attr('notebookResourcePolicy')['state']);
+        $t->same('blocked', $document->attr('notebookResourcePolicy')['byteExposure']);
+        $t->same(['external-notebook-resource-bytes-blocked'], $document->attr('notebookResourcePolicy')['diagnostics']);
+
+        $markdown = $document->children[0];
+        $t->same(['review', 'tags'], $markdown->attr('ipynbCellMetadataKeys'));
+        $t->same(['alpha', 'beta'], $markdown->attr('ipynbCellTags'));
+        $t->same(['image/svg+xml'], $markdown->attr('ipynbAttachmentMimeTypes'));
+        $t->same(['attachment-bytes-blocked'], $markdown->attr('ipynbUnsupportedResourceDiagnostics'));
+        $t->same('alpha beta', $markdown->attr('attributes')['data-ipynb-cell-tags']);
+
+        $code = $document->children[1];
+        $t->same(['collapsed'], $code->attr('ipynbCellMetadataKeys'));
+        $t->same(['display_data', 'stream'], $code->attr('ipynbOutputTypes'));
+        $t->same(['application/json', 'image/png'], $code->attr('ipynbOutputMimeTypes'));
+        $t->same(['output-bytes-blocked', 'output-mime-bundle-metadata-only'], $code->attr('ipynbUnsupportedResourceDiagnostics'));
+
+        $t->contains('data-ipynb-cell-tags="alpha beta"', $html);
+        $t->contains('data-ipynb-diagnostics="attachment-bytes-blocked"', $html);
+        $t->contains('data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only"', $html);
+        $t->contains('display(points)', $html);
+        $t->same(false, str_contains($html, '<svg><text>hidden</text></svg>'));
+        $t->same(false, str_contains($html, 'iVBORw0KGgo='));
     },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
