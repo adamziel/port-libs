@@ -1295,6 +1295,10 @@ final class PandocJsonWriter
             return false;
         }
 
+        if ($this->hasNonCurrentNullaryNativeBlockPayload($native)) {
+            return false;
+        }
+
         if ($tag === 'Plain' || $tag === 'Para') {
             $content = $native['c'] ?? null;
 
@@ -1321,6 +1325,30 @@ final class PandocJsonWriter
             'Null',
             'Div',
         ], true);
+    }
+
+    private function hasNonCurrentNullaryNativeBlockPayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && in_array($value['t'], ['HorizontalRule', 'Null'], true)
+            && array_key_exists('c', $value)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonCurrentNullaryNativeBlockPayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasLegacyTargetInlinePayload(mixed $value): bool

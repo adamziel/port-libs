@@ -4311,6 +4311,53 @@ return [
             $t->same($expectedInlines, $nativePacket['blocks'][0]['c'], "{$source} native writer regenerates nullary constructors");
         }
     },
+    'regenerates nullary block constructors with stale native content sidecars' => static function (TestRunner $t): void {
+        $horizontalRuleBlock = ['t' => 'HorizontalRule', 'c' => ['stale'], 'reviewQueue' => 'rule-source'];
+        $nullBlock = ['t' => 'Null', 'c' => 'stale', 'reviewQueue' => 'null-source'];
+        $nestedRuleBlock = ['t' => 'HorizontalRule', 'c' => [], 'reviewQueue' => 'nested-rule-source'];
+        $nestedNullBlock = ['t' => 'Null', 'c' => ['stale'], 'reviewQueue' => 'nested-null-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $horizontalRuleBlock,
+                $nullBlock,
+                ['t' => 'BlockQuote', 'c' => [
+                    $nestedRuleBlock,
+                    $nestedNullBlock,
+                ], 'reviewQueue' => 'quote-source'],
+            ],
+        ];
+        $expectedBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            ['t' => 'BlockQuote', 'c' => [
+                ['t' => 'HorizontalRule'],
+                ['t' => 'Null'],
+            ]],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $nodes = $document->children;
+            $nestedNodes = $nodes[2]->children;
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(['horizontal_rule', 'null_block', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $nodes), "{$source} nullary block node types");
+            $t->same(['horizontal_rule', 'null_block'], array_map(static fn (AstNode $node): string => $node->type, $nestedNodes), "{$source} nested nullary block node types");
+            $t->same($horizontalRuleBlock, $nodes[0]->attr('native'), "{$source} source horizontal rule native sidecar");
+            $t->same($nullBlock, $nodes[1]->attr('native'), "{$source} source null block native sidecar");
+            $t->same($nestedRuleBlock, $nestedNodes[0]->attr('native'), "{$source} nested horizontal rule native sidecar");
+            $t->same($nestedNullBlock, $nestedNodes[1]->attr('native'), "{$source} nested null block native sidecar");
+            $t->same($expectedBlocks, $jsonPacket['blocks'], "{$source} JSON writer regenerates stale nullary block constructors");
+            $t->same($expectedBlocks, $nativePacket['blocks'], "{$source} native writer regenerates stale nullary block constructors");
+        }
+    },
     'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $structuralInlines = [
             ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],

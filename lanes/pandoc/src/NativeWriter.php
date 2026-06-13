@@ -1180,7 +1180,11 @@ final class NativeWriter
      */
     private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || $this->hasNonReusableNativeInlinePayload($native)) {
+        if (
+            $this->hasLegacyTargetInlinePayloadSidecars($native)
+            || $this->hasNonReusableNativeInlinePayload($native)
+            || $this->hasNonReusableNativeBlockPayload($native)
+        ) {
             return false;
         }
 
@@ -1429,6 +1433,30 @@ final class NativeWriter
             'AlignDefault',
             'ColWidthDefault',
         ], true);
+    }
+
+    private function hasNonReusableNativeBlockPayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && in_array($value['t'], ['HorizontalRule', 'Null'], true)
+            && array_key_exists('c', $value)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonReusableNativeBlockPayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasLegacyTargetInlinePayloadSidecars(mixed $value): bool
