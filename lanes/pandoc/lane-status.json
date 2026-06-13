@@ -22,11 +22,12 @@
     "scope": "Native PHP ODF/ODT input import for OpenDocument text packages, including package manifest, styles/content ingestion, metadata, embedded media/objects, and downstream Markdown/WordPress writer handoff.",
     "upstreamFormatCases": 20,
     "upstreamFormatAssertions": 575,
-    "localMappedCases": 50,
-    "localFocusedAssertions": 1546,
-    "caseCoveragePercent": 250,
-    "assertionCoveragePercent": 268.9,
+    "localMappedCases": 51,
+    "localFocusedAssertions": 5966,
+    "caseCoveragePercent": 255.0,
+    "assertionCoveragePercent": 1037.6,
     "localFocusedTestFiles": [
+      "lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php",
       "lanes/pandoc/tests/OdfReaderTest.php",
       "lanes/pandoc/tests/OdtReaderTest.php",
       "lanes/pandoc/tests/OpenDocumentReaderTest.php",
@@ -37,15 +38,15 @@
       "json": "jq empty lanes/pandoc/lane-status.json",
       "diffCheck": "git diff --check -- progress.md lanes/pandoc/lane-status.json",
       "focusedOdfOdtTests": {
-        "command": "php tools/run-tests.php lanes/pandoc/tests/OdfReaderTest.php lanes/pandoc/tests/OdtReaderTest.php lanes/pandoc/tests/OpenDocumentReaderTest.php lanes/pandoc/tests/OpenDocumentPackageTest.php",
-        "files": 4,
-        "assertions": 5827,
+        "command": "php tools/run-tests.php lanes/pandoc/tests/OdfOdtShipReadinessStatusTest.php lanes/pandoc/tests/OdfReaderTest.php lanes/pandoc/tests/OdtReaderTest.php lanes/pandoc/tests/OpenDocumentReaderTest.php lanes/pandoc/tests/OpenDocumentPackageTest.php",
+        "files": 5,
+        "assertions": 5966,
         "failures": 0
       },
       "fullPandocTests": {
         "command": "php tools/run-tests.php lanes/pandoc/tests",
-        "files": 44,
-        "assertions": 73816,
+        "files": 46,
+        "assertions": 75505,
         "failures": 0
       }
     },
