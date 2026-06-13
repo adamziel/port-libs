@@ -1037,6 +1037,10 @@ final class XmlHtmlDom
         $contributors = $metadata instanceof \DOMElement ? self::docBookContributorSummaries($metadata) : [];
         $identifiers = $metadata instanceof \DOMElement ? self::docBookIdentifierSummaries($metadata) : [];
         [$xrefTargets, $externalTargets] = self::docBookLinkTargets($root);
+        $mediaObjects = self::docBookMediaObjectSummaries($root);
+        $mediaTargetManifest = self::docBookMediaTargetManifest($mediaObjects);
+        $repeatedMediaRoleTargetPairs = self::docBookRepeatedMediaRoleTargetPairs($mediaObjects);
+        $mediaDiagnostics = self::docBookMediaDiagnostics($mediaObjects, $repeatedMediaRoleTargetPairs);
 
         return [
             'formatFamily' => 'xml-html5-docbook-dom',
@@ -1101,8 +1105,33 @@ final class XmlHtmlDom
             'bibliographyCount' => count(self::descendantElements($root, 'bibliography')),
             'bibliographyEntryCount' => count(self::descendantElements($root, 'biblioentry'))
                 + count(self::descendantElements($root, 'bibliomixed')),
-            'mediaObjectCount' => count(self::descendantElements($root, 'mediaobject'))
-                + count(self::descendantElements($root, 'inlinemediaobject')),
+            'mediaObjectCount' => count($mediaObjects),
+            'mediaObjectIds' => array_values(array_filter(
+                array_map(static fn (array $media): ?string => $media['id'], $mediaObjects),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'mediaObjectRoles' => self::uniqueStringValues(array_merge(...array_map(
+                static fn (array $media): array => $media['roles'],
+                $mediaObjects
+            ))),
+            'mediaCaptionTexts' => array_values(array_filter(
+                array_map(static fn (array $media): ?string => $media['captionText'], $mediaObjects),
+                static fn (?string $caption): bool => $caption !== null && $caption !== ''
+            )),
+            'mediaTextAlternativeTexts' => self::uniqueStringValues(array_merge(...array_map(
+                static fn (array $media): array => array_map(
+                    static fn (array $alternative): string => (string) $alternative['text'],
+                    $media['textAlternatives']
+                ),
+                $mediaObjects
+            ))),
+            'mediaObjects' => $mediaObjects,
+            'mediaTargetManifest' => $mediaTargetManifest,
+            'mediaTargetManifestCount' => count($mediaTargetManifest),
+            'repeatedMediaRoleTargetPairs' => $repeatedMediaRoleTargetPairs,
+            'repeatedMediaRoleTargetPairCount' => count($repeatedMediaRoleTargetPairs),
+            'mediaDiagnostics' => $mediaDiagnostics,
+            'mediaDiagnosticCount' => count($mediaDiagnostics),
             'imageObjectCount' => count(self::descendantElements($root, 'imageobject')),
             'imageDataRefs' => self::docBookImageDataRefs($root),
         ];
@@ -1263,6 +1292,7 @@ final class XmlHtmlDom
                 'childSectionCount' => self::docBookChildSectionCount($section),
                 'figureCount' => count(self::docBookElementsByNames($section, ['figure', 'informalfigure'])),
                 'tableCount' => count(self::docBookElementsByNames($section, ['table', 'informaltable'])),
+                'mediaObjectCount' => count(self::docBookElementsByNames($section, ['mediaobject', 'inlinemediaobject'])),
                 'admonitionCount' => count(self::docBookAdmonitionElements($section)),
             ];
         }
@@ -1358,6 +1388,331 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaObjectSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::docBookElementsByNames($root, ['mediaobject', 'inlinemediaobject']) as $mediaObject) {
+            $targets = self::docBookMediaTargetRecords($mediaObject);
+            $textAlternatives = self::docBookTextObjectAlternatives($mediaObject);
+            $title = self::docBookChildTitleText($mediaObject);
+            $caption = self::docBookMediaCaptionText($mediaObject);
+            $captionText = $caption ?? $title;
+            $roles = self::docBookMediaObjectRoles($mediaObject);
+            $roleTargetPairs = [];
+            foreach ($targets as $target) {
+                $roleTargetPairs[] = [
+                    'role' => $target['role'],
+                    'target' => $target['target'],
+                ];
+            }
+
+            $summaries[] = [
+                'element' => $mediaObject->localName,
+                'id' => self::docBookElementId($mediaObject),
+                'role' => self::docBookCleanText(self::attribute($mediaObject, 'role')),
+                'roles' => $roles,
+                'title' => $title,
+                'caption' => $caption,
+                'captionText' => $captionText,
+                'hasCaption' => $captionText !== null && $captionText !== '',
+                'textAlternatives' => $textAlternatives,
+                'textAlternativeCount' => count($textAlternatives),
+                'hasTextAlternative' => $textAlternatives !== [],
+                'targetRefs' => self::uniqueStringValues(array_map(
+                    static fn (array $target): string => (string) $target['target'],
+                    $targets
+                )),
+                'targetRecords' => $targets,
+                'targetCount' => count($targets),
+                'roleTargetPairs' => $roleTargetPairs,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array{target:string, roles:list<string>, mediaObjectIds:list<string>, mediaElements:list<string>, titleTexts:list<string>, captionTexts:list<string>, textAlternatives:list<string>, occurrenceCount:int}>
+     */
+    private static function docBookMediaTargetManifest(array $mediaObjects): array
+    {
+        $rows = [];
+        foreach ($mediaObjects as $mediaObject) {
+            foreach ($mediaObject['targetRecords'] as $target) {
+                $targetRef = (string) $target['target'];
+                if (!isset($rows[$targetRef])) {
+                    $rows[$targetRef] = [
+                        'target' => $targetRef,
+                        'roles' => [],
+                        'mediaObjectIds' => [],
+                        'mediaElements' => [],
+                        'titleTexts' => [],
+                        'captionTexts' => [],
+                        'textAlternatives' => [],
+                        'occurrenceCount' => 0,
+                    ];
+                }
+
+                ++$rows[$targetRef]['occurrenceCount'];
+                self::appendUniqueString($rows[$targetRef]['mediaElements'], (string) $mediaObject['element']);
+                self::appendUniqueString($rows[$targetRef]['mediaObjectIds'], $mediaObject['id']);
+                self::appendUniqueString($rows[$targetRef]['roles'], $target['role']);
+                self::appendUniqueString($rows[$targetRef]['titleTexts'], $mediaObject['title']);
+                self::appendUniqueString($rows[$targetRef]['captionTexts'], $mediaObject['captionText']);
+                foreach ($mediaObject['textAlternatives'] as $alternative) {
+                    self::appendUniqueString($rows[$targetRef]['textAlternatives'], $alternative['text']);
+                }
+            }
+        }
+
+        return array_values($rows);
+    }
+
+    /**
+     * @return list<array{role:?string, target:string, count:int, mediaObjectIds:list<string>}>
+     */
+    private static function docBookRepeatedMediaRoleTargetPairs(array $mediaObjects): array
+    {
+        $pairs = [];
+        foreach ($mediaObjects as $mediaObject) {
+            foreach ($mediaObject['roleTargetPairs'] as $pair) {
+                $role = $pair['role'];
+                $target = (string) $pair['target'];
+                $key = ($role ?? '') . "\0" . $target;
+                if (!isset($pairs[$key])) {
+                    $pairs[$key] = [
+                        'role' => $role,
+                        'target' => $target,
+                        'count' => 0,
+                        'mediaObjectIds' => [],
+                    ];
+                }
+
+                ++$pairs[$key]['count'];
+                self::appendUniqueString($pairs[$key]['mediaObjectIds'], $mediaObject['id']);
+            }
+        }
+
+        return array_values(array_filter(
+            $pairs,
+            static fn (array $pair): bool => $pair['count'] > 1
+        ));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaDiagnostics(array $mediaObjects, array $repeatedPairs): array
+    {
+        $diagnostics = [];
+        foreach ($mediaObjects as $mediaObject) {
+            if ($mediaObject['hasCaption'] !== true) {
+                $diagnostics[] = [
+                    'code' => 'docbook-media-missing-caption',
+                    'severity' => 'warning',
+                    'element' => $mediaObject['element'],
+                    'id' => $mediaObject['id'],
+                    'role' => $mediaObject['role'],
+                    'targets' => $mediaObject['targetRefs'],
+                ];
+            }
+
+            if ($mediaObject['hasTextAlternative'] !== true) {
+                $diagnostics[] = [
+                    'code' => 'docbook-media-missing-alt-text',
+                    'severity' => 'warning',
+                    'element' => $mediaObject['element'],
+                    'id' => $mediaObject['id'],
+                    'role' => $mediaObject['role'],
+                    'targets' => $mediaObject['targetRefs'],
+                ];
+            }
+        }
+
+        foreach ($repeatedPairs as $pair) {
+            $diagnostics[] = [
+                'code' => 'docbook-media-repeated-role-target',
+                'severity' => 'info',
+                'role' => $pair['role'],
+                'target' => $pair['target'],
+                'count' => $pair['count'],
+                'mediaObjectIds' => $pair['mediaObjectIds'],
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array{element:string, target:string, sourceAttribute:string, role:?string, mediaRole:?string, objectRole:?string, dataRole:?string, format:?string}>
+     */
+    private static function docBookMediaTargetRecords(\DOMElement $mediaObject): array
+    {
+        $records = [];
+        $mediaRole = self::docBookCleanText(self::attribute($mediaObject, 'role'));
+        foreach (self::descendantElements($mediaObject) as $element) {
+            if (!in_array($element->localName, ['imagedata', 'audiodata', 'videodata'], true)) {
+                continue;
+            }
+
+            [$target, $sourceAttribute] = self::docBookMediaTarget($element);
+            if ($target === null) {
+                continue;
+            }
+
+            $object = self::docBookNearestMediaObjectContainer($element, ['imageobject', 'audioobject', 'videoobject']);
+            $objectRole = $object instanceof \DOMElement ? self::docBookCleanText(self::attribute($object, 'role')) : null;
+            $dataRole = self::docBookCleanText(self::attribute($element, 'role'));
+
+            $records[] = [
+                'element' => $element->localName,
+                'target' => $target,
+                'sourceAttribute' => $sourceAttribute,
+                'role' => $dataRole ?? $objectRole ?? $mediaRole,
+                'mediaRole' => $mediaRole,
+                'objectRole' => $objectRole,
+                'dataRole' => $dataRole,
+                'format' => self::docBookCleanText(self::attribute($element, 'format')),
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array{0:?string, 1:string}
+     */
+    private static function docBookMediaTarget(\DOMElement $element): array
+    {
+        foreach ([
+            ['fileref', null, 'fileref'],
+            ['href', 'http://www.w3.org/1999/xlink', 'xlink:href'],
+            ['entityref', null, 'entityref'],
+        ] as [$localName, $namespace, $sourceAttribute]) {
+            $value = self::attribute($element, $localName, $namespace);
+            $value = self::docBookCleanText($value);
+            if ($value !== null) {
+                return [$value, $sourceAttribute];
+            }
+        }
+
+        return [null, ''];
+    }
+
+    /**
+     * @return list<array{id:?string, role:?string, text:string}>
+     */
+    private static function docBookTextObjectAlternatives(\DOMElement $mediaObject): array
+    {
+        $alternatives = [];
+        foreach (self::descendantElements($mediaObject, 'textobject') as $textObject) {
+            $text = self::normalizedText($textObject);
+            if ($text === '') {
+                continue;
+            }
+
+            $alternatives[] = [
+                'id' => self::docBookElementId($textObject),
+                'role' => self::docBookCleanText(self::attribute($textObject, 'role')),
+                'text' => $text,
+            ];
+        }
+
+        return $alternatives;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookMediaObjectRoles(\DOMElement $mediaObject): array
+    {
+        $roles = [];
+        self::appendUniqueString($roles, self::attribute($mediaObject, 'role'));
+        foreach (self::descendantElements($mediaObject) as $element) {
+            if (!in_array($element->localName, ['imageobject', 'audioobject', 'videoobject', 'textobject', 'imagedata', 'audiodata', 'videodata'], true)) {
+                continue;
+            }
+
+            self::appendUniqueString($roles, self::attribute($element, 'role'));
+        }
+
+        return $roles;
+    }
+
+    private static function docBookMediaCaptionText(\DOMElement $mediaObject): ?string
+    {
+        $caption = self::firstChildElement($mediaObject, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($caption);
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * @param list<string> $containerNames
+     */
+    private static function docBookNearestMediaObjectContainer(\DOMElement $element, array $containerNames): ?\DOMElement
+    {
+        $containers = array_fill_keys($containerNames, true);
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (isset($containers[$parent->localName])) {
+                return $parent;
+            }
+            if ($parent->localName === 'mediaobject' || $parent->localName === 'inlinemediaobject') {
+                return null;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private static function docBookCleanText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function appendUniqueString(array &$values, ?string $value): void
+    {
+        $value = self::docBookCleanText($value);
+        if ($value === null || in_array($value, $values, true)) {
+            return;
+        }
+
+        $values[] = $value;
+    }
+
+    /**
+     * @param list<string|null> $values
+     * @return list<string>
+     */
+    private static function uniqueStringValues(array $values): array
+    {
+        $unique = [];
+        foreach ($values as $value) {
+            self::appendUniqueString($unique, is_string($value) ? $value : null);
+        }
+
+        return $unique;
     }
 
     /**

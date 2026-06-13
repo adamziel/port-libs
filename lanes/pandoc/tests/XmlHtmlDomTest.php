@@ -255,12 +255,26 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
   </info>
   <section xml:id="intro" role="scope">
     <title>Scope</title>
-    <para>Body <xref linkend="fig1"/> text.</para>
+    <para>Body <xref linkend="fig1"/> text
+      <inlinemediaobject xml:id="inline-logo" role="thumbnail">
+        <imageobject role="thumbnail"><imagedata fileref="images/a.png"/></imageobject>
+        <textobject role="alt"><phrase>Inline logo alternative</phrase></textobject>
+      </inlinemediaobject>.
+    </para>
     <note xml:id="n1"><title>Review Note</title><para>Check this.</para></note>
     <figure xml:id="fig1">
       <title>Figure A</title>
-      <mediaobject><imageobject><imagedata fileref="images/a.png"/></imageobject></mediaobject>
+      <mediaobject xml:id="media-fig" role="thumbnail">
+        <title>Figure media title</title>
+        <caption>Figure media caption</caption>
+        <imageobject role="thumbnail"><imagedata fileref="images/a.png" format="PNG"/></imageobject>
+        <textobject role="alt"><phrase>Figure A alternate text</phrase></textobject>
+      </mediaobject>
     </figure>
+    <mediaobject xml:id="media-detail" role="detail">
+      <title>Detail media</title>
+      <imageobject role="detail"><imagedata xlink:href="images/detail.svg"/></imageobject>
+    </mediaobject>
     <informaltable xml:id="tbl1"><tgroup cols="1"><tbody><row><entry>Cell</entry></row></tbody></tgroup></informaltable>
     <section xml:id="nested"><title>Nested</title><simpara>Nested text.</simpara></section>
   </section>
@@ -297,6 +311,7 @@ XML, 'DocBook 5 structure XML', preserveWhiteSpace: false);
         $t->same(1, $packet['sections'][0]['childSectionCount'] ?? null);
         $t->same(1, $packet['sections'][0]['figureCount'] ?? null);
         $t->same(1, $packet['sections'][0]['tableCount'] ?? null);
+        $t->same(3, $packet['sections'][0]['mediaObjectCount'] ?? null);
         $t->same(1, $packet['sections'][0]['admonitionCount'] ?? null);
         $t->same(['fig1'], $packet['figureIds']);
         $t->same(1, $packet['figureCount']);
@@ -306,12 +321,60 @@ XML, 'DocBook 5 structure XML', preserveWhiteSpace: false);
         $t->same(['n1'], $packet['admonitionIds']);
         $t->same('note', $packet['admonitions'][0]['type'] ?? null);
         $t->same(['fig1', 'ref1'], $packet['xrefTargets']);
-        $t->same(['https://example.invalid/review'], $packet['externalTargets']);
+        $t->same(['images/detail.svg', 'https://example.invalid/review'], $packet['externalTargets']);
         $t->same(1, $packet['bibliographyCount']);
         $t->same(1, $packet['bibliographyEntryCount']);
-        $t->same(1, $packet['mediaObjectCount']);
-        $t->same(1, $packet['imageObjectCount']);
-        $t->same(['images/a.png'], $packet['imageDataRefs']);
+        $t->same(3, $packet['mediaObjectCount']);
+        $t->same(['inline-logo', 'media-fig', 'media-detail'], $packet['mediaObjectIds']);
+        $t->same(['thumbnail', 'alt', 'detail'], $packet['mediaObjectRoles']);
+        $t->same(['Figure media caption', 'Detail media'], $packet['mediaCaptionTexts']);
+        $t->same(['Inline logo alternative', 'Figure A alternate text'], $packet['mediaTextAlternativeTexts']);
+        $t->same('inlinemediaobject', $packet['mediaObjects'][0]['element'] ?? null);
+        $t->same('inline-logo', $packet['mediaObjects'][0]['id'] ?? null);
+        $t->same('thumbnail', $packet['mediaObjects'][0]['role'] ?? null);
+        $t->same(false, $packet['mediaObjects'][0]['hasCaption'] ?? null);
+        $t->same(true, $packet['mediaObjects'][0]['hasTextAlternative'] ?? null);
+        $t->same(['images/a.png'], $packet['mediaObjects'][0]['targetRefs'] ?? null);
+        $t->same([['role' => 'thumbnail', 'target' => 'images/a.png']], $packet['mediaObjects'][0]['roleTargetPairs'] ?? null);
+        $t->same('mediaobject', $packet['mediaObjects'][1]['element'] ?? null);
+        $t->same('media-fig', $packet['mediaObjects'][1]['id'] ?? null);
+        $t->same('Figure media title', $packet['mediaObjects'][1]['title'] ?? null);
+        $t->same('Figure media caption', $packet['mediaObjects'][1]['caption'] ?? null);
+        $t->same('Figure media caption', $packet['mediaObjects'][1]['captionText'] ?? null);
+        $t->same(['thumbnail', 'alt'], $packet['mediaObjects'][1]['roles'] ?? null);
+        $t->same([['id' => null, 'role' => 'alt', 'text' => 'Figure A alternate text']], $packet['mediaObjects'][1]['textAlternatives'] ?? null);
+        $t->same('PNG', $packet['mediaObjects'][1]['targetRecords'][0]['format'] ?? null);
+        $t->same('media-detail', $packet['mediaObjects'][2]['id'] ?? null);
+        $t->same('Detail media', $packet['mediaObjects'][2]['captionText'] ?? null);
+        $t->same(false, $packet['mediaObjects'][2]['hasTextAlternative'] ?? null);
+        $t->same('xlink:href', $packet['mediaObjects'][2]['targetRecords'][0]['sourceAttribute'] ?? null);
+        $t->same(2, $packet['mediaTargetManifestCount']);
+        $t->same('images/a.png', $packet['mediaTargetManifest'][0]['target'] ?? null);
+        $t->same(['thumbnail'], $packet['mediaTargetManifest'][0]['roles'] ?? null);
+        $t->same(['inline-logo', 'media-fig'], $packet['mediaTargetManifest'][0]['mediaObjectIds'] ?? null);
+        $t->same(['inlinemediaobject', 'mediaobject'], $packet['mediaTargetManifest'][0]['mediaElements'] ?? null);
+        $t->same(['Figure media title'], $packet['mediaTargetManifest'][0]['titleTexts'] ?? null);
+        $t->same(['Figure media caption'], $packet['mediaTargetManifest'][0]['captionTexts'] ?? null);
+        $t->same(['Inline logo alternative', 'Figure A alternate text'], $packet['mediaTargetManifest'][0]['textAlternatives'] ?? null);
+        $t->same(2, $packet['mediaTargetManifest'][0]['occurrenceCount'] ?? null);
+        $t->same('images/detail.svg', $packet['mediaTargetManifest'][1]['target'] ?? null);
+        $t->same(['detail'], $packet['mediaTargetManifest'][1]['roles'] ?? null);
+        $t->same(1, $packet['mediaTargetManifest'][1]['occurrenceCount'] ?? null);
+        $t->same([['role' => 'thumbnail', 'target' => 'images/a.png', 'count' => 2, 'mediaObjectIds' => ['inline-logo', 'media-fig']]], $packet['repeatedMediaRoleTargetPairs']);
+        $t->same(1, $packet['repeatedMediaRoleTargetPairCount']);
+        $t->same(3, $packet['mediaDiagnosticCount']);
+        $t->same('docbook-media-missing-caption', $packet['mediaDiagnostics'][0]['code'] ?? null);
+        $t->same('inline-logo', $packet['mediaDiagnostics'][0]['id'] ?? null);
+        $t->same(['images/a.png'], $packet['mediaDiagnostics'][0]['targets'] ?? null);
+        $t->same('docbook-media-missing-alt-text', $packet['mediaDiagnostics'][1]['code'] ?? null);
+        $t->same('media-detail', $packet['mediaDiagnostics'][1]['id'] ?? null);
+        $t->same(['images/detail.svg'], $packet['mediaDiagnostics'][1]['targets'] ?? null);
+        $t->same('docbook-media-repeated-role-target', $packet['mediaDiagnostics'][2]['code'] ?? null);
+        $t->same('thumbnail', $packet['mediaDiagnostics'][2]['role'] ?? null);
+        $t->same('images/a.png', $packet['mediaDiagnostics'][2]['target'] ?? null);
+        $t->same(2, $packet['mediaDiagnostics'][2]['count'] ?? null);
+        $t->same(3, $packet['imageObjectCount']);
+        $t->same(['images/a.png', 'images/detail.svg'], $packet['imageDataRefs']);
         json_encode($packet, JSON_THROW_ON_ERROR);
 
         $docbook4 = XmlHtmlDom::loadXmlDocument(<<<'XML'
