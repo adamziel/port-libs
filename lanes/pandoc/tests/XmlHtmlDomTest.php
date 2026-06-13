@@ -3045,6 +3045,86 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><p><img alt="Diagram" src="diagram.png" usemap="#figures"><img alt="Bad" src="bad.png" usemap="bad target"></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html hyperlink navigation side-effect provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><a href="https://example.test/report" target="_blank" rel="external opener external bad&lt;tag" download ping="https://audit.example.test/log /relative javascript:alert(1) mailto:ops@example.test" referrerpolicy="strict-origin-when-cross-origin">External report</a></p>'
+                . '<p><a href="#local" target="_top" rel="noopener noreferrer" referrerpolicy="bogus">Local target</a></p>'
+                . '<map name="side-effects"><area alt="Script hotspot" href="javascript:alert(1)" target="_blank" rel="noreferrer" ping="/area-ping"></map>',
+            'hyperlink navigation side-effect review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/hyperlink-navigation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $external = $summary[0]['children'][0];
+        $local = $summary[1]['children'][0];
+        $area = $summary[2]['children'][0];
+
+        $t->same('a', $external['hyperlinkNavigationReview']);
+        $t->same('absolute', $external['hrefKind']);
+        $t->same('https', $external['hrefScheme']);
+        $t->same(false, $external['hrefUnsafe']);
+        $t->same('_blank', $external['targetName']);
+        $t->same(true, $external['targetReserved']);
+        $t->same(true, $external['targetBlank']);
+        $t->same(true, $external['targetOpenerAllowed']);
+        $t->same(false, $external['targetNoopener']);
+        $t->same(true, $external['downloadRequested']);
+        $t->same(null, $external['downloadSuggestedFilename']);
+        $t->same(['external', 'opener'], $external['hyperlinkRelTokens']);
+        $t->same(['external' => 2, 'opener' => 1], $external['hyperlinkRelTokenCounts']);
+        $t->same(['external'], $external['duplicateHyperlinkRelTokens']);
+        $t->same(['bad<tag'], $external['invalidHyperlinkRelTokens']);
+        $t->same(['opener'], $external['hyperlinkSecurityRelTokens']);
+        $t->same('strict-origin-when-cross-origin', $external['referrerPolicy']);
+        $t->same(true, $external['referrerPolicyValid']);
+        $t->same(true, $external['pingSideEffect']);
+        $t->same(4, $external['pingUrlCount']);
+        $t->same(['javascript:alert(1)'], $external['unsafePingUrls']);
+        $t->same(['mailto:ops@example.test'], $external['nonHttpPingUrls']);
+        $t->same('absolute', $external['pingUrlRecords'][0]['kind']);
+        $t->same('https', $external['pingUrlRecords'][0]['scheme']);
+        $t->same('relative', $external['pingUrlRecords'][1]['kind']);
+        $t->same('javascript', $external['pingUrlRecords'][2]['scheme']);
+        $t->same([
+            ['code' => 'target-blank-explicit-opener'],
+            ['code' => 'invalid-rel-token', 'relToken' => 'bad<tag'],
+            ['code' => 'duplicate-rel-token', 'relToken' => 'external', 'count' => 2],
+            ['code' => 'unsafe-ping-url', 'url' => 'javascript:alert(1)', 'scheme' => 'javascript'],
+            ['code' => 'non-http-ping-url', 'url' => 'mailto:ops@example.test', 'scheme' => 'mailto'],
+        ], $external['navigationIssues']);
+
+        $t->same('fragment', $local['hrefKind']);
+        $t->same('_top', $local['targetName']);
+        $t->same(true, $local['targetReserved']);
+        $t->same(false, $local['targetBlank']);
+        $t->same(['noopener', 'noreferrer'], $local['hyperlinkSecurityRelTokens']);
+        $t->same(null, $local['referrerPolicy']);
+        $t->same(false, $local['referrerPolicyValid']);
+        $t->same([
+            ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => 'bogus'],
+        ], $local['navigationIssues']);
+
+        $t->same('area', $area['hyperlinkNavigationReview']);
+        $t->same('absolute', $area['hrefKind']);
+        $t->same('javascript', $area['hrefScheme']);
+        $t->same(true, $area['hrefUnsafe']);
+        $t->same(true, $area['targetBlank']);
+        $t->same(false, $area['targetOpenerAllowed']);
+        $t->same(true, $area['targetNoopener']);
+        $t->same(['noreferrer'], $area['hyperlinkSecurityRelTokens']);
+        $t->same(['/area-ping'], $area['pingUrls']);
+        $t->same([
+            ['code' => 'unsafe-href', 'href' => 'javascript:alert(1)', 'scheme' => 'javascript'],
+        ], $area['navigationIssues']);
+
+        $t->same('<p><a download="" href="https://example.test/report" ping="https://audit.example.test/log /relative javascript:alert(1) mailto:ops@example.test" referrerpolicy="strict-origin-when-cross-origin" rel="external opener external bad&lt;tag" target="_blank">External report</a></p><p><a href="#local" referrerpolicy="bogus" rel="noopener noreferrer" target="_top">Local target</a></p><map name="side-effects"><area alt="Script hotspot" href="javascript:alert(1)" ping="/area-ping" rel="noreferrer" target="_blank"></map>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/hyperlink-navigation-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<base href="https://example.test/docs/" target="_blank">'
