@@ -1035,6 +1035,183 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub nav href normalization diagnostics by section' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-normalization-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-normalization</dc:identifier>
+    <dc:title>Navigation Normalization</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="text/space%20file.xhtml#encoded-frag">Encoded Local</a></li>
+        <li><a href="text/../chapter2.xhtml">Dot Local</a><ol>
+          <li><a href="chapter2.xhtml#nested">Nested Local</a></li>
+        </ol></li>
+        <li><a href="https://example.invalid/book.xhtml#remote">Remote</a></li>
+        <li><a href="../../outside.xhtml">Escape</a></li>
+        <li><a href="casetarget.xhtml">Case Target</a></li>
+        <li><a href="">Empty Target</a></li>
+        <li><a href="chapter2.xhtml#details"> </a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks" epub:type="landmarks">
+      <ol>
+        <li><a href="chapter2.xhtml#details">Details</a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a href="text/space%20file.xhtml#page-1">1</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter2.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/text/space file.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Encoded target.</p></body></html>');
+            $writePackageFile($root, 'EPUB/CaseTarget.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Case target.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $toc = $epub['toc'];
+            $report = $epub['navReport'];
+            $normalization = $report['hrefNormalization'];
+
+            $t->same(1, count($document->children));
+            $t->same('Readable chapter.', $document->children[0]->attr('text'));
+            $t->same(9, count($toc));
+            $t->same(true, $normalization['present']);
+            $t->same(3, $normalization['sectionCount']);
+            $t->same(10, $normalization['entryCount']);
+            $t->same(['toc' => 1, 'landmarks' => 1, 'page-list' => 1], $normalization['typeCounts']);
+            $t->same(7, $normalization['localTargetCount']);
+            $t->same(1, $normalization['externalTargetCount']);
+            $t->same(1, $normalization['missingTargetCount']);
+            $t->same(6, $normalization['fragmentTargetCount']);
+            $t->same(4, $normalization['normalizedHrefCount']);
+            $t->same(2, $normalization['percentDecodedHrefCount']);
+            $t->same(1, $normalization['dotSegmentNormalizedHrefCount']);
+            $t->same(1, $normalization['packageRootEscapeCount']);
+            $t->same(1, $normalization['caseMismatchCount']);
+            $t->same(1, $normalization['emptyHrefCount']);
+            $t->same(14, $normalization['diagnosticCount']);
+            $t->same([
+                'nav-href-percent-decoded' => 2,
+                'nav-href-fragment-component' => 6,
+                'nav-href-dot-segment-normalized' => 1,
+                'external-nav-reference' => 1,
+                'nav-href-package-root-escape' => 1,
+                'case-sensitive-nav-target-mismatch' => 1,
+                'missing-nav-item-href' => 1,
+                'empty-nav-item-label' => 1,
+            ], $normalization['diagnosticTypes']);
+
+            $tocSection = $normalization['sectionsByType']['toc'][0];
+            $t->same('main-toc', $tocSection['id']);
+            $t->same(8, $tocSection['entryCount']);
+            $t->same(3, $tocSection['normalizedHrefCount']);
+            $t->same(1, $tocSection['percentDecodedHrefCount']);
+            $t->same(1, $tocSection['dotSegmentNormalizedHrefCount']);
+            $t->same(1, $tocSection['packageRootEscapeCount']);
+            $t->same(1, $tocSection['caseMismatchCount']);
+            $t->same(1, $tocSection['emptyHrefCount']);
+            $t->same(11, $tocSection['diagnosticCount']);
+            $t->same(1, $normalization['sectionsByType']['landmarks'][0]['fragmentTargetCount']);
+            $t->same(1, $normalization['sectionsByType']['page-list'][0]['percentDecodedHrefCount']);
+
+            $encoded = $toc[0];
+            $t->same('Encoded Local', $encoded['label']);
+            $t->same('text/space%20file.xhtml#encoded-frag', $encoded['href']);
+            $t->same('EPUB/text/space file.xhtml', $encoded['path']);
+            $t->same('EPUB/text/space file.xhtml#encoded-frag', $encoded['target']);
+            $t->same('encoded-frag', $encoded['fragment']);
+            $t->same(true, $encoded['exists']);
+            $t->same(true, $encoded['normalization']['percentDecoded']);
+            $t->same(['nav-href-percent-decoded', 'nav-href-fragment-component'], array_column($encoded['diagnostics'], 'type'));
+
+            $dot = $toc[1];
+            $t->same('Dot Local', $dot['label']);
+            $t->same('EPUB/chapter2.xhtml', $dot['path']);
+            $t->same(true, $dot['exists']);
+            $t->same(true, $dot['normalization']['dotSegmentNormalized']);
+            $t->same(['nav-href-dot-segment-normalized'], array_column($dot['diagnostics'], 'type'));
+            $t->same(1, count($dot['children']));
+            $t->same('Nested Local', $dot['children'][0]['label']);
+            $t->same(1, $dot['children'][0]['depth']);
+            $t->same('nested', $dot['children'][0]['fragment']);
+
+            $remote = $toc[2];
+            $t->same(true, $remote['external']);
+            $t->same('https://example.invalid/book.xhtml', $remote['path']);
+            $t->same('https://example.invalid/book.xhtml#remote', $remote['target']);
+            $t->same('remote', $remote['fragment']);
+            $t->same(['external-nav-reference', 'nav-href-fragment-component'], array_column($remote['diagnostics'], 'type'));
+
+            $escape = $toc[3];
+            $t->same(true, $escape['external']);
+            $t->same(false, $escape['unsafe']);
+            $t->same('../../outside.xhtml', $escape['path']);
+            $t->same('../../outside.xhtml', $escape['target']);
+            $t->same(true, $escape['normalization']['packageRootEscape']);
+            $t->same(['nav-href-package-root-escape'], array_column($escape['diagnostics'], 'type'));
+
+            $caseMismatch = $toc[4];
+            $t->same('EPUB/casetarget.xhtml', $caseMismatch['path']);
+            $t->same(false, $caseMismatch['exists']);
+            $t->same('EPUB/CaseTarget.xhtml', $caseMismatch['caseMatchedPath']);
+            $t->same(true, $caseMismatch['normalization']['caseMismatch']);
+            $t->same(['case-sensitive-nav-target-mismatch'], array_column($caseMismatch['diagnostics'], 'type'));
+
+            $empty = $toc[5];
+            $t->same('Empty Target', $empty['label']);
+            $t->same('', $empty['href']);
+            $t->same('', $empty['path']);
+            $t->same(['missing-nav-item-href'], array_column($empty['diagnostics'], 'type'));
+
+            $emptyLabel = $toc[6];
+            $t->same('', $emptyLabel['label']);
+            $t->same('details', $emptyLabel['fragment']);
+            $t->same(['nav-href-fragment-component', 'empty-nav-item-label'], array_column($emptyLabel['diagnostics'], 'type'));
+
+            $landmark = $toc[7];
+            $t->same('landmarks', $landmark['type']);
+            $t->same('EPUB/chapter2.xhtml', $landmark['path']);
+            $t->same('details', $landmark['fragment']);
+
+            $page = $toc[8];
+            $t->same('page-list', $page['type']);
+            $t->same('EPUB/text/space file.xhtml', $page['path']);
+            $t->same('page-1', $page['fragment']);
+            $t->same(true, $page['normalization']['percentDecoded']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub spine xhtml assets into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);

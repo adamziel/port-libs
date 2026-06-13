@@ -692,6 +692,7 @@ final class EpubPackageReader
         $flat = $this->flattenNavigationEntries($entries);
         $pageListReport = $this->pageListReport($flat, $package);
         $hrefPolicyReport = $this->navHrefPolicyReport($flat);
+        $hrefNormalizationReport = $this->navHrefNormalizationReport($flat);
         $sections = [];
         $sectionKeys = [];
         $typeCounts = [];
@@ -722,6 +723,7 @@ final class EpubPackageReader
         return [
             'present' => $flat !== [],
             'itemCount' => count($flat),
+            'entryCount' => count($flat),
             'topLevelItemCount' => count($entries),
             'sectionCount' => count($sections),
             'types' => array_keys($typeCounts),
@@ -735,6 +737,7 @@ final class EpubPackageReader
             'unsafeTargetCount' => $hrefPolicyReport['unsafeTargetCount'],
             'hrefPolicyDiagnosticCount' => $hrefPolicyReport['diagnosticCount'],
             'hrefPolicy' => $hrefPolicyReport,
+            'hrefNormalization' => $hrefNormalizationReport,
             'fragmentTargets' => $this->navFragmentTargetReport($flat, $root),
             'toc' => $this->tocNavigationReport($flat),
             'landmarks' => $this->landmarkReport($flat, $package),
@@ -744,6 +747,198 @@ final class EpubPackageReader
             'diagnosticCount' => $pageListReport['diagnosticCount'],
             'diagnostics' => $pageListReport['diagnostics'],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array<string, mixed>
+     */
+    private function navHrefNormalizationReport(array $flat): array
+    {
+        $sectionKeys = [];
+        $sections = [];
+        $sectionsByType = [
+            'toc' => [],
+            'landmarks' => [],
+            'page-list' => [],
+        ];
+        $typeCounts = [
+            'toc' => 0,
+            'landmarks' => 0,
+            'page-list' => 0,
+        ];
+        $diagnostics = [];
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+        $fragmentTargetCount = 0;
+        $normalizedHrefCount = 0;
+        $percentDecodedHrefCount = 0;
+        $dotSegmentNormalizedHrefCount = 0;
+        $packageRootEscapeCount = 0;
+        $caseMismatchCount = 0;
+        $emptyHrefCount = 0;
+
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if (!isset($typeCounts[$sectionType])) {
+                continue;
+            }
+
+            $sectionIndex = is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : -1;
+            $sectionKey = $sectionIndex . ':' . $sectionType;
+            if (!isset($sectionKeys[$sectionKey])) {
+                $sectionKeys[$sectionKey] = count($sections);
+                ++$typeCounts[$sectionType];
+                $sections[] = [
+                    'index' => $sectionIndex,
+                    'sectionIndex' => $sectionIndex,
+                    'id' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'sectionLabel' => is_string($item['sectionLabel'] ?? null) ? $item['sectionLabel'] : '',
+                    'type' => $sectionType,
+                    'entryCount' => 0,
+                    'itemCount' => 0,
+                    'localTargetCount' => 0,
+                    'externalTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'fragmentTargetCount' => 0,
+                    'normalizedHrefCount' => 0,
+                    'percentDecodedHrefCount' => 0,
+                    'dotSegmentNormalizedHrefCount' => 0,
+                    'packageRootEscapeCount' => 0,
+                    'caseMismatchCount' => 0,
+                    'emptyHrefCount' => 0,
+                    'diagnosticCount' => 0,
+                    'diagnostics' => [],
+                ];
+            }
+
+            $sectionOffset = $sectionKeys[$sectionKey];
+            ++$sections[$sectionOffset]['entryCount'];
+            ++$sections[$sectionOffset]['itemCount'];
+
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $external = ($item['external'] ?? false) === true;
+            $unsafe = ($item['unsafe'] ?? false) === true;
+            $exists = ($item['exists'] ?? false) === true;
+            $normalization = is_array($item['normalization'] ?? null) ? $item['normalization'] : [];
+            $packageRootEscape = ($normalization['packageRootEscape'] ?? false) === true;
+
+            if ($href !== '' && !$external && !$unsafe && $path !== '') {
+                ++$localTargetCount;
+                ++$sections[$sectionOffset]['localTargetCount'];
+                if (!$exists) {
+                    ++$missingTargetCount;
+                    ++$sections[$sectionOffset]['missingTargetCount'];
+                }
+            }
+            if ($external && !$packageRootEscape) {
+                ++$externalTargetCount;
+                ++$sections[$sectionOffset]['externalTargetCount'];
+            }
+            if ($fragment !== '') {
+                ++$fragmentTargetCount;
+                ++$sections[$sectionOffset]['fragmentTargetCount'];
+            }
+            if (($normalization['normalized'] ?? false) === true) {
+                ++$normalizedHrefCount;
+                ++$sections[$sectionOffset]['normalizedHrefCount'];
+            }
+            if (($normalization['percentDecoded'] ?? false) === true) {
+                ++$percentDecodedHrefCount;
+                ++$sections[$sectionOffset]['percentDecodedHrefCount'];
+            }
+            if (($normalization['dotSegmentNormalized'] ?? false) === true) {
+                ++$dotSegmentNormalizedHrefCount;
+                ++$sections[$sectionOffset]['dotSegmentNormalizedHrefCount'];
+            }
+            if (($normalization['packageRootEscape'] ?? false) === true) {
+                ++$packageRootEscapeCount;
+                ++$sections[$sectionOffset]['packageRootEscapeCount'];
+            }
+            if (($normalization['caseMismatch'] ?? false) === true) {
+                ++$caseMismatchCount;
+                ++$sections[$sectionOffset]['caseMismatchCount'];
+            }
+            if ($href === '' && ($item['linkElement'] ?? null) === 'a') {
+                ++$emptyHrefCount;
+                ++$sections[$sectionOffset]['emptyHrefCount'];
+            }
+
+            foreach (is_array($item['hrefNormalizationDiagnostics'] ?? null) ? $item['hrefNormalizationDiagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $reportedDiagnostic = [
+                    'index' => count($diagnostics),
+                    'sourceIndex' => $sourceIndex,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionType' => $sectionType,
+                    'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                    'href' => $href,
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
+                ] + $diagnostic;
+                $diagnostics[] = $reportedDiagnostic;
+                $sections[$sectionOffset]['diagnostics'][] = $reportedDiagnostic;
+                ++$sections[$sectionOffset]['diagnosticCount'];
+            }
+        }
+
+        foreach ($sections as $section) {
+            $type = is_string($section['type'] ?? null) ? $section['type'] : '';
+            if (isset($sectionsByType[$type])) {
+                $sectionsByType[$type][] = $section;
+            }
+        }
+
+        return [
+            'present' => $flat !== [],
+            'entryCount' => count($flat),
+            'itemCount' => count($flat),
+            'sectionCount' => count($sections),
+            'typeCounts' => $typeCounts,
+            'sections' => $sections,
+            'sectionsByType' => $sectionsByType,
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'fragmentTargetCount' => $fragmentTargetCount,
+            'normalizedHrefCount' => $normalizedHrefCount,
+            'percentDecodedHrefCount' => $percentDecodedHrefCount,
+            'dotSegmentNormalizedHrefCount' => $dotSegmentNormalizedHrefCount,
+            'packageRootEscapeCount' => $packageRootEscapeCount,
+            'caseMismatchCount' => $caseMismatchCount,
+            'emptyHrefCount' => $emptyHrefCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticTypes' => $this->diagnosticTypeCounts($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticTypeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+
+            $counts[$type] = ($counts[$type] ?? 0) + 1;
+        }
+
+        return $counts;
     }
 
     /**
@@ -943,6 +1138,10 @@ final class EpubPackageReader
                 ++$pageBreakItemCount;
             }
 
+            if ($type !== 'page-list') {
+                continue;
+            }
+
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
                     continue;
@@ -953,10 +1152,6 @@ final class EpubPackageReader
                     'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
                     'navType' => $type,
                 ] + $diagnostic;
-            }
-
-            if ($type !== 'page-list') {
-                continue;
             }
 
             $href = is_string($item['href'] ?? null) ? $item['href'] : '';
@@ -2205,7 +2400,8 @@ final class EpubPackageReader
             $label = $this->normalizedText($link->textContent);
             $linkTypes = $this->epubTypes($link);
             $hasPageBreakType = in_array('pagebreak', $linkTypes, true);
-            $itemDiagnostics = $hrefPolicy['diagnostics'];
+            $hrefNormalizationDiagnostics = $hrefPolicy['normalizationDiagnostics'];
+            $itemDiagnostics = $type === 'page-list' ? $hrefPolicy['diagnostics'] : $hrefNormalizationDiagnostics;
             if ($type === 'page-list') {
                 if ($href === '') {
                     $itemDiagnostics[] = [
@@ -2235,6 +2431,24 @@ final class EpubPackageReader
                         'href' => $href,
                         'label' => $label,
                     ];
+                }
+            } else {
+                if ($href === '' && $link->localName === 'a') {
+                    $diagnostic = [
+                        'type' => 'missing-nav-item-href',
+                        'message' => 'EPUB navigation link item is missing an href target',
+                    ];
+                    $itemDiagnostics[] = $diagnostic;
+                    $hrefNormalizationDiagnostics[] = $diagnostic;
+                }
+                if ($label === '') {
+                    $diagnostic = [
+                        'type' => 'empty-nav-item-label',
+                        'href' => $href,
+                        'message' => 'EPUB navigation list item label is empty',
+                    ];
+                    $itemDiagnostics[] = $diagnostic;
+                    $hrefNormalizationDiagnostics[] = $diagnostic;
                 }
             }
             $accessibilityLabel = $this->navAccessibilityLabel($link, $label);
@@ -2301,6 +2515,9 @@ final class EpubPackageReader
                 'hrefKind' => $hrefPolicy['hrefKind'],
                 'hrefScheme' => $hrefPolicy['hrefScheme'],
                 'hrefDiagnostics' => $hrefPolicy['diagnostics'],
+                'hrefNormalizationDiagnostics' => $hrefNormalizationDiagnostics,
+                'caseMatchedPath' => $hrefPolicy['caseMatchedPath'],
+                'normalization' => $hrefPolicy['normalization'],
                 'exists' => $exists,
                 'semanticType' => $typeReport['type'],
                 'semanticTypes' => $typeReport['types'],
@@ -2737,8 +2954,11 @@ final class EpubPackageReader
      *     unsafe:bool,
      *     hrefKind:string,
      *     hrefScheme:?string,
+     *     caseMatchedPath:?string,
+     *     normalization:array{normalized:bool, percentDecoded:bool, dotSegmentNormalized:bool, packageRootEscape:bool, caseMismatch:bool},
      *     exists:bool,
-     *     diagnostics:list<array<string, mixed>>
+     *     diagnostics:list<array<string, mixed>>,
+     *     normalizationDiagnostics:list<array<string, mixed>>
      * }
      */
     private function navHrefPolicy(string $baseDir, string $href, string $root): array
@@ -2755,6 +2975,15 @@ final class EpubPackageReader
         $target = '';
         $exists = false;
         $diagnostics = [];
+        $normalizationDiagnostics = [];
+        $caseMatchedPath = null;
+        $normalization = [
+            'normalized' => false,
+            'percentDecoded' => false,
+            'dotSegmentNormalized' => false,
+            'packageRootEscape' => false,
+            'caseMismatch' => false,
+        ];
 
         if ($href === '') {
             $hrefKind = 'empty';
@@ -2763,31 +2992,146 @@ final class EpubPackageReader
             $hrefKind = 'network-path';
             $path = $pathPart;
             $target = $href;
+            $normalizationDiagnostics[] = [
+                'type' => 'external-nav-reference',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB navigation href points outside the package and was not fetched',
+            ];
         } elseif ($scheme !== null) {
             $external = true;
             $hrefKind = $unsafe ? 'unsafe-uri' : 'absolute-uri';
             $path = $pathPart;
-            $target = $href;
+            $target = $this->targetWithSuffix($path, $suffix);
+            $normalizationDiagnostics[] = [
+                'type' => 'external-nav-reference',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB navigation href points outside the package and was not fetched',
+            ];
         } elseif (str_starts_with($pathPart, '/')) {
             $external = true;
             $hrefKind = 'package-root-reference';
             $path = $pathPart;
             $target = $href;
+            $normalizationDiagnostics[] = [
+                'type' => 'external-nav-reference',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB navigation href points outside the package and was not fetched',
+            ];
         } elseif ($pathPart === '') {
             $hrefKind = $fragment !== '' ? 'same-document-fragment' : 'empty';
             $target = $href;
         } else {
-            $resolved = $this->resolvePackageHrefForNav($baseDir, $href);
-            if ($resolved === null) {
+            if (preg_match('/%(?![0-9A-Fa-f]{2})/', $pathPart) === 1) {
+                $unsafe = true;
+                $hrefKind = 'invalid-percent-escape';
+                $normalizationDiagnostics[] = [
+                    'type' => 'invalid-nav-reference',
+                    'href' => $href,
+                    'message' => 'EPUB navigation href contains a malformed percent escape',
+                ];
+            } else {
+                $decodedPathPart = rawurldecode($pathPart);
+                $normalization['percentDecoded'] = $decodedPathPart !== $pathPart;
+                $normalization['dotSegmentNormalized'] = $this->hasDotSegments($decodedPathPart);
+                try {
+                    $path = $this->normalizeRelativePath($baseDir . '/' . $decodedPathPart);
+                    $target = $this->targetWithSuffix($path, $suffix);
+                    $exists = $path !== '' && $this->packagePathExists($root, $path);
+                    $caseMatchedPath = !$exists && $path !== ''
+                        ? $this->caseInsensitivePackagePathMatch($root, $path)
+                        : null;
+                    $normalization['caseMismatch'] = $caseMatchedPath !== null;
+                    $normalization['normalized'] = $normalization['percentDecoded']
+                        || $normalization['dotSegmentNormalized']
+                        || $normalization['caseMismatch'];
+                } catch (\RuntimeException $exception) {
+                    $external = true;
+                    $hrefKind = 'package-relative-external';
+                    $path = $pathPart;
+                    $target = $this->targetWithSuffix($path, $suffix);
+                    $normalization['percentDecoded'] = false;
+                    $normalization['dotSegmentNormalized'] = false;
+                    $normalization['normalized'] = false;
+                    $normalization['packageRootEscape'] = true;
+                    $normalizationDiagnostics[] = [
+                        'type' => 'nav-href-package-root-escape',
+                        'href' => $href,
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
+            if ($path !== '' && !$external && !$unsafe) {
+                if ($normalization['percentDecoded']) {
+                    $normalizationDiagnostics[] = [
+                        'type' => 'nav-href-percent-decoded',
+                        'href' => $href,
+                        'path' => $path,
+                    ];
+                }
+                if ($normalization['dotSegmentNormalized']) {
+                    $normalizationDiagnostics[] = [
+                        'type' => 'nav-href-dot-segment-normalized',
+                        'href' => $href,
+                        'path' => $path,
+                    ];
+                }
+                if ($normalization['caseMismatch']) {
+                    $normalizationDiagnostics[] = [
+                        'type' => 'case-sensitive-nav-target-mismatch',
+                        'href' => $href,
+                        'path' => $path,
+                        'caseMatchedPath' => $caseMatchedPath,
+                        'message' => 'EPUB navigation href differs from a package-local path only by case',
+                    ];
+                } elseif (!$exists) {
+                    $normalizationDiagnostics[] = [
+                        'type' => 'missing-nav-reference',
+                        'href' => $href,
+                        'path' => $path,
+                        'message' => 'EPUB navigation href target is missing from the package',
+                    ];
+                }
+            } elseif ($path === '' && !$external && !$unsafe) {
+                $resolved = $this->resolvePackageHrefForNav($baseDir, $href);
+                if ($resolved === null) {
+                    $external = true;
+                    $hrefKind = 'package-relative-external';
+                    $path = $pathPart;
+                    $target = $this->targetWithSuffix($path, $suffix);
+                }
+            }
+
+            if ($external && $normalizationDiagnostics === []) {
                 $external = true;
                 $hrefKind = 'package-relative-external';
                 $path = $pathPart;
-                $target = $href;
-            } else {
-                $path = $resolved;
                 $target = $this->targetWithSuffix($path, $suffix);
-                $exists = $path !== '' && $this->packagePathExists($root, $path);
+                $normalizationDiagnostics[] = [
+                    'type' => 'external-nav-reference',
+                    'href' => $href,
+                    'target' => $target,
+                    'message' => 'EPUB navigation href points outside the package and was not fetched',
+                ];
             }
+        }
+
+        if ($suffix['hasQuery'] && $suffix['query'] !== null) {
+            $normalizationDiagnostics[] = [
+                'type' => 'nav-href-query-component',
+                'href' => $href,
+                'query' => $suffix['query'],
+            ];
+        }
+        if ($suffix['hasFragment'] && $suffix['fragment'] !== null) {
+            $normalizationDiagnostics[] = [
+                'type' => 'nav-href-fragment-component',
+                'href' => $href,
+                'fragment' => $suffix['fragment'],
+            ];
         }
 
         if ($external) {
@@ -2815,9 +3159,23 @@ final class EpubPackageReader
             'unsafe' => $unsafe,
             'hrefKind' => $hrefKind,
             'hrefScheme' => $scheme,
+            'caseMatchedPath' => $caseMatchedPath,
+            'normalization' => $normalization,
             'exists' => $exists,
             'diagnostics' => $diagnostics,
+            'normalizationDiagnostics' => $normalizationDiagnostics,
         ];
+    }
+
+    private function hasDotSegments(string $path): bool
+    {
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '.' || $segment === '..') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hrefScheme(string $href): ?string
@@ -2958,6 +3316,54 @@ final class EpubPackageReader
         $absolute = realpath($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalized));
 
         return $absolute !== false && str_starts_with($absolute, $root . DIRECTORY_SEPARATOR) && is_file($absolute);
+    }
+
+    private function caseInsensitivePackagePathMatch(string $root, string $relative): ?string
+    {
+        $normalized = $this->normalizeRelativePath($relative);
+        $directory = $root;
+        $matched = [];
+        $caseMismatch = false;
+
+        foreach (explode('/', $normalized) as $segment) {
+            if ($segment === '' || !is_dir($directory)) {
+                return null;
+            }
+
+            $entries = scandir($directory);
+            if ($entries === false) {
+                return null;
+            }
+
+            $next = null;
+            foreach ($entries as $entry) {
+                if ($entry === $segment) {
+                    $next = $entry;
+                    break;
+                }
+            }
+            if ($next === null) {
+                foreach ($entries as $entry) {
+                    if (strcasecmp($entry, $segment) === 0) {
+                        $next = $entry;
+                        $caseMismatch = true;
+                        break;
+                    }
+                }
+            }
+            if ($next === null) {
+                return null;
+            }
+
+            $matched[] = $next;
+            $directory .= DIRECTORY_SEPARATOR . $next;
+        }
+
+        if (!$caseMismatch || !is_file($directory)) {
+            return null;
+        }
+
+        return implode('/', $matched);
     }
 
     private function resolvePackageHref(string $baseDir, string $href): string
