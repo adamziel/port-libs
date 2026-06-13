@@ -7156,6 +7156,7 @@ final class XmlHtmlDom
         if ($name === 'area') {
             $summary['shape'] = self::attributeOrNull($element, 'shape');
             $summary['coords'] = self::attributeOrNull($element, 'coords');
+            $summary += self::imageMapAreaGeometrySummary($element);
         }
 
         return $summary;
@@ -7278,7 +7279,7 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>}
+     * @return array{imageMap:string, mapNameRaw:?string, mapName:?string, mapNameValid:bool, areaCount:int, areaHrefs:list<string>, areaLabels:list<string>, areas:list<array<string, mixed>>, defaultAreaCount:int, firstDefaultAreaIndex:?int, defaultAreaPrecedenceIssue:?array<string, mixed>, areaGeometryIssueCount:int, areaGeometryIssues:list<array<string, mixed>>}
      */
     private static function imageMapSummary(\DOMElement $map): array
     {
@@ -7302,6 +7303,7 @@ final class XmlHtmlDom
                 $issues[] = ['code' => 'unreferenced-image-map', 'mapName' => $normalizedName];
             }
         }
+        $areaGeometry = self::imageMapAreaGeometryDiagnostics($areas);
 
         return [
             'imageMap' => 'map',
@@ -7327,8 +7329,207 @@ final class XmlHtmlDom
             'imageMapAssociationState' => $nameValid
                 ? ($duplicateNameCount > 1 ? 'duplicate-map-name' : ($referencingImages === [] ? 'unreferenced' : 'referenced'))
                 : 'invalid-map-name',
+            'defaultAreaCount' => $areaGeometry['defaultAreaCount'],
+            'firstDefaultAreaIndex' => $areaGeometry['firstDefaultAreaIndex'],
+            'defaultAreaPrecedenceIssue' => $areaGeometry['defaultAreaPrecedenceIssue'],
+            'areaGeometryIssueCount' => count($areaGeometry['areaGeometryIssues']),
+            'areaGeometryIssues' => $areaGeometry['areaGeometryIssues'],
             'imageMapIssues' => $issues,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $areas
+     * @return array{defaultAreaCount:int, firstDefaultAreaIndex:?int, defaultAreaPrecedenceIssue:?array<string, mixed>, areaGeometryIssues:list<array<string, mixed>>}
+     */
+    private static function imageMapAreaGeometryDiagnostics(array $areas): array
+    {
+        $issues = [];
+        $defaultAreaIndexes = [];
+        foreach ($areas as $index => $area) {
+            foreach (($area['areaGeometryIssues'] ?? []) as $issue) {
+                if (!is_array($issue)) {
+                    continue;
+                }
+                $issues[] = ['areaIndex' => $index] + $issue;
+            }
+
+            if (($area['areaShape'] ?? null) === 'default') {
+                $defaultAreaIndexes[] = $index;
+            }
+        }
+
+        $firstDefaultAreaIndex = $defaultAreaIndexes[0] ?? null;
+        $defaultAreaPrecedenceIssue = null;
+        if ($firstDefaultAreaIndex !== null) {
+            $coveredAreaIndexes = [];
+            foreach ($areas as $index => $area) {
+                if ($index > $firstDefaultAreaIndex && ($area['areaShape'] ?? null) !== 'default') {
+                    $coveredAreaIndexes[] = $index;
+                }
+            }
+            if ($coveredAreaIndexes !== []) {
+                $defaultAreaPrecedenceIssue = [
+                    'code' => 'default-area-precedes-specific-area',
+                    'defaultAreaIndex' => $firstDefaultAreaIndex,
+                    'coveredAreaIndexes' => $coveredAreaIndexes,
+                ];
+                $issues[] = $defaultAreaPrecedenceIssue;
+            }
+        }
+
+        return [
+            'defaultAreaCount' => count($defaultAreaIndexes),
+            'firstDefaultAreaIndex' => $firstDefaultAreaIndex,
+            'defaultAreaPrecedenceIssue' => $defaultAreaPrecedenceIssue,
+            'areaGeometryIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageMapAreaGeometrySummary(\DOMElement $area): array
+    {
+        $shapeRaw = self::attributeOrNull($area, 'shape');
+        $shapeToken = strtolower(trim($shapeRaw ?? ''));
+        $shape = match ($shapeToken) {
+            '', 'rect', 'rectangle' => 'rect',
+            'circle', 'circ' => 'circle',
+            'poly', 'polygon' => 'poly',
+            'default' => 'default',
+            default => null,
+        };
+        $coordsRaw = self::attributeOrNull($area, 'coords');
+        $coords = self::imageMapAreaCoordinateList($coordsRaw);
+        $issues = [];
+        $coordsRequired = $shape !== 'default';
+
+        if ($shape === null) {
+            $issues[] = ['code' => 'invalid-area-shape', 'shapeRaw' => $shapeRaw];
+        } elseif ($shape === 'default') {
+            if ($coordsRaw !== null && trim($coordsRaw) !== '') {
+                $issues[] = ['code' => 'default-area-coords-ignored'];
+            }
+        } else {
+            if ($coordsRaw === null || trim($coordsRaw) === '') {
+                $issues[] = ['code' => 'missing-area-coords', 'shape' => $shape];
+            }
+            foreach ($coords['invalidTokens'] as $token) {
+                $issues[] = ['code' => 'invalid-area-coord-number', 'token' => $token];
+            }
+            if ($coords['invalidTokens'] === [] && $coordsRaw !== null && trim($coordsRaw) !== '') {
+                $issues = array_merge($issues, self::imageMapAreaCoordinateShapeIssues($shape, $coords['numbers']));
+            }
+        }
+
+        $invalidCodes = [
+            'invalid-area-shape' => true,
+            'missing-area-coords' => true,
+            'invalid-area-coord-number' => true,
+            'invalid-area-coord-count' => true,
+            'invalid-rect-area-geometry' => true,
+            'invalid-circle-area-radius' => true,
+        ];
+
+        return [
+            'areaShapeRaw' => $shapeRaw,
+            'areaShape' => $shape,
+            'areaShapeValid' => $shape !== null,
+            'coordsNumbers' => $coords['numbers'],
+            'coordsValid' => $coords['invalidTokens'] === [],
+            'coordsRequired' => $coordsRequired,
+            'areaGeometryValid' => count(array_filter(
+                $issues,
+                static fn (array $issue): bool => isset($invalidCodes[(string) ($issue['code'] ?? '')])
+            )) === 0,
+            'areaGeometryIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<float> $numbers
+     * @return list<array<string, mixed>>
+     */
+    private static function imageMapAreaCoordinateShapeIssues(string $shape, array $numbers): array
+    {
+        $count = count($numbers);
+        if ($shape === 'rect') {
+            if ($count !== 4) {
+                return [[
+                    'code' => 'invalid-area-coord-count',
+                    'shape' => 'rect',
+                    'expected' => 4,
+                    'actual' => $count,
+                ]];
+            }
+            if ($numbers[2] <= $numbers[0] || $numbers[3] <= $numbers[1]) {
+                return [[
+                    'code' => 'invalid-rect-area-geometry',
+                    'coords' => $numbers,
+                ]];
+            }
+
+            return [];
+        }
+
+        if ($shape === 'circle') {
+            if ($count !== 3) {
+                return [[
+                    'code' => 'invalid-area-coord-count',
+                    'shape' => 'circle',
+                    'expected' => 3,
+                    'actual' => $count,
+                ]];
+            }
+            if ($numbers[2] <= 0.0) {
+                return [[
+                    'code' => 'invalid-circle-area-radius',
+                    'radius' => $numbers[2],
+                ]];
+            }
+
+            return [];
+        }
+
+        if ($count < 6 || $count % 2 !== 0) {
+            return [[
+                'code' => 'invalid-area-coord-count',
+                'shape' => 'poly',
+                'expected' => 'even-number-at-least-6',
+                'actual' => $count,
+            ]];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{numbers:list<float>, invalidTokens:list<string>}
+     */
+    private static function imageMapAreaCoordinateList(?string $coords): array
+    {
+        if ($coords === null || trim($coords) === '') {
+            return ['numbers' => [], 'invalidTokens' => []];
+        }
+
+        $numbers = [];
+        $invalidTokens = [];
+        foreach (explode(',', $coords) as $token) {
+            $trimmed = trim($token);
+            if ($trimmed === '' || !is_numeric($trimmed)) {
+                $invalidTokens[] = $trimmed;
+                continue;
+            }
+            $number = (float) $trimmed;
+            if (!is_finite($number)) {
+                $invalidTokens[] = $trimmed;
+                continue;
+            }
+            $numbers[] = $number;
+        }
+
+        return ['numbers' => $numbers, 'invalidTokens' => $invalidTokens];
     }
 
     /**
@@ -7457,7 +7658,12 @@ final class XmlHtmlDom
             return null;
         }
 
-        return self::fragmentRoot($document);
+        $fragmentRoot = self::fragmentRoot($document);
+        if ($fragmentRoot instanceof \DOMElement && self::isDescendantOrSame($context, $fragmentRoot)) {
+            return $fragmentRoot;
+        }
+
+        return $document->documentElement instanceof \DOMElement ? $document->documentElement : null;
     }
 
     /**
