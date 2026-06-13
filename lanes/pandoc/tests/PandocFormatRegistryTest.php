@@ -1740,4 +1740,316 @@ return [
             $t->same(true, $entry['unsupported'], "Text markup reader {$format} should be part of the unsupported verdict");
         }
     },
+    'tracks rare text format direction buckets and extension inference without direct parity claims' => static function (TestRunner $t): void {
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+        ], PandocFormatRegistry::rareTextInputFormats());
+        $t->same([
+            'asciidoc',
+            'asciidoc_legacy',
+            'asciidoctor',
+            'djot',
+            'fb2',
+            'haddock',
+            'markua',
+            'muse',
+            'opml',
+            'org',
+            'rst',
+            'texinfo',
+            'textile',
+            'vimdoc',
+        ], PandocFormatRegistry::rareTextOutputFormats());
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+            'asciidoc_legacy',
+            'asciidoctor',
+            'markua',
+            'texinfo',
+            'vimdoc',
+        ], array_keys(PandocFormatRegistry::rareTextFormatDirections()));
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'muse',
+            'opml',
+            'org',
+            'rst',
+            'textile',
+        ], PandocFormatRegistry::rareTextBidirectionalFormats());
+        $t->same(['pod', 't2t'], PandocFormatRegistry::rareTextInputOnlyFormats());
+        $t->same([
+            'asciidoc_legacy',
+            'asciidoctor',
+            'markua',
+            'texinfo',
+            'vimdoc',
+        ], PandocFormatRegistry::rareTextOutputOnlyFormats());
+
+        $t->same([
+            '.adoc' => 'asciidoc',
+            '.asciidoc' => 'asciidoc',
+            '.asc' => 'asciidoc',
+            '.dj' => 'djot',
+            '.djot' => 'djot',
+            '.fb2' => 'fb2',
+            '.haddock' => 'haddock',
+            '.markua' => 'markua',
+            '.muse' => 'muse',
+            '.opml' => 'opml',
+            '.org' => 'org',
+            '.pod' => 'pod',
+            '.rst' => 'rst',
+            '.t2t' => 't2t',
+            '.texi' => 'texinfo',
+            '.texinfo' => 'texinfo',
+            '.textile' => 'textile',
+            '.vimdoc' => 'vimdoc',
+        ], PandocFormatRegistry::rareTextExtensionInference());
+        $t->same('org', PandocFormatRegistry::inferRareTextFormatFromExtension('ORG'));
+        $t->same('rst', PandocFormatRegistry::inferRareTextFormatFromExtension('.rst'));
+        $t->same('textile', PandocFormatRegistry::inferRareTextFormatFromExtension('textile'));
+        $t->same('muse', PandocFormatRegistry::inferRareTextFormatFromExtension('.MUSE'));
+        $t->same('asciidoc', PandocFormatRegistry::inferRareTextFormatFromExtension('adoc'));
+        $t->same(null, PandocFormatRegistry::inferRareTextFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferRareTextFormatFromExtension('.wiki'));
+
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'markua',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'texinfo',
+            'textile',
+            'vimdoc',
+        ], PandocFormatRegistry::rareTextFormatsWithExtensionInference());
+        $t->same(['asciidoc_legacy', 'asciidoctor'], PandocFormatRegistry::rareTextFormatsWithoutExtensionInference());
+        $t->same([
+            'asciidoc_legacy' => 'asciidoc',
+            'asciidoctor' => 'asciidoc',
+        ], PandocFormatRegistry::rareTextOutputAliases());
+
+        foreach (PandocFormatRegistry::rareTextFormatDirections() as $format => $direction) {
+            if ($direction['input']) {
+                $t->same('unsupported', $direction['inputStatus'], "Rare text input {$format} should not claim native reader parity");
+            } else {
+                $t->same('not-applicable', $direction['inputStatus'], "Rare text output-only {$format} should not appear as an input token");
+            }
+            if ($direction['output']) {
+                $t->same('unsupported', $direction['outputStatus'], "Rare text output {$format} should not claim native writer parity");
+            } else {
+                $t->same('not-applicable', $direction['outputStatus'], "Rare text input-only {$format} should not appear as an output token");
+            }
+        }
+    },
+    'builds rare text review packets with explicit unsupported diagnostics' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::rareTextFormatReviewPacket();
+        $summary = PandocFormatRegistry::rareTextUnsupportedFormatSummary();
+        $parity = PandocFormatRegistry::rareTextFormatParitySummary();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::rareTextInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::rareTextOutputFormats(), $packet['outputFormats']);
+        $t->same([
+            'inputOutput' => ['asciidoc', 'djot', 'fb2', 'haddock', 'muse', 'opml', 'org', 'rst', 'textile'],
+            'inputOnly' => ['pod', 't2t'],
+            'outputOnly' => ['asciidoc_legacy', 'asciidoctor', 'markua', 'texinfo', 'vimdoc'],
+        ], $packet['directionBuckets']);
+        $t->same(PandocFormatRegistry::rareTextExtensionInference(), $packet['extensionInference']);
+        $t->same(PandocFormatRegistry::rareTextOutputAliases(), $packet['outputAliases']);
+        $t->same(PandocFormatRegistry::rareTextInputFormats(), $packet['unsupportedInputFormats']);
+        $t->same(PandocFormatRegistry::rareTextOutputFormats(), $packet['unsupportedOutputFormats']);
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same($parity, $packet['paritySummary']);
+
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+            'asciidoc_legacy',
+            'asciidoctor',
+            'markua',
+            'texinfo',
+            'vimdoc',
+        ], array_keys($packet['formats']));
+        $t->same([
+            'label' => 'Org mode',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.org'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['org']);
+        $t->same('reStructuredText', $packet['formats']['rst']['label']);
+        $t->same(['.rst'], $packet['formats']['rst']['extensions']);
+        $t->same('Textile', $packet['formats']['textile']['label']);
+        $t->same(['.textile'], $packet['formats']['textile']['extensions']);
+        $t->same('input-only', $packet['formats']['pod']['direction']);
+        $t->same('not-applicable', $packet['formats']['pod']['outputStatus']);
+        $t->same('output-only', $packet['formats']['markua']['direction']);
+        $t->same('not-applicable', $packet['formats']['markua']['inputStatus']);
+        $t->same(false, $packet['formats']['asciidoc_legacy']['extensionInferred']);
+        $t->same([], $packet['formats']['asciidoc_legacy']['extensions']);
+
+        foreach ($packet['formats'] as $format => $review) {
+            $t->same('', $review['inputImplementation'], "Rare text review packet {$format} must not register an input implementation");
+            $t->same('', $review['outputImplementation'], "Rare text review packet {$format} must not register an output implementation");
+        }
+    },
+    'summarizes rare text unsupported surfaces without parser claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::rareTextUnsupportedFormatSummary();
+        $directions = PandocFormatRegistry::rareTextFormatDirections();
+
+        $t->same([
+            'asciidoc',
+            'djot',
+            'fb2',
+            'haddock',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+            'asciidoc_legacy',
+            'asciidoctor',
+            'markua',
+            'texinfo',
+            'vimdoc',
+        ], $summary['anyUnsupported']);
+        $t->same(['asciidoc', 'djot', 'fb2', 'haddock', 'muse', 'opml', 'org', 'rst', 'textile'], $summary['unsupportedBoth']);
+        $t->same(['pod', 't2t'], $summary['unsupportedInputOnly']);
+        $t->same(['asciidoc_legacy', 'asciidoctor', 'markua', 'texinfo', 'vimdoc'], $summary['unsupportedOutputOnly']);
+        $t->same(PandocFormatRegistry::unsupportedRareTextInputFormats(), $summary['noNativeReader']);
+        $t->same(PandocFormatRegistry::unsupportedRareTextOutputFormats(), $summary['noNativeWriter']);
+
+        foreach ($summary['anyUnsupported'] as $format) {
+            $direction = $directions[$format];
+            $t->same(true, $direction['inputStatus'] === 'unsupported' || $direction['outputStatus'] === 'unsupported', "Rare text {$format} should expose an unsupported surface");
+        }
+
+        $org = PandocFormatRegistry::rareTextUnsupportedFormatForExtension('.ORG');
+        $t->same([
+            'extension' => '.org',
+            'format' => 'org',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'unsupportedInput' => true,
+            'unsupportedOutput' => true,
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $org);
+
+        $pod = PandocFormatRegistry::rareTextUnsupportedFormatForExtension('pod');
+        $t->same('input-only', $pod['direction']);
+        $t->same(true, $pod['unsupportedInput']);
+        $t->same(false, $pod['unsupportedOutput']);
+        $t->same('not-applicable', $pod['outputStatus']);
+
+        $markua = PandocFormatRegistry::rareTextUnsupportedFormatForExtension('.markua');
+        $t->same('output-only', $markua['direction']);
+        $t->same(false, $markua['unsupportedInput']);
+        $t->same(true, $markua['unsupportedOutput']);
+        $t->same('not-applicable', $markua['inputStatus']);
+        $t->same(null, PandocFormatRegistry::rareTextUnsupportedFormatForExtension('.wiki'));
+    },
+    'summarizes rare text registry parity counts without registering converters' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::rareTextFormatParitySummary();
+        $packet = PandocFormatRegistry::rareTextFormatReviewPacket();
+
+        $coreSummary = [
+            'totalFormats' => $summary['totalFormats'],
+            'inputFormats' => $summary['inputFormats'],
+            'outputFormats' => $summary['outputFormats'],
+            'inputOutputFormats' => $summary['inputOutputFormats'],
+            'inputOnlyFormats' => $summary['inputOnlyFormats'],
+            'outputOnlyFormats' => $summary['outputOnlyFormats'],
+            'extensionInferenceMappings' => $summary['extensionInferenceMappings'],
+            'extensionInferredFormats' => $summary['extensionInferredFormats'],
+            'nonExtensionInferredFormats' => $summary['nonExtensionInferredFormats'],
+            'outputAliasMappings' => $summary['outputAliasMappings'],
+            'unsupportedInputFormats' => $summary['unsupportedInputFormats'],
+            'unsupportedOutputFormats' => $summary['unsupportedOutputFormats'],
+            'registeredInputImplementations' => $summary['registeredInputImplementations'],
+            'registeredOutputImplementations' => $summary['registeredOutputImplementations'],
+            'directParityClaimed' => $summary['directParityClaimed'],
+        ];
+        $t->same([
+            'totalFormats' => 16,
+            'inputFormats' => 11,
+            'outputFormats' => 14,
+            'inputOutputFormats' => 9,
+            'inputOnlyFormats' => 2,
+            'outputOnlyFormats' => 5,
+            'extensionInferenceMappings' => 18,
+            'extensionInferredFormats' => 14,
+            'nonExtensionInferredFormats' => 2,
+            'outputAliasMappings' => 2,
+            'unsupportedInputFormats' => 11,
+            'unsupportedOutputFormats' => 14,
+            'registeredInputImplementations' => 0,
+            'registeredOutputImplementations' => 0,
+            'directParityClaimed' => false,
+        ], $coreSummary);
+        $t->same(['unsupported' => 11], $summary['inputSupportStatusCounts']);
+        $t->same(['unsupported' => 14], $summary['outputSupportStatusCounts']);
+        $t->same(false, $summary['directReaderParitySupported']);
+        $t->same(false, $summary['directWriterParitySupported']);
+        $t->same('unsupported', $summary['directParityStatus']);
+        $t->contains('no native PHP rare text reader or writer is registered', $summary['reviewNote']);
+        $t->same(count($packet['formats']), $summary['totalFormats']);
+        $t->same(count($packet['directionBuckets']['inputOutput']), $summary['inputOutputFormats']);
+        $t->same(count($packet['directionBuckets']['inputOnly']), $summary['inputOnlyFormats']);
+        $t->same(count($packet['directionBuckets']['outputOnly']), $summary['outputOnlyFormats']);
+        $t->same(count($packet['extensionInference']), $summary['extensionInferenceMappings']);
+        $t->same(count($packet['unsupportedInputFormats']), $summary['unsupportedInputFormats']);
+        $t->same(count($packet['unsupportedOutputFormats']), $summary['unsupportedOutputFormats']);
+    },
 ];
