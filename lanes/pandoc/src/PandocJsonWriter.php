@@ -35,7 +35,7 @@ final class PandocJsonWriter
 
         return [
             'pandoc-api-version' => $this->apiVersion($document),
-            'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document)),
+            'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document), $this->metaConstructorProvenance($document)),
             'blocks' => $this->writeBlocks($document->children),
         ];
     }
@@ -86,6 +86,16 @@ final class PandocJsonWriter
         $values = $document->attr('metaNativeValues', []);
 
         return is_array($values) && !array_is_list($values) ? $values : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaConstructorProvenance(AstNode $document): array
+    {
+        $provenance = $document->attr('metaConstructorProvenance', []);
+
+        return is_array($provenance) && !array_is_list($provenance) ? $provenance : [];
     }
 
     /**
@@ -177,15 +187,14 @@ final class PandocJsonWriter
      * @param array<string, mixed> $meta
      * @return array<string, mixed>
      */
-    private function writeMetaMap(array $meta, array $nativeValues = []): array
+    private function writeMetaMap(array $meta, array $nativeValues = [], array $provenance = [], array $path = []): array
     {
         $mapped = [];
         foreach ($meta as $key => $value) {
             $field = (string) $key;
-            $sourceNative = $nativeValues[$field] ?? null;
-            $mapped[$field] = $this->canReuseMetaNativeValue($value, $sourceNative)
-                ? $sourceNative
-                : $this->writeMetaValue($value);
+            $fieldPath = [...$path, $field];
+            $sourceNative = $nativeValues[$field] ?? $this->metaProvenanceNative($provenance, $fieldPath);
+            $mapped[$field] = $this->writeMetaValue($value, $sourceNative, $provenance, $fieldPath);
         }
 
         return $mapped;
@@ -194,8 +203,12 @@ final class PandocJsonWriter
     /**
      * @return array<string, mixed>
      */
-    private function writeMetaValue(mixed $value): array
+    private function writeMetaValue(mixed $value, mixed $sourceNative = null, array $provenance = [], array $path = []): array
     {
+        if ($this->canReuseMetaNativeValue($value, $sourceNative)) {
+            return $sourceNative;
+        }
+
         if (is_bool($value)) {
             return ['t' => 'MetaBool', 'c' => $value];
         }
@@ -212,11 +225,11 @@ final class PandocJsonWriter
 
         if (is_array($value)) {
             if ($this->isTaggedMetaValue($value)) {
-                return $this->writeCompatibleMetaValue($value);
+                return $this->writeCompatibleMetaValue($value, $sourceNative, $provenance, $path);
             }
 
             if (isset($value['type']) && is_string($value['type'])) {
-                return $this->writeTypedMetaValue($value);
+                return $this->writeTypedMetaValue($value, $provenance, $path);
             }
 
             if (array_is_list($value)) {
@@ -230,10 +243,10 @@ final class PandocJsonWriter
                     ];
                 }
 
-                return ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), $value)];
+                return ['t' => 'MetaList', 'c' => $this->writeMetaListItems($value, $provenance, $path)];
             }
 
-            return ['t' => 'MetaMap', 'c' => $this->writeMetaMap($value)];
+            return ['t' => 'MetaMap', 'c' => $this->writeMetaMap($value, [], $provenance, $path)];
         }
 
         return ['t' => 'MetaString', 'c' => (string) $value];
@@ -243,15 +256,55 @@ final class PandocJsonWriter
      * @param array<string, mixed> $value
      * @return array<string, mixed>
      */
-    private function writeTypedMetaValue(array $value): array
+    private function writeTypedMetaValue(array $value, array $provenance = [], array $path = []): array
     {
         return match ($value['type']) {
             'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
             'blocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
-            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
-            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
+            'list' => ['t' => 'MetaList', 'c' => $this->writeMetaListItems(is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [], $provenance, $path)],
+            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], [], $provenance, $path)],
             default => ['t' => 'MetaString', 'c' => ''],
         };
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @return list<array<string, mixed>>
+     */
+    private function writeMetaListItems(array $items, array $provenance, array $path): array
+    {
+        $encoded = [];
+        foreach ($items as $index => $item) {
+            $itemPath = [...$path, (string) $index];
+            $encoded[] = $this->writeMetaValue($item, $this->metaProvenanceNative($provenance, $itemPath), $provenance, $itemPath);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenanceNative(array $provenance, array $path): mixed
+    {
+        $entry = $provenance[$this->metaProvenancePath($path)] ?? null;
+
+        return is_array($entry) && is_array($entry['native'] ?? null) ? $entry['native'] : null;
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
     }
 
     /**
@@ -276,7 +329,7 @@ final class PandocJsonWriter
      * @param array<string, mixed> $value
      * @return array<string, mixed>
      */
-    private function writeCompatibleMetaValue(array $value): array
+    private function writeCompatibleMetaValue(array $value, mixed $sourceNative = null, array $provenance = [], array $path = []): array
     {
         $document = (new PandocJsonReader())->readPacket([
             'meta' => ['__value' => $value],
@@ -287,9 +340,13 @@ final class PandocJsonWriter
             throw new \InvalidArgumentException('Unable to normalize tagged Pandoc JSON metadata value');
         }
 
+        if ($sourceNative !== null) {
+            return $this->writeMetaValue($meta['__value'], $sourceNative, $provenance, $path);
+        }
+
         return $this->canReuseMetaNativeValue($meta['__value'], $value)
             ? $value
-            : $this->writeMetaValue($meta['__value']);
+            : $this->writeMetaValue($meta['__value'], null, $provenance, $path);
     }
 
     private function canReuseMetaNativeValue(mixed $value, mixed $sourceNative): bool
