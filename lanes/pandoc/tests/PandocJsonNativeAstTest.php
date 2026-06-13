@@ -1201,6 +1201,94 @@ return [
             }
         }
     },
+    'regenerates stale nullary block sidecars through nested json and native writers' => static function (TestRunner $t): void {
+        $topRule = ['t' => 'HorizontalRule', 'c' => ['old-rule-payload'], 'reviewQueue' => 'top-rule-source'];
+        $topNull = ['t' => 'Null', 'c' => ['old-null-payload'], 'reviewQueue' => 'top-null-source'];
+        $quoteRule = ['t' => 'HorizontalRule', 'c' => ['quote-rule-payload'], 'reviewQueue' => 'quote-rule-source'];
+        $quoteNull = ['t' => 'Null', 'c' => ['quote-null-payload'], 'reviewQueue' => 'quote-null-source'];
+        $divRule = ['t' => 'HorizontalRule', 'c' => ['div-rule-payload'], 'reviewQueue' => 'div-rule-source'];
+        $listNull = ['t' => 'Null', 'c' => ['list-null-payload'], 'reviewQueue' => 'list-null-source'];
+        $metaRule = ['t' => 'HorizontalRule', 'c' => ['meta-rule-payload'], 'reviewQueue' => 'meta-rule-source'];
+        $metaNull = ['t' => 'Null', 'c' => ['meta-null-payload'], 'reviewQueue' => 'meta-null-source'];
+        $metaBlocks = ['t' => 'MetaBlocks', 'c' => [$metaRule, $metaNull], 'reviewQueue' => 'meta-blocks-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'provenanceBlocks' => $metaBlocks,
+            ],
+            'blocks' => [
+                $topRule,
+                $topNull,
+                ['t' => 'BlockQuote', 'c' => [$quoteRule, $quoteNull], 'reviewQueue' => 'quote-wrapper-source'],
+                ['t' => 'Div', 'c' => [['nullary-sidecars', [], []], [$divRule]], 'reviewQueue' => 'div-wrapper-source'],
+                ['t' => 'BulletList', 'c' => [[$listNull]], 'reviewQueue' => 'list-wrapper-source'],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $quote = $document->children[2];
+            $div = $document->children[3];
+            $list = $document->children[4];
+            $provenance = $document->attr('metaConstructorProvenance');
+
+            $t->same($topRule, $document->children[0]->attr('native'), "{$source} reader retains top rule native sidecar");
+            $t->same($topNull, $document->children[1]->attr('native'), "{$source} reader retains top null native sidecar");
+            $t->same($quoteRule, $quote->children[0]->attr('native'), "{$source} reader retains nested quote rule sidecar");
+            $t->same($quoteNull, $quote->children[1]->attr('native'), "{$source} reader retains nested quote null sidecar");
+            $t->same($divRule, $div->children[0]->attr('native'), "{$source} reader retains nested div rule sidecar");
+            $t->same($listNull, $list->children[0]->children[0]->attr('native'), "{$source} reader retains list null sidecar");
+            $t->same($metaBlocks, $provenance['/provenanceBlocks']['native'], "{$source} reader records metadata block constructor provenance");
+
+            if ($source === 'json') {
+                $metaChildren = $document->attr('meta')['provenanceBlocks']['children'];
+
+                $t->same($metaRule, $metaChildren[0]->attr('native'), "{$source} reader retains meta rule sidecar");
+                $t->same($metaNull, $metaChildren[1]->attr('native'), "{$source} reader retains meta null sidecar");
+            }
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedQuote = $encoded['blocks'][2];
+                $encodedDiv = $encoded['blocks'][3];
+                $encodedList = $encoded['blocks'][4];
+                $encodedMetaBlocks = $encoded['meta']['provenanceBlocks'];
+
+                $t->same(['t' => 'HorizontalRule'], $encoded['blocks'][0], "{$source} {$writer} regenerates top rule");
+                $t->same(['t' => 'Null'], $encoded['blocks'][1], "{$source} {$writer} regenerates top null");
+                $t->same(false, array_key_exists('reviewQueue', $encodedQuote), "{$source} {$writer} regenerates quote wrapper");
+                $t->same(['t' => 'HorizontalRule'], $encodedQuote['c'][0], "{$source} {$writer} regenerates quote rule");
+                $t->same(['t' => 'Null'], $encodedQuote['c'][1], "{$source} {$writer} regenerates quote null");
+                $t->same(false, array_key_exists('reviewQueue', $encodedDiv), "{$source} {$writer} regenerates div wrapper");
+                $t->same(['t' => 'HorizontalRule'], $encodedDiv['c'][1][0], "{$source} {$writer} regenerates div rule");
+                $t->same(false, array_key_exists('reviewQueue', $encodedList), "{$source} {$writer} regenerates list wrapper");
+                $t->same(['t' => 'Null'], $encodedList['c'][0][0], "{$source} {$writer} regenerates list null");
+                $t->same('MetaBlocks', $encodedMetaBlocks['t'], "{$source} {$writer} keeps metadata block constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedMetaBlocks), "{$source} {$writer} regenerates metadata block wrapper");
+                $t->same([['t' => 'HorizontalRule'], ['t' => 'Null']], $encodedMetaBlocks['c'], "{$source} {$writer} regenerates metadata nullary blocks");
+
+                $roundTrips = [
+                    'json round trip' => (new PandocJsonReader())->readPacket($encoded),
+                    'native round trip' => (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR)),
+                ];
+
+                foreach ($roundTrips as $roundTripSource => $roundTrip) {
+                    $roundTripProvenance = $roundTrip->attr('metaConstructorProvenance');
+
+                    $t->same(['t' => 'HorizontalRule'], $roundTrip->children[0]->attr('native'), "{$source} {$writer} {$roundTripSource} keeps clean top rule");
+                    $t->same(['t' => 'Null'], $roundTrip->children[1]->attr('native'), "{$source} {$writer} {$roundTripSource} keeps clean top null");
+                    $t->same(['t' => 'HorizontalRule'], $roundTripProvenance['/provenanceBlocks']['native']['c'][0], "{$source} {$writer} {$roundTripSource} keeps clean meta rule");
+                    $t->same(['t' => 'Null'], $roundTripProvenance['/provenanceBlocks']['native']['c'][1], "{$source} {$writer} {$roundTripSource} keeps clean meta null");
+                }
+            }
+        }
+    },
     'reads legacy table and target inline constructor shapes through json and native readers' => static function (TestRunner $t): void {
         $legacyTable = [
             't' => 'Table',
