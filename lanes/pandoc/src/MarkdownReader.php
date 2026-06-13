@@ -79,7 +79,7 @@ final class MarkdownReader
     private bool $resolveFootnoteReferences = true;
 
     /**
-     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool} $options
+     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -384,6 +384,10 @@ final class MarkdownReader
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
+
+        if (($this->options['sectionDivs'] ?? false) === true) {
+            $blocks = $this->sectionizeMarkdownHeadingBlocks($blocks);
+        }
 
         $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
@@ -7630,6 +7634,103 @@ final class MarkdownReader
         }
 
         return [$idsByLine, $references];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function sectionizeMarkdownHeadingBlocks(array $blocks): array
+    {
+        $index = 0;
+
+        return $this->sectionizeMarkdownHeadingLevel($blocks, $index, 0);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function sectionizeMarkdownHeadingLevel(array $blocks, int &$index, int $parentLevel): array
+    {
+        $sectioned = [];
+        $count = count($blocks);
+
+        while ($index < $count) {
+            $node = $blocks[$index];
+            if ($node->type !== 'heading') {
+                $sectioned[] = $node;
+                $index++;
+                continue;
+            }
+
+            $level = max(1, min(6, (int) $node->attr('level', 1)));
+            if ($level <= $parentLevel) {
+                break;
+            }
+
+            $index++;
+            $children = [$this->markdownSectionHeading($node)];
+            while ($index < $count) {
+                $next = $blocks[$index];
+                if ($next->type === 'heading') {
+                    $nextLevel = max(1, min(6, (int) $next->attr('level', 1)));
+                    if ($nextLevel <= $level) {
+                        break;
+                    }
+
+                    array_push($children, ...$this->sectionizeMarkdownHeadingLevel($blocks, $index, $level));
+                    continue;
+                }
+
+                $children[] = $next;
+                $index++;
+            }
+
+            $sectioned[] = new AstNode('div', $this->markdownSectionAttrs($node, $level), $children);
+        }
+
+        return $sectioned;
+    }
+
+    private function markdownSectionHeading(AstNode $heading): AstNode
+    {
+        $attrs = $heading->attrs;
+        unset($attrs['id'], $attrs['classes'], $attrs['attributes'], $attrs['htmlAttributes']);
+
+        return new AstNode('heading', $attrs, $heading->children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function markdownSectionAttrs(AstNode $heading, int $level): array
+    {
+        $id = $heading->attr('id', '');
+        $classes = ['section', 'level' . $level];
+        $sourceClasses = $heading->attr('classes', []);
+        if (is_array($sourceClasses)) {
+            foreach ($sourceClasses as $class) {
+                $class = (string) $class;
+                if ($class !== '' && !in_array($class, $classes, true)) {
+                    $classes[] = $class;
+                }
+            }
+        }
+
+        $attributes = $heading->attr('attributes', []);
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
+
+        return $this->markdownAttributeAstAttrs(
+            is_string($id) && $id !== '' ? $id : null,
+            $classes,
+            array_filter(
+                array_map(static fn (mixed $value): string => (string) $value, $attributes),
+                static fn (string $value): bool => $value !== ''
+            )
+        );
     }
 
     /**
