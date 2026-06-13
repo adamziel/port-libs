@@ -5290,6 +5290,116 @@ return [
             }
         }
     },
+    'preserves citation mode hash note and id payload sidecars across metadata edits' => static function (TestRunner $t): void {
+        $authorRecord = [
+            'reviewQueue' => 'author-citation-source',
+            'sourceOrdinal' => 101,
+            'citationHash' => 4004,
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'sec.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '2'],
+            ],
+            'citationPrefix' => [],
+            'citationNoteNum' => 4,
+            'citationMode' => ['t' => 'AuthorInText', 'c' => []],
+            'citationId' => 'author-source',
+        ];
+        $noteRecord = [
+            'reviewQueue' => 'note-citation-source',
+            'sourceOrdinal' => 102,
+            'citationHash' => 9009,
+            'citationSuffix' => [],
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationNoteNum' => 9,
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationId' => 'note-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$authorRecord, $noteRecord],
+                        [
+                            ['t' => 'Str', 'c' => '@author-source,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'sec.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '2;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'see'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@note-source'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $authorCitation = $cluster->children[0];
+            $noteCitation = $cluster->children[1];
+            $editedAuthorCitation = new AstNode('citation', array_replace($authorCitation->attrs, [
+                'id' => 'note-style-author-source',
+                'text' => '@note-style-author-source, sec. 2',
+                'mode' => 'normal',
+                'citationModeConstructor' => 'NormalCitation',
+                'citationModeNative' => ['t' => 'NormalCitation'],
+                'citationNoteNum' => 5,
+                'citationHash' => 5005,
+            ]), [
+                new AstNode('text', ['text' => '@note-style-author-source, sec. 2']),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', $document->children[0]->attrs, [
+                    new AstNode('citation_group', $cluster->attrs, [
+                        $editedAuthorCitation,
+                        $noteCitation,
+                    ]),
+                ]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} citation group node");
+            $t->same('author-source', $authorCitation->attr('id'), "{$source} author citation id");
+            $t->same('author_in_text', $authorCitation->attr('mode'), "{$source} author citation mode");
+            $t->same('AuthorInText', $authorCitation->attr('citationModeConstructor'), "{$source} author citation mode constructor");
+            $t->same(4, $authorCitation->attr('citationNoteNum'), "{$source} author citation note number");
+            $t->same(4004, $authorCitation->attr('citationHash'), "{$source} author citation hash");
+            $t->same('author-citation-source', $authorCitation->attr('citationNative')['reviewQueue'], "{$source} author citation sidecar");
+            $t->same(101, $authorCitation->attr('citationNative')['sourceOrdinal'], "{$source} author citation ordinal");
+            $t->same('normal', $noteCitation->attr('mode'), "{$source} note citation mode");
+            $t->same(9, $noteCitation->attr('citationNoteNum'), "{$source} note citation note number");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $records = $encoded['blocks'][0]['c'][0]['c'][0];
+                $editedRecord = $records[0];
+                $unchangedRecord = $records[1];
+
+                $t->same('note-style-author-source', $editedRecord['citationId'], "{$source} {$writer} edited citation id");
+                $t->same('NormalCitation', $editedRecord['citationMode']['t'], "{$source} {$writer} edited citation mode");
+                $t->same(5, $editedRecord['citationNoteNum'], "{$source} {$writer} edited citation note number");
+                $t->same(5005, $editedRecord['citationHash'], "{$source} {$writer} edited citation hash");
+                $t->same(false, array_key_exists('reviewQueue', $editedRecord), "{$source} {$writer} edited citation drops stale sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} {$writer} edited citation drops stale ordinal");
+                $t->same($noteRecord, $unchangedRecord, "{$source} {$writer} unchanged citation record sidecar");
+                $t->same('note-citation-source', $unchangedRecord['reviewQueue'], "{$source} {$writer} unchanged citation queue");
+                $t->same(102, $unchangedRecord['sourceOrdinal'], "{$source} {$writer} unchanged citation ordinal");
+            }
+        }
+    },
     'regenerates nullary inline constructors with stale native content sidecars' => static function (TestRunner $t): void {
         $spaceInline = ['t' => 'Space', 'c' => ['stale'], 'reviewQueue' => 'space-source'];
         $softBreakInline = ['t' => 'SoftBreak', 'c' => 'stale', 'reviewQueue' => 'softbreak-source'];
