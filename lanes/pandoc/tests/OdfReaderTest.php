@@ -9432,6 +9432,131 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'reports ODT audio video media resource role conflicts in package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'AUDIO-BYTES';
+        $videoBytes = 'VIDEO-BYTES';
+        $conflictAudioBytes = 'PICTURE-AUDIO';
+        $conflictVideoBytes = 'POSTER-VIDEO';
+        $replacementBytes = 'OBJECT-AUDIO';
+        $thumbnailBytes = 'THUMB-VIDEO';
+        $manifestWithAvResources = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Media/narration.ogg" manifest:media-type="audio/ogg; codecs=&quot;opus&quot;" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Media/clip.mp4" manifest:media-type="video/mp4" manifest:size="' . strlen($videoBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/sound.ogg" manifest:media-type="audio/ogg" manifest:size="' . strlen($conflictAudioBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Media/poster.png" manifest:media-type="video/mp4" manifest:size="' . strlen($conflictVideoBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Media/missing.mp4" manifest:media-type="video/mp4"/>'
+            . '<manifest:file-entry manifest:full-path="ObjectReplacements/sound.ogg" manifest:media-type="audio/ogg" manifest:size="' . strlen($replacementBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/poster.png" manifest:media-type="video/mp4" manifest:size="' . strlen($thumbnailBytes) . '"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithAvResources, null, null, [
+            ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+            ['name' => 'Media/clip.mp4', 'data' => $videoBytes, 'compressionMethod' => 0],
+            ['name' => 'Pictures/sound.ogg', 'data' => $conflictAudioBytes, 'compressionMethod' => 0],
+            ['name' => 'Media/poster.png', 'data' => $conflictVideoBytes, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/sound.ogg', 'data' => $replacementBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/poster.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+        ]));
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $provenanceParts = $provenance['parts'];
+        $mediaResources = $provenance['mediaResources'];
+        $resourceItemsByPart = [];
+        foreach ($mediaResources['items'] as $item) {
+            $resourceItemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same([
+            'Pictures/hero.png',
+            'Media/narration.ogg',
+            'Media/clip.mp4',
+            'Pictures/sound.ogg',
+            'Media/poster.png',
+            'Media/missing.mp4',
+        ], array_column($result['media'], 'part'));
+        $t->same(5, $provenance['mediaResourcePartCount']);
+        $t->same(5, $provenance['roleCounts']['media-resource']);
+        $t->same(['manifest-declared', 'media-resource'], $provenanceParts['Media/narration.ogg']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $provenanceParts['Media/clip.mp4']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $provenanceParts['Pictures/sound.ogg']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $provenanceParts['Media/poster.png']['roles']);
+        $t->same(['object-replacement', 'manifest-declared'], $provenanceParts['ObjectReplacements/sound.ogg']['roles']);
+        $t->same(['package-thumbnail', 'manifest-declared'], $provenanceParts['Thumbnails/poster.png']['roles']);
+
+        $t->same('audio/ogg; codecs="opus"', $mediaByPart['Media/narration.ogg']['mediaType']);
+        $t->same('audio/ogg', $mediaByPart['Media/narration.ogg']['mediaTypeBase']);
+        $t->same(['codecs' => 'opus'], $mediaByPart['Media/narration.ogg']['mediaTypeParameterMap']);
+        $t->same(strlen($audioBytes), $mediaByPart['Media/narration.ogg']['byteLength']);
+        $t->same('video/mp4', $mediaByPart['Media/clip.mp4']['mediaTypeBase']);
+        $t->same(strlen($videoBytes), $mediaByPart['Media/clip.mp4']['byteLength']);
+        $t->same(false, $mediaByPart['Media/missing.mp4']['exists']);
+        $t->same(null, $mediaByPart['Media/missing.mp4']['byteLength']);
+        $t->same(false, $mediaByPart['Media/missing.mp4']['canExposeBytes']);
+
+        $t->same(8, $mediaResources['manifestDeclaredCount']);
+        $t->same(6, $mediaResources['mediaResourceCount']);
+        $t->same(5, $mediaResources['mediaResourceExistingCount']);
+        $t->same(1, $mediaResources['mediaResourceMissingCount']);
+        $t->same(5, $mediaResources['mediaResourceCanExposeCount']);
+        $t->same(7, $mediaResources['existingCount']);
+        $t->same(1, $mediaResources['missingCount']);
+        $t->same(['image' => 1, 'audio' => 3, 'video' => 4, 'other' => 0], $mediaResources['familyCounts']);
+        $t->same([
+            'audio/ogg' => 3,
+            'image/png' => 1,
+            'video/mp4' => 4,
+        ], $mediaResources['mediaTypeBaseCounts']);
+        $t->same(3, $mediaResources['roleConflictCount']);
+        $t->same(2, $mediaResources['resourceRoleConflictCount']);
+        $t->same(2, $mediaResources['packageRolePrecedenceCount']);
+        $t->same([
+            'odf-media-resource-missing-package-part' => 1,
+            'odf-media-resource-package-role-precedence' => 2,
+            'odf-media-resource-role-conflict' => 3,
+        ], $mediaResources['issueCodeCounts']);
+
+        $t->same(['manifest-media-type', 'package-extension'], $resourceItemsByPart['Media/narration.ogg']['roleSources']);
+        $t->same('audio', $resourceItemsByPart['Media/narration.ogg']['declaredMediaFamily']);
+        $t->same('audio', $resourceItemsByPart['Media/narration.ogg']['packagePathMediaFamily']);
+        $t->same(false, $resourceItemsByPart['Media/narration.ogg']['roleConflict']);
+        $t->same(['manifest-media-type', 'pictures-path'], $resourceItemsByPart['Pictures/sound.ogg']['roleSources']);
+        $t->same('audio', $resourceItemsByPart['Pictures/sound.ogg']['declaredMediaFamily']);
+        $t->same('image', $resourceItemsByPart['Pictures/sound.ogg']['packagePathMediaFamily']);
+        $t->same(true, $resourceItemsByPart['Pictures/sound.ogg']['roleConflict']);
+        $t->same(['odf-media-resource-role-conflict'], $resourceItemsByPart['Pictures/sound.ogg']['issues']);
+        $t->same('video', $resourceItemsByPart['Media/poster.png']['declaredMediaFamily']);
+        $t->same('image', $resourceItemsByPart['Media/poster.png']['packagePathMediaFamily']);
+        $t->same(true, $resourceItemsByPart['Media/poster.png']['roleConflict']);
+        $t->same(false, $resourceItemsByPart['Media/missing.mp4']['exists']);
+        $t->same(['odf-media-resource-missing-package-part'], $resourceItemsByPart['Media/missing.mp4']['issues']);
+
+        $replacement = $resourceItemsByPart['ObjectReplacements/sound.ogg'];
+        $thumbnail = $resourceItemsByPart['Thumbnails/poster.png'];
+        $t->same(false, $replacement['mediaResource']);
+        $t->same(['object-replacement'], $replacement['packageRolePrecedence']);
+        $t->same(['odf-media-resource-package-role-precedence'], $replacement['issues']);
+        $t->same(false, $thumbnail['mediaResource']);
+        $t->same(['package-thumbnail'], $thumbnail['packageRolePrecedence']);
+        $t->same(['odf-media-resource-role-conflict', 'odf-media-resource-package-role-precedence'], $thumbnail['issues']);
+        $t->same(false, in_array('ObjectReplacements/sound.ogg', array_column($result['media'], 'part'), true));
+        $t->same(false, in_array('Thumbnails/poster.png', array_column($result['media'], 'part'), true));
+        $t->same(false, in_array('media-resource', $provenanceParts['ObjectReplacements/sound.ogg']['roles'], true));
+        $t->same(false, in_array('media-resource', $provenanceParts['Thumbnails/poster.png']['roles'], true));
+        $t->same(false, $manifestByPart['ObjectReplacements/sound.ogg']['canExposeBytes']);
+    },
     'diagnoses ODT manifest file entries missing media types before byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sidecarBytes = 'BINARYPAYLOAD';
         $manifestWithMissingMediaType = str_replace(
