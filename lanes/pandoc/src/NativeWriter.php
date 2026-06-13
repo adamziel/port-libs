@@ -382,7 +382,7 @@ final class NativeWriter
             ]],
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
-            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->blocks($node->children)],
+            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->childrenAsBlocks($node)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 [
                     (int) $node->attr('start', 1),
@@ -396,7 +396,7 @@ final class NativeWriter
             'line_block' => ['t' => 'LineBlock', 'c' => $this->lineBlockLines($node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
-            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->blocks($node->children)]],
+            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->childrenAsBlocks($node)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->tableCaption($node), $this->figureBlocks($node)]],
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
@@ -824,13 +824,18 @@ final class NativeWriter
             return $text === '' ? [] : [['t' => 'Plain', 'c' => $this->textInlines($text)]];
         }
 
-        if ($this->allInlineNodes($node->children)) {
-            return [['t' => 'Plain', 'c' => $this->inlines($node->children)]];
-        }
+        return $this->mixedChildrenAsBlocks($node->children);
+    }
 
+    /**
+     * @param list<AstNode> $children
+     * @return list<array<string, mixed>>
+     */
+    private function mixedChildrenAsBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
@@ -840,7 +845,7 @@ final class NativeWriter
                 $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
                 $inlines = [];
             }
-            $blocks[] = $this->blocks([$child])[0];
+            array_push($blocks, ...$this->blocks([$child]));
         }
 
         if ($inlines !== []) {
@@ -1104,7 +1109,7 @@ final class NativeWriter
     {
         $note = [
             't' => 'Note',
-            'c' => $this->blocks($node->children),
+            'c' => $this->childrenAsBlocks($node),
         ];
         $label = $this->sourceNoteLabel($node);
         if ($label !== null) {

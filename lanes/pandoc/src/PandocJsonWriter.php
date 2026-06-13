@@ -401,7 +401,7 @@ final class PandocJsonWriter
             'heading' => ['t' => 'Header', 'c' => [(int) $node->attr('level', 1), $this->attrTuple($node), $this->writeInlines($this->inlineChildrenOrText($node))]],
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
-            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
+            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->childrenAsBlocks($node)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 [
                     (int) $node->attr('start', 1),
@@ -415,7 +415,7 @@ final class PandocJsonWriter
             'line_block' => ['t' => 'LineBlock', 'c' => $this->writeLineBlockLines($node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
-            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
+            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->childrenAsBlocks($node)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),
             'native_block' => $this->nativeTaggedConstructor($node, 'block'),
@@ -568,13 +568,18 @@ final class PandocJsonWriter
             return $inlines === [] ? [] : [['t' => 'Plain', 'c' => $this->writeInlines($inlines)]];
         }
 
-        if ($this->allInlineNodes($node->children)) {
-            return [['t' => 'Plain', 'c' => $this->writeInlines($node->children)]];
-        }
+        return $this->mixedChildrenAsBlocks($node->children);
+    }
 
+    /**
+     * @param list<AstNode> $children
+     * @return list<array<string, mixed>>
+     */
+    private function mixedChildrenAsBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
@@ -584,7 +589,7 @@ final class PandocJsonWriter
                 $blocks[] = ['t' => 'Plain', 'c' => $this->writeInlines($inlines)];
                 $inlines = [];
             }
-            $blocks[] = $this->writeBlocks([$child])[0];
+            array_push($blocks, ...$this->writeBlocks([$child]));
         }
 
         if ($inlines !== []) {
@@ -1115,7 +1120,7 @@ final class PandocJsonWriter
     {
         $note = [
             't' => 'Note',
-            'c' => $this->writeBlocks($node->children),
+            'c' => $this->childrenAsBlocks($node),
         ];
         $label = $this->sourceNoteLabel($node);
         if ($label !== null) {
