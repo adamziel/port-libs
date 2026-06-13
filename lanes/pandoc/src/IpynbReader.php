@@ -43,6 +43,8 @@ final class IpynbReader
         $rawCellCount = 0;
         $attachmentCount = 0;
         $outputCount = 0;
+        $attachmentManifestEntries = [];
+        $attachmentDiagnostics = [];
 
         foreach ($cells as $index => $cell) {
             if (!is_array($cell)) {
@@ -57,11 +59,17 @@ final class IpynbReader
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
             $outputs = isset($cell['outputs']) && is_array($cell['outputs']) ? $cell['outputs'] : [];
-            $attachmentSummary = $this->attachmentSummary($attachments);
+            $attachmentSummary = $this->attachmentSummary($attachments, $index);
             $outputSummary = $this->outputSummary($outputs);
 
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
+            foreach ($attachmentSummary['entries'] as $entry) {
+                $attachmentManifestEntries[] = $entry;
+            }
+            foreach ($attachmentSummary['diagnostics'] as $diagnostic) {
+                $attachmentDiagnostics[] = $diagnostic;
+            }
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -99,6 +107,7 @@ final class IpynbReader
                 'ipynbCellIndex' => $index,
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
+                'ipynbAttachmentDiagnostics' => $attachmentSummary['diagnostics'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
             ];
@@ -115,9 +124,27 @@ final class IpynbReader
                 'type' => $cellType,
                 'sourceBytes' => strlen($source),
                 'attachmentCount' => $attachmentSummary['count'],
+                'attachmentDiagnostics' => $attachmentSummary['diagnostics'],
                 'outputCount' => $outputSummary['count'],
             ];
         }
+
+        $attachmentCollisionGroups = $this->attachmentCollisionGroups($attachmentManifestEntries);
+        if ($attachmentCollisionGroups !== []) {
+            $attachmentDiagnostics[] = 'ipynb-attachment-safe-name-collision';
+        }
+        $attachmentDiagnostics = array_values(array_unique($attachmentDiagnostics));
+        $attachmentManifest = [
+            'reviewPolicy' => 'metadata-only-no-payload',
+            'payloadExposurePolicy' => 'ipynb-attachment-payload-bytes-omitted',
+            'attachmentCount' => $attachmentCount,
+            'entryCount' => count($attachmentManifestEntries),
+            'entries' => $attachmentManifestEntries,
+            'diagnosticCount' => count($attachmentDiagnostics),
+            'diagnostics' => $attachmentDiagnostics,
+            'collisionGroupCount' => count($attachmentCollisionGroups),
+            'collisionGroups' => $attachmentCollisionGroups,
+        ];
 
         return new AstNode('document', [
             'sourceFormat' => 'ipynb',
@@ -126,6 +153,9 @@ final class IpynbReader
             'notebookCodeCellCount' => $codeCellCount,
             'notebookRawCellCount' => $rawCellCount,
             'notebookAttachmentCount' => $attachmentCount,
+            'notebookAttachmentManifest' => $attachmentManifest,
+            'notebookAttachmentDiagnostics' => $attachmentDiagnostics,
+            'notebookAttachmentCollisionCount' => count($attachmentCollisionGroups),
             'notebookOutputCount' => $outputCount,
             'notebookNbformat' => $notebook['nbformat'] ?? null,
             'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
@@ -230,23 +260,134 @@ final class IpynbReader
 
     /**
      * @param array<string, mixed> $attachments
-     * @return array{count:int, names:list<string>}
+     * @return array{count:int, names:list<string>, entries:list<array<string, mixed>>, diagnostics:list<string>}
      */
-    private function attachmentSummary(array $attachments): array
+    private function attachmentSummary(array $attachments, int $cellIndex): array
     {
         $names = [];
+        $entries = [];
+        $diagnostics = [];
         foreach ($attachments as $name => $payload) {
             if (!is_array($payload)) {
                 continue;
             }
-            $names[] = (string) $name;
+            $name = (string) $name;
+            $names[] = $name;
+
+            $mimeTypes = [];
+            foreach ($payload as $mimeType => $_payloadBytes) {
+                if (is_string($mimeType) && $mimeType !== '') {
+                    $mimeTypes[] = $mimeType;
+                }
+            }
+            sort($mimeTypes);
+
+            $entryDiagnostics = $this->attachmentNameDiagnostics($name);
+            foreach ($entryDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+
+            $entries[] = [
+                'cellIndex' => $cellIndex,
+                'name' => $name,
+                'safeName' => $this->attachmentSafeName($name, count($entries)),
+                'mimeTypeCount' => count($mimeTypes),
+                'mimeTypes' => $mimeTypes,
+                'payloadExposurePolicy' => 'metadata-only-no-payload',
+                'diagnostics' => $entryDiagnostics,
+            ];
         }
         sort($names);
 
         return [
             'count' => count($names),
             'names' => $names,
+            'entries' => $entries,
+            'diagnostics' => array_values(array_unique($diagnostics)),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array{safeName:string, caseFoldKey:string, attachmentCount:int, entries:list<array{cellIndex:int, name:string, safeName:string}>}>
+     */
+    private function attachmentCollisionGroups(array $entries): array
+    {
+        $buckets = [];
+        foreach ($entries as $entry) {
+            $safeName = $entry['safeName'] ?? null;
+            if (!is_string($safeName) || $safeName === '') {
+                continue;
+            }
+            $key = strtolower($safeName);
+            $buckets[$key][] = [
+                'cellIndex' => (int) ($entry['cellIndex'] ?? 0),
+                'name' => (string) ($entry['name'] ?? ''),
+                'safeName' => $safeName,
+            ];
+        }
+
+        $groups = [];
+        foreach ($buckets as $key => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+            usort($items, static fn (array $left, array $right): int => [$left['cellIndex'], $left['name']] <=> [$right['cellIndex'], $right['name']]);
+            $groups[] = [
+                'safeName' => $items[0]['safeName'],
+                'caseFoldKey' => $key,
+                'attachmentCount' => count($items),
+                'entries' => $items,
+            ];
+        }
+        usort($groups, static fn (array $left, array $right): int => $left['caseFoldKey'] <=> $right['caseFoldKey']);
+
+        return $groups;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function attachmentNameDiagnostics(string $name): array
+    {
+        $diagnostics = [];
+        if ($name === '') {
+            $diagnostics[] = 'ipynb-attachment-empty-name';
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $name) === 1) {
+            $diagnostics[] = 'ipynb-attachment-control-bytes';
+        }
+        if (str_starts_with($name, '/') || preg_match('/^[A-Za-z]:[\/\\\\]/', $name) === 1) {
+            $diagnostics[] = 'ipynb-attachment-absolute-path';
+        }
+        if (str_contains($name, '\\')) {
+            $diagnostics[] = 'ipynb-attachment-backslash-path';
+        }
+        if (str_contains($name, '?') || str_contains($name, '#')) {
+            $diagnostics[] = 'ipynb-attachment-query-fragment';
+        }
+
+        $segments = preg_split('/[\/\\\\]+/', $name) ?: [];
+        if (in_array('..', $segments, true)) {
+            $diagnostics[] = 'ipynb-attachment-parent-segment';
+        }
+
+        return array_values(array_unique($diagnostics));
+    }
+
+    private function attachmentSafeName(string $name, int $ordinal): string
+    {
+        $path = preg_replace('/[?#].*$/', '', str_replace('\\', '/', $name)) ?? $name;
+        $segments = explode('/', $path);
+        $base = end($segments);
+        if (!is_string($base) || $base === '' || $base === '.' || $base === '..') {
+            $base = 'attachment-' . ($ordinal + 1);
+        }
+
+        $safe = preg_replace('/[^A-Za-z0-9._-]+/', '-', $base) ?? '';
+        $safe = trim($safe, '.-');
+
+        return $safe === '' ? 'attachment-' . ($ordinal + 1) : $safe;
     }
 
     /**
