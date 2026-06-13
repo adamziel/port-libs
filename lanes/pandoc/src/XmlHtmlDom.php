@@ -780,6 +780,7 @@ final class XmlHtmlDom
 
         $metadata = self::jatsMetadataElement($root);
         $body = self::jatsBodyElement($root);
+        $backMatter = self::jatsBackMatterElement($root);
 
         $articleIds = $metadata instanceof \DOMElement
             ? self::jatsTypedTextRecords($metadata, ['article-id'], ['pub-id-type'])
@@ -799,6 +800,16 @@ final class XmlHtmlDom
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $references = self::jatsReferenceSummaries($root, $xrefs);
+        $backMatterReferenceLists = $backMatter instanceof \DOMElement ? self::jatsReferenceListSummaries($backMatter) : [];
+        $backMatterReferences = $backMatter instanceof \DOMElement ? self::jatsBackMatterReferenceSummaries($backMatter) : [];
+        $backMatterReferenceIds = self::jatsFlattenUniqueStringField($backMatterReferences, 'id');
+        $citationXrefs = self::jatsCitationXrefSummaries(
+            $root,
+            $backMatterReferenceIds !== [] ? $backMatterReferenceIds : $referenceIds
+        );
+        $citationTargetIds = self::jatsFlattenUniqueStringField($citationXrefs, 'targets');
+        $resolvedCitationReferenceIds = self::jatsFlattenUniqueStringField($citationXrefs, 'resolvedReferenceIds');
+        $missingCitationReferenceIds = self::jatsFlattenUniqueStringField($citationXrefs, 'missingReferenceIds');
         $figures = self::jatsFigureSummaries($root, $xrefs);
         $tableWraps = self::jatsTableWrapSummaries($root, $xrefs);
         $tableBodyCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['tbodyCount'], $tableWraps));
@@ -886,6 +897,24 @@ final class XmlHtmlDom
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
             'references' => $references,
+            'hasBackMatter' => $backMatter instanceof \DOMElement,
+            'backMatterRoot' => $backMatter instanceof \DOMElement ? $backMatter->localName : null,
+            'backMatterReferenceLists' => $backMatterReferenceLists,
+            'backMatterReferenceListCount' => count($backMatterReferenceLists),
+            'backMatterReferences' => $backMatterReferences,
+            'backMatterReferenceIds' => $backMatterReferenceIds,
+            'backMatterReferenceCount' => count($backMatterReferences),
+            'citationXrefs' => $citationXrefs,
+            'citationXrefCount' => count($citationXrefs),
+            'citationTargetIds' => $citationTargetIds,
+            'resolvedCitationReferenceIds' => $resolvedCitationReferenceIds,
+            'missingCitationReferenceIds' => $missingCitationReferenceIds,
+            'diagnostics' => self::jatsReviewDiagnostics(
+                $backMatter instanceof \DOMElement,
+                $backMatterReferences,
+                $citationXrefs,
+                $missingCitationReferenceIds
+            ),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
             'figures' => $figures,
@@ -1225,6 +1254,31 @@ final class XmlHtmlDom
             $body = self::firstDescendantElement($root, $name);
             if ($body instanceof \DOMElement) {
                 return $body;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsBackMatterElement(\DOMElement $root): ?\DOMElement
+    {
+        $names = match ($root->localName) {
+            'book' => ['book-back', 'back'],
+            'book-part' => ['book-part-back', 'back', 'book-back'],
+            default => ['back', 'book-back', 'book-part-back'],
+        };
+
+        foreach ($names as $name) {
+            $backMatter = self::firstChildElement($root, $name);
+            if ($backMatter instanceof \DOMElement) {
+                return $backMatter;
+            }
+        }
+
+        foreach ($names as $name) {
+            $backMatter = self::firstDescendantElement($root, $name);
+            if ($backMatter instanceof \DOMElement) {
+                return $backMatter;
             }
         }
 
@@ -1824,6 +1878,197 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<array{id:?string, title:?string, referenceIds:list<string>, referenceCount:int}>
+     */
+    private static function jatsReferenceListSummaries(\DOMElement $backMatter): array
+    {
+        $lists = [];
+        foreach (self::descendantElements($backMatter, 'ref-list') as $refList) {
+            $referenceIds = [];
+            foreach (self::descendantElements($refList, 'ref') as $reference) {
+                $id = self::attribute($reference, 'id');
+                if ($id !== null && trim($id) !== '') {
+                    $referenceIds[] = trim($id);
+                }
+            }
+
+            $lists[] = [
+                'id' => self::attribute($refList, 'id'),
+                'title' => self::jatsFirstChildText($refList, 'title'),
+                'referenceIds' => self::jatsUniqueNonEmptyStrings($referenceIds),
+                'referenceCount' => count(self::descendantElements($refList, 'ref')),
+            ];
+        }
+
+        return $lists;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsBackMatterReferenceSummaries(\DOMElement $backMatter): array
+    {
+        $references = [];
+        foreach (self::descendantElements($backMatter, 'ref') as $reference) {
+            $elementCitations = self::descendantElements($reference, 'element-citation');
+            $mixedCitations = self::descendantElements($reference, 'mixed-citation');
+            $citationTypes = [];
+            foreach ([...$mixedCitations, ...$elementCitations] as $citation) {
+                foreach (['publication-type', 'publication-format', 'citation-type'] as $attribute) {
+                    $value = self::attribute($citation, $attribute);
+                    if ($value !== null && trim($value) !== '') {
+                        $citationTypes[] = trim($value);
+                    }
+                }
+            }
+
+            $personGroupTypes = [];
+            foreach (self::descendantElements($reference, 'person-group') as $personGroup) {
+                $type = self::attribute($personGroup, 'person-group-type');
+                if ($type !== null && trim($type) !== '') {
+                    $personGroupTypes[] = trim($type);
+                }
+            }
+
+            $pubIds = self::jatsTypedTextRecords($reference, ['pub-id'], ['pub-id-type']);
+            $references[] = [
+                'id' => self::attribute($reference, 'id'),
+                'label' => self::jatsFirstChildText($reference, 'label'),
+                'text' => self::normalizedText($reference),
+                'mixedCitationText' => self::jatsFirstText($reference, ['mixed-citation']),
+                'elementCitationCount' => count($elementCitations),
+                'citationTypes' => self::jatsUniqueNonEmptyStrings($citationTypes),
+                'personGroupTypes' => self::jatsUniqueNonEmptyStrings($personGroupTypes),
+                'source' => self::jatsFirstText($reference, ['source']),
+                'articleTitle' => self::jatsFirstText($reference, ['article-title']),
+                'chapterTitle' => self::jatsFirstText($reference, ['chapter-title']),
+                'year' => self::jatsFirstText($reference, ['year']),
+                'pubIds' => $pubIds,
+                'pubIdCount' => count($pubIds),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return list<array{id:?string, refType:?string, ridRaw:?string, targets:list<string>, text:string, resolvedReferenceIds:list<string>, missingReferenceIds:list<string>}>
+     */
+    private static function jatsCitationXrefSummaries(\DOMElement $root, array $referenceIds): array
+    {
+        $referenceIdLookup = array_fill_keys($referenceIds, true);
+        $citations = [];
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            $refType = self::attribute($xref, 'ref-type');
+            $refType = $refType === null || trim($refType) === '' ? null : trim($refType);
+            $ridRaw = self::attribute($xref, 'rid');
+            $targets = $ridRaw === null ? [] : self::spaceSeparatedTokens($ridRaw);
+            $resolved = [];
+            $missing = [];
+            foreach ($targets as $target) {
+                if (isset($referenceIdLookup[$target])) {
+                    $resolved[] = $target;
+                } else {
+                    $missing[] = $target;
+                }
+            }
+
+            $isCitationXref = in_array($refType, ['bibr', 'citation', 'ref'], true) || $resolved !== [];
+            if (!$isCitationXref) {
+                continue;
+            }
+
+            $citations[] = [
+                'id' => self::attribute($xref, 'id'),
+                'refType' => $refType,
+                'ridRaw' => $ridRaw,
+                'targets' => $targets,
+                'text' => self::normalizedText($xref),
+                'resolvedReferenceIds' => self::jatsUniqueNonEmptyStrings($resolved),
+                'missingReferenceIds' => self::jatsUniqueNonEmptyStrings($missing),
+            ];
+        }
+
+        return $citations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function jatsFlattenUniqueStringField(array $records, string $field): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            $fieldValue = $record[$field] ?? null;
+            if (is_string($fieldValue)) {
+                $values[] = $fieldValue;
+                continue;
+            }
+
+            if (!is_array($fieldValue)) {
+                continue;
+            }
+
+            foreach ($fieldValue as $value) {
+                if (is_string($value)) {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return self::jatsUniqueNonEmptyStrings($values);
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<string>
+     */
+    private static function jatsUniqueNonEmptyStrings(array $values): array
+    {
+        $strings = [];
+        foreach ($values as $value) {
+            if (!is_string($value) || trim($value) === '') {
+                continue;
+            }
+
+            $strings[] = trim($value);
+        }
+
+        return array_values(array_unique($strings));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $citationXrefs
+     * @param list<string> $missingCitationReferenceIds
+     * @return list<string>
+     */
+    private static function jatsReviewDiagnostics(
+        bool $hasBackMatter,
+        array $references,
+        array $citationXrefs,
+        array $missingCitationReferenceIds
+    ): array {
+        $diagnostics = ['jats-bits-direct-reader-parity-not-implemented'];
+        if ($hasBackMatter) {
+            $diagnostics[] = 'jats-bits-back-matter-review-only';
+        }
+        if ($references !== []) {
+            $diagnostics[] = 'jats-bits-reference-summary-review-only';
+        }
+        if ($citationXrefs !== []) {
+            $diagnostics[] = 'jats-bits-citation-xref-summary-review-only';
+        }
+        if ($missingCitationReferenceIds !== []) {
+            $diagnostics[] = 'jats-bits-citation-target-missing';
+        }
+
+        return $diagnostics;
     }
 
     /**
