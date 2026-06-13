@@ -2600,6 +2600,68 @@ return [
         $t->same('markdown', $retaggedNative['blocks'][0]['c'][0]);
         $t->same('**edited**', $retaggedNative['blocks'][0]['c'][1]);
     },
+    'maps html-family raw aliases through json native and wordpress handoff' => static function (TestRunner $t): void {
+        $xhtml = '<section data-boundary="xhtml"><p>Alias block</p></section>';
+        $html5 = '<span data-boundary="html5">Alias inline</span>';
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => ['xhtml', $xhtml]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                    ['t' => 'Space'],
+                    ['t' => 'RawInline', 'c' => ['html5', $html5]],
+                    ['t' => 'Space'],
+                    ['t' => 'RawInline', 'c' => ['opml', '<outline text="disabled"/>']],
+                    ['t' => 'Str', 'c' => 'after'],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $rawBlock = $document->children[0] ?? new AstNode('missing');
+            $paragraph = $document->children[1] ?? new AstNode('missing');
+            $rawInline = null;
+            $disabledInline = null;
+            foreach ($paragraph->children as $inline) {
+                if ($inline->type === 'raw_html_inline' && $inline->attr('format') === 'html5') {
+                    $rawInline = $inline;
+                }
+                if ($inline->type === 'raw_inline' && $inline->attr('format') === 'opml') {
+                    $disabledInline = $inline;
+                }
+            }
+            if (!$rawInline instanceof AstNode || !$disabledInline instanceof AstNode) {
+                throw new \RuntimeException("{$source} raw alias inline coverage not found");
+            }
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $markdown = (new MarkdownWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same('raw_html', $rawBlock->type, "{$source} block alias hydrates as raw html");
+            $t->same('xhtml', $rawBlock->attr('format'), "{$source} block alias format is preserved");
+            $t->same($xhtml, $rawBlock->attr('html'), "{$source} block alias html is preserved");
+            $t->same('raw_html_inline', $rawInline->type, "{$source} inline alias hydrates as raw html");
+            $t->same('html5', $rawInline->attr('format'), "{$source} inline alias format is preserved");
+            $t->same($html5, $rawInline->attr('html'), "{$source} inline alias html is preserved");
+            $t->same('raw_inline', $disabledInline->type, "{$source} unsupported raw inline stays generic");
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer round-trips raw aliases");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer round-trips raw aliases");
+            $t->contains($xhtml, $markdown);
+            $t->contains($html5, $markdown);
+            $t->true(!str_contains($markdown, '<outline'), "{$source} markdown keeps unsupported raw disabled");
+            $t->contains('<!-- wp:html -->' . "\n" . $xhtml . "\n" . '<!-- /wp:html -->', $blocks);
+            $t->contains('<p>Before ' . $html5 . ' after</p>', $blocks);
+            $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress keeps unsupported raw disabled");
+        }
+    },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
         $styles = [
             ['DefaultStyle', 'default'],

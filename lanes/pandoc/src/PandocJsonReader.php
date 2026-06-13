@@ -606,7 +606,7 @@ final class PandocJsonReader
         }
         $normalized = strtolower($format);
 
-        if ($normalized === 'html') {
+        if ($this->isHtmlRawFormat($normalized)) {
             return new AstNode('raw_html', array_merge($attrs, ['html' => $text]));
         }
 
@@ -1396,7 +1396,7 @@ final class PandocJsonReader
         }
         $normalized = strtolower($format);
 
-        if ($normalized === 'html') {
+        if ($this->isHtmlRawFormat($normalized)) {
             return new AstNode('raw_html_inline', array_merge($attrs, ['html' => $text]));
         }
 
@@ -1875,5 +1875,10 @@ final class PandocJsonReader
         $baseFormat = explode('+', $baseFormat, 2)[0];
 
         return $baseFormat === 'markdown' || $format === 'commonmark' || str_starts_with($format, 'gfm');
+    }
+
+    private function isHtmlRawFormat(string $format): bool
+    {
+        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true);
     }
 }

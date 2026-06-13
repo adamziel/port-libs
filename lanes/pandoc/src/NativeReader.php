@@ -878,9 +878,12 @@ final class NativeReader
             return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
         }
 
+        if ($this->isHtmlRawFormat($normalizedFormat)) {
+            return new AstNode('raw_html', array_replace($attrs, ['html' => $text]));
+        }
+
         return match ($normalizedFormat) {
             'tex', 'latex', 'context' => new AstNode('raw_tex', array_replace($attrs, ['tex' => $text])),
-            'html' => new AstNode('raw_html', array_replace($attrs, ['html' => $text])),
             default => new AstNode('raw_block', $attrs),
         };
     }
@@ -1472,9 +1475,12 @@ final class NativeReader
             return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
         }
 
+        if ($this->isHtmlRawFormat($normalizedFormat)) {
+            return new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text]));
+        }
+
         return match ($normalizedFormat) {
             'tex', 'latex', 'context' => new AstNode('raw_tex', array_replace($attrs, ['tex' => $text])),
-            'html' => new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text])),
             default => new AstNode('raw_inline', $attrs),
         };
     }
@@ -1967,5 +1973,10 @@ final class NativeReader
         $baseFormat = explode('+', $baseFormat, 2)[0];
 
         return $baseFormat === 'markdown' || $format === 'commonmark' || str_starts_with($format, 'gfm');
+    }
+
+    private function isHtmlRawFormat(string $format): bool
+    {
+        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true);
     }
 }
