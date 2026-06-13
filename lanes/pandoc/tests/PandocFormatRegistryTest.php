@@ -1412,6 +1412,39 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'checks wiki input extension alias status gate without direct reader parity' => static function (TestRunner $t): void {
+        $gate = PandocFormatRegistry::wikiInputTokenStatusGate('.wiki');
+
+        $t->same([
+            'token' => '.wiki',
+            'normalizedToken' => '.wiki',
+            'kind' => 'extension-alias',
+            'format' => 'mediawiki',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'verdict' => 'unsupported',
+            'reason' => 'No native PHP reader or writer is registered for this upstream Pandoc format yet.',
+            'unsupported' => true,
+            'partial' => false,
+            'inputImplementation' => '',
+            'directReaderParitySupported' => false,
+        ], $gate);
+
+        $tokenGate = PandocFormatRegistry::wikiInputTokenStatusGate('mediawiki');
+        $t->same('input-token', $tokenGate['kind']);
+        $t->same('mediawiki', $tokenGate['normalizedToken']);
+        $t->same('mediawiki', $tokenGate['format']);
+        $t->same('unsupported', $tokenGate['verdict']);
+        $t->contains('No native PHP reader or writer is registered', $tokenGate['reason']);
+        $t->same(false, $tokenGate['directReaderParitySupported']);
+
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate(''));
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate('xwiki'));
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatusGate('.xwiki'));
+    },
     'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::wikiFormatParitySummary();
 
