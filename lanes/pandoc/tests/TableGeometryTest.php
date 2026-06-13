@@ -5036,24 +5036,22 @@ return [
         $t->same('plain-caption-text', $asciidocDiagnostics[1]['requiredFeature'] ?? null);
 
         $t->same(
-            ['latex-short-caption-optional-argument-required', 'latex-caption-blocks-flattened'],
+            ['latex-caption-blocks-flattened'],
             array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics)
         );
-        $t->same('caption-optional-argument', $latexDiagnostics[0]['requiredFeature'] ?? null);
-        $t->same('caption-text', $latexDiagnostics[1]['requiredFeature'] ?? null);
+        $t->same('caption-text', $latexDiagnostics[0]['requiredFeature'] ?? null);
 
-        $t->same(6, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(5, $packet['summary']['writerDowngradeCount'] ?? null);
         $t->same([
             'markdown-short-caption-prefix-required',
             'markdown-caption-blocks-flattened',
             'asciidoc-short-caption-review-required',
             'asciidoc-caption-blocks-flattened',
-            'latex-short-caption-optional-argument-required',
             'latex-caption-blocks-flattened',
         ], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
-        $t->contains(': [Queue **short**] Fallback caption text', $markdown);
+        $t->contains(': [Queue **short**] Block **caption** for reviewer<br />- Queue note', $markdown);
         $t->contains('data-pandoc-short-caption="Queue short"', $blocks);
         $t->contains('<strong>caption</strong>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);

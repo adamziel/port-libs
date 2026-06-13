@@ -1636,12 +1636,16 @@ return [
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [$sourceTable]);
 
         $sourcePacket = TableGeometry::reviewPacket($sourceTable, ['accessibility' => false]);
+        $markdown = (new MarkdownWriter())->write($document);
+        $latex = (new LatexWriter())->write($document);
         $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
         $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
         $table = $roundTrip->children[0];
         $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
         $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
+        $t->contains(': [Queue *short*] Block **long** caption', $markdown);
+        $t->contains('\caption[Queue \emph{short}]{Block \textbf{long} caption}\\\\', $latex);
         $t->same('Caption', $native['blocks'][0]['c'][1]['t']);
         $t->same('Just', $native['blocks'][0]['c'][1]['c'][0]['t']);
         $t->same('ShortCaption', $native['blocks'][0]['c'][1]['c'][0]['c']['t']);
