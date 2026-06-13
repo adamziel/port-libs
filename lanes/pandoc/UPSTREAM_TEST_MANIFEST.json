@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3292,
-        "latestSlice": "pandoc-text-markup-unsupported-diagnostics maps one native format-registry diagnostic case over the 20 wiki/roff/manual/lightweight text reader tokens after shared ZIP/OPC selected-entry handoff role buckets. PandocFormatRegistry now reports reason codes, family buckets, reader/writer capability flags, unsupported directions, and 20/0 denominator evidence without registering parsers or invoking Pandoc, roff/wiki renderers, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3291 -> 3292, mappedTextMarkupUnsupportedDiagnosticsCases is 1, and textMarkupUnsupportedDiagnosticsAssertions is 100. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures after final rebase onto current main 9ab2f42c1e.",
+        "mapped": 3294,
+        "latestSlice": "pandoc-csv-tsv-header-options maps two bounded native CSV/TSV header option cases after text markup unsupported diagnostics. DelimitedTextReader now accepts header=false for CSV and TSV imports, preserves every source row in the table body, emits an empty table head for Pandoc JSON compatibility, generates stable column labels, records no-header diagnostics in the delimitedText review packet, and rejects non-boolean header options without invoking Pandoc, spreadsheet applications, browser renderers, Node tooling, online validators, online services, live provider tests, or external validators. Mapped denominator moves 3292 -> 3294, mappedCsvTsvHeaderOptionCases is 2, and csvTsvHeaderOptionAssertions is 27. Verification passed php -l for DelimitedTextReader.php, DelimitedTextReaderTest.php, PandocFormatRegistry.php, and PandocFormatRegistryTest.php; focused DelimitedTextReaderTest.php plus PandocFormatRegistryTest.php passed 2 files, 1410 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75039 assertions, 0 failures after final rebase onto base 48c0f4517a.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Text markup unsupported diagnostics are verified over current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets.",
-        "latestFocusedSource": "2026-06-13 text markup unsupported diagnostics inspected the accepted 20-token wiki/roff/manual/lightweight text reader input set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures.",
+        "status": "CSV/TSV header option parity is verified over base 48c0f4517a after text markup unsupported diagnostics; headed and no-header imports now have 4 local CSV/TSV cases, while broader CSV/TSV reader parity remains partial.",
+        "latestFocusedSource": "2026-06-13 CSV/TSV header option parity inspected the accepted 2-row CSV command fixture set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 48c0f4517a following text markup unsupported diagnostics; focused DelimitedTextReaderTest.php plus PandocFormatRegistryTest.php passed 2 files, 1410 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75039 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -205,7 +205,9 @@
         "mappedZipSelectedHandoffRoleBucketCases": 1,
         "zipSelectedHandoffRoleBucketAssertions": 13,
         "mappedTextMarkupUnsupportedDiagnosticsCases": 1,
-        "textMarkupUnsupportedDiagnosticsAssertions": 100
+        "textMarkupUnsupportedDiagnosticsAssertions": 100,
+        "mappedCsvTsvHeaderOptionCases": 2,
+        "csvTsvHeaderOptionAssertions": 27
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1117,12 +1119,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "Text markup format review packets now give WordPress/import reviewers explicit unsupported diagnostics for 20 wiki/roff/manual/lightweight text input tokens, including reason codes and reader/writer capability flags, without invoking Pandoc, wiki renderers, roff tools, browser renderers, external validators, or online services.",
+    "wordpressScenario": "CSV/TSV no-header imports now preserve source rows through the shared table AST and WordPress table export with generated column labels and review diagnostics, without invoking external spreadsheet or Pandoc tooling.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "Text markup unsupported diagnostics are verified over current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets.",
-    "mapping": "Accounts for one bounded native PHP text markup unsupported diagnostic mapping while preserving prior shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
+    "status": "CSV/TSV header option parity is verified over base 48c0f4517a after text markup unsupported diagnostics; headed and no-header imports now have 4 local CSV/TSV cases, while broader CSV/TSV reader parity remains partial.",
+    "mapping": "Accounts for two bounded native PHP CSV/TSV header option mappings while preserving prior text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-text-markup-unsupported-diagnostics maps one native format-registry diagnostic case over the 20 wiki/roff/manual/lightweight text reader tokens after shared ZIP/OPC selected-entry handoff role buckets. PandocFormatRegistry now reports reason codes, family buckets, reader/writer capability flags, unsupported directions, and 20/0 denominator evidence without registering parsers or invoking Pandoc, roff/wiki renderers, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3291 -> 3292, mappedTextMarkupUnsupportedDiagnosticsCases is 1, and textMarkupUnsupportedDiagnosticsAssertions is 100. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures after final rebase onto current main 9ab2f42c1e.",
+    "latestSlice": "pandoc-csv-tsv-header-options maps two bounded native CSV/TSV header option cases after text markup unsupported diagnostics. DelimitedTextReader now accepts header=false for CSV and TSV imports, preserves every source row in the table body, emits an empty table head for Pandoc JSON compatibility, generates stable column labels, records no-header diagnostics in the delimitedText review packet, and rejects non-boolean header options without invoking Pandoc, spreadsheet applications, browser renderers, Node tooling, online validators, online services, live provider tests, or external validators. Mapped denominator moves 3292 -> 3294, mappedCsvTsvHeaderOptionCases is 2, and csvTsvHeaderOptionAssertions is 27. Verification passed php -l for DelimitedTextReader.php, DelimitedTextReaderTest.php, PandocFormatRegistry.php, and PandocFormatRegistryTest.php; focused DelimitedTextReaderTest.php plus PandocFormatRegistryTest.php passed 2 files, 1410 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75039 assertions, 0 failures after final rebase onto base 48c0f4517a.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1264,7 +1266,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 text markup unsupported diagnostics inspected the accepted 20-token wiki/roff/manual/lightweight text reader input set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 CSV/TSV header option parity inspected the accepted 2-row CSV command fixture set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 48c0f4517a following text markup unsupported diagnostics; focused DelimitedTextReaderTest.php plus PandocFormatRegistryTest.php passed 2 files, 1410 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75039 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1486,5 +1488,7 @@
     "mappedZipSelectedHandoffRoleBucketCases": 1,
     "zipSelectedHandoffRoleBucketAssertions": 13,
     "mappedTextMarkupUnsupportedDiagnosticsCases": 1,
-    "textMarkupUnsupportedDiagnosticsAssertions": 100
+    "textMarkupUnsupportedDiagnosticsAssertions": 100,
+    "mappedCsvTsvHeaderOptionCases": 2,
+    "csvTsvHeaderOptionAssertions": 27
 }
