@@ -689,6 +689,7 @@ final class EpubPackageReader
     private function navReport(array $entries, array $package): array
     {
         $flat = $this->flattenNavigationEntries($entries);
+        $pageListReport = $this->pageListReport($flat);
         $sections = [];
         $sectionKeys = [];
         $typeCounts = [];
@@ -726,6 +727,96 @@ final class EpubPackageReader
             'sections' => $sections,
             'hierarchy' => $this->hierarchySummary($flat, count($entries)),
             'landmarks' => $this->landmarkReport($flat, $package),
+            'pageListItemCount' => $pageListReport['itemCount'],
+            'pageBreakItemCount' => $pageListReport['pageBreakItemCount'],
+            'diagnosticCount' => $pageListReport['diagnosticCount'],
+            'diagnostics' => $pageListReport['diagnostics'],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array<string, mixed>
+     */
+    private function pageListReport(array $flat): array
+    {
+        $pageListItems = [];
+        $pageBreakItemCount = 0;
+        $diagnostics = [];
+        $seenPageListHrefs = [];
+        $seenPageListLabels = [];
+
+        foreach ($flat as $item) {
+            $type = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if (($item['pageBreakProvenance']['present'] ?? false) === true) {
+                ++$pageBreakItemCount;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'navType' => $type,
+                ] + $diagnostic;
+            }
+
+            if ($type !== 'page-list') {
+                continue;
+            }
+
+            $pageListItems[] = $item;
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            if ($href !== '') {
+                if (isset($seenPageListHrefs[$href])) {
+                    $diagnostics[] = [
+                        'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                        'type' => 'duplicate-page-list-href',
+                        'navType' => $type,
+                        'source' => 'href',
+                        'href' => $href,
+                        'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
+                        'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                        'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : '',
+                        'firstIndex' => is_int($seenPageListHrefs[$href]['index'] ?? null) ? $seenPageListHrefs[$href]['index'] : 0,
+                        'firstTarget' => is_string($seenPageListHrefs[$href]['target'] ?? null) ? $seenPageListHrefs[$href]['target'] : '',
+                    ];
+                } else {
+                    $seenPageListHrefs[$href] = $item;
+                }
+            }
+
+            $label = is_string($item['label'] ?? null) ? $item['label'] : '';
+            if ($label !== '') {
+                if (isset($seenPageListLabels[$label])) {
+                    $diagnostics[] = [
+                        'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                        'type' => 'duplicate-page-list-label',
+                        'navType' => $type,
+                        'source' => 'label',
+                        'label' => $label,
+                        'href' => $href,
+                        'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
+                        'firstIndex' => is_int($seenPageListLabels[$label]['index'] ?? null) ? $seenPageListLabels[$label]['index'] : 0,
+                        'firstHref' => is_string($seenPageListLabels[$label]['href'] ?? null) ? $seenPageListLabels[$label]['href'] : '',
+                    ];
+                } else {
+                    $seenPageListLabels[$label] = $item;
+                }
+            }
+        }
+
+        return [
+            'itemCount' => count($pageListItems),
+            'pageBreakItemCount' => $pageBreakItemCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -1415,6 +1506,40 @@ final class EpubPackageReader
             $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
             $typeReport = $this->navItemTypeReport($node, $link);
             $label = $this->normalizedText($link->textContent);
+            $linkTypes = $this->epubTypes($link);
+            $hasPageBreakType = in_array('pagebreak', $linkTypes, true);
+            $itemDiagnostics = [];
+            if ($type === 'page-list') {
+                if ($href === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-page-list-href',
+                        'source' => $link->localName . '@href',
+                        'linkElement' => $link->localName,
+                        'label' => $label,
+                        'pageBreak' => $hasPageBreakType,
+                    ];
+                }
+                if ($label === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-page-list-label',
+                        'source' => 'textContent',
+                        'linkElement' => $link->localName,
+                        'href' => $href,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'pageBreak' => $hasPageBreakType,
+                    ];
+                }
+                if (!$hasPageBreakType) {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-pagebreak-type',
+                        'source' => 'epub:type',
+                        'linkElement' => $link->localName,
+                        'href' => $href,
+                        'label' => $label,
+                    ];
+                }
+            }
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
@@ -1434,11 +1559,16 @@ final class EpubPackageReader
 
             $labelProvenance = $this->labelProvenance(
                 $link,
-                $type === 'landmarks' ? ($link->localName === 'a' ? 'anchor' : 'span') : 'xhtml-nav',
+                match ($type) {
+                    'landmarks' => $link->localName === 'a' ? 'anchor' : 'span',
+                    'page-list' => $label === '' ? 'missing' : 'textContent',
+                    default => 'xhtml-nav',
+                },
                 $baseDir
             );
             $labelProvenance['itemId'] = $this->nullableAttribute($node, 'id');
             $labelProvenance['labelId'] = $this->nullableAttribute($link, 'id');
+            $labelProvenance['linkElement'] = $link->localName;
 
             $entries[] = [
                 'label' => $label,
@@ -1455,7 +1585,15 @@ final class EpubPackageReader
                 'itemId' => $this->nullableAttribute($node, 'id'),
                 'labelId' => $this->nullableAttribute($link, 'id'),
                 'labelElement' => $link->localName,
+                'linkElement' => $link->localName,
+                'epubTypes' => $linkTypes,
                 'labelProvenance' => $labelProvenance,
+                'pageBreakProvenance' => [
+                    'present' => $hasPageBreakType,
+                    'source' => $hasPageBreakType ? 'epub:type' : ($type === 'page-list' ? 'missing' : ''),
+                    'linkElement' => $link->localName,
+                    'epubTypes' => $linkTypes,
+                ],
                 'external' => $external,
                 'exists' => $exists,
                 'semanticType' => $typeReport['type'],
@@ -1466,6 +1604,7 @@ final class EpubPackageReader
                 'typeSources' => $typeReport['typeSources'],
                 'depth' => $depth,
                 'childCount' => count($children),
+                'diagnostics' => $itemDiagnostics,
                 'children' => $children,
             ];
         }
