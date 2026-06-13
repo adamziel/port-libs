@@ -1573,17 +1573,29 @@ final class MarkdownWriter
 
     private function renderTableCaption(AstNode $node): string
     {
-        $captionInlines = $node->attr('captionInlines', []);
         $caption = '';
-        if (is_array($captionInlines) && $captionInlines !== []) {
-            $caption = $this->renderInlines($captionInlines);
+        $captionBlocks = $this->renderTableCaptionBlocks($node->attr('captionBlocks', []));
+        if ($captionBlocks !== '') {
+            $caption = $captionBlocks;
         } else {
-            $caption = $this->escapeText((string) $node->attr('caption', ''));
+            $captionInlines = $node->attr('captionInlines', []);
+            if (is_array($captionInlines) && $captionInlines !== [] && $this->allAstNodes($captionInlines)) {
+                $caption = $this->renderInlines($captionInlines);
+            } else {
+                $caption = $this->escapeText((string) $node->attr('caption', ''));
+            }
         }
 
         $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
-        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== []) {
+        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
             $shortCaption = '[' . $this->renderInlines($shortCaptionInlines) . ']';
+
+            return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
+        }
+
+        $shortCaptionBlocks = $this->renderTableCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        if ($shortCaptionBlocks !== '') {
+            $shortCaption = '[' . $shortCaptionBlocks . ']';
 
             return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
@@ -1596,6 +1608,44 @@ final class MarkdownWriter
         }
 
         return $caption;
+    }
+
+    private function renderTableCaptionBlocks(mixed $blocks): string
+    {
+        if (!is_array($blocks) || $blocks === [] || !$this->allAstNodes($blocks)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach (array_values($blocks) as $block) {
+            if (!$block instanceof AstNode) {
+                return '';
+            }
+
+            $rendered = in_array($block->type, ['plain', 'paragraph'], true) && $this->allAstNodes($block->children)
+                ? $this->renderInlines($block->children)
+                : $this->renderBlockCollection([$block]);
+            $rendered = trim(str_replace(["\r\n", "\r", "\n"], [' ', ' ', ' '], $rendered));
+            if ($rendered !== '') {
+                $parts[] = $rendered;
+            }
+        }
+
+        return implode('<br />', $parts);
+    }
+
+    /**
+     * @param list<mixed> $nodes
+     */
+    private function allAstNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

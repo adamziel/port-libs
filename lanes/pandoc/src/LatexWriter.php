@@ -123,9 +123,9 @@ final class LatexWriter
             array_push($lines, ...$this->renderBlock($child));
         }
 
-        $caption = $this->renderCaption($node);
+        $caption = $this->renderCaptionCommand($node);
         if ($caption !== '') {
-            $lines[] = '\caption{' . $caption . '}';
+            $lines[] = $caption;
         }
         $lines[] = '\end{figure}';
 
@@ -321,9 +321,9 @@ final class LatexWriter
 
         $alignments = $this->tableColumnAlignments($node, $columnCount);
         $lines = ['\begin{longtable}{' . implode('', $alignments) . '}'];
-        $caption = $this->renderCaption($node);
+        $caption = $this->renderCaptionCommand($node);
         if ($caption !== '') {
-            $lines[] = '\caption{' . $caption . '}\\\\';
+            $lines[] = $caption . '\\\\';
         }
 
         $rowGroups = $this->tableRowGroups($node);
@@ -666,16 +666,52 @@ final class LatexWriter
             return $this->renderInlines(array_values($captionInlines));
         }
 
-        $captionBlocks = $node->attr('captionBlocks', []);
-        if (is_array($captionBlocks) && $captionBlocks !== [] && $this->allAstNodes($captionBlocks)) {
-            return str_replace(
-                ["\r\n", "\r", "\n"],
-                [' ', ' ', ' '],
-                trim(implode("\n", $this->renderBlockGroup(array_values($captionBlocks))))
-            );
+        $captionBlocks = $this->renderCaptionBlocks($node->attr('captionBlocks', []));
+        if ($captionBlocks !== '') {
+            return $captionBlocks;
         }
 
         return $this->escapeText((string) $node->attr('caption', ''));
+    }
+
+    private function renderCaptionCommand(AstNode $node): string
+    {
+        $caption = $this->renderCaption($node);
+        if ($caption === '') {
+            return '';
+        }
+
+        $shortCaption = $this->renderShortCaption($node);
+
+        return '\caption' . ($shortCaption === '' ? '' : '[' . $shortCaption . ']') . '{' . $caption . '}';
+    }
+
+    private function renderShortCaption(AstNode $node): string
+    {
+        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== [] && $this->allAstNodes($shortCaptionInlines)) {
+            return $this->renderInlines(array_values($shortCaptionInlines));
+        }
+
+        $shortCaptionBlocks = $this->renderCaptionBlocks($node->attr('shortCaptionBlocks', []));
+        if ($shortCaptionBlocks !== '') {
+            return $shortCaptionBlocks;
+        }
+
+        return $this->escapeText((string) $node->attr('shortCaption', ''));
+    }
+
+    private function renderCaptionBlocks(mixed $blocks): string
+    {
+        if (!is_array($blocks) || $blocks === [] || !$this->allAstNodes($blocks)) {
+            return '';
+        }
+
+        return str_replace(
+            ["\r\n", "\r", "\n"],
+            [' ', ' ', ' '],
+            trim(implode("\n", $this->renderBlockGroup(array_values($blocks))))
+        );
     }
 
     private function renderNote(AstNode $node): string

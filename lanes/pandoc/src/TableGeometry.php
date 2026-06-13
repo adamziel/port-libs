@@ -10854,7 +10854,6 @@ final class TableGeometry
             $shortCaptionRequirements = [
                 'markdown' => ['markdown-short-caption-prefix-required', 'pandoc-short-caption-prefix'],
                 'asciidoc' => ['asciidoc-short-caption-review-required', 'table-short-title-review'],
-                'latex' => ['latex-short-caption-optional-argument-required', 'caption-optional-argument'],
             ];
             if (isset($shortCaptionRequirements[$writer])) {
                 [$code, $requiredFeature] = $shortCaptionRequirements[$writer];
@@ -10879,7 +10878,7 @@ final class TableGeometry
         $blockCount = (int) ($long['blockCount'] ?? 0);
         if ($blockCount > 0) {
             $blockCaptionRequirements = [
-                'markdown' => ['markdown-caption-blocks-flattened', 'plain-caption-text'],
+                'markdown' => ['markdown-caption-blocks-flattened', 'inline-caption-markdown'],
                 'asciidoc' => ['asciidoc-caption-blocks-flattened', 'plain-caption-text'],
                 'latex' => ['latex-caption-blocks-flattened', 'caption-text'],
             ];
