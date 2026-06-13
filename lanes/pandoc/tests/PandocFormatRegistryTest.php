@@ -1676,4 +1676,68 @@ return [
         $t->same(null, $combinedProvenance['xwiki']['input']);
         $t->same(null, $combinedProvenance['zimwiki']['input']);
     },
+    'records wiki roff man text markup reader ship gate unsupported verdict' => static function (TestRunner $t): void {
+        $expectedFormats = [
+            'asciidoc',
+            'creole',
+            'djot',
+            'dokuwiki',
+            'fb2',
+            'haddock',
+            'jira',
+            'man',
+            'mdoc',
+            'mediawiki',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ];
+
+        $support = PandocFormatRegistry::textMarkupReaderSupport();
+        $gate = PandocFormatRegistry::textMarkupReaderShipGate();
+
+        $t->same($expectedFormats, PandocFormatRegistry::textMarkupReaderFormats());
+        $t->same($expectedFormats, array_keys($support));
+        $t->same($expectedFormats, PandocFormatRegistry::unsupportedTextMarkupReaderFormats());
+        $t->same('2026-06-03', $gate['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $gate['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $gate['upstreamSourceCommit']);
+        $t->same('wiki-roff-man-text-markup-readers', $gate['family']);
+        $t->same($expectedFormats, $gate['inputFormats']);
+        $t->same(20, $gate['upstreamDenominator']);
+        $t->same(0, $gate['localPassingNumerator']);
+        $t->same('unsupported', $gate['unsupportedVerdict']);
+        $t->same($expectedFormats, $gate['unsupportedFormats']);
+        $t->same(20, $gate['unsupportedCount']);
+        $t->same([], $gate['partialFormats']);
+        $t->same([], $gate['implementedFormats']);
+        $t->same([
+            'roff-manual' => 2,
+            'text-markup' => 11,
+            'wiki' => 7,
+        ], $gate['familyCounts']);
+        $t->same(['unsupported' => 20], $gate['supportStatusCounts']);
+        $t->same(false, $gate['directReaderParitySupported']);
+        $t->same(true, $gate['externalToolFree']);
+        $t->same($expectedFormats, array_keys($gate['formats']));
+
+        $t->same('wiki', $gate['formats']['mediawiki']['family']);
+        $t->same('roff-manual', $gate['formats']['man']['family']);
+        $t->same('text-markup', $gate['formats']['org']['family']);
+        $t->contains('upstream man reader source semantics', $gate['formats']['man']['inputNotes']);
+        $t->contains('No native PHP reader or writer is registered', $gate['formats']['org']['inputNotes']);
+
+        foreach ($gate['formats'] as $format => $entry) {
+            $t->same('unsupported', $entry['inputStatus'], "Text markup reader {$format} must keep explicit unsupported accounting");
+            $t->same('', $entry['inputImplementation'], "Text markup reader {$format} must not register a native reader implementation");
+            $t->same(true, $entry['unsupported'], "Text markup reader {$format} should be part of the unsupported verdict");
+        }
+    },
 ];

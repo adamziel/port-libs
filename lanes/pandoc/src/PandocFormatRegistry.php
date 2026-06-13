@@ -352,6 +352,30 @@ final class PandocFormatRegistry
     ];
 
     /** @var list<string> */
+    private const TEXT_MARKUP_READER_FORMATS = [
+        'asciidoc',
+        'creole',
+        'djot',
+        'dokuwiki',
+        'fb2',
+        'haddock',
+        'jira',
+        'man',
+        'mdoc',
+        'mediawiki',
+        'muse',
+        'opml',
+        'org',
+        'pod',
+        'rst',
+        't2t',
+        'textile',
+        'tikiwiki',
+        'twiki',
+        'vimwiki',
+    ];
+
+    /** @var list<string> */
     private const RICH_PACKAGE_INPUT_FORMATS = [
         'docx',
         'epub',
@@ -1681,6 +1705,100 @@ final class PandocFormatRegistry
     /**
      * @return list<string>
      */
+    public static function textMarkupReaderFormats(): array
+    {
+        return self::TEXT_MARKUP_READER_FORMATS;
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function textMarkupReaderSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::TEXT_MARKUP_READER_FORMATS);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedTextMarkupReaderFormats(): array
+    {
+        return self::formatsWithStatus(self::textMarkupReaderSupport(), 'unsupported');
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     family:string,
+     *     inputFormats:list<string>,
+     *     upstreamDenominator:int,
+     *     localPassingNumerator:int,
+     *     unsupportedVerdict:string,
+     *     unsupportedFormats:list<string>,
+     *     unsupportedCount:int,
+     *     partialFormats:list<string>,
+     *     implementedFormats:list<string>,
+     *     familyCounts:array<string, int>,
+     *     supportStatusCounts:array<string, int>,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool,
+     *     formats:array<string, array{family:string, inputStatus:string, inputImplementation:string, inputNotes:string, unsupported:bool}>
+     * }
+     */
+    public static function textMarkupReaderShipGate(): array
+    {
+        $support = self::textMarkupReaderSupport();
+        $unsupportedFormats = self::formatsWithStatus($support, 'unsupported');
+        $partialFormats = self::formatsWithStatus($support, 'partial');
+        $implementedFormats = [];
+        $formats = [];
+        $familyCounts = [];
+
+        foreach (self::TEXT_MARKUP_READER_FORMATS as $format) {
+            $entry = $support[$format];
+            $family = self::textMarkupReaderFamily($format);
+            $familyCounts[$family] = ($familyCounts[$family] ?? 0) + 1;
+
+            if ($entry['implementation'] !== '') {
+                $implementedFormats[] = $format;
+            }
+
+            $formats[$format] = [
+                'family' => $family,
+                'inputStatus' => $entry['status'],
+                'inputImplementation' => $entry['implementation'],
+                'inputNotes' => $entry['notes'],
+                'unsupported' => $entry['status'] === 'unsupported',
+            ];
+        }
+        ksort($familyCounts);
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'family' => 'wiki-roff-man-text-markup-readers',
+            'inputFormats' => self::TEXT_MARKUP_READER_FORMATS,
+            'upstreamDenominator' => count(self::TEXT_MARKUP_READER_FORMATS),
+            'localPassingNumerator' => count($implementedFormats),
+            'unsupportedVerdict' => $unsupportedFormats === [] ? 'supported' : 'unsupported',
+            'unsupportedFormats' => $unsupportedFormats,
+            'unsupportedCount' => count($unsupportedFormats),
+            'partialFormats' => $partialFormats,
+            'implementedFormats' => $implementedFormats,
+            'familyCounts' => $familyCounts,
+            'supportStatusCounts' => self::supportStatusCounts($support),
+            'directReaderParitySupported' => $unsupportedFormats === [],
+            'externalToolFree' => true,
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
     public static function richPackageInputFormats(): array
     {
         return self::RICH_PACKAGE_INPUT_FORMATS;
@@ -2433,6 +2551,18 @@ final class PandocFormatRegistry
     private static function roffManualFormatsWithDirection(string $direction): array
     {
         return self::formatsWithDirection(self::roffManualFormatDirections(), $direction);
+    }
+
+    private static function textMarkupReaderFamily(string $format): string
+    {
+        if (in_array($format, self::WIKI_INPUT_FORMATS, true)) {
+            return 'wiki';
+        }
+        if (in_array($format, self::ROFF_MANUAL_INPUT_FORMATS, true)) {
+            return 'roff-manual';
+        }
+
+        return 'text-markup';
     }
 
     /**
