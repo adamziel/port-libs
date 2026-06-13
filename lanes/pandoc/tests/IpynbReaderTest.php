@@ -725,4 +725,172 @@ return [
         $t->same(false, str_contains($metadata, 'secret_fallback_source'));
         $t->same(false, str_contains($metadata, 'secret_unknown_source'));
     },
+    'summarizes ipynb language output consistency with stream grouping metadata only' => static function (TestRunner $t): void {
+        $source = "secret_language_consistency_source()\n";
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [
+                        'language' => 'PHP',
+                    ],
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['secret stream bytes'],
+                        ],
+                        [
+                            'data' => [
+                                'application/javascript' => 'secret js output bytes',
+                                'text/plain' => 'plain output bytes',
+                                'text/x-php' => ['secret php output bytes'],
+                            ],
+                            'metadata' => ['display_id' => 'lang-review'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => $source,
+                ],
+            ],
+            'metadata' => [
+                'language_info' => [
+                    'name' => 'php',
+                ],
+                'kernelspec' => [
+                    'language' => 'python',
+                    'name' => 'python3',
+                ],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $cell = $document->children[0];
+        $cellSummaries = $document->attr('notebookCells');
+        $metadataSummary = $document->attr('notebookLanguageMetadataSummary');
+        $consistency = $document->attr('notebookLanguageOutputConsistencySummary');
+        $records = $cell->attr('ipynbOutputLanguageRecords');
+        $html = (new WordPressBlockWriter())->write($document);
+
+        $t->same([
+            'languageInfoName' => 'php',
+            'languageInfoLanguage' => 'php',
+            'kernelspecLanguage' => 'python',
+            'resolvedLanguage' => 'php',
+            'resolvedLanguageSource' => 'notebook.language_info.name',
+            'diagnostics' => ['notebook-language-info-kernelspec-mismatch'],
+        ], $metadataSummary);
+        $t->same([
+            'cellCount' => 1,
+            'notebookLanguage' => 'php',
+            'notebookLanguageSource' => 'notebook.language_info.name',
+            'notebookLanguageDiagnostics' => ['notebook-language-info-kernelspec-mismatch'],
+            'cellMetadataLanguageHintCount' => 1,
+            'notebookLanguageFallbackCount' => 0,
+            'unknownLanguageHintCount' => 0,
+            'mismatchedLanguageHintCount' => 0,
+            'outputLanguageLikeMimeCount' => 2,
+            'outputLanguageLikeMimeCellCount' => 1,
+            'outputLanguageMatchCount' => 1,
+            'outputLanguageMismatchCount' => 1,
+            'outputLanguageUnknownCount' => 0,
+            'streamAssociatedOutputLanguageCount' => 2,
+            'streamAssociatedOutputLanguageMismatchCount' => 1,
+            'outputLanguageCounts' => [
+                'javascript' => 1,
+                'php' => 1,
+            ],
+            'outputLanguageMimeCounts' => [
+                'application/javascript' => 1,
+                'text/x-php' => 1,
+            ],
+            'outputLanguageDiagnosticCounts' => [
+                'output-language-mismatch-cell-language' => 1,
+            ],
+        ], $consistency);
+
+        $t->same(2, $cell->attr('ipynbOutputLanguageLikeMimeCount'));
+        $t->same(['application/javascript', 'text/x-php'], $cell->attr('ipynbOutputLanguageLikeMimeTypes'));
+        $t->same(['javascript', 'php'], $cell->attr('ipynbOutputLanguageHints'));
+        $t->same(1, $cell->attr('ipynbOutputLanguageMatchCount'));
+        $t->same(1, $cell->attr('ipynbOutputLanguageMismatchCount'));
+        $t->same(0, $cell->attr('ipynbOutputLanguageUnknownCount'));
+        $t->same(['output-language-mismatch-cell-language'], $cell->attr('ipynbOutputLanguageDiagnostics'));
+        $t->same(['output-language-mismatch-cell-language' => 1], $cell->attr('ipynbOutputLanguageDiagnosticCounts'));
+
+        $t->same('application/javascript', $records[0]['mimeType']);
+        $t->same('javascript', $records[0]['language']);
+        $t->same('php', $records[0]['cellLanguageHint']);
+        $t->same(false, $records[0]['matchesCellLanguage']);
+        $t->same(1, $records[0]['outputGroupIndex']);
+        $t->same(0, $records[0]['associatedStreamGroupIndex']);
+        $t->same('stdout', $records[0]['associatedStreamGroupName']);
+        $t->same([0], $records[0]['associatedStreamGroupOutputIndexes']);
+        $t->same(['output-language-mismatch-cell-language'], $records[0]['diagnostics']);
+        $t->same('text/x-php', $records[1]['mimeType']);
+        $t->same('php', $records[1]['language']);
+        $t->same(true, $records[1]['matchesCellLanguage']);
+        $t->same(1, $records[1]['outputGroupIndex']);
+        $t->same(0, $records[1]['associatedStreamGroupIndex']);
+        $t->same([], $records[1]['diagnostics']);
+
+        $summary = $cellSummaries[0];
+        $t->same(2, $summary['outputLanguageLikeMimeCount']);
+        $t->same(['javascript', 'php'], $summary['outputLanguageHints']);
+        $t->same(1, $summary['outputLanguageMismatchCount']);
+        $t->same(['output-language-mismatch-cell-language'], $summary['outputLanguageDiagnostics']);
+        $t->same('sha256:' . hash('sha256', $source), $summary['sourceFingerprint']);
+        $t->same(2, $summary['outputGroupCount']);
+        $t->same(1, $summary['outputStreamGroupCount']);
+
+        $t->contains('data-ipynb-output-language-like-mime-count="2"', $html);
+        $t->contains('data-ipynb-output-language-hints="javascript php"', $html);
+        $t->contains('data-ipynb-output-language-diagnostics="output-language-mismatch-cell-language"', $html);
+
+        $metadataOnly = json_encode([
+            $metadataSummary,
+            $consistency,
+            $records,
+            $summary['outputLanguageRecords'],
+        ], JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($metadataOnly, 'secret_language_consistency_source'));
+        $t->same(false, str_contains($metadataOnly, 'secret stream bytes'));
+        $t->same(false, str_contains($metadataOnly, 'secret js output bytes'));
+        $t->same(false, str_contains($metadataOnly, 'secret php output bytes'));
+
+        $unknownDocument = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/javascript' => 'secret unknown js bytes',
+                            ],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => "secret_unknown_language_output_source()\n",
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+        $unknownCell = $unknownDocument->children[0];
+        $unknownConsistency = $unknownDocument->attr('notebookLanguageOutputConsistencySummary');
+        $unknownRecords = $unknownCell->attr('ipynbOutputLanguageRecords');
+
+        $t->same(['notebook-language-unknown'], $unknownDocument->attr('notebookLanguageMetadataSummary')['diagnostics']);
+        $t->same(1, $unknownCell->attr('ipynbOutputLanguageUnknownCount'));
+        $t->same(['output-language-unknown-cell-language'], $unknownCell->attr('ipynbOutputLanguageDiagnostics'));
+        $t->same(null, $unknownRecords[0]['matchesCellLanguage']);
+        $t->same(['output-language-unknown-cell-language'], $unknownRecords[0]['diagnostics']);
+        $t->same(1, $unknownConsistency['outputLanguageUnknownCount']);
+        $t->same([
+            'output-language-unknown-cell-language' => 1,
+        ], $unknownConsistency['outputLanguageDiagnosticCounts']);
+    },
 ];
