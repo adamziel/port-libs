@@ -1,169 +1,44 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-13 UTC after CSV/TSV dialect profile registry packets on current main `9977ade1ee`, following XML namespace registry review packets.
+Updated: 2026-06-13 UTC
 
-This file is the compact status companion to `progress.md`,
-`lanes/pandoc/lane-status.json`, and
-`lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`.
+Scope: native PHP input/import paths. Output formats are not tracked here unless they are part of an import dependency.
+Counts are upstream tests passing out of upstream tests total.
 
-## Overall Ship Gate
+## Overall
 
-| Check | Evidence | Verdict |
-| --- | --- | --- |
-| Upstream denominator | Static Pandoc upstream inventory covers 2,276 test/data/benchmark artifacts from `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. The input-format burn-down tracks 51 upstream input tokens, with IPYNB skipped for this phase and 50 tokens in scope. | Denominator accepted for native PHP progress accounting; this is not upstream runner parity. |
-| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,439 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,389 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,389 / 2,276 mapped upstream inventory rows = 148.9%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
-| Shippable input formats | ODF/ODT is marked ship-ready: 52 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 260.0%, with 0 critical ODF/ODT gaps. | ODF/ODT can ship under the current native PHP/no-external-validator policy. |
-| Remaining critical gaps | 21 input tokens remain partial and 28 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. JSON/native mixed metadata container stress coverage, DocBook inline media alt diagnostics, IPYNB output display-order diagnostics, DocBook bibliography/reference diagnostics, DocBook list block metadata/diagnostics, JATS/BITS relationship diagnostics, XML/HTML5 nested table foster-parenting, XML/HTML5 raw-text boundary diagnostics, JATS/BITS title metadata propagation, rare text-format registry unsupported diagnostics, EPUB nav/NCX label provenance, EPUB NCX hierarchy diagnostics, EPUB nav fragment target diagnostics, HTML image-map association diagnostics, HTML image-map area geometry diagnostics, JATS/BITS figure metadata diagnostics, XML/JATS/BITS direct input registry routing, JATS/BITS back-matter reference diagnostics, JATS/BITS reference identifier diagnostics, JATS/BITS table body diagnostics, DocBook section metadata diagnostics, IPYNB attachment media diagnostics, JSON/native nested metadata payload preservation, JSON/native mixed Figure handoff, JSON/native citation prefix/suffix payload preservation, CSL citation affix review metadata, LaTeX labelled note anchor preservation, JSON/native raw HTML alias preservation, PDF/Typst package unsupported-reason reporting, JATS/BITS body diagnostics, CSV/TSV format inference diagnostics, DocBook structural review diagnostics, IPYNB notebook metadata/resource diagnostics, XML/HTML object association provenance, MediaBag linked-resource MIME inference, YAML metadata alias review summaries, JSON/native table attribute writer handoff, JSON/native mixed table caption/cell flushing, tabular data registry option profiles, ODF compact manifest custom attributes, DOCX note/comment relationship diagnostics, Markdown generic raw HTML serialization, Typst package source-class policy provenance, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP selected-entry role buckets, EPUB XHTML table semantics, PlainWriter table body-group boundaries, Markdown HTML list item attribute handoff, Markdown math attribute round-trip, JSON/native block-container mixed-content flushing, XML/JATS/BITS direct reader capability diagnostics, Markdown header section Div mapping, Markdown table-cell note placement, DOCX/OpenXML subdocument diagnostics, definition-list term-group handoff, Markdown fenced Div section-reference boundaries, inline writer attributes, EPUB direct manifest/spine diagnostics, EPUB XHTML definition-list handoff, and text markup unsupported ship-gate accounting are covered. | Pandoc as a whole is not ship-ready. |
-| Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check`, syntax checks for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | Focused registry and full-suite counts are recorded in the lane manifest after this slice. |
-| External validators | No Pandoc binary, JSON filters, Cabal/Haskell runners, format-specific CLI, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
-
-## Closure Wave Snapshot
-
-Current `main` is reconciled through the CSV/TSV dialect profile registry packet slice rebased on `9977ade1ee`: 3,439 PHP passes / 0 failures and 3,389 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV dialect profile review packets, XML namespace registry review packets, JSON/native mixed metadata container stress coverage, JSON/native table ColSpec sidecars, IPYNB source line-ending diagnostics, DocBook inline media alt diagnostics, IPYNB output display-order diagnostics, DocBook bibliography/reference diagnostics, EndNote XML name group diagnostics, IPYNB nbformat diagnostics, JATS/BITS figure caption metadata diagnostics, CSV/TSV format inference diagnostics, tabular data registry option profiles, and the earlier DocBook list block metadata/diagnostics and XML/HTML/JATS closure slices. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php`, and full `lanes/pandoc/tests`.
-
-| Surface | Landed evidence | Verdict |
-| --- | --- | --- |
-| CSV/TSV direct readers and registry options | `DelimitedTextReaderTest.php` plus format registry focused runs cover headed/no-header imports, `readAuto()` / `format=auto` inference from extension, source path, content row profiles, input-only direction buckets, readCSV/readTSV source provenance, delimiter/quote/header option profiles, dialect profile review packets, explicit-format/extension conflict resolution, unsupported writer reasons, and option-profile ordering. | CSV/TSV/registry evidence improved to 10 local cases; broader reader parity remains partial. |
-| ODF/ODT package reader | Compact ODT manifest entries preserve custom `manifest:file-entry` attributes, and rich ODF package handoff now pins sidecar byte-exposure ordering for Basic scripts, RDF metadata, missing media, and unsupported-compression media; focused ODF/ODT gate passed 6,101 assertions. | ODF/ODT remains ship-ready at 52 local cases / 20 upstream rows with 0 critical ODF/ODT gaps. |
-| DOCX/OpenXML package reader | Subdocument and note/comment relationship diagnostics now report referenced/unreferenced, external/internal, missing target/content-type, relationship IDs, target summaries, query/fragment suffixes, and unsupported expansion metadata in `DocxOpenXmlReaderTest.php`. | DOCX evidence improved to 94 local cases; broader DOCX/OpenXML package parity remains partial. |
-| EPUB direct package reader | Manifest query/fragment suffix diagnostics, external/missing spine readability reports, XHTML definition-list handoff, bounded XHTML table-section review metadata, compact nav/NCX label provenance, NCX hierarchy diagnostics, and nav fragment target diagnostics landed in EPUB reader coverage. | EPUB evidence improved to 65 local cases; broader EPUB3 package parity remains partial. |
-| Shared ZIP/OPC package | `ZipPackage::entryHandoffPreflight()` role summaries now expose unique readable selected entries, handoff byte totals, handoff entry names, and issue counts by semantic role. | Shared ZIP/OPC evidence improved to 107 local cases; full package parity remains partial. |
-| Media linked-resource handoff | `MediaBagTest.php` now covers linked-resource MIME inference for CSS, audio, fonts, and JSON through Markdown, WordPress, and JSON/native handoff. | Cross-format resource handoff covered; not an input-format ship gate. |
-| Markdown/list/note boundaries | Nested fenced Div, escaped fenced-Div attributes, fenced Div section-reference boundaries, fixture nested-list round-trip, definition-list term-group, table-cell note placement, and header section Div slices landed with focused Markdown/JSON-native runs. | Markdown family remains partial after bounded block/list/note/section coverage. |
-| Markdown raw HTML serialization | `MarkdownWriter` now preserves typed raw HTML plus generic `raw_inline`/`raw_block` `html`/`html4`/`html5`/`xhtml` payloads while unsupported raw formats stay disabled; focused NativeReader/MarkdownReader run passed 7,059 assertions. | Bounded writer serialization covered; broader Markdown/CommonMark/GFM extension and reader parity remains partial. |
-| YAML metadata alias review | `MarkdownReader` now includes alias provenance in clean review summaries and `YamlMetadataReview` indexes resolved aliases by metadata path. | Bounded YAML metadata review slice covered; broader scalar/list/map diagnostics and writer round trips remain partial. |
-| Markdown math attributes | `MarkdownReaderTest.php` now covers immediate `{#id .class key="value"}` tuples after inline and display math, with writer round-trip preservation. | Bounded inline math attribute round-trip covered; broader inline writer parity remains partial. |
-| Markdown HTML list item attributes | `MarkdownReaderTest.php` now covers safe `li` id/class/data/title attributes from HTML list input through WordPress list item output while unsafe style/event attrs stay filtered. | Bounded HTML reader to WordPress list-item attribute handoff covered; broader list parity remains partial. |
-| Notes/references | LaTeX now emits de-duplicated `fn-*` hypertargets for valid labelled source notes while Markdown labelled-note output and WordPress `fn`/`fnref` anchors/backlinks stay aligned; footnote label anchors, table-cell note placement, and JSON/native `Note` label sidecars remain covered. | Notes evidence improved; broader endnote grouping, complex placement, and cross-writer anchor parity remain. |
-| CSL citations | Citation prefix/suffix review metadata now survives normalized citation nodes and citation groups, EndNote XML name-group diagnostics cover personal/corporate authors and secondary-author/editor aliases, and bounded CSL rendering diagnostics remain intact. | Bounded CSL affix and EndNote XML name diagnostics covered; broader EndNote XML reader parity, broader RIS coverage, and full bibliography reader-registry parity remain. |
-| Inline writer attributes | WordPress semantic/math inline attrs and LaTeX semantic/code/math id anchors landed with focused Markdown/LaTeX writer coverage. | Bounded writer handoff covered; broader reader/format parity remains partial. |
-| Format registry/text readers | The 20 wiki/roff/man/text markup reader input tokens now have executable unsupported ship-gate accounting, and rare text tokens now expose direction buckets, extension inference, AsciiDoc output aliases, unsupported summaries, and parity counts in `PandocFormatRegistryTest.php`. | Explicitly unsupported; first native rare text or wiki/roff/text reader implementation still required. |
-| XML/JATS/BITS direct input registry | `PandocFormatRegistryTest.php` and `XmlHtmlDomTest.php` now route `xml`, `jats`, and `bits` as partial direct input support through `XmlHtmlDom`, keep `directReaderParity=false`, and serialize unsupported direct-reader parity status/reason fields on bounded review packets. | Bounded registry routing is explicit; full XML/JATS/BITS readers remain unsupported. |
-| XML/HTML5 tree construction | `XmlHtmlDomTest.php` and `Html5DomFragmentTest.php` now verify nested table row-level `<em>` and row-group `<span>` phrasing content is foster-parented before deterministic raw HTML handoff while valid caption, tbody, tr, and td structure remains inside the table; they also report plaintext tail consumption and missing raw/RCDATA/inert raw-text end-tag diagnostics before sanitized handoff. Focused DOM tests passed 4,987 assertions. | Bounded table foster-parenting and raw-text boundary edges covered; broader HTML5 insertion-mode and tree-construction parity remains partial. |
-| XML/HTML5 template boundaries | `Html5DomTest.php` and `XmlHtmlDomTest.php` now keep outer template content inert across nested template elements and noscript/script raw-text sentinel strings while preserving parsed review provenance; focused DOM tests passed 2,448 assertions. | Bounded template/raw-text boundary slice covered; broader HTML5 tree-construction parity remains partial. |
-| JATS/BITS relationship diagnostics | `XmlHtmlDom::summarizeJatsFrontMatter()` now emits a metadata-only `relationshipDiagnostics` packet for figure, table-wrap, and bibliographic reference xref targets, per-target xref counts, resolved/unresolved xrefs, missing `rid` attributes, and `ref-type` target mismatches while keeping `directReaderParity=false`; focused `XmlHtmlDomTest.php` passed 2,161 assertions. | Bounded relationship diagnostics covered; full XML/JATS/BITS direct reader parity remains unsupported. |
-| JATS/BITS inline xref diagnostics | `XmlHtmlDom::summarizeJatsFrontMatter()` now reports body/book-body inline xref local back-reference targets and unsupported missing or non-reference target diagnostics without invoking CSL rendering; focused `XmlHtmlDomTest.php` passed 2,192 assertions. | Bounded citation-target diagnostics covered; full XML/JATS/BITS citation/reference rendering remains unsupported. |
-| JATS/BITS ref-list bibliography diagnostics | `XmlHtmlDom::summarizeJatsFrontMatter()` now emits metadata-only ref-list/reference summaries, resolved/unresolved `bibr` xref inventories, unreferenced/missing-id reference counts, and unresolved bibliography diagnostics while keeping `directReaderParity=false`. | Bounded bibliography diagnostics covered; full XML/JATS/BITS citation/reference rendering remains unsupported. |
-| JATS/BITS body, back-matter, title, and figure metadata diagnostics | `XmlHtmlDom::summarizeJatsFrontMatter()` now reports titleMetadata/subtitleMetadata, aggregate sectionTitlePaths/sectionTitlePathText, body roots, section hierarchy/depth/type metadata, recursive section title paths, xref resolution, reference/figure/table-wrap summaries, per-figure labels, titles, caption text, caption paragraphs, aggregate label/caption/title counts, missing figure metadata diagnostics, figure metadata issue rows, duplicate label buckets, figure xref link summaries, source-position records, alt-text metadata, table-wrap tbody/body row/body cell diagnostics, row and cell attributes, colspan/rowspan/scope/header metadata, back-matter ref-lists, reference metadata, citation xref targets, resolved and missing citation ids, unreferenced buckets, and BITS book-part body metadata while keeping `directReaderParity=false`; focused `XmlHtmlDomTest.php` passed 2,856 assertions. | Bounded title, body, figure metadata, table-body, and back-matter reference diagnostics covered; full XML/JATS/BITS direct reader parity remains unsupported. |
-| DocBook bibliography/reference and inline media diagnostics | `XmlHtmlDom::summarizeDocBookBibliography()` emits review-only bibliography packets, and DocBook media elements now expose mediaobject/inlinemediaobject alt/textobject evidence, imagedata target basename/content-type summaries, missing-alt diagnostics, and linkend/id associations while keeping `directReaderParity=false`; focused `XmlHtmlDomTest.php` passed 2,959 assertions. | Bounded bibliography/reference and inline media diagnostics covered; full DocBook body, inline, citation rendering, media conversion, and generated-AST parity remain partial. |
-| DocBook structural and media diagnostics | DocBook 4/5 roots now emit review-only structure packets plus bounded structural/media packets for structural blocks, admonitions, figures, mediaobject/imagedata references, xml:id/id targets, linkend resolution, missing targets, and unsupported child diagnostics; focused `XmlHtmlDomTest.php` passed 2,760 assertions. | Bounded structure, media, and target diagnostics covered; full DocBook body, inline, reference, bibliography, media conversion, and generated-AST parity remain partial. |
-| DocBook section metadata diagnostics | DocBook roots and sections now emit review-only title/subtitle provenance, section ids, roles, labels, languages, levels, direct paragraph and child-section counts, missing-title diagnostics, and duplicate-id diagnostics; focused DocBook/XML registry tests passed 4,998 assertions. | Bounded metadata diagnostics covered; full DocBook body, inline, reference, bibliography, media, and generated-AST conversion remains partial. |
-| DocBook list blocks | `MarkdownReaderTest.php` now covers bounded `itemizedlist`, `orderedlist`, nested list metadata, `variablelist` definition-list handoff, `xml:id` listitem provenance, and unsupported `listitem` child diagnostics. | Bounded list metadata covered; broader DocBook XML parity remains partial. |
-| XML/HTML object and image-map diagnostics | Standalone objects preserve form-owner metadata, image-map `usemap` provenance, and `typemustmatch` boolean serialization; image-map diagnostics now report resolved, missing, duplicate, invalid, and unreferenced association states plus area shape/coords geometry, invalid coordinates, and default-area precedence. Focused `XmlHtmlDomTest.php` passed 2,328 assertions. | Bounded object, image-map association, and area-geometry slices covered; HTML/XML/JATS DOM remains partial. |
-| IPYNB/notebook reader diagnostics | `IpynbReader` now preserves notebook metadata keys, cell metadata keys/tags, attachment/output MIME summaries, metadata-only blocked resource diagnostics, attachment media extraction plans, nbformat major/minor plus cells-array schema diagnostics, deterministic output indexes, display-order types, repeated MIME bundle keys, aggregate output diagnostics, and bounded source shape/line-ending diagnostics; focused `IpynbReaderTest.php` passed 506 assertions. | Bounded reader, nbformat, output display-order, and source diagnostics covered; full Jupyter notebook reader parity, rich output rendering, broader notebook schema parity, and native IPYNB writer support remain open. |
-| Table geometry | LaTeX `table_foot` rows now emit longtable footer sections, body-local `headRows` render in body position, and PlainWriter separates consecutive native table body groups with blank lines. | Table-foot, body-head-row, and plain-text body-group slices covered; Markdown/AsciiDoc/LaTeX body-group semantics and rowspan output gaps remain. |
-| JSON/native block and list handoff | Native `Div` adjacent `Plain` block boundaries survive WordPress handoff, native `definition_term` linebreaks now render through WordPress definition lists, and unchanged Figure child `Div` payload sidecars survive edited caption output; latest focused JSON/native run passed 2,293 assertions. | Bounded block/list/figure handoff slices covered; JSON/native remains partial. |
-| JSON/native table ColSpec sidecars | Table `Align*` and `ColWidth*` sidecars now survive safe JSON/native table rebuilds while edited width payloads regenerate only for the changed column; focused `PandocJsonNativeAstTest.php` passed 2,689 assertions. | Bounded table ColSpec sidecar slice covered; broader JSON/native constructor parity remains partial. |
-| JSON/native Figure child payloads | Edited Figure captions regenerate wrapper constructors while unchanged child block native payloads survive JSON/native writer output; focused `PandocJsonNativeAstTest.php` passed 2,293 assertions. | Bounded child block sidecar preservation covered; broader JSON/native constructor parity remains partial. |
-| JSON/native mixed block containers | `PandocJsonNativeAstTest.php` now covers mixed inline runs around nested blocks inside `BlockQuote`, `Div`, `Note`, table caption blocks, table cells, complex Figures with link/raw inline payloads around nested code blocks, shared child-block payloads, and nested `MetaInlines`/`MetaBlocks` metadata Span/Div payloads adjacent to Note/BlockQuote/Div/table-cell containers while preserving `Cite` fixture shape. | Bounded mixed-content fixture slices covered; broader JSON/native fixture parity remains partial. |
-| JSON/native table attributes | Native table id/class/data-source provenance now survives NativeReader/NativeWriter, Markdown table captions, WordPress table attributes, and LaTeX caption labels. | Bounded table metadata writer handoff covered; broader JSON/native constructor parity remains partial. |
-| JSON/native metadata payloads | Edited nested `MetaMap` and `MetaList` containers now preserve unchanged nested `MetaString` and `MetaBool` sidecars through Pandoc JSON and native writers while dropping stale edited-container sidecars. | Bounded nested metadata payload slice covered; broader JSON/native metadata and constructor parity remains partial. |
-| PDF/Typst dependency policy | Typst package dependency/source policy records sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, multi-version conflicts, source classes, source-class diagnostics, unsupported package reasons, and unsupported-reason counts; focused `PdfEngineHandoffTest.php` passed 2,237 assertions. | Bounded no-engine provenance covered; real PDF/Typst output parity remains unsupported without external engines. |
-| JSON/native task lists | `taskChecked` sidecars now preserve unchecked, checked, and nested task-list state through JSON/native readers and writers into Markdown, WordPress, and LaTeX handoff; focused `PandocJsonNativeAstTest.php` passed 2,015 assertions. | Bounded list-semantics sidecar slice covered; broader JSON/native constructor parity remains partial. |
-| JSON/native nullary constructors | Stale non-empty nullary helper payloads and `HorizontalRule`/`Null` block payloads now regenerate through JSON/native writers while readers retain source sidecars for provenance; latest focused `PandocJsonNativeAstTest.php` passed 2,875 assertions. | Bounded helper and block nullary payload slices covered; broader JSON/native constructor parity remains partial. |
-
-## JSON/Native Mixed Metadata Container Update
-
-Bounded native PHP JSON/native AST coverage advanced by one mixed metadata block-container stress slice after BibLaTeX translated subtitle aliases. `PandocJsonNativeAstTest.php` now covers nested `MetaInlines` and `MetaBlocks`, metadata `Span`/`Div` payloads, adjacent `Note`, `BlockQuote`, `Div`, and table-cell containers, and `Cite` fixture preservation across JSON/native writers and readers.
-
-Verification passed `php -l` for `PandocJsonNativeAstTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `PandocJsonNativeAstTest.php` passed (`1` file, `3014` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `79751` assertions, `0` failures). No Pandoc binary, JSON filters, Cabal/Haskell runner, Node tooling, browser renderer, online service, live provider test, or external validator was invoked.
-
-JSON/native evidence is now 61 local cases against the 252 accepted static upstream JSON/native artifacts. Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips remain partial.
-
-## JSON/Native Table ColSpec Sidecar Update
-
-Bounded native PHP JSON/native AST coverage advanced by one table column-specification sidecar slice after IPYNB source line-ending diagnostics. `PandocJsonNativeAstTest.php` now covers `Align*` and `ColWidth*` payload sidecars through safe table rebuilds, verifies unchanged colspec payloads survive JSON and native writers, and verifies an edited numeric column width regenerates only that stale width payload while preserving unchanged alignment and neighboring width sidecars.
-
-Verification passed `php -l` for `PandocJsonNativeAstTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `PandocJsonNativeAstTest.php` passed (`1` file, `2689` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `78117` assertions, `0` failures). No Pandoc binary, JSON filters, Cabal/Haskell runner, Node tooling, browser renderer, online service, live provider test, or external validator was invoked.
-
-JSON/native evidence is now 60 local cases against the 252 accepted static upstream JSON/native artifacts. Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips remain partial.
-
-## IPYNB Source Line-Ending Diagnostics Update
-
-Bounded native PHP IPYNB coverage advanced by one source diagnostics slice after DocBook inline media alt diagnostics. `IpynbReader` now reports string versus line-array source shape, source part count, byte count, logical line count, LF/CRLF/CR line-ending counts, selected line-ending style, trailing-newline state, and empty-source diagnostics at cell and document levels without duplicating source text into diagnostic metadata.
-
-Verification passed `php -l` for `IpynbReader.php` and `IpynbReaderTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `IpynbReaderTest.php` passed (`1` file, `506` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `78061` assertions, `0` failures). No Jupyter, Python notebook execution, Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.
-
-IPYNB evidence is now 9 local bounded reader/diagnostic cases, including source line-ending, output display-order, repeated MIME-bundle key, schema, nbformat, attachment, rich-output policy, and metadata/resource diagnostics. Full Jupyter notebook reader parity, rich output rendering, broader notebook schema parity, and native IPYNB writer support remain open.
-
-## DocBook Structural Media Update
-
-Bounded native PHP DocBook coverage advanced by one structural/media diagnostics slice after CSV/TSV multiline quoted-record diagnostics. `XmlHtmlDom::summarizeDocBookReviewPacket()` now reports structural block inventories, admonition-like blocks, figures, mediaobject/imagedata references, xml:id/id targets, linkend resolution and missing-target summaries, and unsupported child diagnostics while keeping `directReaderParity=false`.
-
-Verification passed `php -l` for `XmlHtmlDom.php` and `XmlHtmlDomTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `XmlHtmlDomTest.php` passed (`1` file, `2760` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77591` assertions, `0` failures). No Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, online validator, online service, live provider test, or external validator was invoked.
-
-DocBook/list/table evidence is now 20 local cases against the 16 accepted static upstream DocBook/table rows. DocBook remains partial; full body conversion, inline/block/reference/bibliography mapping, generated AST parity, broader fixture hydration, and actual media/admonition conversion remain open.
-
-## DocBook Inline Media Alt Diagnostics Update
-
-Bounded native PHP DocBook coverage advanced by one inline media alt diagnostics slice after IPYNB output display-order diagnostics. `XmlHtmlDom` now reports mediaobject and inlinemediaobject alt/textobject fallback evidence, imagedata target path/basename/extension/content-type summaries, missing-alt diagnostics, and linkend/id association diagnostics while keeping `directReaderParity=false`.
-
-Verification passed `php -l` for `XmlHtmlDom.php` and `XmlHtmlDomTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `XmlHtmlDomTest.php` passed (`1` file, `2959` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `78026` assertions, `0` failures). No Pandoc binary, XML validator, browser, Node tooling, online service, live provider test, or external validator was invoked.
-
-DocBook/list/table geometry evidence is now 22 local cases against the 16 accepted static upstream DocBook/table rows. Full DocBook body conversion, inline/reference rendering, media conversion, generated AST parity, and broader fixture hydration remain partial.
-
-## DocBook Bibliography Reference Diagnostics Update
-
-Bounded native PHP DocBook coverage advanced by one bibliography/reference diagnostics slice after EndNote XML name group diagnostics. `XmlHtmlDom::summarizeDocBookBibliography()` now reports bibliography and entry ids, titles, authors, year-like metadata, citation/xref/link targets, duplicate bibliography ids, missing reference targets, and unsupported bibliography child summaries.
-
-Verification passed `php -l` for `XmlHtmlDom.php` and `XmlHtmlDomTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `XmlHtmlDomTest.php` passed (`1` file, `2914` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77924` assertions, `0` failures). No Pandoc binary, XML validator, browser, Node tooling, online service, live provider test, or external validator was invoked.
-
-DocBook/list/table geometry evidence is now 21 local cases against the 16 accepted static upstream DocBook/table rows. Full DocBook body conversion, inline/reference rendering, media conversion, generated AST parity, and broader fixture hydration remain partial.
-
-## IPYNB Output Display-Order Diagnostics Update
-
-Bounded native PHP IPYNB coverage advanced by one output display-order diagnostics slice after DocBook bibliography/reference diagnostics. `IpynbReader` now records deterministic output indexes, output display-order types, repeated MIME bundle keys across display and execute results, mixed-output aggregate diagnostics, and execution-count mismatch records while keeping notebook output bytes metadata-only.
-
-Verification passed `php -l` for `IpynbReader.php` and `IpynbReaderTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `IpynbReaderTest.php` passed (`1` file, `471` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77981` assertions, `0` failures). No Jupyter, Python notebook execution, Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.
-
-IPYNB evidence is now 8 local bounded reader/diagnostic cases, including output display-order, repeated MIME-bundle key, schema, nbformat, attachment, rich-output policy, and metadata/resource diagnostics. Full Jupyter notebook reader parity, rich output rendering, broader notebook schema parity, and native IPYNB writer support remain open.
-
-## EndNote XML Name Group Diagnostics Update
-
-Bounded native PHP CSL/EndNote XML coverage advanced by one name-group diagnostics slice after IPYNB nbformat diagnostics. `CitationCslProcessor::endnoteXmlItems()` now parses personal and corporate author groups, secondary-author/editor aliases, empty and malformed name-part diagnostics, stable raw unsupported-field preservation, source attachment diagnostics, and locator suffix diagnostics.
-
-Verification passed `php -l` for `CitationCslProcessor.php` and `CitationCslProcessorTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `CitationCslProcessorTest.php` passed (`1` file, `5385` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77866` assertions, `0` failures). No Pandoc binary, citeproc, BibTeX, Biber, Node tooling, online service, live provider test, or external validator was invoked.
-
-CSL/BibTeX/BibLaTeX/csljson/RIS/EndNote XML evidence is now 79 local cases against the 8 accepted static upstream citation rows. Broader EndNote XML reader parity, broader RIS tag coverage, bibliography reader-registry parity, and wider CSL handoff diagnostics remain partial.
-
-## IPYNB Nbformat Diagnostics Update
-
-Bounded native PHP IPYNB coverage advanced by one nbformat version diagnostics slice after JATS/BITS figure caption metadata diagnostics. `IpynbReader` now reports missing, invalid, unsupported, and future nbformat major/minor diagnostics plus missing or invalid cells arrays as metadata-only schema review packets while preserving raw nbformat values and resource/output byte blocking.
-
-Verification passed `php -l` for `IpynbReader.php`, `PandocFormatRegistry.php`, and `IpynbReaderTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `IpynbReaderTest.php` passed (`1` file, `414` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77826` assertions, `0` failures). No Jupyter, Python notebook execution, Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.
-
-IPYNB evidence is now 7 local bounded reader/diagnostic cases, including 1 nbformat diagnostics slice. Full Jupyter notebook reader parity, rich output rendering, broader notebook schema parity, and native IPYNB writer support remain open.
-
-## Queue Snapshot
-
-Open core-blocker slices still exist and should continue as targeted, current-base
-work rather than broad duplicate timestamp slices:
-
-| Family | Open slices after cleanup |
+| Counter | Count |
 | --- | ---: |
-| DOCX/OpenXML package ingestion | 9 |
-| EPUB3 package ingestion | 15 |
-| JSON/native AST constructor completeness | 10 |
-| ODF/ODT OpenDocument package ingestion | 11 |
-| PDF/Typst boundary provenance | 16 |
-| XML/HTML5 DOM | 15 |
-| Citation/bibliography CSL | 20 |
-| Shared ZIP/OPC package | 12 |
+| In-scope input formats | 50 |
+| Ship-ready input formats | 1 |
+| Partial input formats | 21 |
+| Unsupported input formats | 28 |
+| PHP test failures | 0 |
 
-## JATS/BITS Figure Caption Metadata Update
+## Input / Import Formats
 
-Bounded native PHP XML/JATS/BITS coverage advanced by one figure caption metadata diagnostics slice after JSON/native citation prefix/suffix payload preservation. `XmlHtmlDom::summarizeJatsFrontMatter()` now emits figure metadata issue rows, duplicate label buckets, figure xref link summaries, source-position records, caption/title/alt-text metadata positions, and media target diagnostics while preserving `directReaderParity=false` and `figureMediaPayloadBytesExposed=false`.
+| Format / path | State | Passed upstream | Upstream tests |
+| --- | --- | ---: | ---: |
+| ODF / ODT / OpenDocument (`odt`) | ship-ready | 20 | 20 |
+| Markdown / CommonMark / GFM | partial | 452 | 1,096 |
+| HTML / XML / JATS / BITS DOM | partial | 29 | 29 |
+| JSON / native AST | partial | 61 | 252 |
+| DOCX / OpenXML | partial | 35 | 35 |
+| EPUB / EPUB3 | partial | 9 | 9 |
+| CSV / TSV | partial | 2 | 2 |
+| CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | partial | 8 | 8 |
+| LaTeX / TeX / math | partial | 14 | 14 |
+| DocBook | partial | 16 | 16 |
+| RTF | partial | 3 | 3 |
+| Shared ZIP / OPC package | dependency | 67 | 67 |
+| Typst input | unsupported | 0 | 17 |
+| PPTX / XLSX | unsupported | 0 | 2 |
+| Wiki / roff / text markup readers | unsupported | 0 | 20 |
 
-Verification passed `php -l` for `XmlHtmlDom.php` and `XmlHtmlDomTest.php`; `jq empty` for `lanes/pandoc/lane-status.json` and `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`; focused `XmlHtmlDomTest.php` passed (`1` file, `2856` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `77807` assertions, `0` failures). No Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, external XML validator, online service, live provider test, or external validator was invoked.
+## Adjacent Import Targets
 
-XML/HTML/JATS/DocBook DOM evidence is now 295 local cases against the 29 accepted static upstream XML/HTML/JATS/DocBook rows. HTML5 tree construction remains partial; broader insertion-mode, malformed content, image-map semantics, and full XML/JATS/BITS direct reader parity remain open.
-
-## Shipping Call
-
-The progress dashboard is reconciled, and ODF/ODT is ship-ready with evidence.
-The full Pandoc native PHP input lane remains active because most input-token
-families still have partial or unsupported coverage. The next work should stay
-inside the existing format-closure and core-blocker gates, using focused tests
-and the full `lanes/pandoc/tests` gate before submission.
+| Target | State | Passed upstream | Upstream tests |
+| --- | --- | ---: | ---: |
+| PDF import | adjacent | 17 | 17 |
+| Legacy DOC / CFB | adjacent | 7 | 7 |
+| IPYNB / notebook | skipped this phase | 0 | 0 |
