@@ -1285,6 +1285,10 @@ final class CitationCslProcessor
             'id' => $id,
             'type' => $itemType,
             'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle', 'sourcetitle']),
+            'endnoteTitleVariantSummary' => self::firstStringField($item, ['endnote-title-variant-summary', 'endnoteTitleVariantSummary', 'endnotetitlevariantsummary']),
+            'endnotePublicationTypeHintSummary' => self::firstStringField($item, ['endnote-publication-type-hint-summary', 'endnotePublicationTypeHintSummary', 'endnotepublicationtypehintsummary']),
+            'endnoteDateDiagnosticSummary' => self::firstStringField($item, ['endnote-date-diagnostic-summary', 'endnoteDateDiagnosticSummary', 'endnotedatediagnosticsummary']),
+            'endnoteUnsupportedFieldSummary' => self::firstStringField($item, ['endnote-unsupported-field-summary', 'endnoteUnsupportedFieldSummary', 'endnoteunsupportedfieldsummary']),
             'citationAliases' => $citationAliases,
             'citationAliasSummary' => implode('; ', $citationAliases),
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
@@ -1842,6 +1846,10 @@ final class CitationCslProcessor
     private static function endnoteRecordToItem(\DOMElement $record, int $index): array
     {
         $refType = self::endnoteRefType($record);
+        $titleFields = self::endnoteTitleFields($record);
+        $datePacket = self::endnoteDatePacket($record);
+        $publicationHints = self::endnotePublicationTypeHints($record, $refType);
+        $unsupportedFields = self::endnoteUnsupportedFields($record);
         $electronicResource = self::endnoteFirstText($record, ['electronic-resource-num', 'doi']);
         $url = self::endnoteFirstRelatedUrl($record);
         $doi = preg_match('/^(?:doi:\s*)?10\.\S+/i', $electronicResource) === 1
@@ -1868,10 +1876,13 @@ final class CitationCslProcessor
         $item = [
             'id' => self::endnoteRecordId($record, $index),
             'type' => self::endnoteCslType($refType),
-            'title' => self::endnoteFirstText($record, ['title']),
-            'short-title' => self::endnoteFirstText($record, ['short-title']),
-            'container-title' => self::endnoteFirstText($record, ['secondary-title', 'full-title', 'periodical-title']),
+            'title' => $titleFields['title'],
+            'short-title' => $titleFields['shortTitle'],
+            'container-title' => $titleFields['secondaryTitle'] !== ''
+                ? $titleFields['secondaryTitle']
+                : self::endnoteFirstText($record, ['full-title', 'periodical-title']),
             'container-title-short' => self::endnoteFirstText($record, ['abbr-1', 'abbr-2', 'abbr-3']),
+            'collection-title' => $titleFields['tertiaryTitle'],
             'publisher' => self::endnoteFirstText($record, ['publisher']),
             'publisher-place' => self::endnoteFirstText($record, ['pub-location', 'place-published', 'city']),
             'volume' => self::endnoteFirstText($record, ['volume']),
@@ -1884,21 +1895,33 @@ final class CitationCslProcessor
             'language' => self::endnoteFirstText($record, ['language']),
             'abstract' => self::endnoteFirstText($record, ['abstract']),
             'note' => self::endnoteFirstText($record, ['notes']),
-            'issued' => self::endnoteDate($record),
+            'issued' => $datePacket['issued'],
             'author' => $authorGroup['names'],
             'editor' => $editorGroup['names'],
             'translator' => $translatorGroup['names'],
             'keyword' => self::endnoteTextList($record, ['keyword']),
             'sourceFileDiagnostics' => self::endnoteSourceFileDiagnostics($record),
+            'endnoteTitleVariantSummary' => $titleFields['summary'],
+            'endnotePublicationTypeHintSummary' => $publicationHints['summary'],
+            'endnoteDateDiagnosticSummary' => self::endnoteReasonSummary($datePacket['diagnostics']),
+            'endnoteUnsupportedFieldSummary' => self::endnoteUnsupportedFieldSummary($unsupportedFields),
             'rawEndnoteXml' => [
                 'refType' => $refType,
                 'recordNumber' => self::endnoteFirstText($record, ['rec-number']),
                 'accessionNumber' => self::endnoteFirstText($record, ['accession-num']),
                 'database' => self::endnoteDatabaseName($record),
+                'titleFields' => $titleFields['fields'],
+                'titleVariantSummary' => $titleFields['summary'],
+                'publicationTypeHints' => $publicationHints['hints'],
+                'publicationTypeHintSummary' => $publicationHints['summary'],
+                'dateFields' => $datePacket['fields'],
+                'dateDiagnostics' => $datePacket['diagnostics'],
+                'dateDiagnosticSummary' => self::endnoteReasonSummary($datePacket['diagnostics']),
                 'nameGroups' => $nameGroups,
                 'nameGroupDiagnostics' => $nameDiagnostics,
                 'nameGroupDiagnosticSummary' => self::endnoteNameDiagnosticSummary($nameDiagnostics),
-                'unsupportedFields' => self::endnoteUnsupportedFields($record),
+                'unsupportedFields' => $unsupportedFields,
+                'unsupportedFieldSummary' => self::endnoteUnsupportedFieldSummary($unsupportedFields),
             ],
         ];
 
@@ -2010,6 +2033,125 @@ final class CitationCslProcessor
         }
 
         return $values;
+    }
+
+    /**
+     * @return array{
+     *     title:string,
+     *     secondaryTitle:string,
+     *     tertiaryTitle:string,
+     *     alternateTitle:string,
+     *     shortTitle:string,
+     *     fields:list<array{field:string, value:string, parent:string}>,
+     *     summary:string
+     * }
+     */
+    private static function endnoteTitleFields(\DOMElement $record): array
+    {
+        $fieldNames = ['title', 'secondary-title', 'tertiary-title', 'alternate-title', 'alt-title', 'short-title'];
+        $fields = self::endnoteRawTextFields($record, $fieldNames);
+        $title = self::endnoteFirstRawField($fields, ['title']);
+        $secondaryTitle = self::endnoteFirstRawField($fields, ['secondary-title']);
+        $tertiaryTitle = self::endnoteFirstRawField($fields, ['tertiary-title']);
+        $alternateTitle = self::endnoteFirstRawField($fields, ['alternate-title', 'alt-title']);
+        $shortTitle = self::endnoteFirstRawField($fields, ['short-title', 'alternate-title', 'alt-title']);
+
+        return [
+            'title' => $title,
+            'secondaryTitle' => $secondaryTitle,
+            'tertiaryTitle' => $tertiaryTitle,
+            'alternateTitle' => $alternateTitle,
+            'shortTitle' => $shortTitle,
+            'fields' => $fields,
+            'summary' => self::endnoteFieldSummary($fields),
+        ];
+    }
+
+    /**
+     * @return array{hints:list<array{field:string, value:string, cslType?:string, reason:string}>, summary:string}
+     */
+    private static function endnotePublicationTypeHints(\DOMElement $record, string $refType): array
+    {
+        $hints = [];
+        if ($refType !== '') {
+            $hints[] = [
+                'field' => 'ref-type',
+                'value' => $refType,
+                'cslType' => self::endnoteCslType($refType),
+                'reason' => 'endnote-ref-type-mapped',
+            ];
+        }
+
+        foreach (self::endnoteRawTextFields($record, ['work-type', 'publication-type', 'pub-type', 'type', 'medium', 'genre', 'thesis-type', 'report-type']) as $field) {
+            $hints[] = [
+                'field' => $field['field'],
+                'value' => $field['value'],
+                'reason' => 'endnote-publication-hint-preserved',
+            ];
+        }
+
+        $parts = [];
+        foreach ($hints as $hint) {
+            $value = (string) $hint['value'];
+            if (isset($hint['cslType']) && $hint['cslType'] !== '') {
+                $value .= ' -> ' . $hint['cslType'];
+            }
+            $parts[] = $hint['field'] . ': ' . $value;
+        }
+
+        return ['hints' => $hints, 'summary' => implode('; ', $parts)];
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<array{field:string, value:string, parent:string}>
+     */
+    private static function endnoteRawTextFields(\DOMElement $record, array $localNames): array
+    {
+        $fields = [];
+        foreach ($localNames as $localName) {
+            foreach (XmlHtmlDom::descendantElements($record, $localName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                if ($value === '') {
+                    continue;
+                }
+
+                $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode->localName : '';
+                $fields[] = ['field' => $localName, 'value' => $value, 'parent' => $parent];
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<array{field:string, value:string, parent:string}> $fields
+     * @param list<string> $fieldNames
+     */
+    private static function endnoteFirstRawField(array $fields, array $fieldNames): string
+    {
+        foreach ($fieldNames as $fieldName) {
+            foreach ($fields as $field) {
+                if ($field['field'] === $fieldName && $field['value'] !== '') {
+                    return $field['value'];
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<array{field:string, value:string, parent:string}> $fields
+     */
+    private static function endnoteFieldSummary(array $fields): string
+    {
+        $parts = [];
+        foreach ($fields as $field) {
+            $parts[] = $field['field'] . ': ' . $field['value'];
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -2208,6 +2350,14 @@ final class CitationCslProcessor
      */
     private static function endnoteNameDiagnosticSummary(array $diagnostics): string
     {
+        return self::endnoteReasonSummary($diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function endnoteReasonSummary(array $diagnostics): string
+    {
         $counts = [];
         foreach ($diagnostics as $diagnostic) {
             $reason = trim((string) ($diagnostic['reason'] ?? ''));
@@ -2228,36 +2378,106 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array{
+     *     issued:array<string, mixed>|null,
+     *     fields:list<array{field:string, value:string, parent:string}>,
+     *     diagnostics:list<array{field:string, value:string, parent:string, reason:string, severity:string}>
+     * }
      */
-    private static function endnoteDate(\DOMElement $record): ?array
+    private static function endnoteDatePacket(\DOMElement $record): array
     {
-        $value = self::endnoteFirstText($record, ['year']);
-        if ($value === '') {
-            $value = self::endnoteFirstText($record, ['date']);
-        }
-        if ($value === '') {
-            return null;
+        $fields = [];
+        $diagnostics = [];
+        $candidates = [];
+        foreach (['year', 'date', 'pub-date', 'publication-date', 'issue-date'] as $fieldName) {
+            foreach (XmlHtmlDom::descendantElements($record, $fieldName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode->localName : '';
+                $fields[] = ['field' => $fieldName, 'value' => $value, 'parent' => $parent];
+                if ($value === '') {
+                    $diagnostics[] = self::endnoteDateDiagnostic($fieldName, $value, $parent, 'endnote-date-empty-field');
+                    continue;
+                }
+
+                $parsed = self::endnoteParsedDate($value);
+                if ($parsed['malformed']) {
+                    $diagnostics[] = self::endnoteDateDiagnostic($fieldName, $value, $parent, 'endnote-date-malformed-field');
+                }
+
+                $candidates[] = ['field' => $fieldName, 'date' => $parsed['date'], 'rank' => self::endnoteDateRank($parsed['date'])];
+            }
         }
 
+        usort(
+            $candidates,
+            static fn (array $left, array $right): int => ((int) $right['rank']) <=> ((int) $left['rank'])
+        );
+
+        return [
+            'issued' => isset($candidates[0]['date']) && is_array($candidates[0]['date']) ? $candidates[0]['date'] : null,
+            'fields' => $fields,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{date:array<string, mixed>, malformed:bool}
+     */
+    private static function endnoteParsedDate(string $value): array
+    {
         $normalized = str_replace(['.', '/'], '-', trim($value));
-        if (preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $normalized, $matches) === 1) {
+        if (preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/', $normalized, $matches) === 1) {
             $parts = [(int) $matches[1]];
-            if (isset($matches[2]) && $matches[2] !== '' && (int) $matches[2] > 0) {
-                $parts[] = (int) $matches[2];
+            $month = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : null;
+            $day = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : null;
+            if ($month !== null) {
+                if ($month < 1 || $month > 12) {
+                    return ['date' => ['literal' => $value, 'raw' => $value], 'malformed' => true];
+                }
+                $parts[] = $month;
             }
-            if (isset($matches[3]) && $matches[3] !== '' && (int) $matches[3] > 0) {
-                $parts[] = (int) $matches[3];
+            if ($day !== null) {
+                if ($day < 1 || $day > 31) {
+                    return ['date' => ['literal' => $value, 'raw' => $value], 'malformed' => true];
+                }
+                $parts[] = $day;
             }
 
-            return ['date-parts' => [$parts], 'raw' => $value];
+            return ['date' => ['date-parts' => [$parts], 'raw' => $value], 'malformed' => false];
         }
 
         if (preg_match('/\b(\d{4})\b/', $value, $matches) === 1) {
-            return ['date-parts' => [[(int) $matches[1]]], 'raw' => $value];
+            return ['date' => ['date-parts' => [[(int) $matches[1]]], 'raw' => $value], 'malformed' => false];
         }
 
-        return ['literal' => $value, 'raw' => $value];
+        return ['date' => ['literal' => $value, 'raw' => $value], 'malformed' => true];
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function endnoteDateRank(array $date): int
+    {
+        $parts = $date['date-parts'][0] ?? null;
+        if (is_array($parts) && $parts !== []) {
+            return 10 + count($parts);
+        }
+
+        return trim((string) ($date['literal'] ?? '')) !== '' ? 1 : 0;
+    }
+
+    /**
+     * @return array{field:string, value:string, parent:string, reason:string, severity:string}
+     */
+    private static function endnoteDateDiagnostic(string $field, string $value, string $parent, string $reason): array
+    {
+        return [
+            'field' => $field,
+            'value' => $value,
+            'parent' => $parent,
+            'reason' => $reason,
+            'severity' => 'warning',
+        ];
     }
 
     private static function endnoteFirstRelatedUrl(\DOMElement $record): string
@@ -2360,6 +2580,19 @@ final class CitationCslProcessor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param list<array{field:string, value:string, reason:string}> $fields
+     */
+    private static function endnoteUnsupportedFieldSummary(array $fields): string
+    {
+        $parts = [];
+        foreach ($fields as $field) {
+            $parts[] = $field['field'] . ': ' . $field['value'];
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -10165,6 +10398,10 @@ final class CitationCslProcessor
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'source', 'source-title', 'sourcetitle' => (string) ($item['source'] ?? ''),
+            'endnote-title-variant-summary', 'endnote-title-variants' => (string) ($item['endnoteTitleVariantSummary'] ?? ''),
+            'endnote-publication-type-hint-summary', 'endnote-publication-type-hints' => (string) ($item['endnotePublicationTypeHintSummary'] ?? ''),
+            'endnote-date-diagnostic-summary', 'endnote-date-diagnostics' => (string) ($item['endnoteDateDiagnosticSummary'] ?? ''),
+            'endnote-unsupported-field-summary', 'endnote-unsupported-fields' => (string) ($item['endnoteUnsupportedFieldSummary'] ?? ''),
             'source-file-summary', 'source-files-summary', 'source-files', 'source-attachment-summary', 'source-attachments' => $this->sourceFileSummary($item),
             'source-file-paths', 'source-file-path' => $this->sourceFilePaths($item),
             'source-file-labels', 'source-file-label' => $this->sourceFileLabels($item),

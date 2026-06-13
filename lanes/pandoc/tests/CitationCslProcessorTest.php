@@ -29138,6 +29138,147 @@ XML);
         $t->contains('<p>EndNote XML name import [see Ng, Migration Review Desk, and Roe | Editor, Curator, and GivenOnly | endnote-attachment-not-imported].</p>', $blocks);
         $t->contains('<dt>Ng, Migration Review Desk, and Roe 2026</dt><dd>EndNote XML Name Diagnostics Packet :: Ng, Nia, Migration Review Desk, Roe :: Editor, Eli, Curator, Cory, GivenOnly :: endnote-attachment-not-imported :: endnote; names</dd>', $blocks);
     },
+    'parses bounded endnote xml title date and publication diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <ref-type name="Journal Article">17</ref-type>
+      <rec-number>314</rec-number>
+      <accession-num>endnote-title-dates</accession-num>
+      <contributors>
+        <authors>
+          <author>Ng, Nia</author>
+          <author>
+            <first-name></first-name>
+          </author>
+        </authors>
+      </contributors>
+      <titles>
+        <title>EndNote XML Title Date Packet</title>
+        <secondary-title>Journal of Title Diagnostics</secondary-title>
+        <tertiary-title>Proceedings of Review Metadata</tertiary-title>
+        <alternate-title>Title Diag. Packet</alternate-title>
+      </titles>
+      <dates>
+        <year></year>
+        <date>2026-06-12</date>
+        <date>2026-13-40</date>
+      </dates>
+      <work-type>peer reviewed article</work-type>
+      <publication-type>online ahead of print</publication-type>
+      <periodical>
+        <abbr-1>JTD</abbr-1>
+      </periodical>
+      <publisher>Review Press</publisher>
+      <pub-location>Portland</pub-location>
+      <volume>9</volume>
+      <number>2</number>
+      <pages>10-18</pages>
+      <urls>
+        <related-urls>
+          <url>https://example.test/endnote-title-date</url>
+        </related-urls>
+        <pdf-urls>
+          <url>attachments/title-date.pdf</url>
+        </pdf-urls>
+      </urls>
+      <keywords>
+        <keyword>endnote</keyword>
+        <keyword>dates</keyword>
+      </keywords>
+      <custom3>Unsupported title/date note</custom3>
+      <remote-database-name>Legacy EndNote Library</remote-database-name>
+      <research-notes>Keep raw date warning</research-notes>
+    </record>
+  </records>
+</xml>
+XML;
+
+        $items = CitationCslProcessor::endnoteXmlItems($xml);
+        $t->same(1, count($items));
+        $item = $items[0];
+        $t->same('EndNote XML Title Date Packet', $item['title']);
+        $t->same('Journal of Title Diagnostics', $item['container-title']);
+        $t->same('Title Diag. Packet', $item['short-title']);
+        $t->same('Proceedings of Review Metadata', $item['collection-title']);
+        $t->same(['date-parts' => [[2026, 6, 12]], 'raw' => '2026-06-12'], $item['issued']);
+        $t->same('ref-type: Journal Article -> article-journal; work-type: peer reviewed article; publication-type: online ahead of print', $item['rawEndnoteXml']['publicationTypeHintSummary']);
+        $t->same('title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet', $item['rawEndnoteXml']['titleVariantSummary']);
+        $t->same(['year', 'date', 'date'], array_column($item['rawEndnoteXml']['dateFields'], 'field'));
+        $t->same(['', '2026-06-12', '2026-13-40'], array_column($item['rawEndnoteXml']['dateFields'], 'value'));
+        $t->same([
+            'endnote-date-empty-field',
+            'endnote-date-malformed-field',
+        ], array_column($item['rawEndnoteXml']['dateDiagnostics'], 'reason'));
+        $t->same('endnote-date-empty-field: 1; endnote-date-malformed-field: 1', $item['rawEndnoteXml']['dateDiagnosticSummary']);
+        $t->same('endnote-name-empty-structured-parts: 1', $item['rawEndnoteXml']['nameGroupDiagnosticSummary']);
+        $t->same('endnote-attachment-not-imported', $item['sourceFileDiagnostics'][0]['reason']);
+        $t->same('attachments/title-date.pdf', $item['sourceFileDiagnostics'][0]['path']);
+        $t->same(['custom3', 'remote-database-name', 'research-notes'], array_column($item['rawEndnoteXml']['unsupportedFields'], 'field'));
+        $t->same('custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning', $item['rawEndnoteXml']['unsupportedFieldSummary']);
+
+        $processor = CitationCslProcessor::fromEndnoteXml($xml);
+        $normalized = $processor->item('endnote-title-dates');
+        $t->same('Title Diag. Packet', $normalized['shortTitle'] ?? null);
+        $t->same('Proceedings of Review Metadata', $normalized['collectionTitle'] ?? null);
+        $t->same('JTD', $normalized['containerTitleShort'] ?? null);
+        $t->same([2026, 6, 12], $normalized['issuedDate']['parts'] ?? null);
+        $t->same('endnote-date-empty-field: 1; endnote-date-malformed-field: 1', $normalized['endnoteDateDiagnosticSummary'] ?? null);
+        $t->same('endnote-name-empty-structured-parts: 1', $normalized['raw']['rawEndnoteXml']['nameGroupDiagnosticSummary'] ?? null);
+        $t->same('remote-database-name', $normalized['raw']['rawEndnoteXml']['unsupportedFields'][1]['field'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded EndNote XML Title Date Review</title>
+    <id>https://example.test/styles/bounded-endnote-xml-title-date-review</id>
+    <updated>2026-06-13T05:48:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="short-title"/>
+        <date variable="issued"/>
+        <text variable="endnote-date-diagnostic-summary"/>
+        <text variable="endnote-publication-type-hint-summary"/>
+        <text variable="source-file-diagnostic-reasons"/>
+        <text variable="locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="short-title"/>
+      <text variable="endnote-title-variant-summary"/>
+      <text variable="endnote-unsupported-field-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $locatorCitation = $citation('endnote-title-dates', '[@endnote-title-dates]', 'normal', ['prefix' => 'see', 'suffix' => 'sec. 2-3']);
+        $diagnostics = $processor->citationLocatorDiagnostics($locatorCitation);
+        $t->same('citation-locator-suffix-inferred', $diagnostics[0]['reason'] ?? null);
+        $t->same(
+            '[see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -> article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported | citation-locator-suffix-inferred]',
+            $styled->renderCitationCluster([$locatorCitation])
+        );
+        $t->same(
+            'EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning',
+            $styled->renderBibliographyEntry('endnote-title-dates')
+        );
+
+        $document = (new MarkdownReader())->read('EndNote XML title dates cite [see @endnote-title-dates, sec. 2-3].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>EndNote XML title dates cite [see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -&gt; article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported].</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning</dd>', $blocks);
+    },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
 TY  - JOUR
