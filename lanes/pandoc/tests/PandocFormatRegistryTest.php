@@ -1052,6 +1052,183 @@ return [
             }
         }
     },
+    'tracks tabular data reader option registry metadata without full reader parity claims' => static function (TestRunner $t): void {
+        $t->same(['csv', 'tsv'], PandocFormatRegistry::tabularDataInputFormats());
+        $t->same([], PandocFormatRegistry::tabularDataOutputFormats());
+        $t->same([
+            '.csv' => 'csv',
+            '.tsv' => 'tsv',
+        ], PandocFormatRegistry::tabularDataExtensionInference());
+
+        $t->same('csv', PandocFormatRegistry::inferTabularDataFormatFromExtension('.CSV'));
+        $t->same('tsv', PandocFormatRegistry::inferTabularDataFormatFromExtension('tsv'));
+        $t->same(null, PandocFormatRegistry::inferTabularDataFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferTabularDataFormatFromExtension('.ods'));
+        $t->same(['csv', 'tsv'], PandocFormatRegistry::tabularDataFormatsWithExtensionInference());
+        $t->same([], PandocFormatRegistry::tabularDataFormatsWithoutExtensionInference());
+
+        $directions = PandocFormatRegistry::tabularDataFormatDirections();
+        $t->same(['csv', 'tsv'], array_keys($directions));
+        $t->same([], PandocFormatRegistry::tabularDataBidirectionalFormats());
+        $t->same(['csv', 'tsv'], PandocFormatRegistry::tabularDataInputOnlyFormats());
+        $t->same([], PandocFormatRegistry::tabularDataOutputOnlyFormats());
+        foreach ($directions as $format => $direction) {
+            $t->same(true, $direction['input'], "Tabular data {$format} should remain an input token");
+            $t->same(false, $direction['output'], "Tabular data {$format} should not be reported as an output token");
+            $t->same('input-only', $direction['direction']);
+            $t->same('partial', $direction['inputStatus']);
+            $t->same('not-applicable', $direction['outputStatus']);
+        }
+
+        $profiles = PandocFormatRegistry::tabularDataReaderOptionProfiles();
+        $t->same([
+            'delimiter' => ',',
+            'delimiterName' => 'comma',
+            'quote' => '"',
+            'keepSpace' => false,
+            'escape' => null,
+            'firstRowHeader' => true,
+            'emptyInputPolicy' => 'empty-document',
+            'multilineCellPolicy' => 'linebreak-separated-plain-blocks',
+            'readerOptionsUsed' => false,
+        ], $profiles['csv']);
+        $t->same([
+            'delimiter' => "\t",
+            'delimiterName' => 'tab',
+            'quote' => null,
+            'keepSpace' => false,
+            'escape' => null,
+            'firstRowHeader' => true,
+            'emptyInputPolicy' => 'empty-document',
+            'multilineCellPolicy' => 'linebreak-separated-plain-blocks',
+            'readerOptionsUsed' => false,
+        ], $profiles['tsv']);
+
+        $inputSupport = PandocFormatRegistry::tabularDataInputSupport();
+        foreach ($inputSupport as $format => $support) {
+            $t->same('partial', $support['status'], "Tabular data {$format} should expose the bounded native reader without full parity");
+            $t->same(DelimitedTextReader::class, $support['implementation']);
+            $t->contains('full Pandoc', $support['notes']);
+        }
+
+        $provenance = PandocFormatRegistry::tabularDataInputSourceProvenance();
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.CSV',
+            'function' => 'readCSV',
+            'registry' => '("csv"          , TextReader readCSV)',
+            'csvOptions' => 'defaultCSVOptions',
+            'readerOptions' => 'ignored by readCSV',
+        ], $provenance['csv']);
+        $t->same([
+            'module' => 'Text.Pandoc.Readers.CSV',
+            'function' => 'readTSV',
+            'registry' => '("tsv"          , TextReader readTSV)',
+            'csvOptions' => 'CSVOptions with tab delimiter, no quote, no escape, keepSpace false',
+            'readerOptions' => 'ignored by readTSV',
+        ], $provenance['tsv']);
+
+        $t->same([], PandocFormatRegistry::unsupportedTabularDataInputFormats());
+        $t->same([], PandocFormatRegistry::unsupportedTabularDataOutputFormats());
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
+    },
+    'builds tabular data review packets from option profiles without full converter claims' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::tabularDataFormatReviewPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(['csv', 'tsv'], $packet['inputFormats']);
+        $t->same([], $packet['outputFormats']);
+        $t->same([
+            'inputOutput' => [],
+            'inputOnly' => ['csv', 'tsv'],
+            'outputOnly' => [],
+        ], $packet['directionBuckets']);
+        $t->same([
+            '.csv' => 'csv',
+            '.tsv' => 'tsv',
+        ], $packet['extensionInference']);
+        $t->same(['csv', 'tsv'], $packet['extensionInferredFormats']);
+        $t->same([], $packet['nonExtensionInferredFormats']);
+        $t->same(PandocFormatRegistry::tabularDataReaderOptionProfiles(), $packet['readerOptionProfiles']);
+        $t->same(PandocFormatRegistry::tabularDataInputSourceProvenance(), $packet['inputSourceProvenance']);
+        $t->same([], $packet['unsupportedInputFormats']);
+        $t->same([], $packet['unsupportedOutputFormats']);
+        $t->same([
+            'anyUnsupported' => [],
+            'unsupportedBoth' => [],
+            'unsupportedInputOnly' => [],
+            'unsupportedOutputOnly' => [],
+            'noNativeReader' => [],
+            'noNativeWriter' => [],
+        ], $packet['unsupportedFormatSummary']);
+
+        $t->same(['csv', 'tsv'], array_keys($packet['formats']));
+        $t->same([
+            'input' => true,
+            'output' => false,
+            'direction' => 'input-only',
+            'inputStatus' => 'partial',
+            'outputStatus' => 'not-applicable',
+            'extensionInferred' => true,
+            'extensions' => ['.csv'],
+            'inputImplementation' => DelimitedTextReader::class,
+            'outputImplementation' => '',
+            'readerOptions' => $packet['readerOptionProfiles']['csv'],
+            'sourceProvenance' => $packet['inputSourceProvenance']['csv'],
+        ], $packet['formats']['csv']);
+        $t->same(['.tsv'], $packet['formats']['tsv']['extensions']);
+        $t->same("\t", $packet['formats']['tsv']['readerOptions']['delimiter']);
+        $t->same(null, $packet['formats']['tsv']['readerOptions']['quote']);
+        $t->same(false, $packet['formats']['tsv']['readerOptions']['readerOptionsUsed']);
+
+        foreach ($packet['formats'] as $format => $review) {
+            $t->same(DelimitedTextReader::class, $review['inputImplementation'], "Tabular data review packet {$format} must expose the bounded input implementation");
+            $t->same('', $review['outputImplementation'], "Tabular data review packet {$format} must not register an output implementation");
+            $t->same(true, $review['readerOptions']['firstRowHeader'], "Tabular data {$format} should expose first-row header behavior");
+            $t->same('Text.Pandoc.Readers.CSV', $review['sourceProvenance']['module']);
+        }
+    },
+    'classifies tabular data extension surfaces from option profiles without output claims' => static function (TestRunner $t): void {
+        $csv = PandocFormatRegistry::tabularDataUnsupportedFormatForExtension('CSV');
+        $t->same([
+            'extension' => '.csv',
+            'format' => 'csv',
+            'input' => true,
+            'output' => false,
+            'direction' => 'input-only',
+            'inputStatus' => 'partial',
+            'outputStatus' => 'not-applicable',
+            'unsupportedInput' => false,
+            'unsupportedOutput' => false,
+            'inputImplementation' => DelimitedTextReader::class,
+            'outputImplementation' => '',
+            'delimiter' => ',',
+            'delimiterName' => 'comma',
+            'quote' => '"',
+            'keepSpace' => false,
+            'escape' => null,
+            'firstRowHeader' => true,
+            'emptyInputPolicy' => 'empty-document',
+            'multilineCellPolicy' => 'linebreak-separated-plain-blocks',
+            'readerOptionsUsed' => false,
+            'sourceModule' => 'Text.Pandoc.Readers.CSV',
+            'sourceFunction' => 'readCSV',
+        ], $csv);
+
+        $tsv = PandocFormatRegistry::tabularDataUnsupportedFormatForExtension('.tsv');
+        $t->same('.tsv', $tsv['extension']);
+        $t->same('tsv', $tsv['format']);
+        $t->same("\t", $tsv['delimiter']);
+        $t->same('tab', $tsv['delimiterName']);
+        $t->same(null, $tsv['quote']);
+        $t->same('readTSV', $tsv['sourceFunction']);
+        $t->same(false, $tsv['unsupportedInput']);
+        $t->same(false, $tsv['unsupportedOutput']);
+        $t->same(null, PandocFormatRegistry::tabularDataUnsupportedFormatForExtension(''));
+        $t->same(null, PandocFormatRegistry::tabularDataUnsupportedFormatForExtension('.xlsx'));
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();
