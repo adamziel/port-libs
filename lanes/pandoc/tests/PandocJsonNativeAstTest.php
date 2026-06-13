@@ -3092,6 +3092,52 @@ return [
             $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} edited paragraph drops stale review queue");
         }
     },
+    'preserves native div plain block boundaries in wordpress handoff' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Div', 'c' => [
+                    ['boundary-div', [], [['data-source', 'native-boundary']]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'First'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'plain'],
+                        ]],
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Second'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'plain'],
+                        ]],
+                        ['t' => 'RawBlock', 'c' => ['html', '<section data-review="raw-boundary">Raw block</section>']],
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'After'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'raw'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'boundary'],
+                        ]],
+                    ],
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $div = $document->children[0];
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $div->type);
+        $t->same('boundary-div', $div->attr('id'));
+        $t->same(['plain', 'plain', 'raw_html', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $div->children));
+        $t->same($native['blocks'], $roundTrip['blocks']);
+        $t->contains('<div id="boundary-div" data-source="native-boundary">', $blocks);
+        $t->contains('<p>First plain</p><p>Second plain</p>', $blocks);
+        $t->contains('<p>Second plain</p><section data-review="raw-boundary">Raw block</section><p>After raw boundary</p>', $blocks);
+        $t->true(!str_contains($blocks, 'First plainSecond plain'), 'Adjacent native Plain blocks should keep a visible WordPress boundary');
+        $t->true(!str_contains($blocks, 'Second plain<section'), 'Native Plain before raw blocks should not collapse into raw HTML');
+    },
     'preserves current header native payloads through json and native writers until edited' => static function (TestRunner $t): void {
         $headerAttr = [
             'review-heading',
