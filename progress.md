@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,299 pass / 0 fail | [3,259 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue JSON/native table parity after caption block writers | json-native-table-caption-block-writers-78237badde |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,300 pass / 0 fail | [3,260 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Typst reader parity after package dependency conflict policy | typst-package-dependency-conflict-policy-5cd9038b4c |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -43,7 +43,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
 | DocBook/table geometry | `docbook` | partial | 16 | 16 | Finish DocBook XML reader parity. |
 | RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
-| Typst | `typst` | unsupported | 46 | 17 | Implement Typst reader; package dependency policy is covered, but current evidence is boundary/provenance only. |
+| Typst | `typst` | unsupported | 47 | 17 | Implement Typst reader; package dependency conflict policy is covered, but current evidence is boundary/provenance only. |
 | PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
 | Tabular/data readers | `csv`, `tsv` | unsupported | 0 | 2 | Implement CSV/TSV table readers. |
@@ -134,15 +134,15 @@ Verdict: not a shippable text-family close by itself. This slice closes one cros
 
 Implemented highest-impact gap: `MarkdownWriter` now emits typed `raw_html_inline` payloads while keeping generic `format=html` raw disabled, and `WordPressBlockWriter` renders generic `raw_block`/`raw_inline` format `html`/`html4`/`html5`/`xhtml` plus TeX aliases through existing raw HTML/code paths without exposing unsupported raw formats. Verification passed `php -l` for `MarkdownWriter.php`, `WordPressBlockWriter.php`, and `MarkdownReaderTest.php`, focused `MarkdownReaderTest.php` (`1` file, `6581` assertions, `0` failures), focused `PandocJsonNativeAstTest.php` (`1` file, `1968` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `74018` assertions, `0` failures). No Pandoc, browser renderer, Node tooling, external validator, online service, live provider test, or live-service provider test was invoked.
 
-### PDF/Typst Boundary Ship-Readiness Update (2026-06-12)
+### PDF/Typst Boundary Ship-Readiness Update (2026-06-13)
 
-Verdict: not shippable for real PDF/Typst output parity because native PHP does not execute external TeX/Typst/PDF engines. Graceful no-external-engine boundary diagnostics now have 46 local mapped PDF/Typst boundary/provenance cases against 17 upstream format-related cases (270.6%), with no known critical uncovered graceful-boundary rows.
+Verdict: not shippable for real PDF/Typst output parity because native PHP does not execute external TeX/Typst/PDF engines. Graceful no-external-engine boundary diagnostics now have 47 local mapped PDF/Typst boundary/provenance cases against 17 upstream format-related cases (276.5%), with no known critical uncovered graceful-boundary rows.
 
 | Format focus | Upstream denominator | Local passing evidence | Evidence percent | Remaining critical gap |
 | --- | ---: | ---: | ---: | --- |
-| PDF/Typst graceful boundary/provenance diagnostics | 17 | 46 | 270.6% | Full output parity still requires external engine execution, which remains unsupported in native PHP. |
+| PDF/Typst graceful boundary/provenance diagnostics | 17 | 47 | 276.5% | Full output parity still requires external engine execution, which remains unsupported in native PHP. |
 
-Implemented highest-impact gap: `PdfEngineHandoff::fakeRun()` now turns Typst `@namespace/package:version` imports discovered in dependency sidecars into `typstPackageDependencyPolicy` review metadata in fake-run results, artifact provenance, and sequence summaries while preserving successful graceful behavior without external engines. Verification passed `php -l` for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2213` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `74011` assertions, `0` failures). No Pandoc, Typst, TeX/PDF engine, browser, Node, online service, live provider, or external validator was invoked.
+Implemented highest-impact gap: `PdfEngineHandoff::fakeRun()` now extends Typst `typstPackageDependencyPolicy` records with sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, and multi-version package conflict diagnostics while preserving existing package dependency policy fields. Verification passed `php -l` for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `74031` assertions, `0` failures). No Pandoc, Typst, TeX/PDF engine, browser, Node, online service, live provider, or external validator was invoked.
 
 ### Text Format Ship-Readiness Update (2026-06-12)
 
@@ -170,20 +170,20 @@ Implemented highest-impact gap: `PandocJsonReader` and `NativeReader` now preser
 
 ### Pandoc Progress/Status Reconciliation
 
-Dashboard reconciliation on 2026-06-12: `PANDOC_STATUS.md` is now present, the
+Dashboard reconciliation on 2026-06-13: `PANDOC_STATUS.md` is now present, the
 root dashboard, lane status, upstream manifest, ready/open beads, and landed
 commit history agree on the current shipping call after the DOCX section-property
-slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, and JSON/native table caption block writer slice.
+slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, JSON/native table caption block writer slice, and PDF/Typst package dependency conflict policy slice.
 
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static upstream inventory remains 2,276 Pandoc test/data/benchmark artifacts at `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`; input-format scope is 50 tokens after skipping IPYNB for this phase. | Denominator accepted for native PHP progress accounting; not upstream runner parity. |
-| Local passing numerator | `lane-status.json` reports 3,299 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,259 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,259 / 2,276 = 143.2%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
+| Local passing numerator | `lane-status.json` reports 3,300 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,260 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,260 / 2,276 = 143.2%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
 | Shippable format gate | ODF/ODT is ship-ready with 49 local mapped cases / 20 upstream ODF/ODT cases, 245.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
 | Remaining critical gaps | 16 input tokens remain partial and 33 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and CSV/TSV. | Full Pandoc input lane remains active. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,019 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `PdfEngineHandoffTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,031 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
@@ -195,14 +195,11 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
 status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`,
-`php -l lanes/pandoc/src/MarkdownWriter.php`,
-`php -l lanes/pandoc/src/LatexWriter.php`,
-`php -l lanes/pandoc/src/TableGeometry.php`,
-`php -l lanes/pandoc/tests/NativeReaderTest.php`,
-`php -l lanes/pandoc/tests/TableGeometryTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/NativeReaderTest.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php`
-(`3` files, `2265` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`44` files, `74019` assertions, `0` failures on current main `78237badde`).
+`php -l lanes/pandoc/src/PdfEngineHandoff.php`,
+`php -l lanes/pandoc/tests/PdfEngineHandoffTest.php`,
+`php tools/run-tests.php lanes/pandoc/tests/PdfEngineHandoffTest.php` (`1` file,
+`2225` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
+(`44` files, `74031` assertions, `0` failures on current main `5cd9038b4c`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.

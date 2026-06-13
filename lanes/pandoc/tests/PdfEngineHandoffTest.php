@@ -3588,6 +3588,26 @@ return [
             'packages' => ['preview/cetz'],
             'versions' => ['0.3.2'],
             'subpathDependencyCount' => 0,
+            'packageCount' => 1,
+            'namespaceCounts' => [
+                'preview' => 1,
+            ],
+            'packageCoordinates' => ['preview/cetz:0.3.2'],
+            'packageNames' => ['preview/cetz'],
+            'sidecarFileCount' => 1,
+            'sidecarFiles' => ['build/review.d'],
+            'sidecarPackageInputCounts' => [
+                [
+                    'artifact' => 'build/review.d',
+                    'packageInputCount' => 1,
+                    'packageInputs' => ['typst-package:@preview/cetz:0.3.2'],
+                ],
+            ],
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'versionConflictCount' => 0,
+            'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:1'],
         ];
 
@@ -3849,6 +3869,33 @@ return [
             'packages' => ['preview/cetz', 'typst/symbols'],
             'versions' => ['0.1.0', '0.3.2'],
             'subpathDependencyCount' => 1,
+            'packageCount' => 2,
+            'namespaceCounts' => [
+                'preview' => 1,
+                'typst' => 1,
+            ],
+            'packageCoordinates' => [
+                'preview/cetz:0.3.2',
+                'typst/symbols:0.1.0',
+            ],
+            'packageNames' => ['preview/cetz', 'typst/symbols'],
+            'sidecarFileCount' => 1,
+            'sidecarFiles' => ['build/package-boundary.d'],
+            'sidecarPackageInputCounts' => [
+                [
+                    'artifact' => 'build/package-boundary.d',
+                    'packageInputCount' => 2,
+                    'packageInputs' => [
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@typst/symbols:0.1.0',
+                    ],
+                ],
+            ],
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'versionConflictCount' => 0,
+            'versionConflicts' => [],
             'issues' => ['typst-package-dependencies:2'],
         ];
 
@@ -3878,6 +3925,132 @@ return [
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-count:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-subpaths:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
+    },
+
+    'fake runner reports typst package dependency conflict policy from sidecars' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Package Policy Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-package-policy.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-package-policy.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package policy packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-package-policy.pdf: build/typst-package-policy.typ \\',
+            '  @preview/cetz:0.3.2/src/lib.typ \\',
+            '  @preview/cetz:0.4.0/src/lib.typ \\',
+            '  @typst/symbols:0.1.0',
+            '',
+        ]);
+        $expectedDependencies = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@preview/cetz:0.4.0/src/lib.typ',
+                'reference' => '@preview/cetz:0.4.0/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.4.0',
+                'subpath' => 'src/lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@typst/symbols:0.1.0',
+                'reference' => '@typst/symbols:0.1.0',
+                'namespace' => 'typst',
+                'package' => 'symbols',
+                'version' => '0.1.0',
+                'subpath' => null,
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'packageDependencyCount' => 3,
+            'namespaces' => ['preview', 'typst'],
+            'packages' => ['preview/cetz', 'typst/symbols'],
+            'versions' => ['0.1.0', '0.3.2', '0.4.0'],
+            'subpathDependencyCount' => 2,
+            'packageCount' => 3,
+            'namespaceCounts' => [
+                'preview' => 2,
+                'typst' => 1,
+            ],
+            'packageCoordinates' => [
+                'preview/cetz:0.3.2',
+                'preview/cetz:0.4.0',
+                'typst/symbols:0.1.0',
+            ],
+            'packageNames' => [
+                'preview/cetz',
+                'typst/symbols',
+            ],
+            'sidecarFileCount' => 1,
+            'sidecarFiles' => ['build/typst-package-policy.d'],
+            'sidecarPackageInputCounts' => [
+                [
+                    'artifact' => 'build/typst-package-policy.d',
+                    'packageInputCount' => 3,
+                    'packageInputs' => [
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@preview/cetz:0.4.0/src/lib.typ',
+                        'typst-package:@typst/symbols:0.1.0',
+                    ],
+                ],
+            ],
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'versionConflictCount' => 1,
+            'versionConflicts' => [
+                [
+                    'package' => 'preview/cetz',
+                    'versions' => ['0.3.2', '0.4.0'],
+                    'inputs' => [
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@preview/cetz:0.4.0/src/lib.typ',
+                    ],
+                ],
+            ],
+            'issues' => [
+                'typst-package-dependencies:3',
+                'package-version-conflict:preview/cetz',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-package-policy.d' => $depfile,
+                'build/typst-package-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-package-policy.d' => $depfile,
+                    'build/typst-package-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedDependencies, $result['engineTypstPackageDependencies']);
+        $t->same($expectedPolicy, $result['typstPackageDependencyPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-package-dependency-policy-packages:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy-sidecars:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy-conflicts:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-policy-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
     },
