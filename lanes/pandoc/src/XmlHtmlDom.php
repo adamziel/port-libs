@@ -826,6 +826,7 @@ final class XmlHtmlDom
         $tableBodyRowCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyRowCount'], $tableWraps));
         $tableBodyCellCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyCellCount'], $tableWraps));
         $bookPartCount = count($bookParts);
+        $relationshipDiagnostics = self::jatsRelationshipDiagnostics($root);
         $directBodySectionCount = $body instanceof \DOMElement
             ? count(self::childElements($body, 'sec'))
             : 0;
@@ -947,6 +948,9 @@ final class XmlHtmlDom
             'tableBodyDiagnostics' => self::jatsTableBodyDiagnostics($tableWraps),
             'tableWrapReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['table-wrap', 'table']),
             'unreferencedTableWrapIds' => self::jatsUnreferencedElementIds($tableWrapIds, $bodyXrefs),
+            'relationshipDiagnostics' => $relationshipDiagnostics,
+            'relationshipDiagnosticCount' => $relationshipDiagnostics['diagnosticCount'],
+            'unresolvedXrefTargetCount' => $relationshipDiagnostics['unresolvedXrefTargetCount'],
             'bookParts' => $bookParts,
             'bookPartCount' => $bookPartCount,
         ];
@@ -1932,6 +1936,210 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsRelationshipDiagnostics(\DOMElement $root): array
+    {
+        $targetIndex = self::jatsElementIndexById($root);
+        $targetReferenceCounts = [];
+        $targetTypeCounts = [];
+        $xrefRecords = [];
+        $diagnostics = [];
+        $resolvedXrefCount = 0;
+        $unresolvedXrefCount = 0;
+        $unresolvedXrefTargetCount = 0;
+        $missingRidXrefCount = 0;
+        $multiTargetXrefCount = 0;
+        $typeMismatchCount = 0;
+
+        foreach (self::descendantElements($root, 'xref') as $xrefIndex => $xref) {
+            $ridRaw = self::attribute($xref, 'rid');
+            $refType = self::jatsNormalizedAttribute($xref, 'ref-type');
+            $targetIds = $ridRaw === null ? [] : self::spaceSeparatedTokens($ridRaw);
+            $resolvedTargetIds = [];
+            $unresolvedTargetIds = [];
+            $targetElementNames = [];
+            $issues = [];
+
+            if ($targetIds === []) {
+                $issues[] = 'missing-xref-rid';
+                ++$missingRidXrefCount;
+                $diagnostics[] = [
+                    'type' => 'missing-jats-xref-rid',
+                    'xrefIndex' => $xrefIndex,
+                    'refType' => $refType,
+                    'text' => self::normalizedText($xref),
+                ];
+            }
+
+            if (count($targetIds) > 1) {
+                ++$multiTargetXrefCount;
+            }
+
+            foreach ($targetIds as $targetId) {
+                if (!isset($targetIndex[$targetId])) {
+                    $issues[] = 'unresolved-xref-target';
+                    $unresolvedTargetIds[] = $targetId;
+                    ++$unresolvedXrefTargetCount;
+                    $diagnostics[] = [
+                        'type' => 'unresolved-jats-xref-target',
+                        'xrefIndex' => $xrefIndex,
+                        'refType' => $refType,
+                        'targetId' => $targetId,
+                        'text' => self::normalizedText($xref),
+                    ];
+                    continue;
+                }
+
+                $resolvedTargetIds[] = $targetId;
+                $targetReferenceCounts[$targetId] = ($targetReferenceCounts[$targetId] ?? 0) + 1;
+                foreach ($targetIndex[$targetId] as $target) {
+                    $targetElementNames[] = $target->localName;
+                    $targetTypeCounts[$target->localName] = ($targetTypeCounts[$target->localName] ?? 0) + 1;
+                }
+            }
+
+            $expectedTargetNames = self::jatsExpectedXrefTargetNames($refType);
+            foreach (array_values(array_unique($targetElementNames)) as $targetElementName) {
+                if ($expectedTargetNames === [] || in_array($targetElementName, $expectedTargetNames, true)) {
+                    continue;
+                }
+
+                $issues[] = 'xref-ref-type-target-mismatch';
+                ++$typeMismatchCount;
+                $diagnostics[] = [
+                    'type' => 'jats-xref-ref-type-target-mismatch',
+                    'xrefIndex' => $xrefIndex,
+                    'refType' => $refType,
+                    'expectedTargetNames' => $expectedTargetNames,
+                    'actualTargetName' => $targetElementName,
+                    'targetIds' => $targetIds,
+                ];
+            }
+
+            if ($resolvedTargetIds !== []) {
+                ++$resolvedXrefCount;
+            }
+            if ($unresolvedTargetIds !== []) {
+                ++$unresolvedXrefCount;
+            }
+
+            $xrefRecords[] = [
+                'xrefIndex' => $xrefIndex,
+                'refType' => $refType,
+                'ridRaw' => $ridRaw,
+                'targetIds' => $targetIds,
+                'resolvedTargetIds' => array_values(array_unique($resolvedTargetIds)),
+                'unresolvedTargetIds' => array_values(array_unique($unresolvedTargetIds)),
+                'targetElementNames' => array_values(array_unique($targetElementNames)),
+                'resolved' => $targetIds !== [] && $unresolvedTargetIds === [],
+                'text' => self::normalizedText($xref),
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+
+        ksort($targetTypeCounts, SORT_STRING);
+
+        return [
+            'reviewPolicy' => 'jats-bits-relationship-diagnostics-review-only',
+            'directReaderParity' => false,
+            'xrefCount' => count($xrefRecords),
+            'resolvedXrefCount' => $resolvedXrefCount,
+            'unresolvedXrefCount' => $unresolvedXrefCount,
+            'unresolvedXrefTargetCount' => $unresolvedXrefTargetCount,
+            'missingRidXrefCount' => $missingRidXrefCount,
+            'multiTargetXrefCount' => $multiTargetXrefCount,
+            'typeMismatchCount' => $typeMismatchCount,
+            'targetTypeCounts' => $targetTypeCounts,
+            'figureTargets' => self::jatsRelationshipTargetSummaries($root, 'fig', $targetReferenceCounts),
+            'tableWrapTargets' => self::jatsRelationshipTargetSummaries($root, 'table-wrap', $targetReferenceCounts),
+            'referenceTargets' => self::jatsRelationshipTargetSummaries($root, 'ref', $targetReferenceCounts),
+            'xrefRecords' => $xrefRecords,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @return array<string, list<\DOMElement>>
+     */
+    private static function jatsElementIndexById(\DOMElement $root): array
+    {
+        $index = [];
+        foreach (array_merge([$root], self::descendantElements($root)) as $element) {
+            $id = self::jatsNormalizedAttribute($element, 'id');
+            if ($id === null) {
+                continue;
+            }
+
+            $index[$id] ??= [];
+            $index[$id][] = $element;
+        }
+
+        return $index;
+    }
+
+    private static function jatsNormalizedAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        return trim($value);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsExpectedXrefTargetNames(?string $refType): array
+    {
+        return match ($refType) {
+            'aff' => ['aff'],
+            'app' => ['app'],
+            'bibr', 'ref' => ['ref'],
+            'boxed-text' => ['boxed-text'],
+            'fig' => ['fig'],
+            'fn' => ['fn'],
+            'sec' => ['sec'],
+            'supplementary-material' => ['supplementary-material'],
+            'table', 'table-wrap' => ['table-wrap'],
+            default => [],
+        };
+    }
+
+    /**
+     * @param array<string, int> $targetReferenceCounts
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsRelationshipTargetSummaries(\DOMElement $root, string $localName, array $targetReferenceCounts): array
+    {
+        $summaries = [];
+        foreach (self::descendantElements($root, $localName) as $element) {
+            $id = self::jatsNormalizedAttribute($element, 'id');
+            if ($id === null) {
+                continue;
+            }
+
+            $summary = [
+                'id' => $id,
+                'label' => self::jatsFirstChildText($element, 'label'),
+                'xrefCount' => $targetReferenceCounts[$id] ?? 0,
+            ];
+
+            if ($localName === 'fig' || $localName === 'table-wrap') {
+                $summary['captionText'] = self::jatsCaptionText($element);
+            } elseif ($localName === 'ref') {
+                $summary['referenceText'] = self::normalizedText($element);
+            }
+
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
     }
 
     /**

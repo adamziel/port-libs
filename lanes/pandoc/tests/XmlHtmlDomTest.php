@@ -360,6 +360,99 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes jats and bits figure table reference diagnostics without reader parity claims' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta><title-group><article-title>Relationship review</article-title></title-group></article-meta>
+  </front>
+  <body>
+    <sec id="s1">
+      <title>Results</title>
+      <p>
+        See <xref ref-type="fig" rid="f1">Figure 1</xref>,
+        <xref ref-type="table" rid="t1">Table 1</xref>, and
+        <xref ref-type="bibr" rid="r1">Smith</xref>.
+        <xref ref-type="fig" rid="missing-fig">Missing figure</xref>
+        <xref ref-type="bibr" rid="t1">Wrong reference target</xref>
+        <xref ref-type="table">No table rid</xref>
+      </p>
+    </sec>
+    <fig id="f1"><label>Fig 1</label><caption><p>Review chart</p></caption></fig>
+    <table-wrap id="t1"><label>Table 1</label><caption><p>Review totals</p></caption><table><tbody><tr><td>Total</td></tr></tbody></table></table-wrap>
+  </body>
+  <back><ref-list><ref id="r1"><label>1</label><mixed-citation>Smith 2026.</mixed-citation></ref></ref-list></back>
+</article>
+XML, 'JATS relationship XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+        $relationships = $packet['relationshipDiagnostics'];
+
+        $t->same('jats-bits-relationship-diagnostics-review-only', $relationships['reviewPolicy']);
+        $t->same(false, $relationships['directReaderParity']);
+        $t->same(6, $relationships['xrefCount']);
+        $t->same(4, $relationships['resolvedXrefCount']);
+        $t->same(1, $relationships['unresolvedXrefCount']);
+        $t->same(1, $relationships['unresolvedXrefTargetCount']);
+        $t->same(1, $relationships['missingRidXrefCount']);
+        $t->same(0, $relationships['multiTargetXrefCount']);
+        $t->same(1, $relationships['typeMismatchCount']);
+        $t->same(3, $relationships['diagnosticCount']);
+        $t->same(3, $packet['relationshipDiagnosticCount']);
+        $t->same(1, $packet['unresolvedXrefTargetCount']);
+        $t->same(['fig' => 1, 'ref' => 1, 'table-wrap' => 2], $relationships['targetTypeCounts']);
+        $t->same([[
+            'id' => 'f1',
+            'label' => 'Fig 1',
+            'xrefCount' => 1,
+            'captionText' => 'Review chart',
+        ]], $relationships['figureTargets']);
+        $t->same([[
+            'id' => 't1',
+            'label' => 'Table 1',
+            'xrefCount' => 2,
+            'captionText' => 'Review totals',
+        ]], $relationships['tableWrapTargets']);
+        $t->same([[
+            'id' => 'r1',
+            'label' => '1',
+            'xrefCount' => 1,
+            'referenceText' => '1Smith 2026.',
+        ]], $relationships['referenceTargets']);
+        $t->same([
+            'unresolved-jats-xref-target',
+            'jats-xref-ref-type-target-mismatch',
+            'missing-jats-xref-rid',
+        ], array_column($relationships['diagnostics'], 'type'));
+        $t->same('missing-fig', $relationships['diagnostics'][0]['targetId']);
+        $t->same(['ref'], $relationships['diagnostics'][1]['expectedTargetNames']);
+        $t->same('table-wrap', $relationships['diagnostics'][1]['actualTargetName']);
+        $t->same('missing-xref-rid', $relationships['xrefRecords'][5]['issues'][0]);
+        $t->same(['t1'], $relationships['xrefRecords'][4]['resolvedTargetIds']);
+        $t->same(['xref-ref-type-target-mismatch'], $relationships['xrefRecords'][4]['issues']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="monograph">
+  <book-meta><title-group><book-title>BITS relationship review</book-title></title-group></book-meta>
+  <book-body>
+    <book-part id="chapter-1">
+      <body>
+        <p>See <xref ref-type="fig" rid="bf1">figure A</xref> and <xref ref-type="table" rid="bt1">table A</xref>.</p>
+        <fig id="bf1"><caption><p>BITS chart</p></caption></fig>
+        <table-wrap id="bt1"><caption><p>BITS totals</p></caption></table-wrap>
+      </body>
+    </book-part>
+  </book-body>
+</book>
+XML, 'BITS relationship XML', preserveWhiteSpace: false);
+        $bitsRelationships = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits')['relationshipDiagnostics'];
+
+        $t->same(2, $bitsRelationships['xrefCount']);
+        $t->same(0, $bitsRelationships['diagnosticCount']);
+        $t->same(['fig' => 1, 'table-wrap' => 1], $bitsRelationships['targetTypeCounts']);
+        $t->same('BITS chart', $bitsRelationships['figureTargets'][0]['captionText'] ?? null);
+        $t->same('BITS totals', $bitsRelationships['tableWrapTargets'][0]['captionText'] ?? null);
+    },
     'summarizes docbook structure review packets without direct reader parity claims' => static function (TestRunner $t): void {
         $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:lang="en">
