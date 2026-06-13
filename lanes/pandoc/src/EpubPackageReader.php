@@ -468,6 +468,10 @@ final class EpubPackageReader
             return [$this->listNode($element, $baseDir, $name === 'ol')];
         }
 
+        if ($name === 'dl') {
+            return [$this->definitionListNode($element, $baseDir)];
+        }
+
         if ($name === 'blockquote') {
             return [new AstNode('blockquote', [], $this->blockNodesFromChildren($element, $baseDir))];
         }
@@ -529,6 +533,144 @@ final class EpubPackageReader
             'start' => $ordered && is_numeric($element->getAttribute('start')) ? (int) $element->getAttribute('start') : 1,
             'style' => $ordered ? $this->orderedListStyle($element) : 'default',
         ], $items);
+    }
+
+    private function definitionListNode(\DOMElement $element, string $baseDir): AstNode
+    {
+        $items = [];
+        $termInlines = [];
+        $termTexts = [];
+        $definitions = [];
+
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->localName === 'dt') {
+                if ($termInlines !== [] && $definitions !== []) {
+                    $this->flushDefinitionListItem($items, $termInlines, $termTexts, $definitions);
+                } elseif ($termInlines !== []) {
+                    $termInlines[] = new AstNode('linebreak');
+                }
+
+                $inlines = $this->inlineNodesFromChildren($child, $baseDir);
+                array_push($termInlines, ...$inlines);
+                $termTexts[] = $this->plainInlineText($inlines);
+                continue;
+            }
+
+            if ($child->localName === 'dd' && $termInlines !== []) {
+                $blocks = $this->definitionBlocksFromElement($child, $baseDir);
+                if ($blocks === []) {
+                    $inlines = $this->inlineNodesFromChildren($child, $baseDir);
+                    $blocks = [new AstNode('paragraph', ['text' => $this->plainInlineText($inlines)], $inlines)];
+                }
+
+                $definitions[] = new AstNode('definition', [
+                    'loose' => count($blocks) > 1,
+                ], $blocks);
+            }
+        }
+
+        $this->flushDefinitionListItem($items, $termInlines, $termTexts, $definitions);
+        $listText = $this->normalizedText(implode(' ', array_map(
+            static fn (AstNode $item): string => (string) $item->attr('term', ''),
+            $items
+        )));
+
+        return new AstNode('definition_list', [
+            'text' => $listText,
+            'htmlAttributes' => $this->htmlAttributes($element),
+        ], $items);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function definitionBlocksFromElement(\DOMElement $element, string $baseDir): array
+    {
+        $blocks = [];
+        $inlines = [];
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isBlockContentElement($child)) {
+                $this->flushInlineParagraph($inlines, $blocks);
+                array_push($blocks, ...$this->blockNodesFromElement($child, $baseDir));
+                continue;
+            }
+
+            array_push($inlines, ...$this->inlineNodesFromNode($child, $baseDir));
+        }
+
+        $this->flushInlineParagraph($inlines, $blocks);
+
+        return $blocks;
+    }
+
+    private function isBlockContentElement(\DOMElement $element): bool
+    {
+        $name = $element->localName;
+
+        return $name === 'p'
+            || $name === 'ul'
+            || $name === 'ol'
+            || $name === 'dl'
+            || $name === 'blockquote'
+            || $name === 'pre'
+            || $name === 'figure'
+            || $name === 'section'
+            || $name === 'article'
+            || $name === 'main'
+            || $name === 'div'
+            || preg_match('/^h[1-6]$/', $name) === 1;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $blocks
+     */
+    private function flushInlineParagraph(array &$inlines, array &$blocks): void
+    {
+        if ($inlines === []) {
+            return;
+        }
+
+        $blocks[] = new AstNode('paragraph', [
+            'text' => $this->plainInlineText($inlines),
+        ], $inlines);
+        $inlines = [];
+    }
+
+    /**
+     * @param list<AstNode> $items
+     * @param list<AstNode> $termInlines
+     * @param list<string> $termTexts
+     * @param list<AstNode> $definitions
+     */
+    private function flushDefinitionListItem(
+        array &$items,
+        array &$termInlines,
+        array &$termTexts,
+        array &$definitions
+    ): void {
+        if ($termInlines === []) {
+            $termTexts = [];
+            $definitions = [];
+            return;
+        }
+
+        $termText = $this->normalizedText(implode("\n", $termTexts));
+        $items[] = new AstNode('definition_item', [
+            'term' => $termText,
+        ], [
+            new AstNode('term', ['text' => $termText], $termInlines),
+            ...$definitions,
+        ]);
+
+        $termInlines = [];
+        $termTexts = [];
+        $definitions = [];
     }
 
     /**
