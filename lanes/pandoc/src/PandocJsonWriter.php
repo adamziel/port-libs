@@ -32,10 +32,11 @@ final class PandocJsonWriter
         }
 
         $meta = $this->meta($document);
+        $metaProvenance = $this->metaConstructorProvenance($document);
 
         return [
             'pandoc-api-version' => $this->apiVersion($document),
-            'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document)),
+            'meta' => $this->writeMetaMap($meta, $this->metaNativeValues($document), $metaProvenance),
             'blocks' => $this->writeBlocks($document->children),
         ];
     }
@@ -86,6 +87,16 @@ final class PandocJsonWriter
         $values = $document->attr('metaNativeValues', []);
 
         return is_array($values) && !array_is_list($values) ? $values : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaConstructorProvenance(AstNode $document): array
+    {
+        $provenance = $document->attr('metaConstructorProvenance', []);
+
+        return is_array($provenance) && !array_is_list($provenance) ? $provenance : [];
     }
 
     /**
@@ -175,27 +186,64 @@ final class PandocJsonWriter
 
     /**
      * @param array<string, mixed> $meta
+     * @param array<string, mixed> $nativeValues
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
      * @return array<string, mixed>
      */
-    private function writeMetaMap(array $meta, array $nativeValues = []): array
+    private function writeMetaMap(array $meta, array $nativeValues = [], array $provenance = [], array $path = []): array
     {
         $mapped = [];
         foreach ($meta as $key => $value) {
             $field = (string) $key;
-            $sourceNative = $nativeValues[$field] ?? null;
+            $fieldPath = [...$path, $field];
+            $sourceNative = $nativeValues[$field] ?? $this->metaNativeFromProvenance($provenance, $fieldPath);
             $mapped[$field] = $this->canReuseMetaNativeValue($value, $sourceNative)
                 ? $sourceNative
-                : $this->writeMetaValue($value);
+                : $this->writeMetaValue($value, $provenance, $fieldPath);
         }
 
         return $mapped;
     }
 
     /**
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
+     */
+    private function metaNativeFromProvenance(array $provenance, array $path): mixed
+    {
+        $entry = $provenance[$this->metaProvenancePath($path)] ?? null;
+
+        return is_array($entry) && array_key_exists('native', $entry) ? $entry['native'] : null;
+    }
+
+    /**
+     * @param list<string> $path
+     */
+    private function metaProvenancePath(array $path): string
+    {
+        if ($path === []) {
+            return '/';
+        }
+
+        return '/' . implode('/', array_map(
+            static fn (string $part): string => strtr($part, ['~' => '~0', '/' => '~1']),
+            $path
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
      * @return array<string, mixed>
      */
-    private function writeMetaValue(mixed $value): array
+    private function writeMetaValue(mixed $value, array $provenance = [], array $path = []): array
     {
+        $sourceNative = $this->metaNativeFromProvenance($provenance, $path);
+        if ($this->canReuseMetaNativeValue($value, $sourceNative)) {
+            return $sourceNative;
+        }
+
         if (is_bool($value)) {
             return ['t' => 'MetaBool', 'c' => $value];
         }
@@ -216,7 +264,7 @@ final class PandocJsonWriter
             }
 
             if (isset($value['type']) && is_string($value['type'])) {
-                return $this->writeTypedMetaValue($value);
+                return $this->writeTypedMetaValue($value, $provenance, $path);
             }
 
             if (array_is_list($value)) {
@@ -230,10 +278,15 @@ final class PandocJsonWriter
                     ];
                 }
 
-                return ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), $value)];
+                $items = [];
+                foreach ($value as $index => $item) {
+                    $items[] = $this->writeMetaValue($item, $provenance, [...$path, (string) $index]);
+                }
+
+                return ['t' => 'MetaList', 'c' => $items];
             }
 
-            return ['t' => 'MetaMap', 'c' => $this->writeMetaMap($value)];
+            return ['t' => 'MetaMap', 'c' => $this->writeMetaMap($value, [], $provenance, $path)];
         }
 
         return ['t' => 'MetaString', 'c' => (string) $value];
@@ -241,15 +294,19 @@ final class PandocJsonWriter
 
     /**
      * @param array<string, mixed> $value
+     * @param array<string, mixed> $provenance
+     * @param list<string> $path
      * @return array<string, mixed>
      */
-    private function writeTypedMetaValue(array $value): array
+    private function writeTypedMetaValue(array $value, array $provenance = [], array $path = []): array
     {
+        $items = is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [];
+
         return match ($value['type']) {
             'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
             'blocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
-            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
-            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
+            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item, int $index): array => $this->writeMetaValue($item, $provenance, [...$path, (string) $index]), $items, array_keys($items))],
+            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], [], $provenance, $path)],
             default => ['t' => 'MetaString', 'c' => ''],
         };
     }
