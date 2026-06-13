@@ -4688,6 +4688,85 @@ return [
             $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} edited citation drops stale record ordinal");
         }
     },
+    'regenerates edited citation note locator payloads instead of stale sidecars' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'reviewQueue' => 'locator-note-source',
+            'sourceOrdinal' => 42,
+            'citationId' => 'source-locator-note',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 5,
+            'citationHash' => 800,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$citationRecord],
+                        [
+                            ['t' => 'Str', 'c' => '@source-locator-note'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $citation = $document->children[0]->children[0];
+            $editedCitation = new AstNode('citation', array_replace($citation->attrs, [
+                'locator' => 'sec. 4',
+                'citationNoteNum' => 6,
+                'citationHash' => 801,
+                'text' => '@source-locator-note, sec. 4',
+            ]), [
+                new AstNode('text', ['text' => '@source-locator-note,']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'sec.']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => '4']),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [$editedCitation]),
+            ]);
+
+            $t->same(5, $citation->attr('citationNoteNum'), "{$source} reader preserves citation note number");
+            $t->same($citationRecord, $citation->attr('citationNative'), "{$source} reader preserves citation record sidecar");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][0];
+                $encodedRecord = $encodedCite['c'][0][0];
+
+                $t->same('source-locator-note', $encodedRecord['citationId'], "{$source} {$writer} writer keeps edited citation id");
+                $t->same([
+                    ['t' => 'Str', 'c' => 'sec.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '4'],
+                ], $encodedRecord['citationSuffix'], "{$source} {$writer} writer emits locator as citationSuffix");
+                $t->same(6, $encodedRecord['citationNoteNum'], "{$source} {$writer} writer emits edited citation note number");
+                $t->same(801, $encodedRecord['citationHash'], "{$source} {$writer} writer emits edited citation hash");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecord), "{$source} {$writer} writer drops stale citation record sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $encodedRecord), "{$source} {$writer} writer drops stale citation record ordinal");
+                $t->same([
+                    ['t' => 'Str', 'c' => '@source-locator-note,'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'sec.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '4'],
+                ], $encodedCite['c'][1], "{$source} {$writer} writer keeps edited cite source inlines");
+            }
+        }
+    },
     'preserves moved cite wrapper sidecars until citation records are edited' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],
