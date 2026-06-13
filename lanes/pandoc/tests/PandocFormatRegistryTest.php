@@ -1193,6 +1193,76 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'records twiki wiki input token status gate without native parser claims' => static function (TestRunner $t): void {
+        $gate = PandocFormatRegistry::wikiInputTokenStatusGate();
+        $twikiToken = PandocFormatRegistry::wikiInputTokenStatus('TWiki+smart');
+        $twikiAlias = PandocFormatRegistry::wikiInputTokenStatus('.TWiki');
+
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+            '.twiki' => 'twiki',
+        ], PandocFormatRegistry::wikiInputStatusAliases());
+        $t->same('wiki-input-token-status', $gate['family']);
+        $t->same('unsupported', $gate['unsupportedVerdict']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $gate['unsupportedInputFormats']);
+        $t->same(false, $gate['directReaderParitySupported']);
+        $t->same(true, $gate['externalToolFree']);
+        $t->same(PandocFormatRegistry::wikiInputStatusAliases(), $gate['statusAliases']);
+        $t->same('twiki', $gate['statusAliases']['.twiki']);
+        $t->same('twiki', $gate['aliasStatuses']['.twiki']['format']);
+        $t->same('', $gate['formats']['twiki']['outputImplementation']);
+        $t->same(false, array_key_exists('.twiki', PandocFormatRegistry::wikiExtensionInference()));
+
+        $t->same([
+            'query' => 'TWiki+smart',
+            'normalizedToken' => 'twiki+smart',
+            'format' => 'twiki',
+            'label' => 'TWiki',
+            'family' => 'wiki',
+            'alias' => false,
+            'aliasKind' => 'wiki-input-token',
+            'input' => true,
+            'output' => false,
+            'direction' => 'input-only',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'not-applicable',
+            'verdict' => 'unsupported',
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+            'unsupportedReason' => [
+                'family' => 'wiki',
+                'format' => 'twiki',
+                'direction' => 'input',
+                'status' => 'unsupported',
+                'reasonCode' => 'wiki-reader-not-ported',
+                'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+            ],
+            'serializedReason' => '{"family":"wiki","format":"twiki","direction":"input","status":"unsupported","reasonCode":"wiki-reader-not-ported","reason":"Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format."}',
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+            'directReaderParitySupported' => false,
+            'externalToolFree' => true,
+        ], $twikiToken);
+        $t->same([
+            'family' => 'wiki',
+            'format' => 'twiki',
+            'direction' => 'input',
+            'status' => 'unsupported',
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+        ], json_decode($twikiToken['serializedReason'], true, 512, JSON_THROW_ON_ERROR));
+
+        $t->same('twiki', $twikiAlias['format']);
+        $t->same('.twiki', $twikiAlias['normalizedToken']);
+        $t->same(true, $twikiAlias['alias']);
+        $t->same('wiki-input-status-extension', $twikiAlias['aliasKind']);
+        $t->same('unsupported', $twikiAlias['verdict']);
+        $t->same('', $twikiAlias['inputImplementation']);
+        $t->same(false, $twikiAlias['directReaderParitySupported']);
+        $t->same($twikiToken['serializedReason'], $twikiAlias['serializedReason']);
+        $t->same(null, PandocFormatRegistry::wikiInputTokenStatus('.xwiki'));
+    },
     'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::wikiFormatParitySummary();
 

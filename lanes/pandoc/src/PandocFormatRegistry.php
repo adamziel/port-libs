@@ -183,6 +183,13 @@ final class PandocFormatRegistry
         '.wiki' => 'mediawiki',
     ];
 
+    /** @var array<string, string> */
+    private const WIKI_INPUT_STATUS_ALIASES = [
+        '.dokuwiki' => 'dokuwiki',
+        '.wiki' => 'mediawiki',
+        '.twiki' => 'twiki',
+    ];
+
     /** @var array<string, list<string>> */
     private const WIKI_READER_FIXTURE_SOURCES = [
         'creole' => [
@@ -865,6 +872,197 @@ final class PandocFormatRegistry
         }
 
         return $withoutInference;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function wikiInputStatusAliases(): array
+    {
+        return self::WIKI_INPUT_STATUS_ALIASES;
+    }
+
+    /**
+     * @return array{
+     *     query:string,
+     *     normalizedToken:string,
+     *     format:string,
+     *     label:string,
+     *     family:string,
+     *     alias:bool,
+     *     aliasKind:string,
+     *     input:bool,
+     *     output:bool,
+     *     direction:string,
+     *     inputStatus:string,
+     *     outputStatus:string,
+     *     verdict:string,
+     *     reasonCode:string,
+     *     reason:string,
+     *     unsupportedReason:array{family:string, format:string, direction:string, status:string, reasonCode:string, reason:string},
+     *     serializedReason:string,
+     *     inputImplementation:string,
+     *     outputImplementation:string,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool
+     * }|null
+     */
+    public static function wikiInputTokenStatus(string $token): ?array
+    {
+        $normalizedToken = strtolower(trim($token));
+        if ($normalizedToken === '') {
+            return null;
+        }
+
+        $alias = str_starts_with($normalizedToken, '.');
+        $format = $alias
+            ? self::WIKI_INPUT_STATUS_ALIASES[$normalizedToken] ?? null
+            : self::wikiBaseFormat($normalizedToken);
+
+        if ($format === null || !in_array($format, self::WIKI_INPUT_FORMATS, true)) {
+            return null;
+        }
+
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $direction = $directions[$format];
+        $input = $inputSupport[$format];
+        $output = $outputSupport[$format] ?? [
+            'status' => 'not-applicable',
+            'implementation' => '',
+            'notes' => 'No upstream Pandoc writer token is registered for this wiki input format.',
+        ];
+        $reasonCode = self::TEXT_MARKUP_UNSUPPORTED_REASON_CODES['wiki'];
+        $reason = self::TEXT_MARKUP_UNSUPPORTED_REASONS['wiki'];
+        $unsupportedReason = [
+            'family' => 'wiki',
+            'format' => $format,
+            'direction' => 'input',
+            'status' => $input['status'],
+            'reasonCode' => $reasonCode,
+            'reason' => $reason,
+        ];
+
+        return [
+            'query' => $token,
+            'normalizedToken' => $normalizedToken,
+            'format' => $format,
+            'label' => self::WIKI_FORMAT_LABELS[$format] ?? $format,
+            'family' => 'wiki',
+            'alias' => $alias,
+            'aliasKind' => $alias ? 'wiki-input-status-extension' : 'wiki-input-token',
+            'input' => true,
+            'output' => $direction['output'],
+            'direction' => $direction['direction'],
+            'inputStatus' => $input['status'],
+            'outputStatus' => $output['status'],
+            'verdict' => $input['status'] === 'unsupported' ? 'unsupported' : $input['status'],
+            'reasonCode' => $reasonCode,
+            'reason' => $reason,
+            'unsupportedReason' => $unsupportedReason,
+            'serializedReason' => json_encode($unsupportedReason, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'inputImplementation' => $input['implementation'],
+            'outputImplementation' => $output['implementation'],
+            'directReaderParitySupported' => $input['status'] !== 'unsupported' && $input['implementation'] !== '',
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     family:string,
+     *     inputFormats:list<string>,
+     *     statusAliases:array<string, string>,
+     *     unsupportedVerdict:string,
+     *     unsupportedInputFormats:list<string>,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool,
+     *     formats:array<string, array{
+     *         query:string,
+     *         normalizedToken:string,
+     *         format:string,
+     *         label:string,
+     *         family:string,
+     *         alias:bool,
+     *         aliasKind:string,
+     *         input:bool,
+     *         output:bool,
+     *         direction:string,
+     *         inputStatus:string,
+     *         outputStatus:string,
+     *         verdict:string,
+     *         reasonCode:string,
+     *         reason:string,
+     *         unsupportedReason:array{family:string, format:string, direction:string, status:string, reasonCode:string, reason:string},
+     *         serializedReason:string,
+     *         inputImplementation:string,
+     *         outputImplementation:string,
+     *         directReaderParitySupported:bool,
+     *         externalToolFree:bool
+     *     }>,
+     *     aliasStatuses:array<string, array{
+     *         query:string,
+     *         normalizedToken:string,
+     *         format:string,
+     *         label:string,
+     *         family:string,
+     *         alias:bool,
+     *         aliasKind:string,
+     *         input:bool,
+     *         output:bool,
+     *         direction:string,
+     *         inputStatus:string,
+     *         outputStatus:string,
+     *         verdict:string,
+     *         reasonCode:string,
+     *         reason:string,
+     *         unsupportedReason:array{family:string, format:string, direction:string, status:string, reasonCode:string, reason:string},
+     *         serializedReason:string,
+     *         inputImplementation:string,
+     *         outputImplementation:string,
+     *         directReaderParitySupported:bool,
+     *         externalToolFree:bool
+     *     }>
+     * }
+     */
+    public static function wikiInputTokenStatusGate(): array
+    {
+        $formats = [];
+        foreach (self::WIKI_INPUT_FORMATS as $format) {
+            $status = self::wikiInputTokenStatus($format);
+            if ($status !== null) {
+                $formats[$format] = $status;
+            }
+        }
+
+        $aliasStatuses = [];
+        foreach (self::WIKI_INPUT_STATUS_ALIASES as $alias => $_format) {
+            $status = self::wikiInputTokenStatus($alias);
+            if ($status !== null) {
+                $aliasStatuses[$alias] = $status;
+            }
+        }
+
+        $unsupportedInputFormats = self::unsupportedWikiInputFormats();
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'family' => 'wiki-input-token-status',
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'statusAliases' => self::WIKI_INPUT_STATUS_ALIASES,
+            'unsupportedVerdict' => $unsupportedInputFormats === [] ? 'supported' : 'unsupported',
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'directReaderParitySupported' => $unsupportedInputFormats === [],
+            'externalToolFree' => true,
+            'formats' => $formats,
+            'aliasStatuses' => $aliasStatuses,
+        ];
     }
 
     /**
