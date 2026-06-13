@@ -604,6 +604,11 @@ final class EpubPackage
                     'sourcesByType' => $this->metadata['sourcesByType'] ?? [],
                     'sourceSummary' => $this->metadata['sourceSummary'] ?? [],
                     'subjects' => $this->metadata['subjects'] ?? [],
+                    'subjectDetails' => $this->metadata['subjectDetails'] ?? [],
+                    'subjectsByScheme' => $this->metadata['subjectsByScheme'] ?? [],
+                    'subjectsByAuthority' => $this->metadata['subjectsByAuthority'] ?? [],
+                    'subjectsByTerm' => $this->metadata['subjectsByTerm'] ?? [],
+                    'subjectSummary' => $this->metadata['subjectSummary'] ?? self::metadataSubjectSummary([]),
                     'rights' => $this->metadata['rights'] ?? [],
                     'rightsDetails' => $this->metadata['rightsDetails'] ?? [],
                     'rightsSummary' => $this->metadata['rightsSummary'] ?? self::metadataRightsSummary([]),
@@ -3272,6 +3277,7 @@ final class EpubPackage
         $languageDetails = self::metadataLanguageDetails($dc['language'] ?? []);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
+        $subjectDetails = self::metadataSubjectDetails($dc['subject'] ?? []);
         $bibliographicDetails = self::metadataBibliographicDetails($dc);
         $bibliographicDetailsByKind = self::metadataBibliographicDetailsByKind($bibliographicDetails);
         $rightsDetails = $bibliographicDetailsByKind['rights'] ?? [];
@@ -3340,6 +3346,11 @@ final class EpubPackage
             'sourcesByType' => self::metadataSourcesByType($sourceDetails),
             'sourceSummary' => self::metadataSourceSummary($sourceDetails),
             'subjects' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['subject'] ?? []),
+            'subjectDetails' => $subjectDetails,
+            'subjectsByScheme' => self::metadataDetailsByField($subjectDetails, 'scheme'),
+            'subjectsByAuthority' => self::metadataDetailsByField($subjectDetails, 'authority'),
+            'subjectsByTerm' => self::metadataDetailsByField($subjectDetails, 'term'),
+            'subjectSummary' => self::metadataSubjectSummary($subjectDetails),
             'rights' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['rights'] ?? []),
             'rightsDetails' => $rightsDetails,
             'rightsSummary' => $rightsSummary,
@@ -4424,6 +4435,148 @@ final class EpubPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataSubjectDetails(array $entries): array
+    {
+        $details = [];
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $authorityEntries = self::metadataRefinementEntries($refinements, 'authority');
+            $termEntries = self::metadataRefinementEntries($refinements, 'term');
+            $displaySeq = self::firstMetadataRefinementValue($refinements, 'display-seq');
+            $displaySeqNumber = self::metadataDisplaySeqNumber($displaySeq);
+            $diagnostics = [];
+
+            if ($displaySeq !== null && $displaySeqNumber === null) {
+                $diagnostics[] = [
+                    'type' => 'invalid-subject-display-seq',
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'index' => (int) $index,
+                    'value' => $displaySeq,
+                    'message' => 'EPUB OPF subject display-seq metadata should be a positive integer',
+                ];
+            }
+
+            $details[] = [
+                'kind' => 'subject',
+                'index' => (int) $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'displaySeq' => $displaySeq,
+                'displaySeqNumber' => $displaySeqNumber,
+                'displaySeqValid' => $displaySeq === null || $displaySeqNumber !== null,
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'authority' => is_array($authorityEntries[0] ?? null) ? (string) $authorityEntries[0]['value'] : null,
+                'authorityEntries' => $authorityEntries,
+                'term' => is_array($termEntries[0] ?? null) ? (string) $termEntries[0]['value'] : null,
+                'termEntries' => $termEntries,
+                'linkedResources' => [],
+                'linkedResourceCount' => 0,
+                'localLinkedResourceCount' => 0,
+                'externalLinkedResourceCount' => 0,
+                'missingLinkedResourceCount' => 0,
+                'refinements' => $refinements,
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $subjectDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataSubjectSummary(array $subjectDetails): array
+    {
+        $schemes = [];
+        $authorities = [];
+        $terms = [];
+        $sequencedCount = 0;
+        $invalidDisplaySeqCount = 0;
+        $alternateScriptCount = 0;
+        $linkedResourceCount = 0;
+        $localLinkedResourceCount = 0;
+        $externalLinkedResourceCount = 0;
+        $missingLinkedResourceCount = 0;
+        $diagnostics = [];
+
+        foreach ($subjectDetails as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $scheme = is_string($detail['scheme'] ?? null) ? trim($detail['scheme']) : '';
+            if ($scheme !== '') {
+                $schemes[$scheme] = $scheme;
+            }
+
+            $authority = is_string($detail['authority'] ?? null) ? trim($detail['authority']) : '';
+            if ($authority !== '') {
+                $authorities[$authority] = $authority;
+            }
+
+            $term = is_string($detail['term'] ?? null) ? trim($detail['term']) : '';
+            if ($term !== '') {
+                $terms[$term] = $term;
+            }
+
+            if (is_int($detail['displaySeqNumber'] ?? null)) {
+                ++$sequencedCount;
+            } elseif (is_string($detail['displaySeq'] ?? null) && $detail['displaySeq'] !== '') {
+                ++$invalidDisplaySeqCount;
+            }
+
+            $alternateScripts = is_array($detail['alternateScripts'] ?? null) ? $detail['alternateScripts'] : [];
+            $alternateScriptCount += count($alternateScripts);
+
+            $linkedResources = is_array($detail['linkedResources'] ?? null) ? $detail['linkedResources'] : [];
+            $linkedResourceCount += count($linkedResources);
+            $localLinkedResourceCount += (int) ($detail['localLinkedResourceCount'] ?? 0);
+            $externalLinkedResourceCount += (int) ($detail['externalLinkedResourceCount'] ?? 0);
+            $missingLinkedResourceCount += (int) ($detail['missingLinkedResourceCount'] ?? 0);
+
+            foreach (($detail['diagnostics'] ?? []) as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+        }
+
+        return [
+            'present' => $subjectDetails !== [],
+            'count' => count($subjectDetails),
+            'schemeCount' => count($schemes),
+            'authorityCount' => count($authorities),
+            'termCount' => count($terms),
+            'sequencedCount' => $sequencedCount,
+            'invalidDisplaySeqCount' => $invalidDisplaySeqCount,
+            'alternateScriptCount' => $alternateScriptCount,
+            'linkedResourceCount' => $linkedResourceCount,
+            'localLinkedResourceCount' => $localLinkedResourceCount,
+            'externalLinkedResourceCount' => $externalLinkedResourceCount,
+            'missingLinkedResourceCount' => $missingLinkedResourceCount,
+            'schemes' => array_values($schemes),
+            'authorities' => array_values($authorities),
+            'terms' => array_values($terms),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, list<array<string, mixed>>> $dc
      *
      * @return list<array<string, mixed>>
@@ -4576,6 +4729,17 @@ final class EpubPackage
             $metadata['bibliographicSummary'] = self::metadataBibliographicSummary($metadata['bibliographicDetails']);
             $metadata['rightsDetails'] = $metadata['bibliographicDetailsByKind']['rights'] ?? [];
             $metadata['rightsSummary'] = self::metadataRightsSummary($metadata['rightsDetails']);
+        }
+
+        if (is_array($metadata['subjectDetails'] ?? null)) {
+            $metadata['subjectDetails'] = self::attachLinkedResourcesToMetadataDetails(
+                $metadata['subjectDetails'],
+                $linksBySubjectId,
+            );
+            $metadata['subjectsByScheme'] = self::metadataDetailsByField($metadata['subjectDetails'], 'scheme');
+            $metadata['subjectsByAuthority'] = self::metadataDetailsByField($metadata['subjectDetails'], 'authority');
+            $metadata['subjectsByTerm'] = self::metadataDetailsByField($metadata['subjectDetails'], 'term');
+            $metadata['subjectSummary'] = self::metadataSubjectSummary($metadata['subjectDetails']);
         }
 
         return $metadata;
