@@ -272,6 +272,7 @@ final class EpubPackageReader
                 ];
             }
         }
+        $this->annotateDuplicateSpineItemrefs($spine);
         $spineReport = $this->spineReport($spine);
 
         $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
@@ -344,15 +345,64 @@ final class EpubPackageReader
 
     /**
      * @param list<array<string, mixed>> $spine
+     */
+    private function annotateDuplicateSpineItemrefs(array &$spine): void
+    {
+        $indexesByIdref = [];
+        foreach ($spine as $index => $item) {
+            $idref = (string) ($item['idref'] ?? '');
+            if ($idref === '') {
+                continue;
+            }
+
+            $indexesByIdref[$idref][] = $index;
+        }
+
+        foreach ($indexesByIdref as $idref => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            foreach ($indexes as $index) {
+                if (!isset($spine[$index]['diagnostics']) || !is_array($spine[$index]['diagnostics'])) {
+                    $spine[$index]['diagnostics'] = [];
+                }
+                $spine[$index]['diagnostics'][] = [
+                    'type' => 'duplicate-spine-itemref-idref',
+                    'idref' => $idref,
+                    'count' => count($indexes),
+                    'indexes' => $indexes,
+                ];
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
      * @return array<string, mixed>
      */
     private function spineReport(array $spine): array
     {
+        $idrefCounts = [];
+        foreach ($spine as $item) {
+            $idref = (string) ($item['idref'] ?? '');
+            if ($idref === '') {
+                continue;
+            }
+
+            $idrefCounts[$idref] = ($idrefCounts[$idref] ?? 0) + 1;
+        }
+        $duplicateIdrefs = array_keys(array_filter(
+            $idrefCounts,
+            static fn (int $count): bool => $count > 1
+        ));
+        $duplicateIdrefLookup = array_fill_keys($duplicateIdrefs, true);
         $linearItemCount = 0;
         $readableItemCount = 0;
         $externalItems = [];
         $missingPackagePartItems = [];
         $missingManifestItems = [];
+        $duplicateIdrefItems = [];
         $diagnostics = [];
 
         foreach ($spine as $index => $item) {
@@ -370,6 +420,9 @@ final class EpubPackageReader
             }
             if (($item['external'] ?? false) !== true && ($item['path'] ?? '') !== '' && ($item['exists'] ?? true) !== true) {
                 $missingPackagePartItems[] = $item;
+            }
+            if (isset($duplicateIdrefLookup[(string) ($item['idref'] ?? '')])) {
+                $duplicateIdrefItems[] = $item;
             }
 
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
@@ -392,6 +445,299 @@ final class EpubPackageReader
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItemCount' => count($missingPackagePartItems),
             'missingPackagePartItems' => $missingPackagePartItems,
+            'duplicateIdrefCount' => count($duplicateIdrefs),
+            'duplicateIdrefs' => $duplicateIdrefs,
+            'duplicateIdrefItemCount' => count($duplicateIdrefItems),
+            'duplicateIdrefItems' => $duplicateIdrefItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $toc
+     * @param array<string, array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $spine
+     * @return array<string, mixed>
+     */
+    private function tocReport(array $toc, array $manifest, array $spine): array
+    {
+        $items = $this->flattenTocEntries($toc);
+        $typeCounts = [];
+        foreach ($items as $item) {
+            $type = (string) ($item['type'] ?? '');
+            if ($type === '') {
+                continue;
+            }
+
+            $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+        }
+
+        $pageListReport = $this->pageListReport($items, $manifest, $spine);
+
+        return [
+            'itemCount' => count($items),
+            'typeCounts' => $typeCounts,
+            'pageListItemCount' => $pageListReport['itemCount'],
+            'pageList' => $pageListReport,
+            'diagnosticCount' => $pageListReport['diagnosticCount'],
+            'diagnostics' => $pageListReport['diagnostics'],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $toc
+     * @return list<array<string, mixed>>
+     */
+    private function flattenTocEntries(array $toc, int $depth = 0): array
+    {
+        $items = [];
+        foreach ($toc as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $children = is_array($entry['children'] ?? null) ? $entry['children'] : [];
+            $item = $entry;
+            $item['depth'] = $depth;
+            $item['tocIndex'] = count($items);
+            unset($item['children']);
+            $items[] = $item;
+
+            foreach ($this->flattenTocEntries($children, $depth + 1) as $child) {
+                $child['tocIndex'] = count($items);
+                $items[] = $child;
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tocItems
+     * @param array<string, array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $spine
+     * @return array<string, mixed>
+     */
+    private function pageListReport(array $tocItems, array $manifest, array $spine): array
+    {
+        $manifestByPath = [];
+        foreach ($manifest as $item) {
+            $path = (string) ($item['path'] ?? '');
+            if ($path === '' || ($item['external'] ?? false) === true || isset($manifestByPath[$path])) {
+                continue;
+            }
+
+            $manifestByPath[$path] = $item;
+        }
+
+        $spineByPath = [];
+        $readingSpineByPath = [];
+        foreach ($spine as $index => $item) {
+            $path = (string) ($item['path'] ?? '');
+            if ($path === '') {
+                continue;
+            }
+
+            $spineItem = ['index' => $index] + $item;
+            $spineByPath[$path][] = $spineItem;
+            if (($item['linear'] ?? false) === true) {
+                $readingSpineByPath[$path][] = $spineItem;
+            }
+        }
+
+        $pageListItems = [];
+        $targetItems = [];
+        foreach ($tocItems as $tocItem) {
+            if (($tocItem['type'] ?? '') !== 'page-list') {
+                continue;
+            }
+
+            $pageListIndex = count($pageListItems);
+            $pageListItems[] = $tocItem;
+            $href = (string) ($tocItem['href'] ?? '');
+            $path = (string) ($tocItem['path'] ?? '');
+            if ($href === '' || $path === '' || $this->isExternalHref($href)) {
+                continue;
+            }
+
+            $fragment = (string) ($tocItem['fragment'] ?? '');
+            $target = $path . ($fragment === '' ? '' : '#' . $fragment);
+            $targetItems[$target][] = [
+                'index' => $pageListIndex,
+                'href' => $href,
+                'path' => $path,
+                'fragment' => $fragment,
+            ];
+        }
+
+        $duplicateTargets = [];
+        $duplicateTargetByTarget = [];
+        $duplicatePageTargetItemCount = 0;
+        foreach ($targetItems as $target => $targetGroup) {
+            if (count($targetGroup) < 2) {
+                continue;
+            }
+
+            $group = [
+                'target' => $target,
+                'path' => (string) ($targetGroup[0]['path'] ?? ''),
+                'fragment' => (string) ($targetGroup[0]['fragment'] ?? ''),
+                'count' => count($targetGroup),
+                'indexes' => array_column($targetGroup, 'index'),
+                'hrefs' => array_column($targetGroup, 'href'),
+            ];
+            $duplicateTargets[] = $group;
+            $duplicateTargetByTarget[$target] = $group;
+            $duplicatePageTargetItemCount += count($targetGroup);
+        }
+
+        $items = [];
+        $diagnostics = [];
+        $duplicateSpineTargetsByPath = [];
+        $duplicateSpineTargetItemCount = 0;
+        $manifestTargetCount = 0;
+        $spineReadingOrderTargetCount = 0;
+        $missingManifestTargetCount = 0;
+        $outsideSpineTargetCount = 0;
+        $externalTargetCount = 0;
+        $unresolvedTargetCount = 0;
+
+        foreach ($pageListItems as $tocItem) {
+            $href = (string) ($tocItem['href'] ?? '');
+            $path = (string) ($tocItem['path'] ?? '');
+            $fragment = (string) ($tocItem['fragment'] ?? '');
+            $target = $path . ($fragment === '' ? '' : '#' . $fragment);
+            $external = $href !== '' && $this->isExternalHref($href);
+            $manifestItem = $manifestByPath[$path] ?? null;
+            $spineItems = $spineByPath[$path] ?? [];
+            $readingSpineItems = $readingSpineByPath[$path] ?? [];
+            $spineIndexes = array_map(static fn (array $item): int => (int) $item['index'], $spineItems);
+            $readingSpineIndexes = array_map(static fn (array $item): int => (int) $item['index'], $readingSpineItems);
+            $duplicateTarget = $target !== '' ? ($duplicateTargetByTarget[$target] ?? null) : null;
+            $itemDiagnostics = [];
+
+            if ($href === '' || $path === '') {
+                ++$unresolvedTargetCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-page-list-target',
+                    'href' => $href,
+                    'label' => (string) ($tocItem['label'] ?? ''),
+                ];
+            } elseif ($external) {
+                ++$externalTargetCount;
+                $itemDiagnostics[] = [
+                    'type' => 'external-page-list-reference',
+                    'href' => $href,
+                    'target' => $path,
+                ];
+            } elseif (!is_array($manifestItem)) {
+                ++$missingManifestTargetCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-page-list-manifest-item',
+                    'href' => $href,
+                    'path' => $path,
+                ];
+            } else {
+                ++$manifestTargetCount;
+                if ($readingSpineItems !== []) {
+                    ++$spineReadingOrderTargetCount;
+                } else {
+                    ++$outsideSpineTargetCount;
+                    $diagnostic = [
+                        'type' => 'page-list-target-outside-spine-reading-order',
+                        'href' => $href,
+                        'path' => $path,
+                        'manifestId' => (string) ($manifestItem['id'] ?? ''),
+                        'reason' => $spineItems !== [] ? 'nonlinear-spine-item' : 'not-in-spine',
+                    ];
+                    if ($spineIndexes !== []) {
+                        $diagnostic['spineIndex'] = $spineIndexes[0];
+                    }
+                    $itemDiagnostics[] = $diagnostic;
+                }
+            }
+
+            if (is_array($duplicateTarget)) {
+                $itemDiagnostics[] = [
+                    'type' => 'duplicate-page-list-target',
+                    'href' => $href,
+                    'target' => $duplicateTarget['target'],
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'count' => $duplicateTarget['count'],
+                    'indexes' => $duplicateTarget['indexes'],
+                ];
+            }
+
+            if (is_array($manifestItem) && count($spineItems) > 1) {
+                $duplicateSpineTargetItemCount++;
+                if (!isset($duplicateSpineTargetsByPath[$path])) {
+                    $duplicateSpineTargetsByPath[$path] = [
+                        'path' => $path,
+                        'count' => count($spineItems),
+                        'spineIndexes' => $spineIndexes,
+                        'idrefs' => array_map(static fn (array $item): string => (string) ($item['idref'] ?? ''), $spineItems),
+                    ];
+                }
+                $itemDiagnostics[] = [
+                    'type' => 'page-list-target-duplicate-spine-itemref',
+                    'href' => $href,
+                    'path' => $path,
+                    'manifestId' => (string) ($manifestItem['id'] ?? ''),
+                    'count' => count($spineItems),
+                    'spineIndexes' => $spineIndexes,
+                    'idrefs' => $duplicateSpineTargetsByPath[$path]['idrefs'],
+                ];
+            }
+
+            $itemIndex = count($items);
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $itemIndex,
+                    'tocIndex' => $tocItem['tocIndex'] ?? $itemIndex,
+                ] + $diagnostic;
+            }
+
+            $firstSpineItem = $spineItems[0] ?? null;
+            $items[] = [
+                'index' => $itemIndex,
+                'tocIndex' => $tocItem['tocIndex'] ?? $itemIndex,
+                'label' => (string) ($tocItem['label'] ?? ''),
+                'href' => $href,
+                'path' => $path,
+                'fragment' => $fragment,
+                'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : '',
+                'mediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : '',
+                'spineIndex' => is_array($firstSpineItem) ? $firstSpineItem['index'] : null,
+                'spineIndexes' => $spineIndexes,
+                'readingSpineIndexes' => $readingSpineIndexes,
+                'spineLinear' => is_array($firstSpineItem) ? (bool) ($firstSpineItem['linear'] ?? false) : null,
+                'inSpineReadingOrder' => $readingSpineItems !== [],
+                'duplicatePageTarget' => is_array($duplicateTarget),
+                'duplicatePageTargetCount' => is_array($duplicateTarget) ? $duplicateTarget['count'] : 0,
+                'duplicateSpineTarget' => count($spineItems) > 1,
+                'duplicateSpineTargetCount' => count($spineItems),
+                'external' => $external,
+                'diagnostics' => $itemDiagnostics,
+            ];
+        }
+
+        return [
+            'itemCount' => count($items),
+            'manifestTargetCount' => $manifestTargetCount,
+            'spineReadingOrderTargetCount' => $spineReadingOrderTargetCount,
+            'missingManifestTargetCount' => $missingManifestTargetCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'unresolvedTargetCount' => $unresolvedTargetCount,
+            'duplicatePageTargetCount' => count($duplicateTargets),
+            'duplicatePageTargetItemCount' => $duplicatePageTargetItemCount,
+            'duplicatePageTargets' => $duplicateTargets,
+            'duplicateSpineTargetCount' => count($duplicateSpineTargetsByPath),
+            'duplicateSpineTargetItemCount' => $duplicateSpineTargetItemCount,
+            'duplicateSpineTargets' => array_values($duplicateSpineTargetsByPath),
+            'items' => $items,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
