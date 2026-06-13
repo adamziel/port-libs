@@ -35,6 +35,18 @@ return [
         $t->same(3, $packet['columnCount'] ?? null);
         $t->same(9, $packet['fieldCount'] ?? null);
         $t->same(0, $packet['raggedRowCount'] ?? null);
+        $t->same('"', $packet['quote'] ?? null);
+        $t->same(true, array_key_exists('escape', $packet));
+        $t->same(null, $packet['escape']);
+        $t->same('quoted-fields', $packet['dialect']['quoteMode'] ?? null);
+        $t->same('none', $packet['dialect']['escapeMode'] ?? null);
+        $t->same(2, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $packet['escapedQuoteSequenceCount'] ?? null);
+        $t->same(1, $packet['quotedLineBreakCount'] ?? null);
+        $t->same(1, $packet['multilineFieldCount'] ?? null);
+        $t->same(0, $packet['partialRecordCount'] ?? null);
+        $t->same(0, $packet['diagnosticCount'] ?? null);
         $t->same(2, $packet['upstreamEvidence']['denominator'] ?? null);
         $t->same(['test/command/01.csv', 'test/command/3533-rst-csv-tables.csv'], $packet['upstreamEvidence']['fixtures'] ?? null);
         $t->same('Legacy, "quoted" title', $table->children[1]->children[0]->children[1]->attr('text'));
@@ -118,6 +130,68 @@ return [
         $t->same(2, $tsvPacket['bodyRowCount'] ?? null);
         $t->same('A', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('20', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
+    },
+    'records csv quote and escape diagnostics while preserving partial records' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv(implode("\n", [
+            'id,title,note',
+            '1,"Doubled ""quote"" value","Backslash \"quote\" marker"',
+            '2,unquoted "literal" quote,ok',
+            '3,"partial quoted field',
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(3, $packet['quotedFieldCount'] ?? null);
+        $t->same(2, $packet['doubledQuoteEscapeCount'] ?? null);
+        $t->same(2, $packet['escapedQuoteSequenceCount'] ?? null);
+        $t->same(2, $packet['quoteInUnquotedFieldCount'] ?? null);
+        $t->same(1, $packet['unclosedQuoteCount'] ?? null);
+        $t->same(1, $packet['partialRecordCount'] ?? null);
+        $t->same(5, $packet['diagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-backslash-quote-preserved',
+            'delimited-text-backslash-quote-preserved',
+            'delimited-text-quote-in-unquoted-field',
+            'delimited-text-quote-in-unquoted-field',
+            'delimited-text-unclosed-quoted-field',
+        ], $codes);
+        $t->same('Doubled "quote" value', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('Backslash \"quote\" marker', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('unquoted "literal" quote', $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('partial quoted field', $table->children[1]->children[2]->children[1]->attr('text'));
+    },
+    'keeps tsv quotes literal and isolates tab delimiter behavior' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv("id,title\n1,\"tab\tstays in csv field\"\n");
+        $tsvDocument = $reader->readTsv(implode("\n", [
+            "id\tnote",
+            "1\t\"literal \"\"quotes\"\" stay\"",
+            "2\tcomma, stays in tsv field",
+            '',
+        ]));
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+
+        $t->same(',', $csvPacket['delimiter'] ?? null);
+        $t->same(2, $csvPacket['columnCount'] ?? null);
+        $t->same("tab\tstays in csv field", $csvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('tab', $tsvPacket['delimiter'] ?? null);
+        $t->same(true, array_key_exists('quote', $tsvPacket));
+        $t->same(null, $tsvPacket['quote']);
+        $t->same('literal', $tsvPacket['dialect']['quoteMode'] ?? null);
+        $t->same('none', $tsvPacket['dialect']['escapeMode'] ?? null);
+        $t->same(0, $tsvPacket['quotedFieldCount'] ?? null);
+        $t->same(0, $tsvPacket['doubledQuoteEscapeCount'] ?? null);
+        $t->same(0, $tsvPacket['escapedQuoteSequenceCount'] ?? null);
+        $t->same(0, $tsvPacket['quoteInUnquotedFieldCount'] ?? null);
+        $t->same(0, $tsvPacket['diagnosticCount'] ?? null);
+        $t->same('"literal ""quotes"" stay"', $tsvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('comma, stays in tsv field', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
     },
     'rejects non-boolean delimited text header option' => static function (TestRunner $t): void {
         $message = '';
