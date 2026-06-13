@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-13 UTC after PDF/Typst package dependency conflict policy on base `d099006810`, following the closure-wave matrix refresh.
+Last reconciled: 2026-06-13 UTC after MarkdownWriter generic raw HTML serialization on base `3a4bf7596e`, following PDF/Typst package dependency conflict policy.
 
 This file is the compact status companion to `progress.md`,
 `lanes/pandoc/lane-status.json`, and
@@ -11,17 +11,17 @@ This file is the compact status companion to `progress.md`,
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static Pandoc upstream inventory covers 2,276 test/data/benchmark artifacts from `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. The input-format burn-down tracks 51 upstream input tokens, with IPYNB skipped for this phase and 50 tokens in scope. | Denominator accepted for native PHP progress accounting; this is not upstream runner parity. |
-| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,311 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,271 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,271 / 2,276 mapped upstream inventory rows = 143.7%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
+| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,312 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,272 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,272 / 2,276 mapped upstream inventory rows = 143.8%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
 | Shippable input formats | ODF/ODT is marked ship-ready: 50 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 250.0%, with 0 critical ODF/ODT gaps. | ODF/ODT can ship under the current native PHP/no-external-validator policy. |
 | Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. | Pandoc as a whole is not ship-ready. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PdfEngineHandoff.php lanes/pandoc/tests/PdfEngineHandoffTest.php lanes/pandoc/notes/pandoc-pdf-typst-package-dependency-policy-20260613T0017Z.md`, syntax checks for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,226 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/MarkdownWriter.php lanes/pandoc/tests/NativeReaderTest.php lanes/pandoc/tests/MarkdownReaderTest.php`, syntax checks for `MarkdownWriter.php`, `NativeReaderTest.php`, and `MarkdownReaderTest.php`, focused `NativeReaderTest.php`, focused `MarkdownReaderTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,231 assertions, 0 failures. |
 | External validators | No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
 
 ## Closure Wave Snapshot
 
-Current `main` is reconciled through `d099006810`: 3,311 PHP passes / 0 failures and 3,271 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, and PDF/Typst package dependency conflict-policy evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74226` assertions, `0` failures).
+This branch is reconciled over current `main` `3a4bf7596e`: 3,312 PHP passes / 0 failures and 3,272 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, and PDF/Typst package dependency conflict-policy evidence; this slice adds generic raw HTML MarkdownWriter serialization. Verification passed `jq empty`, `git diff --check`, focused `NativeReaderTest.php`, focused `MarkdownReaderTest.php`, and the full Pandoc lane.
 
 | Surface | Landed evidence | Verdict |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ Current `main` is reconciled through `d099006810`: 3,311 PHP passes / 0 failures
 | Table geometry | LaTeX `table_foot` rows now emit longtable footer sections; focused LaTeX/table run passed 1,917 assertions. | Table-foot slice covered; row/body/span table gaps remain. |
 | JSON/native block boundaries | Native `Div` adjacent `Plain` block boundaries now survive WordPress handoff; focused JSON/native run passed 1,987 assertions. | Bounded block-boundary slice covered; JSON/native remains partial. |
 | PDF/Typst dependency policy | Typst package dependency conflict policy records sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, and multi-version conflicts; focused `PdfEngineHandoffTest.php` passed 2,225 assertions. | Bounded no-engine provenance covered; real PDF/Typst output parity remains unsupported without external engines. |
+| MarkdownWriter raw HTML | Generic `raw_inline` and `raw_block` nodes with `html`, `html4`, `html5`, and `xhtml` formats now serialize through Markdown output; focused Native/Markdown runs passed 343 and 6,626 assertions. | Bounded raw serialization slice covered; Markdown/CommonMark/GFM remains partial. |
 
 ## Queue Snapshot
 

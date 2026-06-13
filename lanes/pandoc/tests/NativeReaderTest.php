@@ -418,6 +418,69 @@ return [
         $t->same(['native-review'], $roundTripChildren[11]->attr('classes'));
         $t->same(['data-source' => 'shared-ast'], $roundTripChildren[11]->attr('attributes'));
     },
+    'preserves raw html through markdown writer serialization boundaries' => static function (TestRunner $t): void {
+        $rawHtmlDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before']),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', ['html' => '<span data-review="reader-raw">HTML</span>']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'after.']),
+            ]),
+        ]);
+
+        $t->same(
+            'Before <span data-review="reader-raw">HTML</span> after.',
+            (new MarkdownWriter())->write($rawHtmlDocument)
+        );
+
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                [
+                    't' => 'Para',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Before'],
+                        ['t' => 'Space'],
+                        ['t' => 'RawInline', 'c' => ['html', '<mark data-review="native-raw">raw</mark>']],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'after.'],
+                    ],
+                ],
+                ['t' => 'RawBlock', 'c' => ['html', '<aside data-review="native-block">Block raw</aside>']],
+            ],
+        ];
+        $nativeDocument = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $nativeMarkdown = (new MarkdownWriter())->write($nativeDocument);
+        $blocks = (new WordPressBlockWriter())->write($nativeDocument);
+
+        $t->same(
+            ['text', 'raw_html_inline', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $nativeDocument->children[0]->children)
+        );
+        $t->same(implode("\n\n", [
+            'Before <mark data-review="native-raw">raw</mark> after.',
+            '<aside data-review="native-block">Block raw</aside>',
+        ]), $nativeMarkdown);
+        $t->contains('<p>Before <mark data-review="native-raw">raw</mark> after.</p>', $blocks);
+
+        $generatedDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Generated']),
+                new AstNode('space'),
+                new AstNode('raw_inline', ['format' => 'html', 'text' => '<span data-review="generic-raw">inline</span>']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'boundary.']),
+            ]),
+            new AstNode('raw_block', ['format' => 'html', 'text' => '<aside data-review="generic-block">Block</aside>']),
+        ]);
+
+        $t->same(implode("\n\n", [
+            'Generated <span data-review="generic-raw">inline</span> boundary.',
+            '<aside data-review="generic-block">Block</aside>',
+        ]), (new MarkdownWriter())->write($generatedDocument));
+    },
     'round trips native image and note inline constructors through shared ast' => static function (TestRunner $t): void {
         $native = [
             'pandoc-api-version' => [1, 23, 1],
