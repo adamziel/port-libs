@@ -1851,6 +1851,20 @@ final class CitationCslProcessor
             $url = $electronicResource;
         }
 
+        $authorGroup = self::endnoteContributorNames($record, ['authors'], 'author');
+        $editorGroup = self::endnoteContributorNames($record, ['secondary-authors', 'editors'], 'editor');
+        $translatorGroup = self::endnoteContributorNames($record, ['tertiary-authors', 'translators'], 'translator');
+        $nameDiagnostics = [
+            ...$authorGroup['diagnostics'],
+            ...$editorGroup['diagnostics'],
+            ...$translatorGroup['diagnostics'],
+        ];
+        $nameGroups = [
+            ...$authorGroup['raw'],
+            ...$editorGroup['raw'],
+            ...$translatorGroup['raw'],
+        ];
+
         $item = [
             'id' => self::endnoteRecordId($record, $index),
             'type' => self::endnoteCslType($refType),
@@ -1871,9 +1885,9 @@ final class CitationCslProcessor
             'abstract' => self::endnoteFirstText($record, ['abstract']),
             'note' => self::endnoteFirstText($record, ['notes']),
             'issued' => self::endnoteDate($record),
-            'author' => self::endnoteContributorNames($record, ['authors']),
-            'editor' => self::endnoteContributorNames($record, ['secondary-authors', 'editors']),
-            'translator' => self::endnoteContributorNames($record, ['tertiary-authors', 'translators']),
+            'author' => $authorGroup['names'],
+            'editor' => $editorGroup['names'],
+            'translator' => $translatorGroup['names'],
             'keyword' => self::endnoteTextList($record, ['keyword']),
             'sourceFileDiagnostics' => self::endnoteSourceFileDiagnostics($record),
             'rawEndnoteXml' => [
@@ -1881,6 +1895,9 @@ final class CitationCslProcessor
                 'recordNumber' => self::endnoteFirstText($record, ['rec-number']),
                 'accessionNumber' => self::endnoteFirstText($record, ['accession-num']),
                 'database' => self::endnoteDatabaseName($record),
+                'nameGroups' => $nameGroups,
+                'nameGroupDiagnostics' => $nameDiagnostics,
+                'nameGroupDiagnosticSummary' => self::endnoteNameDiagnosticSummary($nameDiagnostics),
                 'unsupportedFields' => self::endnoteUnsupportedFields($record),
             ],
         ];
@@ -1997,27 +2014,217 @@ final class CitationCslProcessor
 
     /**
      * @param list<string> $groupNames
-     * @return list<array<string, mixed>>
+     * @return array{names:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>, raw:list<array<string, mixed>>}
      */
-    private static function endnoteContributorNames(\DOMElement $record, array $groupNames): array
+    private static function endnoteContributorNames(\DOMElement $record, array $groupNames, string $role): array
     {
         $names = [];
+        $diagnostics = [];
+        $raw = [];
         foreach ($groupNames as $groupName) {
             foreach (XmlHtmlDom::descendantElements($record, $groupName) as $group) {
-                foreach (XmlHtmlDom::childElements($group) as $child) {
-                    if (!in_array($child->localName, ['author', 'editor', 'translator'], true)) {
+                $children = XmlHtmlDom::childElements($group);
+                if ($children === []) {
+                    $parsed = self::endnoteContributorName($group, $group->localName, $role, count($raw));
+                    $raw[] = [
+                        'group' => $group->localName,
+                        'role' => $role,
+                        'element' => $group->localName,
+                        'value' => XmlHtmlDom::normalizedText($group),
+                        'parsedAs' => $parsed['parsedAs'],
+                    ];
+                    $diagnostics = [...$diagnostics, ...$parsed['diagnostics']];
+                    if (is_array($parsed['name'])) {
+                        $names[] = $parsed['name'];
+                    }
+                    continue;
+                }
+
+                foreach ($children as $child) {
+                    if (!in_array($child->localName, ['author', 'editor', 'translator', 'name', 'corporate-author'], true)) {
+                        $value = XmlHtmlDom::normalizedText($child);
+                        if ($value !== '') {
+                            $diagnostics[] = self::endnoteNameDiagnostic($group->localName, $role, count($raw), $child->localName, $value, 'endnote-name-unsupported-child');
+                        }
                         continue;
                     }
 
-                    $value = XmlHtmlDom::normalizedText($child);
-                    if ($value !== '') {
-                        $names[] = self::risName($value);
+                    $parsed = self::endnoteContributorName($child, $group->localName, $role, count($raw));
+                    $raw[] = [
+                        'group' => $group->localName,
+                        'role' => $role,
+                        'element' => $child->localName,
+                        'value' => XmlHtmlDom::normalizedText($child),
+                        'parsedAs' => $parsed['parsedAs'],
+                    ];
+                    $diagnostics = [...$diagnostics, ...$parsed['diagnostics']];
+                    if (is_array($parsed['name'])) {
+                        $names[] = $parsed['name'];
                     }
                 }
             }
         }
 
-        return $names;
+        return ['names' => $names, 'diagnostics' => $diagnostics, 'raw' => $raw];
+    }
+
+    /**
+     * @return array{name:array<string, mixed>|null, diagnostics:list<array<string, mixed>>, parsedAs:string}
+     */
+    private static function endnoteContributorName(\DOMElement $element, string $group, string $role, int $entryIndex): array
+    {
+        $raw = XmlHtmlDom::normalizedText($element);
+        $diagnostics = [];
+        $family = self::endnoteFirstText($element, ['last-name', 'surname', 'family', 'family-name']);
+        $given = self::endnoteFirstText($element, ['first-name', 'given', 'given-name', 'forename']);
+        $suffix = self::endnoteFirstText($element, ['suffix']);
+        $literal = self::endnoteFirstText($element, ['corporate-name', 'organization', 'organisation', 'institution', 'literal']);
+        $hasStructuredParts = self::endnoteHasAnyDescendant($element, [
+            'last-name',
+            'surname',
+            'family',
+            'family-name',
+            'first-name',
+            'given',
+            'given-name',
+            'forename',
+            'suffix',
+            'corporate-name',
+            'organization',
+            'organisation',
+            'institution',
+            'literal',
+        ]);
+        $isCorporate = $literal !== '' || self::endnoteNameElementIsCorporate($element);
+        if ($isCorporate) {
+            $literal = $literal !== '' ? $literal : $raw;
+            if ($literal === '') {
+                $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, $element->localName, $raw, 'endnote-name-empty-corporate');
+
+                return ['name' => null, 'diagnostics' => $diagnostics, 'parsedAs' => 'skipped'];
+            }
+
+            return ['name' => ['literal' => $literal], 'diagnostics' => $diagnostics, 'parsedAs' => 'corporate'];
+        }
+
+        if ($hasStructuredParts) {
+            if ($family === '' && $given === '') {
+                $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, $element->localName, $raw, 'endnote-name-empty-structured-parts');
+                if ($raw === '' || $suffix !== '') {
+                    return ['name' => null, 'diagnostics' => $diagnostics, 'parsedAs' => 'skipped'];
+                }
+
+                return ['name' => self::risName($raw), 'diagnostics' => $diagnostics, 'parsedAs' => 'personal-fallback'];
+            }
+
+            if ($family === '') {
+                $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, 'last-name', $raw, 'endnote-name-missing-family');
+            }
+            if ($given === '') {
+                $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, 'first-name', $raw, 'endnote-name-missing-given');
+            }
+
+            $name = [];
+            if ($family !== '') {
+                $name['family'] = $family;
+            }
+            if ($given !== '') {
+                $name['given'] = $given;
+            }
+            if ($suffix !== '') {
+                $name['suffix'] = $suffix;
+            }
+
+            return ['name' => $name, 'diagnostics' => $diagnostics, 'parsedAs' => 'personal-parts'];
+        }
+
+        if ($raw === '') {
+            $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, $element->localName, $raw, 'endnote-name-empty-entry');
+
+            return ['name' => null, 'diagnostics' => $diagnostics, 'parsedAs' => 'skipped'];
+        }
+
+        if (str_contains($raw, ',')) {
+            [$rawFamily, $rawGiven] = array_map('trim', explode(',', $raw, 2));
+            if ($rawFamily === '' || $rawGiven === '') {
+                $diagnostics[] = self::endnoteNameDiagnostic($group, $role, $entryIndex, $element->localName, $raw, 'endnote-name-malformed-comma-parts');
+            }
+        }
+
+        $name = self::risName($raw);
+        $parsedAs = array_key_exists('literal', $name) ? 'corporate' : 'personal-comma';
+
+        return ['name' => $name, 'diagnostics' => $diagnostics, 'parsedAs' => $parsedAs];
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function endnoteHasAnyDescendant(\DOMElement $element, array $localNames): bool
+    {
+        foreach ($localNames as $localName) {
+            if (XmlHtmlDom::descendantElements($element, $localName) !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function endnoteNameElementIsCorporate(\DOMElement $element): bool
+    {
+        if ($element->localName === 'corporate-author') {
+            return true;
+        }
+
+        foreach (['corporate', 'name-type', 'type', 'role'] as $attribute) {
+            $value = strtolower(trim($element->getAttribute($attribute)));
+            if (in_array($value, ['1', 'true', 'yes', 'corporate', 'organization', 'organisation', 'institution'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{group:string, role:string, entryIndex:int, field:string, value:string, reason:string, severity:string}
+     */
+    private static function endnoteNameDiagnostic(string $group, string $role, int $entryIndex, string $field, string $value, string $reason): array
+    {
+        return [
+            'group' => $group,
+            'role' => $role,
+            'entryIndex' => $entryIndex,
+            'field' => $field,
+            'value' => $value,
+            'reason' => $reason,
+            'severity' => 'warning',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function endnoteNameDiagnosticSummary(array $diagnostics): string
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $reason = trim((string) ($diagnostic['reason'] ?? ''));
+            if ($reason === '') {
+                continue;
+            }
+
+            $counts[$reason] = ($counts[$reason] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        $parts = [];
+        foreach ($counts as $reason => $count) {
+            $parts[] = $reason . ': ' . $count;
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
