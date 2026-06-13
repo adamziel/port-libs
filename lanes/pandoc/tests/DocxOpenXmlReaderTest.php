@@ -4625,6 +4625,137 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'summarizes docx subdocument relationships as unsupported package diagnostics' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="docx" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSubExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="https://example.test/subdocuments/source-review.docx?revision=4#main" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rSubInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/internal.docx"/>' . "\n" .
+            '  <Relationship Id="rSubMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/missing.docx"/>' . "\n" .
+            '  <Relationship Id="rSubUnreferenced" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/unreferenced.docx"/>' . "\n" .
+            '  <Relationship Id="rSubWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/not-subdocument" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:subDoc r:id="rSubExternal"/>' . "\n" .
+            '    <w:subDoc r:id="rSubInternal"/>' . "\n" .
+            '    <w:subDoc r:id="rSubMissing"/>' . "\n" .
+            '    <w:subDoc r:id="rSubWrongType"/>' . "\n" .
+            '    <w:subDoc r:id="rSubUnknown"/>' . "\n" .
+            '    <w:subDoc/>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/subdocuments/internal.docx'] = 'internal subdocument bytes';
+        $parts['word/subdocuments/unreferenced.docx'] = 'unreferenced subdocument bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $subdocuments = $docx['subdocuments'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $subdocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
+        $external = $subdocuments['byRelationshipId']['rSubExternal'];
+        $internal = $subdocuments['byRelationshipId']['rSubInternal'];
+        $missing = $subdocuments['byRelationshipId']['rSubMissing'];
+        $wrongType = $subdocuments['byRelationshipId']['rSubWrongType'];
+        $unknown = $subdocuments['byRelationshipId']['rSubUnknown'];
+        $unreferenced = $subdocuments['byRelationshipId']['rSubUnreferenced'];
+        $missingId = $subdocuments['items'][5];
+
+        $t->same($subdocuments, $package['subdocuments']);
+        $t->same(7, $subdocuments['count']);
+        $t->same(4, $subdocuments['relationshipCount']);
+        $t->same(6, $subdocuments['referencedCount']);
+        $t->same(1, $subdocuments['unreferencedRelationshipCount']);
+        $t->same(2, $subdocuments['existingCount']);
+        $t->same(1, $subdocuments['missingCount']);
+        $t->same(2, $subdocuments['externalCount']);
+        $t->same(3, $subdocuments['internalCount']);
+        $t->same(7, $subdocuments['unsupportedCount']);
+        $t->same(6, $subdocuments['issueCount']);
+        $t->same([
+            'internal-subdocument-target',
+            'missing-in-package',
+            'missing-relationship-id',
+            'unexpected-relationship-type',
+            'unknown-relationship',
+        ], $subdocuments['issueCodes']);
+        $t->same(false, $subdocuments['directReaderParity']);
+        $t->same('subdocument-master-document-expansion-not-implemented', $subdocuments['unsupportedReason']);
+        $t->same('subdocument-package-bytes-blocked', $subdocuments['byteExposurePolicy']);
+        $t->same('subdocument-metadata-only', $subdocuments['reviewPolicy']);
+        $t->same(['rSubExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown', 'rSubUnreferenced'], $subdocuments['relationshipIds']);
+        $t->same(['rSubExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown'], $subdocuments['referencedRelationshipIds']);
+        $t->same(['rSubUnreferenced'], $subdocuments['unreferencedRelationshipIds']);
+        $t->same(['word/subdocuments/internal.docx', 'word/subdocuments/missing.docx', 'word/subdocuments/unreferenced.docx'], $subdocuments['partNames']);
+        $t->same([
+            'https://example.test/subdocuments/source-review.docx?revision=4#main',
+            'https://example.test/not-subdocument',
+        ], $subdocuments['externalTargets']);
+
+        $t->same('rSubExternal', $external['relationshipId']);
+        $t->same(true, $external['referenced']);
+        $t->same($subdocumentRel, $external['relationshipType']);
+        $t->same('https://example.test/subdocuments/source-review.docx?revision=4#main', $external['target']);
+        $t->same('revision=4', $external['targetQuery']);
+        $t->same('main', $external['targetFragment']);
+        $t->same('?revision=4#main', $external['targetReferenceSuffix']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same([], $external['issues']);
+
+        $t->same('word/subdocuments/internal.docx', $internal['targetPart']);
+        $t->same(true, $internal['exists']);
+        $t->same(strlen($parts['word/subdocuments/internal.docx']), $internal['bytes']);
+        $t->same(sprintf('%08x', crc32($parts['word/subdocuments/internal.docx'])), $internal['crc32']);
+        $t->same(hash('sha256', $parts['word/subdocuments/internal.docx']), $internal['sha256']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $internal['contentType']);
+        $t->same('default', $internal['contentTypeSource']);
+        $t->same(['internal-subdocument-target'], $internal['issues']);
+
+        $t->same('word/subdocuments/missing.docx', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(['internal-subdocument-target', 'missing-in-package'], $missing['issues']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrongType['relationshipType']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->same(null, $unknown['relationship']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+        $t->same('', $missingId['relationshipId']);
+        $t->same(['missing-relationship-id'], $missingId['issues']);
+        $t->same(false, $unreferenced['referenced']);
+        $t->same('word/subdocuments/unreferenced.docx', $unreferenced['targetPart']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same(['internal-subdocument-target'], $unreferenced['issues']);
+
+        $t->same(7, $summary['subdocumentCount']);
+        $t->same(4, $summary['subdocumentRelationshipCount']);
+        $t->same(6, $summary['subdocumentReferencedCount']);
+        $t->same(2, $summary['subdocumentExistingCount']);
+        $t->same(1, $summary['subdocumentMissingCount']);
+        $t->same(2, $summary['subdocumentExternalCount']);
+        $t->same(3, $summary['subdocumentInternalCount']);
+        $t->same(7, $summary['subdocumentUnsupportedCount']);
+        $t->same(6, $summary['subdocumentIssueCount']);
+        $t->same($subdocuments['issueCodes'], $summary['subdocumentIssueCodes']);
+        $t->same('subDocument', $relationshipTypes[$subdocumentRel]['label']);
+        $t->same(4, $relationshipTypes[$subdocumentRel]['count']);
+        $t->same(3, $relationshipTypes[$subdocumentRel]['internalCount']);
+        $t->same(1, $relationshipTypes[$subdocumentRel]['externalCount']);
+        $t->same(['word/subdocuments/internal.docx', 'word/subdocuments/unreferenced.docx'], $relationshipTypes[$subdocumentRel]['existingTargetParts']);
+        $t->same(['word/subdocuments/missing.docx'], $relationshipTypes[$subdocumentRel]['missingTargetParts']);
+        $t->true(in_array('subdocument', $package['parts']['word/subdocuments/internal.docx']['roles'], true), 'internal subdocument role missing');
+        $t->true(in_array('subdocument', $package['parts']['word/subdocuments/unreferenced.docx']['roles'], true), 'unreferenced subdocument role missing');
+    },
     'summarizes docx chart package parts from drawing relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
