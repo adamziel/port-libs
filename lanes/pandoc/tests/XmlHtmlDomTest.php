@@ -2779,6 +2779,98 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><p><img alt="Diagram" src="diagram.png" usemap="#figures"><img alt="Bad" src="bad.png" usemap="bad target"></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html image map association and area geometry diagnostics for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>'
+                . '<img src="diagram.png" alt="Diagram" usemap="#figures">'
+                . '<img src="missing.png" alt="Missing" usemap="#missing">'
+                . '<img src="duplicate.png" alt="Duplicate" usemap="#dupe">'
+                . '<img src="invalid.png" alt="Invalid" usemap="bad target">'
+                . '</p>'
+                . '<map name="figures">'
+                . '<area shape="rect" coords="0,0,10,10" href="diagram.png#rect" alt="Rectangle">'
+                . '<area shape="circle" coords="5,5,0" href="diagram.png#circle" alt="Bad circle">'
+                . '<area shape="poly" coords="0,0,10,0,10" href="diagram.png#poly" alt="Bad polygon">'
+                . '<area shape="default" coords="99,99" href="diagram.png#default" alt="Default">'
+                . '<area shape="rect" coords="1,two,3,4" href="diagram.png#after-default" alt="After default">'
+                . '</map>'
+                . '<map name="dupe"><area href="dupe-one.html" alt="Dup one"></map>'
+                . '<map name="dupe"><area href="dupe-two.html" alt="Dup two"></map>'
+                . '<map name="bad target"><area href="bad.html" alt="Bad"></map>',
+            'image map area geometry review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $resolvedImage = $summary[0]['children'][0];
+        $missingImage = $summary[0]['children'][1];
+        $duplicateImage = $summary[0]['children'][2];
+        $invalidImage = $summary[0]['children'][3];
+        $map = $summary[1];
+        $rectArea = $map['areas'][0];
+        $circleArea = $map['areas'][1];
+        $polyArea = $map['areas'][2];
+        $defaultArea = $map['areas'][3];
+        $badCoordArea = $map['areas'][4];
+        $firstDuplicateMap = $summary[2];
+        $invalidMap = $summary[4];
+
+        $t->same('resolved', $resolvedImage['useMapAssociationState']);
+        $t->same(1, $resolvedImage['useMapTargetCount']);
+        $t->same(5, $resolvedImage['useMapAreaCount']);
+        $t->same([
+            'diagram.png#rect',
+            'diagram.png#circle',
+            'diagram.png#poly',
+            'diagram.png#default',
+            'diagram.png#after-default',
+        ], $resolvedImage['useMapAreaHrefs']);
+        $t->same([], $resolvedImage['useMapIssues']);
+        $t->same('missing-map', $missingImage['useMapAssociationState']);
+        $t->same([['code' => 'missing-image-map', 'mapName' => 'missing']], $missingImage['useMapIssues']);
+        $t->same('duplicate-map-name', $duplicateImage['useMapAssociationState']);
+        $t->same(2, $duplicateImage['useMapTargetCount']);
+        $t->same(['dupe-one.html', 'dupe-two.html'], $duplicateImage['useMapAreaHrefs']);
+        $t->same('invalid-reference', $invalidImage['useMapAssociationState']);
+        $t->same([['code' => 'invalid-usemap-reference', 'useMapRaw' => 'bad target']], $invalidImage['useMapIssues']);
+
+        $t->same('referenced', $map['imageMapAssociationState']);
+        $t->same(1, $map['imageMapReferenceCount']);
+        $t->same(['diagram.png'], $map['imageMapReferenceSources']);
+        $t->same([], $map['imageMapIssues']);
+        $t->same('rect', $rectArea['areaShape']);
+        $t->same([0.0, 0.0, 10.0, 10.0], $rectArea['coordsNumbers']);
+        $t->same(true, $rectArea['areaGeometryValid']);
+        $t->same('circle', $circleArea['areaShape']);
+        $t->same(false, $circleArea['areaGeometryValid']);
+        $t->same([['code' => 'invalid-circle-area-radius', 'radius' => 0.0]], $circleArea['areaGeometryIssues']);
+        $t->same('poly', $polyArea['areaShape']);
+        $t->same([[
+            'code' => 'invalid-area-coord-count',
+            'shape' => 'poly',
+            'expected' => 'even-number-at-least-6',
+            'actual' => 5,
+        ]], $polyArea['areaGeometryIssues']);
+        $t->same('default', $defaultArea['areaShape']);
+        $t->same(false, $defaultArea['coordsRequired']);
+        $t->same(true, $defaultArea['areaGeometryValid']);
+        $t->same([['code' => 'default-area-coords-ignored']], $defaultArea['areaGeometryIssues']);
+        $t->same(false, $badCoordArea['coordsValid']);
+        $t->same([['code' => 'invalid-area-coord-number', 'token' => 'two']], $badCoordArea['areaGeometryIssues']);
+        $t->same(1, $map['defaultAreaCount']);
+        $t->same(3, $map['firstDefaultAreaIndex']);
+        $t->same([
+            'code' => 'default-area-precedes-specific-area',
+            'defaultAreaIndex' => 3,
+            'coveredAreaIndexes' => [4],
+        ], $map['defaultAreaPrecedenceIssue']);
+        $t->same(5, $map['areaGeometryIssueCount']);
+        $t->same('duplicate-map-name', $firstDuplicateMap['imageMapAssociationState']);
+        $t->same([['code' => 'duplicate-map-name', 'mapName' => 'dupe', 'count' => 2]], $firstDuplicateMap['imageMapIssues']);
+        $t->same('invalid-map-name', $invalidMap['imageMapAssociationState']);
+        $t->same([['code' => 'invalid-map-name', 'mapNameRaw' => 'bad target']], $invalidMap['imageMapIssues']);
+        $t->contains('<area alt="Default" coords="99,99" href="diagram.png#default" shape="default">', $html);
+    },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<base href="https://example.test/docs/" target="_blank">'
