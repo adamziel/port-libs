@@ -36,3 +36,10 @@ php tools/run-tests.php lanes/pandoc/tests
 Focused `EpubPackageReaderTest.php` passed 1 file, 380 assertions, 0
 failures. The full `lanes/pandoc/tests` suite passed 46 files, 75,831
 assertions, 0 failures.
+
+Evidence recovery for `plib-bemfg` replayed the same gate set on current
+`origin/main` after carrying forward `plib-r3u2v`. The replay again passed PHP
+syntax checks for `EpubPackageReader.php` and `EpubPackageReaderTest.php`,
+focused `EpubPackageReaderTest.php` coverage, full `lanes/pandoc/tests`, `jq
+empty` for `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json`, and `git diff
+--check`; no lane status counters needed repair.
