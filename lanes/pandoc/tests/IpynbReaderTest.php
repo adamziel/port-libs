@@ -35,6 +35,10 @@ return [
             'byteExposure' => 'blocked',
             'diagnostics' => ['external-notebook-resource-bytes-blocked'],
         ], $document->attr('notebookResourcePolicy'));
+        $t->same('metadata-only', $document->attr('notebookSchemaByteExposurePolicy'));
+        $t->same(0, $document->attr('notebookSchemaDiagnosticCount'));
+        $t->same(0, $document->attr('notebookSchemaReview')['diagnosticCount']);
+        $t->same(4, $document->attr('notebookSchemaReview')['checkedCellCount']);
 
         $intro = $document->children[0];
         $t->same('div', $intro->type);
@@ -374,6 +378,92 @@ return [
         $t->same(false, str_contains($encodedMedia, '<svg><text>secret</text></svg>'));
         $t->same(false, str_contains($html, 'UNSAFE-PNG-BYTES'));
         $t->same(false, str_contains($html, '<svg><text>secret</text></svg>'));
+    },
+    'collects bounded ipynb schema diagnostics without exposing attachment or output payload bytes' => static function (TestRunner $t): void {
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'id' => '',
+                    'metadata' => 'private-cell-metadata',
+                    'attachments' => 'iVBORw0KGgo=',
+                    'source' => '# Review',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [],
+                    'execution_count' => '7',
+                    'outputs' => [
+                        'payload' => [
+                            'output_type' => 'stream',
+                            'text' => ['secret-output-payload'],
+                        ],
+                    ],
+                    'source' => 'print("schema")',
+                ],
+                [
+                    'cell_type' => 'diagram',
+                    'metadata' => [],
+                    'source' => 'unsupported cell source',
+                ],
+            ],
+            'metadata' => 'private-notebook-metadata',
+            'nbformat' => '4',
+            'nbformat_minor' => '5',
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $review = $document->attr('notebookSchemaReview');
+
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same('nbformat-v4-bounded', $review['schema']);
+        $t->same(3, $review['checkedCellCount']);
+        $t->same(9, $review['diagnosticCount']);
+        $t->same(3, $review['notebookDiagnosticCount']);
+        $t->same(6, $review['cellDiagnosticCount']);
+        $t->same([
+            'invalid-nbformat',
+            'invalid-nbformat-minor',
+            'invalid-notebook-metadata',
+            'invalid-cell-metadata',
+            'invalid-cell-id',
+            'invalid-cell-attachments',
+            'invalid-code-execution-count',
+            'invalid-code-outputs',
+            'unsupported-cell-type',
+        ], array_column($review['diagnostics'], 'type'));
+        $t->same(9, $document->attr('notebookSchemaDiagnosticCount'));
+        $t->same($review['diagnostics'], $document->attr('notebookSchemaDiagnostics'));
+
+        $firstCell = $document->children[0];
+        $t->same(3, $firstCell->attr('ipynbCellSchemaDiagnosticCount'));
+        $t->same([
+            'invalid-cell-metadata',
+            'invalid-cell-id',
+            'invalid-cell-attachments',
+        ], array_column($firstCell->attr('ipynbCellSchemaDiagnostics'), 'type'));
+
+        $secondCell = $document->children[1];
+        $t->same(2, $secondCell->attr('ipynbCellSchemaDiagnosticCount'));
+        $t->same([
+            'invalid-code-execution-count',
+            'invalid-code-outputs',
+        ], array_column($secondCell->attr('ipynbCellSchemaDiagnostics'), 'type'));
+
+        $thirdCell = $document->children[2];
+        $t->same(1, $thirdCell->attr('ipynbCellSchemaDiagnosticCount'));
+        $t->same(['unsupported-cell-type'], array_column($thirdCell->attr('ipynbCellSchemaDiagnostics'), 'type'));
+
+        $cells = $document->attr('notebookCells');
+        $t->same(3, $cells[0]['schemaDiagnosticCount']);
+        $t->same(2, $cells[1]['schemaDiagnosticCount']);
+        $t->same(1, $cells[2]['schemaDiagnosticCount']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'iVBORw0KGgo='));
+        $t->same(false, str_contains($reviewJson, 'secret-output-payload'));
+        $t->same(false, str_contains($reviewJson, 'private-cell-metadata'));
+        $t->same(false, str_contains($reviewJson, 'private-notebook-metadata'));
     },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
