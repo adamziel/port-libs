@@ -3972,6 +3972,219 @@ return [
             }
         }
     },
+    'preserves table body head row native payloads during partial group rebuilds' => static function (TestRunner $t): void {
+        $headCellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['head-cell', [], []],
+                ['t' => 'AlignCenter'],
+                ['t' => 'RowSpan', 'c' => 1],
+                ['t' => 'ColSpan', 'c' => 1],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Head'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'head-cell-source',
+        ];
+        $headRowNative = [
+            't' => 'Row',
+            'c' => [
+                ['head-row', [], []],
+                [$headCellNative],
+            ],
+            'reviewQueue' => 'head-row-source',
+        ];
+        $intermediateCellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['intermediate-cell', [], []],
+                ['t' => 'AlignDefault'],
+                ['t' => 'RowSpan', 'c' => 1],
+                ['t' => 'ColSpan', 'c' => 1],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Intermediate'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'intermediate-cell-source',
+        ];
+        $intermediateRowNative = [
+            't' => 'Row',
+            'c' => [
+                ['intermediate-row', [], []],
+                [$intermediateCellNative],
+            ],
+            'reviewQueue' => 'intermediate-row-source',
+        ];
+        $bodyCellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['body-cell', [], []],
+                ['t' => 'AlignRight'],
+                ['t' => 'RowSpan', 'c' => 1],
+                ['t' => 'ColSpan', 'c' => 1],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Body'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'body-cell-source',
+        ];
+        $bodyRowNative = [
+            't' => 'Row',
+            'c' => [
+                ['body-row', [], []],
+                [$bodyCellNative],
+            ],
+            'reviewQueue' => 'body-row-source',
+        ];
+        $rowHeadColumnsNative = [
+            't' => 'RowHeadColumns',
+            'c' => 1,
+            'reviewQueue' => 'row-head-columns-source',
+        ];
+        $headNative = [
+            't' => 'TableHead',
+            'c' => [
+                ['head-group', [], []],
+                [$headRowNative],
+            ],
+            'reviewQueue' => 'head-group-source',
+        ];
+        $bodyNative = [
+            't' => 'TableBody',
+            'c' => [
+                ['body-group', [], []],
+                $rowHeadColumnsNative,
+                [$intermediateRowNative],
+                [$bodyRowNative],
+            ],
+            'reviewQueue' => 'body-group-source',
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-table', [], []],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                $headNative,
+                [$bodyNative],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $sections = [];
+            foreach ($table->children as $child) {
+                $sections[$child->type] = $child;
+            }
+            $head = $sections['table_head'];
+            $body = $sections['table_body'];
+            $bodyHeadRows = $body->attr('headRows');
+            $headRow = $head->children[0];
+            $intermediateRow = $bodyHeadRows[0];
+            $bodyRow = $body->children[0];
+
+            $t->same($headNative, $head->attr('native'), "{$source} reader preserves table head group payload");
+            $t->same($bodyNative, $body->attr('native'), "{$source} reader preserves table body group payload");
+            $t->same($rowHeadColumnsNative, $body->attr('rowHeadColumnsNative'), "{$source} reader preserves row-head-columns payload");
+            $t->same($headRowNative, $headRow->attr('native'), "{$source} reader preserves table head row payload");
+            $t->same($intermediateRowNative, $intermediateRow->attr('native'), "{$source} reader preserves body head row payload");
+            $t->same($bodyRowNative, $bodyRow->attr('native'), "{$source} reader preserves body row payload");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'rebuilt-table']), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+
+                $t->same('rebuilt-table', $encodedTable['c'][0][0], "{$source} {$writer} writer rebuilds only the edited table wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$source} {$writer} writer drops stale table sidecar");
+                $t->same($headNative, $encodedTable['c'][3], "{$source} {$writer} writer preserves unchanged table head group payload");
+                $t->same($bodyNative, $encodedTable['c'][4][0], "{$source} {$writer} writer preserves unchanged table body group payload");
+            }
+
+            $editedIntermediateCell = new AstNode('table_cell', $intermediateRow->children[0]->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+            ]);
+            $editedIntermediateRow = new AstNode('table_row', $intermediateRow->attrs, [$editedIntermediateCell]);
+            $editedBody = new AstNode('table_body', array_replace($body->attrs, [
+                'headRows' => [$editedIntermediateRow],
+            ]), $body->children);
+            $editedIntermediateDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'edited-intermediate-table']), [$head, $editedBody]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedIntermediateDocument),
+                'native' => json_decode((new NativeWriter())->write($editedIntermediateDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedBody = $encodedTable['c'][4][0];
+                $encodedBodyPayload = $encodedBody['c'] ?? $encodedBody;
+                $encodedIntermediateRow = $encodedBodyPayload[2][0];
+                $encodedIntermediateRowPayload = $encodedIntermediateRow['c'] ?? $encodedIntermediateRow;
+                $encodedIntermediateCell = $encodedIntermediateRowPayload[1][0];
+                $encodedIntermediateCellPayload = $encodedIntermediateCell['c'] ?? $encodedIntermediateCell;
+
+                $t->same($headNative, $encodedTable['c'][3], "{$source} {$writer} edited body head row preserves table head group payload");
+                $t->same($rowHeadColumnsNative, $encodedBodyPayload[1], "{$source} {$writer} edited body head row preserves row-head-columns payload");
+                $t->same($bodyRowNative, $encodedBodyPayload[3][0], "{$source} {$writer} edited body head row preserves unchanged body row payload");
+                $t->same('Edited', $encodedIntermediateCellPayload[4][0]['c'][0]['c'], "{$source} {$writer} edited body head row regenerates changed row content");
+                $t->same(false, array_key_exists('reviewQueue', $encodedBody), "{$source} {$writer} edited body head row drops stale body group sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedIntermediateRow), "{$source} {$writer} edited body head row drops stale intermediate row sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedIntermediateCell), "{$source} {$writer} edited body head row drops stale intermediate cell sidecar");
+            }
+
+            $editedHeadCell = new AstNode('table_cell', $headRow->children[0]->attrs, [
+                new AstNode('text', ['text' => 'EditedHead']),
+            ]);
+            $editedHeadRow = new AstNode('table_row', $headRow->attrs, [$editedHeadCell]);
+            $editedHead = new AstNode('table_head', $head->attrs, [$editedHeadRow]);
+            $editedHeadDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'edited-head-table']), [$editedHead, $body]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedHeadDocument),
+                'native' => json_decode((new NativeWriter())->write($editedHeadDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedHead = $encodedTable['c'][3];
+                $encodedHeadPayload = $encodedHead['c'] ?? $encodedHead;
+                $encodedHeadRow = $encodedHeadPayload[1][0];
+                $encodedHeadRowPayload = $encodedHeadRow['c'] ?? $encodedHeadRow;
+                $encodedHeadCell = $encodedHeadRowPayload[1][0];
+                $encodedHeadCellPayload = $encodedHeadCell['c'] ?? $encodedHeadCell;
+
+                $t->same($bodyNative, $encodedTable['c'][4][0], "{$source} {$writer} edited head row preserves unchanged table body group payload");
+                $t->same('EditedHead', $encodedHeadCellPayload[4][0]['c'][0]['c'], "{$source} {$writer} edited head row regenerates changed row content");
+                $t->same(false, array_key_exists('reviewQueue', $encodedHead), "{$source} {$writer} edited head row drops stale head group sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedHeadRow), "{$source} {$writer} edited head row drops stale head row sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedHeadCell), "{$source} {$writer} edited head row drops stale head cell sidecar");
+            }
+        }
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
