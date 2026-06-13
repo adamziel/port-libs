@@ -11194,6 +11194,23 @@ MD;
         $t->same('foo', $list->children[0]->children[0]->attr('text'));
         $t->same('bar', $list->children[0]->children[1]->children[0]->attr('text'));
     },
+    'maps stacked markdown definition terms through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = "Cello\nVioloncello\n: Low-voiced stringed instrument.\n";
+        $document = (new MarkdownReader())->read($markdown);
+        $list = $document->children[0];
+        $item = $list->children[0];
+        $term = $item->children[0];
+        $written = (new MarkdownWriter())->write($document);
+        $roundTrip = (new MarkdownReader())->read($written);
+        $blocks = (new WordPressBlockWriter())->write($roundTrip);
+
+        $t->same('definition_list', $list->type);
+        $t->same("Cello\nVioloncello", $item->attr('term'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $term->children));
+        $t->same("Cello\nVioloncello\n:   Low-voiced stringed instrument.", $written);
+        $t->same("Cello\nVioloncello", $roundTrip->children[0]->children[0]->attr('term'));
+        $t->contains('<dl><dt>Cello<br/>Violoncello</dt><dd>Low-voiced stringed instrument.</dd></dl>', $blocks);
+    },
     'maps upstream markdown loose first definition paragraph' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("foo1\n\n  :  bar\n\nfoo2\n\n  : bar2\n  : bar3\n");
         $firstDefinition = $document->children[0]->children[0]->children[1];

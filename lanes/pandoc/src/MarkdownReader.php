@@ -14960,8 +14960,18 @@ final class MarkdownReader
                 break;
             }
 
-            $termText = trim($lines[$cursor]);
-            $definitionCursor = $cursor + 1;
+            $termLines = [];
+            $definitionCursor = $cursor;
+            while ($definitionCursor < $count && $this->canStartDefinitionTerm($lines[$definitionCursor])) {
+                $termLines[] = trim($lines[$definitionCursor]);
+                $definitionCursor++;
+            }
+
+            if ($termLines === []) {
+                break;
+            }
+
+            $termText = implode("\n", $termLines);
             $looseFirstDefinition = false;
             if ($definitionCursor < $count && trim($lines[$definitionCursor]) === '') {
                 $looseFirstDefinition = true;
@@ -15011,7 +15021,7 @@ final class MarkdownReader
                 }
             }
 
-            $term = new AstNode('term', ['text' => $termText], $this->parseInlines($termText));
+            $term = new AstNode('term', ['text' => $termText], $this->definitionTermInlines($termLines));
             $items[] = new AstNode('definition_item', ['term' => $termText], array_merge([$term], $definitions));
         }
 
@@ -15022,6 +15032,23 @@ final class MarkdownReader
         $index = $cursor - 1;
 
         return new AstNode('definition_list', [], $items);
+    }
+
+    /**
+     * @param list<string> $terms
+     * @return list<AstNode>
+     */
+    private function definitionTermInlines(array $terms): array
+    {
+        $inlines = [];
+        foreach ($terms as $index => $term) {
+            if ($index > 0) {
+                $inlines[] = new AstNode('linebreak');
+            }
+            array_push($inlines, ...$this->parseInlines($term));
+        }
+
+        return $inlines;
     }
 
     private function canStartDefinitionTerm(string $line): bool

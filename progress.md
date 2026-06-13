@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,308 pass / 0 fail | [3,268 / 2,276 (143.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Note label sidecars are covered; continue JSON/native parity | json-native-note-label-sidecars-177a271bf9 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,309 pass / 0 fail | [3,269 / 2,276 (143.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Definition-list term groups covered; continue list parity or JSON/native parity | definition-list-term-groups-d3ed225156 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -32,9 +32,9 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 
 | Input family | In-scope input tokens | Current input status | Local passing | Upstream denominator | Remaining input work |
 | --- | --- | --- | ---: | ---: | --- |
-| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 443 | 1,096 | Nested-list fixture round-trip is covered; complete extension and variant parity. |
+| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 444 | 1,096 | Nested-list fixture and definition-list term-group handoff are covered; complete extension and variant parity. |
 | HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 275 | 29 | JATS/BITS front-matter review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS readers. |
-| JSON/native AST | `json`, `native` | partial | 48 | 252 | Note label sidecars and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
+| JSON/native AST | `json`, `native` | partial | 49 | 252 | Note label sidecars, definition-list term handoff, and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
 | EPUB/EPUB3 | `epub` | partial | 59 | 9 | Finish EPUB package reader parity; latest slice preserves NCX docTitle/docAuthor audio provenance. |
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 50 | 20 | 0 critical gaps for native PHP ODT import; continue only non-critical hardening slices as discovered. |
@@ -56,6 +56,14 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### Definition List Term Group Update (2026-06-13)
+
+Bounded native PHP list handoff advanced by one definition-list term parity slice after JSON/native note label sidecars. MarkdownReader now groups stacked Markdown definition terms as LineBreak-separated term inlines, MarkdownWriter emits those groups as separate term lines, and WordPressBlockWriter renders Pandoc JSON/native `definition_term` nodes instead of dropping native term text.
+
+Verification passed `php -l` for `MarkdownReader.php`, `MarkdownWriter.php`, `WordPressBlockWriter.php`, `MarkdownReaderTest.php`, and `PandocJsonNativeAstTest.php`; focused `MarkdownReaderTest.php` plus `PandocJsonNativeAstTest.php` passed (`2` files, `8616` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74227` assertions, `0` failures). No Pandoc, Cabal/Haskell runner, browser renderer, TeX engine, Node tooling, office suite, online service, live provider, or external validator was invoked.
+
+Remaining list gaps: broader nested continuation, ordered-list start/style propagation across more constructors, and list item id propagation.
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 
@@ -253,15 +261,15 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonReader.php lanes/pandoc/src/NativeReader.php lanes/pandoc/src/PandocJsonWriter.php lanes/pandoc/src/NativeWriter.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`,
-`php -l lanes/pandoc/src/PandocJsonReader.php`,
-`php -l lanes/pandoc/src/NativeReader.php`,
-`php -l lanes/pandoc/src/PandocJsonWriter.php`,
-`php -l lanes/pandoc/src/NativeWriter.php`,
+status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/MarkdownReader.php lanes/pandoc/src/MarkdownWriter.php lanes/pandoc/src/WordPressBlockWriter.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`,
+`php -l lanes/pandoc/src/MarkdownReader.php`,
+`php -l lanes/pandoc/src/MarkdownWriter.php`,
+`php -l lanes/pandoc/src/WordPressBlockWriter.php`,
+`php -l lanes/pandoc/tests/MarkdownReaderTest.php`,
 `php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`
-(`1` file, `1978` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`45` files, `74215` assertions, `0` failures on current main `177a271bf9`).
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`
+(`2` files, `8616` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
+(`45` files, `74227` assertions, `0` failures on current main `d3ed225156`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.

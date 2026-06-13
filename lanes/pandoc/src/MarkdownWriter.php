@@ -1075,15 +1075,10 @@ final class MarkdownWriter
                 continue;
             }
 
-            $term = $item->children[0];
-            $termMarkdown = $term->type === 'definition_term'
-                ? $this->renderInlines($term->children)
-                : $this->renderInlines([$term]);
-
             if ($lines !== [] && end($lines) !== '') {
                 $lines[] = '';
             }
-            $lines[] = $prefix . $termMarkdown;
+            array_push($lines, ...$this->renderDefinitionTermLines($item->children[0], $indent));
 
             foreach (array_slice($item->children, 1) as $definition) {
                 if ($definition->type !== 'definition') {
@@ -1098,6 +1093,35 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDefinitionTermLines(AstNode $term, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent);
+        $termInlines = in_array($term->type, ['definition_term', 'term'], true) ? $term->children : [$term];
+        $segments = [[]];
+        foreach ($termInlines as $inline) {
+            if ($inline->type === 'linebreak') {
+                $segments[] = [];
+                continue;
+            }
+            $lastIndex = array_key_last($segments);
+            if ($lastIndex === null) {
+                $segments[] = [$inline];
+                continue;
+            }
+            $segments[$lastIndex][] = $inline;
+        }
+
+        $lines = [];
+        foreach ($segments as $segment) {
+            $lines[] = $prefix . $this->renderInlines($segment);
+        }
+
+        return $lines === [] ? [$prefix] : $lines;
     }
 
     /**
