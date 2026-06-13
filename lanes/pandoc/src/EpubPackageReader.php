@@ -927,6 +927,7 @@ final class EpubPackageReader
             'normalizedCollisionGroupCount' => $normalizedCollisionReport['normalizedCollisionGroupCount'],
             'normalizedCollisionItemCount' => $normalizedCollisionReport['normalizedCollisionItemCount'],
             'normalizedCollisionDiagnostics' => $normalizedCollisionReport['normalizedCollisionDiagnostics'],
+            'normalizedCollisionSections' => $normalizedCollisionReport['sections'],
             'crossSectionCollisionGroupCount' => $normalizedCollisionReport['crossSectionCollisionGroupCount'],
             'crossSectionCollisionItemCount' => $normalizedCollisionReport['crossSectionCollisionItemCount'],
             'crossSectionCollisionDiagnostics' => $normalizedCollisionReport['crossSectionCollisionDiagnostics'],
