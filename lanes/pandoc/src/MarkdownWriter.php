@@ -2118,7 +2118,7 @@ final class MarkdownWriter
     private function renderRawBlock(AstNode $node, int $indent): array
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if ($node->type === 'raw_html') {
+        if ($node->type === 'raw_html' || $this->isHtmlRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('html', ''));
         } elseif ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('markdown', ''));
@@ -2143,6 +2143,10 @@ final class MarkdownWriter
 
         if ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             return (string) $node->attr('text', $node->attr('markdown', ''));
+        }
+
+        if ($node->type === 'raw_html_inline' || $this->isHtmlRawFormat($format)) {
+            return (string) $node->attr('text', $node->attr('html', ''));
         }
 
         if ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
@@ -2176,6 +2180,15 @@ final class MarkdownWriter
             'commonmark_x',
             'gfm',
         ], true);
+    }
+
+    private function isHtmlRawFormat(string $format): bool
+    {
+        $baseFormat = str_replace('-', '+', $format);
+        $baseFormat = explode('+', $baseFormat, 2)[0];
+
+        return in_array($format, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
     }
 
     /**

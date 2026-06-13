@@ -10160,7 +10160,7 @@ MD;
         ]);
 
         $t->same(
-            'Reviewer formula: $E = mc^2$ and raw cite \cite[22-23]{smith.1899} plus markdown *kept* and html .'
+            'Reviewer formula: $E = mc^2$ and raw cite \cite[22-23]{smith.1899} plus markdown *kept* and html <span>drop</span>.'
                 . "\n\n" . 'Display formula: $$\alpha + \omega \times x^2$$'
                 . "\n\n" . '- $p$-Tree with \cite{tree}',
             (new MarkdownWriter())->write($document)
@@ -10219,6 +10219,7 @@ MD;
                 . "\n" . '\end{migration-review}'
                 . "\n\n" . '> Raw Markdown reviewer block'
                 . "\n" . '> with migration note.'
+                . "\n\n" . '<aside>drop from markdown</aside>'
                 . "\n\n" . '::: {.review-packet}'
                 . "\n" . 'native raw markdown block'
                 . "\n" . ':::'
@@ -10251,8 +10252,9 @@ MD;
         $t->same('html', $htmlBlock->attr('format'));
         $t->same('<aside>drop</aside>', $htmlBlock->attr('text'));
         $t->same(implode("\n\n", [
-            'Raw attributes: **kept** and .',
+            'Raw attributes: **kept** and <span>drop</span>.',
             '> reviewer raw block',
+            '<aside>drop</aside>',
         ]), (new MarkdownWriter())->write($document));
 
         $ordinary = (new MarkdownReader())->read('`ordinary`{.php data-source="batch-raw"} and `literal`{=html .mixed}');
@@ -10297,7 +10299,7 @@ MD;
         ]);
 
         $t->same(
-            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and .'
+            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and <span>drop</span>.'
                 . "\n\n" . '> strict raw handoff'
                 . "\n\n" . '::: {.php-extra-review}'
                 . "\n" . 'extra raw handoff'
@@ -10307,7 +10309,8 @@ MD;
                 . "\n\n" . '| raw | table |'
                 . "\n" . '| --- | --- |'
                 . "\n\n" . 'raw -- block'
-                . "\n\n" . '- [x] raw task',
+                . "\n\n" . '- [x] raw task'
+                . "\n\n" . '<aside>drop</aside>',
             (new MarkdownWriter())->write($document)
         );
     },
@@ -16825,7 +16828,7 @@ HTML);
                 new AstNode('space'),
                 new AstNode('raw_inline', [
                     'format' => 'html',
-                    'text' => '<span>generic markdown raw stays disabled</span>',
+                    'text' => '<span>generic markdown raw is preserved</span>',
                 ]),
                 new AstNode('raw_inline', [
                     'format' => 'opml',
@@ -16866,11 +16869,11 @@ HTML);
         $markdown = (new MarkdownWriter())->write($markdownDocument);
         $blocks = (new WordPressBlockWriter())->write($wordpressDocument);
 
-        $t->same('Press ' . $kbd . ' before publishing.', $markdown);
+        $t->same('Press ' . $kbd . ' <span>generic markdown raw is preserved</span>before publishing.', $markdown);
         $t->contains('<!-- wp:html -->' . "\n" . $script . "\n" . '<!-- /wp:html -->', $blocks);
         $t->contains('<p>Before ' . $svg . ' ' . $kbd . ' after</p>', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-tex">' . $latex . '</code></pre>', $blocks);
-        $t->true(!str_contains($markdown, 'generic markdown raw'), 'Generic raw HTML remains disabled in Markdown output');
+        $t->contains('generic markdown raw is preserved', $markdown);
         $t->true(!str_contains($markdown, '<outline'), 'Unsupported raw inline formats stay disabled in Markdown output');
         $t->true(!str_contains($blocks, '<outline'), 'Unsupported raw inline formats stay disabled in WordPress output');
     },
