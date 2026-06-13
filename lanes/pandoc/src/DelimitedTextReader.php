@@ -35,16 +35,19 @@ final class DelimitedTextReader
         };
         $hasHeader = $this->headerOption($options);
 
-        $rows = $this->parseRows($this->stripBom($text), $delimiter);
+        $sourceText = $this->stripBom($text);
+        $rows = $this->parseRows($sourceText, $delimiter);
         if ($rows === []) {
+            $sourceAnalysis = $this->sourceAnalysis($sourceText, $delimiter, []);
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader),
+                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $sourceAnalysis),
             ]);
         }
 
         $widths = array_map('count', $rows);
         $columnCount = max($widths);
+        $sourceAnalysis = $this->sourceAnalysis($sourceText, $delimiter, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
         $tableRows = [];
         foreach ($rows as $row) {
@@ -59,7 +62,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader),
+            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $sourceAnalysis),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -139,9 +142,19 @@ final class DelimitedTextReader
     /**
      * @param list<list<string>> $rows
      * @param list<int> $widths
+     * @param array{
+     *     finalRecordTerminated:bool,
+     *     multilineQuotedFieldCount:int,
+     *     multilineQuotedRows:list<int>,
+     *     quotedFieldNewlineCount:int,
+     *     trailingDelimiterRows:list<int>,
+     *     unterminatedQuoteRow:int|null,
+     *     partialFinalRecordRow:int|null,
+     *     partialFinalRecordFieldCount:int|null
+     * } $sourceAnalysis
      * @return array<string, mixed>
      */
-    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader): array
+    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader, array $sourceAnalysis): array
     {
         $rowCount = count($rows);
         $columnCount = $widths === [] ? 0 : max($widths);
@@ -151,6 +164,7 @@ final class DelimitedTextReader
                 $raggedRows[] = $index;
             }
         }
+        $diagnostics = $this->diagnostics($hasHeader, $sourceAnalysis);
 
         return [
             'format' => $format,
@@ -169,11 +183,18 @@ final class DelimitedTextReader
             'maxFieldCount' => $columnCount,
             'raggedRowCount' => count($raggedRows),
             'raggedRows' => $raggedRows,
-            'diagnostics' => $hasHeader ? [] : [[
-                'code' => 'delimited-text-header-disabled',
-                'severity' => 'info',
-                'message' => 'No source header row was consumed; generated column labels are review metadata only.',
-            ]],
+            'finalRecordTerminated' => $sourceAnalysis['finalRecordTerminated'],
+            'multilineQuotedFieldCount' => $sourceAnalysis['multilineQuotedFieldCount'],
+            'multilineQuotedRows' => $sourceAnalysis['multilineQuotedRows'],
+            'quotedFieldNewlineCount' => $sourceAnalysis['quotedFieldNewlineCount'],
+            'trailingDelimiterRowCount' => count($sourceAnalysis['trailingDelimiterRows']),
+            'trailingDelimiterRows' => $sourceAnalysis['trailingDelimiterRows'],
+            'unterminatedQuoteAtEof' => $sourceAnalysis['unterminatedQuoteRow'] !== null,
+            'unterminatedQuoteRow' => $sourceAnalysis['unterminatedQuoteRow'],
+            'partialFinalRecord' => $sourceAnalysis['partialFinalRecordRow'] !== null,
+            'partialFinalRecordRow' => $sourceAnalysis['partialFinalRecordRow'],
+            'partialFinalRecordFieldCount' => $sourceAnalysis['partialFinalRecordFieldCount'],
+            'diagnostics' => $diagnostics,
             'upstreamEvidence' => [
                 'denominator' => 2,
                 'fixtures' => [
@@ -183,6 +204,195 @@ final class DelimitedTextReader
                 'source' => 'lanes/pandoc/src/UpstreamRunnerDependencyAudit.php static extra-source inventory',
             ],
         ];
+    }
+
+    /**
+     * @param list<int> $widths
+     * @return array{
+     *     finalRecordTerminated:bool,
+     *     multilineQuotedFieldCount:int,
+     *     multilineQuotedRows:list<int>,
+     *     quotedFieldNewlineCount:int,
+     *     trailingDelimiterRows:list<int>,
+     *     unterminatedQuoteRow:int|null,
+     *     partialFinalRecordRow:int|null,
+     *     partialFinalRecordFieldCount:int|null
+     * }
+     */
+    private function sourceAnalysis(string $text, string $delimiter, array $widths): array
+    {
+        $length = strlen($text);
+        $recordIndex = 0;
+        $recordHasContent = false;
+        $atFieldStart = true;
+        $inQuotes = false;
+        $currentQuotedFieldHasNewline = false;
+        $multilineQuotedFieldCount = 0;
+        $quotedFieldNewlineCount = 0;
+        $multilineQuotedRows = [];
+        $trailingDelimiterRows = [];
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            $next = $offset + 1 < $length ? $text[$offset + 1] : null;
+
+            if ($inQuotes) {
+                if ($char === '"') {
+                    if ($next === '"') {
+                        $offset++;
+                        continue;
+                    }
+
+                    if ($currentQuotedFieldHasNewline) {
+                        $multilineQuotedFieldCount++;
+                        $currentQuotedFieldHasNewline = false;
+                    }
+                    $inQuotes = false;
+                    $atFieldStart = false;
+                    continue;
+                }
+
+                if ($this->isLineBreak($char)) {
+                    $quotedFieldNewlineCount++;
+                    $currentQuotedFieldHasNewline = true;
+                    $multilineQuotedRows[$recordIndex] = true;
+                    if ($char === "\r" && $next === "\n") {
+                        $offset++;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($this->isLineBreak($char)) {
+                if ($recordHasContent) {
+                    $recordIndex++;
+                }
+
+                $recordHasContent = false;
+                $atFieldStart = true;
+                if ($char === "\r" && $next === "\n") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $recordHasContent = true;
+
+            if ($char === $delimiter) {
+                if ($next === null || $this->isLineBreak($next)) {
+                    $trailingDelimiterRows[$recordIndex] = true;
+                }
+                $atFieldStart = true;
+                continue;
+            }
+
+            if ($char === '"' && $atFieldStart) {
+                $inQuotes = true;
+                $currentQuotedFieldHasNewline = false;
+                continue;
+            }
+
+            $atFieldStart = false;
+        }
+
+        $finalRecordTerminated = $text === '' || $this->endsWithLineBreak($text);
+        $unterminatedQuoteRow = $inQuotes && $recordHasContent ? $recordIndex : null;
+        if ($inQuotes && $currentQuotedFieldHasNewline) {
+            $multilineQuotedFieldCount++;
+        }
+        $partialFinalRecordRow = null;
+        $partialFinalRecordFieldCount = null;
+        if (!$finalRecordTerminated && $widths !== []) {
+            $lastRow = count($widths) - 1;
+            $columnCount = max($widths);
+            if ($widths[$lastRow] < $columnCount) {
+                $partialFinalRecordRow = $lastRow;
+                $partialFinalRecordFieldCount = $widths[$lastRow];
+            }
+        }
+
+        return [
+            'finalRecordTerminated' => $finalRecordTerminated,
+            'multilineQuotedFieldCount' => $multilineQuotedFieldCount,
+            'multilineQuotedRows' => array_map('intval', array_keys($multilineQuotedRows)),
+            'quotedFieldNewlineCount' => $quotedFieldNewlineCount,
+            'trailingDelimiterRows' => array_map('intval', array_keys($trailingDelimiterRows)),
+            'unterminatedQuoteRow' => $unterminatedQuoteRow,
+            'partialFinalRecordRow' => $partialFinalRecordRow,
+            'partialFinalRecordFieldCount' => $partialFinalRecordFieldCount,
+        ];
+    }
+
+    /**
+     * @param array{
+     *     multilineQuotedRows:list<int>,
+     *     trailingDelimiterRows:list<int>,
+     *     unterminatedQuoteRow:int|null,
+     *     partialFinalRecordRow:int|null,
+     *     partialFinalRecordFieldCount:int|null
+     * } $sourceAnalysis
+     * @return list<array{code:string,severity:string,message:string,row?:int,rows?:list<int>,fieldCount?:int}>
+     */
+    private function diagnostics(bool $hasHeader, array $sourceAnalysis): array
+    {
+        $diagnostics = [];
+        if (!$hasHeader) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-header-disabled',
+                'severity' => 'info',
+                'message' => 'No source header row was consumed; generated column labels are review metadata only.',
+            ];
+        }
+
+        if ($sourceAnalysis['multilineQuotedRows'] !== []) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-multiline-quoted-field',
+                'severity' => 'info',
+                'message' => 'One or more quoted fields contain source line breaks and were read as logical records.',
+                'rows' => $sourceAnalysis['multilineQuotedRows'],
+            ];
+        }
+
+        if ($sourceAnalysis['trailingDelimiterRows'] !== []) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-trailing-delimiter-empty-field',
+                'severity' => 'info',
+                'message' => 'One or more records end with a delimiter, producing an explicit empty final field.',
+                'rows' => $sourceAnalysis['trailingDelimiterRows'],
+            ];
+        }
+
+        if ($sourceAnalysis['unterminatedQuoteRow'] !== null) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-unterminated-quote-eof',
+                'severity' => 'warning',
+                'message' => 'A quoted field reaches EOF before a closing quote; remaining source text is kept in that field.',
+                'row' => $sourceAnalysis['unterminatedQuoteRow'],
+            ];
+        }
+
+        if ($sourceAnalysis['partialFinalRecordRow'] !== null) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-partial-final-record',
+                'severity' => 'warning',
+                'message' => 'The final unterminated source record has fewer fields than the widest parsed record and was padded in the table AST.',
+                'row' => $sourceAnalysis['partialFinalRecordRow'],
+                'fieldCount' => $sourceAnalysis['partialFinalRecordFieldCount'] ?? 0,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private function isLineBreak(string $char): bool
+    {
+        return $char === "\n" || $char === "\r";
+    }
+
+    private function endsWithLineBreak(string $text): bool
+    {
+        return str_ends_with($text, "\n") || str_ends_with($text, "\r");
     }
 
     private function stripBom(string $text): string
