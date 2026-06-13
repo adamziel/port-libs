@@ -11,6 +11,7 @@ final class XmlHtmlDom
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+    private const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -189,6 +190,12 @@ final class XmlHtmlDom
         'note' => true,
         'tip' => true,
         'warning' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const DOCBOOK_XREF_LINK_ELEMENTS = [
+        'link' => true,
+        'xref' => true,
     ];
 
     /** @var array<string, array<string, true>> */
@@ -1758,12 +1765,18 @@ final class XmlHtmlDom
         }
 
         $sections = self::docBookSectionSummaries($root);
-        $diagnostics = self::docBookSectionDiagnostics($sections);
+        $sectionTargets = self::docBookSectionTargetIndex($sections);
+        $xrefLinkTargets = self::docBookXrefLinkTargets($root, $sectionTargets);
+        $diagnostics = array_merge(
+            self::docBookSectionDiagnostics($sections),
+            self::docBookXrefLinkDiagnostics($xrefLinkTargets)
+        );
+        $xrefLinkTargetStatusCounts = self::docBookXrefLinkTargetStatusCounts($xrefLinkTargets);
 
         return [
             'formatFamily' => 'xml-html5-jats-dom',
             'format' => 'docbook',
-            'reviewPolicy' => 'docbook-section-title-metadata-review-only',
+            'reviewPolicy' => 'docbook-section-title-xref-metadata-review-only',
             'directReaderParity' => false,
             'rootName' => $rootName,
             'rootAttributes' => self::xmlAttributeMap($root),
@@ -1774,11 +1787,23 @@ final class XmlHtmlDom
             'titleSource' => self::docBookTitleSource($root),
             'subtitle' => self::docBookSectionMetadataSubtitleText($root),
             'sectionCount' => count($sections),
+            'sectionIds' => array_values(array_filter(
+                array_map(static fn (array $section): ?string => $section['id'], $sections),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
             'sectionTitles' => array_values(array_filter(
                 array_map(static fn (array $section): ?string => $section['title'], $sections),
                 static fn (?string $title): bool => $title !== null && $title !== ''
             )),
             'sections' => $sections,
+            'xrefLinkTargets' => $xrefLinkTargets,
+            'xrefLinkTargetCount' => count($xrefLinkTargets),
+            'xrefLinkTargetStatuses' => array_keys($xrefLinkTargetStatusCounts),
+            'xrefLinkTargetStatusCounts' => $xrefLinkTargetStatusCounts,
+            'xrefLinkResolvedCount' => $xrefLinkTargetStatusCounts['resolved-section'] ?? 0,
+            'xrefLinkMissingCount' => $xrefLinkTargetStatusCounts['missing-anchor'] ?? 0,
+            'xrefLinkDuplicateCount' => $xrefLinkTargetStatusCounts['duplicate-section-id'] ?? 0,
+            'xrefLinkUnsafeCount' => $xrefLinkTargetStatusCounts['unsafe-target'] ?? 0,
             'diagnostics' => $diagnostics,
             'diagnosticCodes' => array_values(array_unique(array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
@@ -4512,6 +4537,216 @@ final class XmlHtmlDom
         return $level;
     }
 
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function docBookSectionTargetIndex(array $sections): array
+    {
+        $index = [];
+        foreach ($sections as $sectionIndex => $section) {
+            $id = $section['id'] ?? null;
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+
+            $index[$id][] = [
+                'sectionIndex' => $sectionIndex,
+                'element' => $section['element'] ?? null,
+                'title' => $section['title'] ?? null,
+            ];
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $sectionTargets
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookXrefLinkTargets(\DOMElement $root, array $sectionTargets): array
+    {
+        $targets = [];
+        foreach (self::descendantElements($root) as $element) {
+            $name = strtolower($element->localName);
+            if (!isset(self::DOCBOOK_XREF_LINK_ELEMENTS[$name])) {
+                continue;
+            }
+
+            foreach (self::docBookXrefLinkRawTargets($element) as $rawTarget) {
+                foreach (self::docBookXrefLinkTargetRecords($element, $rawTarget, $sectionTargets) as $record) {
+                    $targets[] = $record;
+                }
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @return list<array{attribute:string, rawTarget:string, target:?string, unsafeReason:?string}>
+     */
+    private static function docBookXrefLinkRawTargets(\DOMElement $element): array
+    {
+        $targets = [];
+
+        foreach (['linkend', 'linkends'] as $attribute) {
+            $raw = self::normalizedAttribute($element, $attribute);
+            if ($raw === null) {
+                continue;
+            }
+
+            $tokens = $attribute === 'linkends' ? self::spaceSeparatedTokens($raw) : [$raw];
+            foreach ($tokens as $token) {
+                $targets[] = [
+                    'attribute' => $attribute,
+                    'rawTarget' => $raw,
+                    'target' => $token,
+                    'unsafeReason' => self::docBookUnsafeIdTargetReason($token),
+                ];
+            }
+        }
+
+        foreach ([[self::XLINK_NAMESPACE, 'xlink:href'], [null, 'href']] as [$namespace, $attribute]) {
+            $raw = $namespace === null
+                ? self::normalizedAttribute($element, 'href')
+                : self::normalizedAttribute($element, 'href', $namespace);
+            if ($raw === null) {
+                continue;
+            }
+
+            $hrefTarget = self::docBookHrefTarget($raw);
+            $targets[] = [
+                'attribute' => $attribute,
+                'rawTarget' => $raw,
+                'target' => $hrefTarget['target'],
+                'unsafeReason' => $hrefTarget['unsafeReason'],
+            ];
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @return array{target:?string, unsafeReason:?string}
+     */
+    private static function docBookHrefTarget(string $href): array
+    {
+        $href = trim($href);
+        if ($href === '') {
+            return ['target' => null, 'unsafeReason' => 'empty-href'];
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $href) === 1) {
+            return ['target' => null, 'unsafeReason' => 'control-byte-href'];
+        }
+
+        if (!str_starts_with($href, '#')) {
+            return ['target' => null, 'unsafeReason' => 'non-local-href'];
+        }
+
+        $target = substr($href, 1);
+        if ($target === '') {
+            return ['target' => null, 'unsafeReason' => 'empty-fragment'];
+        }
+
+        return ['target' => $target, 'unsafeReason' => self::docBookUnsafeIdTargetReason($target)];
+    }
+
+    private static function docBookUnsafeIdTargetReason(string $target): ?string
+    {
+        if ($target === '') {
+            return 'empty-target';
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F\s\/?#]/', $target) === 1) {
+            return 'unsafe-target-token';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{attribute:string, rawTarget:string, target:?string, unsafeReason:?string} $rawTarget
+     * @param array<string, list<array<string, mixed>>> $sectionTargets
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookXrefLinkTargetRecords(\DOMElement $element, array $rawTarget, array $sectionTargets): array
+    {
+        $target = $rawTarget['target'];
+        $locations = is_string($target) && isset($sectionTargets[$target]) ? $sectionTargets[$target] : [];
+        $status = self::docBookXrefLinkTargetStatus($target, $rawTarget['unsafeReason'], $locations);
+        $diagnostics = self::docBookXrefLinkTargetDiagnosticCodes($status);
+        $text = self::normalizedText($element);
+
+        return [[
+            'element' => strtolower($element->localName),
+            'attribute' => $rawTarget['attribute'],
+            'rawTarget' => $rawTarget['rawTarget'],
+            'target' => $target,
+            'text' => $text !== '' ? $text : null,
+            'status' => $status,
+            'unsafeReason' => $rawTarget['unsafeReason'],
+            'targetSectionIndexes' => array_map(
+                static fn (array $location): int => (int) ($location['sectionIndex'] ?? 0),
+                $locations
+            ),
+            'targetSectionTitles' => array_values(array_filter(
+                array_map(static fn (array $location): ?string => $location['title'] ?? null, $locations),
+                static fn (?string $title): bool => $title !== null && $title !== ''
+            )),
+            'diagnostics' => $diagnostics,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $locations
+     */
+    private static function docBookXrefLinkTargetStatus(?string $target, ?string $unsafeReason, array $locations): string
+    {
+        if ($unsafeReason !== null) {
+            return 'unsafe-target';
+        }
+
+        if ($target === null || $locations === []) {
+            return 'missing-anchor';
+        }
+
+        return count($locations) > 1 ? 'duplicate-section-id' : 'resolved-section';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookXrefLinkTargetDiagnosticCodes(string $status): array
+    {
+        return match ($status) {
+            'duplicate-section-id' => ['docbook-xref-target-duplicate-section-id'],
+            'missing-anchor' => ['docbook-xref-target-missing-anchor'],
+            'unsafe-target' => ['docbook-xref-target-unsafe'],
+            default => [],
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return array<string, int>
+     */
+    private static function docBookXrefLinkTargetStatusCounts(array $targets): array
+    {
+        $counts = [];
+        foreach ($targets as $target) {
+            $status = $target['status'] ?? null;
+            if (!is_string($status) || $status === '') {
+                continue;
+            }
+
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
     private static function docBookDirectTextBlockCount(\DOMElement $section): int
     {
         $count = 0;
@@ -4573,6 +4808,41 @@ final class XmlHtmlDom
             }
 
             $ids[$id] = $index;
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookXrefLinkDiagnostics(array $targets): array
+    {
+        $diagnostics = [];
+        foreach ($targets as $index => $target) {
+            foreach ($target['diagnostics'] ?? [] as $code) {
+                if (!is_string($code) || $code === '') {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'code' => $code,
+                    'targetIndex' => $index,
+                    'element' => $target['element'] ?? null,
+                    'attribute' => $target['attribute'] ?? null,
+                    'target' => $target['target'] ?? null,
+                    'rawTarget' => $target['rawTarget'] ?? null,
+                    'status' => $target['status'] ?? null,
+                ];
+                if (($target['unsafeReason'] ?? null) !== null) {
+                    $diagnostic['unsafeReason'] = $target['unsafeReason'];
+                }
+                if (($target['targetSectionIndexes'] ?? []) !== []) {
+                    $diagnostic['targetSectionIndexes'] = $target['targetSectionIndexes'];
+                }
+                $diagnostics[] = $diagnostic;
+            }
         }
 
         return $diagnostics;
