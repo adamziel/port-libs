@@ -352,6 +352,68 @@ final class PandocFormatRegistry
     ];
 
     /** @var list<string> */
+    private const TEXT_MARKUP_INPUT_FORMATS = [
+        'asciidoc',
+        'creole',
+        'djot',
+        'dokuwiki',
+        'fb2',
+        'haddock',
+        'jira',
+        'man',
+        'mdoc',
+        'mediawiki',
+        'muse',
+        'opml',
+        'org',
+        'pod',
+        'rst',
+        't2t',
+        'textile',
+        'tikiwiki',
+        'twiki',
+        'vimwiki',
+    ];
+
+    /** @var array<string, string> */
+    private const TEXT_MARKUP_FORMAT_FAMILIES = [
+        'asciidoc' => 'lightweight-markup',
+        'creole' => 'wiki',
+        'djot' => 'lightweight-markup',
+        'dokuwiki' => 'wiki',
+        'fb2' => 'lightweight-markup',
+        'haddock' => 'lightweight-markup',
+        'jira' => 'wiki',
+        'man' => 'roff-manual',
+        'mdoc' => 'roff-manual',
+        'mediawiki' => 'wiki',
+        'muse' => 'lightweight-markup',
+        'opml' => 'lightweight-markup',
+        'org' => 'lightweight-markup',
+        'pod' => 'lightweight-markup',
+        'rst' => 'lightweight-markup',
+        't2t' => 'lightweight-markup',
+        'textile' => 'lightweight-markup',
+        'tikiwiki' => 'wiki',
+        'twiki' => 'wiki',
+        'vimwiki' => 'wiki',
+    ];
+
+    /** @var array<string, string> */
+    private const TEXT_MARKUP_UNSUPPORTED_REASON_CODES = [
+        'lightweight-markup' => 'text-markup-reader-not-ported',
+        'wiki' => 'wiki-reader-not-ported',
+        'roff-manual' => 'roff-manual-reader-not-ported',
+    ];
+
+    /** @var array<string, string> */
+    private const TEXT_MARKUP_UNSUPPORTED_REASONS = [
+        'lightweight-markup' => 'Upstream lightweight text reader token is inventoried, but no native PHP reader is registered for this format.',
+        'wiki' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+        'roff-manual' => 'Upstream roff/manual reader coverage is inventoried, but no native PHP roff/manual reader is registered for this format.',
+    ];
+
+    /** @var list<string> */
     private const RICH_PACKAGE_INPUT_FORMATS = [
         'docx',
         'epub',
@@ -1675,6 +1737,140 @@ final class PandocFormatRegistry
             'unsupportedOutputOnly' => $unsupportedOutputOnly,
             'noNativeReader' => self::unsupportedRoffManualInputFormats(),
             'noNativeWriter' => self::unsupportedRoffManualOutputFormats(),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function textMarkupInputFormats(): array
+    {
+        return self::TEXT_MARKUP_INPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function textMarkupInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::TEXT_MARKUP_INPUT_FORMATS);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedTextMarkupInputFormats(): array
+    {
+        return self::formatsWithStatus(self::textMarkupInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return array<string, array{format:string, family:string, reasonCode:string, reason:string, inputStatus:string, outputStatus:string, unsupportedDirections:list<string>, readerCapable:bool, writerCapable:bool, inputImplementation:string, outputImplementation:string, inputNotes:string, outputNotes:string, externalToolFree:bool}>
+     */
+    public static function textMarkupUnsupportedFormatDiagnostics(): array
+    {
+        $inputSupport = self::textMarkupInputSupport();
+        $outputSupport = self::phpOutputSupport();
+        $diagnostics = [];
+
+        foreach (self::TEXT_MARKUP_INPUT_FORMATS as $format) {
+            $input = $inputSupport[$format];
+            $output = $outputSupport[$format] ?? [
+                'status' => 'not-applicable',
+                'implementation' => '',
+                'notes' => 'No upstream Pandoc writer token is registered for this text input format.',
+            ];
+            $family = self::TEXT_MARKUP_FORMAT_FAMILIES[$format] ?? 'lightweight-markup';
+            $unsupportedDirections = [];
+
+            if ($input['status'] === 'unsupported') {
+                $unsupportedDirections[] = 'input';
+            }
+            if ($output['status'] === 'unsupported') {
+                $unsupportedDirections[] = 'output';
+            }
+
+            $diagnostics[$format] = [
+                'format' => $format,
+                'family' => $family,
+                'reasonCode' => self::TEXT_MARKUP_UNSUPPORTED_REASON_CODES[$family],
+                'reason' => self::TEXT_MARKUP_UNSUPPORTED_REASONS[$family],
+                'inputStatus' => $input['status'],
+                'outputStatus' => $output['status'],
+                'unsupportedDirections' => $unsupportedDirections,
+                'readerCapable' => $input['implementation'] !== '' && $input['status'] !== 'unsupported',
+                'writerCapable' => $output['implementation'] !== '' && $output['status'] !== 'unsupported',
+                'inputImplementation' => $input['implementation'],
+                'outputImplementation' => $output['implementation'],
+                'inputNotes' => $input['notes'],
+                'outputNotes' => $output['notes'],
+                'externalToolFree' => true,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     upstreamInputDenominator:int,
+     *     localNativeReaderPasses:int,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedInputCount:int,
+     *     allInputUnsupported:bool,
+     *     familyBuckets:array<string, list<string>>,
+     *     reasonCodeCounts:array<string, int>,
+     *     readerCapableFormats:list<string>,
+     *     writerCapableFormats:list<string>,
+     *     diagnostics:array<string, array{format:string, family:string, reasonCode:string, reason:string, inputStatus:string, outputStatus:string, unsupportedDirections:list<string>, readerCapable:bool, writerCapable:bool, inputImplementation:string, outputImplementation:string, inputNotes:string, outputNotes:string, externalToolFree:bool}>
+     * }
+     */
+    public static function textMarkupUnsupportedFormatReviewPacket(): array
+    {
+        $diagnostics = self::textMarkupUnsupportedFormatDiagnostics();
+        $unsupportedInputFormats = self::unsupportedTextMarkupInputFormats();
+        $familyBuckets = [
+            'lightweight-markup' => [],
+            'wiki' => [],
+            'roff-manual' => [],
+        ];
+        $reasonCodeCounts = [];
+        $readerCapableFormats = [];
+        $writerCapableFormats = [];
+
+        foreach ($diagnostics as $format => $diagnostic) {
+            $familyBuckets[$diagnostic['family']][] = $format;
+            $reasonCode = $diagnostic['reasonCode'];
+            $reasonCodeCounts[$reasonCode] = ($reasonCodeCounts[$reasonCode] ?? 0) + 1;
+
+            if ($diagnostic['readerCapable']) {
+                $readerCapableFormats[] = $format;
+            }
+            if ($diagnostic['writerCapable']) {
+                $writerCapableFormats[] = $format;
+            }
+        }
+        ksort($reasonCodeCounts);
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::TEXT_MARKUP_INPUT_FORMATS,
+            'upstreamInputDenominator' => count(self::TEXT_MARKUP_INPUT_FORMATS),
+            'localNativeReaderPasses' => count($readerCapableFormats),
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'allInputUnsupported' => count($unsupportedInputFormats) === count(self::TEXT_MARKUP_INPUT_FORMATS),
+            'familyBuckets' => $familyBuckets,
+            'reasonCodeCounts' => $reasonCodeCounts,
+            'readerCapableFormats' => $readerCapableFormats,
+            'writerCapableFormats' => $writerCapableFormats,
+            'diagnostics' => $diagnostics,
         ];
     }
 

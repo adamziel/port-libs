@@ -1319,6 +1319,101 @@ return [
             $t->same('', $review['outputImplementation']);
         }
     },
+    'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
+        $formats = [
+            'asciidoc',
+            'creole',
+            'djot',
+            'dokuwiki',
+            'fb2',
+            'haddock',
+            'jira',
+            'man',
+            'mdoc',
+            'mediawiki',
+            'muse',
+            'opml',
+            'org',
+            'pod',
+            'rst',
+            't2t',
+            'textile',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ];
+        $packet = PandocFormatRegistry::textMarkupUnsupportedFormatReviewPacket();
+        $diagnostics = PandocFormatRegistry::textMarkupUnsupportedFormatDiagnostics();
+
+        $t->same($formats, PandocFormatRegistry::textMarkupInputFormats());
+        $t->same($formats, array_keys(PandocFormatRegistry::textMarkupInputSupport()));
+        $t->same($formats, PandocFormatRegistry::unsupportedTextMarkupInputFormats());
+        $t->same($formats, $packet['inputFormats']);
+        $t->same($formats, $packet['unsupportedInputFormats']);
+        $t->same($formats, array_keys($diagnostics));
+        $t->same($diagnostics, $packet['diagnostics']);
+        $t->same(20, $packet['upstreamInputDenominator']);
+        $t->same(0, $packet['localNativeReaderPasses']);
+        $t->same(20, $packet['unsupportedInputCount']);
+        $t->same(true, $packet['allInputUnsupported']);
+        $t->same([], $packet['readerCapableFormats']);
+        $t->same([], $packet['writerCapableFormats']);
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+
+        $t->same([
+            'lightweight-markup' => ['asciidoc', 'djot', 'fb2', 'haddock', 'muse', 'opml', 'org', 'pod', 'rst', 't2t', 'textile'],
+            'wiki' => ['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'],
+            'roff-manual' => ['man', 'mdoc'],
+        ], $packet['familyBuckets']);
+        $t->same([
+            'roff-manual-reader-not-ported' => 2,
+            'text-markup-reader-not-ported' => 11,
+            'wiki-reader-not-ported' => 7,
+        ], $packet['reasonCodeCounts']);
+
+        foreach ($diagnostics as $format => $diagnostic) {
+            $t->same($format, $diagnostic['format']);
+            $t->same('unsupported', $diagnostic['inputStatus'], "Text markup {$format} should keep explicit unsupported input status");
+            $t->same(false, $diagnostic['readerCapable'], "Text markup {$format} must not claim a native reader");
+            $t->same('', $diagnostic['inputImplementation'], "Text markup {$format} must not register a native reader implementation");
+            $t->same(true, in_array('input', $diagnostic['unsupportedDirections'], true), "Text markup {$format} must expose an unsupported input direction");
+            $t->same(true, $diagnostic['externalToolFree'], "Text markup {$format} diagnostics must remain external-tool free");
+            $t->contains('no native PHP', $diagnostic['reason']);
+        }
+
+        $asciidoc = $diagnostics['asciidoc'];
+        $t->same('lightweight-markup', $asciidoc['family']);
+        $t->same('text-markup-reader-not-ported', $asciidoc['reasonCode']);
+        $t->same('unsupported', $asciidoc['outputStatus']);
+        $t->same(['input', 'output'], $asciidoc['unsupportedDirections']);
+        $t->same(false, $asciidoc['writerCapable']);
+        $t->same('', $asciidoc['outputImplementation']);
+
+        $dokuwiki = $diagnostics['dokuwiki'];
+        $t->same('wiki', $dokuwiki['family']);
+        $t->same('wiki-reader-not-ported', $dokuwiki['reasonCode']);
+        $t->same('unsupported', $dokuwiki['outputStatus']);
+        $t->same(['input', 'output'], $dokuwiki['unsupportedDirections']);
+        $t->contains('No native PHP reader or writer is registered', $dokuwiki['inputNotes']);
+
+        $man = $diagnostics['man'];
+        $t->same('roff-manual', $man['family']);
+        $t->same('roff-manual-reader-not-ported', $man['reasonCode']);
+        $t->same('unsupported', $man['outputStatus']);
+        $t->same(['input', 'output'], $man['unsupportedDirections']);
+        $t->contains('upstream man reader source semantics', $man['inputNotes']);
+        $t->contains('upstream man writer source semantics', $man['outputNotes']);
+
+        $mdoc = $diagnostics['mdoc'];
+        $t->same('roff-manual', $mdoc['family']);
+        $t->same('not-applicable', $mdoc['outputStatus']);
+        $t->same(['input'], $mdoc['unsupportedDirections']);
+        $t->same(false, $mdoc['writerCapable']);
+        $t->contains('manual-family input', $mdoc['inputNotes']);
+        $t->contains('No upstream Pandoc writer token', $mdoc['outputNotes']);
+    },
     'builds wiki format upstream evidence packets without direct parity claims' => static function (TestRunner $t): void {
         $templates = PandocFormatRegistry::wikiTemplateResources();
         $fixtures = PandocFormatRegistry::wikiFixtureSources();
