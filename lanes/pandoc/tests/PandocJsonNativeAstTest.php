@@ -5997,6 +5997,46 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
     },
+    'passes native definition term linebreaks through wordpress html handoff' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'DefinitionList', 'c' => [
+                    [
+                        [
+                            ['t' => 'Str', 'c' => 'Cello'],
+                            ['t' => 'LineBreak'],
+                            ['t' => 'Str', 'c' => 'Violoncello'],
+                        ],
+                        [
+                            [
+                                ['t' => 'Para', 'c' => [
+                                    ['t' => 'Str', 'c' => 'Low-voiced'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => 'instrument.'],
+                                ]],
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $term = $document->children[0]->children[0]->children[0];
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same('definition_term', $term->type, "{$source} native definition term node");
+            $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $term->children), "{$source} term inline shape");
+            $t->contains('<dl><dt>Cello<br/>Violoncello</dt><dd>Low-voiced instrument.</dd></dl>', $blocks, "{$source} wordpress definition term handoff");
+        }
+    },
     'records pandoc list definition and line helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $bulletItem = [
             ['t' => 'Plain', 'c' => [

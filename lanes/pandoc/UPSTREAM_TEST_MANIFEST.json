@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3280,
-        "latestSlice": "pandoc-epub-xhtml-definition-list-handoff maps linear spine XHTML dl/dt/dd content into shared definition_list AST nodes after Markdown fenced Div section-reference boundaries on current main. EpubPackageReader now preserves source id/class attributes, term text, inline strong/link content, package-local links, loose multi-block definitions, nested list bodies, and WordPress dl output. phpPass moves 3320 -> 3321, phpFail remains 0, mappedEpubXhtmlDefinitionListHandoffCases is 1, and epubXhtmlDefinitionListHandoffAssertions is 26. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 213 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74513 assertions, 0 failures after final rebase onto current main 6dfacd7bba. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3281,
+        "latestSlice": "pandoc-definition-list-term-groups maps one native PHP definition-list term parity case beyond task-list sidecars after EPUB XHTML definition-list handoff on current main. MarkdownReader groups stacked Markdown definition terms as LineBreak-separated term inlines, MarkdownWriter emits those term groups as separate definition-term lines, and WordPressBlockWriter renders Pandoc JSON/native definition_term nodes with hard-break terms instead of dropping native term text. phpPass moves 3321 -> 3322, phpFail remains 0, mappedDefinitionListTermGroupCases is 1, and definitionListTermGroupAssertions is 12. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, WordPressBlockWriter.php, MarkdownReaderTest.php, and PandocJsonNativeAstTest.php; focused MarkdownReaderTest.php plus PandocJsonNativeAstTest.php passed 2 files, 8762 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74525 assertions, 0 failures after final rebase onto current main d1e41a7720. No Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, TeX or office tooling, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB XHTML definition-list handoff is verified over current main 6dfacd7bba after Markdown fenced Div section-reference boundaries; broader EPUB3 package parity remains partial.",
-        "latestFocusedSource": "2026-06-13 EPUB XHTML definition-list handoff slice inspected EpubPackageReader XHTML spine definition-list behavior against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 6dfacd7bba; focused EpubPackageReaderTest.php passed 1 file, 213 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74513 assertions, 0 failures.",
+        "status": "Definition-list term-group handoff is verified in focused and full native PHP Pandoc coverage over current main d1e41a7720; broader Markdown/CommonMark/GFM and JSON/native AST parity remain partial.",
+        "latestFocusedSource": "2026-06-13 definition-list term-group slice inspected stacked Markdown terms plus Pandoc JSON/native definition_term WordPress handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main d1e41a7720; focused MarkdownReaderTest.php plus PandocJsonNativeAstTest.php passed 2 files, 8762 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74525 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -181,7 +181,9 @@
         "mappedMarkdownFencedDivSectionReferenceBoundaryCases": 1,
         "markdownFencedDivSectionReferenceBoundaryAssertions": 2,
         "mappedEpubXhtmlDefinitionListHandoffCases": 1,
-        "epubXhtmlDefinitionListHandoffAssertions": 26
+        "epubXhtmlDefinitionListHandoffAssertions": 26,
+        "mappedDefinitionListTermGroupCases": 1,
+        "definitionListTermGroupAssertions": 12
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
