@@ -4,6 +4,8 @@ Updated: 2026-06-13 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
+ODF/ODT is marked ship-ready: 52 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | ---: |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
