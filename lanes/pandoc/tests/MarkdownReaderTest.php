@@ -14013,6 +14013,76 @@ LATEX;
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="short caption">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">long caption</figcaption>', $blocks);
     },
+    'maps docbook list block metadata and diagnostics' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<itemizedlist role="checklist">
+<title>Review checklist</title>
+<listitem xml:id="li-1"><para>Confirm media</para>
+<orderedlist numeration="lowerroman" startingnumber="3">
+<listitem><simpara>Nested ordered review</simpara></listitem>
+</orderedlist>
+</listitem>
+<listitem><warning role="source-note"><para>Unsupported advisory</para></warning></listitem>
+</itemizedlist>
+
+<orderedlist numeration="upperalpha" startingnumber="2" spacing="compact">
+<listitem><simpara>Approve order</simpara></listitem>
+</orderedlist>
+
+<variablelist>
+<title>DocBook glossary</title>
+<varlistentry xml:id="term-import">
+<term>Import queue</term>
+<term>Review queue</term>
+<listitem><para>Bounded list metadata.</para></listitem>
+</varlistentry>
+</variablelist>
+XML;
+        $document = (new MarkdownReader())->read($docbook);
+        $itemized = $document->children[0];
+        $ordered = $document->children[1];
+        $variable = $document->children[2];
+        $nestedOrdered = $itemized->children[0]->children[1];
+        $diagnostics = $itemized->attr('docbookListDiagnostics');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('bullet_list', $itemized->type);
+        $t->same('itemizedlist', $itemized->attr('docbookListMetadata')['element'] ?? null);
+        $t->same('Review checklist', $itemized->attr('docbookListMetadata')['title'] ?? null);
+        $t->same('checklist', $itemized->attr('docbookListMetadata')['attributes']['role'] ?? null);
+        $t->same(2, $itemized->attr('docbookListMetadata')['itemCount'] ?? null);
+        $t->same('li-1', $itemized->children[0]->attr('docbookListItemMetadata')['attributes']['xml:id'] ?? null);
+        $t->same('Confirm media', $itemized->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $nestedOrdered->type);
+        $t->same(3, $nestedOrdered->attr('start'));
+        $t->same('lower_roman', $nestedOrdered->attr('style'));
+        $t->same('Nested ordered review', $nestedOrdered->children[0]->children[0]->attr('text'));
+        $t->same(true, is_array($diagnostics));
+        $t->same('docbook-listitem-child-unsupported', $diagnostics[0]['code'] ?? null);
+        $t->same('warning', $diagnostics[0]['element'] ?? null);
+        $t->same('source-note', $itemized->children[1]->attr('docbookListItemDiagnostics')[0]['attributes']['role'] ?? null);
+        $t->same('Unsupported advisory', $itemized->children[1]->children[0]->attr('text'));
+
+        $t->same('ordered_list', $ordered->type);
+        $t->same(2, $ordered->attr('start'));
+        $t->same('upper_alpha', $ordered->attr('style'));
+        $t->same('compact', $ordered->attr('docbookListMetadata')['attributes']['spacing'] ?? null);
+        $t->same('Approve order', $ordered->children[0]->children[0]->attr('text'));
+
+        $t->same('definition_list', $variable->type);
+        $t->same('variablelist', $variable->attr('docbookListMetadata')['element'] ?? null);
+        $t->same('DocBook glossary', $variable->attr('docbookListMetadata')['title'] ?? null);
+        $t->same('Import queue' . "\n" . 'Review queue', $variable->children[0]->attr('term'));
+        $t->same('term-import', $variable->children[0]->attr('docbookListItemMetadata')['attributes']['xml:id'] ?? null);
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $variable->children[0]->children[0]->children));
+        $t->same('Bounded list metadata.', $variable->children[0]->children[1]->children[0]->attr('text'));
+        $t->contains('<ul><li><p>Confirm media</p><ol start="3" type="i"><li><p>Nested ordered review</p></li></ol></li><li><p>Unsupported advisory</p></li></ul>', $blocks);
+        $t->contains('<ol start="2" type="A"><li><p>Approve order</p></li></ol>', $blocks);
+        $t->contains('<dl><dt>Import queue<br/>Review queue</dt><dd><p>Bounded list metadata.</p></dd></dl>', $blocks);
+        json_encode($itemized->attr('docbookListMetadata'), JSON_THROW_ON_ERROR);
+        json_encode($itemized->attr('docbookListDiagnostics'), JSON_THROW_ON_ERROR);
+    },
     'maps upstream command docbook table cell alignments' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
 <informaltable frame="all" rowsep="1" colsep="1">

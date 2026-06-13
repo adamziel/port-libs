@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3291,
-        "latestSlice": "pandoc-zip-selected-handoff-role-buckets maps one shared ZIP/OPC package coverage slice after EPUB XHTML table semantics. ZipPackage::entryHandoffPreflight roleSummaries now report handoffUniqueEntryCount, handoffCompressedBytes, handoffUncompressedBytes, handoffEntryNames, and per-role issueCounts so DOCX/EPUB/ODT package readers can review readable bytes, duplicate requests, oversized sidecars, and missing required package parts by semantic role before exposing selected payloads. Mapped denominator moves 3290 -> 3291, mappedZipSelectedHandoffRoleBucketCases is 1, and zipSelectedHandoffRoleBucketAssertions is 13. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures after final rebase onto current main 70d29eb6f8 without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3292,
+        "latestSlice": "pandoc-docbook-list-metadata maps one DocBook reader slice for itemizedlist, orderedlist, variablelist, and listitem diagnostics after shared ZIP/OPC selected-entry role buckets. MarkdownReader now parses safe DocBook list XML into native bullet_list, ordered_list, and definition_list nodes, preserving list titles, source attributes, ordered numeration/start metadata, xml:id listitem provenance, nested list blocks, and unsupported listitem child diagnostics without invoking Pandoc, Cabal/Haskell runners, browser renderers, Node tooling, online services, live provider tests, or external validators. Mapped denominator moves 3291 -> 3292, mappedDocBookListMetadataCases is 1, and docBookListMetadataAssertions is 32. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6748 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74863 assertions, 0 failures after final rebase onto current main 9ab2f42c1e.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Shared ZIP/OPC selected-entry handoff role buckets are verified over current main 70d29eb6f8 after EPUB XHTML table semantics.",
-        "latestFocusedSource": "2026-06-13 shared ZIP/OPC slice inspected selected-entry handoff role bucket provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 70d29eb6f8; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures.",
+        "status": "DocBook list block metadata and diagnostics are verified over current main 9ab2f42c1e after shared ZIP/OPC selected-entry role buckets; broader DocBook reader parity remains partial.",
+        "latestFocusedSource": "2026-06-13 DocBook list metadata slice inspected MarkdownReader list handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 9ab2f42c1e; focused MarkdownReaderTest.php passed 1 file, 6748 assertions, 0 failures, and full lanes/pandoc/tests passed 45 files, 74863 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -203,7 +203,9 @@
         "mappedEpubXhtmlTableSemanticsCases": 1,
         "epubXhtmlTableSemanticsAssertions": 52,
         "mappedZipSelectedHandoffRoleBucketCases": 1,
-        "zipSelectedHandoffRoleBucketAssertions": 13
+        "zipSelectedHandoffRoleBucketAssertions": 13,
+        "mappedDocBookListMetadataCases": 1,
+        "docBookListMetadataAssertions": 32
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
