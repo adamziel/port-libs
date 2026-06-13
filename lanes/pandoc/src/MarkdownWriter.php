@@ -91,7 +91,7 @@ final class MarkdownWriter
                 $this->appendPendingDefinitions($blocks);
             }
 
-            if ($node->type === 'code_block' && $index > 0 && $this->isListBlock($document->children[$index - 1])) {
+            if ($index > 0 && $this->needsListSeparator($document->children[$index - 1], $node)) {
                 $blocks[] = '<!-- -->';
             }
 
@@ -2742,5 +2742,43 @@ final class MarkdownWriter
     private function isListBlock(AstNode $node): bool
     {
         return $node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list';
+    }
+
+    private function needsListSeparator(AstNode $previous, AstNode $current): bool
+    {
+        if (!$this->isListBlock($previous)) {
+            return false;
+        }
+
+        if ($current->type === 'code_block') {
+            return true;
+        }
+
+        if ($previous->type === 'bullet_list' && $current->type === 'bullet_list') {
+            return true;
+        }
+
+        if ($previous->type === 'definition_list' && $current->type === 'definition_list') {
+            return true;
+        }
+
+        return $previous->type === 'ordered_list'
+            && $current->type === 'ordered_list'
+            && $this->orderedListMarkerStyle($previous) === $this->orderedListMarkerStyle($current)
+            && $this->orderedListMarkerDelimiter($previous) === $this->orderedListMarkerDelimiter($current);
+    }
+
+    private function orderedListMarkerStyle(AstNode $node): string
+    {
+        $style = (string) $node->attr('style', 'decimal');
+
+        return $style === '' || $style === 'default' ? 'decimal' : $style;
+    }
+
+    private function orderedListMarkerDelimiter(AstNode $node): string
+    {
+        $delimiter = (string) $node->attr('delimiter', 'period');
+
+        return $delimiter === '' || $delimiter === 'default' ? 'period' : $delimiter;
     }
 }

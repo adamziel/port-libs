@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3253,
-        "latestSlice": "pandoc-xml-html-jats-front-matter-review maps one XML/HTML5/JATS DOM coverage slice for bounded JATS/BITS front-matter review packets. XmlHtmlDom::summarizeJatsFrontMatter now reports safe XML root attributes, document type, DTD version, language, titles, identifiers, abstracts, keywords, contributors, publication dates, section summaries, xref targets, references, figures, table-wraps, and book-part counts while explicitly marking directReaderParity=false without invoking Pandoc, browser renderers, external XML validators, online services, live provider tests, or live-service provider tests. phpPass moves 3292 -> 3293, phpFail remains 0, mappedXmlHtmlDomJatsFrontMatterReviewCases is 1, and xmlHtmlDomJatsFrontMatterReviewAssertions is 45. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php, focused XmlHtmlDomTest.php (1 file, 1828 assertions, 0 failures), DOM/table family tests (6 files, 6256 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73941 assertions, 0 failures) after final rebase onto current main d7a0bfb42d.",
+        "mapped": 3254,
+        "latestSlice": "pandoc-markdown-adjacent-list-separators maps one native Markdown list-semantics case for adjacent bullet, same-style ordered, and definition list boundaries. MarkdownWriter now emits Pandoc empty-comment separators only when adjacent list blocks would merge, and MarkdownReader treats those separators as structural only after a list before another bullet/ordered list, definition-list term, or indented code while preserving ordinary raw HTML comments. The round-trip keeps separate AST list nodes, and downstream WordPress HTML and LaTeX writers keep separate list containers/environments without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3293 -> 3294, phpFail remains 0, mappedMarkdownAdjacentListSeparatorCases is 1, and markdownAdjacentListSeparatorAssertions is 14. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php (1 file, 6588 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73955 assertions, 0 failures) after rebase onto current main 59ea77a447.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "XML/HTML5/JATS DOM front-matter review packet is verified over current main d7a0bfb42d.",
-        "latestFocusedSource": "2026-06-12 XML/HTML5/JATS DOM slice inspected JATS/BITS front-matter review provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main d7a0bfb42d; focused XmlHtmlDomTest.php passed 1 file, 1828 assertions, 0 failures, adjacent DOM/table tests passed 6 files, 6256 assertions, 0 failures, and full lanes/pandoc/tests passed 44 files, 73941 assertions, 0 failures.",
+        "status": "Markdown adjacent-list separator semantics are verified over current main 59ea77a447.",
+        "latestFocusedSource": "2026-06-12 Markdown adjacent-list separator slice inspected list-boundary preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 59ea77a447; focused MarkdownReaderTest.php passed 1 file, 6588 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -131,7 +131,9 @@
         "mappedDocxOpenXmlSectionPropertyCases": 1,
         "docxOpenXmlSectionPropertyAssertions": 41,
         "mappedEpubNcxDocumentAudioProvenanceCases": 1,
-        "epubNcxDocumentAudioProvenanceAssertions": 39
+        "epubNcxDocumentAudioProvenanceAssertions": 39,
+        "mappedMarkdownAdjacentListSeparatorCases": 1,
+        "markdownAdjacentListSeparatorAssertions": 14
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -999,12 +1001,12 @@
         "mappedXmlHtmlDomLinkResourceReviewCases": 1,
         "xmlHtmlDomLinkResourceReviewAssertions": 38
     },
-    "wordpressScenario": "XML/HTML5/JATS DOM handoff now exposes bounded JATS/BITS front-matter review packets, including safe XML root attributes, document type, language, titles, identifiers, abstracts, keywords, contributors, publication dates, section summaries, xref targets, references, figures, table-wraps, book-part counts, and an explicit review-only directReaderParity=false marker without invoking Pandoc, browser renderers, external XML validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "Markdown handoff now preserves adjacent bullet, same-style ordered, and definition list boundaries by emitting structural empty-comment separators only where lists would merge, reading those separators without raw HTML leakage, and keeping downstream WordPress list blocks plus LaTeX list environments split without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Map the next bounded DOCX/OpenXML, shared ZIP/OPC, XML/HTML5 DOM, EPUB3, ODF/ODT, JSON/native-AST, CSL/BibTeX/BibLaTeX/csljson, or PDF/Typst boundary/provenance core-blocker slice that can add measurable passing tests while keeping phpFail at zero.",
-    "status": "XML/HTML5/JATS DOM front-matter review packet is verified in focused, adjacent, and full native PHP Pandoc coverage over current main d7a0bfb42d.",
-    "mapping": "Accounts for one bounded native PHP XML/HTML5/JATS DOM mapping for JATS/BITS front-matter review packets on current main d7a0bfb42d while preserving explicit no-direct-reader-parity claims.",
-    "audit": "updated 2026-06-12: XmlHtmlDom::summarizeJatsFrontMatter reports bounded JATS/BITS front-matter review packets while keeping directReaderParity=false. Verified after rebase onto current main d7a0bfb42d with php -l lanes/pandoc/src/XmlHtmlDom.php, php -l lanes/pandoc/tests/XmlHtmlDomTest.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/XmlHtmlDomTest.php (1 test file, 1828 assertions, 0 failures), adjacent DOM/table tests (6 test files, 6256 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73941 assertions, 0 failures).",
-    "latestSlice": "pandoc-xml-html-jats-front-matter-review maps one XML/HTML5/JATS DOM coverage slice for bounded JATS/BITS front-matter review packets. XmlHtmlDom::summarizeJatsFrontMatter now reports safe XML root attributes, document type, DTD version, language, titles, identifiers, abstracts, keywords, contributors, publication dates, section summaries, xref targets, references, figures, table-wraps, and book-part counts while explicitly marking directReaderParity=false without invoking Pandoc, browser renderers, external XML validators, online services, live provider tests, or live-service provider tests. phpPass moves 3292 -> 3293, phpFail remains 0, mappedXmlHtmlDomJatsFrontMatterReviewCases is 1, and xmlHtmlDomJatsFrontMatterReviewAssertions is 45. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php, focused XmlHtmlDomTest.php (1 file, 1828 assertions, 0 failures), DOM/table family tests (6 files, 6256 assertions, 0 failures), and full lanes/pandoc/tests (44 files, 73941 assertions, 0 failures) after final rebase onto current main d7a0bfb42d.",
+    "status": "Markdown adjacent-list separator semantics are verified over current main 59ea77a447.",
+    "mapping": "Accounts for one bounded native PHP Markdown reader/writer mapping for adjacent list boundary preservation on current main 59ea77a447.",
+    "audit": "updated 2026-06-12: MarkdownReader and MarkdownWriter preserve adjacent bullet, same-style ordered, and definition list boundaries with Pandoc empty-comment separators where list blocks would otherwise merge; ordinary raw HTML comments remain raw. Verified after rebase onto current main 59ea77a447 with php -l lanes/pandoc/src/MarkdownReader.php, php -l lanes/pandoc/src/MarkdownWriter.php, php -l lanes/pandoc/tests/MarkdownReaderTest.php, php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php (1 test file, 6588 assertions, 0 failures), and full lanes/pandoc/tests (44 test files, 73955 assertions, 0 failures).",
+    "latestSlice": "pandoc-markdown-adjacent-list-separators maps one native Markdown list-semantics case for adjacent bullet, same-style ordered, and definition list boundaries. MarkdownWriter now emits Pandoc empty-comment separators only when adjacent list blocks would merge, and MarkdownReader treats those separators as structural only after a list before another bullet/ordered list, definition-list term, or indented code while preserving ordinary raw HTML comments. The round-trip keeps separate AST list nodes, and downstream WordPress HTML and LaTeX writers keep separate list containers/environments without invoking Pandoc, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3293 -> 3294, phpFail remains 0, mappedMarkdownAdjacentListSeparatorCases is 1, and markdownAdjacentListSeparatorAssertions is 14. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php (1 file, 6588 assertions, 0 failures); full lanes/pandoc/tests (44 files, 73955 assertions, 0 failures) after rebase onto current main 59ea77a447.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1146,7 +1148,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-12 XML/HTML5/JATS DOM slice inspected JATS/BITS front-matter review provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main d7a0bfb42d; focused XmlHtmlDomTest.php passed 1 file, 1828 assertions, 0 failures, adjacent DOM/table tests passed 6 files, 6256 assertions, 0 failures, and full lanes/pandoc/tests passed 44 files, 73941 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-12 Markdown adjacent-list separator slice inspected list-boundary preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto origin/main 59ea77a447; focused MarkdownReaderTest.php passed 1 file, 6588 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1326,5 +1328,7 @@
     "mappedDocxRelationshipTypeTargetSuffixCases": 1,
     "docxRelationshipTypeTargetSuffixAssertions": 35,
     "mappedDocxOpenXmlSectionPropertyCases": 1,
-    "docxOpenXmlSectionPropertyAssertions": 41
+    "docxOpenXmlSectionPropertyAssertions": 41,
+    "mappedMarkdownAdjacentListSeparatorCases": 1,
+    "markdownAdjacentListSeparatorAssertions": 14
 }

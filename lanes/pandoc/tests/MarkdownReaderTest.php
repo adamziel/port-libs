@@ -8388,6 +8388,56 @@ MD;
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
     },
+    'preserves adjacent list boundaries through markdown separators' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $item = static fn (string $value): AstNode => new AstNode('list_item', [], [$text($value)]);
+        $definitionItem = static fn (string $term, string $definition): AstNode => new AstNode('definition_item', [], [
+            new AstNode('definition_term', [], [$text($term)]),
+            new AstNode('definition', [], [
+                new AstNode('paragraph', [], [$text($definition)]),
+            ]),
+        ]);
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', [], [$item('first batch')]),
+            new AstNode('bullet_list', [], [$item('second batch')]),
+            new AstNode('ordered_list', ['start' => 1, 'style' => 'decimal', 'delimiter' => 'period'], [$item('first step')]),
+            new AstNode('ordered_list', ['start' => 3, 'style' => 'decimal', 'delimiter' => 'period'], [$item('third step')]),
+            new AstNode('definition_list', [], [$definitionItem('first term', 'first definition')]),
+            new AstNode('definition_list', [], [$definitionItem('second term', 'second definition')]),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $roundTrip = (new MarkdownReader())->read($markdown);
+        $wordpress = (new WordPressBlockWriter())->write($roundTrip);
+        $latex = (new LatexWriter())->write($roundTrip);
+        $commentDocument = (new MarkdownReader())->read("before\n\n<!-- reviewer -->\n\nafter");
+        $emptyCommentDocument = (new MarkdownReader())->read("before\n\n<!-- -->\n\nafter");
+
+        $t->same(implode("\n\n", [
+            '- first batch',
+            '<!-- -->',
+            '- second batch',
+            '1.  first step',
+            '<!-- -->',
+            '3.  third step',
+            "first term\n:   first definition",
+            '<!-- -->',
+            "second term\n:   second definition",
+        ]), $markdown);
+        $t->same(['bullet_list', 'bullet_list', 'ordered_list', 'ordered_list', 'definition_list', 'definition_list'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children));
+        $t->same(3, $roundTrip->children[3]->attr('start'));
+        $t->same(2, substr_count($wordpress, '<ul>'));
+        $t->same(2, substr_count($wordpress, '<ol'));
+        $t->same(2, substr_count($wordpress, '<dl>'));
+        $t->contains('<ol start="3"><li>third step</li></ol>', $wordpress);
+        $t->contains('<dl><dt>second term</dt><dd>second definition</dd></dl>', $wordpress);
+        $t->same(2, substr_count($latex, '\begin{itemize}'));
+        $t->same(2, substr_count($latex, '\begin{enumerate}'));
+        $t->same(2, substr_count($latex, '\begin{description}'));
+        $t->contains('\setcounter{enumi}{2}', $latex);
+        $t->same(['paragraph', 'raw_html', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $commentDocument->children));
+        $t->same(['paragraph', 'raw_html', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $emptyCommentDocument->children));
+    },
     'maps pandoc markdown abbreviation definitions through reader writer and wordpress handoff' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             'Import HTML and PDF/UA notes, not XHTMLish strings.',
