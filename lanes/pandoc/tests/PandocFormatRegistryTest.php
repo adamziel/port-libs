@@ -1552,6 +1552,76 @@ return [
             $t->same('', $review['outputImplementation']);
         }
     },
+    'builds wiki input unsupported reason registry matrix without parser claims' => static function (TestRunner $t): void {
+        $inputTokens = [
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ];
+        $extensionAliasesByToken = [
+            'creole' => [],
+            'dokuwiki' => ['.dokuwiki'],
+            'jira' => [],
+            'mediawiki' => ['.wiki'],
+            'tikiwiki' => [],
+            'twiki' => [],
+            'vimwiki' => [],
+        ];
+        $diagnostics = PandocFormatRegistry::textMarkupUnsupportedFormatDiagnostics();
+        $matrix = PandocFormatRegistry::wikiInputUnsupportedReasonRegistryMatrix();
+
+        $t->same('2026-06-03', $matrix['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $matrix['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $matrix['upstreamSourceCommit']);
+        $t->same($inputTokens, $matrix['inputTokens']);
+        $t->same($inputTokens, $matrix['unsupportedInputTokens']);
+        $t->same(7, $matrix['unsupportedInputCount']);
+        $t->same(false, $matrix['directReaderParitySupported']);
+        $t->same(true, $matrix['externalToolFree']);
+        $t->same(true, $matrix['nativeImplementationRecordsEmpty']);
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $matrix['extensionAliases']);
+        $t->same($matrix['extensionAliases'], PandocFormatRegistry::wikiExtensionInference());
+        $t->same(['dokuwiki', 'mediawiki'], PandocFormatRegistry::wikiFormatsWithExtensionInference());
+        $t->same(['creole', 'jira', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], PandocFormatRegistry::wikiFormatsWithoutExtensionInference());
+        $t->same($inputTokens, array_keys($matrix['rows']));
+        $t->same($inputTokens, array_keys($matrix['nativeImplementationRecords']));
+
+        foreach ($inputTokens as $format) {
+            $diagnostic = $diagnostics[$format];
+            $expectedReasonPayload = [
+                'format' => $format,
+                'family' => 'wiki',
+                'reasonCode' => 'wiki-reader-not-ported',
+                'reason' => $diagnostic['reason'],
+                'inputStatus' => 'unsupported',
+                'outputStatus' => $diagnostic['outputStatus'],
+                'unsupportedDirections' => $diagnostic['unsupportedDirections'],
+                'inputNotes' => $diagnostic['inputNotes'],
+            ];
+            $expectedImplementationRecord = [
+                'inputImplementation' => '',
+                'outputImplementation' => '',
+            ];
+            $row = $matrix['rows'][$format];
+
+            $t->same($format, $row['inputToken']);
+            $t->same('wiki', $row['family']);
+            $t->same($extensionAliasesByToken[$format], $row['extensionAliases']);
+            $t->same($expectedReasonPayload, $row['unsupportedReasonPayload']);
+            $t->same(json_encode($expectedReasonPayload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), $row['serializedUnsupportedReasonPayload']);
+            $t->same(false, $row['directReaderParity']);
+            $t->same(true, $row['externalToolFree']);
+            $t->same($expectedImplementationRecord, $row['nativeImplementationRecord']);
+            $t->same($expectedImplementationRecord, $matrix['nativeImplementationRecords'][$format]);
+        }
+    },
     'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
         $formats = [
             'asciidoc',

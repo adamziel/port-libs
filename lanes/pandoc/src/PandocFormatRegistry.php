@@ -1394,6 +1394,89 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputTokens:list<string>,
+     *     extensionAliases:array<string, string>,
+     *     unsupportedInputTokens:list<string>,
+     *     unsupportedInputCount:int,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool,
+     *     nativeImplementationRecordsEmpty:bool,
+     *     nativeImplementationRecords:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     rows:array<string, array{inputToken:string, family:string, extensionAliases:list<string>, unsupportedReasonPayload:array{format:string, family:string, reasonCode:string, reason:string, inputStatus:string, outputStatus:string, unsupportedDirections:list<string>, inputNotes:string}, serializedUnsupportedReasonPayload:string, directReaderParity:bool, externalToolFree:bool, nativeImplementationRecord:array{inputImplementation:string, outputImplementation:string}}>
+     * }
+     */
+    public static function wikiInputUnsupportedReasonRegistryMatrix(): array
+    {
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::phpOutputSupport();
+        $diagnostics = self::textMarkupUnsupportedFormatDiagnostics();
+        $unsupportedInputTokens = self::unsupportedWikiInputFormats();
+        $extensionsByFormat = array_fill_keys(self::WIKI_INPUT_FORMATS, []);
+        $nativeImplementationRecords = [];
+        $rows = [];
+
+        foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $format) {
+            if (array_key_exists($format, $extensionsByFormat)) {
+                $extensionsByFormat[$format][] = $extension;
+            }
+        }
+
+        foreach (self::WIKI_INPUT_FORMATS as $format) {
+            $input = $inputSupport[$format];
+            $output = $outputSupport[$format] ?? [
+                'implementation' => '',
+            ];
+            $diagnostic = $diagnostics[$format];
+            $nativeImplementationRecord = [
+                'inputImplementation' => $input['implementation'],
+                'outputImplementation' => $output['implementation'],
+            ];
+            $unsupportedReasonPayload = [
+                'format' => $format,
+                'family' => $diagnostic['family'],
+                'reasonCode' => $diagnostic['reasonCode'],
+                'reason' => $diagnostic['reason'],
+                'inputStatus' => $diagnostic['inputStatus'],
+                'outputStatus' => $diagnostic['outputStatus'],
+                'unsupportedDirections' => $diagnostic['unsupportedDirections'],
+                'inputNotes' => $diagnostic['inputNotes'],
+            ];
+            $directReaderParity = $input['implementation'] !== '' && $input['status'] !== 'unsupported';
+
+            $nativeImplementationRecords[$format] = $nativeImplementationRecord;
+            $rows[$format] = [
+                'inputToken' => $format,
+                'family' => $diagnostic['family'],
+                'extensionAliases' => $extensionsByFormat[$format],
+                'unsupportedReasonPayload' => $unsupportedReasonPayload,
+                'serializedUnsupportedReasonPayload' => json_encode($unsupportedReasonPayload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                'directReaderParity' => $directReaderParity,
+                'externalToolFree' => $diagnostic['externalToolFree'],
+                'nativeImplementationRecord' => $nativeImplementationRecord,
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputTokens' => self::WIKI_INPUT_FORMATS,
+            'extensionAliases' => self::WIKI_EXTENSION_INFERENCE,
+            'unsupportedInputTokens' => $unsupportedInputTokens,
+            'unsupportedInputCount' => count($unsupportedInputTokens),
+            'directReaderParitySupported' => $unsupportedInputTokens === [],
+            'externalToolFree' => true,
+            'nativeImplementationRecordsEmpty' => self::nativeImplementationRecordsEmpty($nativeImplementationRecords),
+            'nativeImplementationRecords' => $nativeImplementationRecords,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function roffManualInputFormats(): array
@@ -3223,6 +3306,22 @@ final class PandocFormatRegistry
         }
 
         return $formats;
+    }
+
+    /**
+     * @param array<string, array<string, string>> $records
+     */
+    private static function nativeImplementationRecordsEmpty(array $records): bool
+    {
+        foreach ($records as $record) {
+            foreach ($record as $implementation) {
+                if ($implementation !== '') {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
