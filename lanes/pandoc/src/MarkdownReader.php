@@ -78,6 +78,8 @@ final class MarkdownReader
 
     private bool $resolveFootnoteReferences = true;
 
+    private int $sectionDivsSuppressionDepth = 0;
+
     /**
      * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool, sectionDivs?: bool} $options
      */
@@ -385,7 +387,7 @@ final class MarkdownReader
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
 
-        if (($this->options['sectionDivs'] ?? false) === true) {
+        if ($this->sectionDivsEnabled()) {
             $blocks = $this->sectionizeMarkdownHeadingBlocks($blocks);
         }
 
@@ -7652,6 +7654,22 @@ final class MarkdownReader
         return $this->sectionizeMarkdownHeadingLevel($blocks, $index, 0);
     }
 
+    private function sectionDivsEnabled(): bool
+    {
+        return ($this->options['sectionDivs'] ?? false) === true
+            && $this->sectionDivsSuppressionDepth === 0;
+    }
+
+    private function readMarkdownWithSectionDivsSuppressed(string $markdown): AstNode
+    {
+        $this->sectionDivsSuppressionDepth++;
+        try {
+            return $this->read($markdown);
+        } finally {
+            $this->sectionDivsSuppressionDepth--;
+        }
+    }
+
     /**
      * @param list<AstNode> $blocks
      * @return list<AstNode>
@@ -7698,6 +7716,49 @@ final class MarkdownReader
         return $sectioned;
     }
 
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function sectionizeMarkdownExplicitSectionChildren(array $blocks, int $parentLevel): array
+    {
+        $sectioned = [];
+        $index = 0;
+        $count = count($blocks);
+
+        while ($index < $count) {
+            $node = $blocks[$index];
+            if ($node->type === 'heading') {
+                $level = max(1, min(6, (int) $node->attr('level', 1)));
+                if ($level > $parentLevel) {
+                    array_push($sectioned, ...$this->sectionizeMarkdownHeadingLevel($blocks, $index, $parentLevel));
+                    continue;
+                }
+
+                $sectioned[] = $node;
+                $index++;
+                continue;
+            }
+
+            if ($node->type === 'div') {
+                $sectionLevel = $this->markdownSectionLevel($node->attrs);
+                $node = new AstNode(
+                    'div',
+                    $node->attrs,
+                    $this->sectionizeMarkdownExplicitSectionChildren(
+                        $node->children,
+                        $sectionLevel ?? $parentLevel
+                    )
+                );
+            }
+
+            $sectioned[] = $node;
+            $index++;
+        }
+
+        return $sectioned;
+    }
+
     private function markdownSectionHeading(AstNode $heading): AstNode
     {
         $attrs = $heading->attrs;
@@ -7736,6 +7797,25 @@ final class MarkdownReader
                 static fn (string $value): bool => $value !== ''
             )
         );
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function markdownSectionLevel(array $attrs): ?int
+    {
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes) || !in_array('section', $classes, true)) {
+            return null;
+        }
+
+        foreach ($classes as $class) {
+            if (is_string($class) && preg_match('/^level([1-6])$/', $class, $m) === 1) {
+                return (int) $m[1];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -8410,7 +8490,17 @@ final class MarkdownReader
         for ($cursor = $index + 1; $cursor < $count; $cursor++) {
             if ($this->isFencedDivClosing($lines[$cursor], $opening['length'])) {
                 $index = $cursor;
-                $inner = $content === [] ? [] : $this->read(implode("\n", $content))->children;
+                $sectionLevel = $this->sectionDivsEnabled() ? $this->markdownSectionLevel($opening['attrs']) : null;
+                if ($content === []) {
+                    $inner = [];
+                } elseif ($sectionLevel !== null) {
+                    $inner = $this->sectionizeMarkdownExplicitSectionChildren(
+                        $this->readMarkdownWithSectionDivsSuppressed(implode("\n", $content))->children,
+                        $sectionLevel
+                    );
+                } else {
+                    $inner = $this->read(implode("\n", $content))->children;
+                }
 
                 return new AstNode('div', $opening['attrs'], $inner);
             }
