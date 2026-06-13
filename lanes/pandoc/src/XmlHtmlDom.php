@@ -766,6 +766,9 @@ final class XmlHtmlDom
             (int) $referenceBackMatter['unreferencedReferenceCount'],
             (int) $referenceBackMatter['referenceMetadataSummaryCount'],
             (int) $referenceBackMatter['safeReferenceLabelCount'],
+            (int) $referenceBackMatter['safeReferenceAuthorCount'],
+            (int) $referenceBackMatter['safeReferenceDateCount'],
+            (int) $referenceBackMatter['safeReferenceYearCount'],
             (int) $referenceBackMatter['blockedCitationTextPayloadCount']
         );
 
@@ -828,6 +831,13 @@ final class XmlHtmlDom
             'referenceCount' => $referenceBackMatter['referenceCount'],
             'safeReferenceLabels' => $referenceBackMatter['safeReferenceLabels'],
             'safeReferenceLabelCount' => $referenceBackMatter['safeReferenceLabelCount'],
+            'referenceAuthorDateReviewPolicy' => 'safe-reference-author-date-year-summaries-block-citation-text-payloads',
+            'safeReferenceAuthors' => $referenceBackMatter['safeReferenceAuthors'],
+            'safeReferenceAuthorCount' => $referenceBackMatter['safeReferenceAuthorCount'],
+            'safeReferenceDates' => $referenceBackMatter['safeReferenceDates'],
+            'safeReferenceDateCount' => $referenceBackMatter['safeReferenceDateCount'],
+            'safeReferenceYears' => $referenceBackMatter['safeReferenceYears'],
+            'safeReferenceYearCount' => $referenceBackMatter['safeReferenceYearCount'],
             'blockedCitationTextPayloadCount' => $referenceBackMatter['blockedCitationTextPayloadCount'],
             'blockedCitationTextPayloadElementNames' => $referenceBackMatter['blockedCitationTextPayloadElementNames'],
             'bibliographyXrefs' => $referenceBackMatter['bibliographyXrefs'],
@@ -865,6 +875,9 @@ final class XmlHtmlDom
         int $unreferencedReferenceCount,
         int $referenceMetadataSummaryCount,
         int $safeReferenceLabelCount,
+        int $safeReferenceAuthorCount,
+        int $safeReferenceDateCount,
+        int $safeReferenceYearCount,
         int $blockedCitationTextPayloadCount
     ): array {
         $formatLabel = strtoupper($format);
@@ -913,6 +926,9 @@ final class XmlHtmlDom
                     'unreferencedReferenceCount' => $unreferencedReferenceCount,
                     'referenceMetadataSummaryCount' => $referenceMetadataSummaryCount,
                     'safeReferenceLabelCount' => $safeReferenceLabelCount,
+                    'safeReferenceAuthorCount' => $safeReferenceAuthorCount,
+                    'safeReferenceDateCount' => $safeReferenceDateCount,
+                    'safeReferenceYearCount' => $safeReferenceYearCount,
                     'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
                 ]
             );
@@ -927,6 +943,22 @@ final class XmlHtmlDom
                 true,
                 [
                     'safeReferenceLabelCount' => $safeReferenceLabelCount,
+                    'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+                ]
+            );
+        }
+
+        if ($safeReferenceAuthorCount > 0 || $safeReferenceDateCount > 0 || $safeReferenceYearCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-author-date-policy',
+                'warning',
+                'Reference author, date, and year metadata are exposed as bounded summaries while citation text payloads stay blocked.',
+                false,
+                true,
+                [
+                    'safeReferenceAuthorCount' => $safeReferenceAuthorCount,
+                    'safeReferenceDateCount' => $safeReferenceDateCount,
+                    'safeReferenceYearCount' => $safeReferenceYearCount,
                     'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
                 ]
             );
@@ -1329,6 +1361,9 @@ final class XmlHtmlDom
 
         $references = [];
         $safeReferenceLabels = [];
+        $safeReferenceAuthors = [];
+        $safeReferenceDates = [];
+        $safeReferenceYears = [];
         $blockedCitationTextPayloadCount = 0;
         $blockedCitationTextPayloadElementNames = [];
         foreach ($referenceElements as $reference) {
@@ -1342,6 +1377,27 @@ final class XmlHtmlDom
                 $safeReferenceLabels[] = [
                     'id' => $summary['id'] ?? null,
                     'label' => $label,
+                ];
+            }
+            $authorNames = $summary['authorNames'] ?? [];
+            if (is_array($authorNames) && $authorNames !== []) {
+                $safeReferenceAuthors[] = [
+                    'id' => $summary['id'] ?? null,
+                    'authorNames' => $authorNames,
+                ];
+            }
+            $dateSummaries = $summary['dates'] ?? [];
+            if (is_array($dateSummaries) && $dateSummaries !== []) {
+                $safeReferenceDates[] = [
+                    'id' => $summary['id'] ?? null,
+                    'dates' => $dateSummaries,
+                ];
+            }
+            $years = $summary['years'] ?? [];
+            if (is_array($years) && $years !== []) {
+                $safeReferenceYears[] = [
+                    'id' => $summary['id'] ?? null,
+                    'years' => $years,
                 ];
             }
             $blockedCitationTextPayloadCount += (int) ($summary['blockedCitationTextPayloadCount'] ?? 0);
@@ -1361,6 +1417,21 @@ final class XmlHtmlDom
             'referenceCount' => count($referenceElements),
             'safeReferenceLabels' => $safeReferenceLabels,
             'safeReferenceLabelCount' => count($safeReferenceLabels),
+            'safeReferenceAuthors' => $safeReferenceAuthors,
+            'safeReferenceAuthorCount' => array_sum(array_map(
+                static fn (array $summary): int => count($summary['authorNames'] ?? []),
+                $safeReferenceAuthors
+            )),
+            'safeReferenceDates' => $safeReferenceDates,
+            'safeReferenceDateCount' => array_sum(array_map(
+                static fn (array $summary): int => count($summary['dates'] ?? []),
+                $safeReferenceDates
+            )),
+            'safeReferenceYears' => $safeReferenceYears,
+            'safeReferenceYearCount' => array_sum(array_map(
+                static fn (array $summary): int => count($summary['years'] ?? []),
+                $safeReferenceYears
+            )),
             'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
             'blockedCitationTextPayloadElementNames' => array_values(array_unique($blockedCitationTextPayloadElementNames)),
             'bibliographyXrefs' => $bibliographyXrefs,
@@ -1414,6 +1485,9 @@ final class XmlHtmlDom
             }
         }
 
+        $authors = self::jatsReferenceAuthorSummaries($reference);
+        $dates = self::jatsReferenceDateSummaries($reference);
+        $years = self::jatsReferenceYears($reference);
         $text = self::normalizedText($reference);
 
         return [
@@ -1431,6 +1505,16 @@ final class XmlHtmlDom
             'articleTitle' => self::jatsFirstText($reference, ['article-title']),
             'sourceTitle' => self::jatsFirstText($reference, ['source', 'journal-title', 'book-title']),
             'year' => self::jatsFirstText($reference, ['year']),
+            'years' => $years,
+            'yearCount' => count($years),
+            'dates' => $dates,
+            'dateCount' => count($dates),
+            'authors' => $authors,
+            'authorNames' => array_values(array_map(
+                static fn (array $author): string => (string) $author['name'],
+                $authors
+            )),
+            'authorCount' => count($authors),
             'personGroupTypes' => array_values(array_unique($personGroupTypes)),
             'nameCount' => count(self::descendantElements($reference, 'name')),
             'collabCount' => count(self::descendantElements($reference, 'collab')),
@@ -1440,6 +1524,162 @@ final class XmlHtmlDom
             'textLength' => strlen($text),
             'textSha256' => hash('sha256', $text),
         ];
+    }
+
+    /**
+     * @return list<array{role:?string, name:string, source:string}>
+     */
+    private static function jatsReferenceAuthorSummaries(\DOMElement $reference): array
+    {
+        $authors = [];
+        foreach (self::descendantElements($reference, 'person-group') as $personGroup) {
+            $role = self::jatsTrimmedAttribute($personGroup, 'person-group-type');
+            foreach (self::jatsReferenceNameTexts($personGroup) as $name) {
+                self::appendUniqueJatsReferenceAuthor($authors, [
+                    'role' => $role,
+                    'name' => $name,
+                    'source' => 'person-group',
+                ]);
+            }
+        }
+
+        foreach (self::descendantElements($reference, 'collab') as $collab) {
+            if (self::jatsAncestorElement($collab, 'person-group') instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::normalizedText($collab);
+            if ($name === '') {
+                continue;
+            }
+
+            self::appendUniqueJatsReferenceAuthor($authors, [
+                'role' => 'collab',
+                'name' => $name,
+                'source' => 'collab',
+            ]);
+        }
+
+        return $authors;
+    }
+
+    /**
+     * @param list<array{role:?string, name:string, source:string}> $authors
+     * @param array{role:?string, name:string, source:string} $author
+     */
+    private static function appendUniqueJatsReferenceAuthor(array &$authors, array $author): void
+    {
+        foreach ($authors as $existing) {
+            if (
+                $existing['name'] === $author['name']
+                && $existing['role'] === $author['role']
+                && $existing['source'] === $author['source']
+            ) {
+                return;
+            }
+        }
+
+        $authors[] = $author;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsReferenceNameTexts(\DOMElement $root): array
+    {
+        $names = [];
+        foreach (self::descendantElements($root) as $element) {
+            if (!in_array($element->localName, ['name', 'string-name', 'collab'], true)) {
+                continue;
+            }
+            if (
+                $element->localName === 'collab'
+                && self::jatsAncestorElement($element, 'person-group') !== $root
+            ) {
+                continue;
+            }
+
+            $text = $element->localName === 'name'
+                ? self::jatsPersonNameText($element)
+                : self::normalizedText($element);
+            if ($text !== '') {
+                $names[] = $text;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    private static function jatsPersonNameText(\DOMElement $name): string
+    {
+        $surname = self::jatsFirstText($name, ['surname']);
+        $given = self::jatsFirstText($name, ['given-names']);
+        $suffix = self::jatsFirstText($name, ['suffix']);
+        $combined = trim(($given ?? '') . ' ' . ($surname ?? ''));
+        if ($suffix !== null && $suffix !== '') {
+            $combined = trim($combined . ' ' . $suffix);
+        }
+
+        return $combined !== '' ? $combined : self::normalizedText($name);
+    }
+
+    /**
+     * @return list<array{element:string, type:?string, year:?string, month:?string, day:?string, iso:?string}>
+     */
+    private static function jatsReferenceDateSummaries(\DOMElement $reference): array
+    {
+        $dates = [];
+        foreach (self::descendantElements($reference) as $element) {
+            if (!in_array($element->localName, ['date', 'pub-date', 'date-in-citation'], true)) {
+                continue;
+            }
+
+            $year = self::jatsFirstText($element, ['year']);
+            $month = self::jatsFirstText($element, ['month']);
+            $day = self::jatsFirstText($element, ['day']);
+            $iso = self::jatsTrimmedAttribute($element, 'iso-8601-date') ?? self::jatsIsoDate($year, $month, $day);
+            $dates[] = [
+                'element' => $element->localName,
+                'type' => self::jatsTrimmedAttribute($element, 'date-type')
+                    ?? self::jatsTrimmedAttribute($element, 'pub-type')
+                    ?? self::jatsTrimmedAttribute($element, 'content-type'),
+                'year' => $year,
+                'month' => $month,
+                'day' => $day,
+                'iso' => $iso,
+            ];
+        }
+
+        return $dates;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsReferenceYears(\DOMElement $reference): array
+    {
+        $years = [];
+        foreach (self::descendantElements($reference, 'year') as $year) {
+            $text = self::normalizedText($year);
+            if ($text !== '') {
+                $years[] = $text;
+            }
+        }
+
+        return array_values(array_unique($years));
+    }
+
+    private static function jatsAncestorElement(\DOMElement $element, string $localName): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if ($parent->localName === $localName) {
+                return $parent;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
     }
 
     private static function jatsTrimmedAttribute(\DOMElement $element, string $name): ?string
