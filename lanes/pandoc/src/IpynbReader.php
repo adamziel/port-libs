@@ -65,6 +65,8 @@ final class IpynbReader
         $notebookOutputDiagnostics = [];
         $attachmentMedia = [];
         $attachmentMediaDiagnostics = [];
+        $attachmentManifestEntries = [];
+        $attachmentDiagnostics = [];
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -108,6 +110,8 @@ final class IpynbReader
             $notebookOutputDiagnostics = array_merge($notebookOutputDiagnostics, $outputSummary['unsupportedVerdicts']);
             $attachmentMedia = array_merge($attachmentMedia, $attachmentSummary['media']);
             $attachmentMediaDiagnostics = array_merge($attachmentMediaDiagnostics, $attachmentSummary['diagnostics']);
+            $attachmentManifestEntries = array_merge($attachmentManifestEntries, $attachmentSummary['manifestEntries']);
+            $attachmentDiagnostics = array_merge($attachmentDiagnostics, $attachmentSummary['manifestDiagnostics']);
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $cellIndex,
@@ -166,6 +170,7 @@ final class IpynbReader
                 'ipynbAttachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'ipynbAttachmentMedia' => $attachmentSummary['media'],
                 'ipynbAttachmentMediaDiagnostics' => $attachmentSummary['diagnostics'],
+                'ipynbAttachmentDiagnostics' => $attachmentSummary['manifestDiagnostics'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
                 'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
@@ -201,6 +206,7 @@ final class IpynbReader
                 'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'attachmentMedia' => $attachmentSummary['media'],
                 'attachmentMediaDiagnostics' => $attachmentSummary['diagnostics'],
+                'attachmentDiagnostics' => $attachmentSummary['manifestDiagnostics'],
                 'outputCount' => $outputSummary['count'],
                 'outputTypes' => $outputSummary['types'],
                 'outputMimeTypes' => $outputSummary['mimeTypes'],
@@ -223,6 +229,23 @@ final class IpynbReader
             $cellSummaries[] = $cellSummary;
         }
 
+        $attachmentCollisionGroups = $this->attachmentCollisionGroups($attachmentManifestEntries);
+        if ($attachmentCollisionGroups !== []) {
+            $attachmentDiagnostics[] = 'ipynb-attachment-safe-name-collision';
+        }
+        $attachmentDiagnostics = $this->uniqueSortedStrings($attachmentDiagnostics);
+        $attachmentManifest = [
+            'reviewPolicy' => 'metadata-only-no-payload',
+            'payloadExposurePolicy' => 'ipynb-attachment-payload-bytes-omitted',
+            'attachmentCount' => $attachmentCount,
+            'entryCount' => count($attachmentManifestEntries),
+            'entries' => $attachmentManifestEntries,
+            'diagnosticCount' => count($attachmentDiagnostics),
+            'diagnostics' => $attachmentDiagnostics,
+            'collisionGroupCount' => count($attachmentCollisionGroups),
+            'collisionGroups' => $attachmentCollisionGroups,
+        ];
+
         return new AstNode('document', [
             'sourceFormat' => 'ipynb',
             'notebookCellCount' => count($cells),
@@ -233,6 +256,9 @@ final class IpynbReader
             'notebookAttachmentMediaCount' => count($attachmentMedia),
             'notebookAttachmentMedia' => $attachmentMedia,
             'notebookAttachmentMediaDiagnostics' => $this->uniqueSortedStrings($attachmentMediaDiagnostics),
+            'notebookAttachmentManifest' => $attachmentManifest,
+            'notebookAttachmentDiagnostics' => $attachmentDiagnostics,
+            'notebookAttachmentCollisionCount' => count($attachmentCollisionGroups),
             'notebookOutputCount' => $outputCount,
             'notebookOutputMimeTypes' => $this->uniqueSortedStrings($notebookOutputMimeTypes),
             'notebookRichOutputUnsupportedCount' => $notebookRichOutputUnsupportedCount,
@@ -375,7 +401,9 @@ final class IpynbReader
      *         extractionState:string,
      *         diagnostics:list<string>
      *     }>,
-     *     diagnostics:list<string>
+     *     diagnostics:list<string>,
+     *     manifestEntries:list<array<string, mixed>>,
+     *     manifestDiagnostics:list<string>
      * }
      */
     private function attachmentSummary(array $attachments, int $cellIndex): array
@@ -384,6 +412,8 @@ final class IpynbReader
         $mimeTypes = [];
         $media = [];
         $diagnostics = [];
+        $manifestEntries = [];
+        $manifestDiagnostics = [];
         $usedMediaPaths = [];
         $attachmentNames = [];
         foreach ($attachments as $name => $_payload) {
@@ -399,6 +429,17 @@ final class IpynbReader
             $names[] = (string) $name;
             $payloadMimeTypes = $this->attachmentMimeTypes($payload);
             $mimeTypes = array_merge($mimeTypes, $payloadMimeTypes);
+            $entryDiagnostics = $this->attachmentNameDiagnostics($name);
+            $manifestDiagnostics = array_merge($manifestDiagnostics, $entryDiagnostics);
+            $manifestEntries[] = [
+                'cellIndex' => $cellIndex,
+                'name' => $name,
+                'safeName' => $this->attachmentSafeName($name, count($manifestEntries)),
+                'mimeTypeCount' => count($payloadMimeTypes),
+                'mimeTypes' => $payloadMimeTypes,
+                'payloadExposurePolicy' => 'metadata-only-no-payload',
+                'diagnostics' => $entryDiagnostics,
+            ];
             $mediaPathPlan = $this->attachmentMediaPath($name, $payloadMimeTypes);
             $mediaPath = 'ipynb-media/' . $mediaPathPlan['safeName'];
             $itemDiagnostics = array_merge(['attachment-bytes-blocked'], $mediaPathPlan['diagnostics']);
@@ -430,6 +471,8 @@ final class IpynbReader
             'mimeTypes' => array_values(array_unique($mimeTypes)),
             'media' => $media,
             'diagnostics' => $this->uniqueSortedStrings($diagnostics),
+            'manifestEntries' => $manifestEntries,
+            'manifestDiagnostics' => $this->uniqueSortedStrings($manifestDiagnostics),
         ];
     }
 
@@ -452,6 +495,91 @@ final class IpynbReader
         sort($mimeTypes);
 
         return array_values(array_unique($mimeTypes));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array{safeName:string, caseFoldKey:string, attachmentCount:int, entries:list<array{cellIndex:int, name:string, safeName:string}>}>
+     */
+    private function attachmentCollisionGroups(array $entries): array
+    {
+        $buckets = [];
+        foreach ($entries as $entry) {
+            $safeName = $entry['safeName'] ?? null;
+            if (!is_string($safeName) || $safeName === '') {
+                continue;
+            }
+
+            $key = strtolower($safeName);
+            $buckets[$key][] = [
+                'cellIndex' => (int) ($entry['cellIndex'] ?? 0),
+                'name' => (string) ($entry['name'] ?? ''),
+                'safeName' => $safeName,
+            ];
+        }
+
+        $groups = [];
+        foreach ($buckets as $key => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            usort($items, static fn (array $left, array $right): int => [$left['cellIndex'], $left['name']] <=> [$right['cellIndex'], $right['name']]);
+            $groups[] = [
+                'safeName' => $items[0]['safeName'],
+                'caseFoldKey' => $key,
+                'attachmentCount' => count($items),
+                'entries' => $items,
+            ];
+        }
+        usort($groups, static fn (array $left, array $right): int => $left['caseFoldKey'] <=> $right['caseFoldKey']);
+
+        return $groups;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function attachmentNameDiagnostics(string $name): array
+    {
+        $diagnostics = [];
+        if ($name === '') {
+            $diagnostics[] = 'ipynb-attachment-empty-name';
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $name) === 1) {
+            $diagnostics[] = 'ipynb-attachment-control-bytes';
+        }
+        if (str_starts_with($name, '/') || preg_match('/^[A-Za-z]:[\/\\\\]/', $name) === 1) {
+            $diagnostics[] = 'ipynb-attachment-absolute-path';
+        }
+        if (str_contains($name, '\\')) {
+            $diagnostics[] = 'ipynb-attachment-backslash-path';
+        }
+        if (str_contains($name, '?') || str_contains($name, '#')) {
+            $diagnostics[] = 'ipynb-attachment-query-fragment';
+        }
+
+        $segments = preg_split('/[\/\\\\]+/', $name) ?: [];
+        if (in_array('..', $segments, true)) {
+            $diagnostics[] = 'ipynb-attachment-parent-segment';
+        }
+
+        return $this->uniqueSortedStrings($diagnostics);
+    }
+
+    private function attachmentSafeName(string $name, int $ordinal): string
+    {
+        $path = preg_replace('/[?#].*$/', '', str_replace('\\', '/', $name)) ?? $name;
+        $segments = explode('/', $path);
+        $base = end($segments);
+        if (!is_string($base) || $base === '' || $base === '.' || $base === '..') {
+            $base = 'attachment-' . ($ordinal + 1);
+        }
+
+        $safe = preg_replace('/[^A-Za-z0-9._-]+/', '-', $base) ?? '';
+        $safe = trim($safe, '.-');
+
+        return $safe === '' ? 'attachment-' . ($ordinal + 1) : $safe;
     }
 
     /**

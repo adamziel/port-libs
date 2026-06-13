@@ -379,6 +379,87 @@ return [
         $t->same(false, str_contains($html, 'UNSAFE-PNG-BYTES'));
         $t->same(false, str_contains($html, '<svg><text>secret</text></svg>'));
     },
+    'summarizes attachment manifest collisions without exposing payload bytes' => static function (TestRunner $t): void {
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'attachments' => [
+                        'media/plot.png?raw=1' => [
+                            'image/png' => 'PAYLOAD_ONE_BASE64',
+                        ],
+                    ],
+                    'source' => '![plot](attachment:plot.png)',
+                ],
+                [
+                    'cell_type' => 'markdown',
+                    'attachments' => [
+                        '..\\plot.png#frag' => [
+                            'text/plain' => 'PAYLOAD_TWO_TEXT',
+                            'image/png' => 'PAYLOAD_TWO_BASE64',
+                        ],
+                    ],
+                    'source' => 'Review second attachment',
+                ],
+            ],
+            'metadata' => [
+                'kernelspec' => [
+                    'language' => 'python',
+                    'name' => 'python3',
+                ],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $manifest = $document->attr('notebookAttachmentManifest');
+
+        $t->same('metadata-only-no-payload', $manifest['reviewPolicy']);
+        $t->same('ipynb-attachment-payload-bytes-omitted', $manifest['payloadExposurePolicy']);
+        $t->same(2, $manifest['attachmentCount']);
+        $t->same(2, $manifest['entryCount']);
+        $t->same(1, $manifest['collisionGroupCount']);
+        $t->same([
+            'ipynb-attachment-backslash-path',
+            'ipynb-attachment-parent-segment',
+            'ipynb-attachment-query-fragment',
+            'ipynb-attachment-safe-name-collision',
+        ], $manifest['diagnostics']);
+        $t->same(4, $manifest['diagnosticCount']);
+
+        $t->same(['media/plot.png?raw=1', '..\\plot.png#frag'], array_column($manifest['entries'], 'name'));
+        $t->same(['plot.png', 'plot.png'], array_column($manifest['entries'], 'safeName'));
+        $t->same([['image/png'], ['image/png', 'text/plain']], array_column($manifest['entries'], 'mimeTypes'));
+        $t->same(['metadata-only-no-payload', 'metadata-only-no-payload'], array_column($manifest['entries'], 'payloadExposurePolicy'));
+        $t->same(['ipynb-attachment-query-fragment'], $manifest['entries'][0]['diagnostics']);
+        $t->same([
+            'ipynb-attachment-backslash-path',
+            'ipynb-attachment-parent-segment',
+            'ipynb-attachment-query-fragment',
+        ], $manifest['entries'][1]['diagnostics']);
+
+        $collision = $manifest['collisionGroups'][0];
+        $t->same('plot.png', $collision['safeName']);
+        $t->same('plot.png', $collision['caseFoldKey']);
+        $t->same(2, $collision['attachmentCount']);
+        $t->same([0, 1], array_column($collision['entries'], 'cellIndex'));
+
+        $t->same(['ipynb-attachment-query-fragment'], $document->children[0]->attr('ipynbAttachmentDiagnostics'));
+        $t->same([
+            'ipynb-attachment-backslash-path',
+            'ipynb-attachment-parent-segment',
+            'ipynb-attachment-query-fragment',
+        ], $document->children[1]->attr('ipynbAttachmentDiagnostics'));
+        $t->same(1, $document->attr('notebookAttachmentCollisionCount'));
+        $t->same(4, $document->attr('notebookNbformat'));
+        $t->same(5, $document->attr('notebookNbformatMinor'));
+
+        $encodedManifest = json_encode($manifest, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($encodedManifest, 'PAYLOAD_ONE_BASE64'));
+        $t->same(false, str_contains($encodedManifest, 'PAYLOAD_TWO_BASE64'));
+        $t->same(false, str_contains($encodedManifest, 'PAYLOAD_TWO_TEXT'));
+    },
     'collects bounded ipynb schema diagnostics without exposing attachment or output payload bytes' => static function (TestRunner $t): void {
         $json = json_encode([
             'cells' => [
