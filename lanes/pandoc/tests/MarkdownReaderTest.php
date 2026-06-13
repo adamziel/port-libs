@@ -7578,6 +7578,44 @@ return [
         $t->contains('<h1 id="header">Header</h1>', $setextBlocks);
         $t->contains('<a href="#header">header</a>', $setextBlocks);
     },
+    'maps markdown headings into nested section divs when requested' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['sectionDivs' => true]))->read(implode("\n\n", [
+            'Preamble before sections.',
+            '# Imported Article {#article .review data-source="batch-91"}',
+            'Lead note.',
+            '## Source Notes',
+            'Review source.',
+            '### Deep Check',
+            'Verify nested.',
+            '# Publish',
+            'Ship it.',
+        ]));
+
+        $article = $document->children[1];
+        $sourceNotes = $article->children[2];
+        $deepCheck = $sourceNotes->children[2];
+        $publish = $document->children[2];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['paragraph', 'div', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('article', $article->attr('id'));
+        $t->same(['section', 'level1', 'review'], $article->attr('classes'));
+        $t->same(['data-source' => 'batch-91'], $article->attr('attributes'));
+        $t->same(['heading', 'paragraph', 'div'], array_map(static fn (AstNode $node): string => $node->type, $article->children));
+        $t->same('', $article->children[0]->attr('id', ''));
+        $t->same('source-notes', $sourceNotes->attr('id'));
+        $t->same(['section', 'level2'], $sourceNotes->attr('classes'));
+        $t->same('deep-check', $deepCheck->attr('id'));
+        $t->same(['section', 'level3'], $deepCheck->attr('classes'));
+        $t->same('publish', $publish->attr('id'));
+        $t->same(['section', 'level1'], $publish->attr('classes'));
+        $t->contains('::: {#article .section .level1 .review data-source="batch-91"}', $markdown);
+        $t->contains('::: {#source-notes .section .level2}', $markdown);
+        $t->contains('::: {#deep-check .section .level3}', $markdown);
+        $t->true(!str_contains($markdown, '# Imported Article {#article'), 'Sectionized headings should not duplicate wrapper identifiers');
+        $t->contains('<div id="article" class="section level1 review" data-source="batch-91"><h1>Imported Article</h1><p>Lead note.</p><div id="source-notes" class="section level2"><h2>Source Notes</h2><p>Review source.</p><div id="deep-check" class="section level3"><h3>Deep Check</h3><p>Verify nested.</p></div></div></div>', $blocks);
+    },
     'writes wordpress normalized markdown header imports' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $document = (new MarkdownReader())->read($fixture);
