@@ -193,8 +193,8 @@ return [
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(6, count($document->children));
-        $t->same(['heading', 'paragraph', 'blockquote', 'heading', 'paragraph', 'bullet_list'], array_map(
+        $t->same(7, count($document->children));
+        $t->same(['heading', 'paragraph', 'blockquote', 'heading', 'paragraph', 'bullet_list', 'definition_list'], array_map(
             static fn (AstNode $node): string => $node->type,
             $document->children
         ));
@@ -204,6 +204,7 @@ return [
         $quote = $document->children[2];
         $details = $document->children[4];
         $list = $document->children[5];
+        $definitions = $document->children[6];
 
         $t->same(1, $heading->attr('level'));
         $t->same('opening-title', $heading->attr('id'));
@@ -234,6 +235,17 @@ return [
         $t->same('First migration check', $list->children[0]->children[0]->attr('text'));
         $t->same('Second check with source', $list->children[1]->children[0]->attr('text'));
         $t->same('https://example.test/source', $list->children[1]->children[0]->children[1]->attr('url'));
+        $t->same('Review status Resource note', $definitions->attr('text'));
+        $t->same('review-glossary', $definitions->attr('htmlAttributes')['id']);
+        $t->same('migration-terms', $definitions->attr('htmlAttributes')['class']);
+        $t->same(2, count($definitions->children));
+        $t->same('Review status', $definitions->children[0]->attr('term'));
+        $t->same('Ready for direct XHTML handoff.', $definitions->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('strong', $definitions->children[0]->children[1]->children[0]->children[1]->type);
+        $t->same('Resource note', $definitions->children[1]->attr('term'));
+        $t->same(true, $definitions->children[1]->children[1]->attr('loose'));
+        $t->same('EPUB/chapter1.xhtml#opening-note', $definitions->children[1]->children[1]->children[0]->children[1]->attr('url'));
+        $t->same('bullet_list', $definitions->children[1]->children[1]->children[1]->type);
         $t->contains('<h1 id="opening-title">Opening Packet</h1>', $blocks);
         $t->contains('<strong>EPUB</strong>', $blocks);
         $t->contains('<a href="EPUB/chapter2.xhtml#details" title="Details">details</a>', $blocks);
@@ -241,6 +253,29 @@ return [
         $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note with <code>wp_insert_post</code>.</p></blockquote>', $blocks);
         $t->contains('<em>reading order</em><br/>and a hard break.', $blocks);
         $t->contains('<li>First migration check</li><li>Second check with <a href="https://example.test/source">source</a></li>', $blocks);
+        $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
+        $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
+    },
+    'maps epub xhtml definition lists into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
+        $document = (new EpubPackageReader())->readDirectory($fixture());
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $definitions = $document->children[6];
+        $firstItem = $definitions->children[0];
+        $secondItem = $definitions->children[1];
+
+        $t->same('definition_list', $definitions->type);
+        $t->same('review-glossary', $definitions->attr('htmlAttributes')['id']);
+        $t->same('migration-terms', $definitions->attr('htmlAttributes')['class']);
+        $t->same('Review status', $firstItem->attr('term'));
+        $t->same('term', $firstItem->children[0]->type);
+        $t->same('Ready for direct XHTML handoff.', $firstItem->children[1]->children[0]->attr('text'));
+        $t->same('direct XHTML', $firstItem->children[1]->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('Resource note', $secondItem->attr('term'));
+        $t->same(true, $secondItem->children[1]->attr('loose'));
+        $t->same('EPUB/chapter1.xhtml#opening-note', $secondItem->children[1]->children[0]->children[1]->attr('url'));
+        $t->same('Preserve nested checks.', $secondItem->children[1]->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
+        $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
     },
     'reports direct package manifest suffixes and skipped spine entries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-' . str_replace('.', '', uniqid('', true));
