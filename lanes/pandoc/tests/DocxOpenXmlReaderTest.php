@@ -4201,6 +4201,7 @@ XML;
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rFootLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote-source" TargetMode="External"/>
+  <Relationship Id="rFootMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-note.bin?review=1#media"/>
 </Relationships>
 XML;
         $parts['word/annotations/review-endnotes.xml'] = <<<'XML'
@@ -4232,6 +4233,28 @@ XML;
         $t->same(['42'], $docx['footnotes']['ids']);
         $t->same('Footnote relationship source note.', $docx['footnotes']['byId']['42']['text']);
         $t->same(1, $docx['footnotes']['byId']['42']['blockCount']);
+        $t->same('notes/_rels/review-footnotes.xml.rels', $docx['footnotes']['relationshipsPart']);
+        $t->same(2, $docx['footnotes']['relationshipCount']);
+        $t->same(1, $docx['footnotes']['internalRelationshipCount']);
+        $t->same(1, $docx['footnotes']['externalRelationshipCount']);
+        $t->same(0, $docx['footnotes']['existingRelationshipTargetCount']);
+        $t->same(1, $docx['footnotes']['missingRelationshipTargetCount']);
+        $t->same(1, $docx['footnotes']['missingRelationshipContentTypeCount']);
+        $t->same(1, $docx['footnotes']['relationshipTargetReferenceSuffixCount']);
+        $t->same(['rFootLink', 'rFootMissingMedia'], $docx['footnotes']['relationshipIds']);
+        $t->same(['notes/media/missing-note.bin'], $docx['footnotes']['relationshipTargetParts']);
+        $t->same(['https://example.test/footnote-source'], $docx['footnotes']['relationshipExternalTargets']);
+        $t->same(1, $docx['footnotes']['relationshipIssueCount']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $docx['footnotes']['relationshipIssueCodes']);
+        $t->same(['rFootLink'], $docx['footnotes']['byId']['42']['relationshipIds']);
+        $t->same(1, $docx['footnotes']['byId']['42']['relationshipCount']);
+        $t->same([], $docx['footnotes']['byId']['42']['missingRelationshipIds']);
+        $t->same(true, $docx['footnotes']['relationships']['rFootLink']['external']);
+        $t->same('notes/media/missing-note.bin', $docx['footnotes']['relationships']['rFootMissingMedia']['targetPart']);
+        $t->same('review=1', $docx['footnotes']['relationships']['rFootMissingMedia']['targetQuery']);
+        $t->same('media', $docx['footnotes']['relationships']['rFootMissingMedia']['targetFragment']);
+        $t->same('?review=1#media', $docx['footnotes']['relationships']['rFootMissingMedia']['targetReferenceSuffix']);
+        $t->same(['missing-target-part', 'missing-target-content-type'], $docx['footnotes']['relationships']['rFootMissingMedia']['issues']);
 
         $t->same('word/annotations/review-endnotes.xml', $docx['endnotesPart']);
         $t->same('rEndnotes', $docx['endnotesRelationship']['id']);
@@ -4243,6 +4266,8 @@ XML;
         $t->same(1, $docx['endnotes']['count']);
         $t->same(['7'], $docx['endnotes']['ids']);
         $t->same('Endnote package audit.', $docx['endnotes']['byId']['7']['text']);
+        $t->same('word/annotations/_rels/review-endnotes.xml.rels', $docx['endnotes']['relationshipsPart']);
+        $t->same(0, $docx['endnotes']['relationshipCount']);
 
         $t->same(3, count($notes));
         $t->same('42', $footnote->attr('id'));
@@ -4306,6 +4331,7 @@ XML;
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rCommentSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment-source" TargetMode="External"/>
+  <Relationship Id="rCommentMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-comment.bin#review"/>
 </Relationships>
 XML;
 
@@ -4333,9 +4359,28 @@ XML;
         $t->same('2026-06-11T11:36:24Z', $comment['date']);
         $t->same('Comment source keeps review context.', $comment['text']);
         $t->same(1, $comment['blockCount']);
+        $t->same('word/comments/_rels/review-comments.xml.rels', $comments['relationshipsPart']);
+        $t->same(2, $comments['relationshipCount']);
+        $t->same(1, $comments['internalRelationshipCount']);
+        $t->same(1, $comments['externalRelationshipCount']);
+        $t->same(1, $comments['missingRelationshipTargetCount']);
+        $t->same(1, $comments['missingRelationshipContentTypeCount']);
+        $t->same(1, $comments['relationshipTargetReferenceSuffixCount']);
+        $t->same(['rCommentSource', 'rCommentMissingMedia'], $comments['relationshipIds']);
+        $t->same(['word/comments/media/missing-comment.bin'], $comments['relationshipTargetParts']);
+        $t->same(['https://example.test/comment-source'], $comments['relationshipExternalTargets']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $comments['relationshipIssueCodes']);
+        $t->same(['rCommentSource'], $comment['relationshipIds']);
+        $t->same(1, $comment['relationshipCount']);
+        $t->same([], $comment['missingRelationshipIds']);
+        $t->same(true, $comments['relationships']['rCommentSource']['external']);
+        $t->same('word/comments/media/missing-comment.bin', $comments['relationships']['rCommentMissingMedia']['targetPart']);
+        $t->same('review', $comments['relationships']['rCommentMissingMedia']['targetFragment']);
+        $t->same(['missing-target-part', 'missing-target-content-type'], $comments['relationships']['rCommentMissingMedia']['issues']);
         $t->same('word/comments/review-comments.xml', $commentRelationshipsPart['sourcePart']);
-        $t->same(1, $commentRelationshipsPart['relationshipCount']);
+        $t->same(2, $commentRelationshipsPart['relationshipCount']);
         $t->same(true, $commentRelationshipsPart['relationships']['rCommentSource']['external']);
+        $t->same('word/comments/media/missing-comment.bin', $commentRelationshipsPart['relationships']['rCommentMissingMedia']['targetPart']);
         $t->same('12', $commentNote->attr('id'));
         $t->same('comment', $commentNote->attr('sourceType'));
         $t->same('Review Lead', $commentNote->attr('author'));
@@ -4350,6 +4395,93 @@ XML;
         $t->contains('with reviewer commentcommented text[^1]', $markdown);
         $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p>', $blocks);
+    },
+    'summarizes docx note and comment relationship diagnostics' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/notes/review-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="../notes/review-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="../notes/review-endnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="42"><w:p><w:hyperlink r:id="rFootExternal"><w:r><w:t>source</w:t></w:r></w:hyperlink></w:p></w:footnote>
+</w:footnotes>
+XML;
+        $parts['notes/_rels/review-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote" TargetMode="External"/>
+  <Relationship Id="rFootMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-footnote.bin?review=1#media"/>
+</Relationships>
+XML;
+        $parts['notes/review-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="7"><w:p><w:r><w:t>Endnote audit.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:comment w:id="12"><w:p><w:hyperlink r:id="rCommentExternal"><w:r><w:t>source</w:t></w:r></w:hyperlink></w:p></w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/_rels/review-comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment" TargetMode="External"/>
+  <Relationship Id="rCommentMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-comment.bin#review"/>
+</Relationships>
+XML;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $footnotes = $docx['footnotes'];
+        $endnotes = $docx['endnotes'];
+        $comments = $docx['comments'];
+
+        $t->same('notes/_rels/review-footnotes.xml.rels', $footnotes['relationshipsPart']);
+        $t->same(2, $footnotes['relationshipCount']);
+        $t->same(1, $footnotes['internalRelationshipCount']);
+        $t->same(1, $footnotes['externalRelationshipCount']);
+        $t->same(1, $footnotes['missingRelationshipTargetCount']);
+        $t->same(1, $footnotes['missingRelationshipContentTypeCount']);
+        $t->same(['rFootExternal', 'rFootMissingMedia'], $footnotes['relationshipIds']);
+        $t->same(['notes/media/missing-footnote.bin'], $footnotes['relationshipTargetParts']);
+        $t->same(['https://example.test/footnote'], $footnotes['relationshipExternalTargets']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $footnotes['relationshipIssueCodes']);
+        $t->same(['rFootExternal'], $footnotes['byId']['42']['relationshipIds']);
+        $t->same('review=1', $footnotes['relationships']['rFootMissingMedia']['targetQuery']);
+        $t->same('media', $footnotes['relationships']['rFootMissingMedia']['targetFragment']);
+        $t->same(['missing-target-part', 'missing-target-content-type'], $footnotes['relationships']['rFootMissingMedia']['issues']);
+
+        $t->same('notes/_rels/review-endnotes.xml.rels', $endnotes['relationshipsPart']);
+        $t->same(0, $endnotes['relationshipCount']);
+        $t->same([], $endnotes['byId']['7']['relationshipIds']);
+
+        $t->same('word/comments/_rels/review-comments.xml.rels', $comments['relationshipsPart']);
+        $t->same(2, $comments['relationshipCount']);
+        $t->same(1, $comments['internalRelationshipCount']);
+        $t->same(1, $comments['externalRelationshipCount']);
+        $t->same(['rCommentExternal', 'rCommentMissingMedia'], $comments['relationshipIds']);
+        $t->same(['word/comments/media/missing-comment.bin'], $comments['relationshipTargetParts']);
+        $t->same(['https://example.test/comment'], $comments['relationshipExternalTargets']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $comments['relationshipIssueCodes']);
+        $t->same(['rCommentExternal'], $comments['byId']['12']['relationshipIds']);
+        $t->same('review', $comments['relationships']['rCommentMissingMedia']['targetFragment']);
+        $t->same(['missing-target-part', 'missing-target-content-type'], $comments['relationships']['rCommentMissingMedia']['issues']);
     },
     'preserves docx commentsExtended package metadata from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

@@ -197,10 +197,13 @@ final class DocxOpenXmlReader
         $glossaryRelationshipsPart = $this->relationshipsPartFor($glossaryDocumentPart['partName']);
         $glossaryRelationships = $this->readRelationshipsPart($parts, $glossaryRelationshipsPart);
         $footnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FOOTNOTES_REL, 'footnotes.xml');
-        $footnoteRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($footnotesPart['partName']));
+        $footnoteRelationshipsPart = $this->relationshipsPartFor($footnotesPart['partName']);
+        $footnoteRelationships = $this->readRelationshipsPart($parts, $footnoteRelationshipsPart);
         $footnotes = $this->readNotes(
+            $parts,
             $footnotesPart['xml'],
             $footnotesPart['partName'],
+            $footnoteRelationshipsPart,
             'footnotes',
             'footnote',
             'footnote',
@@ -210,10 +213,13 @@ final class DocxOpenXmlReader
             $numbering,
         );
         $endnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::ENDNOTES_REL, 'endnotes.xml');
-        $endnoteRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($endnotesPart['partName']));
+        $endnoteRelationshipsPart = $this->relationshipsPartFor($endnotesPart['partName']);
+        $endnoteRelationships = $this->readRelationshipsPart($parts, $endnoteRelationshipsPart);
         $endnotes = $this->readNotes(
+            $parts,
             $endnotesPart['xml'],
             $endnotesPart['partName'],
+            $endnoteRelationshipsPart,
             'endnotes',
             'endnote',
             'endnote',
@@ -223,12 +229,15 @@ final class DocxOpenXmlReader
             $numbering,
         );
         $commentsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_REL, 'comments.xml');
-        $commentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($commentsPart['partName']));
+        $commentRelationshipsPart = $this->relationshipsPartFor($commentsPart['partName']);
+        $commentRelationships = $this->readRelationshipsPart($parts, $commentRelationshipsPart);
         $commentsExtendedPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_EXTENDED_REL, 'commentsExtended.xml');
         $commentsExtended = $this->readCommentsExtended($commentsExtendedPart['xml'], $commentsExtendedPart['partName']);
         $comments = $this->readComments(
+            $parts,
             $commentsPart['xml'],
             $commentsPart['partName'],
+            $commentRelationshipsPart,
             $commentRelationships,
             $contentTypes,
             $styles,
@@ -4472,6 +4481,138 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function relatedPartRelationshipDiagnostics(
+        array $parts,
+        array $relationships,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byId = [];
+        $relationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $targetReferenceSuffixes = [];
+        $issueCodes = [];
+        $internalCount = 0;
+        $externalCount = 0;
+        $existingCount = 0;
+        $missingCount = 0;
+        $missingContentTypeCount = 0;
+        $issueCount = 0;
+
+        foreach ($relationships as $relationship) {
+            $item = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+            $issues = [];
+            $this->appendUniqueString($relationshipIds, is_string($item['id'] ?? null) ? $item['id'] : null);
+            if (($item['external'] ?? false) === true) {
+                ++$externalCount;
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            } else {
+                ++$internalCount;
+                $targetPart = is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null;
+                $this->appendUniqueString($targetParts, $targetPart);
+                if (($item['exists'] ?? false) === true) {
+                    ++$existingCount;
+                } else {
+                    ++$missingCount;
+                    $issues[] = 'missing-target-part';
+                }
+                if (($item['contentTypeSource'] ?? 'missing') === 'missing') {
+                    ++$missingContentTypeCount;
+                    $issues[] = 'missing-target-content-type';
+                }
+            }
+
+            $targetReferenceSuffix = is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : '';
+            $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            if ($issues !== []) {
+                ++$issueCount;
+            }
+            $item['issues'] = $issues;
+            $items[] = $item;
+            if (is_string($item['id'] ?? null) && $item['id'] !== '') {
+                $byId[$item['id']] = $item;
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'sourcePart' => $sourcePart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($items),
+            'internalRelationshipCount' => $internalCount,
+            'externalRelationshipCount' => $externalCount,
+            'existingTargetCount' => $existingCount,
+            'missingTargetCount' => $missingCount,
+            'missingContentTypeCount' => $missingContentTypeCount,
+            'targetReferenceSuffixCount' => count($targetReferenceSuffixes),
+            'relationshipIds' => $relationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'byId' => $byId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param array<string, array<string, mixed>> $byId
+     * @param array<string, mixed> $relationshipDiagnostics
+     * @return array<string, mixed>
+     */
+    private function noteCollectionSummary(array $items, array $byId, array $relationshipDiagnostics): array
+    {
+        return [
+            'count' => count($items),
+            'ids' => array_column($items, 'id'),
+            'byId' => $byId,
+            'items' => $items,
+            'relationshipsPart' => $relationshipDiagnostics['relationshipsPart'],
+            'relationshipCount' => $relationshipDiagnostics['relationshipCount'],
+            'internalRelationshipCount' => $relationshipDiagnostics['internalRelationshipCount'],
+            'externalRelationshipCount' => $relationshipDiagnostics['externalRelationshipCount'],
+            'existingRelationshipTargetCount' => $relationshipDiagnostics['existingTargetCount'],
+            'missingRelationshipTargetCount' => $relationshipDiagnostics['missingTargetCount'],
+            'missingRelationshipContentTypeCount' => $relationshipDiagnostics['missingContentTypeCount'],
+            'relationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['targetReferenceSuffixCount'],
+            'relationshipIds' => $relationshipDiagnostics['relationshipIds'],
+            'relationshipTargetParts' => $relationshipDiagnostics['targetParts'],
+            'relationshipExternalTargets' => $relationshipDiagnostics['externalTargets'],
+            'relationshipIssueCount' => $relationshipDiagnostics['issueCount'],
+            'relationshipIssueCodes' => $relationshipDiagnostics['issueCodes'],
+            'relationships' => $relationshipDiagnostics['byId'],
+            'relationshipDiagnostics' => $relationshipDiagnostics,
+        ];
+    }
+
+    /**
+     * @param list<string> $relationshipIds
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return list<string>
+     */
+    private function missingRelationshipIds(array $relationshipIds, array $relationships): array
+    {
+        return array_values(array_filter(
+            $relationshipIds,
+            static fn (string $relationshipId): bool => !isset($relationships[$relationshipId]),
+        ));
+    }
+
+    /**
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
@@ -8594,8 +8735,10 @@ final class DocxOpenXmlReader
      * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string}>}, nodes:array<string, AstNode>}
      */
     private function readNotes(
+        array $parts,
         string $xml,
         string $partName,
+        string $relationshipsPart,
         string $rootName,
         string $itemName,
         string $sourceType,
@@ -8604,9 +8747,16 @@ final class DocxOpenXmlReader
         array $styles,
         array $numbering
     ): array {
+        $relationshipDiagnostics = $this->relatedPartRelationshipDiagnostics(
+            $parts,
+            $relationships,
+            $partName,
+            $relationshipsPart,
+            $contentTypes,
+        );
         if ($xml === '') {
             return [
-                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
                 'nodes' => [],
             ];
         }
@@ -8615,7 +8765,7 @@ final class DocxOpenXmlReader
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== $rootName) {
             return [
-                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
                 'nodes' => [],
             ];
         }
@@ -8636,12 +8786,16 @@ final class DocxOpenXmlReader
             }
 
             $blocks = $this->readNoteBlocks($note, $xpath, $relationships, $contentTypes, $styles, $numbering);
+            $relationshipIds = $this->relationshipIdsInElement($note);
             $item = [
                 'id' => $id,
                 'sourceType' => $sourceType,
                 'type' => $type === '' ? 'normal' : $type,
                 'blockCount' => count($blocks),
                 'text' => $this->plainBlockText($blocks),
+                'relationshipCount' => count($relationshipIds),
+                'relationshipIds' => $relationshipIds,
+                'missingRelationshipIds' => $this->missingRelationshipIds($relationshipIds, $relationships),
             ];
             $items[] = $item;
             $byId[$id] = $item;
@@ -8652,12 +8806,7 @@ final class DocxOpenXmlReader
         }
 
         return [
-            'summary' => [
-                'count' => count($items),
-                'ids' => array_column($items, 'id'),
-                'byId' => $byId,
-                'items' => $items,
-            ],
+            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
             'nodes' => $nodes,
         ];
     }
@@ -8732,17 +8881,26 @@ final class DocxOpenXmlReader
      * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>}, nodes:array<string, AstNode>}
      */
     private function readComments(
+        array $parts,
         string $xml,
         string $partName,
+        string $relationshipsPart,
         array $relationships,
         array $contentTypes,
         array $styles,
         array $numbering,
         array $commentsExtended = []
     ): array {
+        $relationshipDiagnostics = $this->relatedPartRelationshipDiagnostics(
+            $parts,
+            $relationships,
+            $partName,
+            $relationshipsPart,
+            $contentTypes,
+        );
         if ($xml === '') {
             return [
-                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
                 'nodes' => [],
             ];
         }
@@ -8751,7 +8909,7 @@ final class DocxOpenXmlReader
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== 'comments') {
             return [
-                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
                 'nodes' => [],
             ];
         }
@@ -8771,6 +8929,7 @@ final class DocxOpenXmlReader
             }
 
             $blocks = $this->readNoteBlocks($comment, $xpath, $relationships, $contentTypes, $styles, $numbering);
+            $relationshipIds = $this->relationshipIdsInElement($comment);
             $attrs = [
                 'id' => $id,
                 'sourceType' => 'comment',
@@ -8804,6 +8963,9 @@ final class DocxOpenXmlReader
                 'commentParentParaId' => $attrs['commentParentParaId'] ?? null,
                 'commentResolved' => $attrs['commentResolved'] ?? null,
                 'commentsExtendedPart' => $attrs['commentsExtendedPart'] ?? null,
+                'relationshipCount' => count($relationshipIds),
+                'relationshipIds' => $relationshipIds,
+                'missingRelationshipIds' => $this->missingRelationshipIds($relationshipIds, $relationships),
             ];
             $items[] = $item;
             $byId[$id] = $item;
@@ -8811,12 +8973,7 @@ final class DocxOpenXmlReader
         }
 
         return [
-            'summary' => [
-                'count' => count($items),
-                'ids' => array_column($items, 'id'),
-                'byId' => $byId,
-                'items' => $items,
-            ],
+            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
             'nodes' => $nodes,
         ];
     }

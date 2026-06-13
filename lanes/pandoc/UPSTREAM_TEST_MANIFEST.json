@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3296,
-        "latestSlice": "pandoc-markdown-writer-generic-html-raw-boundary maps one MarkdownWriter generic raw HTML serialization slice after Typst package source-class policy provenance. MarkdownWriter now emits typed raw_html_inline plus generic raw_inline/raw_block format html/html4/html5/xhtml payloads through Markdown output while unsupported raw formats stay disabled. Mapped denominator moves 3295 -> 3296, mappedMarkdownWriterGenericHtmlRawBoundaryCases is 1, and markdownWriterGenericHtmlRawBoundaryAssertions is 5. Verification passed php -l for MarkdownWriter.php, MarkdownReaderTest.php, and NativeReaderTest.php; focused NativeReaderTest.php plus MarkdownReaderTest.php passed 2 files, 7059 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75050 assertions, 0 failures after final rebase onto base 52a27eda2b.",
+        "mapped": 3297,
+        "latestSlice": "pandoc-docx-openxml-note-relationship-diagnostics maps one native DOCX/OpenXML note/comment relationship diagnostic slice after Markdown generic raw HTML serialization. DocxOpenXmlReader carries footnote, endnote, and comment part-local relationship diagnostics into review summaries, including relationship part names, internal/external counts, target summaries, missing target/content-type issue codes, target suffixes, and per-item referenced relationship IDs without invoking Word, LibreOffice, zip/unzip, ZipArchive, Pandoc, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3296 -> 3297, mappedDocxOpenXmlNoteRelationshipDiagnosticsCases is 1, and docxOpenXmlNoteRelationshipDiagnosticsAssertions is 31. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2483 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75121 assertions, 0 failures after final rebase onto base 4fe1d3a12e.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "MarkdownWriter generic raw HTML serialization is verified over base 52a27eda2b after Typst package source-class policy provenance; unsupported raw formats remain disabled.",
-        "latestFocusedSource": "2026-06-13 Markdown slice inspected generic raw HTML serialization against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 52a27eda2b following Typst package source-class policy provenance; focused NativeReaderTest.php plus MarkdownReaderTest.php passed 2 files, 7059 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75050 assertions, 0 failures.",
+        "status": "DOCX/OpenXML note/comment relationship diagnostics are verified over base 4fe1d3a12e after Markdown generic raw HTML serialization; DOCX/OpenXML remains partial, not ship-ready.",
+        "latestFocusedSource": "2026-06-13 DOCX/OpenXML slice inspected note/comment relationship diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 4fe1d3a12e following Markdown generic raw HTML serialization; focused DocxOpenXmlReaderTest.php passed 1 file, 2483 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75121 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -211,7 +211,9 @@
         "mappedTypstPackageSourcePolicyCases": 1,
         "typstPackageSourcePolicyAssertions": 6,
         "mappedMarkdownWriterGenericHtmlRawBoundaryCases": 1,
-        "markdownWriterGenericHtmlRawBoundaryAssertions": 5
+        "markdownWriterGenericHtmlRawBoundaryAssertions": 5,
+        "mappedDocxOpenXmlNoteRelationshipDiagnosticsCases": 1,
+        "docxOpenXmlNoteRelationshipDiagnosticsAssertions": 31
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1123,12 +1125,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "Markdown and WordPress raw HTML review packets now preserve generic HTML raw payloads through Markdown writer serialization while unsupported raw formats stay disabled without invoking Pandoc, browser renderers, external validators, or online services.",
+    "wordpressScenario": "DOCX review packets now expose note/comment relationship diagnostics for reviewer handoff without invoking Pandoc, Word, LibreOffice, zip/unzip, ZipArchive, browser renderers, external validators, or online services.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "MarkdownWriter generic raw HTML serialization is verified over base 52a27eda2b after Typst package source-class policy provenance; unsupported raw formats remain disabled.",
-    "mapping": "Accounts for one bounded native PHP MarkdownWriter generic raw HTML serialization mapping while preserving prior Typst package source-class policy, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst dependency conflict policy, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
+    "status": "DOCX/OpenXML note/comment relationship diagnostics are verified over base 4fe1d3a12e after Markdown generic raw HTML serialization; DOCX/OpenXML remains partial, not ship-ready.",
+    "mapping": "Accounts for one bounded native PHP DOCX/OpenXML note/comment relationship diagnostics mapping while preserving prior Markdown generic raw HTML serialization, Typst package source-class policy, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX subdocument, EPUB definition-list, EPUB manifest/spine, PDF/Typst dependency conflict policy, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-markdown-writer-generic-html-raw-boundary maps one MarkdownWriter generic raw HTML serialization slice after Typst package source-class policy provenance. MarkdownWriter now emits typed raw_html_inline plus generic raw_inline/raw_block format html/html4/html5/xhtml payloads through Markdown output while unsupported raw formats stay disabled. Mapped denominator moves 3295 -> 3296, mappedMarkdownWriterGenericHtmlRawBoundaryCases is 1, and markdownWriterGenericHtmlRawBoundaryAssertions is 5. Verification passed php -l for MarkdownWriter.php, MarkdownReaderTest.php, and NativeReaderTest.php; focused NativeReaderTest.php plus MarkdownReaderTest.php passed 2 files, 7059 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75050 assertions, 0 failures after final rebase onto base 52a27eda2b.",
+    "latestSlice": "pandoc-docx-openxml-note-relationship-diagnostics maps one native DOCX/OpenXML note/comment relationship diagnostic slice after Markdown generic raw HTML serialization. DocxOpenXmlReader carries footnote, endnote, and comment part-local relationship diagnostics into review summaries, including relationship part names, internal/external counts, target summaries, missing target/content-type issue codes, target suffixes, and per-item referenced relationship IDs without invoking Word, LibreOffice, zip/unzip, ZipArchive, Pandoc, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3296 -> 3297, mappedDocxOpenXmlNoteRelationshipDiagnosticsCases is 1, and docxOpenXmlNoteRelationshipDiagnosticsAssertions is 31. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2483 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75121 assertions, 0 failures after final rebase onto base 4fe1d3a12e.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1270,7 +1272,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 Markdown slice inspected generic raw HTML serialization against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 52a27eda2b following Typst package source-class policy provenance; focused NativeReaderTest.php plus MarkdownReaderTest.php passed 2 files, 7059 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75050 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 DOCX/OpenXML slice inspected note/comment relationship diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 4fe1d3a12e following Markdown generic raw HTML serialization; focused DocxOpenXmlReaderTest.php passed 1 file, 2483 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75121 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1498,5 +1500,7 @@
     "mappedTypstPackageSourcePolicyCases": 1,
     "typstPackageSourcePolicyAssertions": 6,
     "mappedMarkdownWriterGenericHtmlRawBoundaryCases": 1,
-    "markdownWriterGenericHtmlRawBoundaryAssertions": 5
+    "markdownWriterGenericHtmlRawBoundaryAssertions": 5,
+    "mappedDocxOpenXmlNoteRelationshipDiagnosticsCases": 1,
+    "docxOpenXmlNoteRelationshipDiagnosticsAssertions": 31
 }
