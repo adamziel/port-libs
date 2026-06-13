@@ -3587,6 +3587,10 @@ return [
             'namespaces' => ['preview'],
             'packages' => ['preview/cetz'],
             'versions' => ['0.3.2'],
+            'sourceClasses' => ['preview-registry'],
+            'sourceClassCounts' => [
+                'preview-registry' => 1,
+            ],
             'subpathDependencyCount' => 0,
             'packageCount' => 1,
             'namespaceCounts' => [
@@ -3636,6 +3640,7 @@ return [
         $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
         $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:preview-registry:1', implode(',', $result['diagnostics']));
         $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
         $t->contains('engine-boundary-root:.', implode(',', $result['diagnostics']));
         $t->contains('artifact-provenance-review:review', implode(',', $result['diagnostics']));
@@ -3735,6 +3740,7 @@ return [
                 'package' => 'cetz',
                 'version' => '0.3.2',
                 'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
             ],
             [
                 'input' => 'typst-package:@typst/symbols:0.1.0',
@@ -3743,6 +3749,7 @@ return [
                 'package' => 'symbols',
                 'version' => '0.1.0',
                 'subpath' => null,
+                'sourceClass' => 'typst-registry',
             ],
         ];
 
@@ -3780,6 +3787,7 @@ return [
                 'package' => 'cetz',
                 'version' => '0.3.2',
                 'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
             ],
             [
                 'input' => 'typst-package:@preview/tablex:0.0.9/lib.typ',
@@ -3788,6 +3796,7 @@ return [
                 'package' => 'tablex',
                 'version' => '0.0.9',
                 'subpath' => 'lib.typ',
+                'sourceClass' => 'preview-registry',
             ],
             [
                 'input' => 'typst-package:@typst/symbols:0.1.0/symbols.typ',
@@ -3796,6 +3805,7 @@ return [
                 'package' => 'symbols',
                 'version' => '0.1.0',
                 'subpath' => 'symbols.typ',
+                'sourceClass' => 'typst-registry',
             ],
         ];
 
@@ -3841,7 +3851,7 @@ return [
         ]);
         $pdfBytes = "%PDF-1.7\n% fake Typst package boundary packet\n%%EOF\n";
         $depfile = implode("\n", [
-            'build/package-boundary.pdf: workspace/main.typ @preview/cetz:0.3.2/src/lib.typ @typst/symbols:0.1.0',
+            'build/package-boundary.pdf: workspace/main.typ @preview/cetz:0.3.2/src/lib.typ @typst/symbols:0.1.0 @team/private:1.2.0/theme.typ',
             '',
         ]);
         $expectedDependencies = [
@@ -3852,6 +3862,16 @@ return [
                 'package' => 'cetz',
                 'version' => '0.3.2',
                 'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
+            ],
+            [
+                'input' => 'typst-package:@team/private:1.2.0/theme.typ',
+                'reference' => '@team/private:1.2.0/theme.typ',
+                'namespace' => 'team',
+                'package' => 'private',
+                'version' => '1.2.0',
+                'subpath' => 'theme.typ',
+                'sourceClass' => 'custom-namespace',
             ],
             [
                 'input' => 'typst-package:@typst/symbols:0.1.0',
@@ -3860,33 +3880,43 @@ return [
                 'package' => 'symbols',
                 'version' => '0.1.0',
                 'subpath' => null,
+                'sourceClass' => 'typst-registry',
             ],
         ];
         $expectedPolicy = [
             'reviewStatus' => 'review',
-            'packageDependencyCount' => 2,
-            'namespaces' => ['preview', 'typst'],
-            'packages' => ['preview/cetz', 'typst/symbols'],
-            'versions' => ['0.1.0', '0.3.2'],
-            'subpathDependencyCount' => 1,
-            'packageCount' => 2,
+            'packageDependencyCount' => 3,
+            'namespaces' => ['preview', 'team', 'typst'],
+            'packages' => ['preview/cetz', 'team/private', 'typst/symbols'],
+            'versions' => ['0.1.0', '0.3.2', '1.2.0'],
+            'sourceClasses' => ['custom-namespace', 'preview-registry', 'typst-registry'],
+            'sourceClassCounts' => [
+                'custom-namespace' => 1,
+                'preview-registry' => 1,
+                'typst-registry' => 1,
+            ],
+            'subpathDependencyCount' => 2,
+            'packageCount' => 3,
             'namespaceCounts' => [
                 'preview' => 1,
+                'team' => 1,
                 'typst' => 1,
             ],
             'packageCoordinates' => [
                 'preview/cetz:0.3.2',
+                'team/private:1.2.0',
                 'typst/symbols:0.1.0',
             ],
-            'packageNames' => ['preview/cetz', 'typst/symbols'],
+            'packageNames' => ['preview/cetz', 'team/private', 'typst/symbols'],
             'sidecarFileCount' => 1,
             'sidecarFiles' => ['build/package-boundary.d'],
             'sidecarPackageInputCounts' => [
                 [
                     'artifact' => 'build/package-boundary.d',
-                    'packageInputCount' => 2,
+                    'packageInputCount' => 3,
                     'packageInputs' => [
                         'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@team/private:1.2.0/theme.typ',
                         'typst-package:@typst/symbols:0.1.0',
                     ],
                 ],
@@ -3896,7 +3926,7 @@ return [
             'networkAccessPolicy' => 'not-executed',
             'versionConflictCount' => 0,
             'versionConflicts' => [],
-            'issues' => ['typst-package-dependencies:2'],
+            'issues' => ['typst-package-dependencies:3'],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -3923,8 +3953,11 @@ return [
         $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['diagnostics']));
-        $t->contains('typst-package-dependency-count:2', implode(',', $result['diagnostics']));
-        $t->contains('typst-package-dependency-subpaths:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-count:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:custom-namespace:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:preview-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:typst-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
     },
@@ -3954,6 +3987,7 @@ return [
                 'package' => 'cetz',
                 'version' => '0.3.2',
                 'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
             ],
             [
                 'input' => 'typst-package:@preview/cetz:0.4.0/src/lib.typ',
@@ -3962,6 +3996,7 @@ return [
                 'package' => 'cetz',
                 'version' => '0.4.0',
                 'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
             ],
             [
                 'input' => 'typst-package:@typst/symbols:0.1.0',
@@ -3970,6 +4005,7 @@ return [
                 'package' => 'symbols',
                 'version' => '0.1.0',
                 'subpath' => null,
+                'sourceClass' => 'typst-registry',
             ],
         ];
         $expectedPolicy = [
@@ -3978,6 +4014,11 @@ return [
             'namespaces' => ['preview', 'typst'],
             'packages' => ['preview/cetz', 'typst/symbols'],
             'versions' => ['0.1.0', '0.3.2', '0.4.0'],
+            'sourceClasses' => ['preview-registry', 'typst-registry'],
+            'sourceClassCounts' => [
+                'preview-registry' => 2,
+                'typst-registry' => 1,
+            ],
             'subpathDependencyCount' => 2,
             'packageCount' => 3,
             'namespaceCounts' => [
@@ -4047,6 +4088,8 @@ return [
         $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-package-dependency-policy-packages:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:preview-registry:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:typst-registry:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-sidecars:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-conflicts:1', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy-issues:2', implode(',', $result['diagnostics']));

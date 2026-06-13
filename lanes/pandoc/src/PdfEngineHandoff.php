@@ -594,7 +594,7 @@ final class PdfEngineHandoff
      *     engineInputFiles: list<string>,
      *     engineExternalInputFiles: list<string>,
      *     engineTypstPackageInputs: list<string>,
-     *     engineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
+     *     engineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>,
      *     typstPackageDependencyPolicy: array<string, mixed>,
      *     engineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     engineOutputFiles: list<string>,
@@ -625,7 +625,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencyPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencyPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -1080,6 +1080,9 @@ final class PdfEngineHandoff
             $diagnostics[] = 'typst-package-dependency-policy:' . $typstPackageDependencyPolicy['reviewStatus'];
             $diagnostics[] = 'typst-package-dependency-count:' . $typstPackageDependencyPolicy['packageDependencyCount'];
             $diagnostics[] = 'typst-package-dependency-policy-packages:' . $typstPackageDependencyPolicy['packageCount'];
+            foreach (($typstPackageDependencyPolicy['sourceClassCounts'] ?? []) as $sourceClass => $count) {
+                $diagnostics[] = 'typst-package-dependency-source:' . $sourceClass . ':' . $count;
+            }
             if ($typstPackageDependencyPolicy['sidecarFileCount'] > 0) {
                 $diagnostics[] = 'typst-package-dependency-policy-sidecars:' . $typstPackageDependencyPolicy['sidecarFileCount'];
             }
@@ -4919,7 +4922,7 @@ final class PdfEngineHandoff
      *     finalEngineInputFiles: list<string>,
      *     finalEngineExternalInputFiles: list<string>,
      *     finalEngineTypstPackageInputs: list<string>,
-     *     finalEngineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
+     *     finalEngineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>,
      *     finalTypstPackageDependencyPolicy: array{reviewStatus:string, packageDependencyCount:int, namespaces:list<string>, packages:list<string>, versions:list<string>, subpathDependencyCount:int, issues:list<string>}|array{},
      *     finalEngineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     finalEngineOutputFiles: list<string>,
@@ -8320,7 +8323,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $inputs
-     * @return list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>
+     * @return list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>
      */
     private function typstPackageDependenciesFor(array $inputs): array
     {
@@ -8335,21 +8338,35 @@ final class PdfEngineHandoff
                 continue;
             }
 
+            $namespace = $matches[1];
             $dependencies[] = [
                 'input' => $input,
                 'reference' => $reference,
-                'namespace' => $matches[1],
+                'namespace' => $namespace,
                 'package' => $matches[2],
                 'version' => $matches[3],
                 'subpath' => $matches[4] ?? null,
+                'sourceClass' => $this->typstPackageSourceClass($namespace),
             ];
         }
 
         return $dependencies;
     }
 
+    private function typstPackageSourceClass(string $namespace): string
+    {
+        if ($namespace === 'preview') {
+            return 'preview-registry';
+        }
+        if ($namespace === 'typst') {
+            return 'typst-registry';
+        }
+
+        return 'custom-namespace';
+    }
+
     /**
-     * @param list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}> $dependencies
+     * @param list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}> $dependencies
      * @param list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}> $dependencyEdges
      * @param array<string, string> $engineDependencyArtifactsSha256
      * @return array<string, mixed>
@@ -8372,6 +8389,8 @@ final class PdfEngineHandoff
         $versions = [];
         $versionsByPackage = [];
         $inputsByPackageVersion = [];
+        $sourceClasses = [];
+        $sourceClassCounts = [];
         $subpathDependencyCount = 0;
         foreach ($dependencies as $dependency) {
             $namespace = $dependency['namespace'];
@@ -8386,6 +8405,9 @@ final class PdfEngineHandoff
             $versions[$version] = true;
             $versionsByPackage[$packageName][$version] = true;
             $inputsByPackageVersion[$packageName][$version][] = $dependency['input'];
+            $sourceClass = $dependency['sourceClass'];
+            $sourceClasses[$sourceClass] = true;
+            $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
             if ($dependency['subpath'] !== null) {
                 $subpathDependencyCount++;
             }
@@ -8395,11 +8417,14 @@ final class PdfEngineHandoff
         $packageList = array_keys($packages);
         $packageCoordinateList = array_keys($packageCoordinates);
         $versionList = array_keys($versions);
+        $sourceClassList = array_keys($sourceClasses);
         sort($namespaceList);
         sort($packageList);
         sort($packageCoordinateList);
         sort($versionList);
+        sort($sourceClassList);
         ksort($namespaceCounts);
+        ksort($sourceClassCounts);
 
         $versionConflicts = [];
         foreach ($versionsByPackage as $packageName => $packageVersions) {
@@ -8465,6 +8490,8 @@ final class PdfEngineHandoff
             'namespaces' => $namespaceList,
             'packages' => $packageList,
             'versions' => $versionList,
+            'sourceClasses' => $sourceClassList,
+            'sourceClassCounts' => $sourceClassCounts,
             'subpathDependencyCount' => $subpathDependencyCount,
             'packageCount' => count($packageCoordinateList),
             'namespaceCounts' => $namespaceCounts,
