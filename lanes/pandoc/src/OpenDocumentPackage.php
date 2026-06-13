@@ -2538,12 +2538,21 @@ final class OpenDocumentPackage
         foreach ($package->entries() as $entry) {
             $entriesByPath[$entry->name] = $entry;
         }
+        $manifestEntriesByPackagePath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (is_string($packagePath) && $packagePath !== '') {
+                $manifestEntriesByPackagePath[$packagePath] = $entry;
+            }
+        }
 
         $items = [];
         $byRootPart = [];
         $rootParts = [];
         $objectTypes = [];
         $issueCodes = [];
+        $issueCodeCounts = [];
+        $allContainedParts = [];
         foreach ($objectPackageRootParts as $rootPart => $rootEntry) {
             $objectPath = rtrim($rootPart, '/');
             $declaredContainedParts = [];
@@ -2578,17 +2587,9 @@ final class OpenDocumentPackage
                     continue;
                 }
 
-                $partSummary = [
-                    'path' => $entry->name,
-                    'part' => $entry->name,
-                    'byteLength' => $entry->uncompressedSize,
-                    'compressedByteLength' => $entry->compressedSize,
-                    'compressionMethod' => $entry->compressionMethod,
-                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
-                    'crc32' => $entry->crc32Hex(),
-                    'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
-                ];
+                $partSummary = self::embeddedObjectContainedPartSummary($entry, $manifestEntriesByPackagePath[$entry->name] ?? null);
                 $containedParts[] = $partSummary;
+                $allContainedParts[] = $partSummary;
                 $containedByteLength += $entry->uncompressedSize;
                 if (!isset($declaredContainedParts[$entry->name])) {
                     $undeclaredContainedParts[] = $partSummary;
@@ -2615,6 +2616,7 @@ final class OpenDocumentPackage
             }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
             }
 
             $objectType = self::objectTypeForMediaType((string) ($rootEntry['mediaTypeBase'] ?? $rootEntry['mediaType'] ?? ''));
@@ -2636,6 +2638,7 @@ final class OpenDocumentPackage
                 'containedPartCount' => count($containedParts),
                 'containedByteLength' => $containedParts === [] ? null : $containedByteLength,
                 'containedParts' => $containedParts,
+                'containedMediaTypeSummary' => self::embeddedObjectContainedMediaTypeSummary($containedParts),
                 'declaredContainedPartCount' => count($declaredContainedPartItems),
                 'declaredContainedParts' => $declaredContainedPartItems,
                 'existingDeclaredContainedPartCount' => count($existingDeclaredContainedParts),
@@ -2644,6 +2647,7 @@ final class OpenDocumentPackage
                 'encryptedDeclaredContainedPartCount' => count($encryptedDeclaredContainedParts),
                 'undeclaredContainedPartCount' => count($undeclaredContainedParts),
                 'undeclaredContainedParts' => $undeclaredContainedParts,
+                'issueCount' => count($issues),
                 'issues' => $issues,
             ];
             $items[] = $item;
@@ -2654,6 +2658,7 @@ final class OpenDocumentPackage
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -2669,12 +2674,112 @@ final class OpenDocumentPackage
             'undeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['undeclaredContainedPartCount'], $items)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'issueCodeCounts' => $issueCodeCounts,
+            'containedMediaTypeSummary' => self::embeddedObjectContainedMediaTypeSummary($allContainedParts),
             'rootParts' => $rootParts,
             'objectTypes' => $objectTypes,
             'byteExposurePolicy' => 'embedded-object-package-bytes-blocked',
             'reviewPolicy' => 'embedded-object-package-metadata-only',
             'byRootPart' => $byRootPart,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $manifestEntry
+     * @return array<string, mixed>
+     */
+    private static function embeddedObjectContainedPartSummary(ZipPackageEntry $entry, ?array $manifestEntry): array
+    {
+        $declared = $manifestEntry !== null;
+
+        return [
+            'path' => $entry->name,
+            'part' => $entry->name,
+            'fullPath' => $declared ? ($manifestEntry['path'] ?? null) : null,
+            'manifestIndex' => $declared ? ($manifestEntry['manifestIndex'] ?? null) : null,
+            'mediaType' => $declared ? (string) ($manifestEntry['mediaType'] ?? '') : '',
+            'mediaTypeBase' => $declared ? (string) ($manifestEntry['mediaTypeBase'] ?? '') : '',
+            'mediaTypeHasParameters' => $declared && ($manifestEntry['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $declared ? (int) ($manifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+            'mediaTypeParameters' => $declared && is_array($manifestEntry['mediaTypeParameters'] ?? null) ? $manifestEntry['mediaTypeParameters'] : [],
+            'mediaTypeParameterMap' => $declared && is_array($manifestEntry['mediaTypeParameterMap'] ?? null) ? $manifestEntry['mediaTypeParameterMap'] : [],
+            'missingMediaType' => $declared && ($manifestEntry['missingMediaType'] ?? false) === true,
+            'encrypted' => $declared && ($manifestEntry['encrypted'] ?? false) === true,
+            'byteExposurePolicy' => $declared ? ($manifestEntry['byteExposurePolicy'] ?? null) : null,
+            'diagnostics' => $declared && is_array($manifestEntry['diagnostics'] ?? null) ? $manifestEntry['diagnostics'] : [],
+            'byteLength' => $entry->uncompressedSize,
+            'compressedByteLength' => $entry->compressedSize,
+            'compressionMethod' => $entry->compressionMethod,
+            'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+            'crc32' => $entry->crc32Hex(),
+            'declaredInManifest' => $declared,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $containedParts
+     * @return array<string, mixed>
+     */
+    private static function embeddedObjectContainedMediaTypeSummary(array $containedParts): array
+    {
+        $bucketsByBase = [];
+        $byteLength = 0;
+        $declaredPartCount = 0;
+        $undeclaredPartCount = 0;
+        $missingMediaTypePartCount = 0;
+        foreach ($containedParts as $part) {
+            $mediaTypeBase = (string) ($part['mediaTypeBase'] ?? '');
+            $mediaType = (string) ($part['mediaType'] ?? '');
+            $bucketKey = $mediaTypeBase;
+            $bucketsByBase[$bucketKey] ??= [
+                'mediaTypeBase' => $mediaTypeBase,
+                'mediaTypes' => [],
+                'partCount' => 0,
+                'declaredPartCount' => 0,
+                'undeclaredPartCount' => 0,
+                'missingMediaTypePartCount' => 0,
+                'byteLength' => 0,
+                'parts' => [],
+            ];
+
+            ++$bucketsByBase[$bucketKey]['partCount'];
+            $bucketsByBase[$bucketKey]['parts'][] = (string) ($part['part'] ?? '');
+            $partByteLength = is_int($part['byteLength'] ?? null) ? (int) $part['byteLength'] : 0;
+            $bucketsByBase[$bucketKey]['byteLength'] += $partByteLength;
+            $byteLength += $partByteLength;
+            if ($mediaType !== '' && !in_array($mediaType, $bucketsByBase[$bucketKey]['mediaTypes'], true)) {
+                $bucketsByBase[$bucketKey]['mediaTypes'][] = $mediaType;
+            }
+            if (($part['declaredInManifest'] ?? false) === true) {
+                ++$declaredPartCount;
+                ++$bucketsByBase[$bucketKey]['declaredPartCount'];
+            } else {
+                ++$undeclaredPartCount;
+                ++$bucketsByBase[$bucketKey]['undeclaredPartCount'];
+            }
+            if ($mediaTypeBase === '' || ($part['missingMediaType'] ?? false) === true) {
+                ++$missingMediaTypePartCount;
+                ++$bucketsByBase[$bucketKey]['missingMediaTypePartCount'];
+            }
+        }
+
+        ksort($bucketsByBase, SORT_STRING);
+        foreach ($bucketsByBase as &$bucket) {
+            sort($bucket['mediaTypes'], SORT_STRING);
+            sort($bucket['parts'], SORT_STRING);
+        }
+        unset($bucket);
+
+        return [
+            'bucketCount' => count($bucketsByBase),
+            'partCount' => count($containedParts),
+            'declaredPartCount' => $declaredPartCount,
+            'undeclaredPartCount' => $undeclaredPartCount,
+            'missingMediaTypePartCount' => $missingMediaTypePartCount,
+            'byteLength' => $byteLength,
+            'byMediaTypeBase' => $bucketsByBase,
+            'buckets' => array_values($bucketsByBase),
         ];
     }
 

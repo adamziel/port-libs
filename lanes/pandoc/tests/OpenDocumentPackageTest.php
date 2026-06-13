@@ -1593,6 +1593,32 @@ XML;
             'odf-embedded-object-package-missing-declared-part',
             'odf-embedded-object-package-undeclared-contained-part',
         ], $objects['issueCodes']);
+        $t->same([
+            'odf-embedded-object-package-missing' => 1,
+            'odf-embedded-object-package-missing-declared-part' => 1,
+            'odf-embedded-object-package-undeclared-contained-part' => 1,
+        ], $objects['issueCodeCounts']);
+        $t->same(4, $objects['containedMediaTypeSummary']['bucketCount']);
+        $t->same(4, $objects['containedMediaTypeSummary']['partCount']);
+        $t->same(3, $objects['containedMediaTypeSummary']['declaredPartCount']);
+        $t->same(1, $objects['containedMediaTypeSummary']['undeclaredPartCount']);
+        $t->same(1, $objects['containedMediaTypeSummary']['missingMediaTypePartCount']);
+        $t->same(
+            ['Object Chart/content.xml'],
+            $objects['containedMediaTypeSummary']['byMediaTypeBase']['text/xml']['parts']
+        );
+        $t->same(
+            ['Object Chart/Pictures/preview.png'],
+            $objects['containedMediaTypeSummary']['byMediaTypeBase']['image/png']['parts']
+        );
+        $t->same(
+            ['Object OLE/oleObject.bin'],
+            $objects['containedMediaTypeSummary']['byMediaTypeBase']['application/vnd.openxmlformats-officedocument.oleobject']['parts']
+        );
+        $t->same(
+            ['Object Chart/manifest.rdf'],
+            $objects['containedMediaTypeSummary']['byMediaTypeBase']['']['parts']
+        );
 
         $t->same('Object Chart/', $chart['rootPart']);
         $t->same('Object Chart', $chart['objectPath']);
@@ -1607,11 +1633,28 @@ XML;
         $t->same(3, $chart['containedPartCount']);
         $t->same(strlen($chartContent) + strlen($chartPreview) + strlen($chartRdf), $chart['containedByteLength']);
         $t->same(['Object Chart/Pictures/preview.png', 'Object Chart/content.xml', 'Object Chart/manifest.rdf'], array_column($chart['containedParts'], 'part'));
+        $chartContainedPartsByPart = [];
+        foreach ($chart['containedParts'] as $part) {
+            $chartContainedPartsByPart[$part['part']] = $part;
+        }
+        $t->same('Object%20Chart/Pictures/preview.png', $chartContainedPartsByPart['Object Chart/Pictures/preview.png']['fullPath']);
+        $t->same('image/png', $chartContainedPartsByPart['Object Chart/Pictures/preview.png']['mediaTypeBase']);
+        $t->same(true, $chartContainedPartsByPart['Object Chart/Pictures/preview.png']['declaredInManifest']);
+        $t->same('text/xml', $chartContainedPartsByPart['Object Chart/content.xml']['mediaTypeBase']);
+        $t->same(false, $chartContainedPartsByPart['Object Chart/manifest.rdf']['declaredInManifest']);
+        $t->same('', $chartContainedPartsByPart['Object Chart/manifest.rdf']['mediaTypeBase']);
+        $t->same(3, $chart['containedMediaTypeSummary']['bucketCount']);
+        $t->same(3, $chart['containedMediaTypeSummary']['partCount']);
+        $t->same(2, $chart['containedMediaTypeSummary']['declaredPartCount']);
+        $t->same(1, $chart['containedMediaTypeSummary']['undeclaredPartCount']);
+        $t->same(['Object Chart/content.xml'], $chart['containedMediaTypeSummary']['byMediaTypeBase']['text/xml']['parts']);
+        $t->same(['Object Chart/manifest.rdf'], $chart['containedMediaTypeSummary']['byMediaTypeBase']['']['parts']);
         $t->same(2, $chart['declaredContainedPartCount']);
         $t->same(2, $chart['existingDeclaredContainedPartCount']);
         $t->same(0, $chart['missingDeclaredContainedPartCount']);
         $t->same(1, $chart['undeclaredContainedPartCount']);
         $t->same(['Object Chart/manifest.rdf'], array_column($chart['undeclaredContainedParts'], 'part'));
+        $t->same(1, $chart['issueCount']);
         $t->same(['odf-embedded-object-package-undeclared-contained-part'], $chart['issues']);
 
         $t->same('spreadsheet', $ole['objectType']);
@@ -1621,6 +1664,10 @@ XML;
         $t->same(1, $ole['containedPartCount']);
         $t->same(strlen($oleBytes), $ole['containedByteLength']);
         $t->same(['Object OLE/oleObject.bin'], array_column($ole['containedParts'], 'part'));
+        $t->same('application/vnd.openxmlformats-officedocument.oleobject', $ole['containedParts'][0]['mediaTypeBase']);
+        $t->same(1, $ole['containedMediaTypeSummary']['bucketCount']);
+        $t->same(['Object OLE/oleObject.bin'], $ole['containedMediaTypeSummary']['byMediaTypeBase']['application/vnd.openxmlformats-officedocument.oleobject']['parts']);
+        $t->same(0, $ole['issueCount']);
         $t->same([], $ole['issues']);
 
         $t->same('Object Missing/', $missing['rootPart']);
@@ -1633,6 +1680,8 @@ XML;
             'odf-embedded-object-package-missing',
             'odf-embedded-object-package-missing-declared-part',
         ], $missing['issues']);
+        $t->same(2, $missing['issueCount']);
+        $t->same(0, $missing['containedMediaTypeSummary']['bucketCount']);
 
         $t->same(7, $review['embeddedObjectPackagePartCount']);
         $t->same(3, $review['embeddedObjectRootCount']);
