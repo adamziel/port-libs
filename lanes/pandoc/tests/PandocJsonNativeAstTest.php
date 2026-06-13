@@ -2105,6 +2105,147 @@ return [
         $t->same($tableBlock, $nativeFromJson['blocks'][0]);
         $t->same($tableBlock, $nativeFromNative['blocks'][0]);
     },
+    'preserves table column spec sidecars through safe json and native table rebuilds' => static function (TestRunner $t): void {
+        $leftAlignment = ['t' => 'AlignLeft', 'c' => [], 'reviewQueue' => 'left-align-source'];
+        $leftWidth = ['t' => 'ColWidth', 'c' => [0.33], 'reviewQueue' => 'left-width-source'];
+        $defaultAlignment = ['t' => 'AlignDefault', 'c' => [], 'reviewQueue' => 'default-align-source'];
+        $defaultWidth = ['t' => 'ColWidthDefault', 'c' => [], 'reviewQueue' => 'default-width-source'];
+        $rightAlignment = ['t' => 'AlignRight', 'c' => [], 'reviewQueue' => 'right-align-source'];
+        $rightWidth = ['t' => 'ColWidth', 'c' => 0.67, 'reviewQueue' => 'right-width-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['colspec-sidecar-table', ['review-table'], [['data-source', 'json-native']]],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [$leftAlignment, $leftWidth],
+                    [$defaultAlignment, $defaultWidth],
+                    [$rightAlignment, $rightWidth],
+                ],
+                ['t' => 'TableHead', 'c' => [
+                    ['', [], []],
+                    [
+                        ['t' => 'Row', 'c' => [
+                            ['', [], []],
+                            [
+                                ['t' => 'Cell', 'c' => [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Left']]]],
+                                ]],
+                                ['t' => 'Cell', 'c' => [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Default']]]],
+                                ]],
+                                ['t' => 'Cell', 'c' => [
+                                    ['', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Right']]]],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'A']]]],
+                                    ]],
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'B']]]],
+                                    ]],
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'C']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+
+            $t->same([$leftAlignment, $defaultAlignment, $rightAlignment], $table->attr('alignmentNatives'), "{$source} records alignment sidecars");
+            $t->same([$leftWidth, $defaultWidth, $rightWidth], $table->attr('columnWidthNatives'), "{$source} records width sidecars");
+
+            $rebuiltTable = new AstNode('table', array_replace($table->attrs, [
+                'id' => 'rebuilt-colspec-sidecar-table',
+            ]), $table->children);
+            $editedWidthTable = new AstNode('table', array_replace($table->attrs, [
+                'widths' => [0.33, null, 0.5],
+            ]), $table->children);
+
+            foreach ([
+                "{$source} json rebuild" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$rebuiltTable])),
+                "{$source} native rebuild" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$rebuiltTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $colSpecs = $encoded['blocks'][0]['c'][2];
+
+                $t->same('rebuilt-colspec-sidecar-table', $encoded['blocks'][0]['c'][0][0], "{$label} rebuilds table attrs");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$label} drops stale table wrapper sidecar");
+                $t->same($leftAlignment, $colSpecs[0][0], "{$label} preserves left alignment sidecar");
+                $t->same($leftWidth, $colSpecs[0][1], "{$label} preserves left width sidecar");
+                $t->same($defaultAlignment, $colSpecs[1][0], "{$label} preserves default alignment sidecar");
+                $t->same($defaultWidth, $colSpecs[1][1], "{$label} preserves default width sidecar");
+                $t->same($rightAlignment, $colSpecs[2][0], "{$label} preserves right alignment sidecar");
+                $t->same($rightWidth, $colSpecs[2][1], "{$label} preserves right width sidecar");
+            }
+
+            foreach ([
+                "{$source} json width edit" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedWidthTable])),
+                "{$source} native width edit" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedWidthTable])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $label => $encoded) {
+                $colSpecs = $encoded['blocks'][0]['c'][2];
+
+                $t->same($leftWidth, $colSpecs[0][1], "{$label} preserves unchanged numeric width sidecar");
+                $t->same($defaultWidth, $colSpecs[1][1], "{$label} preserves unchanged default width sidecar");
+                $t->same($rightAlignment, $colSpecs[2][0], "{$label} preserves unchanged edited-column alignment sidecar");
+                $t->same(['t' => 'ColWidth', 'c' => 0.5], $colSpecs[2][1], "{$label} regenerates edited width payload");
+                $t->same(false, array_key_exists('reviewQueue', $colSpecs[2][1]), "{$label} drops stale edited width sidecar");
+            }
+        }
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];
