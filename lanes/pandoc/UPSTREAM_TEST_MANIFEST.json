@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3295,
-        "latestSlice": "pandoc-pdf-typst-package-source-policy maps one native PdfEngineHandoff package provenance slice after CSV/TSV header option parity. PdfEngineHandoff keeps the richer typstPackageDependencyPolicy fields and adds deterministic sourceClasses/sourceClassCounts plus typst-package-dependency-source diagnostics for custom-namespace, preview-registry, and typst-registry package dependencies without invoking Typst, Pandoc, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3294 -> 3295, mappedTypstPackageSourcePolicyCases is 1, and typstPackageSourcePolicyAssertions is 6. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2231 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75045 assertions, 0 failures after final rebase onto base d1cb8cab8d.",
+        "mapped": 3296,
+        "latestSlice": "pandoc-endnote-xml-locator-diagnostics maps one CSL/EndNote XML coverage slice after PDF/Typst package source policy. CitationCslProcessor::endnoteXmlItems safely parses bounded EndNote XML records into CSL items, preserves EndNote PDF URL attachment-not-imported diagnostics and raw custom-field review metadata, and proves section locator suffix diagnostics keep existing citation prefix/suffix rendering intact through WordPress bibliography output. Mapped denominator moves 3295 -> 3296, mappedEndnoteXmlLocatorDiagnosticCases is 1, and endnoteXmlLocatorDiagnosticAssertions is 24. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5332 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75069 assertions, 0 failures after final rebase onto current main 52a27eda2b without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Typst package source-class policy provenance is verified over base d1cb8cab8d after CSV/TSV header option parity; PDF/Typst remains bounded no-engine provenance, not real output parity.",
-        "latestFocusedSource": "2026-06-13 PDF/Typst slice inspected Typst package source-class policy provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base d1cb8cab8d following CSV/TSV header option parity; focused PdfEngineHandoffTest.php passed 1 file, 2231 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75045 assertions, 0 failures.",
+        "status": "EndNote XML locator/import diagnostics are mapped and verified over current main 52a27eda2b after PDF/Typst package source policy.",
+        "latestFocusedSource": "2026-06-13 EndNote XML locator/import diagnostics slice inspected bounded EndNote XML record parsing and citation locator suffix review metadata against current main 52a27eda2b after PDF/Typst package source policy; focused CitationCslProcessorTest.php passed 1 file, 5332 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75069 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -209,7 +209,9 @@
         "mappedCsvTsvHeaderOptionCases": 2,
         "csvTsvHeaderOptionAssertions": 27,
         "mappedTypstPackageSourcePolicyCases": 1,
-        "typstPackageSourcePolicyAssertions": 6
+        "typstPackageSourcePolicyAssertions": 6,
+        "mappedEndnoteXmlLocatorDiagnosticCases": 1,
+        "endnoteXmlLocatorDiagnosticAssertions": 24
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1121,12 +1123,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "PDF/Typst package review packets now expose Typst package source-class buckets for reviewer diagnostics without invoking Pandoc, Typst, TeX/PDF engines, browser renderers, external validators, or online services.",
-    "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "Typst package source-class policy provenance is verified over base d1cb8cab8d after CSV/TSV header option parity; PDF/Typst remains bounded no-engine provenance, not real output parity.",
-    "mapping": "Accounts for one bounded native PHP PDF/Typst package source-class policy mapping while preserving prior CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst dependency conflict policy, LaTeX, JSON/native, MediaBag, initial CSV/TSV headed-table, and table-geometry counters.",
+    "wordpressScenario": "EndNote XML imports now map bounded records into CSL citations while preserving attachment-not-imported diagnostics and section locator suffix review metadata through WordPress bibliography output without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "nextTask": "Continue bounded citation reader-registry, EndNote XML, or RIS closure, or move to the next bounded DOCX/OpenXML, EPUB3, JSON/native, XML/HTML5 DOM, PDF/Typst, shared ZIP/OPC, CSV/TSV, text-markup reader, or table blocker slice while keeping phpFail at zero.",
+    "status": "EndNote XML locator/import diagnostics are mapped and verified over current main 52a27eda2b after PDF/Typst package source policy.",
+    "mapping": "Adds one CSL/EndNote XML case for bounded record parsing, attachment-not-imported diagnostics, raw custom-field review metadata, and section locator suffix preservation while keeping prior PDF/Typst package source policy, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP/OPC selected-entry role bucket, and citation affix coverage intact.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-pdf-typst-package-source-policy maps one native PdfEngineHandoff package provenance slice after CSV/TSV header option parity. PdfEngineHandoff keeps the richer typstPackageDependencyPolicy fields and adds deterministic sourceClasses/sourceClassCounts plus typst-package-dependency-source diagnostics for custom-namespace, preview-registry, and typst-registry package dependencies without invoking Typst, Pandoc, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3294 -> 3295, mappedTypstPackageSourcePolicyCases is 1, and typstPackageSourcePolicyAssertions is 6. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2231 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75045 assertions, 0 failures after final rebase onto base d1cb8cab8d.",
+    "latestSlice": "pandoc-endnote-xml-locator-diagnostics maps one CSL/EndNote XML coverage slice after PDF/Typst package source policy. CitationCslProcessor::endnoteXmlItems safely parses bounded EndNote XML records into CSL items, preserves EndNote PDF URL attachment-not-imported diagnostics and raw custom-field review metadata, and proves section locator suffix diagnostics keep existing citation prefix/suffix rendering intact through WordPress bibliography output. Mapped denominator moves 3295 -> 3296, mappedEndnoteXmlLocatorDiagnosticCases is 1, and endnoteXmlLocatorDiagnosticAssertions is 24. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5332 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75069 assertions, 0 failures after final rebase onto current main 52a27eda2b without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1268,7 +1270,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 PDF/Typst slice inspected Typst package source-class policy provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base d1cb8cab8d following CSV/TSV header option parity; focused PdfEngineHandoffTest.php passed 1 file, 2231 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75045 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 EndNote XML locator/import diagnostics slice inspected bounded EndNote XML record parsing and citation locator suffix review metadata against current main 52a27eda2b after PDF/Typst package source policy; focused CitationCslProcessorTest.php passed 1 file, 5332 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75069 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1494,5 +1496,7 @@
     "mappedCsvTsvHeaderOptionCases": 2,
     "csvTsvHeaderOptionAssertions": 27,
     "mappedTypstPackageSourcePolicyCases": 1,
-    "typstPackageSourcePolicyAssertions": 6
+    "typstPackageSourcePolicyAssertions": 6,
+    "mappedEndnoteXmlLocatorDiagnosticCases": 1,
+    "endnoteXmlLocatorDiagnosticAssertions": 24
 }

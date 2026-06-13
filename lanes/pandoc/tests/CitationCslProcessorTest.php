@@ -28799,6 +28799,90 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
     },
+    'parses bounded endnote xml records with locator and import diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <database name="WordPress Review Library"/>
+      <ref-type name="Journal Article">17</ref-type>
+      <rec-number>42</rec-number>
+      <accession-num>endnote-xml-article</accession-num>
+      <contributors>
+        <authors>
+          <author>Ng, Nia</author>
+          <author>Roe, Pat</author>
+        </authors>
+      </contributors>
+      <titles>
+        <title>EndNote XML Locator Packet</title>
+        <secondary-title>Journal of Import Diagnostics</secondary-title>
+      </titles>
+      <periodical>
+        <abbr-1>J. Import Diagn.</abbr-1>
+      </periodical>
+      <dates>
+        <year>2026</year>
+      </dates>
+      <volume>7</volume>
+      <number>2</number>
+      <pages>41-42</pages>
+      <electronic-resource-num>10.5555/endnote</electronic-resource-num>
+      <urls>
+        <related-urls>
+          <url>https://example.test/endnote-xml</url>
+        </related-urls>
+        <pdf-urls>
+          <url>internal-pdf://review-library/endnote-xml.pdf</url>
+        </pdf-urls>
+      </urls>
+      <keywords>
+        <keyword>endnote</keyword>
+        <keyword>locator</keyword>
+      </keywords>
+      <custom1>Reviewer affix note</custom1>
+    </record>
+  </records>
+</xml>
+XML;
+
+        $items = CitationCslProcessor::endnoteXmlItems($xml);
+        $t->same(1, count($items));
+        $t->same('endnote-xml-article', $items[0]['id']);
+        $t->same('article-journal', $items[0]['type']);
+        $t->same('EndNote XML Locator Packet', $items[0]['title']);
+        $t->same('Journal of Import Diagnostics', $items[0]['container-title']);
+        $t->same('41-42', $items[0]['page']);
+        $t->same([2026], $items[0]['issued']['date-parts'][0]);
+        $t->same(['endnote', 'locator'], $items[0]['keyword']);
+        $t->same('endnote-attachment-not-imported', $items[0]['sourceFileDiagnostics'][0]['reason']);
+        $t->same('internal-pdf://review-library/endnote-xml.pdf', $items[0]['sourceFileDiagnostics'][0]['path']);
+        $t->same('Reviewer affix note', $items[0]['rawEndnoteXml']['unsupportedFields'][0]['value']);
+
+        $processor = CitationCslProcessor::fromEndnoteXml($xml);
+        $item = $processor->item('endnote-xml-article');
+        $t->same('Ng', $item['authors'][0]['family'] ?? null);
+        $t->same('Nia', $item['authors'][0]['given'] ?? null);
+        $t->same('10.5555/endnote', $item['doi'] ?? null);
+        $t->same('endnote-attachment-not-imported', $item['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('custom1', $item['raw']['rawEndnoteXml']['unsupportedFields'][0]['field'] ?? null);
+
+        $locatorCitation = $citation('endnote-xml-article', '[@endnote-xml-article]', 'normal', ['prefix' => 'see', 'suffix' => 'sec. 4-5']);
+        $diagnostics = $processor->citationLocatorDiagnostics($locatorCitation);
+        $t->same(1, count($diagnostics));
+        $t->same('citation-locator-suffix-inferred', $diagnostics[0]['reason']);
+        $t->same('section', $diagnostics[0]['locatorLabel']);
+        $t->same('4-5', $diagnostics[0]['locatorValue']);
+        $t->same('(see Ng and Roe 2026, sec. 4-5)', $processor->renderCitationCluster([$locatorCitation]));
+        $bibliographyEntry = 'Ng, Nia; Roe, Pat. EndNote XML Locator Packet. Journal of Import Diagnostics. Journal abbreviation: J. Import Diagn. Vol. 7, no. 2. 2026. 41-42. Keywords: endnote; locator. DOI 10.5555/endnote. https://example.test/endnote-xml.';
+        $t->same($bibliographyEntry, $processor->renderBibliographyEntry('endnote-xml-article'));
+
+        $document = (new MarkdownReader())->read('EndNote XML imports cite [see @endnote-xml-article, sec. 4-5].');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>EndNote XML imports cite (see Ng and Roe 2026, sec. 4-5).</p>', $blocks);
+        $t->contains('<dt>Ng and Roe 2026</dt><dd>' . $bibliographyEntry . '</dd>', $blocks);
+    },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
 TY  - JOUR
