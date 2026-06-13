@@ -1171,7 +1171,7 @@ final class PandocJsonWriter
      */
     private function canReuseCurrentNativeInlinePayload(AstNode $node, array $native): bool
     {
-        if (!$this->isCurrentNativeInlinePayload($native)) {
+        if ($this->hasNonCurrentNativeInlinePayload($native) || !$this->isCurrentNativeInlinePayload($native)) {
             return false;
         }
 
@@ -1306,6 +1306,16 @@ final class PandocJsonWriter
         if (
             !array_is_list($value)
             && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeHelperConstructor($value['t'])
+            && array_key_exists('c', $value)
+            && $value['c'] !== []
+        ) {
+            return true;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
             && $this->isNativeInlineConstructorTag($value['t'])
             && !$this->isCurrentNativeInlinePayload($value)
         ) {
@@ -1388,6 +1398,35 @@ final class PandocJsonWriter
         ], true);
     }
 
+    private function isNullaryNativeHelperConstructor(string $constructor): bool
+    {
+        return in_array($constructor, [
+            'SingleQuote',
+            'DoubleQuote',
+            'InlineMath',
+            'DisplayMath',
+            'NormalCitation',
+            'AuthorInText',
+            'SuppressAuthor',
+            'DefaultStyle',
+            'Decimal',
+            'Example',
+            'LowerRoman',
+            'UpperRoman',
+            'LowerAlpha',
+            'UpperAlpha',
+            'DefaultDelim',
+            'Period',
+            'OneParen',
+            'TwoParens',
+            'AlignLeft',
+            'AlignRight',
+            'AlignCenter',
+            'AlignDefault',
+            'ColWidthDefault',
+        ], true);
+    }
+
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
     {
         return $this->comparisonNode($left) === $this->comparisonNode($right);
@@ -1452,6 +1491,10 @@ final class PandocJsonWriter
     {
         if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
             return null;
+        }
+
+        if ($this->isNullaryNativeHelperConstructor($constructor) && array_key_exists('c', $native) && $native['c'] !== []) {
+            unset($native['c']);
         }
 
         return $native;

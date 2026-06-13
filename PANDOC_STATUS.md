@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-13 UTC after JSON/native task-list checkbox sidecars on base `3a4bf7596e`, following the PDF/Typst package dependency conflict policy.
+Last reconciled: 2026-06-13 UTC after JSON/native nullary helper payload validation on base `1dc7cc07a7`, following task-list checkbox sidecars.
 
 This file is the compact status companion to `progress.md`,
 `lanes/pandoc/lane-status.json`, and
@@ -11,17 +11,17 @@ This file is the compact status companion to `progress.md`,
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static Pandoc upstream inventory covers 2,276 test/data/benchmark artifacts from `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. The input-format burn-down tracks 51 upstream input tokens, with IPYNB skipped for this phase and 50 tokens in scope. | Denominator accepted for native PHP progress accounting; this is not upstream runner parity. |
-| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,312 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,272 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,272 / 2,276 mapped upstream inventory rows = 143.8%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
+| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,313 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,273 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,273 / 2,276 mapped upstream inventory rows = 143.8%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
 | Shippable input formats | ODF/ODT is marked ship-ready: 50 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 250.0%, with 0 critical ODF/ODT gaps. | ODF/ODT can ship under the current native PHP/no-external-validator policy. |
 | Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. | Pandoc as a whole is not ship-ready. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonReader.php lanes/pandoc/src/NativeReader.php lanes/pandoc/src/PandocJsonWriter.php lanes/pandoc/src/NativeWriter.php lanes/pandoc/tests/PandocJsonNativeAstTest.php lanes/pandoc/tests/MarkdownReaderTest.php`, syntax checks for the touched JSON/native reader/writer files, `PandocJsonNativeAstTest.php`, and `MarkdownReaderTest.php`, focused `PandocJsonNativeAstTest.php` and `MarkdownReaderTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,254 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonWriter.php lanes/pandoc/src/NativeWriter.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`, syntax checks for `PandocJsonWriter.php`, `NativeWriter.php`, and `PandocJsonNativeAstTest.php`, focused `PandocJsonNativeAstTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,336 assertions, 0 failures. |
 | External validators | No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
 
 ## Closure Wave Snapshot
 
-Current `main` is reconciled through `3a4bf7596e`: 3,312 PHP passes / 0 failures and 3,272 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, and JSON/native task-list checkbox sidecar evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `PandocJsonNativeAstTest.php` (`1` file, `2015` assertions, `0` failures), focused `MarkdownReaderTest.php` (`1` file, `6626` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74254` assertions, `0` failures).
+Current `main` is reconciled through `1dc7cc07a7`: 3,313 PHP passes / 0 failures and 3,273 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, JSON/native task-list checkbox sidecar, and JSON/native nullary helper payload evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `PandocJsonNativeAstTest.php` (`1` file, `2097` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
 
 | Surface | Landed evidence | Verdict |
 | --- | --- | --- |
@@ -33,6 +33,7 @@ Current `main` is reconciled through `3a4bf7596e`: 3,312 PHP passes / 0 failures
 | JSON/native block boundaries | Native `Div` adjacent `Plain` block boundaries now survive WordPress handoff; focused JSON/native run passed 1,987 assertions. | Bounded block-boundary slice covered; JSON/native remains partial. |
 | PDF/Typst dependency policy | Typst package dependency conflict policy records sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, and multi-version conflicts; focused `PdfEngineHandoffTest.php` passed 2,225 assertions. | Bounded no-engine provenance covered; real PDF/Typst output parity remains unsupported without external engines. |
 | JSON/native task lists | `taskChecked` sidecars now preserve unchecked, checked, and nested task-list state through JSON/native readers and writers into Markdown, WordPress, and LaTeX handoff; focused `PandocJsonNativeAstTest.php` passed 2,015 assertions. | Bounded list-semantics sidecar slice covered; broader JSON/native constructor parity remains partial. |
+| JSON/native nullary helpers | Stale non-empty nullary helper constructor payloads now regenerate through JSON/native writers while preserving sidecars; focused `PandocJsonNativeAstTest.php` passed 2,097 assertions. | Bounded helper-constructor payload slice covered; broader JSON/native constructor parity remains partial. |
 
 ## Queue Snapshot
 
