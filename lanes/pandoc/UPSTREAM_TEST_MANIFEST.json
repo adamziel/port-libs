@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3282,
-        "latestSlice": "pandoc-docx-openxml-subdocument-diagnostics maps one DOCX/OpenXML package-reader coverage slice after definition-list term-group coverage on current main for unsupported subdocument relationship diagnostics. DocxOpenXmlReader now emits metadata-only w:subDoc/subDocument diagnostics for referenced and unreferenced relationships, external URI targets, internal package targets, missing targets, wrong relationship types, unknown relationship IDs, missing relationship IDs, query/fragment suffixes, content-type/hash metadata, directReaderParity=false, and subdocument package inventory roles, without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3322 -> 3323, phpFail remains 0, mappedDocxOpenXmlSubdocumentDiagnosticCases is 1, and docxOpenXmlSubdocumentDiagnosticAssertions is 70. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2412 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74595 assertions, 0 failures after final rebase onto current main ef28458d1b.",
+        "mapped": 3283,
+        "latestSlice": "pandoc-markdown-table-cell-note-placement maps one notes/reference placement case after DOCX/OpenXML subdocument diagnostics on current main. MarkdownReaderTest now verifies a labelled note reference inside a pipe-table cell remains in the table cell while the linked note body and escaped pipe round-trip into Markdown note definitions and WordPress doc-endnotes outside the table boundary, preserving footnote-back/doc-backlink backlink metadata. phpPass moves 3323 -> 3324, phpFail remains 0, mappedMarkdownTableCellNotePlacementCases is 1, and markdownTableCellNotePlacementAssertions is 9. Verification passed php -l for MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6668 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74604 assertions, 0 failures after final rebase onto current main 6c32f56cfc. No Pandoc binary, browser renderer, Node tooling, TeX engine, office suite, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "DOCX/OpenXML subdocument relationship diagnostics are verified in focused and full native PHP Pandoc coverage over current main ef28458d1b; DOCX remains partial and not ship-ready.",
-        "latestFocusedSource": "2026-06-13 DOCX/OpenXML package-reader slice recovered plib-achtq closure evidence from progress.md and commit f4d0e410e4, then inspected unsupported w:subDoc/subDocument relationship diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main ef28458d1b; focused DocxOpenXmlReaderTest.php passed 1 file, 2412 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74595 assertions, 0 failures.",
+        "status": "Markdown table-cell note placement is verified in focused and full native PHP Pandoc coverage over current main 6c32f56cfc; broader notes/reference and Markdown parity remain partial.",
+        "latestFocusedSource": "2026-06-13 Markdown table-cell note placement slice inspected labelled note references inside pipe-table cells against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 6c32f56cfc; focused MarkdownReaderTest.php passed 1 file, 6668 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74604 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -185,7 +185,9 @@
         "mappedDefinitionListTermGroupCases": 1,
         "definitionListTermGroupAssertions": 12,
         "mappedDocxOpenXmlSubdocumentDiagnosticCases": 1,
-        "docxOpenXmlSubdocumentDiagnosticAssertions": 70
+        "docxOpenXmlSubdocumentDiagnosticAssertions": 70,
+        "mappedMarkdownTableCellNotePlacementCases": 1,
+        "markdownTableCellNotePlacementAssertions": 9
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
