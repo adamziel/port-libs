@@ -11175,31 +11175,44 @@ return [
         $t->same(3, $byRole['attachment']['presentEntryCount']);
         $t->same(0, $byRole['attachment']['missingEntryCount']);
         $t->same(2, $byRole['attachment']['handoffEntryCount']);
+        $t->same(1, $byRole['attachment']['handoffUniqueEntryCount']);
         $t->same(1, $byRole['attachment']['failedEntryCount']);
         $t->same(2, $byRole['attachment']['duplicateRequestCount']);
         $t->same(2, $byRole['attachment']['selectedUniqueEntryCount']);
         $t->same(strlen($imageBytes) + strlen($largeBytes), $byRole['attachment']['selectedCompressedBytes']);
         $t->same(strlen($imageBytes) + strlen($largeBytes), $byRole['attachment']['selectedUncompressedBytes']);
+        $t->same(strlen($imageBytes), $byRole['attachment']['handoffCompressedBytes']);
+        $t->same(strlen($imageBytes), $byRole['attachment']['handoffUncompressedBytes']);
         $t->same(['word/media/image.png', 'word/media/large.bin'], $byRole['attachment']['selectedEntryNames']);
+        $t->same(['word/media/image.png'], $byRole['attachment']['handoffEntryNames']);
         $t->same(['word/media/large.bin'], $byRole['attachment']['failedEntryNames']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $byRole['attachment']['issues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $byRole['attachment']['issueCounts']);
 
         $t->same(1, $byRole['main-document']['requestCount']);
         $t->same(1, $byRole['main-document']['requiredCount']);
         $t->same(1, $byRole['main-document']['presentEntryCount']);
         $t->same(1, $byRole['main-document']['handoffEntryCount']);
+        $t->same(1, $byRole['main-document']['handoffUniqueEntryCount']);
         $t->same(strlen($documentXml), $byRole['main-document']['selectedUncompressedBytes']);
+        $t->same(strlen($documentXml), $byRole['main-document']['handoffUncompressedBytes']);
         $t->same(['word/document.xml'], $byRole['main-document']['selectedEntryNames']);
+        $t->same(['word/document.xml'], $byRole['main-document']['handoffEntryNames']);
+        $t->same([], $byRole['main-document']['issueCounts']);
 
         $t->same(1, $byRole['required-sidecar']['requestCount']);
         $t->same(1, $byRole['required-sidecar']['requiredCount']);
         $t->same(0, $byRole['required-sidecar']['presentEntryCount']);
         $t->same(1, $byRole['required-sidecar']['missingEntryCount']);
         $t->same(0, $byRole['required-sidecar']['handoffEntryCount']);
+        $t->same(0, $byRole['required-sidecar']['handoffUniqueEntryCount']);
         $t->same(1, $byRole['required-sidecar']['failedEntryCount']);
+        $t->same(0, $byRole['required-sidecar']['handoffUncompressedBytes']);
+        $t->same([], $byRole['required-sidecar']['handoffEntryNames']);
         $t->same(['word/missing.xml'], $byRole['required-sidecar']['missingEntryNames']);
         $t->same(['word/missing.xml'], $byRole['required-sidecar']['failedEntryNames']);
         $t->same(['missing-required-entry'], $byRole['required-sidecar']['issues']);
+        $t->same(['missing-required-entry' => 1], $byRole['required-sidecar']['issueCounts']);
     },
 
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
