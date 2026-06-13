@@ -44,6 +44,8 @@ final class IpynbReader
         $attachmentCount = 0;
         $outputCount = 0;
         $unsupportedResourceCount = 0;
+        $attachmentMedia = [];
+        $attachmentMediaDiagnostics = [];
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -59,7 +61,7 @@ final class IpynbReader
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
             $outputs = isset($cell['outputs']) && is_array($cell['outputs']) ? $cell['outputs'] : [];
-            $attachmentSummary = $this->attachmentSummary($attachments);
+            $attachmentSummary = $this->attachmentSummary($attachments, $index);
             $outputSummary = $this->outputSummary($outputs);
             $cellMetadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
             $cellMetadataKeys = $this->metadataKeys($cellMetadata);
@@ -69,6 +71,8 @@ final class IpynbReader
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
             $unsupportedResourceCount += $attachmentSummary['count'] + $outputSummary['count'];
+            $attachmentMedia = array_merge($attachmentMedia, $attachmentSummary['media']);
+            $attachmentMediaDiagnostics = array_merge($attachmentMediaDiagnostics, $attachmentSummary['diagnostics']);
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -88,6 +92,12 @@ final class IpynbReader
             }
             if ($cellDiagnostics !== []) {
                 $attributes['data-ipynb-diagnostics'] = implode(' ', $cellDiagnostics);
+            }
+            if ($attachmentSummary['media'] !== []) {
+                $attributes['data-ipynb-attachment-media-count'] = (string) count($attachmentSummary['media']);
+            }
+            if ($attachmentSummary['diagnostics'] !== []) {
+                $attributes['data-ipynb-attachment-diagnostics'] = implode(' ', $attachmentSummary['diagnostics']);
             }
 
             $children = match ($cellType) {
@@ -113,6 +123,8 @@ final class IpynbReader
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
                 'ipynbAttachmentMimeTypes' => $attachmentSummary['mimeTypes'],
+                'ipynbAttachmentMedia' => $attachmentSummary['media'],
+                'ipynbAttachmentMediaDiagnostics' => $attachmentSummary['diagnostics'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
                 'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
@@ -135,6 +147,8 @@ final class IpynbReader
                 'sourceBytes' => strlen($source),
                 'attachmentCount' => $attachmentSummary['count'],
                 'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
+                'attachmentMedia' => $attachmentSummary['media'],
+                'attachmentMediaDiagnostics' => $attachmentSummary['diagnostics'],
                 'outputCount' => $outputSummary['count'],
                 'outputTypes' => $outputSummary['types'],
                 'outputMimeTypes' => $outputSummary['mimeTypes'],
@@ -152,6 +166,9 @@ final class IpynbReader
             'notebookCodeCellCount' => $codeCellCount,
             'notebookRawCellCount' => $rawCellCount,
             'notebookAttachmentCount' => $attachmentCount,
+            'notebookAttachmentMediaCount' => count($attachmentMedia),
+            'notebookAttachmentMedia' => $attachmentMedia,
+            'notebookAttachmentMediaDiagnostics' => $this->uniqueSortedStrings($attachmentMediaDiagnostics),
             'notebookOutputCount' => $outputCount,
             'notebookUnsupportedResourceCount' => $unsupportedResourceCount,
             'notebookNbformat' => $notebook['nbformat'] ?? null,
@@ -263,23 +280,65 @@ final class IpynbReader
 
     /**
      * @param array<string, mixed> $attachments
-     * @return array{count:int, names:list<string>, mimeTypes:list<string>}
+     * @return array{
+     *     count:int,
+     *     names:list<string>,
+     *     mimeTypes:list<string>,
+     *     media:list<array{
+     *         cellIndex:int,
+     *         name:string,
+     *         mimeTypes:list<string>,
+     *         primaryMimeType:string,
+     *         mediaPath:string,
+     *         byteExposure:string,
+     *         extractionState:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     diagnostics:list<string>
+     * }
      */
-    private function attachmentSummary(array $attachments): array
+    private function attachmentSummary(array $attachments, int $cellIndex): array
     {
         $names = [];
         $mimeTypes = [];
-        foreach ($attachments as $name => $payload) {
+        $media = [];
+        $diagnostics = [];
+        $usedMediaPaths = [];
+        $attachmentNames = [];
+        foreach ($attachments as $name => $_payload) {
+            $attachmentNames[] = (string) $name;
+        }
+        sort($attachmentNames);
+
+        foreach ($attachmentNames as $name) {
+            $payload = $attachments[$name] ?? null;
             if (!is_array($payload)) {
                 continue;
             }
             $names[] = (string) $name;
-            foreach ($payload as $mimeType => $data) {
-                if (!is_string($mimeType) || $mimeType === '' || !is_scalar($data)) {
-                    continue;
-                }
-                $mimeTypes[] = $mimeType;
+            $payloadMimeTypes = $this->attachmentMimeTypes($payload);
+            $mimeTypes = array_merge($mimeTypes, $payloadMimeTypes);
+            $mediaPathPlan = $this->attachmentMediaPath($name, $payloadMimeTypes);
+            $mediaPath = 'ipynb-media/' . $mediaPathPlan['safeName'];
+            $itemDiagnostics = array_merge(['attachment-bytes-blocked'], $mediaPathPlan['diagnostics']);
+            if (isset($usedMediaPaths[$mediaPath])) {
+                $mediaPath = $this->disambiguateAttachmentMediaPath($mediaPath, $cellIndex, $name, $payloadMimeTypes);
+                $itemDiagnostics[] = 'attachment-media-path-collision';
             }
+            $usedMediaPaths[$mediaPath] = true;
+            $itemDiagnostics = $this->uniqueSortedStrings($itemDiagnostics);
+            $diagnostics = array_merge($diagnostics, $itemDiagnostics);
+
+            $media[] = [
+                'cellIndex' => $cellIndex,
+                'name' => $name,
+                'mimeTypes' => $payloadMimeTypes,
+                'primaryMimeType' => $payloadMimeTypes[0] ?? $this->mimeTypeFromPath($name),
+                'mediaPath' => $mediaPath,
+                'byteExposure' => 'blocked',
+                'extractionState' => 'planned-metadata-only',
+                'diagnostics' => $itemDiagnostics,
+            ];
         }
         sort($names);
         sort($mimeTypes);
@@ -288,7 +347,30 @@ final class IpynbReader
             'count' => count($names),
             'names' => $names,
             'mimeTypes' => array_values(array_unique($mimeTypes)),
+            'media' => $media,
+            'diagnostics' => $this->uniqueSortedStrings($diagnostics),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return list<string>
+     */
+    private function attachmentMimeTypes(array $payload): array
+    {
+        $mimeTypes = [];
+        foreach ($payload as $mimeType => $data) {
+            if (!is_string($mimeType) || $mimeType === '') {
+                continue;
+            }
+            if (!is_scalar($data) && !$this->isStringList($data)) {
+                continue;
+            }
+            $mimeTypes[] = $mimeType;
+        }
+        sort($mimeTypes);
+
+        return array_values(array_unique($mimeTypes));
     }
 
     /**
@@ -327,7 +409,7 @@ final class IpynbReader
     }
 
     /**
-     * @param array{count:int, names:list<string>, mimeTypes:list<string>} $attachmentSummary
+     * @param array{count:int, names:list<string>, mimeTypes:list<string>, media:list<array<string, mixed>>, diagnostics:list<string>} $attachmentSummary
      * @param array{count:int, types:list<string>, mimeTypes:list<string>} $outputSummary
      * @return list<string>
      */
@@ -359,6 +441,156 @@ final class IpynbReader
         $value = $metadata[$key] ?? null;
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param list<string> $mimeTypes
+     * @return array{safeName:string, diagnostics:list<string>}
+     */
+    private function attachmentMediaPath(string $name, array $mimeTypes): array
+    {
+        $diagnostics = [];
+        $path = $name;
+        if ($path === '') {
+            $diagnostics[] = 'attachment-empty-name';
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
+            $diagnostics[] = 'attachment-control-byte-name';
+        }
+        if (str_contains($path, '\\')) {
+            $diagnostics[] = 'attachment-backslash-path';
+        }
+
+        $normalized = str_replace('\\', '/', $path);
+        if ($this->isUri($normalized)) {
+            $diagnostics[] = 'attachment-uri-name';
+            $uriPath = parse_url($normalized, PHP_URL_PATH);
+            $normalized = is_string($uriPath) && $uriPath !== '' ? $uriPath : $normalized;
+        }
+        if (str_contains($normalized, '?') || str_contains($normalized, '#')) {
+            $diagnostics[] = 'attachment-query-or-fragment';
+            $normalized = strtok($normalized, '?#') ?: $normalized;
+        }
+        if (str_starts_with($normalized, '/') || str_starts_with($normalized, '//') || preg_match('/\A[A-Za-z]:\//', $normalized) === 1) {
+            $diagnostics[] = 'attachment-absolute-path';
+        }
+        if (str_contains($normalized, '%')) {
+            $diagnostics[] = 'attachment-percent-encoded-path';
+        }
+
+        $segments = [];
+        foreach (explode('/', $normalized) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                $diagnostics[] = 'attachment-path-traversal';
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        $requiresOpaqueName = array_diff($diagnostics, ['attachment-safe-path-remapped']) !== [];
+        if ($requiresOpaqueName) {
+            return [
+                'safeName' => 'attachment-' . substr(sha1($name), 0, 12) . $this->attachmentExtension($name, $mimeTypes[0] ?? ''),
+                'diagnostics' => $this->uniqueSortedStrings(array_merge($diagnostics, ['attachment-safe-path-remapped'])),
+            ];
+        }
+
+        $safeSegments = [];
+        foreach ($segments as $segment) {
+            $safeSegment = preg_replace('/[^A-Za-z0-9._-]+/', '-', $segment) ?? '';
+            $safeSegment = trim($safeSegment, '-');
+            if ($safeSegment === '' || $safeSegment === '.' || $safeSegment === '..') {
+                $safeSegment = 'attachment';
+            }
+            if ($safeSegment !== $segment) {
+                $diagnostics[] = 'attachment-safe-path-remapped';
+            }
+            $safeSegments[] = $safeSegment;
+        }
+
+        $safeName = implode('/', $safeSegments);
+        if ($safeName === '') {
+            $safeName = 'attachment-' . substr(sha1($name), 0, 12) . $this->attachmentExtension($name, $mimeTypes[0] ?? '');
+            $diagnostics[] = 'attachment-safe-path-remapped';
+        }
+
+        return [
+            'safeName' => $safeName,
+            'diagnostics' => $this->uniqueSortedStrings($diagnostics),
+        ];
+    }
+
+    /**
+     * @param list<string> $mimeTypes
+     */
+    private function disambiguateAttachmentMediaPath(string $mediaPath, int $cellIndex, string $name, array $mimeTypes): string
+    {
+        $extension = $this->pathExtension($mediaPath);
+        $stem = $extension === '' ? $mediaPath : substr($mediaPath, 0, -strlen($extension));
+        $suffix = substr(sha1($cellIndex . "\0" . $name . "\0" . implode("\0", $mimeTypes)), 0, 12);
+
+        return $stem . '-' . $suffix . $extension;
+    }
+
+    private function attachmentExtension(string $name, string $mimeType): string
+    {
+        $extension = $this->pathExtension(strtok(str_replace('\\', '/', $name), '?#') ?: $name);
+        if ($extension !== '' && !str_contains($extension, '%')) {
+            return $extension;
+        }
+
+        return match (strtolower($mimeType)) {
+            'image/apng' => '.apng',
+            'image/avif' => '.avif',
+            'image/gif' => '.gif',
+            'image/jpeg' => '.jpg',
+            'image/png' => '.png',
+            'image/svg+xml' => '.svg',
+            'image/webp' => '.webp',
+            'text/html' => '.html',
+            'text/plain' => '.txt',
+            'application/json' => '.json',
+            'application/pdf' => '.pdf',
+            default => '',
+        };
+    }
+
+    private function mimeTypeFromPath(string $path): string
+    {
+        return match (strtolower($this->pathExtension($path))) {
+            '.apng' => 'image/apng',
+            '.avif' => 'image/avif',
+            '.gif' => 'image/gif',
+            '.jpeg', '.jpg', '.jpe' => 'image/jpeg',
+            '.png' => 'image/png',
+            '.svg', '.svgz' => 'image/svg+xml',
+            '.webp' => 'image/webp',
+            '.html', '.htm' => 'text/html',
+            '.txt', '.text' => 'text/plain',
+            '.json' => 'application/json',
+            '.pdf' => 'application/pdf',
+            default => 'application/octet-stream',
+        };
+    }
+
+    private function pathExtension(string $path): string
+    {
+        $basename = basename($path);
+        $position = strrpos($basename, '.');
+        if ($position === false || $position === 0) {
+            return '';
+        }
+
+        return substr($basename, $position);
+    }
+
+    private function isUri(string $source): bool
+    {
+        return preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $source) === 1
+            && preg_match('/\A[A-Za-z]:\//', $source) !== 1;
     }
 
     /**
@@ -396,6 +628,32 @@ final class IpynbReader
         sort($strings);
 
         return array_values(array_unique($strings));
+    }
+
+    private function isStringList(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+        foreach ($value as $item) {
+            if (!is_string($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $strings
+     * @return list<string>
+     */
+    private function uniqueSortedStrings(array $strings): array
+    {
+        $strings = array_values(array_unique(array_filter($strings, static fn (string $string): bool => $string !== '')));
+        sort($strings);
+
+        return $strings;
     }
 
     private function sanitizeClassToken(string $token): string
