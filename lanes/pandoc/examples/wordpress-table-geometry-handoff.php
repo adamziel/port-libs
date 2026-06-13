@@ -4426,7 +4426,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (
         ($blockCaptionPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-caption-blocks-flattened']
-        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'plain-caption-text'
+        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'inline-caption-markdown'
         || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['blockTypes'] ?? null) !== ['paragraph', 'bullet_list']
     ) {
         throw new RuntimeException('Table geometry self-test missing block-level caption writer handoff diagnostics');

@@ -328,15 +328,23 @@ final class LatexWriter
 
         $rowGroups = $this->tableRowGroups($node);
         if ($rowGroups['head'] !== []) {
-            $lines[] = '\hline';
+            $this->appendTableRule($lines);
             array_push($lines, ...$this->renderTableRows($rowGroups['head'], $columnCount, $alignments));
-            $lines[] = '\hline';
+            $this->appendTableRule($lines);
         }
 
-        array_push($lines, ...$this->renderTableRows($rowGroups['body'], $columnCount, $alignments));
+        foreach ($rowGroups['bodies'] as $bodyGroup) {
+            if ($bodyGroup['head'] !== []) {
+                $this->appendTableRule($lines);
+                array_push($lines, ...$this->renderTableRows($bodyGroup['head'], $columnCount, $alignments));
+                $this->appendTableRule($lines);
+            }
+
+            array_push($lines, ...$this->renderTableRows($bodyGroup['rows'], $columnCount, $alignments));
+        }
 
         if ($rowGroups['foot'] !== []) {
-            $lines[] = '\hline';
+            $this->appendTableRule($lines);
             array_push($lines, ...$this->renderTableRows($rowGroups['foot'], $columnCount, $alignments));
         }
 
@@ -346,13 +354,14 @@ final class LatexWriter
     }
 
     /**
-     * @return array{head:list<AstNode>,body:list<AstNode>,foot:list<AstNode>}
+     * @return array{head:list<AstNode>,body:list<AstNode>,bodies:list<array{head:list<AstNode>,rows:list<AstNode>}>,foot:list<AstNode>}
      */
     private function tableRowGroups(AstNode $node): array
     {
         $groups = [
             'head' => [],
             'body' => [],
+            'bodies' => [],
             'foot' => [],
         ];
 
@@ -363,16 +372,21 @@ final class LatexWriter
             }
 
             if ($section->type === 'table_body') {
+                $bodyGroup = [
+                    'head' => [],
+                    'rows' => $this->tableRows($section),
+                ];
                 $headRows = $section->attr('headRows', []);
                 if (is_array($headRows)) {
                     foreach ($headRows as $row) {
                         if ($row instanceof AstNode && $row->type === 'table_row') {
-                            $groups['head'][] = $row;
+                            $bodyGroup['head'][] = $row;
                         }
                     }
                 }
 
-                array_push($groups['body'], ...$this->tableRows($section));
+                array_push($groups['body'], ...$bodyGroup['rows']);
+                $groups['bodies'][] = $bodyGroup;
                 continue;
             }
 
@@ -382,6 +396,16 @@ final class LatexWriter
         }
 
         return $groups;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendTableRule(array &$lines): void
+    {
+        if (($lines[array_key_last($lines)] ?? null) !== '\hline') {
+            $lines[] = '\hline';
+        }
     }
 
     /**

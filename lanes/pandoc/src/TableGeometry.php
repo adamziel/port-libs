@@ -6827,7 +6827,6 @@ final class TableGeometry
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
-                    array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -11184,7 +11183,6 @@ final class TableGeometry
         $requirements = [
             'markdown' => ['markdown-body-head-rows-flattened', 'body-local-header-row-boundaries'],
             'asciidoc' => ['asciidoc-body-head-rows-review-required', 'body-local-header-rows'],
-            'latex' => ['latex-body-head-rows-review-required', 'longtable-body-head-review'],
         ];
         if (!isset($requirements[$writer])) {
             return [];

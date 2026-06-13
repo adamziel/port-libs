@@ -211,6 +211,75 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders pandoc table body head rows in body position' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $cell = static fn (string $value, array $attrs = []): AstNode => new AstNode(
+            'table_cell',
+            ['text' => $value, ...$attrs],
+            [$text($value)]
+        );
+
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'caption' => 'Body head writer audit',
+                'alignments' => ['left', 'right', 'center'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', [], [
+                        $cell('Document'),
+                        $cell('Items'),
+                        $cell('State'),
+                    ]),
+                ]),
+                new AstNode('table_body', [
+                    'headRows' => [
+                        new AstNode('table_row', [], [
+                            $cell('Batch'),
+                            $cell('Queue'),
+                            $cell('Decision'),
+                        ]),
+                    ],
+                ], [
+                    new AstNode('table_row', [], [
+                        $cell('Posts'),
+                        $cell('42'),
+                        $cell('Review'),
+                    ]),
+                ]),
+                new AstNode('table_body', [
+                    'headRows' => [
+                        new AstNode('table_row', [], [
+                            $cell('Media'),
+                            $cell('Files'),
+                            $cell('Decision'),
+                        ]),
+                    ],
+                ], [
+                    new AstNode('table_row', [], [
+                        $cell('Images'),
+                        $cell('7'),
+                        $cell('Import'),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '\begin{longtable}{lrc}',
+            '\caption{Body head writer audit}\\\\',
+            '\hline',
+            'Document & Items & State\\\\',
+            '\hline',
+            'Batch & Queue & Decision\\\\',
+            '\hline',
+            'Posts & 42 & Review\\\\',
+            '\hline',
+            'Media & Files & Decision\\\\',
+            '\hline',
+            'Images & 7 & Import\\\\',
+            '\end{longtable}',
+        ]), (new LatexWriter())->write($document));
+    },
     'renders ordered list labels counters and task item commands' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 
