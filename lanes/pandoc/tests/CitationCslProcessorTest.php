@@ -28213,6 +28213,134 @@ XML);
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
         $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
     },
+    'normalizes bounded direct csl json title text family alias precedence' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-title-text-precedence',
+                'type' => 'chapter',
+                'title' => 'Direct Title Text Alias Precedence Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'mainTitleText' => 'Camel Main Text',
+                'main-title-text' => 'Hyphen Main Text',
+                'maintitletext' => 'Compact Main Text',
+                'volumeTitleText' => 'Camel Volume Text',
+                'volume-title-text' => 'Hyphen Volume Text',
+                'volumetitletext' => 'Compact Volume Text',
+                'partTitleText' => 'Camel Part Text',
+                'part-title-text' => 'Hyphen Part Text',
+                'parttitletext' => 'Compact Part Text',
+            ],
+            [
+                'id' => 'direct-title-text-camel',
+                'type' => 'chapter',
+                'title' => 'Direct Title Text Camel Packet',
+                'author' => [
+                    ['family' => 'Lopez', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'mainTitleText' => 'Camel Only Main Text',
+                'volumeTitleText' => 'Camel Only Volume Text',
+                'partTitleText' => 'Camel Only Part Text',
+            ],
+            [
+                'id' => 'direct-title-text-compact',
+                'type' => 'chapter',
+                'title' => 'Direct Title Text Compact Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'maintitletext' => 'Compact Only Main Text',
+                'volumetitletext' => 'Compact Only Volume Text',
+                'parttitletext' => 'Alpha Compact Part Text',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $precedence = $processor->item('direct-title-text-precedence');
+        $camel = $processor->item('direct-title-text-camel');
+        $compact = $processor->item('direct-title-text-compact');
+        $t->same('Hyphen Main Text', $precedence['mainTitle'] ?? null);
+        $t->same('Hyphen Volume Text', $precedence['volumeTitle'] ?? null);
+        $t->same('Hyphen Part Text', $precedence['partTitle'] ?? null);
+        $t->same('Camel Main Text', $precedence['raw']['mainTitleText'] ?? null);
+        $t->same('Hyphen Main Text', $precedence['raw']['main-title-text'] ?? null);
+        $t->same('Compact Main Text', $precedence['raw']['maintitletext'] ?? null);
+        $t->same('Camel Part Text', $precedence['raw']['partTitleText'] ?? null);
+        $t->same('Hyphen Part Text', $precedence['raw']['part-title-text'] ?? null);
+        $t->same('Compact Part Text', $precedence['raw']['parttitletext'] ?? null);
+        $t->same('Camel Only Main Text', $camel['mainTitle'] ?? null);
+        $t->same('Camel Only Volume Text', $camel['volumeTitle'] ?? null);
+        $t->same('Camel Only Part Text', $camel['partTitle'] ?? null);
+        $t->same('Compact Only Main Text', $compact['mainTitle'] ?? null);
+        $t->same('Compact Only Volume Text', $compact['volumeTitle'] ?? null);
+        $t->same('Alpha Compact Part Text', $compact['partTitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Title Text Family Alias Precedence Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-title-text-family-alias-precedence-review</id>
+    <updated>2026-06-13T09:33:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="part-title"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="main-title-text"/>
+        <text variable="volume-title-text"/>
+        <text variable="part-title-text"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="part-title"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographySort = $summary['bibliographySort'][0] ?? [];
+        $t->same('Bounded Direct CSL Title Text Family Alias Precedence Review', $summary['title'] ?? null);
+        $t->same('part-title', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('part-title', $bibliographySort['variable'] ?? null);
+        $t->same('main-title-text', $citationChildren[1]['variable'] ?? null);
+        $t->same('volume-title-text', $citationChildren[2]['variable'] ?? null);
+        $t->same('part-title-text', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Roe | Compact Only Main Text | Compact Only Volume Text | Alpha Compact Part Text; Lopez | Camel Only Main Text | Camel Only Volume Text | Camel Only Part Text; Ng | Hyphen Main Text | Hyphen Volume Text | Hyphen Part Text]', $styled->renderCitationCluster([
+            $citation('direct-title-text-precedence', '[@direct-title-text-precedence]'),
+            $citation('direct-title-text-camel', '[@direct-title-text-camel]'),
+            $citation('direct-title-text-compact', '[@direct-title-text-compact]'),
+        ]));
+        $t->same('Direct Title Text Alias Precedence Packet :: Hyphen Main Text :: Hyphen Volume Text :: Hyphen Part Text', $styled->renderBibliographyEntry('direct-title-text-precedence'));
+        $t->same('Direct Title Text Camel Packet :: Camel Only Main Text :: Camel Only Volume Text :: Camel Only Part Text', $styled->renderBibliographyEntry('direct-title-text-camel'));
+        $t->same('Direct Title Text Compact Packet :: Compact Only Main Text :: Compact Only Volume Text :: Alpha Compact Part Text', $styled->renderBibliographyEntry('direct-title-text-compact'));
+
+        $document = (new MarkdownReader())->read('Title text aliases [@direct-title-text-precedence; @direct-title-text-camel; @direct-title-text-compact] remain sorted.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Title text aliases [Roe | Compact Only Main Text | Compact Only Volume Text | Alpha Compact Part Text; Lopez | Camel Only Main Text | Camel Only Volume Text | Camel Only Part Text; Ng | Hyphen Main Text | Hyphen Volume Text | Hyphen Part Text] remain sorted.</p>', $blocks);
+        $compactPosition = strpos($blocks, '<dt>Roe 2024</dt><dd>Direct Title Text Compact Packet :: Compact Only Main Text :: Compact Only Volume Text :: Alpha Compact Part Text</dd>');
+        $camelPosition = strpos($blocks, '<dt>Lopez 2025</dt><dd>Direct Title Text Camel Packet :: Camel Only Main Text :: Camel Only Volume Text :: Camel Only Part Text</dd>');
+        $precedencePosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Direct Title Text Alias Precedence Packet :: Hyphen Main Text :: Hyphen Volume Text :: Hyphen Part Text</dd>');
+        $t->true($compactPosition !== false && $camelPosition !== false && $precedencePosition !== false);
+        $t->true($compactPosition < $camelPosition && $camelPosition < $precedencePosition, 'Part-title sort order is not reflected in WordPress bibliography output');
+    },
     'normalizes bounded direct csl json biblatex container title aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
