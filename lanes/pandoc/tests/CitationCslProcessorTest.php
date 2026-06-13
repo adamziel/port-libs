@@ -9546,6 +9546,90 @@ XML);
             ],
         ]]));
     },
+    'normalizes bounded direct csl json field annotation keys' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-field-annotation-keys',
+                'type' => 'book',
+                'title' => 'Direct Annotated Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/direct-annotated',
+                'title+an' => '=direct title verified; source={OCR; headline normalized}',
+                'genre+an' => '=packet {semi; kept}, source={CSV, reviewer}',
+                'url+an:source' => '=archived before CSL handoff',
+                'author+an' => '1=raw creator note remains a name-annotation concern',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-field-annotation-keys');
+
+        $t->same([
+            'title' => [
+                ['name' => 'default', 'value' => 'direct title verified'],
+                ['name' => 'source', 'value' => 'OCR; headline normalized'],
+            ],
+            'genre' => [
+                ['name' => 'default', 'value' => 'packet {semi; kept}'],
+                ['name' => 'source', 'value' => 'CSV, reviewer'],
+            ],
+            'url' => [
+                ['name' => 'source', 'value' => 'archived before CSL handoff'],
+            ],
+        ], $item['biblatexFieldAnnotations'] ?? null);
+        $t->same(false, isset($item['biblatexFieldAnnotations']['author']));
+        $t->same('title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff', $item['biblatexFieldAnnotationSummary'] ?? null);
+        $t->same(
+            'Ames, Ari. Direct Annotated Packet. 2026. BibLaTeX field annotations: title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff. https://example.test/direct-annotated.',
+            $processor->renderBibliographyEntry('direct-field-annotation-keys')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Field Annotation Key Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-field-annotation-key-review</id>
+    <updated>2026-06-13T08:49:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="biblatex-field-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="field-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Field Annotation Key Review', $summary['title'] ?? null);
+        $t->same('biblatex-field-annotation-summary', $citationChildren[1]['variable'] ?? null);
+        $t->same('[Ames | title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff]', $styled->renderCitationCluster([$citation('direct-field-annotation-keys', '[@direct-field-annotation-keys]')]));
+        $t->same('Direct Annotated Packet :: title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff', $styled->renderBibliographyEntry('direct-field-annotation-keys'));
+
+        $document = (new MarkdownReader())->read('Direct field annotations [@direct-field-annotation-keys] preserve review notes.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct field annotations [Ames | title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff] preserve review notes.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Annotated Packet :: title default: direct title verified; title source: OCR; headline normalized; genre default: packet {semi; kept}; genre source: CSV, reviewer; url source: archived before CSL handoff</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-direct-field-annotation-key',
+            'title' => 'Bad Direct Annotation Key',
+            'title+an' => ['not scalar'],
+        ]]));
+    },
     'maps bounded biblatex shorthand labels and short creator lists' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{shorthand-review,

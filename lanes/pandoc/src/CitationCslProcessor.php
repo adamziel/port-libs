@@ -2219,25 +2219,247 @@ final class CitationCslProcessor
      */
     private static function biblatexFieldAnnotations(array $item, string $id): array
     {
-        $value = $item['biblatex-field-annotations'] ?? $item['biblatexFieldAnnotations'] ?? null;
-        if ($value === null || $value === []) {
-            return [];
-        }
-
-        if (!is_array($value) || array_is_list($value)) {
-            throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations must be an object map');
-        }
-
         $annotations = [];
-        foreach ($value as $field => $fieldValue) {
-            $field = self::biblatexFieldAnnotationFieldName((string) $field, $id);
-            $fieldAnnotations = self::biblatexFieldAnnotationValues($fieldValue, $id, $field);
+        $value = $item['biblatex-field-annotations'] ?? $item['biblatexFieldAnnotations'] ?? null;
+        if ($value !== null && $value !== []) {
+            if (!is_array($value) || array_is_list($value)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' biblatex-field-annotations must be an object map');
+            }
+
+            foreach ($value as $field => $fieldValue) {
+                $field = self::biblatexFieldAnnotationFieldName((string) $field, $id);
+                $fieldAnnotations = self::biblatexFieldAnnotationValues($fieldValue, $id, $field);
+                if ($fieldAnnotations !== []) {
+                    $annotations[$field] = $fieldAnnotations;
+                }
+            }
+        }
+
+        foreach (self::directBiblatexFieldAnnotations($item, $id) as $field => $fieldAnnotations) {
             if ($fieldAnnotations !== []) {
-                $annotations[$field] = $fieldAnnotations;
+                $annotations[$field] = array_merge($annotations[$field] ?? [], $fieldAnnotations);
             }
         }
 
         return $annotations;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, list<array{name:string, value:string}>>
+     */
+    private static function directBiblatexFieldAnnotations(array $item, string $id): array
+    {
+        $annotations = [];
+        foreach ($item as $field => $value) {
+            if (preg_match('/^([A-Za-z0-9_.-]+)\+an(?::([A-Za-z][A-Za-z0-9_-]*))?$/u', (string) $field, $matches) !== 1) {
+                continue;
+            }
+
+            $baseField = self::biblatexFieldAnnotationFieldName((string) $matches[1], $id);
+            if (self::biblatexFieldAnnotationBaseIsNameField($baseField)) {
+                continue;
+            }
+
+            $fieldAnnotations = self::directBiblatexFieldAnnotationValues(
+                $value,
+                $id,
+                $baseField,
+                self::biblatexFieldAnnotationName((string) ($matches[2] ?? ''))
+            );
+            if ($fieldAnnotations !== []) {
+                $annotations[$baseField] = array_merge($annotations[$baseField] ?? [], $fieldAnnotations);
+            }
+        }
+
+        return $annotations;
+    }
+
+    private static function biblatexFieldAnnotationBaseIsNameField(string $field): bool
+    {
+        return in_array(strtolower(str_replace('_', '-', trim($field))), [
+            'author',
+            'editor',
+            'shortauthor',
+            'short-author',
+            'shorteditor',
+            'short-editor',
+            'holder',
+            'translator',
+            'bookauthor',
+            'book-author',
+            'chair',
+            'collection-editor',
+            'collectioneditor',
+            'series-editor',
+            'serieseditor',
+            'series-creator',
+            'seriescreator',
+            'compiler',
+            'composer',
+            'contributor',
+            'curator',
+            'director',
+            'editor-translator',
+            'editorial-director',
+            'editorialdirector',
+            'editortranslator',
+            'eventorganizer',
+            'event-organizer',
+            'executive-producer',
+            'executiveproducer',
+            'guest',
+            'host',
+            'illustrator',
+            'interviewer',
+            'narrator',
+            'organizer',
+            'organization',
+            'origauthor',
+            'original-author',
+            'originalauthor',
+            'performer',
+            'producer',
+            'recipient',
+            'redactor',
+            'founder',
+            'continuator',
+            'reviser',
+            'collaborator',
+            'reviewed-author',
+            'reviewedauthor',
+            'script-writer',
+            'scriptwriter',
+            'commentator',
+            'annotator',
+            'introduction',
+            'foreword',
+            'afterword',
+            'editora',
+            'editorb',
+            'editorc',
+            'namea',
+            'nameb',
+            'namec',
+        ], true);
+    }
+
+    /**
+     * @return list<array{name:string, value:string}>
+     */
+    private static function directBiblatexFieldAnnotationValues(mixed $value, string $id, string $field, string $defaultName): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (!is_scalar($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '+an must be scalar when present');
+        }
+
+        $source = trim((string) $value);
+        if ($source === '') {
+            return [];
+        }
+
+        $separator = self::directBiblatexFieldAnnotationSeparator($source);
+        $annotations = [];
+        foreach (self::splitDirectBiblatexFieldAnnotationValue($source, $separator) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $name = $defaultName;
+            $text = $entry;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*)?\s*=\s*(.+)$/u', $entry, $matches) === 1) {
+                if (($matches[1] ?? '') !== '') {
+                    $name = self::biblatexFieldAnnotationName((string) $matches[1]);
+                }
+                $text = (string) $matches[2];
+            }
+
+            $text = self::cleanDirectBiblatexFieldAnnotationText($text);
+            if ($text !== '') {
+                $annotations[] = [
+                    'name' => $name === '' ? 'default' : $name,
+                    'value' => $text,
+                ];
+            }
+        }
+
+        return $annotations;
+    }
+
+    private static function directBiblatexFieldAnnotationSeparator(string $value): string
+    {
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && $char === ';') {
+                return ';';
+            }
+        }
+
+        return ',';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitDirectBiblatexFieldAnnotationValue(string $value, string $separator): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '{') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && $char === $separator) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return $parts;
+    }
+
+    private static function cleanDirectBiblatexFieldAnnotationText(string $value): string
+    {
+        $value = trim($value);
+        if (strlen($value) >= 2 && $value[0] === '{' && $value[strlen($value) - 1] === '}') {
+            $value = substr($value, 1, -1);
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
     }
 
     private static function biblatexFieldAnnotationFieldName(string $field, string $id): string
