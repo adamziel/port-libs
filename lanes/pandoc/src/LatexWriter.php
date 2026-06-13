@@ -6,6 +6,9 @@ namespace PortLibs\Pandoc;
 
 final class LatexWriter
 {
+    /** @var array<string, bool> */
+    private array $noteUsedAnchors = [];
+
     public function __construct(private readonly ?MathTexConverter $mathConverter = null)
     {
     }
@@ -16,6 +19,7 @@ final class LatexWriter
             throw new \InvalidArgumentException('LaTeX writer expects a document node');
         }
 
+        $this->noteUsedAnchors = [];
         $blocks = [];
         foreach ($document->children as $node) {
             $lines = $this->renderBlock($node);
@@ -776,8 +780,50 @@ final class LatexWriter
     private function renderNote(AstNode $node): string
     {
         $note = implode("\n", $this->renderBlockGroup($node->children));
+        if ($note === '') {
+            return '';
+        }
 
-        return $note === '' ? '' : '\footnote{' . $note . '}';
+        $anchor = $this->registerNoteAnchor($node);
+        if ($anchor !== '') {
+            $note = '\protect\hypertarget{' . $anchor . '}{}' . $note;
+        }
+
+        return '\footnote{' . $note . '}';
+    }
+
+    private function registerNoteAnchor(AstNode $node): string
+    {
+        $label = $this->sourceNoteLabel($node);
+        if ($label === null) {
+            return '';
+        }
+
+        $base = $this->latexAnchorName('fn-' . $label);
+        if ($base === '') {
+            return '';
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+        while (isset($this->noteUsedAnchors[strtolower($candidate)])) {
+            $candidate = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        $this->noteUsedAnchors[strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
     }
 
     private function renderRawInline(AstNode $node): string

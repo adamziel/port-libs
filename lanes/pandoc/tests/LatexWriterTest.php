@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\LatexWriter;
+use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
     'renders bounded latex writer commands for structural and inline ast nodes' => static function (TestRunner $t): void {
@@ -130,6 +133,36 @@ return [
                 . '\protect\hypertarget{math-source}{$x + y$}',
             (new LatexWriter())->write($document)
         );
+    },
+    'preserves labelled markdown notes as latex and wordpress anchors' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Review note[^review-note] and generated.^[Generated note.]',
+            '',
+            '[^review-note]: Labelled note keeps [source](https://example.test/source).',
+        ]));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $latex = (new LatexWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('Review note[^review-note] and generated.[^1]', $markdown);
+        $t->contains('[^review-note]: Labelled note keeps [source](https://example.test/source).', $markdown);
+        $t->contains('\footnote{\protect\hypertarget{fn-review-note}{}Labelled note keeps \href{https://example.test/source}{source}.}', $latex);
+        $t->contains('\footnote{Generated note.}', $latex);
+        $t->contains('<sup id="fnref-review-note" data-pandoc-note-label="review-note"><a href="#fn-review-note" role="doc-noteref">1</a></sup>', $blocks);
+        $t->contains('<li id="fn-review-note" data-pandoc-note-label="review-note"><p>Labelled note keeps <a href="https://example.test/source">source</a>.</p> <a href="#fnref-review-note" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+
+        $duplicate = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('note', ['label' => 'review-note'], [new AstNode('plain', [], [new AstNode('text', ['text' => 'First'])])]),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'review-note'], [new AstNode('plain', [], [new AstNode('text', ['text' => 'Second'])])]),
+            ]),
+        ]);
+        $duplicateLatex = (new LatexWriter())->write($duplicate);
+
+        $t->contains('\footnote{\protect\hypertarget{fn-review-note}{}First}', $duplicateLatex);
+        $t->contains('\footnote{\protect\hypertarget{fn-review-note-2}{}Second}', $duplicateLatex);
     },
     'renders line blocks and definition lists without dropping native ast nodes' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);

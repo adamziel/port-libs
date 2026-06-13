@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,353 pass / 0 fail | [3,313 / 2,276 (145.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue raw HTML boundary parity after JSON/native alias preservation | json-native-html-raw-aliases-de537d8 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,354 pass / 0 fail | [3,314 / 2,276 (145.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue notes/reference parity after LaTeX labelled note anchors | latex-note-anchor-round-trip-025c076 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -40,7 +40,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 51 | 20 | 0 critical gaps for native PHP ODT import; compact manifest custom attribute provenance is covered. Continue only non-critical hardening slices as discovered. |
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 107 | 67 | Selected-entry role bucket handoff is covered; finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 77 | 8 | RIS now has bounded native CSL item parsing; EndNote XML, broader RIS coverage, and full reader-registry parity remain. |
-| LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
+| LaTeX/TeX/math | `latex` | partial | 21 | 14 | Labelled note anchor handoff is covered for LaTeX writer output; finish LaTeX reader and math conversion parity. |
 | DocBook/table geometry | `docbook` | partial | 17 | 16 | DocBook structural review diagnostics are covered; finish DocBook XML reader parity, body conversion, inline/block/reference/bibliography mapping, generated AST parity, and broader fixture hydration. |
 | RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
 | Typst | `typst` | unsupported | 49 | 17 | Implement Typst reader; package dependency conflict, source-class, and unsupported-reason policy provenance are covered, but current evidence is boundary/provenance only. |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through the JSON/native raw HTML alias slice rebased on `de537d8caa`: 3,353 PHP passes, 0 failures, and 3,313 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`, focused `PandocJsonNativeAstTest.php` (`1` file, `2189` assertions, `0` failures), and full `lanes/pandoc/tests` (`46` files, `75541` assertions, `0` failures).
+Current-main counters are reconciled through the LaTeX labelled note anchor slice rebased on `025c076f77`: 3,354 PHP passes, 0 failures, and 3,314 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `LatexWriter.php` and `LatexWriterTest.php`, focused `LatexWriterTest.php` (`1` file, `22` assertions, `0` failures), and full `lanes/pandoc/tests` (`46` files, `75549` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -74,7 +74,7 @@ Current-main counters are reconciled through the JSON/native raw HTML alias slic
 | DocBook structural review diagnostics | Landed review-only DocBook 4/5 structure packets with metadata, section/chapter structure, figures, tables, admonitions, bibliography entries, xref/external targets, media/image references, and unsupported direct-reader diagnostics | 16 DocBook/table geometry rows | 17 local DocBook/table geometry cases; latest focused `XmlHtmlDomTest.php` run 1,930 assertions | Partial after bounded review diagnostics | Full DocBook body conversion, inline/block/reference/bibliography mapping, generated AST parity, broader fixture hydration, and figure/media/admonition conversion remain open. |
 | IPYNB/notebook reader diagnostics | Landed metadata keys, cell tags, MIME summaries, and blocked resource diagnostics | 1 IPYNB rich-package reader bucket | Focused `IpynbReaderTest.php` run 86 assertions | Covered bounded reader diagnostics | Full Jupyter notebook reader parity, rich output rendering, attachment/media extraction, broader nbformat diagnostics, and native IPYNB writer support remain open. |
 | Media linked-resource handoff | Landed linked-resource loading plus MIME inference | 2 mapped cross-format resource slices | 2 focused `MediaBag` cases; latest focused run 168 assertions | Covered bounded handoff; not an input-format ship gate | Wider media/resource edge cases outside opt-in linked-resource handoff. |
-| Notes/references | Landed footnote label anchors, WordPress backlink metadata, table-cell note placement, and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Latest focused MarkdownReader run 6,668 assertions; focused Markdown/DOCX run 11,750 assertions | Partial | Broader note/reference placement, endnote grouping, anchor round-trips, and constructor parity. |
+| Notes/references | Landed LaTeX labelled note anchors, footnote label anchors, WordPress backlink metadata, table-cell note placement, and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Latest focused `LatexWriterTest.php` run 22 assertions; focused Markdown/DOCX run 11,750 assertions | Partial | Broader note/reference placement, endnote grouping, complex anchor round-trips, and constructor parity. |
 | Inline writer attributes | Landed WordPress semantic/math inline attrs and LaTeX semantic/code/math id anchors | Writer handoff slice | Focused Markdown/LaTeX writer run 6,665 assertions | Covered bounded writer handoff | Broader Markdown/CommonMark/GFM and LaTeX/math reader parity. |
 | Wiki/roff/text reader ship gate | Landed explicit unsupported verdict and diagnostic packet for 20 text markup reader input tokens | 20 wiki/roff/man/text markup tokens | Focused registry run 1,349 assertions | Unsupported | Implement native readers after registry-level ship-gate accounting or explicitly defer them. |
 | Table geometry | Landed LaTeX table-foot longtable, body-local head-row, and PlainWriter body-group handoffs | Table writer geometry slice | Focused PlainWriter/TableGeometry runs 2,127 assertions | Covered bounded table-foot, body-head-row, and plain-text body-group slices | Markdown/AsciiDoc/LaTeX body-group semantics, rowspan output, and package-specific table internals. |
@@ -298,6 +298,14 @@ Bounded native PHP notes handoff advanced by one WordPress writer slice. `WordPr
 
 Verification passed `php -l` for `WordPressBlockWriter.php`, `MarkdownReaderTest.php`, and `DocxReaderTest.php`; focused `MarkdownReaderTest.php` plus `DocxReaderTest.php` passed (`2` files, `11750` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74349` assertions, `0` failures). No Pandoc, browser renderer, Node tooling, TeX engine, office suite, online service, live provider, or external validator was invoked.
 
+### LaTeX Labelled Note Anchor Update (2026-06-13)
+
+Bounded native PHP notes/reference coverage advanced by one LaTeX writer anchor slice after JSON/native raw HTML alias preservation. `LatexWriter` now emits de-duplicated `fn-*` hypertargets for valid labelled source notes inside footnotes while generated inline notes remain unlabelled.
+
+Verification passed `php -l` for `LatexWriter.php` and `LatexWriterTest.php`; focused `LatexWriterTest.php` passed (`1` file, `22` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `75549` assertions, `0` failures). No Pandoc binary, Cabal/Haskell runner, TeX engine, browser renderer, Node tooling, office suite, online service, live provider test, live-service provider test, or external validator was invoked.
+
+Notes/reference evidence now includes Markdown labelled-note output, WordPress `fn`/`fnref` anchors and backlinks, table-cell note placement, JSON/native note-label sidecars, and LaTeX labelled-note anchor preservation. Endnote grouping, complex note placement, and broader Native/Markdown/HTML/LaTeX/WordPress anchor round-trip parity remain partial.
+
 ### Text Markup Reader Ship-Gate Update (2026-06-13)
 
 Bounded native PHP registry accounting now records an executable unsupported ship-gate verdict for 20 wiki/roff/man/text markup reader input tokens: `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, and `vimwiki`. `PandocFormatRegistry::textMarkupReaderShipGate()` reports upstream denominator `20`, local passing numerator `0`, unsupported count `20`, family buckets `wiki=7`, `roff-manual=2`, `text-markup=11`, and direct reader parity `false`.
@@ -510,8 +518,8 @@ Remaining critical JSON/native gaps: broader upstream native/json fixture parity
 
 Dashboard reconciliation on 2026-06-13: `PANDOC_STATUS.md` is now present, the
 root dashboard, lane status, upstream manifest, ready/open beads, and landed
-commit history agree on the current shipping call after the JSON/native raw HTML
-alias preservation slice, PDF/Typst package unsupported-reason slice, JATS/BITS body
+commit history agree on the current shipping call after the LaTeX labelled note
+anchor preservation slice, JSON/native raw HTML alias preservation slice, PDF/Typst package unsupported-reason slice, JATS/BITS body
 diagnostics slice, CSV/TSV format inference diagnostics slice, DocBook structural review diagnostics slice, IPYNB
 metadata/resource diagnostics slice, XML/HTML object association slice, MediaBag linked-resource
 MIME inference slice, YAML metadata alias summary slice, JSON/native table
@@ -548,12 +556,12 @@ boundaries, and Pandoc inline attribute writer handoff slice.
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static upstream inventory remains 2,276 Pandoc test/data/benchmark artifacts at `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`; input-format scope is 50 tokens after skipping IPYNB for this phase. | Denominator accepted for native PHP progress accounting; not upstream runner parity. |
-| Local passing numerator | `lane-status.json` reports 3,353 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,313 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,313 / 2,276 = 145.6%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
+| Local passing numerator | `lane-status.json` reports 3,354 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,314 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,314 / 2,276 = 145.6%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
 | Shippable format gate | ODF/ODT is ship-ready with 51 local mapped cases / 20 upstream ODF/ODT cases, 255.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
-| Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. JSON/native raw HTML alias preservation, PDF/Typst package unsupported-reason reporting, JATS/BITS body diagnostics, CSV/TSV format inference diagnostics, DocBook structural review diagnostics, IPYNB notebook metadata/resource diagnostics, XML/HTML object association provenance, MediaBag linked-resource MIME inference, YAML metadata alias review summaries, JSON/native table attribute writer handoff, JSON/native mixed table caption/cell flushing, tabular data registry option profiles, ODF compact manifest custom attributes, DOCX note/comment relationship diagnostics, Markdown generic raw HTML serialization, Typst package source-class policy provenance, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP selected-entry role buckets, EPUB XHTML table semantics, PlainWriter table body-group boundaries, Markdown HTML list item attribute handoff, Markdown math attribute round-trip, JSON/native block-container mixed-content flushing, XML/JATS/BITS direct reader capability diagnostics, Markdown header section Div mapping, Markdown table-cell note placement, DOCX/OpenXML subdocument diagnostics, definition-list term-group handoff, Markdown fenced Div section-reference boundaries, inline writer attributes, EPUB direct manifest/spine diagnostics, EPUB XHTML definition-list handoff, and text markup unsupported ship-gate accounting are covered. | Full Pandoc input lane remains active. |
+| Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. LaTeX labelled note anchor preservation, JSON/native raw HTML alias preservation, PDF/Typst package unsupported-reason reporting, JATS/BITS body diagnostics, CSV/TSV format inference diagnostics, DocBook structural review diagnostics, IPYNB notebook metadata/resource diagnostics, XML/HTML object association provenance, MediaBag linked-resource MIME inference, YAML metadata alias review summaries, JSON/native table attribute writer handoff, JSON/native mixed table caption/cell flushing, tabular data registry option profiles, ODF compact manifest custom attributes, DOCX note/comment relationship diagnostics, Markdown generic raw HTML serialization, Typst package source-class policy provenance, CSV/TSV header option parity, text markup unsupported diagnostics, shared ZIP selected-entry role buckets, EPUB XHTML table semantics, PlainWriter table body-group boundaries, Markdown HTML list item attribute handoff, Markdown math attribute round-trip, JSON/native block-container mixed-content flushing, XML/JATS/BITS direct reader capability diagnostics, Markdown header section Div mapping, Markdown table-cell note placement, DOCX/OpenXML subdocument diagnostics, definition-list term-group handoff, Markdown fenced Div section-reference boundaries, inline writer attributes, EPUB direct manifest/spine diagnostics, EPUB XHTML definition-list handoff, and text markup unsupported ship-gate accounting are covered. | Full Pandoc input lane remains active. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check`, syntax checks for `PandocJsonReader.php`, `NativeReader.php`, and `PandocJsonNativeAstTest.php`, focused `PandocJsonNativeAstTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | Focused: 1 file, 2,189 assertions, 0 failures. Full: 46 files, 75,541 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check`, syntax checks for `LatexWriter.php` and `LatexWriterTest.php`, focused `LatexWriterTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | Focused: 1 file, 22 assertions, 0 failures. Full: 46 files, 75,549 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
@@ -564,13 +572,12 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonReader.php lanes/pandoc/src/NativeReader.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`,
-`php -l lanes/pandoc/src/PandocJsonReader.php`,
-`php -l lanes/pandoc/src/NativeReader.php`,
-`php -l lanes/pandoc/tests/PandocJsonNativeAstTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/PandocJsonNativeAstTest.php`
-(`1` file, `2189` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`46` files, `75541` assertions, `0` failures after final rebase onto base `de537d8caa`).
+status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/LatexWriter.php lanes/pandoc/tests/LatexWriterTest.php`,
+`php -l lanes/pandoc/src/LatexWriter.php`,
+`php -l lanes/pandoc/tests/LatexWriterTest.php`,
+`php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php`
+(`1` file, `22` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
+(`46` files, `75549` assertions, `0` failures after final rebase onto base `025c076f77`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
