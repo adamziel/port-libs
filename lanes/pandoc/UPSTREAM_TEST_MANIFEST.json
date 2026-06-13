@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3319,
-        "latestSlice": "pandoc-docbook-section-metadata maps one DocBook section metadata diagnostic case on base bcf36593 after IPYNB attachment media diagnostics. XmlHtmlDom now summarizes DocBook root title/subtitle sources, section titles, xml:id/id, role, label, language, levels, paragraph/child-section counts, missing-title diagnostics, and duplicate-id diagnostics without claiming direct reader parity. Mapped denominator moves 3318 -> 3319, mappedXmlHtmlDomDocBookSectionMetadataCases moves 0 -> 1, and xmlHtmlDomDocBookSectionMetadataAssertions moves 0 -> 44. Verification passed php -l for XmlHtmlDom.php, PandocFormatRegistry.php, XmlHtmlDomTest.php, and PandocFormatRegistryTest.php; focused XmlHtmlDomTest.php, XmlHtml5DomTest.php, PandocFormatRegistryTest.php, and TableGeometryReaderHandoffTest.php passed 4 files, 4998 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75709 assertions, 0 failures after final rebase onto base bcf36593. No Pandoc binary, external XML validator, browser, Node, online service, live provider, live-service provider, or external validator was invoked.",
+        "mapped": 3320,
+        "latestSlice": "pandoc-xml-html-jats-funding-reference-backlink-collisions maps a second XML/HTML5 DOM JATS/BITS funding metadata case on base 620639e7 after DocBook section metadata. XmlHtmlDom now orders missing, duplicate, and single found fundingReferenceBacklinks deterministically; exposes duplicateLinkProvenance on duplicate backlinks and duplicate issues; and keeps citation/funding-statement payloads bounded to length/SHA-256 while preserving directReaderParity=false and existing funding conflict diagnostics. Mapped denominator moves 3319 -> 3320, mappedXmlHtmlDomJatsFundingBacklinkCases moves 1 -> 2, and xmlHtmlDomJatsFundingBacklinkAssertions moves 55 -> 99. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; jq empty for lane-status and upstream manifest; git diff --check; focused XmlHtmlDomTest.php passed 1 file, 2113 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75808 assertions, 0 failures. No Pandoc binary, XML validator, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "IPYNB attachment media diagnostics are verified over base f70cdddd after JSON/native nested metadata payload preservation; broader notebook reader parity remains partial.",
-        "latestFocusedSource": "2026-06-13 DocBook section metadata diagnostics slice inspected root and section title metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base bcf36593 following IPYNB attachment media diagnostics; focused XmlHtmlDomTest.php, XmlHtml5DomTest.php, PandocFormatRegistryTest.php, and TableGeometryReaderHandoffTest.php passed 4 files, 4998 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75709 assertions, 0 failures.",
+        "status": "XML/HTML5 DOM JATS/BITS funding backlink collision diagnostics are verified over base 620639e7; full JATS/BITS direct reader parity remains unsupported.",
+        "latestFocusedSource": "2026-06-13 JATS/BITS funding backlink collision diagnostics inspected funding-group xrefs to duplicate and missing ref-list entries against the accepted static Pandoc XML/JATS/BITS inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base 620639e7 following DocBook section metadata; focused XmlHtmlDomTest.php passed 1 file, 2113 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75808 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -249,7 +249,9 @@
         "mappedJsonNativeNestedMetaPayloadCases": 1,
         "jsonNativeNestedMetaPayloadAssertions": 40,
         "mappedXmlHtmlDomDocBookSectionMetadataCases": 1,
-        "xmlHtmlDomDocBookSectionMetadataAssertions": 44
+        "xmlHtmlDomDocBookSectionMetadataAssertions": 44,
+        "mappedXmlHtmlDomJatsFundingBacklinkCases": 2,
+        "xmlHtmlDomJatsFundingBacklinkAssertions": 99
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",

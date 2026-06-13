@@ -2167,6 +2167,7 @@ final class XmlHtmlDom
                         'conflictingAwardIds' => [],
                         'awardSourceConflictCount' => 0,
                         'links' => [],
+                        'duplicateLinkProvenance' => [],
                     ];
                 }
 
@@ -2178,6 +2179,7 @@ final class XmlHtmlDom
                     'awardIds' => $linkedReference['awardIds'],
                     'fundingSourceTexts' => $linkedReference['fundingSourceTexts'],
                     'conflictingAwardIds' => $linkedReference['conflictingAwardIds'],
+                    'awardSourceConflictCount' => count($linkedReference['conflictingAwardIds']),
                     'linkTextLength' => $linkedReference['linkTextLength'],
                     'linkTextSha256' => $linkedReference['linkTextSha256'],
                     'linkTextBlocked' => true,
@@ -2210,9 +2212,33 @@ final class XmlHtmlDom
             $backlinks[$target]['fundingSourceTexts'] = $sourceTexts;
             $backlinks[$target]['conflictingAwardIds'] = $conflictingAwardIds;
             $backlinks[$target]['awardSourceConflictCount'] = count($conflictingAwardIds);
+            $backlinks[$target]['duplicateLinkProvenance'] = count($backlink['links']) > 1
+                ? $backlink['links']
+                : [];
         }
 
-        return array_values($backlinks);
+        $orderedBacklinks = array_values($backlinks);
+        usort(
+            $orderedBacklinks,
+            static function (array $left, array $right): int {
+                $priority = static function (array $backlink): int {
+                    if ($backlink['found'] === false) {
+                        return 0;
+                    }
+
+                    return $backlink['duplicate'] === true ? 1 : 2;
+                };
+
+                $priorityComparison = $priority($left) <=> $priority($right);
+                if ($priorityComparison !== 0) {
+                    return $priorityComparison;
+                }
+
+                return strcmp((string) $left['referenceId'], (string) $right['referenceId']);
+            }
+        );
+
+        return $orderedBacklinks;
     }
 
     /**
@@ -2250,6 +2276,7 @@ final class XmlHtmlDom
                         'awardIds' => $backlink['awardIds'],
                         'fundingSourceTexts' => $backlink['fundingSourceTexts'],
                         'conflictingAwardIds' => $backlink['conflictingAwardIds'],
+                        'duplicateLinkProvenance' => $backlink['duplicateLinkProvenance'],
                     ]
                 );
             }
