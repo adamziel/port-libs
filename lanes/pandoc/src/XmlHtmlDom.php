@@ -787,6 +787,123 @@ final class XmlHtmlDom
         return in_array($tagName, ['script', 'style', 'xmp', 'noembed', 'noframes', 'title', 'textarea', 'plaintext', 'noscript', 'iframe'], true);
     }
 
+    /**
+     * @return list<array<string, int|string|bool>>
+     */
+    public static function htmlRawTextBoundaryDiagnostics(string $html): array
+    {
+        $offset = 0;
+        $diagnostics = [];
+        $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext|noscript|iframe|template';
+        $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
+
+        while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $startTag = (string) $matches[0][0];
+            $startOffset = (int) $matches[0][1];
+            $name = strtolower((string) $matches['name'][0]);
+            $contentStart = $startOffset + strlen($startTag);
+
+            if ($name === 'title' && self::isHtmlTitleStartInSvgContext($html, $startOffset)) {
+                $offset = $contentStart;
+                continue;
+            }
+
+            if ($name === 'plaintext') {
+                $content = substr($html, $contentStart);
+                $diagnostic = self::htmlRawTextBoundaryDiagnostic(
+                    'plaintext-boundary',
+                    $name,
+                    'plaintext',
+                    'plaintext-consumes-fragment-tail',
+                    'fragment-eof',
+                    $html,
+                    $startOffset,
+                    strlen($content)
+                );
+                if (preg_match('~</\s*plaintext\s*>~i', $content) === 1) {
+                    $diagnostic['ignoredEndTag'] = true;
+                }
+                $diagnostics[] = $diagnostic;
+
+                return $diagnostics;
+            }
+
+            $endMatch = self::findHtmlRcdataEndTag($html, $name, $contentStart);
+            if ($endMatch === null) {
+                $diagnostics[] = self::htmlRawTextBoundaryDiagnostic(
+                    'raw-text-boundary',
+                    $name,
+                    self::htmlRawTextBoundaryKind($name),
+                    'missing-end-tag-synthesized',
+                    'synthetic-eof',
+                    $html,
+                    $startOffset,
+                    strlen(substr($html, $contentStart))
+                );
+
+                return $diagnostics;
+            }
+
+            [$endTag, $endOffset] = $endMatch;
+            $offset = $endOffset + strlen($endTag);
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<string, int|string|bool>
+     */
+    private static function htmlRawTextBoundaryDiagnostic(
+        string $code,
+        string $name,
+        string $kind,
+        string $reason,
+        string $closedBy,
+        string $source,
+        int $startOffset,
+        int $contentBytes
+    ): array {
+        [$line, $column] = self::sourceLineColumn($source, $startOffset);
+
+        return [
+            'code' => $code,
+            'tag' => $name,
+            'kind' => $kind,
+            'reason' => $reason,
+            'closedBy' => $closedBy,
+            'syntheticEndTag' => '</' . $name . '>',
+            'contentBytes' => $contentBytes,
+            'line' => $line,
+            'column' => $column,
+        ];
+    }
+
+    private static function htmlRawTextBoundaryKind(string $name): string
+    {
+        if (in_array($name, ['title', 'textarea'], true)) {
+            return 'rcdata';
+        }
+        if (in_array($name, ['template', 'iframe', 'noscript'], true)) {
+            return 'inert-raw-text';
+        }
+
+        return 'raw-text';
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private static function sourceLineColumn(string $source, int $offset): array
+    {
+        $prefix = substr($source, 0, $offset);
+        $line = substr_count($prefix, "\n") + 1;
+        $lastNewline = strrpos($prefix, "\n");
+        $column = $lastNewline === false ? $offset + 1 : $offset - $lastNewline;
+
+        return [$line, $column];
+    }
+
     private static function protectHtmlRcdataElementContent(string $name, string $content, bool $protectRawTextContent = false): string
     {
         if (in_array($name, ['script', 'style'], true)) {

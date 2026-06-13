@@ -124,7 +124,7 @@ final class Html5DomFragment
     {
         self::assertSafeHtmlSource($html, 'HTML fragment');
 
-        $diagnostics = [];
+        $diagnostics = XmlHtmlDom::htmlRawTextBoundaryDiagnostics($html);
         $dom = self::loadHtmlDocument($html, $diagnostics);
         $wrapper = self::htmlWrapper($dom);
         if (!$wrapper instanceof \DOMElement) {

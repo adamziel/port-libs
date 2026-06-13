@@ -3891,6 +3891,10 @@ return [
         );
         $summary = $fragment->summary();
         $nodes = $fragment->nodes();
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
         $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
             $fragment->toRawHtmlAst(['part' => '/migration/plaintext-review.html']),
         ]);
@@ -3910,12 +3914,47 @@ return [
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
         ));
-        $t->same(['blocked-tag'], $policyDiagnostics);
+        $t->same(['plaintext-boundary', 'blocked-tag'], $policyDiagnostics);
+        $t->same('plaintext-boundary', $diagnostics[0]['code'] ?? null);
+        $t->same('plaintext', $diagnostics[0]['tag'] ?? null);
+        $t->same('plaintext-consumes-fragment-tail', $diagnostics[0]['reason'] ?? null);
+        $t->same('fragment-eof', $diagnostics[0]['closedBy'] ?? null);
+        $t->same(true, $diagnostics[0]['ignoredEndTag'] ?? null);
         $t->same('/migration/plaintext-review.html', $document->children[0]->attr('part'));
         $t->contains($expectedHtml, $blocks);
         $t->true(!str_contains($fragment->serialize(), '<plaintext'), 'Expected plaintext wrapper to be stripped from sanitized output');
         $t->true(!str_contains($fragment->serialize(), '<script>alert(1)</script>'), 'Expected plaintext script-looking source to stay escaped');
         $t->true(!str_contains($fragment->serialize(), '<p>after</p>'), 'Expected following paragraph source to stay plaintext text');
+    },
+    'diagnoses unterminated html raw text before sanitized handoff' => static function (TestRunner $t): void {
+        $source = "<article>before<script>if (a < b) { alert(1); }\n<p>after</p>";
+        $fragment = Html5DomFragment::fromHtml($source);
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+        $ast = $fragment->toRawHtmlAst(['part' => '/migration/unterminated-raw-text.html']);
+        $astDiagnostics = array_values(array_filter(
+            $ast->attr('diagnostics'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+
+        $t->same('<article>before</article>', $fragment->serialize());
+        $t->same('before', $fragment->textContent());
+        $t->same(['raw-text-boundary', 'blocked-tag'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $diagnostics
+        ));
+        $t->same('script', $diagnostics[0]['tag'] ?? null);
+        $t->same('raw-text', $diagnostics[0]['kind'] ?? null);
+        $t->same('missing-end-tag-synthesized', $diagnostics[0]['reason'] ?? null);
+        $t->same('synthetic-eof', $diagnostics[0]['closedBy'] ?? null);
+        $t->same('</script>', $diagnostics[0]['syntheticEndTag'] ?? null);
+        $t->same(1, $diagnostics[0]['line'] ?? null);
+        $t->same(16, $diagnostics[0]['column'] ?? null);
+        $t->same($diagnostics, $astDiagnostics);
+        $t->true(!str_contains($fragment->serialize(), '<p>after</p>'), 'Expected source after unterminated script to stay raw diagnostic-only text');
+        $t->true(!str_contains($fragment->serialize(), '<script'), 'Expected blocked script wrapper to stay out of sanitized output');
     },
     'foster-parents invalid table children before sanitized WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

@@ -2161,6 +2161,30 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'diagnoses plaintext and unterminated raw text source boundaries' => static function (TestRunner $t): void {
+        $rawDiagnostics = XmlHtmlDom::htmlRawTextBoundaryDiagnostics(
+            "<section>\n<script>if (a < b) { alert(1); }\n<p>after</p>"
+        );
+        $plaintextDiagnostics = XmlHtmlDom::htmlRawTextBoundaryDiagnostics(
+            '<plaintext>Reviewer <b>note</b></plaintext><p>after</p>'
+        );
+
+        $t->same(1, count($rawDiagnostics));
+        $t->same('raw-text-boundary', $rawDiagnostics[0]['code'] ?? null);
+        $t->same('script', $rawDiagnostics[0]['tag'] ?? null);
+        $t->same('raw-text', $rawDiagnostics[0]['kind'] ?? null);
+        $t->same('missing-end-tag-synthesized', $rawDiagnostics[0]['reason'] ?? null);
+        $t->same('synthetic-eof', $rawDiagnostics[0]['closedBy'] ?? null);
+        $t->same(2, $rawDiagnostics[0]['line'] ?? null);
+        $t->same(1, $rawDiagnostics[0]['column'] ?? null);
+        $t->same(1, count($plaintextDiagnostics));
+        $t->same('plaintext-boundary', $plaintextDiagnostics[0]['code'] ?? null);
+        $t->same('plaintext', $plaintextDiagnostics[0]['tag'] ?? null);
+        $t->same('plaintext', $plaintextDiagnostics[0]['kind'] ?? null);
+        $t->same('plaintext-consumes-fragment-tail', $plaintextDiagnostics[0]['reason'] ?? null);
+        $t->same('fragment-eof', $plaintextDiagnostics[0]['closedBy'] ?? null);
+        $t->same(true, $plaintextDiagnostics[0]['ignoredEndTag'] ?? null);
+    },
     'summarizes html script and style active source provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script type="module" src="app.js" async defer crossorigin="anonymous" integrity="sha384-review" referrerpolicy="no-referrer" fetchpriority="high" blocking="render"></script>'
