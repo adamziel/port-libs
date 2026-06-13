@@ -57,6 +57,19 @@ Adjacent import targets outside the Pandoc input denominator:
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
 
+### Closure-Wave Evidence Snapshot (2026-06-13)
+
+Current-main counters are reconciled through `ae7caf4745`: 3,310 PHP passes, 0 failures, and 3,270 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, and focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php` (`3` files, `2255` assertions, `0` failures).
+
+| Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
+| --- | --- | ---: | ---: | --- | --- |
+| CSV/TSV direct readers | Landed | 2 CSV command fixtures | 2 focused reader/registry files, 1,055 assertions | Partial after bounded reader slice | Broader CSV/TSV option behavior, malformed input diagnostics, and table-reader edge cases. |
+| JSON/native table and block handoff | Landed table-caption, note-label, and Div Plain slices | 252 JSON/native artifacts | 48 JSON/native cases; latest focused run 1,987 assertions | Partial | Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips. |
+| Markdown block boundaries | Landed nested fenced Div and mixed-content nested-list slices | 1,096 Markdown-family rows | 443 Markdown-family cases; latest focused nested-list run 6,626 assertions | Partial | Markdown/CommonMark/GFM extension and variant parity. |
+| Media linked-resource handoff | Landed | 1 mapped cross-format resource slice | 1 focused `MediaBag` case, 144 assertions | Covered bounded handoff; not an input-format ship gate | Wider media/resource edge cases outside opt-in linked-resource handoff. |
+| Notes/references | Landed footnote label anchors and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/citation and JSON/native evidence; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, backlinks, and constructor parity. |
+| Table geometry | Landed LaTeX table-foot longtable handoff | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot slice | Body-local headers, multi-body semantics, rowspan output, and package-specific table internals. |
+
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 
 Bounded native PHP Markdown/JSON-native fixture coverage advanced by one cross-format round-trip slice. `PandocJsonWriter` and `NativeWriter` now flush mixed inline runs to `Plain` blocks before nested list blocks, preserving the existing `wordpress-import-markdown.md` nested task-list fixture through Pandoc JSON/native writer output, JSON reader import, Markdown writer output, and WordPress block output.

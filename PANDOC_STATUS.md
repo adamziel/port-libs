@@ -19,6 +19,19 @@ This file is the compact status companion to `progress.md`,
 | Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/WordPressBlockWriter.php lanes/pandoc/tests/PandocJsonNativeAstTest.php lanes/pandoc/notes/pandoc-json-native-div-plain-boundary-20260613.md`, syntax checks for `WordPressBlockWriter.php` and `PandocJsonNativeAstTest.php`, focused `PandocJsonNativeAstTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,214 assertions, 0 failures. |
 | External validators | No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
 
+## Closure Wave Snapshot
+
+Current `main` is reconciled through `ae7caf4745`: 3,310 PHP passes / 0 failures and 3,270 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, and JSON/native Div Plain evidence. This refresh was checked with `jq empty`, `git diff --check`, and focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php` (`3` files, `2255` assertions, `0` failures).
+
+| Surface | Landed evidence | Verdict |
+| --- | --- | --- |
+| CSV/TSV direct readers | `DelimitedTextReaderTest.php` plus format registry focused run: 2 files, 1,055 assertions, 0 failures. | CSV/TSV moved from unsupported to partial; broader reader parity remains. |
+| Media linked-resource handoff | `MediaBagTest.php`: 144 assertions, 0 failures. | Cross-format resource handoff covered; not an input-format ship gate. |
+| Markdown block boundaries | Nested fenced Div and fixture nested-list round-trip slices landed with focused `MarkdownReaderTest.php` runs. | Markdown family remains partial after bounded block-structure coverage. |
+| Notes/references | Footnote label anchors and JSON/native `Note` label sidecars landed with focused Markdown/citation and JSON/native coverage. | Notes evidence improved; broader references parity remains. |
+| Table geometry | LaTeX `table_foot` rows now emit longtable footer sections; focused LaTeX/table run passed 1,917 assertions. | Table-foot slice covered; row/body/span table gaps remain. |
+| JSON/native block boundaries | Native `Div` adjacent `Plain` block boundaries now survive WordPress handoff; focused JSON/native run passed 1,987 assertions. | Bounded block-boundary slice covered; JSON/native remains partial. |
+
 ## Queue Snapshot
 
 Open core-blocker slices still exist and should continue as targeted, current-base
