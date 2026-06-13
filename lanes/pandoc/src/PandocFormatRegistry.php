@@ -508,7 +508,7 @@ final class PandocFormatRegistry
     ];
 
     /**
-     * @var array<string, array{diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
+     * @var array<string, array{diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, boundedDiagnostics:list<string>, reviewPacketFields:list<string>, remainingReaderGaps:list<string>}>
      */
     private const XML_JATS_BITS_DIAGNOSTIC_SURFACES = [
         'xml' => [
@@ -518,6 +518,18 @@ final class PandocFormatRegistry
             'boundedDiagnostics' => [
                 'safe XML loading with external entity and processing-instruction rejection',
                 'namespace-aware element and attribute queries for package-reader handoff',
+                'bounded namespace declaration scope, prefix redefinition, duplicate binding, and reserved-name diagnostics',
+            ],
+            'reviewPacketFields' => [
+                'directReaderParity',
+                'namespaceReview',
+                'namespaceDeclarations',
+                'namespaceScopes',
+                'defaultNamespaceScopes',
+                'prefixRedefinitions',
+                'duplicatePrefixSummaries',
+                'duplicateUriSummaries',
+                'namespaceDiagnosticCodes',
             ],
             'remainingReaderGaps' => [
                 'full Pandoc XML input mapping into the shared AST',
@@ -531,6 +543,15 @@ final class PandocFormatRegistry
             'boundedDiagnostics' => [
                 'article front-matter identifiers, titles, abstracts, keywords, contributors, dates, and cross-reference targets',
                 'bounded body, reference, figure, and table-wrap inventories',
+                'bounded namespace declaration scope, prefix redefinition, duplicate binding, and reserved-name diagnostics',
+            ],
+            'reviewPacketFields' => [
+                'directReaderParity',
+                'directReaderDiagnostics',
+                'namespaceReview',
+                'namespaceSummary',
+                'namespaceDiagnosticCodes',
+                'rootAttributes',
             ],
             'remainingReaderGaps' => [
                 'full JATS body and back-matter mapping into the shared AST',
@@ -544,6 +565,15 @@ final class PandocFormatRegistry
             'boundedDiagnostics' => [
                 'book and book-part metadata identifiers, titles, contributors, dates, and part counts',
                 'bounded body, reference, figure, and table-wrap inventories',
+                'bounded namespace declaration scope, prefix redefinition, duplicate binding, and reserved-name diagnostics',
+            ],
+            'reviewPacketFields' => [
+                'directReaderParity',
+                'directReaderDiagnostics',
+                'namespaceReview',
+                'namespaceSummary',
+                'namespaceDiagnosticCodes',
+                'rootAttributes',
             ],
             'remainingReaderGaps' => [
                 'full BITS book body and book-part mapping into the shared AST',
@@ -2517,7 +2547,7 @@ final class PandocFormatRegistry
      *     boundedDiagnosticSurfaceCount:int,
      *     explicitUnsupportedVerdict:bool,
      *     reviewNote:string,
-     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, reviewPacketFields:list<string>, remainingReaderGaps:list<string>}>
      * }
      */
     public static function xmlJatsBitsDirectReaderCapabilityPacket(): array
@@ -2554,6 +2584,7 @@ final class PandocFormatRegistry
                 'directReaderParity' => $support['status'] !== 'unsupported' && $support['implementation'] !== '',
                 'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
                 'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
+                'reviewPacketFields' => $diagnosticSurface['reviewPacketFields'],
                 'remainingReaderGaps' => $diagnosticSurface['remainingReaderGaps'],
             ];
         }

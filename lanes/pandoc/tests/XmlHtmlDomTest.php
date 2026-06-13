@@ -25,6 +25,65 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><item></pkg>', 'broken XML'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><pkg>&xxe;</pkg>', 'unsafe XML'));
     },
+    'summarizes XML namespace scope collisions for direct reader review' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<root xmlns="urn:root" xmlns:p="urn:one" xmlns:a="urn:shared">
+  <p:section xmlns="urn:section" xmlns:p="urn:two" xmlns:q="urn:two" xmlns:b="urn:shared">
+    <item p:attr="value"/>
+  </p:section>
+  <plain xmlns="">No namespace</plain>
+</root>
+XML;
+        $dom = XmlHtmlDom::loadXmlDocument($xml, 'namespace scope XML', preserveWhiteSpace: false);
+        $summary = XmlHtmlDom::summarizeXmlNamespaceScopes($dom, $xml);
+
+        $t->same('xml-namespace-scope', $summary['namespaceReview']);
+        $t->same(false, $summary['directReaderParity']);
+        $t->same('provided-source', $summary['sourceMode']);
+        $t->same('root', $summary['rootName']);
+        $t->same('urn:root', $summary['rootNamespaceUri']);
+        $t->same(['a', 'b', 'p', 'q', 'xml'], $summary['namespacePrefixes']);
+        $t->same(8, $summary['namespaceDeclarationCount']);
+        $t->same(3, $summary['defaultNamespaceDeclarationCount']);
+        $t->same(4, $summary['namespaceScopeElementCount']);
+        $t->same(3, $summary['defaultNamespaceScopeCount']);
+        $t->same(false, $summary['namespaceScopeTruncated']);
+        $t->same(['prefix-redefinition', 'duplicate-prefix-declarations', 'duplicate-uri-bindings'], $summary['namespaceDiagnosticCodes']);
+        $t->same(3, $summary['namespaceDiagnosticCount']);
+        $t->same(2, $summary['prefixRedefinitionCount']);
+        $t->same(['default', 'p'], array_map(static fn (array $item): string => (string) $item['prefix'], $summary['prefixRedefinitions']));
+        $t->same(2, $summary['duplicatePrefixSummaryCount']);
+        $t->same(2, $summary['duplicateUriSummaryCount']);
+        $t->same(['a', 'b'], $summary['duplicateUriSummaries'][0]['prefixes'] ?? null);
+        $t->same(['p', 'q'], $summary['duplicateUriSummaries'][1]['prefixes'] ?? null);
+        $t->same('root[1]/p:section[1]', $summary['namespaceScopes'][1]['elementPath'] ?? null);
+        $t->same('urn:section', $summary['namespaceScopes'][1]['defaultNamespaceUri'] ?? null);
+        $t->same('urn:two', $summary['namespaceScopes'][1]['prefixBindings']['p'] ?? null);
+        $t->same('urn:two', $summary['namespaceScopes'][2]['prefixBindings']['p'] ?? null);
+        $t->same(null, $summary['namespaceScopes'][3]['defaultNamespaceUri'] ?? null);
+        json_encode($summary, JSON_THROW_ON_ERROR);
+    },
+    'diagnoses reserved XML namespace declaration misuse without reader parity claims' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<root xmlns="http://www.w3.org/XML/1998/namespace" xmlns:xml="urn:not-xml" xmlns:bad="http://www.w3.org/XML/1998/namespace" xmlns:xmlns="urn:not-xmlns" xmlns:z="http://www.w3.org/2000/xmlns/">
+  <child/>
+</root>
+XML;
+        $dom = XmlHtmlDom::loadXmlDocument($xml, 'reserved namespace misuse XML', preserveWhiteSpace: false);
+        $summary = XmlHtmlDom::summarizeXmlNamespaceScopes($dom, $xml);
+        $codes = implode(';', $summary['namespaceDiagnosticCodes']);
+
+        $t->same(false, $summary['directReaderParity']);
+        $t->same(5, $summary['namespaceDeclarationCount']);
+        $t->same(5, $summary['reservedNamespaceDiagnosticCount']);
+        $t->contains('reserved-xml-prefix-rebound', $codes);
+        $t->contains('reserved-xml-uri-as-default', $codes);
+        $t->contains('reserved-xml-uri-bound-to-non-xml-prefix', $codes);
+        $t->contains('reserved-xmlns-prefix-declared', $codes);
+        $t->contains('reserved-xmlns-uri-declared', $codes);
+        $t->same(false, $summary['namespaceDiagnostics'][0]['directReaderParity'] ?? null);
+        json_encode($summary, JSON_THROW_ON_ERROR);
+    },
     'allows XML declarations but rejects XML processing instructions' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(
             '<?xml version="1.0" encoding="UTF-8"?><pkg><item>Review packet</item></pkg>',
@@ -135,6 +194,11 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
+        $t->same('xml-namespace-scope', $packet['namespaceReview']);
+        $t->same(1, $packet['namespaceDeclarationCount']);
+        $t->same(0, $packet['namespaceDiagnosticCount']);
+        $t->same(false, $packet['namespaceSummary']['directReaderParity'] ?? null);
+        $t->same(['xlink', 'xml'], $packet['namespaceSummary']['namespacePrefixes'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -190,6 +254,8 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
         $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same('xml-namespace-scope', $bitsPacket['namespaceReview']);
+        $t->same(0, $bitsPacket['namespaceDiagnosticCount']);
         $t->same([
             'direct-reader-unsupported',
             'book-parts-review-only',

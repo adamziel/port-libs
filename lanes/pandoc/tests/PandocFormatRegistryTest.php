@@ -133,6 +133,11 @@ return [
         $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('bounded namespace declaration scope', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->true(in_array('namespaceScopes', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('prefixRedefinitions', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('duplicateUriSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('namespaceDiagnosticCodes', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('no full native PHP XML direct reader is registered yet', $packet['formats']['xml']['inputNotes']);
 
@@ -140,12 +145,16 @@ return [
         $t->same('jats-bits-front-matter-review-only', $packet['formats']['jats']['reviewPolicy']);
         $t->same(null, $packet['formats']['jats']['aliasedTo']);
         $t->contains('article front-matter identifiers', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
+        $t->true(in_array('namespaceSummary', $packet['formats']['jats']['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['formats']['jats']['reviewPacketFields'], true));
         $t->contains('full JATS body and back-matter mapping', implode('; ', $packet['formats']['jats']['remainingReaderGaps']));
 
         $t->same('summarizeJatsFrontMatter', $packet['formats']['bits']['reviewMethod']);
         $t->same('jats-bits-front-matter-review-only', $packet['formats']['bits']['reviewPolicy']);
         $t->same('jats', $packet['formats']['bits']['aliasedTo']);
         $t->contains('book and book-part metadata identifiers', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
+        $t->true(in_array('namespaceSummary', $packet['formats']['bits']['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['formats']['bits']['reviewPacketFields'], true));
         $t->contains('full BITS book body and book-part mapping', implode('; ', $packet['formats']['bits']['remainingReaderGaps']));
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {

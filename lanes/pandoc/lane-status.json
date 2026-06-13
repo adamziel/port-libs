@@ -581,6 +581,8 @@
   "markdownHeaderSectionDivAssertions": 17,
   "mappedXmlHtmlDomDirectReaderCapabilityCases": 1,
   "xmlHtmlDomDirectReaderCapabilityAssertions": 73,
+  "mappedXmlHtmlDomNamespaceScopeDiagnosticCases": 1,
+  "xmlHtmlDomNamespaceScopeDiagnosticAssertions": 49,
   "mappedJsonNativeBlockContainerMixedContentCases": 1,
   "jsonNativeBlockContainerMixedContentAssertions": 30,
   "mappedMarkdownMathAttributeCases": 1,
