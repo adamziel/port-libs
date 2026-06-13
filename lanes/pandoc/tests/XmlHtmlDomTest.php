@@ -119,6 +119,22 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('jats', $packet['format']);
         $t->same('jats-bits-front-matter-review-only', $packet['reviewPolicy']);
         $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'references-review-only',
+            'figures-review-only',
+            'table-wraps-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(5, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
+        $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
+        $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][1]['details']['sectionCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -174,6 +190,14 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
         $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'book-parts-review-only',
+        ], $bitsPacket['directReaderDiagnosticCodes']);
+        $t->same(2, $bitsPacket['directReaderDiagnosticCount']);
+        $t->same('bits', $bitsPacket['directReaderDiagnostics'][0]['details']['format'] ?? null);
+        $t->same(false, $bitsPacket['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
+        $t->same(1, $bitsPacket['directReaderDiagnostics'][1]['details']['bookPartCount'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },

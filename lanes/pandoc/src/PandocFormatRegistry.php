@@ -376,6 +376,69 @@ final class PandocFormatRegistry
     ];
 
     /** @var list<string> */
+    private const XML_JATS_BITS_INPUT_FORMATS = [
+        'xml',
+        'jats',
+        'bits',
+    ];
+
+    /** @var array<string, int> */
+    private const XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS = [
+        'phpPass' => 3325,
+        'phpFail' => 0,
+        'mappedUpstreamCases' => 3284,
+        'mappedXmlHtmlDomJatsFrontMatterReviewCases' => 1,
+        'xmlHtmlDomJatsFrontMatterReviewAssertions' => 45,
+        'mappedXmlHtmlDomDirectReaderCapabilityCases' => 1,
+        'xmlHtmlDomDirectReaderCapabilityAssertions' => 91,
+    ];
+
+    /**
+     * @var array<string, array{diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
+     */
+    private const XML_JATS_BITS_DIAGNOSTIC_SURFACES = [
+        'xml' => [
+            'diagnosticImplementation' => XmlHtmlDom::class,
+            'reviewMethod' => 'loadXmlDocument',
+            'reviewPolicy' => 'safe-xml-dom-primitives-only',
+            'boundedDiagnostics' => [
+                'safe XML loading with external entity and processing-instruction rejection',
+                'namespace-aware element and attribute queries for package-reader handoff',
+            ],
+            'remainingReaderGaps' => [
+                'full Pandoc XML input mapping into the shared AST',
+                'reader-level body, block, inline, table, figure, citation, and metadata parity',
+            ],
+        ],
+        'jats' => [
+            'diagnosticImplementation' => XmlHtmlDom::class,
+            'reviewMethod' => 'summarizeJatsFrontMatter',
+            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'boundedDiagnostics' => [
+                'article front-matter identifiers, titles, abstracts, keywords, contributors, dates, and cross-reference targets',
+                'bounded body, reference, figure, and table-wrap inventories',
+            ],
+            'remainingReaderGaps' => [
+                'full JATS body and back-matter mapping into the shared AST',
+                'tables, figures, references, and citation-reader parity',
+            ],
+        ],
+        'bits' => [
+            'diagnosticImplementation' => XmlHtmlDom::class,
+            'reviewMethod' => 'summarizeJatsFrontMatter',
+            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'boundedDiagnostics' => [
+                'book and book-part metadata identifiers, titles, contributors, dates, and part counts',
+                'bounded body, reference, figure, and table-wrap inventories',
+            ],
+            'remainingReaderGaps' => [
+                'full BITS book body and book-part mapping into the shared AST',
+                'tables, figures, references, and citation-reader parity',
+            ],
+        ],
+    ];
+
+    /** @var list<string> */
     private const RICH_PACKAGE_INPUT_FORMATS = [
         'docx',
         'epub',
@@ -482,6 +545,11 @@ final class PandocFormatRegistry
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
     private const PHP_INPUT_SUPPORT = [
+        'bits' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'BITS front-matter and book-part review diagnostics are available through XmlHtmlDom, but no full native PHP BITS direct reader is registered yet.',
+        ],
         'commonmark' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -526,6 +594,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => IpynbReader::class,
             'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving execution/output metadata; full Jupyter notebook parity remains open.',
+        ],
+        'jats' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'JATS front-matter and body inventory diagnostics are available through XmlHtmlDom, but no full native PHP JATS direct reader is registered yet.',
         ],
         'json' => [
             'status' => 'partial',
@@ -591,6 +664,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => DelimitedTextReader::class,
             'notes' => 'Bounded native PHP TSV reader maps tab-delimited text into the shared table AST with geometry review packets; full Pandoc TSV reader parity remains open.',
+        ],
+        'xml' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Safe XML DOM primitives exist for bounded review diagnostics, but no full native PHP XML direct reader is registered yet.',
         ],
     ];
 
@@ -1792,6 +1870,132 @@ final class PandocFormatRegistry
             'supportStatusCounts' => self::supportStatusCounts($support),
             'directReaderParitySupported' => $unsupportedFormats === [],
             'externalToolFree' => true,
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function xmlJatsBitsInputFormats(): array
+    {
+        return self::XML_JATS_BITS_INPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public static function xmlJatsBitsLocalEvidenceCounters(): array
+    {
+        return self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS;
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function xmlJatsBitsInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::XML_JATS_BITS_INPUT_FORMATS);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedXmlJatsBitsInputFormats(): array
+    {
+        return self::formatsWithStatus(self::xmlJatsBitsInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function xmlJatsBitsFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::xmlJatsBitsInputSupport(),
+            [],
+            self::XML_JATS_BITS_INPUT_FORMATS,
+            []
+        );
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedInputCount:int,
+     *     inputSupportStatusCounts:array<string, int>,
+     *     localEvidenceCounters:array<string, int>,
+     *     directReaderParitySupported:bool,
+     *     registeredDirectReaderImplementations:int,
+     *     boundedDiagnosticSurfaceCount:int,
+     *     explicitUnsupportedVerdict:bool,
+     *     reviewNote:string,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, unsupportedDirectReaderReason:array{code:string, message:string, status:string, directReaderParity:bool}, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
+     * }
+     */
+    public static function xmlJatsBitsDirectReaderCapabilityPacket(): array
+    {
+        $directions = self::xmlJatsBitsFormatDirections();
+        $inputSupport = self::xmlJatsBitsInputSupport();
+        $unsupportedInputFormats = self::unsupportedXmlJatsBitsInputFormats();
+        $formats = [];
+        $registeredDirectReaderImplementations = 0;
+        $boundedDiagnosticSurfaceCount = 0;
+
+        foreach ($directions as $format => $direction) {
+            $support = $inputSupport[$format];
+            $diagnosticSurface = self::XML_JATS_BITS_DIAGNOSTIC_SURFACES[$format];
+            $directReaderParity = $support['status'] !== 'unsupported' && $support['implementation'] !== '';
+
+            if ($support['implementation'] !== '') {
+                ++$registeredDirectReaderImplementations;
+            }
+            if ($diagnosticSurface['diagnosticImplementation'] !== '') {
+                ++$boundedDiagnosticSurfaceCount;
+            }
+
+            $formats[$format] = [
+                'input' => $direction['input'],
+                'output' => $direction['output'],
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'inputImplementation' => $support['implementation'],
+                'inputNotes' => $support['notes'],
+                'unsupportedDirectReaderReason' => [
+                    'code' => 'full-direct-reader-missing',
+                    'message' => $support['notes'],
+                    'status' => $support['status'],
+                    'directReaderParity' => $directReaderParity,
+                ],
+                'diagnosticImplementation' => $diagnosticSurface['diagnosticImplementation'],
+                'reviewMethod' => $diagnosticSurface['reviewMethod'],
+                'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
+                'directReaderParity' => $directReaderParity,
+                'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
+                'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
+                'remainingReaderGaps' => $diagnosticSurface['remainingReaderGaps'],
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::XML_JATS_BITS_INPUT_FORMATS,
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'localEvidenceCounters' => self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS,
+            'directReaderParitySupported' => $unsupportedInputFormats === [],
+            'registeredDirectReaderImplementations' => $registeredDirectReaderImplementations,
+            'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
+            'explicitUnsupportedVerdict' => $unsupportedInputFormats === self::XML_JATS_BITS_INPUT_FORMATS,
+            'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no full direct reader parity is registered.',
             'formats' => $formats,
         ];
     }
