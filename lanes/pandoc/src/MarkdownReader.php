@@ -10104,10 +10104,10 @@ final class MarkdownReader
             $loose = $loose || $itemLoose;
             $items[] = new AstNode(
                 'list_item',
-                [
+                array_merge($this->htmlElementPandocAttrs($itemElement), [
                     'text' => trim(preg_replace('/\s+/', ' ', $itemElement->textContent) ?? $itemElement->textContent),
                     'loose' => $itemLoose,
-                ],
+                ]),
                 $children
             );
         }

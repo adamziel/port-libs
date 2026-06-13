@@ -14969,6 +14969,48 @@ MD;
         $t->contains('<ul><li>Audit source sections<ul><li>Posts<ul><li>Confirm nested review note</li></ul></li></ul></li></ul>', $blocks);
         $t->contains('<ol start="2"><li>Import source batch</li><li><p>Review media mapping</p><p>Record continuation note</p><ol start="4" type="i"><li>Check roman subqueue</li><li>Escalate captions<ol type="A"><li>Alt text</li><li>Credit line</li></ol></li></ol></li></ol>', $blocks);
     },
+    'preserves html list item attributes through wordpress list handoff' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'MD'
+HTML list item attributes:
+
+<ul>
+<li id="task-one" class="import-task" data-item="source" title="Check &quot;media&quot;" onclick="alert(1)" style="display:none">Check media</li>
+<li data-review="follow-up"><p>Attach caption</p><ol start="4" type="A"><li id="nested-step" data-item="nested">Approve</li></ol></li>
+</ul>
+
+<ol start="3" type="A">
+<li id="ordered-step" class="step-item" data-item="ordered">Approve</li>
+</ol>
+MD);
+
+        $lists = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'bullet_list' || $node->type === 'ordered_list'
+        ));
+        $bullet = $lists[0] ?? new AstNode('missing');
+        $ordered = $lists[1] ?? new AstNode('missing');
+        $firstItem = $bullet->children[0] ?? new AstNode('missing');
+        $secondItem = $bullet->children[1] ?? new AstNode('missing');
+        $nestedOrdered = $secondItem->children[1] ?? new AstNode('missing');
+        $nestedItem = $nestedOrdered->children[0] ?? new AstNode('missing');
+        $orderedItem = $ordered->children[0] ?? new AstNode('missing');
+        $firstHtmlAttrs = $firstItem->attr('htmlAttributes', []);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('task-one', $firstItem->attr('id'));
+        $t->same(['import-task'], $firstItem->attr('classes'));
+        $t->same('source', $firstItem->attr('attributes')['item'] ?? null);
+        $t->same('source', is_array($firstHtmlAttrs) ? ($firstHtmlAttrs['data-item'] ?? null) : null);
+        $t->same('Check "media"', is_array($firstHtmlAttrs) ? ($firstHtmlAttrs['title'] ?? null) : null);
+        $t->same('nested-step', $nestedItem->attr('id'));
+        $t->same('ordered-step', $orderedItem->attr('id'));
+        $t->same(['step-item'], $orderedItem->attr('classes'));
+        $t->contains('<ul><li id="task-one" class="import-task" data-item="source" title="Check &quot;media&quot;">Check media</li><li data-review="follow-up"><p>Attach caption</p><ol start="4" type="A"><li id="nested-step" data-item="nested">Approve</li></ol></li></ul>', $blocks);
+        $t->contains('<ol start="3" type="A"><li id="ordered-step" class="step-item" data-item="ordered">Approve</li></ol>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe imported list item event handlers should not survive WordPress handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe imported list item style attributes should not survive WordPress handoff');
+    },
     'writes wordpress html reader definition imports from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $document = (new MarkdownReader())->read($fixture);

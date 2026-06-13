@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3287,
-        "latestSlice": "pandoc-markdown-math-attributes maps one Markdown reader/writer inline math attribute round-trip slice after JSON/native block-container mixed-content flushing. MarkdownReader now attaches immediate {#id .class key=\"value\"} tuples to inline and display math nodes, and MarkdownWriter emits those tuples for math nodes, preserving class/key-value attrs for Math alongside existing Code/Span attr output without invoking Pandoc, TeX engines, browser renderers, Node tooling, online services, live provider tests, or external validators. Mapped denominator moves 3286 -> 3287, mappedMarkdownMathAttributeCases is 1, and markdownMathAttributeAssertions is 19. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6704 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74747 assertions, 0 failures after final rebase onto current main 49a3d442d6.",
+        "mapped": 3288,
+        "latestSlice": "pandoc-markdown-html-list-item-attrs maps one native PHP Markdown/HTML-to-WordPress list-item attribute slice after the Markdown math attribute round-trip slice. MarkdownReader now carries HTML li id, class, data, and title attributes into list_item attrs; WordPressBlockWriter emits safe li attributes and continues to filter unsafe event/style attributes. Mapped denominator moves 3287 -> 3288, mappedMarkdownHtmlListItemAttributeCases is 1, and markdownHtmlListItemAttributeAssertions is 12. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6716 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74759 assertions, 0 failures without invoking Pandoc, Cabal/Haskell runners, browser renderers, Node tooling, TeX/PDF engines, Typst engines, office suites, online services, live provider tests, or external validators.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Markdown math attribute round-trip is verified over current main 49a3d442d6 after JSON/native block-container mixed-content flushing; broader inline writer parity remains partial.",
-        "latestFocusedSource": "2026-06-13 inline math attribute slice inspected Markdown reader/writer handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 49a3d442d6; focused MarkdownReaderTest.php passed 1 file, 6704 assertions, 0 failures, and full lanes/pandoc/tests passed 45 files, 74747 assertions, 0 failures.",
+        "status": "Markdown HTML list item attribute handoff is verified in focused and full native PHP Pandoc coverage over current main 6d30f5c54b without external tools.",
+        "latestFocusedSource": "2026-06-13 Markdown HTML list item attribute slice inspected list-item-id parity for MarkdownReader HTML import to WordPress handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 6d30f5c54b; focused MarkdownReaderTest.php passed 1 file, 6716 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74759 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -195,7 +195,9 @@
         "mappedJsonNativeBlockContainerMixedContentCases": 1,
         "jsonNativeBlockContainerMixedContentAssertions": 30,
         "mappedMarkdownMathAttributeCases": 1,
-        "markdownMathAttributeAssertions": 19
+        "markdownMathAttributeAssertions": 19,
+        "mappedMarkdownHtmlListItemAttributeCases": 1,
+        "markdownHtmlListItemAttributeAssertions": 12
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
