@@ -64,6 +64,94 @@ return [
         $t->contains('class="language-python"', $html);
         $t->contains('print(&quot;ready&quot;)', $html);
     },
+    'reports bounded ipynb source shape and line ending diagnostics without source text' => static function (TestRunner $t): void {
+        $lfArraySource = ["alpha\n", "beta\n"];
+        $crlfStringSource = "first\r\nsecond";
+        $mixedStringSource = "one\r\ntwo\nthree\r";
+        $emptyStringSource = '';
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'source' => $lfArraySource,
+                ],
+                [
+                    'cell_type' => 'code',
+                    'source' => $crlfStringSource,
+                ],
+                [
+                    'cell_type' => 'raw',
+                    'source' => $mixedStringSource,
+                ],
+                [
+                    'cell_type' => 'markdown',
+                    'source' => $emptyStringSource,
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $cells = $document->attr('notebookCells');
+
+        $t->same(['line-array' => 1, 'string' => 3], $document->attr('notebookSourceShapeCounts'));
+        $t->same(['crlf' => 1, 'lf' => 1, 'mixed' => 1, 'none' => 1], $document->attr('notebookSourceLineEndingStyles'));
+        $t->same(['lf' => 3, 'crlf' => 2, 'cr' => 1], $document->attr('notebookSourceLineEndingCounts'));
+        $t->same(2, $document->attr('notebookSourceTrailingNewlineCount'));
+        $t->same(1, $document->attr('notebookEmptySourceCount'));
+
+        $t->same('line-array', $cells[0]['sourceShape']);
+        $t->same(2, $cells[0]['sourcePartCount']);
+        $t->same(strlen(implode('', $lfArraySource)), $cells[0]['sourceBytes']);
+        $t->same(2, $cells[0]['sourceLineCount']);
+        $t->same('lf', $cells[0]['sourceLineEnding']);
+        $t->same(['lf' => 2, 'crlf' => 0, 'cr' => 0], $cells[0]['sourceLineEndingCounts']);
+        $t->same(true, $cells[0]['sourceTrailingNewline']);
+        $t->same([
+            'source-shape:line-array',
+            'source-parts:2',
+            'source-bytes:' . strlen(implode('', $lfArraySource)),
+            'source-lines:2',
+            'source-line-ending:lf',
+            'source-trailing-newline',
+        ], $cells[0]['sourceDiagnostics']);
+
+        $t->same('string', $cells[1]['sourceShape']);
+        $t->same(1, $cells[1]['sourcePartCount']);
+        $t->same(strlen($crlfStringSource), $cells[1]['sourceBytes']);
+        $t->same(2, $cells[1]['sourceLineCount']);
+        $t->same('crlf', $cells[1]['sourceLineEnding']);
+        $t->same(['lf' => 0, 'crlf' => 1, 'cr' => 0], $cells[1]['sourceLineEndingCounts']);
+        $t->same(false, $cells[1]['sourceTrailingNewline']);
+
+        $t->same('mixed', $cells[2]['sourceLineEnding']);
+        $t->same(['lf' => 1, 'crlf' => 1, 'cr' => 1], $cells[2]['sourceLineEndingCounts']);
+        $t->same(3, $cells[2]['sourceLineCount']);
+        $t->same(true, $cells[2]['sourceTrailingNewline']);
+
+        $t->same('none', $cells[3]['sourceLineEnding']);
+        $t->same(0, $cells[3]['sourceBytes']);
+        $t->same(0, $cells[3]['sourceLineCount']);
+        $t->same(false, $cells[3]['sourceTrailingNewline']);
+        $t->contains('source-empty', implode(',', $cells[3]['sourceDiagnostics']));
+
+        $firstCell = $document->children[0];
+        $codeCell = $document->children[1];
+        $t->same('line-array', $firstCell->attr('ipynbSourceShape'));
+        $t->same('crlf', $codeCell->attr('ipynbSourceLineEnding'));
+        $t->same($crlfStringSource, $codeCell->children[0]->attr('text'));
+
+        $diagnosticJson = json_encode([
+            $document->attr('notebookCells'),
+            $firstCell->attr('ipynbSourceDiagnostics'),
+            $codeCell->attr('ipynbSourceDiagnostics'),
+        ], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($diagnosticJson, 'alpha'), 'Source diagnostics should not expose markdown source text');
+        $t->true(!str_contains($diagnosticJson, 'first'), 'Source diagnostics should not expose code source text');
+        $t->true(!str_contains($diagnosticJson, 'three'), 'Source diagnostics should not expose raw source text');
+    },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
         $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
