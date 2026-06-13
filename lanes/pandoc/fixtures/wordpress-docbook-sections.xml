@@ -1,0 +1,29 @@
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0" xml:lang="en">
+  <info>
+    <title>WordPress DocBook Review Packet</title>
+    <subtitle>Section title metadata</subtitle>
+  </info>
+  <section xml:id="overview" role="summary" label="1" xml:lang="en-US">
+    <title>Import Overview</title>
+    <para>Native PHP review packet with a resolved <xref linkend="legacy-section"/>.</para>
+    <para>Queue duplicate target <link linkend="queue">review queue</link>, missing target <link xlink:href="#missing-anchor">missing anchor</link>, and unsafe target <link xlink:href="javascript:alert(1)">unsafe target</link>.</para>
+    <section id="queue">
+      <info>
+        <title>Review Queue</title>
+        <subtitle>Metadata from info</subtitle>
+      </info>
+      <para>Queue detail.</para>
+    </section>
+    <simplesect id="untitled">
+      <para>Untitled diagnostic note.</para>
+    </simplesect>
+  </section>
+  <sect1 id="legacy-section" role="legacy">
+    <title>Legacy Section</title>
+    <para>Legacy section title metadata.</para>
+  </sect1>
+  <section id="queue">
+    <title>Duplicate Queue Identifier</title>
+    <para>Duplicate identifier diagnostic note.</para>
+  </section>
+</article>

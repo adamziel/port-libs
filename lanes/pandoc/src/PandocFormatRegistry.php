@@ -595,7 +595,7 @@ final class PandocFormatRegistry
         'docbook' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Bounded DocBook table command fixtures are mapped; full DocBook XML reader parity remains open.',
+            'notes' => 'Bounded DocBook table command fixtures, section/title metadata packets, and xref/link target diagnostics are mapped; full DocBook XML reader parity remains open.',
         ],
         'docx' => [
             'status' => 'partial',

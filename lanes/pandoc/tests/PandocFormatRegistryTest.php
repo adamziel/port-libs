@@ -77,6 +77,8 @@ return [
         $t->same(MarkdownReader::class, $inputSupport['markdown']['implementation']);
         $t->same('partial', $inputSupport['docx']['status']);
         $t->same(DocxReader::class, $inputSupport['docx']['implementation']);
+        $t->contains('section/title metadata packets', $inputSupport['docbook']['notes']);
+        $t->contains('xref/link target diagnostics', $inputSupport['docbook']['notes']);
         $t->same('partial', $inputSupport['csv']['status']);
         $t->same(DelimitedTextReader::class, $inputSupport['csv']['implementation']);
         $t->same('partial', $inputSupport['tsv']['status']);

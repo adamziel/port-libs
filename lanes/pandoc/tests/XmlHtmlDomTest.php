@@ -201,6 +201,133 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook section title and xref target diagnostics without reader parity claims' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(
+            (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-sections.xml'),
+            'DocBook section metadata XML',
+            preserveWhiteSpace: false
+        );
+        $packet = XmlHtmlDom::summarizeDocBookSectionMetadata($dom);
+
+        $t->same('xml-html5-jats-dom', $packet['formatFamily']);
+        $t->same('docbook', $packet['format']);
+        $t->same('docbook-section-title-xref-metadata-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('article', $packet['rootName']);
+        $t->same('5.0', $packet['documentVersion']);
+        $t->same('en', $packet['language']);
+        $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
+        $t->same('WordPress DocBook Review Packet', $packet['title']);
+        $t->same('info-title', $packet['titleSource']);
+        $t->same('Section title metadata', $packet['subtitle']);
+        $t->same(5, $packet['sectionCount']);
+        $t->same(['overview', 'queue', 'untitled', 'legacy-section', 'queue'], $packet['sectionIds']);
+        $t->same([
+            'Import Overview',
+            'Review Queue',
+            'Legacy Section',
+            'Duplicate Queue Identifier',
+        ], $packet['sectionTitles']);
+
+        $overview = $packet['sections'][0] ?? [];
+        $queue = $packet['sections'][1] ?? [];
+        $untitled = $packet['sections'][2] ?? [];
+        $legacy = $packet['sections'][3] ?? [];
+        $duplicate = $packet['sections'][4] ?? [];
+
+        $t->same('section', $overview['element'] ?? null);
+        $t->same('overview', $overview['id'] ?? null);
+        $t->same('overview', $overview['xmlId'] ?? null);
+        $t->same('summary', $overview['role'] ?? null);
+        $t->same('1', $overview['label'] ?? null);
+        $t->same('en-US', $overview['language'] ?? null);
+        $t->same(1, $overview['level'] ?? null);
+        $t->same(2, $overview['paragraphCount'] ?? null);
+        $t->same(2, $overview['childSectionCount'] ?? null);
+
+        $t->same('queue', $queue['id'] ?? null);
+        $t->same('Review Queue', $queue['title'] ?? null);
+        $t->same('info-title', $queue['titleSource'] ?? null);
+        $t->same('Metadata from info', $queue['subtitle'] ?? null);
+        $t->same(2, $queue['level'] ?? null);
+
+        $t->same('simplesect', $untitled['element'] ?? null);
+        $t->same('untitled', $untitled['id'] ?? null);
+        $t->same(null, $untitled['title'] ?? null);
+        $t->same(null, $untitled['titleSource'] ?? null);
+        $t->same(2, $untitled['level'] ?? null);
+
+        $t->same('sect1', $legacy['element'] ?? null);
+        $t->same('legacy-section', $legacy['id'] ?? null);
+        $t->same('legacy', $legacy['role'] ?? null);
+        $t->same(1, $legacy['level'] ?? null);
+        $t->same('queue', $duplicate['id'] ?? null);
+
+        $targets = $packet['xrefLinkTargets'];
+        $t->same(4, $packet['xrefLinkTargetCount']);
+        $t->same(['resolved-section', 'duplicate-section-id', 'missing-anchor', 'unsafe-target'], $packet['xrefLinkTargetStatuses']);
+        $t->same([
+            'resolved-section' => 1,
+            'duplicate-section-id' => 1,
+            'missing-anchor' => 1,
+            'unsafe-target' => 1,
+        ], $packet['xrefLinkTargetStatusCounts']);
+        $t->same(1, $packet['xrefLinkResolvedCount']);
+        $t->same(1, $packet['xrefLinkDuplicateCount']);
+        $t->same(1, $packet['xrefLinkMissingCount']);
+        $t->same(1, $packet['xrefLinkUnsafeCount']);
+
+        $t->same('xref', $targets[0]['element'] ?? null);
+        $t->same('linkend', $targets[0]['attribute'] ?? null);
+        $t->same('legacy-section', $targets[0]['target'] ?? null);
+        $t->same('resolved-section', $targets[0]['status'] ?? null);
+        $t->same([3], $targets[0]['targetSectionIndexes'] ?? null);
+        $t->same(['Legacy Section'], $targets[0]['targetSectionTitles'] ?? null);
+        $t->same([], $targets[0]['diagnostics'] ?? null);
+
+        $t->same('link', $targets[1]['element'] ?? null);
+        $t->same('linkend', $targets[1]['attribute'] ?? null);
+        $t->same('queue', $targets[1]['target'] ?? null);
+        $t->same('duplicate-section-id', $targets[1]['status'] ?? null);
+        $t->same([1, 4], $targets[1]['targetSectionIndexes'] ?? null);
+        $t->same(['Review Queue', 'Duplicate Queue Identifier'], $targets[1]['targetSectionTitles'] ?? null);
+        $t->same(['docbook-xref-target-duplicate-section-id'], $targets[1]['diagnostics'] ?? null);
+
+        $t->same('xlink:href', $targets[2]['attribute'] ?? null);
+        $t->same('#missing-anchor', $targets[2]['rawTarget'] ?? null);
+        $t->same('missing-anchor', $targets[2]['target'] ?? null);
+        $t->same('missing-anchor', $targets[2]['status'] ?? null);
+        $t->same(['docbook-xref-target-missing-anchor'], $targets[2]['diagnostics'] ?? null);
+
+        $t->same('xlink:href', $targets[3]['attribute'] ?? null);
+        $t->same('javascript:alert(1)', $targets[3]['rawTarget'] ?? null);
+        $t->same(null, $targets[3]['target'] ?? null);
+        $t->same('unsafe-target', $targets[3]['status'] ?? null);
+        $t->same('non-local-href', $targets[3]['unsafeReason'] ?? null);
+        $t->same(['docbook-xref-target-unsafe'], $targets[3]['diagnostics'] ?? null);
+
+        $t->same([
+            'docbook-section-missing-title',
+            'docbook-section-duplicate-id',
+            'docbook-xref-target-duplicate-section-id',
+            'docbook-xref-target-missing-anchor',
+            'docbook-xref-target-unsafe',
+        ], $packet['diagnosticCodes']);
+        $t->same(1, $packet['missingTitleCount']);
+        $t->same(1, $packet['duplicateIdCount']);
+        $t->same('untitled', $packet['diagnostics'][0]['sectionId'] ?? null);
+        $t->same('queue', $packet['diagnostics'][1]['sectionId'] ?? null);
+        $t->same(1, $packet['diagnostics'][1]['firstSectionIndex'] ?? null);
+        $t->same('docbook-xref-target-duplicate-section-id', $packet['diagnostics'][2]['code'] ?? null);
+        $t->same([1, 4], $packet['diagnostics'][2]['targetSectionIndexes'] ?? null);
+        $t->same('docbook-xref-target-missing-anchor', $packet['diagnostics'][3]['code'] ?? null);
+        $t->same('docbook-xref-target-unsafe', $packet['diagnostics'][4]['code'] ?? null);
+        $t->same('non-local-href', $packet['diagnostics'][4]['unsafeReason'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookSectionMetadata(
+            XmlHtmlDom::loadXmlDocument('<topic><title>Not DocBook</title></topic>', 'non DocBook XML')
+        ));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
