@@ -18,7 +18,7 @@ final class EpubPackageReader
         $rootfile = $this->readContainerRootfile($root);
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
-        $toc = $this->readNavigationDocument($root, $package);
+        $navigation = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -49,7 +49,8 @@ final class EpubPackageReader
                 'spine' => $package['spine'],
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
-                'toc' => $toc,
+                'toc' => $navigation['entries'],
+                'navigationReport' => $navigation['report'],
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -517,7 +518,7 @@ final class EpubPackageReader
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return array{entries:list<array<string, mixed>>, report:array<string, mixed>}
      */
     private function readNavigationDocument(string $root, array $package): array
     {
@@ -529,12 +530,18 @@ final class EpubPackageReader
             }
         }
         if (!is_array($navItem)) {
-            return [];
+            return [
+                'entries' => [],
+                'report' => $this->navigationReport([], false, null),
+            ];
         }
 
-        $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navItem['path']));
+        $navPart = (string) ($navItem['path'] ?? '');
+        $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navPart));
         $navDir = $this->relativeDirname($navItem['path']);
         $entries = [];
+        $sections = [];
+        $sectionIndex = 0;
         foreach ($document->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
@@ -550,12 +557,17 @@ final class EpubPackageReader
                 continue;
             }
 
-            foreach ($this->readNavList($ol, $navDir, $type) as $entry) {
-                $entries[] = $entry;
-            }
+            $entryIndex = 0;
+            $sectionEntries = $this->readNavList($ol, $navDir, $type, $root, 0, $entryIndex);
+            $sections[] = $this->navigationSectionReport($sectionIndex, $type, $sectionEntries);
+            array_push($entries, ...$sectionEntries);
+            ++$sectionIndex;
         }
 
-        return $entries;
+        return [
+            'entries' => $entries,
+            'report' => $this->navigationReport($sections, true, $navPart),
+        ];
     }
 
     /**
@@ -974,9 +986,9 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>>
      */
-    private function readNavList(\DOMElement $ol, string $baseDir, string $type): array
+    private function readNavList(\DOMElement $ol, string $baseDir, string $type, string $root, int $depth, int &$entryIndex): array
     {
         $entries = [];
         foreach ($ol->childNodes as $node) {
@@ -989,27 +1001,186 @@ final class EpubPackageReader
                 continue;
             }
 
+            $index = $entryIndex++;
             $href = $link->localName === 'a' ? trim($link->getAttribute('href')) : '';
-            [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $hrefPolicy = $this->navHrefPolicy($baseDir, $href, $root);
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
-                    $children = $this->readNavList($child, $baseDir, $type);
+                    $children = $this->readNavList($child, $baseDir, $type, $root, $depth + 1, $entryIndex);
                     break;
                 }
             }
 
             $entries[] = [
+                'index' => $index,
+                'depth' => $depth,
                 'label' => $this->normalizedText($link->textContent),
                 'href' => $href,
-                'path' => $path,
-                'fragment' => $fragment,
+                'target' => $hrefPolicy['target'],
+                'path' => $hrefPolicy['path'],
+                'fragment' => $hrefPolicy['fragment'],
+                'external' => $hrefPolicy['external'],
+                'unsafe' => $hrefPolicy['unsafe'],
+                'hrefKind' => $hrefPolicy['hrefKind'],
+                'hrefScheme' => $hrefPolicy['hrefScheme'],
+                'exists' => $hrefPolicy['exists'],
+                'diagnostics' => $hrefPolicy['diagnostics'],
                 'type' => $type,
                 'children' => $children,
             ];
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return array<string, mixed>
+     */
+    private function navigationReport(array $sections, bool $present, ?string $part): array
+    {
+        $sectionTypeCounts = [
+            'toc' => 0,
+            'landmarks' => 0,
+            'page-list' => 0,
+        ];
+        $sectionsByType = [
+            'toc' => [],
+            'landmarks' => [],
+            'page-list' => [],
+        ];
+        $entryCount = 0;
+        $targetedItemCount = 0;
+        $localTargetCount = 0;
+        $safeLocalTargetCount = 0;
+        $externalTargetCount = 0;
+        $unsafeTargetCount = 0;
+        $diagnostics = [];
+
+        foreach ($sections as $section) {
+            $type = (string) ($section['type'] ?? '');
+            if (isset($sectionTypeCounts[$type])) {
+                ++$sectionTypeCounts[$type];
+                $sectionsByType[$type][] = $section;
+            }
+            $entryCount += (int) ($section['entryCount'] ?? 0);
+            $targetedItemCount += (int) ($section['targetedItemCount'] ?? 0);
+            $localTargetCount += (int) ($section['localTargetCount'] ?? 0);
+            $safeLocalTargetCount += (int) ($section['safeLocalTargetCount'] ?? 0);
+            $externalTargetCount += (int) ($section['externalTargetCount'] ?? 0);
+            $unsafeTargetCount += (int) ($section['unsafeTargetCount'] ?? 0);
+            array_push($diagnostics, ...array_values(is_array($section['diagnostics'] ?? null) ? $section['diagnostics'] : []));
+        }
+
+        return [
+            'present' => $present,
+            'part' => $part,
+            'sectionCount' => count($sections),
+            'sectionTypeCounts' => $sectionTypeCounts,
+            'tocSectionCount' => $sectionTypeCounts['toc'],
+            'landmarksSectionCount' => $sectionTypeCounts['landmarks'],
+            'pageListSectionCount' => $sectionTypeCounts['page-list'],
+            'entryCount' => $entryCount,
+            'targetedItemCount' => $targetedItemCount,
+            'localTargetCount' => $localTargetCount,
+            'safeLocalTargetCount' => $safeLocalTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'unsafeTargetCount' => $unsafeTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'sections' => $sections,
+            'sectionsByType' => $sectionsByType,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private function navigationSectionReport(int $sectionIndex, string $type, array $entries): array
+    {
+        $flatEntries = $this->flattenNavigationEntries($entries);
+        $targetedItemCount = 0;
+        $localTargetCount = 0;
+        $safeLocalTargetCount = 0;
+        $externalTargetCount = 0;
+        $unsafeTargetCount = 0;
+        $diagnostics = [];
+        $schemeCounts = [];
+
+        foreach ($flatEntries as $entry) {
+            $href = (string) ($entry['href'] ?? '');
+            $external = ($entry['external'] ?? false) === true;
+            $unsafe = ($entry['unsafe'] ?? false) === true;
+            $scheme = $entry['hrefScheme'] ?? null;
+            if ($href !== '') {
+                ++$targetedItemCount;
+                if ($external) {
+                    ++$externalTargetCount;
+                } else {
+                    ++$localTargetCount;
+                    if (!$unsafe) {
+                        ++$safeLocalTargetCount;
+                    }
+                }
+                if (is_string($scheme) && $scheme !== '') {
+                    $schemeCounts[$scheme] = ($schemeCounts[$scheme] ?? 0) + 1;
+                }
+            }
+            if ($unsafe) {
+                ++$unsafeTargetCount;
+            }
+
+            foreach (is_array($entry['diagnostics'] ?? null) ? $entry['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionType' => $type,
+                    'entryIndex' => (int) ($entry['index'] ?? 0),
+                    'depth' => (int) ($entry['depth'] ?? 0),
+                    'label' => (string) ($entry['label'] ?? ''),
+                    'href' => $href,
+                ] + $diagnostic;
+            }
+        }
+
+        ksort($schemeCounts);
+
+        return [
+            'sectionIndex' => $sectionIndex,
+            'type' => $type,
+            'entryCount' => count($flatEntries),
+            'topLevelEntryCount' => count($entries),
+            'targetedItemCount' => $targetedItemCount,
+            'localTargetCount' => $localTargetCount,
+            'safeLocalTargetCount' => $safeLocalTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'unsafeTargetCount' => $unsafeTargetCount,
+            'externalSchemeCounts' => $schemeCounts,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function flattenNavigationEntries(array $entries): array
+    {
+        $flat = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $flat[] = $entry;
+            array_push($flat, ...$this->flattenNavigationEntries(is_array($entry['children'] ?? null) ? $entry['children'] : []));
+        }
+
+        return $flat;
     }
 
     /**
@@ -1202,6 +1373,131 @@ final class EpubPackageReader
         return $path
             . (($suffix['hasQuery'] && $suffix['query'] !== null) ? '?' . $suffix['query'] : '')
             . (($suffix['hasFragment'] && $suffix['fragment'] !== null) ? '#' . $suffix['fragment'] : '');
+    }
+
+    /**
+     * @return array{
+     *     target:string,
+     *     path:string,
+     *     fragment:string,
+     *     external:bool,
+     *     unsafe:bool,
+     *     hrefKind:string,
+     *     hrefScheme:?string,
+     *     exists:bool,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function navHrefPolicy(string $baseDir, string $href, string $root): array
+    {
+        $href = trim($href);
+        $suffix = $this->hrefSuffix($href);
+        $scheme = $this->hrefScheme($href);
+        $pathPart = $this->hrefPathPart($href);
+        $fragment = $suffix['fragment'] ?? '';
+        $external = false;
+        $unsafe = $scheme !== null && in_array($scheme, ['data', 'javascript', 'vbscript'], true);
+        $hrefKind = 'local';
+        $path = '';
+        $target = '';
+        $exists = false;
+        $diagnostics = [];
+
+        if ($href === '') {
+            $hrefKind = 'empty';
+        } elseif (str_starts_with($href, '//')) {
+            $external = true;
+            $hrefKind = 'network-path';
+            $path = $pathPart;
+            $target = $href;
+        } elseif ($scheme !== null) {
+            $external = true;
+            $hrefKind = $unsafe ? 'unsafe-uri' : 'absolute-uri';
+            $path = $pathPart;
+            $target = $href;
+        } elseif (str_starts_with($pathPart, '/')) {
+            $external = true;
+            $hrefKind = 'package-root-reference';
+            $path = $pathPart;
+            $target = $href;
+        } elseif ($pathPart === '') {
+            $hrefKind = $fragment !== '' ? 'same-document-fragment' : 'empty';
+            $target = $href;
+        } else {
+            $resolved = $this->resolvePackageHrefForNav($baseDir, $href);
+            if ($resolved === null) {
+                $external = true;
+                $hrefKind = 'package-relative-external';
+                $path = $pathPart;
+                $target = $href;
+            } else {
+                $path = $resolved;
+                $target = $this->targetWithSuffix($path, $suffix);
+                $exists = $path !== '' && $this->packagePathExists($root, $path);
+            }
+        }
+
+        if ($external) {
+            $diagnostics[] = [
+                'type' => 'external-nav-href-target',
+                'target' => $target,
+                'hrefKind' => $hrefKind,
+                'hrefScheme' => $scheme,
+            ];
+        }
+        if ($unsafe) {
+            $diagnostics[] = [
+                'type' => 'unsafe-nav-href-target',
+                'target' => $target,
+                'hrefKind' => $hrefKind,
+                'hrefScheme' => $scheme,
+            ];
+        }
+
+        return [
+            'target' => $target,
+            'path' => $path,
+            'fragment' => is_string($fragment) ? $fragment : '',
+            'external' => $external,
+            'unsafe' => $unsafe,
+            'hrefKind' => $hrefKind,
+            'hrefScheme' => $scheme,
+            'exists' => $exists,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function hrefScheme(string $href): ?string
+    {
+        $trimmed = trim($href);
+        $colonPosition = strpos($trimmed, ':');
+        if ($colonPosition === false) {
+            return null;
+        }
+
+        $candidate = substr($trimmed, 0, $colonPosition);
+        $normalized = strtolower((string) preg_replace('/[\x00-\x20]+/', '', $candidate));
+        if (preg_match('/^[a-z][a-z0-9+.-]*$/', $normalized) !== 1) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    private function hrefPathPart(string $href): string
+    {
+        $beforeFragment = explode('#', $href, 2)[0];
+
+        return explode('?', $beforeFragment, 2)[0];
+    }
+
+    private function resolvePackageHrefForNav(string $baseDir, string $href): ?string
+    {
+        try {
+            return $this->resolvePackageHref($baseDir, $href);
+        } catch (\RuntimeException) {
+            return null;
+        }
     }
 
     private function loadXmlFile(string $path): \DOMDocument
