@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3264,
-        "latestSlice": "pandoc-odt-package-configurations maps one ODF/ODT compact package coverage slice after Markdown nested fenced Divs for Configurations2 packageConfigurations metadata. OpenDocumentPackage::summarize now reports packageConfigurations alongside manifestReview and packageInventory, preserving declared, undeclared, missing, encrypted, invalid-media-type, and directory buckets; configuration area/kind/path provenance; media-type, byte-length, CRC32, stored byte/CRC, compression, declared-size, byte-exposure, and review-policy metadata; and document media exclusion without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3303 -> 3304, phpFail remains 0, mappedOdfConfigurationPackageSidecarCases is 4, and odfConfigurationPackageSidecarAssertions is 229. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1154 assertions, 0 failures; full lanes/pandoc/tests passed 44 files, 74156 assertions, 0 failures after final rebase onto current main e9fb37d55a.",
+        "mapped": 3265,
+        "latestSlice": "pandoc-epub-direct-manifest-spine-report maps one native direct EPUB package-reader case for OPF manifest query/fragment suffixes, external and missing manifest diagnostics, and spine readability/skipped-entry reports after the ODT packageConfigurations metadata slice on current main. Direct package ingestion keeps stripped local package paths for readable XHTML handoff while preserving review targets and skipping external or missing linear XHTML itemrefs instead of aborting. phpPass moves 3304 -> 3305, phpFail remains 0, mappedEpubDirectManifestSpineReportCases is 1, and epubDirectManifestSpineReportAssertions is 38. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php (1 file, 187 assertions, 0 failures); full lanes/pandoc/tests (44 files, 74194 assertions, 0 failures) after final rebase onto current main 4c296642da.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "ODF/ODT compact packageConfigurations metadata-only review handoff is verified over current main e9fb37d55a after Markdown nested fenced Divs.",
-        "latestFocusedSource": "2026-06-12 ODF/ODT compact package slice inspected Configurations2 packageConfigurations metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main e9fb37d55a; focused OpenDocumentPackageTest.php passed 1 file, 1154 assertions, 0 failures; full lanes/pandoc/tests passed 44 files, 74156 assertions, 0 failures.",
+        "status": "EPUB direct manifest/spine diagnostics are verified over current main 4c296642da after ODT packageConfigurations metadata; broader EPUB3 package reader parity remains partial.",
+        "latestFocusedSource": "2026-06-13 EPUB direct manifest/spine report slice inspected direct EpubPackageReader package diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 4c296642da; focused EpubPackageReaderTest.php passed 1 file, 187 assertions, 0 failures; full lanes/pandoc/tests passed 44 files, 74194 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -151,7 +151,9 @@
         "mappedMarkdownFootnoteLabelAnchorCases": 1,
         "markdownFootnoteLabelAnchorAssertions": 6,
         "mappedMarkdownNestedFencedDivCases": 1,
-        "markdownNestedFencedDivAssertions": 14
+        "markdownNestedFencedDivAssertions": 14,
+        "mappedEpubDirectManifestSpineReportCases": 1,
+        "epubDirectManifestSpineReportAssertions": 38
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1388,5 +1390,7 @@
     "mappedMarkdownFootnoteLabelAnchorCases": 1,
     "markdownFootnoteLabelAnchorAssertions": 6,
     "mappedMarkdownNestedFencedDivCases": 1,
-    "markdownNestedFencedDivAssertions": 14
+    "markdownNestedFencedDivAssertions": 14,
+    "mappedEpubDirectManifestSpineReportCases": 1,
+    "epubDirectManifestSpineReportAssertions": 38
 }

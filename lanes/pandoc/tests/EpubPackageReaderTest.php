@@ -7,6 +7,33 @@ use PortLibs\Pandoc\EpubPackageReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $fixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-package';
+$writePackageFile = static function (string $root, string $relativePath, string $bytes): void {
+    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    $directory = dirname($path);
+    if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+        throw new \RuntimeException('Unable to create EPUB fixture directory: ' . $directory);
+    }
+    if (file_put_contents($path, $bytes) === false) {
+        throw new \RuntimeException('Unable to write EPUB fixture file: ' . $path);
+    }
+};
+$removeDirectory = static function (string $directory): void {
+    if (!is_dir($directory)) {
+        return;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+        if ($item->isDir()) {
+            rmdir($item->getPathname());
+        } else {
+            unlink($item->getPathname());
+        }
+    }
+    rmdir($directory);
+};
 
 return [
     'maps epub container opf manifest spine and metadata handoff' => static function (TestRunner $t) use ($fixture): void {
@@ -214,6 +241,94 @@ return [
         $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note with <code>wp_insert_post</code>.</p></blockquote>', $blocks);
         $t->contains('<em>reading order</em><br/>and a hard break.', $blocks);
         $t->contains('<li>First migration check</li><li>Second check with <a href="https://example.test/source">source</a></li>', $blocks);
+    },
+    'reports direct package manifest suffixes and skipped spine entries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-manifest-review</dc:identifier>
+    <dc:title>Manifest Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml?draft=review#appendix-start" media-type="application/xhtml+xml"/>
+    <item id="remote" href="https://cdn.example.invalid/remote.xhtml?edition=review#remote" media-type="application/xhtml+xml"/>
+    <item id="missing" href="missing.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="appendix" linear="no"/>
+    <itemref idref="remote"/>
+    <itemref idref="missing"/>
+    <itemref idref="ghost"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Nonlinear appendix.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $manifest = $epub['manifestById'];
+            $manifestReport = $epub['manifestReport'];
+            $spine = $epub['spine'];
+            $spineReport = $epub['spineReport'];
+
+            $t->same(1, count($document->children));
+            $t->same('Readable chapter.', $document->children[0]->attr('text'));
+            $t->same('EPUB/appendix.xhtml?draft=review#appendix-start', $manifest['appendix']['target']);
+            $t->same('EPUB/appendix.xhtml', $manifest['appendix']['path']);
+            $t->same(true, $manifest['appendix']['exists']);
+            $t->same(true, $manifest['appendix']['hrefHasQuery']);
+            $t->same('draft=review', $manifest['appendix']['hrefQuery']);
+            $t->same(true, $manifest['appendix']['hrefHasFragment']);
+            $t->same('appendix-start', $manifest['appendix']['hrefFragment']);
+            $t->same(['manifest-href-query-component', 'manifest-href-fragment-component'], array_column($manifest['appendix']['diagnostics'], 'type'));
+
+            $t->same(true, $manifest['remote']['external']);
+            $t->same('https://cdn.example.invalid/remote.xhtml?edition=review#remote', $manifest['remote']['target']);
+            $t->same('https://cdn.example.invalid/remote.xhtml', $manifest['remote']['path']);
+            $t->same(false, $manifest['remote']['exists']);
+            $t->same(['external-manifest-href-target', 'manifest-href-query-component', 'manifest-href-fragment-component'], array_column($manifest['remote']['diagnostics'], 'type'));
+            $t->same(false, $manifest['missing']['exists']);
+            $t->same(['missing-manifest-href-target'], array_column($manifest['missing']['diagnostics'], 'type'));
+
+            $t->same(4, $manifestReport['itemCount']);
+            $t->same(1, $manifestReport['externalItemCount']);
+            $t->same(1, $manifestReport['missingItemCount']);
+            $t->same(2, $manifestReport['hrefSuffixCount']);
+            $t->same(6, $manifestReport['diagnosticCount']);
+            $t->same(['appendix', 'remote'], array_column($manifestReport['hrefSuffixItems'], 'id'));
+            $t->same(['manifest-href-query-component', 'manifest-href-fragment-component', 'external-manifest-href-target', 'manifest-href-query-component', 'manifest-href-fragment-component', 'missing-manifest-href-target'], array_column($manifestReport['diagnostics'], 'type'));
+
+            $t->same(5, $spineReport['itemCount']);
+            $t->same(4, $spineReport['linearItemCount']);
+            $t->same(1, $spineReport['nonlinearItemCount']);
+            $t->same(1, $spineReport['readableItemCount']);
+            $t->same(4, $spineReport['skippedItemCount']);
+            $t->same(1, $spineReport['externalItemCount']);
+            $t->same(1, $spineReport['missingPackagePartItemCount']);
+            $t->same(1, $spineReport['missingManifestItemCount']);
+            $t->same(3, $spineReport['diagnosticCount']);
+            $t->same('EPUB/appendix.xhtml?draft=review#appendix-start', $spine[1]['target']);
+            $t->same(false, $spine[1]['readable']);
+            $t->same('external-spine-item', $spine[2]['diagnostics'][0]['type']);
+            $t->same('missing-spine-item-package-part', $spine[3]['diagnostics'][0]['type']);
+            $t->same('missing-spine-manifest-item', $spine[4]['diagnostics'][0]['type']);
+        } finally {
+            $removeDirectory($root);
+        }
     },
     'rejects missing epub package directories before parsing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static function (): void {
