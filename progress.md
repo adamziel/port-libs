@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,309 pass / 0 fail | [3,269 / 2,276 (143.6%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue table geometry writer parity after LaTeX table-foot handoff | latex-table-foot-longtable-d3ed225156 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,310 pass / 0 fail | [3,270 / 2,276 (143.7%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue shared ZIP/OPC package-reader closure | zip-selected-handoff-role-buckets-e7580664b2 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -38,7 +38,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
 | EPUB/EPUB3 | `epub` | partial | 59 | 9 | Finish EPUB package reader parity; latest slice preserves NCX docTitle/docAuthor audio provenance. |
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 50 | 20 | 0 critical gaps for native PHP ODT import; continue only non-critical hardening slices as discovered. |
-| Shared ZIP/OPC package | dependency for package readers | partial dependency | 106 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
+| Shared ZIP/OPC package | dependency for package readers | partial dependency | 107 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 77 | 8 | RIS now has bounded native CSL item parsing; EndNote XML, broader RIS coverage, and full reader-registry parity remain. |
 | LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
 | DocBook/table geometry | `docbook` | partial | 16 | 16 | Finish DocBook XML reader parity. |
@@ -48,6 +48,19 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
 | Tabular/data readers | `csv`, `tsv` | partial | 2 | 2 | Finish full CSV/TSV reader parity beyond the bounded headed-table slice. |
 | Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 31 | Close the remaining unsupported input registry rows. |
+
+### Shared ZIP/OPC Closure Matrix
+
+| Check | Evidence |
+| --- | --- |
+| Upstream format-related denominator | 67 static upstream office/archive/package fixtures and package-reader cases from the pinned Pandoc inventory. |
+| Local passing numerator | 107 native PHP ZIP/OPC-focused evidence slices; latest slice adds selected-entry role bucket provenance with 13 focused assertions. |
+| Evidence percent | 159.7% local evidence coverage against the static denominator; this is granular native PHP coverage, not upstream runner parity. |
+| Local passing tests | `ZipPackageTest.php`, `OpenPackagingConventionsTest.php`, and dependent DOCX/EPUB/ODF package-reader tests are PHP-green in the lane. Focused verification for this slice: `ZipPackageTest.php` passed with 1 file, 4448 assertions, 0 failures; full `lanes/pandoc/tests` passed with 45 files, 74218 assertions, 0 failures. |
+| Uncovered upstream tests | Hydrated upstream Haskell `test-pandoc` runner parity remains out of scope for this local PHP closure pass; real external office/archive validators are intentionally not used. |
+| Remaining critical gaps | Not shippable yet: DOCX and EPUB readers remain partial, ODT is ship-ready but depends on continued ZIP/OPC hardening, PPTX/XLSX package readers are unsupported; ZIP64 expansion, encrypted payload decryption, non-deflate extraction, and cryptographic signature validation remain fail-closed review metadata rather than full payload import. |
+| Implemented gap | `ZipPackage::entryHandoffPreflight()` role summaries now expose unique readable selected entries, handoff byte totals, handoff entry names, and issue counts by semantic role before DOCX/EPUB/ODT readers expose selected package bytes. |
+| Ship verdict | Do not ship full shared ZIP/OPC package parity yet. This slice closes one highest-impact native PHP package-handoff reporting gap. |
 
 Adjacent import targets outside the Pandoc input denominator:
 

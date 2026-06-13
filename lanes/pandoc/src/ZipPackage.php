@@ -5811,6 +5811,7 @@ final class ZipPackage
     {
         $summaries = [];
         $seenNamesByRole = [];
+        $seenHandoffNamesByRole = [];
         foreach ($entries as $entry) {
             $role = is_string($entry['role'] ?? null) && $entry['role'] !== ''
                 ? $entry['role']
@@ -5825,17 +5826,23 @@ final class ZipPackage
                     'presentEntryCount' => 0,
                     'missingEntryCount' => 0,
                     'handoffEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
                     'failedEntryCount' => 0,
                     'duplicateRequestCount' => 0,
                     'selectedUniqueEntryCount' => 0,
                     'selectedCompressedBytes' => 0,
                     'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
                     'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
                     'missingEntryNames' => [],
                     'failedEntryNames' => [],
                     'issues' => [],
+                    'issueCounts' => [],
                 ];
                 $seenNamesByRole[$key] = [];
+                $seenHandoffNamesByRole[$key] = [];
             }
 
             ++$summaries[$key]['requestCount'];
@@ -5869,6 +5876,13 @@ final class ZipPackage
             $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
             if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
                 ++$summaries[$key]['handoffEntryCount'];
+                if ($name !== '' && !isset($seenHandoffNamesByRole[$key][$name])) {
+                    $seenHandoffNamesByRole[$key][$name] = true;
+                    ++$summaries[$key]['handoffUniqueEntryCount'];
+                    $summaries[$key]['handoffEntryNames'][] = $name;
+                    $summaries[$key]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$key]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
             } elseif ($issues !== []) {
                 ++$summaries[$key]['failedEntryCount'];
                 if ($name !== '') {
@@ -5878,9 +5892,15 @@ final class ZipPackage
                     if (!in_array($issue, $summaries[$key]['issues'], true)) {
                         $summaries[$key]['issues'][] = $issue;
                     }
+                    $summaries[$key]['issueCounts'][$issue] = ($summaries[$key]['issueCounts'][$issue] ?? 0) + 1;
                 }
             }
         }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
 
         ksort($summaries, SORT_STRING);
 
