@@ -5250,20 +5250,58 @@ XML, 'BITS section metadata XML', preserveWhiteSpace: false);
         $t->same(['note'], $readyCell['nonHeaderReferenceIds']);
         $t->same(['dup'], $readyCell['duplicateHeaderTargetIds']);
         $t->same([
-            ['code' => 'duplicate-header-target-id', 'id' => 'dup', 'count' => 2],
-            ['code' => 'duplicate-header-reference-token', 'id' => 'dup', 'count' => 2],
-            ['code' => 'missing-header-reference-target', 'id' => 'missing'],
-            ['code' => 'non-header-reference-target', 'id' => 'note', 'targetNames' => ['td']],
-            ['code' => 'invalid-header-reference-token', 'token' => 'bad<tag'],
-            ['code' => 'missing-header-reference-target', 'id' => 'outer'],
+            'Region',
+            'Batch A',
+            'Duplicate One',
+            'Duplicate Two',
+            'Duplicate One',
+            'Duplicate Two',
+            'Period',
+        ], $readyCell['resolvedHeaderTexts']);
+        $t->same(['region', 'row-a', 'dup', 'dup', 'dup', 'dup', 'period'], $readyCell['resolvedHeaderIds']);
+        $t->same([
+            [
+                'code' => 'duplicate-table-header-id',
+                'token' => 'dup',
+                'index' => 2,
+                'targetCount' => 2,
+                'targetTexts' => ['Duplicate One', 'Duplicate Two'],
+            ],
+            [
+                'code' => 'duplicate-table-header-reference-token',
+                'token' => 'dup',
+                'index' => 3,
+                'firstIndex' => 2,
+            ],
+            [
+                'code' => 'duplicate-table-header-id',
+                'token' => 'dup',
+                'index' => 3,
+                'targetCount' => 2,
+                'targetTexts' => ['Duplicate One', 'Duplicate Two'],
+            ],
+            ['code' => 'missing-table-header-target', 'token' => 'missing', 'index' => 4],
+            [
+                'code' => 'non-header-table-header-target',
+                'token' => 'note',
+                'index' => 5,
+                'targetNames' => ['td'],
+                'targetTexts' => ['Not a header'],
+            ],
+            ['code' => 'invalid-table-header-reference-token', 'token' => 'bad<tag', 'index' => 6],
+            ['code' => 'missing-table-header-target', 'token' => 'outer', 'index' => 8],
         ], $readyCell['headerReferenceIssues']);
         $t->same([
-            'duplicate-header-target-id',
-            'duplicate-header-reference-token',
-            'missing-header-reference-target',
-            'non-header-reference-target',
-            'invalid-header-reference-token',
+            'duplicate-table-header-id',
+            'duplicate-table-header-reference-token',
+            'missing-table-header-target',
+            'non-header-table-header-target',
+            'invalid-table-header-reference-token',
         ], $readyCell['headerReferenceIssueCodes']);
+        $t->same([2, 3, 3, 4, 5, 6, 8], array_map(
+            static fn (array $issue): int => (int) $issue['index'],
+            $readyCell['headerReferenceIssues']
+        ));
         $t->same(false, $readyCell['headerReferencesResolved']);
 
         $t->same('resolved', $references[0]['targetState']);
@@ -5288,13 +5326,17 @@ XML, 'BITS section metadata XML', preserveWhiteSpace: false);
             static fn (array $target): string => $target['abbr'],
             $references[2]['headerTargets']
         ));
-        $t->same('missing', $references[3]['targetState']);
-        $t->same('non-header-target', $references[4]['targetState']);
-        $t->same([['name' => 'td', 'text' => 'Not a header']], $references[4]['nonHeaderTargets']);
-        $t->same('resolved', $references[5]['targetState']);
-        $t->same('Period', $references[5]['headerTargets'][0]['text']);
-        $t->same('Q2', $references[5]['headerTargets'][0]['abbr']);
-        $t->same('missing', $references[6]['targetState']);
+        $t->same(true, $references[3]['duplicateToken']);
+        $t->same(2, $references[3]['firstIndex']);
+        $t->same('duplicate-header-target-id', $references[3]['targetState']);
+        $t->same('missing', $references[4]['targetState']);
+        $t->same('non-header-target', $references[5]['targetState']);
+        $t->same([['name' => 'td', 'id' => 'note', 'text' => 'Not a header']], $references[5]['nonHeaderTargets']);
+        $t->same('invalid-token', $references[6]['state']);
+        $t->same('resolved', $references[7]['targetState']);
+        $t->same('Period', $references[7]['headerTargets'][0]['text']);
+        $t->same('Q2', $references[7]['headerTargets'][0]['abbr']);
+        $t->same('missing', $references[8]['targetState']);
         $t->same('<table id="review-grid" summary="Legacy summary"><caption>Import matrix</caption><thead><tr><th abbr="Reg" colspan="2" id="region" scope="col">Region</th><th abbr="Q2" id="period" scope="col">Period</th><th abbr="First" id="dup" scope="col">Duplicate One</th><th abbr="Second" id="dup" scope="colgroup">Duplicate Two</th><td id="note">Not a header</td></tr></thead><tbody><tr><th abbr="A" id="row-a" rowspan="2" scope="row">Batch A</th><td colspan="2" headers="region row-a dup dup missing note bad&lt;tag period outer" rowspan="2">Ready</td></tr></tbody></table><table><tr><th abbr="Out" id="outer" scope="col">Outer table</th></tr></table>', $html);
     },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {

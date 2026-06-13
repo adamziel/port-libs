@@ -10721,13 +10721,6 @@ final class XmlHtmlDom
     private static function tableHeaderReferenceSummary(\DOMElement $cell, string $headersRaw): array
     {
         $tokens = self::spaceSeparatedTokens($headersRaw);
-        $validTokenCounts = [];
-        foreach ($tokens as $token) {
-            if (self::isHtmlIdReferenceToken($token)) {
-                $validTokenCounts[$token] = ($validTokenCounts[$token] ?? 0) + 1;
-            }
-        }
-
         $ids = [];
         $invalid = [];
         $duplicateReferences = [];
@@ -10737,59 +10730,200 @@ final class XmlHtmlDom
         $duplicateTargets = [];
         $references = [];
         $issues = [];
+        $resolvedTargets = [];
+        $seen = [];
 
-        foreach ($tokens as $token) {
-            if (!self::isHtmlIdReferenceToken($token)) {
-                $invalid[] = $token;
-                $issues[] = ['code' => 'invalid-header-reference-token', 'token' => $token];
-                continue;
-            }
-
-            if (in_array($token, $ids, true)) {
-                if (!in_array($token, $duplicateReferences, true)) {
+        foreach ($tokens as $index => $token) {
+            $record = [
+                'index' => $index,
+                'token' => $token,
+                'state' => 'unresolved',
+            ];
+            $firstIndex = $seen[$token] ?? null;
+            if ($firstIndex === null) {
+                $seen[$token] = $index;
+            } else {
+                $record['duplicateToken'] = true;
+                $record['firstIndex'] = $firstIndex;
+                if (self::isHtmlIdReferenceToken($token) && !in_array($token, $duplicateReferences, true)) {
                     $duplicateReferences[] = $token;
-                    $issues[] = [
-                        'code' => 'duplicate-header-reference-token',
-                        'id' => $token,
-                        'count' => $validTokenCounts[$token],
-                    ];
                 }
+                $issues[] = [
+                    'code' => 'duplicate-table-header-reference-token',
+                    'token' => $token,
+                    'index' => $index,
+                    'firstIndex' => $firstIndex,
+                ];
+            }
+
+            if (!self::isHtmlIdReferenceToken($token)) {
+                if (!in_array($token, $invalid, true)) {
+                    $invalid[] = $token;
+                }
+                $record['state'] = 'invalid-token';
+                $issues[] = [
+                    'code' => 'invalid-table-header-reference-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+                $references[] = $record;
                 continue;
             }
 
-            $ids[] = $token;
-            $reference = self::tableHeaderReferenceTargetSummary($cell, $token);
-            $references[] = $reference;
+            if (!in_array($token, $ids, true)) {
+                $ids[] = $token;
+            }
 
-            $state = $reference['targetState'];
-            if ($state === 'resolved') {
+            $targets = self::nearestTableElementsById($cell, $token);
+            if ($targets === []) {
+                if (!in_array($token, $missing, true)) {
+                    $missing[] = $token;
+                }
+                $record += [
+                    'state' => 'missing-target',
+                    'targetState' => 'missing',
+                    'targetCount' => 0,
+                    'headerTargetCount' => 0,
+                    'duplicateHeaderTargetCount' => 0,
+                    'nonHeaderTargetCount' => 0,
+                    'headerTargets' => [],
+                    'nonHeaderTargets' => [],
+                    'nonHeaderTargetNames' => [],
+                ];
+                $issues[] = [
+                    'code' => 'missing-table-header-target',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+                $references[] = $record;
+                continue;
+            }
+
+            $headerTargets = [];
+            $nonHeaderTargets = [];
+            foreach ($targets as $target) {
+                if (self::htmlElementName($target) === 'th') {
+                    $headerTargets[] = $target;
+                    continue;
+                }
+
+                $nonHeaderTargets[] = [
+                    'name' => self::htmlElementName($target),
+                    'id' => self::attributeOrNull($target, 'id'),
+                    'text' => self::normalizedText($target),
+                ];
+            }
+
+            if ($nonHeaderTargets !== []) {
+                if (!in_array($token, $nonHeader, true)) {
+                    $nonHeader[] = $token;
+                }
+                $issues[] = [
+                    'code' => 'non-header-table-header-target',
+                    'token' => $token,
+                    'index' => $index,
+                    'targetNames' => array_values(array_unique(array_map(
+                        static fn (array $target): string => (string) ($target['name'] ?? ''),
+                        $nonHeaderTargets,
+                    ))),
+                    'targetTexts' => array_map(
+                        static fn (array $target): string => (string) ($target['text'] ?? ''),
+                        $nonHeaderTargets,
+                    ),
+                ];
+            }
+
+            if ($headerTargets === []) {
+                $record += [
+                    'state' => 'non-header-target',
+                    'targetState' => 'non-header-target',
+                    'targetCount' => count($targets),
+                    'headerTargetCount' => 0,
+                    'duplicateHeaderTargetCount' => 0,
+                    'nonHeaderTargetCount' => count($nonHeaderTargets),
+                    'headerTargets' => [],
+                    'nonHeaderTargets' => $nonHeaderTargets,
+                    'nonHeaderTargetNames' => array_values(array_unique(array_map(
+                        static fn (array $target): string => (string) ($target['name'] ?? ''),
+                        $nonHeaderTargets,
+                    ))),
+                ];
+                $references[] = $record;
+                continue;
+            }
+
+            $targetSummaries = array_map(
+                static fn (\DOMElement $target): array => self::tableHeaderReferenceHeaderTargetSummary($target),
+                $headerTargets
+            );
+            $headerCount = count($targetSummaries);
+            $nonHeaderCount = count($nonHeaderTargets);
+            $state = $nonHeaderCount > 0
+                ? 'resolved-with-non-header-target'
+                : ($headerCount > 1 ? 'duplicate-header-id' : 'resolved');
+            $targetState = $nonHeaderCount > 0
+                ? 'mixed-targets'
+                : ($headerCount > 1 ? 'duplicate-header-target-id' : 'resolved');
+
+            if ($targetState === 'resolved' && !in_array($token, $resolved, true)) {
                 $resolved[] = $token;
-                continue;
             }
 
-            if ($state === 'missing') {
-                $missing[] = $token;
-                $issues[] = ['code' => 'missing-header-reference-target', 'id' => $token];
-                continue;
-            }
-
-            if (($reference['duplicateHeaderTargetCount'] ?? 0) > 1) {
-                $duplicateTargets[] = $token;
+            if ($headerCount > 1) {
+                if (!in_array($token, $duplicateTargets, true)) {
+                    $duplicateTargets[] = $token;
+                }
                 $issues[] = [
-                    'code' => 'duplicate-header-target-id',
-                    'id' => $token,
-                    'count' => $reference['duplicateHeaderTargetCount'],
+                    'code' => 'duplicate-table-header-id',
+                    'token' => $token,
+                    'index' => $index,
+                    'targetCount' => $headerCount,
+                    'targetTexts' => array_map(
+                        static fn (array $target): string => (string) ($target['text'] ?? ''),
+                        $targetSummaries,
+                    ),
                 ];
             }
 
-            if (($reference['nonHeaderTargetCount'] ?? 0) > 0) {
-                $nonHeader[] = $token;
-                $issues[] = [
-                    'code' => 'non-header-reference-target',
-                    'id' => $token,
-                    'targetNames' => $reference['nonHeaderTargetNames'],
-                ];
+            foreach ($targetSummaries as $targetSummary) {
+                $resolvedTargets[] = [
+                    'referenceIndex' => $index,
+                    'token' => $token,
+                ] + $targetSummary;
             }
+
+            $record += [
+                'state' => $state,
+                'targetState' => $targetState,
+                'targetCount' => count($targets),
+                'headerTargetCount' => $headerCount,
+                'duplicateHeaderTargetCount' => $headerCount > 1 ? $headerCount : 0,
+                'nonHeaderTargetCount' => $nonHeaderCount,
+                'targets' => $targetSummaries,
+                'headerTargets' => $targetSummaries,
+                'nonHeaderTargets' => $nonHeaderTargets,
+                'nonHeaderTargetNames' => array_values(array_unique(array_map(
+                    static fn (array $target): string => (string) ($target['name'] ?? ''),
+                    $nonHeaderTargets,
+                ))),
+                'targetTexts' => array_map(
+                    static fn (array $target): string => (string) ($target['text'] ?? ''),
+                    $targetSummaries,
+                ),
+                'targetScopes' => array_map(
+                    static fn (array $target): ?string => $target['scope'] ?? null,
+                    $targetSummaries,
+                ),
+            ];
+
+            if ($headerCount === 1) {
+                $record['targetId'] = $targetSummaries[0]['id'];
+                $record['targetText'] = $targetSummaries[0]['text'];
+                $record['targetScope'] = $targetSummaries[0]['scope'];
+                $record['targetAbbr'] = $targetSummaries[0]['abbr'];
+            }
+
+            $references[] = $record;
         }
 
         return [
@@ -10802,6 +10936,15 @@ final class XmlHtmlDom
             'nonHeaderReferenceIds' => $nonHeader,
             'duplicateHeaderTargetIds' => $duplicateTargets,
             'headerReferences' => $references,
+            'resolvedHeaderIds' => array_map(
+                static fn (array $target): ?string => $target['id'] ?? null,
+                $resolvedTargets,
+            ),
+            'resolvedHeaderTexts' => array_map(
+                static fn (array $target): string => (string) ($target['text'] ?? ''),
+                $resolvedTargets,
+            ),
+            'resolvedHeaderTargets' => $resolvedTargets,
             'headerReferenceIssues' => $issues,
             'headerReferenceIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
@@ -10819,63 +10962,10 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function tableHeaderReferenceTargetSummary(\DOMElement $cell, string $id): array
-    {
-        $targets = self::nearestTableElementsById($cell, $id);
-        if ($targets === []) {
-            return [
-                'id' => $id,
-                'targetState' => 'missing',
-                'targetCount' => 0,
-                'headerTargetCount' => 0,
-                'nonHeaderTargetCount' => 0,
-                'headerTargets' => [],
-                'nonHeaderTargets' => [],
-                'nonHeaderTargetNames' => [],
-            ];
-        }
-
-        $headerTargets = [];
-        $nonHeaderTargets = [];
-        foreach ($targets as $target) {
-            if (self::htmlElementName($target) === 'th') {
-                $headerTargets[] = self::tableHeaderReferenceHeaderTargetSummary($target);
-                continue;
-            }
-
-            $nonHeaderTargets[] = [
-                'name' => self::htmlElementName($target),
-                'text' => self::normalizedText($target),
-            ];
-        }
-
-        $headerCount = count($headerTargets);
-        $nonHeaderCount = count($nonHeaderTargets);
-
-        return [
-            'id' => $id,
-            'targetState' => $headerCount === 0
-                ? 'non-header-target'
-                : ($headerCount > 1 ? 'duplicate-header-target-id' : ($nonHeaderCount > 0 ? 'mixed-targets' : 'resolved')),
-            'targetCount' => count($targets),
-            'headerTargetCount' => $headerCount,
-            'duplicateHeaderTargetCount' => $headerCount > 1 ? $headerCount : 0,
-            'nonHeaderTargetCount' => $nonHeaderCount,
-            'headerTargets' => $headerTargets,
-            'nonHeaderTargets' => $nonHeaderTargets,
-            'nonHeaderTargetNames' => array_values(array_unique(array_map(
-                static fn (array $target): string => (string) ($target['name'] ?? ''),
-                $nonHeaderTargets,
-            ))),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     private static function tableHeaderReferenceHeaderTargetSummary(\DOMElement $header): array
     {
         return [
+            'id' => self::attributeOrNull($header, 'id'),
             'text' => self::normalizedText($header),
             'scopeRaw' => self::attributeOrNull($header, 'scope'),
             'scope' => self::tableHeaderScope($header),
