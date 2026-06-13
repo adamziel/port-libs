@@ -748,6 +748,18 @@ final class XmlHtmlDom
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
+        $backReferenceIds = self::jatsBackMatterReferenceIds($root);
+        $inlineXrefDiagnostics = self::jatsInlineXrefDiagnostics($root, $backReferenceIds);
+        $inlineXrefLocalReferenceIds = [];
+        $inlineXrefUnsupportedTargetIds = [];
+        foreach ($inlineXrefDiagnostics as $diagnostic) {
+            array_push($inlineXrefLocalReferenceIds, ...$diagnostic['localBackReferenceIds']);
+            foreach ($diagnostic['unsupportedTargets'] as $unsupportedTarget) {
+                $inlineXrefUnsupportedTargetIds[] = (string) $unsupportedTarget['id'];
+            }
+        }
+        $inlineXrefLocalReferenceIds = array_values(array_unique($inlineXrefLocalReferenceIds));
+        $inlineXrefUnsupportedTargetIds = array_values(array_unique($inlineXrefUnsupportedTargetIds));
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
 
@@ -797,6 +809,14 @@ final class XmlHtmlDom
             'xrefTargetCount' => count($xrefTargets),
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
+            'backReferenceIds' => $backReferenceIds,
+            'backReferenceCount' => count($backReferenceIds),
+            'inlineXrefDiagnostics' => $inlineXrefDiagnostics,
+            'inlineXrefDiagnosticCount' => count($inlineXrefDiagnostics),
+            'inlineXrefLocalReferenceIds' => $inlineXrefLocalReferenceIds,
+            'inlineXrefLocalReferenceCount' => count($inlineXrefLocalReferenceIds),
+            'inlineXrefUnsupportedTargetIds' => $inlineXrefUnsupportedTargetIds,
+            'inlineXrefUnsupportedTargetCount' => count($inlineXrefUnsupportedTargetIds),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
             'tableWrapIds' => $tableWrapIds,
@@ -1078,6 +1098,128 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsBackMatterReferenceIds(\DOMElement $root): array
+    {
+        $ids = [];
+        foreach (['back', 'book-back'] as $backName) {
+            foreach (self::descendantElements($root, $backName) as $backMatter) {
+                array_push($ids, ...self::jatsElementIds($backMatter, 'ref'));
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param list<string> $backReferenceIds
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsInlineXrefDiagnostics(\DOMElement $root, array $backReferenceIds): array
+    {
+        $backReferenceSet = array_fill_keys($backReferenceIds, true);
+        $targetElementsById = self::jatsTargetElementNamesById($root);
+        $diagnostics = [];
+
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            if (!self::jatsIsBodyInlineMarker($xref)) {
+                continue;
+            }
+
+            $ridRaw = self::attribute($xref, 'rid');
+            if ($ridRaw === null || trim($ridRaw) === '') {
+                continue;
+            }
+
+            $targets = self::spaceSeparatedTokens($ridRaw);
+            if ($targets === []) {
+                continue;
+            }
+
+            $localReferenceIds = [];
+            $unsupportedTargets = [];
+            foreach ($targets as $target) {
+                if (isset($backReferenceSet[$target])) {
+                    $localReferenceIds[] = $target;
+                    continue;
+                }
+
+                $targetElement = $targetElementsById[$target] ?? null;
+                $unsupportedTargets[] = [
+                    'id' => $target,
+                    'targetElement' => $targetElement,
+                    'reason' => $targetElement === null ? 'missing-local-target' : 'target-is-not-back-reference',
+                ];
+            }
+
+            $markerDiagnostics = [];
+            if ($localReferenceIds !== []) {
+                $markerDiagnostics[] = 'jats-inline-xref-local-back-reference';
+            }
+            if ($unsupportedTargets !== []) {
+                $markerDiagnostics[] = 'jats-inline-xref-unsupported-citation-target';
+            }
+
+            $diagnostics[] = [
+                'element' => $xref->localName,
+                'refType' => self::attribute($xref, 'ref-type'),
+                'ridRaw' => trim($ridRaw),
+                'targets' => $targets,
+                'text' => self::normalizedText($xref),
+                'localBackReferenceIds' => array_values(array_unique($localReferenceIds)),
+                'unsupportedTargets' => $unsupportedTargets,
+                'unsupportedTargetCount' => count($unsupportedTargets),
+                'diagnostics' => $markerDiagnostics,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function jatsTargetElementNamesById(\DOMElement $root): array
+    {
+        $targets = [];
+        $rootId = self::attribute($root, 'id');
+        if ($rootId !== null && trim($rootId) !== '') {
+            $targets[trim($rootId)] = $root->localName;
+        }
+
+        foreach (self::descendantElements($root) as $element) {
+            $id = self::attribute($element, 'id');
+            if ($id === null || trim($id) === '' || isset($targets[trim($id)])) {
+                continue;
+            }
+
+            $targets[trim($id)] = $element->localName;
+        }
+
+        return $targets;
+    }
+
+    private static function jatsIsBodyInlineMarker(\DOMElement $element): bool
+    {
+        $node = $element->parentNode;
+        $inBody = false;
+        while ($node instanceof \DOMElement) {
+            $name = $node->localName;
+            if (in_array($name, ['front', 'article-meta', 'book-meta', 'journal-meta', 'back', 'book-back', 'ref-list'], true)) {
+                return false;
+            }
+            if (in_array($name, ['body', 'book-body'], true)) {
+                $inBody = true;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return $inBody;
     }
 
     /**
