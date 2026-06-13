@@ -1030,6 +1030,7 @@ final class XmlHtmlDom
             array_map(static fn (array $section): array => $section['titlePath'], $sections),
             static fn (array $path): bool => $path !== []
         ));
+        $sectionMetadataDiagnostics = self::jatsSectionMetadataDiagnostics($sections);
         $bookParts = self::jatsBookPartSummaries($root);
         $elementIdMap = self::jatsElementIdMap($root);
         $xrefs = self::jatsXrefSummaries($root, $elementIdMap);
@@ -1093,7 +1094,8 @@ final class XmlHtmlDom
             (int) $referenceBackMatter['unreferencedReferenceCount'],
             (int) $referenceBackMatter['referenceMetadataSummaryCount'],
             (int) $referenceBackMatter['safeReferenceLabelCount'],
-            (int) $referenceBackMatter['blockedCitationTextPayloadCount']
+            (int) $referenceBackMatter['blockedCitationTextPayloadCount'],
+            count($sectionMetadataDiagnostics)
         );
 
         return [
@@ -1162,6 +1164,15 @@ final class XmlHtmlDom
                 static fn (array $path): string => implode(' > ', $path),
                 $sectionTitlePaths
             ),
+            'sectionIds' => self::jatsSectionValues($sections, 'id'),
+            'sectionLabels' => self::jatsSectionValues($sections, 'label'),
+            'sectionLanguages' => self::jatsSectionValues($sections, 'language'),
+            'sectionMetadataDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $sectionMetadataDiagnostics
+            ),
+            'sectionMetadataDiagnosticCount' => count($sectionMetadataDiagnostics),
+            'sectionMetadataDiagnostics' => $sectionMetadataDiagnostics,
             'sections' => $sections,
             'xrefs' => $xrefs,
             'xrefTargets' => $xrefTargets,
@@ -1281,7 +1292,8 @@ final class XmlHtmlDom
         int $unreferencedReferenceCount,
         int $referenceMetadataSummaryCount,
         int $safeReferenceLabelCount,
-        int $blockedCitationTextPayloadCount
+        int $blockedCitationTextPayloadCount,
+        int $sectionMetadataDiagnosticCount
     ): array {
         $formatLabel = strtoupper($format);
         $diagnostics = [
@@ -1445,6 +1457,17 @@ final class XmlHtmlDom
                 false,
                 false,
                 ['bookPartCount' => $bookPartCount]
+            );
+        }
+
+        if ($sectionMetadataDiagnosticCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'section-metadata-diagnostics-review-only',
+                'warning',
+                'JATS/BITS section metadata diagnostics are exposed for review but are not full direct-reader section AST parity.',
+                false,
+                true,
+                ['sectionMetadataDiagnosticCount' => $sectionMetadataDiagnosticCount]
             );
         }
 
@@ -2316,6 +2339,198 @@ final class XmlHtmlDom
     }
 
     /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsSectionMetadataDiagnostics(array $sections): array
+    {
+        $missingIds = [];
+        $idBuckets = [];
+        $labelRecords = [];
+        $languageRecords = [];
+        $missingTitles = [];
+        $duplicateTitles = [];
+
+        foreach ($sections as $index => $section) {
+            $reference = self::jatsSectionReference($section, $index);
+            $id = self::stringOrNull($section['id'] ?? null);
+            if ($id === null) {
+                $missingIds[] = $reference;
+            } else {
+                $idBuckets[$id][] = $reference;
+            }
+
+            $label = self::stringOrNull($section['label'] ?? null);
+            if ($label !== null) {
+                $labelRecords[] = [
+                    'section' => $reference,
+                    'label' => $label,
+                ];
+            }
+
+            $language = self::stringOrNull($section['language'] ?? null);
+            if ($language !== null) {
+                $languageRecords[] = [
+                    'section' => $reference,
+                    'language' => $language,
+                ];
+            }
+
+            $titleCount = is_int($section['titleCount'] ?? null) ? $section['titleCount'] : 0;
+            if ($titleCount === 0) {
+                $missingTitles[] = $reference;
+            } elseif ($titleCount > 1) {
+                $duplicateTitles[] = [
+                    'section' => $reference,
+                    'titleCount' => $titleCount,
+                ];
+            }
+        }
+
+        $diagnostics = [];
+        if ($missingIds !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-id-missing',
+                'warning',
+                'One or more JATS/BITS sections are missing stable id metadata.',
+                [
+                    'missingSectionIdCount' => count($missingIds),
+                    'sections' => $missingIds,
+                ]
+            );
+        }
+
+        $duplicateIds = [];
+        foreach ($idBuckets as $id => $references) {
+            if (count($references) > 1) {
+                $duplicateIds[] = [
+                    'id' => $id,
+                    'sections' => $references,
+                ];
+            }
+        }
+        if ($duplicateIds !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-id-duplicate',
+                'warning',
+                'Duplicate JATS/BITS section ids were found in the review packet.',
+                [
+                    'duplicateSectionIdCount' => count($duplicateIds),
+                    'duplicateSectionIds' => array_values(array_map(
+                        static fn (array $duplicate): string => (string) $duplicate['id'],
+                        $duplicateIds
+                    )),
+                    'duplicates' => $duplicateIds,
+                ]
+            );
+        }
+
+        if ($labelRecords !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-labels-review-only',
+                'info',
+                'JATS/BITS section labels are inventoried for review but are not mapped as numbered Pandoc section labels.',
+                [
+                    'sectionLabelCount' => count($labelRecords),
+                    'labels' => array_values(array_map(
+                        static fn (array $record): string => (string) $record['label'],
+                        $labelRecords
+                    )),
+                    'sections' => $labelRecords,
+                ]
+            );
+        }
+
+        if ($languageRecords !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-languages-review-only',
+                'info',
+                'JATS/BITS section language tags are inventoried for review but are not mapped as Pandoc section language attributes.',
+                [
+                    'sectionLanguageCount' => count($languageRecords),
+                    'languages' => array_values(array_unique(array_map(
+                        static fn (array $record): string => (string) $record['language'],
+                        $languageRecords
+                    ))),
+                    'sections' => $languageRecords,
+                ]
+            );
+        }
+
+        if ($missingTitles !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-title-missing',
+                'warning',
+                'One or more JATS/BITS sections have no direct title metadata.',
+                [
+                    'missingSectionTitleCount' => count($missingTitles),
+                    'sections' => $missingTitles,
+                ]
+            );
+        }
+
+        if ($duplicateTitles !== []) {
+            $diagnostics[] = self::jatsSectionMetadataDiagnostic(
+                'section-title-duplicate',
+                'warning',
+                'One or more JATS/BITS sections have multiple direct title elements.',
+                [
+                    'duplicateSectionTitleCount' => count($duplicateTitles),
+                    'sections' => $duplicateTitles,
+                ]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsSectionMetadataDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        array $details
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'coveredByPacket' => true,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<string>
+     */
+    private static function jatsSectionValues(array $sections, string $key): array
+    {
+        $values = [];
+        foreach ($sections as $section) {
+            $value = self::stringOrNull($section[$key] ?? null);
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param array<string, mixed> $section
+     */
+    private static function jatsSectionReference(array $section, int $index): string
+    {
+        $id = self::stringOrNull($section['id'] ?? null);
+        $path = 'section[' . ($index + 1) . ']';
+
+        return $id === null ? $path : $path . '#' . $id;
+    }
+
+    /**
      * @param list<array<string, mixed>> $xrefs
      * @return array<string, mixed>
      */
@@ -2540,16 +2755,28 @@ final class XmlHtmlDom
                 continue;
             }
 
-            $title = self::firstChildElement($child, 'title');
-            $titleText = $title instanceof \DOMElement ? self::normalizedText($title) : null;
-            if ($titleText === '') {
-                $titleText = null;
+            $titleTexts = [];
+            foreach (self::childElements($child, 'title') as $title) {
+                $text = self::normalizedText($title);
+                if ($text !== '') {
+                    $titleTexts[] = $text;
+                }
             }
+            $titleText = $titleTexts[0] ?? null;
             $titlePath = $parentTitlePath;
             if ($titleText !== null) {
                 $titlePath[] = $titleText;
             }
-            $id = self::attribute($child, 'id');
+
+            $labels = [];
+            foreach (self::childElements($child, 'label') as $label) {
+                $text = self::normalizedText($label);
+                if ($text !== '') {
+                    $labels[] = $text;
+                }
+            }
+
+            $id = self::normalizedAttribute($child, 'id');
             $sections[] = [
                 'ordinal' => $ordinal++,
                 'id' => $id,
@@ -2557,8 +2784,15 @@ final class XmlHtmlDom
                 'depth' => $depth,
                 'type' => self::attribute($child, 'sec-type'),
                 'title' => $titleText,
+                'titleCount' => count($titleTexts),
+                'titleTexts' => $titleTexts,
                 'titlePath' => $titlePath,
                 'titlePathText' => $titlePath === [] ? null : implode(' > ', $titlePath),
+                'label' => $labels[0] ?? null,
+                'labelCount' => count($labels),
+                'labels' => $labels,
+                'language' => self::normalizedAttribute($child, 'lang', self::XML_NAMESPACE)
+                    ?? self::normalizedAttribute($child, 'lang'),
                 'directParagraphCount' => count(self::childElements($child, 'p')),
                 'paragraphCount' => count(self::descendantElements($child, 'p')),
                 'childSectionCount' => count(self::childElements($child, 'sec')),
@@ -3876,6 +4110,11 @@ final class XmlHtmlDom
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    private static function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     private static function docBookSectionLevel(\DOMElement $section): int
