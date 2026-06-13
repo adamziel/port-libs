@@ -476,8 +476,17 @@ final class PlainWriter
             $lines[] = $caption;
         }
 
-        foreach ($this->tableRowGroups($node) as $rows) {
-            foreach (TableGeometry::layoutRows($rows, $columnCount) as $layoutRow) {
+        $previousGroup = null;
+        foreach ($this->tableRowGroups($node) as $group) {
+            if (
+                $previousGroup !== null
+                && $previousGroup['section'] === 'table_body'
+                && $group['section'] === 'table_body'
+            ) {
+                $lines[] = '';
+            }
+
+            foreach (TableGeometry::layoutRows($group['rows'], $columnCount) as $layoutRow) {
                 $cells = [];
                 $visualColumn = 0;
                 foreach ($layoutRow['cells'] as $layoutCell) {
@@ -499,13 +508,15 @@ final class PlainWriter
 
                 $lines[] = rtrim(implode(' | ', $cells));
             }
+
+            $previousGroup = $group;
         }
 
         return implode("\n", $lines);
     }
 
     /**
-     * @return list<list<AstNode>>
+     * @return list<array{section:string, rows:list<AstNode>}>
      */
     private function tableRowGroups(AstNode $node): array
     {
@@ -535,7 +546,10 @@ final class PlainWriter
                 }
 
                 if ($rows !== []) {
-                    $groups[] = $rows;
+                    $groups[] = [
+                        'section' => $section->type,
+                        'rows' => $rows,
+                    ];
                 }
             }
         }

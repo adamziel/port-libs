@@ -141,6 +141,54 @@ return [
         $t->same('table', $result['diagnostics']['blocks'][0]['blockType']);
         $t->same(false, $result['diagnostics']['blocks'][0]['wrapped']);
     },
+    'separates multiple native table body groups in plain text' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $cell = static fn (array $children = []): AstNode => new AstNode('table_cell', [], $children);
+        $row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
+        $document = new AstNode('document', [], [
+            new AstNode('table', ['caption' => 'Body groups'], [
+                new AstNode('table_head', [], [
+                    $row([$cell([$text('Lane')]), $cell([$text('State')])]),
+                ]),
+                new AstNode('table_body', [
+                    'headRows' => [
+                        $row([$cell([$text('Core')]), $cell([$text('Ready')])]),
+                    ],
+                ], [
+                    $row([$cell([$text('A')]), $cell([$text('1')])]),
+                ]),
+                new AstNode('table_body', [
+                    'headRows' => [
+                        $row([$cell([$text('Addon')]), $cell([$text('Ready')])]),
+                    ],
+                ], [
+                    $row([$cell([$text('B')]), $cell([$text('2')])]),
+                ]),
+                new AstNode('table_foot', [], [
+                    $row([$cell([$text('Total')]), $cell([$text('3')])]),
+                ]),
+            ]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 80]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Body groups',
+            'Lane | State',
+            'Core | Ready',
+            'A | 1',
+            '',
+            'Addon | Ready',
+            'B | 2',
+            'Total | 3',
+        ]), $result['text']);
+        $t->same($result['text'], (new PlainWriter(['columns' => 80]))->write($document));
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(7, $result['diagnostics']['outputLineCount']);
+        $t->same(1, $result['diagnostics']['blankOutputLineCount']);
+        $t->same(8, $result['diagnostics']['blocks'][0]['outputLineCount']);
+        $t->same(1, $result['diagnostics']['blocks'][0]['blankOutputLineCount']);
+    },
     'reports generated wrap breaks by source line in plain writer diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha beta gamma delta epsilon\nOne two three four\nShort"]),
