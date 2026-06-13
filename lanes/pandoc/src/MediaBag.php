@@ -162,13 +162,21 @@ final class MediaBag
                 return $image;
             }
 
-            $resource = self::lookupResource($source, $resources, $resourcesByCanonicalSource);
-            if ($resource !== null) {
+            $lookup = self::lookupResource($source, $resources, $resourcesByCanonicalSource, false);
+            foreach ($lookup['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            if ($lookup['resource'] !== null) {
+                $resource = $lookup['resource'];
                 $contents = is_array($resource)
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
                     : (string) $resource;
                 $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
                 $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
+                $item = $this->lookup($source);
+                if ($item !== null && self::hasContentTypePathConflict($item['source'], $item['mimeType'])) {
+                    $diagnostics[] = 'media-resource-content-type-conflict:' . self::diagnosticSource($source);
+                }
                 $diagnostics[] = 'media-resource-loaded:' . self::diagnosticSource($source);
 
                 return $image;
@@ -197,13 +205,21 @@ final class MediaBag
                 return $link;
             }
 
-            $resource = self::lookupResource($source, $resources, $resourcesByCanonicalSource);
-            if ($resource !== null) {
+            $lookup = self::lookupResource($source, $resources, $resourcesByCanonicalSource, true);
+            foreach ($lookup['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            if ($lookup['resource'] !== null) {
+                $resource = $lookup['resource'];
                 $contents = is_array($resource)
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
                     : (string) $resource;
                 $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
                 $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
+                $item = $this->lookup($source);
+                if ($item !== null && self::hasContentTypePathConflict($item['source'], $item['mimeType'])) {
+                    $diagnostics[] = 'media-resource-content-type-conflict:' . self::diagnosticSource($source);
+                }
                 $diagnostics[] = 'media-resource-link-loaded:' . self::diagnosticSource($source);
 
                 return $link;
@@ -227,7 +243,8 @@ final class MediaBag
         $destination = self::normalizeExtractionDestination($destination);
         $entries = [];
         $diagnostics = [];
-        $plannedPaths = $this->plannedExtractionPaths();
+        $extractionPlan = $this->plannedExtractionPlan();
+        $plannedPaths = $extractionPlan['paths'];
         foreach ($this->itemsForExtraction() as $item) {
             $mediaPath = $plannedPaths[$item['canonicalSource']] ?? $item['path'];
             $entries[] = [
@@ -239,8 +256,14 @@ final class MediaBag
                 'source' => $item['source'],
                 'contents' => $item['contents'],
             ];
+            foreach ($extractionPlan['diagnostics'][$item['canonicalSource']] ?? [] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
             if ($mediaPath !== $item['path']) {
                 $diagnostics[] = 'media-resource-path-collision:' . self::diagnosticSource($item['source']);
+            }
+            if (self::hasContentTypePathConflict($item['source'], $item['mimeType'])) {
+                $diagnostics[] = 'media-resource-content-type-conflict:' . self::diagnosticSource($item['source']);
             }
         }
 
@@ -311,11 +334,15 @@ final class MediaBag
 
         return array_replace($attributes, [
             'data-pandoc-media-source' => $item['source'],
+            'data-pandoc-media-canonical-source' => $item['canonicalSource'],
+            'data-pandoc-media-original-path' => $item['path'],
             'data-pandoc-media-path' => $mediaPath,
             'data-pandoc-media-target' => $mappedUrl,
             'data-pandoc-media-type' => $item['mimeType'],
             'data-pandoc-media-bytes' => (string) $item['byteLength'],
             'data-pandoc-media-sha1' => $item['sha1'],
+            'data-pandoc-media-source-sha1' => sha1($item['source']),
+            'data-pandoc-media-path-repaired' => $mediaPath === $item['path'] ? 'false' : 'true',
         ]);
     }
 
@@ -344,23 +371,37 @@ final class MediaBag
     }
 
     /**
-     * @return array<string, string>
+     * @return array{paths:array<string, string>, diagnostics:array<string, list<string>>}
      */
-    private function plannedExtractionPaths(): array
+    private function plannedExtractionPlan(): array
     {
         $paths = [];
         $used = [];
+        $usedFolded = [];
+        $diagnostics = [];
         foreach ($this->itemsForExtraction() as $item) {
             $path = $item['path'];
+            $foldedPath = self::caseFoldPath($path);
             if (isset($used[$path]) && $used[$path] !== $item['sha1']) {
-                $path = self::disambiguateMediaPath($path, $item['sha1'], $item['canonicalSource'], $used);
+                $path = self::disambiguateMediaPath($path, $item['sha1'], $item['canonicalSource'], $used, $usedFolded);
+            } elseif (
+                isset($usedFolded[$foldedPath])
+                && $usedFolded[$foldedPath]['path'] !== $path
+                && $usedFolded[$foldedPath]['sha1'] !== $item['sha1']
+            ) {
+                $diagnostics[$item['canonicalSource']][] = 'media-resource-path-casefold-conflict:' . self::diagnosticSource($item['source']);
+                $path = self::disambiguateMediaPath($path, $item['sha1'], $item['canonicalSource'], $used, $usedFolded);
             }
 
             $paths[$item['canonicalSource']] = $path;
             $used[$path] = $item['sha1'];
+            $usedFolded[self::caseFoldPath($path)] = [
+                'path' => $path,
+                'sha1' => $item['sha1'],
+            ];
         }
 
-        return $paths;
+        return ['paths' => $paths, 'diagnostics' => $diagnostics];
     }
 
     private static function canonicalizeSource(string $source): string
@@ -543,8 +584,9 @@ final class MediaBag
 
     /**
      * @param array<string, string> $usedPaths
+     * @param array<string, array{path:string, sha1:string}> $usedFoldedPaths
      */
-    private static function disambiguateMediaPath(string $path, string $sha1, string $canonicalSource, array $usedPaths): string
+    private static function disambiguateMediaPath(string $path, string $sha1, string $canonicalSource, array $usedPaths, array $usedFoldedPaths = []): string
     {
         $extension = self::pathExtension($path);
         $stem = $extension === '' ? $path : substr($path, 0, -strlen($extension));
@@ -554,7 +596,11 @@ final class MediaBag
             $suffix = substr(sha1($seed), 0, 12);
             $candidate = $stem . '-' . $suffix . $extension;
             $seed = $candidate . "\0" . $seed;
-        } while (isset($usedPaths[$candidate]) && $usedPaths[$candidate] !== $sha1);
+            $foldedCandidate = self::caseFoldPath($candidate);
+        } while (
+            (isset($usedPaths[$candidate]) && $usedPaths[$candidate] !== $sha1)
+            || (isset($usedFoldedPaths[$foldedCandidate]) && $usedFoldedPaths[$foldedCandidate]['sha1'] !== $sha1)
+        );
 
         return $candidate;
     }
@@ -569,6 +615,11 @@ final class MediaBag
         }
 
         return substr($basename, $position);
+    }
+
+    private static function caseFoldPath(string $path): string
+    {
+        return strtolower($path);
     }
 
     private static function normalizeExtractionDestination(string $destination): string
@@ -602,25 +653,22 @@ final class MediaBag
     /**
      * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resources
      * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resourcesByCanonicalSource
-     * @return string|array{contents?:string, data?:string, mimeType?:string|null}|null
+     * @return array{
+     *     resource:string|array{contents?:string, data?:string, mimeType?:string|null}|null,
+     *     diagnostics:list<string>
+     * }
      */
-    private static function lookupResource(string $source, array $resources, array $resourcesByCanonicalSource): string|array|null
+    private static function lookupResource(string $source, array $resources, array $resourcesByCanonicalSource, bool $linkedResource): array
     {
-        foreach (self::resourceLookupKeys($source) as $key) {
-            if (array_key_exists($key, $resources)) {
-                return $resources[$key];
-            }
-
-            $canonicalKey = self::canonicalizeSource($key);
-            if (array_key_exists($canonicalKey, $resources)) {
-                return $resources[$canonicalKey];
-            }
-            if (array_key_exists($canonicalKey, $resourcesByCanonicalSource)) {
-                return $resourcesByCanonicalSource[$canonicalKey];
-            }
+        $matches = self::resourceLookupMatches($source, $resources, $resourcesByCanonicalSource);
+        if ($matches === []) {
+            return ['resource' => null, 'diagnostics' => []];
         }
 
-        return null;
+        return [
+            'resource' => $matches[0]['resource'],
+            'diagnostics' => self::resourceConflictDiagnostics($source, $matches, $linkedResource),
+        ];
     }
 
     /**
@@ -628,19 +676,226 @@ final class MediaBag
      */
     private static function resourceLookupKeys(string $source): array
     {
-        $keys = [$source, self::canonicalizeSource($source)];
+        return array_map(
+            static fn (array $record): string => $record['key'],
+            self::resourceLookupKeyRecords($source)
+        );
+    }
+
+    /**
+     * @return list<array{key:string, repair:string}>
+     */
+    private static function resourceLookupKeyRecords(string $source): array
+    {
+        $records = [
+            ['key' => $source, 'repair' => 'exact'],
+            ['key' => self::canonicalizeSource($source), 'repair' => 'canonical'],
+        ];
         $pathOnlySource = self::pathOnlyRelativeSource($source);
         if ($pathOnlySource !== $source) {
-            $keys[] = $pathOnlySource;
-            $keys[] = self::canonicalizeSource($pathOnlySource);
+            $records[] = ['key' => $pathOnlySource, 'repair' => 'path-only'];
+            $records[] = ['key' => self::canonicalizeSource($pathOnlySource), 'repair' => 'path-only'];
         }
         $decodedPathOnlySource = self::decodedRelativeSourceKey($pathOnlySource);
         if ($decodedPathOnlySource !== null) {
-            $keys[] = $decodedPathOnlySource;
-            $keys[] = self::canonicalizeSource($decodedPathOnlySource);
+            $records[] = ['key' => $decodedPathOnlySource, 'repair' => 'percent-decoded'];
+            $records[] = ['key' => self::canonicalizeSource($decodedPathOnlySource), 'repair' => 'percent-decoded'];
         }
 
-        return array_values(array_unique($keys));
+        $unique = [];
+        $result = [];
+        foreach ($records as $record) {
+            if (isset($unique[$record['key']])) {
+                continue;
+            }
+
+            $unique[$record['key']] = true;
+            $result[] = $record;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resources
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resourcesByCanonicalSource
+     * @return list<array{
+     *     sourceKey:string,
+     *     repair:string,
+     *     resource:string|array{contents?:string, data?:string, mimeType?:string|null}
+     * }>
+     */
+    private static function resourceLookupMatches(string $source, array $resources, array $resourcesByCanonicalSource): array
+    {
+        $matches = [];
+        $seen = [];
+        foreach (self::resourceLookupKeyRecords($source) as $record) {
+            $key = $record['key'];
+            $repair = $record['repair'];
+            if (array_key_exists($key, $resources)) {
+                self::appendResourceLookupMatch($matches, $seen, $key, $repair, $resources[$key]);
+            }
+
+            $canonicalKey = self::canonicalizeSource($key);
+            if (array_key_exists($canonicalKey, $resources)) {
+                self::appendResourceLookupMatch($matches, $seen, $canonicalKey, $repair, $resources[$canonicalKey]);
+            }
+            if (array_key_exists($canonicalKey, $resourcesByCanonicalSource)) {
+                self::appendResourceLookupMatch($matches, $seen, $canonicalKey, $repair, $resourcesByCanonicalSource[$canonicalKey]);
+            }
+
+            foreach ($resources as $resourceSource => $resource) {
+                if (!is_string($resourceSource) || self::canonicalizeSource($resourceSource) !== $canonicalKey) {
+                    continue;
+                }
+
+                self::appendResourceLookupMatch($matches, $seen, $resourceSource, $repair, $resource);
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array{sourceKey:string, repair:string, resource:string|array{contents?:string, data?:string, mimeType?:string|null}}> $matches
+     * @param array<string, bool> $seen
+     * @param string|array{contents?:string, data?:string, mimeType?:string|null} $resource
+     */
+    private static function appendResourceLookupMatch(array &$matches, array &$seen, string $sourceKey, string $repair, string|array $resource): void
+    {
+        $parts = self::resourceParts($sourceKey, $resource);
+        $fingerprint = $sourceKey . "\0" . $parts['sha1'] . "\0" . $parts['mimeType'];
+        if (isset($seen[$fingerprint])) {
+            return;
+        }
+
+        $seen[$fingerprint] = true;
+        $matches[] = [
+            'sourceKey' => $sourceKey,
+            'repair' => $repair,
+            'resource' => $resource,
+        ];
+    }
+
+    /**
+     * @param list<array{sourceKey:string, repair:string, resource:string|array{contents?:string, data?:string, mimeType?:string|null}}> $matches
+     * @return list<string>
+     */
+    private static function resourceConflictDiagnostics(string $source, array $matches, bool $linkedResource): array
+    {
+        $fingerprints = [];
+        $mimeGroupFingerprints = [];
+        $hasPercentDecodedCandidate = false;
+        foreach ($matches as $match) {
+            $parts = self::resourceParts($match['sourceKey'], $match['resource']);
+            $fingerprint = $parts['sha1'] . "\0" . $parts['mimeType'];
+            $fingerprints[$fingerprint] = true;
+            $mimeGroupFingerprints[$parts['mimeGroup']][$fingerprint] = true;
+            if ($match['repair'] === 'percent-decoded') {
+                $hasPercentDecodedCandidate = true;
+            }
+        }
+
+        if (count($fingerprints) < 2) {
+            return [];
+        }
+
+        $diagnostics = ['media-resource-repair-conflict:' . self::diagnosticSource($source)];
+        if ($hasPercentDecodedCandidate) {
+            $diagnostics[] = 'media-resource-percent-decode-conflict:' . self::diagnosticSource($source);
+        }
+        if ($linkedResource && self::hasMimeGroupConflict($mimeGroupFingerprints)) {
+            $diagnostics[] = 'media-resource-link-mime-group-conflict:' . self::diagnosticSource($source);
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, array<string, bool>> $mimeGroupFingerprints
+     */
+    private static function hasMimeGroupConflict(array $mimeGroupFingerprints): bool
+    {
+        if (count($mimeGroupFingerprints) > 1) {
+            return true;
+        }
+
+        foreach ($mimeGroupFingerprints as $fingerprints) {
+            if (count($fingerprints) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param string|array{contents?:string, data?:string, mimeType?:string|null} $resource
+     * @return array{contents:string, mimeType:string, sha1:string, mimeGroup:string}
+     */
+    private static function resourceParts(string $sourceKey, string|array $resource): array
+    {
+        $contents = is_array($resource)
+            ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
+            : (string) $resource;
+        $mimeType = is_array($resource) && isset($resource['mimeType']) && is_string($resource['mimeType'])
+            ? self::normalizeMimeType($resource['mimeType'])
+            : '';
+        if ($mimeType === '') {
+            $mimeType = self::mimeTypeFromSourcePath($sourceKey);
+        }
+
+        return [
+            'contents' => $contents,
+            'mimeType' => $mimeType,
+            'sha1' => sha1($contents),
+            'mimeGroup' => self::mimeGroup($mimeType),
+        ];
+    }
+
+    private static function hasContentTypePathConflict(string $source, string $mimeType): bool
+    {
+        if (str_starts_with($source, 'data:')) {
+            return false;
+        }
+
+        $sourceMimeType = self::mimeTypeFromSourcePath($source);
+        $normalizedMimeType = self::normalizeMimeType($mimeType);
+
+        return $sourceMimeType !== 'application/octet-stream'
+            && $normalizedMimeType !== ''
+            && $sourceMimeType !== $normalizedMimeType;
+    }
+
+    private static function mimeTypeFromSourcePath(string $source): string
+    {
+        $path = self::pathOnlyRelativeSource($source);
+        if (self::isUri($source)) {
+            $uriPath = parse_url($source, PHP_URL_PATH);
+            if (is_string($uriPath) && $uriPath !== '') {
+                $path = $uriPath;
+            }
+        }
+
+        return self::mimeTypeFromPath(rawurldecode($path));
+    }
+
+    private static function normalizeMimeType(string $mimeType): string
+    {
+        $mimeType = strtolower(trim($mimeType));
+        $parameterPosition = strpos($mimeType, ';');
+        if ($parameterPosition !== false) {
+            $mimeType = trim(substr($mimeType, 0, $parameterPosition));
+        }
+
+        return $mimeType;
+    }
+
+    private static function mimeGroup(string $mimeType): string
+    {
+        $slashPosition = strpos($mimeType, '/');
+
+        return $slashPosition === false ? $mimeType : substr($mimeType, 0, $slashPosition);
     }
 
     private static function pathOnlyRelativeSource(string $source): string
