@@ -201,6 +201,202 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes jats figure permissions and media license diagnostics without payload exposure' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front><article-meta><title-group><article-title>Figure Permissions</article-title></title-group></article-meta></front>
+  <body>
+    <fig id="f1">
+      <label>Fig. 1</label>
+      <caption><p>Figure</p></caption>
+      <permissions>
+        <copyright-statement>Copyright 2026 Port Libs</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>Port Libs</copyright-holder>
+        <license license-type="open-access" xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license>
+        <license-ref xlink:href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0 deed</license-ref>
+      </permissions>
+      <graphic id="g1" xlink:href="figures/chart.tif" mimetype="image" mime-subtype="tiff"/>
+      <graphic id="g2" xlink:href="figures/duplicate.tif">
+        <permissions>
+          <license xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license>
+          <license xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license>
+        </permissions>
+      </graphic>
+    </fig>
+    <fig id="f-missing"><caption><p>No license</p></caption><graphic xlink:href="figures/missing.png"/></fig>
+  </body>
+</article>
+XML, 'JATS figure permissions XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['payloadBytesExposed']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['f1', 'f-missing'], $packet['figureIds']);
+        $t->same('jats-bits-figure-permissions-metadata-only', $packet['figurePermissionReviewPolicy']);
+        $t->same(false, $packet['figurePermissionPayloadBytesExposed']);
+        $t->same(2, $packet['figurePermissionSummaryCount']);
+        $t->same([
+            'figures/chart.tif',
+            'figures/duplicate.tif',
+            'figures/missing.png',
+        ], $packet['figureMediaTargets']);
+        $t->same(3, $packet['figureMediaTargetCount']);
+        $t->same(['duplicate-license', 'missing-license'], $packet['figurePermissionIssueCodes']);
+        $t->same(2, $packet['figurePermissionIssueCount']);
+
+        $licensedFigure = $packet['figurePermissionSummaries'][0];
+        $missingFigure = $packet['figurePermissionSummaries'][1];
+        $t->same('f1', $licensedFigure['figureId']);
+        $t->same('Fig. 1', $licensedFigure['label']);
+        $t->same('Figure', $licensedFigure['captionText']);
+        $t->same([
+            'figures/chart.tif',
+            'figures/duplicate.tif',
+        ], $licensedFigure['mediaTargets']);
+        $t->same(2, $licensedFigure['mediaTargetCount']);
+        $t->same(2, $licensedFigure['mediaCount']);
+        $t->same(1, $licensedFigure['permissionCount']);
+        $t->same(1, $licensedFigure['licenseCount']);
+        $t->same(1, $licensedFigure['licenseRefCount']);
+        $t->same(1, $licensedFigure['copyrightStatementCount']);
+        $t->same(false, $licensedFigure['payloadBytesExposed']);
+        $t->same('Copyright 2026 Port Libs', $licensedFigure['permissions'][0]['copyrightStatements'][0] ?? null);
+        $t->same(['2026'], $licensedFigure['permissions'][0]['copyrightYears'] ?? null);
+        $t->same(['Port Libs'], $licensedFigure['permissions'][0]['copyrightHolders'] ?? null);
+        $t->same('open-access', $licensedFigure['permissions'][0]['licenses'][0]['licenseType'] ?? null);
+        $t->same('https://creativecommons.org/licenses/by/4.0/', $licensedFigure['permissions'][0]['licenses'][0]['href'] ?? null);
+        $t->same(['CC BY 4.0'], $licensedFigure['permissions'][0]['licenses'][0]['licenseParagraphs'] ?? null);
+        $t->same('https://creativecommons.org/licenses/by/4.0/', $licensedFigure['permissions'][0]['licenseRefs'][0]['href'] ?? null);
+        $t->same('graphic', $licensedFigure['media'][0]['element']);
+        $t->same('g1', $licensedFigure['media'][0]['id']);
+        $t->same('figures/chart.tif', $licensedFigure['media'][0]['target']);
+        $t->same('image', $licensedFigure['media'][0]['mimeType']);
+        $t->same('tiff', $licensedFigure['media'][0]['mimeSubtype']);
+        $t->same(false, $licensedFigure['media'][0]['payloadBytesExposed']);
+        $t->same(2, $licensedFigure['media'][1]['licenseCount']);
+        $t->same('duplicate-license', $licensedFigure['media'][1]['issues'][0]['code'] ?? null);
+        $t->same('media', $licensedFigure['media'][1]['issues'][0]['scope'] ?? null);
+        $t->same('f1', $licensedFigure['media'][1]['issues'][0]['figureId'] ?? null);
+        $t->same('figures/duplicate.tif', $licensedFigure['media'][1]['issues'][0]['mediaTarget'] ?? null);
+        $t->same(2, $licensedFigure['media'][1]['issues'][0]['count'] ?? null);
+        $t->same('f-missing', $missingFigure['figureId']);
+        $t->same(['figures/missing.png'], $missingFigure['mediaTargets']);
+        $t->same(0, $missingFigure['licenseCount']);
+        $t->same('missing-license', $missingFigure['issues'][0]['code'] ?? null);
+        $t->same('figure', $missingFigure['issues'][0]['scope'] ?? null);
+        $t->same(['figures/missing.png'], $missingFigure['issues'][0]['mediaTargets'] ?? null);
+        $t->same(false, $missingFigure['media'][0]['payloadBytesExposed']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'classifies jats figure license targets with bounded diagnostics' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" dtd-version="1.3" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front><article-meta><title-group><article-title>License targets</article-title></title-group></article-meta></front>
+  <body>
+    <fig id="fig-targets">
+      <caption><p>Targets</p></caption>
+      <permissions>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>Port Libs</copyright-holder>
+        <license id="lic-local" license-type="open-access"><license-p>Local license text</license-p></license>
+        <license-ref xlink:href="#lic-local">Local license reference</license-ref>
+        <license-ref xlink:href="#missing-license">Missing license reference</license-ref>
+        <license-ref xlink:href="#duplicate-license">Duplicate license reference</license-ref>
+        <license-ref xlink:href="javascript:alert(1)">Unsafe license reference</license-ref>
+        <license-ref>Missing href license reference</license-ref>
+        <license license-type="external-deed" xlink:href="https://creativecommons.org/licenses/by/4.0/">
+          <license-p>External deed <ext-link ext-link-type="license" xlink:href="https://creativecommons.org/licenses/by/4.0/legalcode">Legal code</ext-link></license-p>
+        </license>
+      </permissions>
+      <graphic id="g-target" xlink:href="figures/target.png">
+        <permissions>
+          <license-ref xlink:href="#lic-local">Graphic local license</license-ref>
+          <license-ref xlink:href="licenses/relative.html">Relative license</license-ref>
+        </permissions>
+      </graphic>
+    </fig>
+    <license id="duplicate-license"><license-p>Duplicate A</license-p></license>
+    <license id="duplicate-license"><license-p>Duplicate B</license-p></license>
+  </body>
+</article>
+XML, 'JATS figure license target XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['payloadBytesExposed']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['fig-targets'], $packet['figureIds']);
+        $t->same(['figures/target.png'], $packet['figureMediaTargets']);
+        $t->same(['missing-license-target', 'duplicate-license-target', 'unsafe-license-target'], $packet['figureLicenseTargetIssueCodes']);
+        $t->same(4, $packet['figureLicenseTargetIssueCount']);
+        $t->same([
+            'external' => 2,
+            'local-fragment' => 4,
+            'missing' => 1,
+            'relative' => 1,
+            'unsafe' => 1,
+        ], $packet['figureLicenseTargetClassCounts']);
+        $t->same(9, $packet['figureLicenseTargetCount']);
+
+        $targets = [];
+        foreach ($packet['figureLicenseTargets'] as $target) {
+            $targets[$target['sourceElement'] . ':' . ($target['href'] ?? 'missing') . ':' . ($target['mediaTarget'] ?? 'figure')] = $target;
+        }
+
+        $localRef = $targets['license-ref:#lic-local:figure'];
+        $t->same('fig-targets', $localRef['figureId']);
+        $t->same(null, $localRef['mediaTarget']);
+        $t->same('local-fragment', $localRef['targetKind']);
+        $t->same('lic-local', $localRef['targetId']);
+        $t->same('license', $localRef['targetElement']);
+        $t->same(true, $localRef['targetExists']);
+        $t->same(1, $localRef['targetDuplicateCount']);
+        $t->same(false, $localRef['external']);
+        $t->same(false, $localRef['unsafe']);
+
+        $externalLicense = $targets['license:https://creativecommons.org/licenses/by/4.0/:figure'];
+        $t->same('license', $externalLicense['sourceElement']);
+        $t->same('external-deed', $externalLicense['targetType']);
+        $t->same('external', $externalLicense['targetKind']);
+        $t->same('https', $externalLicense['scheme']);
+        $t->same(true, $externalLicense['external']);
+
+        $extLink = $targets['ext-link:https://creativecommons.org/licenses/by/4.0/legalcode:figure'];
+        $t->same('license', $extLink['targetType']);
+        $t->same('external', $extLink['targetKind']);
+        $t->same('Legal code', $extLink['text']);
+
+        $graphicLocalRef = $targets['license-ref:#lic-local:figures/target.png'];
+        $t->same('fig-targets', $graphicLocalRef['figureId']);
+        $t->same('figures/target.png', $graphicLocalRef['mediaTarget']);
+        $t->same('local-fragment', $graphicLocalRef['targetKind']);
+        $t->same(true, $graphicLocalRef['targetExists']);
+
+        $relativeRef = $targets['license-ref:licenses/relative.html:figures/target.png'];
+        $t->same('relative', $relativeRef['targetKind']);
+        $t->same(false, $relativeRef['external']);
+        $t->same(false, $relativeRef['unsafe']);
+
+        $issues = [];
+        foreach ($packet['figureLicenseTargetIssues'] as $issue) {
+            $issues[$issue['code'] . ':' . ($issue['href'] ?? 'missing')] = $issue;
+        }
+        $t->same('unresolved-fragment-target', $issues['missing-license-target:#missing-license']['reason'] ?? null);
+        $t->same('duplicate-fragment-target', $issues['duplicate-license-target:#duplicate-license']['reason'] ?? null);
+        $t->same(2, $issues['duplicate-license-target:#duplicate-license']['targetDuplicateCount'] ?? null);
+        $t->same('unsafe-target', $issues['unsafe-license-target:javascript:alert(1)']['reason'] ?? null);
+        $t->same('missing-href', $issues['missing-license-target:missing']['reason'] ?? null);
+
+        $figureSummary = $packet['figurePermissionSummaries'][0];
+        $t->same(['2026'], $figureSummary['permissions'][0]['copyrightYears'] ?? null);
+        $t->same(['Port Libs'], $figureSummary['permissions'][0]['copyrightHolders'] ?? null);
+        $t->same(2, $figureSummary['permissions'][0]['licenseCount'] ?? null);
+        $t->same(5, $figureSummary['permissions'][0]['licenseRefCount'] ?? null);
+        $t->same(1, $figureSummary['permissions'][0]['extLinkCount'] ?? null);
+        $t->same('figures/target.png', $figureSummary['media'][0]['target'] ?? null);
+        $t->same(false, $figureSummary['media'][0]['payloadBytesExposed'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes docbook structure review packets without direct reader parity claims' => static function (TestRunner $t): void {
         $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:lang="en">
