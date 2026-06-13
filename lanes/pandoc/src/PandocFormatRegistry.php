@@ -1000,7 +1000,7 @@ final class PandocFormatRegistry
     }
 
     /**
-     * @return array{token:string, normalizedToken:string, kind:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, verdict:string, reason:string, unsupported:bool, partial:bool, inputImplementation:string, directReaderParitySupported:bool}|null
+     * @return array{token:string, normalizedToken:string, kind:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, verdict:string, reasonCode:string, reason:string, serializedReason:string, unsupported:bool, partial:bool, inputImplementation:string, directReaderParitySupported:bool}|null
      */
     public static function wikiInputTokenStatusGate(string $token): ?array
     {
@@ -1031,6 +1031,7 @@ final class PandocFormatRegistry
         $direction = $directions[$format];
         $support = $inputSupport[$format];
         $verdict = $support['status'];
+        $reasonCode = self::wikiInputTokenStatusReasonCode($verdict, $support['implementation']);
 
         return [
             'token' => $trimmed,
@@ -1043,7 +1044,15 @@ final class PandocFormatRegistry
             'inputStatus' => $direction['inputStatus'],
             'outputStatus' => $direction['outputStatus'],
             'verdict' => $verdict,
+            'reasonCode' => $reasonCode,
             'reason' => $support['notes'],
+            'serializedReason' => self::serializedWikiInputTokenStatusReason(
+                $format,
+                $kind,
+                $normalizedToken,
+                $verdict,
+                $reasonCode
+            ),
             'unsupported' => $verdict === 'unsupported',
             'partial' => $verdict === 'partial',
             'inputImplementation' => $support['implementation'],
@@ -3961,6 +3970,37 @@ final class PandocFormatRegistry
         $extensionOffset = strcspn($normalized, '+-');
 
         return substr($normalized, 0, $extensionOffset);
+    }
+
+    private static function wikiInputTokenStatusReasonCode(string $verdict, string $implementation): string
+    {
+        if ($verdict === 'unsupported') {
+            return 'wiki-native-reader-unregistered';
+        }
+        if ($verdict === 'partial') {
+            return 'wiki-native-reader-partial';
+        }
+        if ($implementation !== '') {
+            return 'wiki-native-reader-registered';
+        }
+
+        return 'wiki-native-reader-status-unknown';
+    }
+
+    private static function serializedWikiInputTokenStatusReason(
+        string $format,
+        string $kind,
+        string $normalizedToken,
+        string $verdict,
+        string $reasonCode
+    ): string {
+        return implode(';', [
+            'format=' . $format,
+            'kind=' . $kind,
+            'normalizedToken=' . $normalizedToken,
+            'inputStatus=' . $verdict,
+            'reasonCode=' . $reasonCode,
+        ]);
     }
 
     /**
