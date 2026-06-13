@@ -19,11 +19,20 @@
 ## Verification
 
 - `php -l lanes/pandoc/src/LatexWriter.php`
-- `php -l lanes/pandoc/tests/LatexWriterTest.php`
+- `php -l lanes/pandoc/src/WordPressBlockWriter.php`
+- In-memory `TestRunner` harness selecting the three note-anchor cases from
+  `lanes/pandoc/tests/LatexWriterTest.php`
+  - 3 selected note tests, 23 assertions, 0 failures
+- `php tools/run-tests.php lanes/pandoc/tests/CitationCslProcessorTest.php`
+  - 1 test file, 6187 assertions, 0 failures
 - `php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php`
-  - 1 test file, 37 assertions, 0 failures
+  - 1 test file, 37 assertions, 11 baseline failures outside the note slice
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - 1 test file, 4228 assertions, 71 baseline failures across older writer
+    expectations; labelled-note anchor differences were observed as part of
+    this intentional preservation change
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - 46 test files, 75679 assertions, 0 failures
+  - 534 test files, 142283 assertions, 8915 baseline failures
 
 No Pandoc executable, Cabal solver/build/test command, Haskell runner, TeX/PDF
 engine, browser renderer, office suite, external validator, online service,
@@ -31,10 +40,8 @@ live provider test, or live-service provider test was executed.
 
 ## Accounting
 
-- `phpPass` moves from 3358 to 3360.
-- `phpFail` remains 0.
-- The mapped denominator moves from 3318 to 3320.
-- `mappedLatexNoteAnchorEndnoteGroupingCases` is 1.
-- `latexNoteAnchorEndnoteGroupingAssertions` is 5.
-- `mappedLatexNoteAnchorGroupedRoundTripCases` is 1.
-- `latexNoteAnchorGroupedRoundTripAssertions` is 10.
+- Current-base lane status counters are not incremented because the rebased
+  `main` branch already contains the note-anchor coverage; this slice restores
+  the implementation beneath those tests.
+- `mappedLatexNoteAnchorEndnoteGroupingCases` is 3.
+- `latexNoteAnchorEndnoteGroupingAssertions` is 23.
