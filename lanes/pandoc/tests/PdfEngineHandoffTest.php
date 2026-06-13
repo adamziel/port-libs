@@ -3839,6 +3839,232 @@ return [
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
     },
 
+    'plans typst import path policy from source bytes without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Import Policy Packet',
+            '',
+            '#import "@preview/cetz:0.3.2/src/lib.typ": canvas',
+            '#include "chapters/intro.typ"',
+            '#include "chapters/intro.typ"',
+            '#import "https://example.invalid/theme.typ": theme',
+            '#include "../secrets.typ"',
+            '#import themePackage',
+            '#include "@preview/cetz"',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'build/import-path-policy.pdf',
+            'source' => $source,
+        ]);
+        $policy = $plan['typstImportPathPolicy'];
+        $expectedPackageDependency = [
+            'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+            'namespace' => 'preview',
+            'package' => 'cetz',
+            'version' => '0.3.2',
+            'subpath' => 'src/lib.typ',
+            'sourceClass' => 'preview-registry',
+        ];
+        $pdfBytes = "%PDF-1.7\n% fake Typst import path policy packet\n%%EOF\n";
+
+        $t->same('review', $policy['reviewStatus']);
+        $t->same(7, $policy['directiveCount']);
+        $t->same(6, $policy['literalDirectiveCount']);
+        $t->same(1, $policy['unsupportedDirectiveCount']);
+        $t->same(3, $policy['importCount']);
+        $t->same(4, $policy['includeCount']);
+        $t->same(6, $policy['pathCount']);
+        $t->same(5, $policy['uniquePathCount']);
+        $t->same([
+            'package' => 1,
+            'local' => 2,
+            'remote' => 1,
+            'unsafe' => 1,
+            'unsupported' => 1,
+        ], $policy['kindCounts']);
+        $t->same(['@preview/cetz:0.3.2/src/lib.typ'], $policy['packagePaths']);
+        $t->same(['chapters/intro.typ'], $policy['localPaths']);
+        $t->same(['https://example.invalid/theme.typ'], $policy['remotePaths']);
+        $t->same(['../secrets.typ'], $policy['unsafePaths']);
+        $t->same([
+            [
+                'path' => 'chapters/intro.typ',
+                'count' => 2,
+                'directives' => ['include'],
+            ],
+        ], $policy['duplicatePaths']);
+        $t->same(1, $policy['duplicatePathCount']);
+        $t->same(1, $policy['duplicateReferenceCount']);
+        $t->same(2, $policy['unsupportedEntryCount']);
+        $t->same(['non-literal-path', 'unsupported-package-reference'], $policy['unsupportedReasons']);
+        $t->same([
+            'non-literal-path' => 1,
+            'unsupported-package-reference' => 1,
+        ], $policy['unsupportedReasonCounts']);
+        $t->same([
+            [
+                'directive' => 'import',
+                'line' => 8,
+                'column' => 1,
+                'reason' => 'non-literal-path',
+            ],
+        ], $policy['unsupportedDirectives']);
+        $t->same('@preview/cetz:0.3.2/src/lib.typ', $policy['packageReferences'][0]);
+        $t->same([$expectedPackageDependency], $policy['packageDependencies']);
+        $t->same(['preview-registry' => 1], $policy['sourceClassCounts']);
+        $t->same([
+            'typst-import-package-paths:1',
+            'typst-import-remote-paths:1',
+            'typst-import-unsafe-paths:1',
+            'typst-import-duplicate-paths:1',
+            'typst-import-unsupported-entries:2',
+        ], $policy['issues']);
+        $t->same('package', $policy['paths'][0]['kind']);
+        $t->same('local', $policy['paths'][1]['kind']);
+        $t->same('remote', $policy['paths'][3]['kind']);
+        $t->same(['remote-import-path'], $policy['paths'][3]['issues']);
+        $t->same('unsafe', $policy['paths'][4]['kind']);
+        $t->same(['unsafe-import-path'], $policy['paths'][4]['issues']);
+        $t->same('unsupported', $policy['paths'][5]['kind']);
+        $t->same(['unsupported-package-reference'], $policy['paths'][5]['issues']);
+        $t->same(true, $policy['metadataOnly']);
+        $t->same('metadata-only', $policy['byteExposurePolicy']);
+        $t->same('not-executed', $policy['networkAccessPolicy']);
+        $t->contains('typst-import-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-directives:7', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-packages:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-local:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-remote:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issues:5', implode(',', $plan['diagnostics']));
+
+        $result = $handoff->fakeRun($plan, ['files' => ['build/import-path-policy.pdf' => $pdfBytes]]);
+        $sequence = $handoff->fakeRunSequence($plan, [['files' => ['build/import-path-policy.pdf' => $pdfBytes]]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($policy, $result['typstImportPathPolicy']);
+        $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same([], $result['typstPackageDependencyPolicy']);
+        $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($policy, $sequence['finalTypstImportPathPolicy']);
+    },
+
+    'plans typst import path edge policy without counting comments' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = <<<'TYPST'
+= Typst Import Edge Packet
+// #include "comments/line.typ"
+/*
+#import "@preview/commented:1.0.0": ignored
+*/
+#import "@preview/cetz:0.3.2/src/lib.typ": canvas as cetz_canvas
+#import '@preview/cetz:0.3.2/src/lib.typ': draw as cetz_draw
+#include "chapters/intro.typ"
+#include 'chapters/intro.typ'
+#include 'chapters/appendix file.typ'
+#include "..\\secrets.typ"
+#import "@team/private:1.2.0/theme.typ": theme as private_theme
+TYPST;
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/import-edge.typ',
+            'outputPath' => 'build/import-edge.pdf',
+            'source' => $source,
+        ]);
+        $policy = $plan['typstImportPathPolicy'];
+        $pdfBytes = "%PDF-1.7\n% fake Typst import edge policy packet\n%%EOF\n";
+
+        $t->same('review', $policy['reviewStatus']);
+        $t->same(7, $policy['directiveCount']);
+        $t->same(7, $policy['literalDirectiveCount']);
+        $t->same(0, $policy['unsupportedDirectiveCount']);
+        $t->same(3, $policy['importCount']);
+        $t->same(4, $policy['includeCount']);
+        $t->same(7, $policy['pathCount']);
+        $t->same(5, $policy['uniquePathCount']);
+        $t->same([
+            'package' => 3,
+            'local' => 3,
+            'remote' => 0,
+            'unsafe' => 1,
+            'unsupported' => 0,
+        ], $policy['kindCounts']);
+        $t->same([
+            '@preview/cetz:0.3.2/src/lib.typ',
+            '@team/private:1.2.0/theme.typ',
+        ], $policy['packagePaths']);
+        $t->same([
+            'chapters/appendix file.typ',
+            'chapters/intro.typ',
+        ], $policy['localPaths']);
+        $t->same([], $policy['remotePaths']);
+        $t->same(['../secrets.typ'], $policy['unsafePaths']);
+        $t->same([
+            [
+                'path' => '@preview/cetz:0.3.2/src/lib.typ',
+                'count' => 2,
+                'directives' => ['import'],
+            ],
+            [
+                'path' => 'chapters/intro.typ',
+                'count' => 2,
+                'directives' => ['include'],
+            ],
+        ], $policy['duplicatePaths']);
+        $t->same(2, $policy['duplicatePathCount']);
+        $t->same(2, $policy['duplicateReferenceCount']);
+        $t->same(0, $policy['unsupportedEntryCount']);
+        $t->same([], $policy['unsupportedDirectives']);
+        $t->same([], $policy['unsupportedPathEntries']);
+        $t->same([], $policy['unsupportedReasons']);
+        $t->same([
+            '@preview/cetz:0.3.2/src/lib.typ',
+            '@team/private:1.2.0/theme.typ',
+        ], $policy['packageReferences']);
+        $t->same([
+            'custom-namespace' => 1,
+            'preview-registry' => 2,
+        ], $policy['sourceClassCounts']);
+        $t->same([
+            'typst-import-package-paths:3',
+            'typst-import-unsafe-paths:1',
+            'typst-import-duplicate-paths:2',
+        ], $policy['issues']);
+        $t->same('package', $policy['paths'][0]['kind']);
+        $t->same('preview-registry', $policy['paths'][0]['sourceClass']);
+        $t->same('package', $policy['paths'][1]['kind']);
+        $t->same('local', $policy['paths'][2]['kind']);
+        $t->same('local', $policy['paths'][4]['kind']);
+        $t->same('unsafe', $policy['paths'][5]['kind']);
+        $t->same('..\\\\secrets.typ', $policy['paths'][5]['rawPath']);
+        $t->same('../secrets.typ', $policy['paths'][5]['path']);
+        $t->same(['unsafe-import-path'], $policy['paths'][5]['issues']);
+        $t->same('custom-namespace', $policy['paths'][6]['sourceClass']);
+        $t->contains('typst-import-path-directives:7', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-packages:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-local:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-duplicates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issues:3', implode(',', $plan['diagnostics']));
+
+        $result = $handoff->fakeRun($plan, ['files' => ['build/import-edge.pdf' => $pdfBytes]]);
+        $sequence = $handoff->fakeRunSequence($plan, [['files' => ['build/import-edge.pdf' => $pdfBytes]]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($policy, $result['typstImportPathPolicy']);
+        $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same([], $result['typstPackageDependencyPolicy']);
+        $t->same([], $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($policy, $sequence['finalTypstImportPathPolicy']);
+        $t->same([], $sequence['finalTypstPackageDependencyPolicy']);
+    },
+
     'fake runner reviews typst package dependency boundaries without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Package Boundary Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
