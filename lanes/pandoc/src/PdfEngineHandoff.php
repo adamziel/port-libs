@@ -476,6 +476,13 @@ final class PdfEngineHandoff
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
             }
+            if (($typstBoundaryProvenance['creationTimestampEnvironment'] ?? null) !== null) {
+                $environmentTimestamp = $typstBoundaryProvenance['creationTimestampEnvironment']['timestamp'];
+                $diagnostics[] = 'typst-creation-timestamp-environment:' . (is_int($environmentTimestamp) ? (string) $environmentTimestamp : 'invalid');
+                if (in_array('creation-timestamp-environment-shadowed', $typstBoundaryProvenance['creationTimestampEnvironment']['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-creation-timestamp-environment-shadowed';
+                }
+            }
             if (($typstBoundaryProvenance['pdfStandard'] ?? null) !== null) {
                 $pdfStandard = $typstBoundaryProvenance['pdfStandard'];
                 if (is_array($pdfStandard) && is_int($pdfStandard['standardCount'] ?? null)) {
@@ -6278,6 +6285,7 @@ final class PdfEngineHandoff
         $packagePathEnvironmentVariable = null;
         $packageCacheEnvironmentVariable = null;
         $creationTimestampEnvironmentVariable = null;
+        $creationTimestampEnvironmentShadow = null;
         $featureGateEnvironmentVariable = null;
         $systemFontEnvironmentFlag = null;
         $embeddedFontEnvironmentFlag = null;
@@ -6330,6 +6338,15 @@ final class PdfEngineHandoff
             $creationTimestampValues = [$engineEnvironment['SOURCE_DATE_EPOCH']];
             $creationTimestampEnvironmentVariable = 'SOURCE_DATE_EPOCH';
             $environmentVariables[] = 'SOURCE_DATE_EPOCH';
+        } elseif ($creationTimestampValues !== [] && array_key_exists('SOURCE_DATE_EPOCH', $engineEnvironment)) {
+            $creationTimestampEnvironmentShadow = $this->typstCreationTimestampEntryFromSource($engineEnvironment['SOURCE_DATE_EPOCH'], 'SOURCE_DATE_EPOCH');
+            $creationTimestampEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $creationTimestampEnvironmentShadow['selected'] = $creationTimestampValues[count($creationTimestampValues) - 1];
+            $creationTimestampEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $creationTimestampEnvironmentShadow['issues'],
+                ['creation-timestamp-environment-shadowed']
+            )));
+            $environmentVariables[] = 'SOURCE_DATE_EPOCH';
         }
         if ($featureGateValues === [] && array_key_exists('TYPST_FEATURES', $engineEnvironment)) {
             $featureGateValues = [$engineEnvironment['TYPST_FEATURES']];
@@ -6355,7 +6372,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6493,6 +6510,9 @@ final class PdfEngineHandoff
         foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
+        foreach (($creationTimestampEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6535,6 +6555,9 @@ final class PdfEngineHandoff
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
+        }
+        if ($creationTimestampEnvironmentShadow !== null) {
+            $provenance['creationTimestampEnvironment'] = $creationTimestampEnvironmentShadow;
         }
         if ($pdfStandard !== null) {
             $provenance['pdfStandard'] = $pdfStandard;

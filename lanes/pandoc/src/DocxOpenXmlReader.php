@@ -5212,6 +5212,22 @@ final class DocxOpenXmlReader
             'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
+            'contentTypeRecordCount' => (int) ($contentTypesPart['recordCount'] ?? 0),
+            'contentTypeInvalidRecordCount' => (int) ($contentTypesPart['invalidRecordCount'] ?? 0),
+            'contentTypeDeclaredDefaultRecordCount' => (int) ($contentTypesPart['declaredDefaultRecordCount'] ?? 0),
+            'contentTypeDeclaredOverrideRecordCount' => (int) ($contentTypesPart['declaredOverrideRecordCount'] ?? 0),
+            'contentTypeRecordIssueCounts' => $contentTypesPart['issueCounts'] ?? [],
+            'contentTypeRecordIssueCodes' => $contentTypesPart['issues'] ?? [],
+            'contentTypeDuplicateDefaultExtensionCount' => (int) ($contentTypesPart['duplicateDefaultExtensionCount'] ?? 0),
+            'contentTypeDuplicateOverridePartNameCount' => (int) ($contentTypesPart['duplicateOverridePartNameCount'] ?? 0),
+            'contentTypeDuplicateDefaultExtensions' => $contentTypesPart['duplicateDefaultExtensions'] ?? [],
+            'contentTypeDuplicateOverridePartNames' => $contentTypesPart['duplicateOverridePartNames'] ?? [],
+            'contentTypeDuplicateDefaultExtensionGroups' => $contentTypesPart['duplicateDefaultExtensionGroups'] ?? [],
+            'contentTypeDuplicateOverridePartNameGroups' => $contentTypesPart['duplicateOverridePartNameGroups'] ?? [],
+            'invalidContentTypeRecordIssueCounts' => $contentTypesPart['invalidContentTypeRecordIssueCounts'] ?? [],
+            'invalidContentTypeRecordIssueCodes' => $contentTypesPart['invalidContentTypeRecordIssueCodes'] ?? [],
+            'invalidContentTypeRecordIssueBuckets' => $contentTypesPart['invalidContentTypeRecordIssueBuckets'] ?? [],
+            'invalidContentTypeRecords' => $contentTypesPart['invalidContentTypeRecords'] ?? [],
             'contentTypeOverrideDeclarationCount' => (int) ($contentTypesPart['overrideDeclarationCount'] ?? 0),
             'contentTypeUsedOverrideDeclarationCount' => (int) ($contentTypesPart['usedOverrideDeclarationCount'] ?? 0),
             'contentTypeUnusedOverrideDeclarationCount' => (int) ($contentTypesPart['unusedOverrideDeclarationCount'] ?? 0),
@@ -6672,6 +6688,8 @@ final class DocxOpenXmlReader
         }
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
+        $invalidContentTypeRecords = $this->invalidContentTypeRecordSnapshots($preflight);
+        $invalidContentTypeRecordIssueBuckets = $this->contentTypeRecordIssueBuckets($invalidContentTypeRecords);
 
         return [
             'partName' => '[Content_Types].xml',
@@ -6697,11 +6715,101 @@ final class DocxOpenXmlReader
             'issueCounts' => $preflight === null ? ['missing-content-types-part' => 1] : $preflight['issueCounts'],
             'recordCount' => $preflight === null ? 0 : $preflight['recordCount'],
             'invalidRecordCount' => $preflight === null ? 0 : $preflight['invalidCount'],
+            'declaredDefaultRecordCount' => $preflight === null ? 0 : $preflight['defaultCount'],
+            'declaredOverrideRecordCount' => $preflight === null ? 0 : $preflight['overrideCount'],
             'duplicateDefaultExtensionCount' => $preflight === null ? 0 : $preflight['duplicateDefaultExtensionCount'],
             'duplicateOverridePartNameCount' => $preflight === null ? 0 : $preflight['duplicateOverridePartNameCount'],
             'duplicateDefaultExtensions' => $preflight === null ? [] : $preflight['duplicateDefaultExtensions'],
             'duplicateOverridePartNames' => $preflight === null ? [] : $preflight['duplicateOverridePartNames'],
+            'duplicateDefaultExtensionGroups' => $preflight === null ? [] : $preflight['duplicateDefaultExtensionGroups'],
+            'duplicateOverridePartNameGroups' => $preflight === null ? [] : $preflight['duplicateOverridePartNameGroups'],
+            'invalidContentTypeRecordIssueCounts' => $this->issueBucketCounts($invalidContentTypeRecordIssueBuckets),
+            'invalidContentTypeRecordIssueCodes' => array_keys($invalidContentTypeRecordIssueBuckets),
+            'invalidContentTypeRecordIssueBuckets' => $invalidContentTypeRecordIssueBuckets,
+            'invalidContentTypeRecords' => $invalidContentTypeRecords,
         ];
+    }
+
+    /**
+     * @param ?array<string, mixed> $preflight
+     * @return list<array<string, mixed>>
+     */
+    private function invalidContentTypeRecordSnapshots(?array $preflight): array
+    {
+        if ($preflight === null || !is_array($preflight['records'] ?? null)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($preflight['records'] as $record) {
+            if (!is_array($record) || ($record['valid'] ?? true) === true) {
+                continue;
+            }
+
+            $records[] = [
+                'recordIndex' => (int) ($record['recordIndex'] ?? count($records)),
+                'kind' => is_string($record['kind'] ?? null) ? $record['kind'] : '',
+                'extension' => is_string($record['extension'] ?? null) ? $record['extension'] : null,
+                'normalizedExtension' => is_string($record['normalizedExtension'] ?? null) ? $record['normalizedExtension'] : null,
+                'partName' => is_string($record['partName'] ?? null) ? $record['partName'] : null,
+                'normalizedPartName' => is_string($record['normalizedPartName'] ?? null) ? $record['normalizedPartName'] : null,
+                'contentType' => is_string($record['contentType'] ?? null) ? $record['contentType'] : null,
+                'equivalenceKey' => is_string($record['equivalenceKey'] ?? null) ? $record['equivalenceKey'] : null,
+                'issues' => is_array($record['issues'] ?? null)
+                    ? array_values(array_map('strval', $record['issues']))
+                    : [],
+            ];
+        }
+
+        usort($records, static fn (array $left, array $right): int => $left['recordIndex'] <=> $right['recordIndex']);
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function contentTypeRecordIssueBuckets(array $records): array
+    {
+        $buckets = [];
+        foreach ($records as $record) {
+            $issues = is_array($record['issues'] ?? null) ? $record['issues'] : [];
+            foreach ($issues as $issue) {
+                $issue = (string) $issue;
+                if ($issue === '') {
+                    continue;
+                }
+
+                $buckets[$issue][] = [
+                    'recordIndex' => (int) ($record['recordIndex'] ?? 0),
+                    'kind' => is_string($record['kind'] ?? null) ? $record['kind'] : '',
+                    'extension' => is_string($record['extension'] ?? null) ? $record['extension'] : null,
+                    'normalizedExtension' => is_string($record['normalizedExtension'] ?? null) ? $record['normalizedExtension'] : null,
+                    'partName' => is_string($record['partName'] ?? null) ? $record['partName'] : null,
+                    'normalizedPartName' => is_string($record['normalizedPartName'] ?? null) ? $record['normalizedPartName'] : null,
+                    'contentType' => is_string($record['contentType'] ?? null) ? $record['contentType'] : null,
+                ];
+            }
+        }
+
+        ksort($buckets, SORT_STRING);
+
+        return $buckets;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $buckets
+     * @return array<string, int>
+     */
+    private function issueBucketCounts(array $buckets): array
+    {
+        $counts = [];
+        foreach ($buckets as $issue => $records) {
+            $counts[(string) $issue] = count($records);
+        }
+
+        return $counts;
     }
 
     /**

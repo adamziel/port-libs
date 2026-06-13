@@ -8040,6 +8040,266 @@ return [
         $t->contains('<p>Tail <mark>done</mark></p>', $blocks);
         $t->contains('<figcaption>Mixed figure review</figcaption>', $blocks);
     },
+    'flushes mixed citation and metadata payloads around block containers' => static function (TestRunner $t): void {
+        $citationGroup = static function (): AstNode {
+            return new AstNode('citation_group', [
+                'text' => '[see @archive-review, p. 4; @metadata-ticket]',
+                'citationSourceInlines' => [
+                    new AstNode('text', ['text' => '[see']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '@archive-review,']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'p.']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '4;']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '@metadata-ticket]']),
+                ],
+            ], [
+                new AstNode('citation', [
+                    'id' => 'archive-review',
+                    'prefix' => [new AstNode('text', ['text' => 'see'])],
+                    'suffix' => [
+                        new AstNode('text', ['text' => 'p.']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => '4']),
+                    ],
+                    'citationHash' => 4004,
+                ]),
+                new AstNode('citation', [
+                    'id' => 'metadata-ticket',
+                    'mode' => 'author_in_text',
+                    'citationHash' => 2026,
+                ]),
+            ]);
+        };
+        $metadataSpan = static fn (string $text): AstNode => new AstNode('span', [
+            'classes' => ['metadata-inline'],
+            'attributes' => ['data-review' => 'cite-payload'],
+        ], [
+            new AstNode('text', ['text' => $text]),
+        ]);
+        $inlineTypes = static fn (array $nodes): array => array_map(
+            static fn (AstNode $node): string => $node->type,
+            $nodes
+        );
+        $compactInlineTypes = static function (array $nodes): array {
+            $types = [];
+            foreach ($nodes as $node) {
+                if (!$node instanceof AstNode || $node->type === 'space') {
+                    continue;
+                }
+                if ($node->type === 'text' && trim((string) $node->attr('text', '')) === '') {
+                    continue;
+                }
+                $types[] = $node->type;
+            }
+
+            return $types;
+        };
+        $constructorTypes = static fn (array $nodes): array => array_map(
+            static fn (array $node): string => $node['t'],
+            $nodes
+        );
+        $firstInlineConstructor = static function (array $inlines, string $constructor): ?array {
+            foreach ($inlines as $inline) {
+                if (is_array($inline) && ($inline['t'] ?? null) === $constructor) {
+                    return $inline;
+                }
+            }
+
+            return null;
+        };
+        $firstChildOfType = static function (array $nodes, string $type): ?AstNode {
+            foreach ($nodes as $node) {
+                if ($node instanceof AstNode && $node->type === $type) {
+                    return $node;
+                }
+            }
+
+            return null;
+        };
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'reviewPayload' => ['type' => 'map', 'items' => [
+                    'inlineRun' => ['type' => 'inlines', 'children' => [
+                        new AstNode('text', ['text' => 'Metadata']),
+                        new AstNode('space'),
+                        $citationGroup(),
+                        new AstNode('space'),
+                        $metadataSpan('inline payload'),
+                    ]],
+                    'blockRun' => ['type' => 'blocks', 'children' => [
+                        new AstNode('div', [
+                            'id' => 'meta-block',
+                            'classes' => ['review-meta'],
+                            'attributes' => ['data-source' => 'json-native'],
+                        ], [
+                            new AstNode('text', ['text' => 'MetaLead']),
+                            new AstNode('blockquote', [], [
+                                new AstNode('paragraph', [], [
+                                    new AstNode('text', ['text' => 'MetaNestedBlock']),
+                                ]),
+                            ]),
+                            new AstNode('text', ['text' => 'MetaTail']),
+                        ]),
+                    ]],
+                ]],
+            ],
+        ], [
+            new AstNode('blockquote', [], [
+                new AstNode('text', ['text' => 'QuoteLead']),
+                new AstNode('space'),
+                $citationGroup(),
+                new AstNode('space'),
+                $metadataSpan('inline metadata'),
+                new AstNode('div', [
+                    'id' => 'nested-review',
+                    'classes' => ['metadata-block'],
+                    'attributes' => ['data-origin' => 'filter'],
+                ], [
+                    new AstNode('text', ['text' => 'NestedLead']),
+                    new AstNode('space'),
+                    $citationGroup(),
+                    new AstNode('code_block', [
+                        'text' => 'wp post meta list 42',
+                        'classes' => ['bash'],
+                        'attributes' => ['data-command' => 'review'],
+                    ]),
+                    new AstNode('text', ['text' => 'NestedTail']),
+                ]),
+                new AstNode('text', ['text' => 'QuoteTail']),
+                new AstNode('space'),
+                $citationGroup(),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Footnote']),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'cite-meta-note'], [
+                    new AstNode('text', ['text' => 'NoteLead']),
+                    new AstNode('space'),
+                    $citationGroup(),
+                    new AstNode('blockquote', [], [
+                        new AstNode('paragraph', [], [
+                            $metadataSpan('nested metadata'),
+                            new AstNode('space'),
+                            $citationGroup(),
+                        ]),
+                    ]),
+                    new AstNode('text', ['text' => 'NoteTail']),
+                    new AstNode('space'),
+                    $citationGroup(),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $source => $packet) {
+            $metaPayload = $packet['meta']['reviewPayload'];
+            $metaInlineRun = $metaPayload['c']['inlineRun'];
+            $metaBlockRun = $metaPayload['c']['blockRun'];
+            $metaDivBlocks = $metaBlockRun['c'][0]['c'][1];
+            $quoteBlocks = $packet['blocks'][0]['c'];
+            $quoteLeadingCite = $quoteBlocks[0]['c'][2];
+            $quoteLeadingSpan = $quoteBlocks[0]['c'][4];
+            $nestedDivBlocks = $quoteBlocks[1]['c'][1];
+            $noteInline = $firstInlineConstructor($packet['blocks'][1]['c'], 'Note');
+            $t->true(is_array($noteInline), "{$source} paragraph includes note inline");
+            $noteBlocks = is_array($noteInline) && is_array($noteInline['c'] ?? null) ? $noteInline['c'] : [];
+            $noteNestedQuoteBlocks = $noteBlocks[1]['c'] ?? [];
+            $noteNestedParaInlines = $noteNestedQuoteBlocks[0]['c'] ?? [];
+
+            $t->same('MetaMap', $metaPayload['t'], "{$source} metadata map constructor");
+            $t->same('MetaInlines', $metaInlineRun['t'], "{$source} metadata inline payload constructor");
+            $t->same(['Str', 'Space', 'Cite', 'Space', 'Span'], $constructorTypes($metaInlineRun['c']), "{$source} metadata inline payload keeps Cite and Span");
+            $t->same('MetaBlocks', $metaBlockRun['t'], "{$source} metadata block payload constructor");
+            $t->same(['Div'], $constructorTypes($metaBlockRun['c']), "{$source} metadata block payload keeps Div");
+            $t->same(['Plain', 'BlockQuote', 'Plain'], $constructorTypes($metaDivBlocks), "{$source} metadata Div children flush to blocks");
+            $t->same(['BlockQuote', 'Para'], $constructorTypes($packet['blocks']), "{$source} top-level block constructors");
+            $t->same(['Plain', 'Div', 'Plain'], $constructorTypes($quoteBlocks), "{$source} quote children flush around nested Div");
+            $t->same(['Str', 'Space', 'Cite', 'Space', 'Span'], $constructorTypes($quoteBlocks[0]['c']), "{$source} quote leading inline run keeps Cite and Span");
+            $t->same('Cite', $quoteLeadingCite['t'], "{$source} quote leading cite constructor");
+            $t->same('archive-review', $quoteLeadingCite['c'][0][0]['citationId'], "{$source} quote leading citation id");
+            $t->same(['metadata-inline'], $quoteLeadingSpan['c'][0][1], "{$source} quote leading metadata span classes");
+            $t->same(['Plain', 'CodeBlock', 'Plain'], $constructorTypes($nestedDivBlocks), "{$source} nested Div children flush around CodeBlock");
+            $t->same(['Str', 'Space', 'Cite'], $constructorTypes($nestedDivBlocks[0]['c']), "{$source} nested Div leading citation run");
+            $t->same('wp post meta list 42', $nestedDivBlocks[1]['c'][1], "{$source} nested metadata block payload text");
+            $t->same(['Str', 'Space', 'Cite'], $constructorTypes($quoteBlocks[2]['c']), "{$source} quote trailing citation run");
+            $t->same(['Plain', 'BlockQuote', 'Plain'], $constructorTypes($noteBlocks), "{$source} note children flush around nested BlockQuote");
+            $t->same(['Str', 'Space', 'Cite'], $constructorTypes($noteBlocks[0]['c']), "{$source} note leading citation run");
+            $t->same(['Para'], $constructorTypes($noteNestedQuoteBlocks), "{$source} note nested quote keeps block list");
+            $t->same(['Span', 'Space', 'Cite'], $constructorTypes($noteNestedParaInlines), "{$source} note nested metadata inline run");
+            $t->same('cite-meta-note', $noteInline['noteLabel'] ?? null, "{$source} note label sidecar");
+        }
+
+        $roundTrips = [
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+        ];
+
+        $metadataRoundTripShape = static function (array $metaPayload) use ($inlineTypes, $constructorTypes): array {
+            if (($metaPayload['type'] ?? null) === 'map') {
+                $metaItems = $metaPayload['items'];
+                $metaInlineChildren = $metaItems['inlineRun']['children'];
+                $metaBlockDiv = $metaItems['blockRun']['children'][0];
+
+                return [
+                    'type' => 'map',
+                    'inlineTypes' => $inlineTypes($metaInlineChildren),
+                    'blockTypes' => $inlineTypes($metaBlockDiv->children),
+                    'citationId' => $metaInlineChildren[2]->children[1]->attr('id'),
+                ];
+            }
+
+            $metaItems = $metaPayload['c'];
+            $metaInlineRun = $metaItems['inlineRun'];
+            $metaBlockRun = $metaItems['blockRun'];
+
+            return [
+                'type' => $metaPayload['t'] ?? null,
+                'inlineTypes' => $constructorTypes($metaInlineRun['c']),
+                'blockTypes' => $constructorTypes($metaBlockRun['c'][0]['c'][1]),
+                'citationId' => $metaInlineRun['c'][2]['c'][0][1]['citationId'],
+            ];
+        };
+
+        foreach ($roundTrips as $source => $roundTrip) {
+            $metaPayload = $roundTrip->attr('meta')['reviewPayload'];
+            $metaShape = $metadataRoundTripShape($metaPayload);
+            $quote = $roundTrip->children[0];
+            $quoteLeading = $quote->children[0];
+            $quoteLeadingCitation = $firstChildOfType($quoteLeading->children, 'citation_group');
+            $quoteLeadingSpan = $firstChildOfType($quoteLeading->children, 'span');
+            $nestedDiv = $quote->children[1];
+            $quoteTrailing = $quote->children[2];
+            $note = $firstChildOfType($roundTrip->children[1]->children, 'note');
+            $t->true($note instanceof AstNode, "{$source} round-trip keeps note inline");
+            $noteChildren = $note instanceof AstNode ? $note->children : [];
+            $noteNestedQuote = $noteChildren[1] ?? new AstNode('missing');
+            $noteNestedPara = $noteNestedQuote->children[0] ?? new AstNode('missing');
+
+            $t->same($source === 'native' ? 'MetaMap' : 'map', $metaShape['type'], "{$source} round-trip metadata map type");
+            $t->same($source === 'native' ? ['Str', 'Space', 'Cite', 'Space', 'Span'] : ['text', 'space', 'citation_group', 'space', 'span'], $metaShape['inlineTypes'], "{$source} round-trip metadata inline payload");
+            $t->same($source === 'native' ? ['Plain', 'BlockQuote', 'Plain'] : ['plain', 'blockquote', 'plain'], $metaShape['blockTypes'], "{$source} round-trip metadata block payload");
+            $t->same('metadata-ticket', $metaShape['citationId'], "{$source} round-trip metadata citation id");
+            $t->same(['plain', 'div', 'plain'], $inlineTypes($quote->children), "{$source} round-trip quote blocks");
+            $t->same(['text', 'citation_group', 'span'], $compactInlineTypes($quoteLeading->children), "{$source} round-trip quote leading payload");
+            $t->same('archive-review', $quoteLeadingCitation instanceof AstNode ? $quoteLeadingCitation->children[0]->attr('id') : null, "{$source} round-trip quote citation id");
+            $t->same(['metadata-inline'], $quoteLeadingSpan instanceof AstNode ? $quoteLeadingSpan->attr('classes') : null, "{$source} round-trip quote metadata span class");
+            $t->same(['plain', 'code_block', 'plain'], $inlineTypes($nestedDiv->children), "{$source} round-trip nested Div blocks");
+            $t->same(['text', 'citation_group'], $compactInlineTypes($nestedDiv->children[0]->children), "{$source} round-trip nested Div leading citation run");
+            $t->same('wp post meta list 42', $nestedDiv->children[1]->attr('text'), "{$source} round-trip nested metadata block text");
+            $t->same(['text', 'citation_group'], $compactInlineTypes($quoteTrailing->children), "{$source} round-trip quote trailing citation run");
+            $t->same('cite-meta-note', $note instanceof AstNode ? $note->attr('label') : null, "{$source} round-trip note label");
+            $t->same(['plain', 'blockquote', 'plain'], $inlineTypes($noteChildren), "{$source} round-trip note blocks");
+            $t->same(['text', 'citation_group'], $compactInlineTypes($noteChildren[0]->children), "{$source} round-trip note leading citation run");
+            $t->same(['paragraph'], $inlineTypes($noteNestedQuote->children), "{$source} round-trip note nested quote block list");
+            $t->same(['span', 'citation_group'], $compactInlineTypes($noteNestedPara->children), "{$source} round-trip note nested metadata inline payload");
+        }
+    },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

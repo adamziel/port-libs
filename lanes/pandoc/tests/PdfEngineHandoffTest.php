@@ -3379,6 +3379,81 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
     },
 
+    'preserves shadowed typst source date epoch provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $environmentTimestamp = '1700000000';
+        $selectedTimestamp = '1700000100';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/source-date-epoch-shadow.pdf',
+            'source' => '= Typst Source Date Epoch Shadow Packet',
+            'engineOptions' => ['--creation-timestamp=' . $selectedTimestamp],
+            'engineEnvironment' => [
+                'SOURCE_DATE_EPOCH' => $environmentTimestamp,
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst source date epoch shadow packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['creation-timestamp-environment-shadowed'],
+            'environmentVariables' => ['SOURCE_DATE_EPOCH'],
+            'creationTimestamp' => [
+                'raw' => $selectedTimestamp,
+                'value' => $selectedTimestamp,
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000100,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000100),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'creationTimestampEnvironment' => [
+                'raw' => $environmentTimestamp,
+                'value' => $environmentTimestamp,
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000000,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => ['creation-timestamp-environment-shadowed'],
+                'source' => 'environment',
+                'environmentVariable' => 'SOURCE_DATE_EPOCH',
+                'shadowedBy' => 'engine-option',
+                'selected' => $selectedTimestamp,
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/source-date-epoch-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/source-date-epoch-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(1, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:1700000100', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp-environment:1700000000', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';

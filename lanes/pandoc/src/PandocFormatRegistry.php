@@ -773,6 +773,33 @@ final class PandocFormatRegistry
         ],
     ];
 
+    /**
+     * @var array<string, array{priority:int, sourceFields:list<string>, selectedFormatPolicy:string, conflictPolicy:string, diagnosticCode:string|null}>
+     */
+    private const TABULAR_DATA_FORMAT_INFERENCE_BUCKETS = [
+        'explicit-format' => [
+            'priority' => 0,
+            'sourceFields' => ['format'],
+            'selectedFormatPolicy' => 'honor-explicit-format-token',
+            'conflictPolicy' => 'wins-over-extension-and-content-row-profile',
+            'diagnosticCode' => 'tabular-data-explicit-format-extension-conflict',
+        ],
+        'extension' => [
+            'priority' => 1,
+            'sourceFields' => ['extension', 'sourcePath'],
+            'selectedFormatPolicy' => 'infer-from-normalized-extension',
+            'conflictPolicy' => 'loses-when-explicit-format-conflicts',
+            'diagnosticCode' => null,
+        ],
+        'content-row-profile' => [
+            'priority' => 2,
+            'sourceFields' => ['content'],
+            'selectedFormatPolicy' => 'infer-from-row-delimiter-scores',
+            'conflictPolicy' => 'loses-when-explicit-format-or-extension-is-selected',
+            'diagnosticCode' => null,
+        ],
+    ];
+
     /** @var array<string, string> */
     private const INPUT_ALIASES = [
         'bits' => 'jats',
@@ -3772,6 +3799,70 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{priority:int, sourceFields:list<string>, selectedFormatPolicy:string, conflictPolicy:string, diagnosticCode:string|null}>
+     */
+    public static function tabularDataFormatInferenceBuckets(): array
+    {
+        return self::TABULAR_DATA_FORMAT_INFERENCE_BUCKETS;
+    }
+
+    /**
+     * @return array<string, array{module:string, formats:list<string>, functions:list<string>, registryEntries:list<string>, csvOptions:list<string>, readerOptions:list<string>, directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>}, inputImplementations:list<string>, outputImplementations:list<string>}>
+     */
+    public static function tabularDataSourceProvenanceBuckets(): array
+    {
+        $directions = self::tabularDataFormatDirections();
+        $inputSupport = self::tabularDataInputSupport();
+        $buckets = [];
+
+        foreach (self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE as $format => $source) {
+            $module = $source['module'];
+            if (!array_key_exists($module, $buckets)) {
+                $buckets[$module] = [
+                    'module' => $module,
+                    'formats' => [],
+                    'functions' => [],
+                    'registryEntries' => [],
+                    'csvOptions' => [],
+                    'readerOptions' => [],
+                    'directionBuckets' => [
+                        'inputOutput' => [],
+                        'inputOnly' => [],
+                        'outputOnly' => [],
+                    ],
+                    'inputImplementations' => [],
+                    'outputImplementations' => [],
+                ];
+            }
+
+            $buckets[$module]['formats'][] = $format;
+            $buckets[$module]['functions'][] = $source['function'];
+            $buckets[$module]['registryEntries'][] = $source['registry'];
+            $buckets[$module]['csvOptions'][] = $source['csvOptions'];
+            $buckets[$module]['readerOptions'][] = $source['readerOptions'];
+            $directionBucket = match ($directions[$format]['direction']) {
+                'input-output' => 'inputOutput',
+                'input-only' => 'inputOnly',
+                'output-only' => 'outputOnly',
+                default => $directions[$format]['direction'],
+            };
+            $buckets[$module]['directionBuckets'][$directionBucket][] = $format;
+            $buckets[$module]['inputImplementations'][] = $inputSupport[$format]['implementation'];
+        }
+
+        foreach ($buckets as $module => $bucket) {
+            $buckets[$module]['functions'] = array_values(array_unique($bucket['functions']));
+            $buckets[$module]['registryEntries'] = array_values(array_unique($bucket['registryEntries']));
+            $buckets[$module]['csvOptions'] = array_values(array_unique($bucket['csvOptions']));
+            $buckets[$module]['readerOptions'] = array_values(array_unique($bucket['readerOptions']));
+            $buckets[$module]['inputImplementations'] = array_values(array_unique($bucket['inputImplementations']));
+            $buckets[$module]['outputImplementations'] = array_values(array_unique($bucket['outputImplementations']));
+        }
+
+        return $buckets;
+    }
+
+    /**
      * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
      */
     public static function tabularDataFormatDirections(): array
@@ -3806,6 +3897,18 @@ final class PandocFormatRegistry
     public static function tabularDataOutputOnlyFormats(): array
     {
         return self::formatsWithDirection(self::tabularDataFormatDirections(), 'output-only');
+    }
+
+    /**
+     * @return array{inputOutput:int, inputOnly:int, outputOnly:int}
+     */
+    public static function tabularDataDirectionBucketCounts(): array
+    {
+        return [
+            'inputOutput' => count(self::tabularDataBidirectionalFormats()),
+            'inputOnly' => count(self::tabularDataInputOnlyFormats()),
+            'outputOnly' => count(self::tabularDataOutputOnlyFormats()),
+        ];
     }
 
     /**
@@ -3852,6 +3955,46 @@ final class PandocFormatRegistry
             'noNativeReader' => self::unsupportedTabularDataInputFormats(),
             'noNativeWriter' => self::unsupportedTabularDataOutputFormats(),
         ];
+    }
+
+    /**
+     * @return array<string, array{conflictId:string, explicitFormat:string, extension:string, extensionFormat:string, selectedFormat:string, rejectedFormat:string, selectedSourceBucket:string, rejectedSourceBucket:string, resolution:string, diagnosticCode:string, optionConflictFields:list<string>, selectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, rejectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, selectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, rejectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, parserBehaviorChanged:bool, externalToolFree:bool}>
+     */
+    public static function tabularDataOptionConflictProfiles(): array
+    {
+        $profiles = [];
+        foreach (self::TABULAR_DATA_INPUT_FORMATS as $explicitFormat) {
+            foreach (self::TABULAR_DATA_EXTENSION_INFERENCE as $extension => $extensionFormat) {
+                if ($explicitFormat === $extensionFormat) {
+                    continue;
+                }
+
+                $selectedOptions = self::TABULAR_DATA_READER_OPTION_PROFILES[$explicitFormat];
+                $rejectedOptions = self::TABULAR_DATA_READER_OPTION_PROFILES[$extensionFormat];
+                $conflictId = 'explicit-' . $explicitFormat . '-extension-' . $extensionFormat;
+                $profiles[$conflictId] = [
+                    'conflictId' => $conflictId,
+                    'explicitFormat' => $explicitFormat,
+                    'extension' => $extension,
+                    'extensionFormat' => $extensionFormat,
+                    'selectedFormat' => $explicitFormat,
+                    'rejectedFormat' => $extensionFormat,
+                    'selectedSourceBucket' => 'explicit-format',
+                    'rejectedSourceBucket' => 'extension',
+                    'resolution' => 'explicit-format-wins',
+                    'diagnosticCode' => 'tabular-data-explicit-format-extension-conflict',
+                    'optionConflictFields' => self::tabularDataDifferingReaderOptionFields($selectedOptions, $rejectedOptions),
+                    'selectedReaderOptions' => $selectedOptions,
+                    'rejectedReaderOptions' => $rejectedOptions,
+                    'selectedSourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$explicitFormat],
+                    'rejectedSourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$extensionFormat],
+                    'parserBehaviorChanged' => false,
+                    'externalToolFree' => true,
+                ];
+            }
+        }
+
+        return $profiles;
     }
 
     /**
@@ -3906,17 +4049,25 @@ final class PandocFormatRegistry
 
     /**
      * @return array{
+     *     reviewPacketVersion:int,
+     *     reviewPacketKind:string,
+     *     fullReaderParity:bool,
+     *     externalToolFree:bool,
      *     upstreamManualDate:string,
      *     upstreamManualUrl:string,
      *     upstreamSourceCommit:string,
      *     inputFormats:list<string>,
      *     outputFormats:list<string>,
      *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     directionBucketCounts:array{inputOutput:int, inputOnly:int, outputOnly:int},
      *     extensionInference:array<string, string>,
      *     extensionInferredFormats:list<string>,
      *     nonExtensionInferredFormats:list<string>,
      *     readerOptionProfiles:array<string, array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}>,
      *     inputSourceProvenance:array<string, array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}>,
+     *     formatInferenceBuckets:array<string, array{priority:int, sourceFields:list<string>, selectedFormatPolicy:string, conflictPolicy:string, diagnosticCode:string|null}>,
+     *     sourceProvenanceBuckets:array<string, array{module:string, formats:list<string>, functions:list<string>, registryEntries:list<string>, csvOptions:list<string>, readerOptions:list<string>, directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>}, inputImplementations:list<string>, outputImplementations:list<string>}>,
+     *     optionConflictProfiles:array<string, array{conflictId:string, explicitFormat:string, extension:string, extensionFormat:string, selectedFormat:string, rejectedFormat:string, selectedSourceBucket:string, rejectedSourceBucket:string, resolution:string, diagnosticCode:string, optionConflictFields:list<string>, selectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, rejectedReaderOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, selectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, rejectedSourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, parserBehaviorChanged:bool, externalToolFree:bool}>,
      *     unsupportedInputFormats:list<string>,
      *     unsupportedOutputFormats:list<string>,
      *     unsupportedFormatSummary:array{
@@ -3927,7 +4078,7 @@ final class PandocFormatRegistry
      *         noNativeReader:list<string>,
      *         noNativeWriter:list<string>
      *     },
-     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}}>
+     *     formats:array<string, array{input:bool, output:bool, direction:string, directionBucket:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, explicitFormatToken:string, inputImplementation:string, outputImplementation:string, readerOptions:array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool}, sourceProvenance:array{module:string, function:string, registry:string, csvOptions:string, readerOptions:string}, sourceProvenanceBucket:string, fullReaderParity:bool, externalToolFree:bool}>
      * }
      */
     public static function tabularDataFormatReviewPacket(): array
@@ -3946,18 +4097,27 @@ final class PandocFormatRegistry
                 'input' => $direction['input'],
                 'output' => $direction['output'],
                 'direction' => $direction['direction'],
+                'directionBucket' => $direction['direction'],
                 'inputStatus' => $direction['inputStatus'],
                 'outputStatus' => $direction['outputStatus'],
                 'extensionInferred' => array_key_exists($format, $extensionsByFormat),
                 'extensions' => $extensionsByFormat[$format] ?? [],
+                'explicitFormatToken' => $format,
                 'inputImplementation' => $inputSupport[$format]['implementation'],
                 'outputImplementation' => '',
                 'readerOptions' => self::TABULAR_DATA_READER_OPTION_PROFILES[$format],
                 'sourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format],
+                'sourceProvenanceBucket' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE[$format]['module'],
+                'fullReaderParity' => false,
+                'externalToolFree' => true,
             ];
         }
 
         return [
+            'reviewPacketVersion' => 2,
+            'reviewPacketKind' => 'pandoc-tabular-data-registry-options',
+            'fullReaderParity' => false,
+            'externalToolFree' => true,
             'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
             'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
             'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
@@ -3968,11 +4128,15 @@ final class PandocFormatRegistry
                 'inputOnly' => self::tabularDataInputOnlyFormats(),
                 'outputOnly' => self::tabularDataOutputOnlyFormats(),
             ],
+            'directionBucketCounts' => self::tabularDataDirectionBucketCounts(),
             'extensionInference' => self::TABULAR_DATA_EXTENSION_INFERENCE,
             'extensionInferredFormats' => self::tabularDataFormatsWithExtensionInference(),
             'nonExtensionInferredFormats' => self::tabularDataFormatsWithoutExtensionInference(),
             'readerOptionProfiles' => self::TABULAR_DATA_READER_OPTION_PROFILES,
             'inputSourceProvenance' => self::TABULAR_DATA_INPUT_SOURCE_PROVENANCE,
+            'formatInferenceBuckets' => self::TABULAR_DATA_FORMAT_INFERENCE_BUCKETS,
+            'sourceProvenanceBuckets' => self::tabularDataSourceProvenanceBuckets(),
+            'optionConflictProfiles' => self::tabularDataOptionConflictProfiles(),
             'unsupportedInputFormats' => self::unsupportedTabularDataInputFormats(),
             'unsupportedOutputFormats' => self::unsupportedTabularDataOutputFormats(),
             'unsupportedFormatSummary' => self::tabularDataUnsupportedFormatSummary(),
@@ -4509,5 +4673,22 @@ final class PandocFormatRegistry
     private static function richPackageFormatsWithDirection(string $direction): array
     {
         return self::formatsWithDirection(self::richPackageFormatDirections(), $direction);
+    }
+
+    /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool} $selectedOptions
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, keepSpace:bool, escape:string|null, firstRowHeader:bool, emptyInputPolicy:string, multilineCellPolicy:string, readerOptionsUsed:bool} $rejectedOptions
+     * @return list<string>
+     */
+    private static function tabularDataDifferingReaderOptionFields(array $selectedOptions, array $rejectedOptions): array
+    {
+        $fields = [];
+        foreach (array_keys($selectedOptions) as $field) {
+            if ($selectedOptions[$field] !== $rejectedOptions[$field]) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 }
