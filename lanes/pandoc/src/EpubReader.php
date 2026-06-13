@@ -93,6 +93,15 @@ final class EpubReader
         'xml:lang' => true,
         'dir' => true,
     ];
+    private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
+        'id' => true,
+        'version' => true,
+        'unique-identifier' => true,
+        'prefix' => true,
+        'xml:lang' => true,
+        'xml:base' => true,
+        'dir' => true,
+    ];
 
     /**
      * @return array{
@@ -145,6 +154,7 @@ final class EpubReader
             $opf['metadata'],
             $mimetypeEntry,
             $opfPart,
+            $opf['package'],
             $opf['spine'],
             $opf['spineProperties'],
             $opf['xhtmlAssets'],
@@ -633,14 +643,19 @@ final class EpubReader
         }
 
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
+        $packageLanguage = self::xmlLang($root);
+        $packageDirection = self::direction($root);
+        $packageBase = self::xmlBase($root);
+        $packageAttributes = self::packageElementAttributes($root);
+        $packageCustomAttributes = self::packageElementCustomAttributes($packageAttributes);
         $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
         $metadata = $this->readMetadata(
             $metadataElement,
             $uniqueIdentifier,
             true,
             $prefixReport['bindingsByPrefix'],
-            self::xmlLang($root),
-            self::direction($root)
+            $packageLanguage,
+            $packageDirection
         );
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
@@ -713,8 +728,20 @@ final class EpubReader
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
                 'uniqueIdentifier' => $metadata['uniqueIdentifier'],
                 'opfPart' => $opfPart,
-                'language' => self::xmlLang($root),
-                'direction' => self::direction($root),
+                'language' => $packageLanguage,
+                'direction' => $packageDirection,
+                'base' => $packageBase,
+                'attributes' => $packageAttributes,
+                'attributeCount' => count($packageAttributes),
+                'customAttributes' => $packageCustomAttributes,
+                'customAttributeCount' => count($packageCustomAttributes),
+                'authoring' => self::packageAuthoringReport(
+                    $packageAttributes,
+                    $packageLanguage,
+                    $packageDirection,
+                    $packageBase,
+                    $packageCustomAttributes
+                ),
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
                 'linkedResources' => self::metadataLinkedResourcesForId($linkedResourcesById, $packageId),
                 'prefix' => $prefixReport['raw'],
@@ -4899,9 +4926,42 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function packageElementCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+            if ($name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function manifestItemAttributes(\DOMElement $element): array
+    {
+        return self::opfElementAttributes($element);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function packageElementAttributes(\DOMElement $element): array
     {
         return self::opfElementAttributes($element);
     }
@@ -4938,6 +4998,48 @@ final class EpubReader
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $customAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageAuthoringReport(
+        array $attributes,
+        ?string $language,
+        ?string $direction,
+        ?string $base,
+        array $customAttributes
+    ): array {
+        $structuralAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (!isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+
+            $structuralAttributes[$name] = $value;
+        }
+
+        return [
+            'present' => $attributes !== [],
+            'language' => $language,
+            'direction' => $direction,
+            'base' => $base,
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'structuralAttributes' => $structuralAttributes,
+            'structuralAttributeCount' => count($structuralAttributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasCustomAttributes' => $customAttributes !== [],
+            'hasBase' => $base !== null,
+            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
+        ];
     }
 
     /**
@@ -21092,6 +21194,7 @@ final class EpubReader
 
     /**
      * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $package
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $spineProperties
      * @param list<array<string, mixed>> $xhtmlAssets
@@ -21118,6 +21221,7 @@ final class EpubReader
         array $metadata,
         array $mimetypeEntry,
         string $opfPart,
+        array $package,
         array $spine,
         array $spineProperties,
         array $xhtmlAssets,
@@ -21270,6 +21374,7 @@ final class EpubReader
             'source' => 'epub3',
             'mimetypeEntry' => $mimetypeEntry,
             'opfPart' => $opfPart,
+            'package' => $package,
             'metadata' => $metadata,
             'guide' => $guide,
             'collections' => $collections,
@@ -21688,6 +21793,16 @@ final class EpubReader
         }
 
         return $lang === '' ? null : $lang;
+    }
+
+    private static function xmlBase(\DOMElement $element): ?string
+    {
+        $base = trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        if ($base === '') {
+            $base = trim($element->getAttribute('xml:base'));
+        }
+
+        return $base === '' ? null : $base;
     }
 
     private static function direction(\DOMElement $element): ?string
