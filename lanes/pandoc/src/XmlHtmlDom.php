@@ -314,7 +314,7 @@ final class XmlHtmlDom
         return $dom;
     }
 
-    public static function loadHtmlFragment(string $html, string $label = 'HTML fragment'): \DOMDocument
+    public static function loadHtmlFragment(string $html, string $label = 'HTML fragment', bool $protectRawTextContentForParse = false): \DOMDocument
     {
         self::assertSafeSource($html, $label);
         $preflight = self::protectHtmlRcdataElements(
@@ -330,6 +330,7 @@ final class XmlHtmlDom
             $html,
             protectTemplateContent: true,
             protectIframeContent: true,
+            protectRawTextContent: $protectRawTextContentForParse,
             protectNoscriptContent: true
         );
 
@@ -610,16 +611,15 @@ final class XmlHtmlDom
                 return $protected;
             }
 
-            $endPattern = '~</\s*' . preg_quote($name, '~') . '\s*>~i';
-            if (preg_match($endPattern, $html, $endMatches, PREG_OFFSET_CAPTURE, $contentStart) !== 1) {
+            $endMatch = self::findHtmlRcdataEndTag($html, $name, $contentStart);
+            if ($endMatch === null) {
                 $protected .= self::protectHtmlRcdataElementContent($name, substr($html, $contentStart), $protectRawTextContent)
                     . '</' . $name . '>';
 
                 return $protected;
             }
 
-            $endTag = (string) $endMatches[0][0];
-            $endOffset = (int) $endMatches[0][1];
+            [$endTag, $endOffset] = $endMatch;
             $content = substr($html, $contentStart, $endOffset - $contentStart);
             $protected .= self::protectHtmlRcdataElementContent($name, $content, $protectRawTextContent);
             $protected .= $endTag;
@@ -629,6 +629,118 @@ final class XmlHtmlDom
         return $protected . self::normalizeHtml5NamedCharacterReferences(
             self::protectHtmlCdataSections(substr($html, $offset))
         );
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private static function findHtmlRcdataEndTag(string $html, string $name, int $contentStart): ?array
+    {
+        if ($name === 'template') {
+            return self::findHtmlTemplateEndTag($html, $contentStart);
+        }
+
+        return self::findHtmlElementEndTag($html, $name, $contentStart);
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private static function findHtmlElementEndTag(string $html, string $name, int $contentStart): ?array
+    {
+        $endPattern = '~</\s*' . preg_quote($name, '~') . '\s*>~i';
+        if (preg_match($endPattern, $html, $endMatches, PREG_OFFSET_CAPTURE, $contentStart) !== 1) {
+            return null;
+        }
+
+        return [(string) $endMatches[0][0], (int) $endMatches[0][1]];
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private static function findHtmlTemplateEndTag(string $html, int $contentStart): ?array
+    {
+        $offset = $contentStart;
+        $depth = 1;
+        $tagPattern = '~<(?P<closing>/?)\s*(?P<name>[A-Za-z][A-Za-z0-9:-]*)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
+
+        while (($tagStart = strpos($html, '<', $offset)) !== false) {
+            if (str_starts_with(substr($html, $tagStart, 4), '<!--')) {
+                $commentEnd = strpos($html, '-->', $tagStart + 4);
+                if ($commentEnd === false) {
+                    return null;
+                }
+                $offset = $commentEnd + 3;
+                continue;
+            }
+
+            if (str_starts_with(strtolower(substr($html, $tagStart, 9)), '<![cdata[')) {
+                $cdataEnd = strpos($html, ']]>', $tagStart + 9);
+                if ($cdataEnd === false) {
+                    return null;
+                }
+                $offset = $cdataEnd + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($html, $tagStart, 2), '<!') || str_starts_with(substr($html, $tagStart, 2), '<?')) {
+                $declarationEnd = strpos($html, '>', $tagStart + 2);
+                if ($declarationEnd === false) {
+                    return null;
+                }
+                $offset = $declarationEnd + 1;
+                continue;
+            }
+
+            if (preg_match($tagPattern, $html, $matches, PREG_OFFSET_CAPTURE, $tagStart) !== 1 || (int) $matches[0][1] !== $tagStart) {
+                $offset = $tagStart + 1;
+                continue;
+            }
+
+            $tag = (string) $matches[0][0];
+            $isClosing = (string) $matches['closing'][0] === '/';
+            $tagName = strtolower((string) $matches['name'][0]);
+
+            if (!$isClosing && self::isHtmlTemplateRawTextBoundaryElement($tagName)) {
+                if ($tagName === 'title' && self::isHtmlTitleStartInSvgContext($html, $tagStart)) {
+                    $offset = $tagStart + strlen($tag);
+                    continue;
+                }
+
+                if ($tagName === 'plaintext') {
+                    return null;
+                }
+
+                $rawTextEnd = self::findHtmlElementEndTag($html, $tagName, $tagStart + strlen($tag));
+                if ($rawTextEnd === null) {
+                    return null;
+                }
+
+                $offset = $rawTextEnd[1] + strlen($rawTextEnd[0]);
+                continue;
+            }
+
+            if ($tagName === 'template') {
+                if ($isClosing) {
+                    --$depth;
+                    if ($depth === 0) {
+                        return [$tag, $tagStart];
+                    }
+                } else {
+                    ++$depth;
+                }
+            }
+
+            $offset = $tagStart + strlen($tag);
+        }
+
+        return null;
+    }
+
+    private static function isHtmlTemplateRawTextBoundaryElement(string $tagName): bool
+    {
+        return in_array($tagName, ['script', 'style', 'xmp', 'noembed', 'noframes', 'title', 'textarea', 'plaintext', 'noscript', 'iframe'], true);
     }
 
     private static function protectHtmlRcdataElementContent(string $name, string $content, bool $protectRawTextContent = false): string
@@ -2083,7 +2195,7 @@ final class XmlHtmlDom
         }
 
         $root = self::requireFragmentRoot($fragment);
-        $text = self::normalizedText($root);
+        $text = self::normalizedInertHtmlFragmentText($source);
         $topLevelElementNames = [];
         foreach ($root->childNodes as $child) {
             if ($child instanceof \DOMElement) {
@@ -2169,7 +2281,7 @@ final class XmlHtmlDom
         }
 
         $root = self::requireFragmentRoot($fragment);
-        $text = self::normalizedText($root);
+        $text = self::normalizedInertHtmlFragmentText($source);
         $topLevelElementNames = [];
         foreach ($root->childNodes as $child) {
             if ($child instanceof \DOMElement) {
@@ -2204,6 +2316,49 @@ final class XmlHtmlDom
         ]);
 
         return $summary;
+    }
+
+    private static function normalizedInertHtmlFragmentText(string $source): string
+    {
+        try {
+            $fragment = self::loadHtmlFragment($source, 'inert HTML fragment text review', protectRawTextContentForParse: true);
+        } catch (\InvalidArgumentException) {
+            return '';
+        }
+
+        $root = self::requireFragmentRoot($fragment);
+        $raw = self::inertHtmlNodeText($root);
+        $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $raw) ?? $raw;
+
+        return trim($text);
+    }
+
+    private static function inertHtmlNodeText(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText) {
+            return $node->nodeValue ?? '';
+        }
+
+        if (!$node instanceof \DOMElement && !$node instanceof \DOMDocument && !$node instanceof \DOMDocumentFragment) {
+            return '';
+        }
+
+        if ($node instanceof \DOMElement && self::isHtmlEscapedSourceTextElement(strtolower(self::htmlElementName($node)))) {
+            return html_entity_decode($node->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            $text .= self::inertHtmlNodeText($child);
+        }
+
+        return $text;
+    }
+
+    private static function isHtmlEscapedSourceTextElement(string $tagName): bool
+    {
+        return isset(self::HTML5_RAW_TEXT_ELEMENTS[$tagName])
+            || in_array($tagName, ['xmp', 'noembed', 'noframes', 'title', 'textarea', 'plaintext', 'noscript', 'iframe', 'template'], true);
     }
 
     /**

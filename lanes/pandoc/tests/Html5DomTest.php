@@ -531,6 +531,30 @@ return [
             $documentBody instanceof DOMElement ? Html5Dom::serializeHtmlChildren($documentBody) : ''
         );
     },
+    'keeps html template boundaries across nested template and raw text sentinels' => static function (TestRunner $t): void {
+        $templateSource = '<template data-inner="1"><p>Inner</p></template>'
+            . '<noscript><script>const fallback = "</template>";</script><p>Fallback</p></noscript>'
+            . '<script>const sentinel = "</template>";</script><p>Tail</p>';
+        $body = Html5Dom::parseHtmlFragment('<template id="outer">' . $templateSource . '</template><p>after</p>');
+        $children = Html5Dom::childElements($body);
+        $template = $children[0] ?? null;
+        $paragraph = $children[1] ?? null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+        $expectedEscaped = '&lt;template data-inner="1"&gt;&lt;p&gt;Inner&lt;/p&gt;&lt;/template&gt;'
+            . '&lt;noscript&gt;&lt;script&gt;const fallback = "&lt;/template&gt;";&lt;/script&gt;&lt;p&gt;Fallback&lt;/p&gt;&lt;/noscript&gt;'
+            . '&lt;script&gt;const sentinel = "&lt;/template&gt;";&lt;/script&gt;&lt;p&gt;Tail&lt;/p&gt;';
+
+        $t->same(2, count($children));
+        $t->true($template instanceof DOMElement, 'Expected outer template to survive as the first body child');
+        $t->same('template', $template instanceof DOMElement ? strtolower($template->tagName) : null);
+        $t->same(['id' => 'outer'], $template instanceof DOMElement ? Html5Dom::attributes($template) : []);
+        $t->same($templateSource, $template instanceof DOMElement ? $template->textContent : null);
+        $t->same([], $template instanceof DOMElement ? Html5Dom::childElements($template) : []);
+        $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside the outer template');
+        $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
+        $t->same('<template id="outer">' . $expectedEscaped . '</template><p>after</p>', $serialized);
+        $t->true(!str_contains($serialized, '<p>Tail</p><p>after</p>'), 'Expected template tail paragraph to stay escaped inside the outer template');
+    },
     'serializes invalid table-scope children before the table for html5 reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'
