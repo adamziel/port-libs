@@ -71,6 +71,88 @@ return [
         $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
     },
+    'reports bounded control character policy diagnostics for csv and tsv fields' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv("\xEF\xBB\xBFid,title,note\n1,\"Quoted\x00title\",ok\n2,plain\x1Ffield,tail\n", [
+            'sourcePath' => 'imports/control.csv',
+        ]);
+        $tsvDocument = $reader->readTsv("id\tnote\nA\tplain\x1Bfield\nB\t\"quoted\x07field\"\n", [
+            'sourcePath' => 'imports/control.tsv',
+        ]);
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+        $csvControl = $csvPacket['controlCharacters'] ?? [];
+        $tsvControl = $tsvPacket['controlCharacters'] ?? [];
+        $csvSamples = $csvControl['samples'] ?? [];
+        $tsvSamples = $tsvControl['samples'] ?? [];
+
+        $t->same('Quoted' . "\x00" . 'title', $csvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('plain' . "\x1F" . 'field', $csvTable->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('plain' . "\x1B" . 'field', $tsvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('quoted' . "\x07" . 'field', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
+        $t->same(3, $csvPacket['rowCount'] ?? null);
+        $t->same(3, $csvPacket['columnCount'] ?? null);
+        $t->same(0, $csvPacket['raggedRowCount'] ?? null);
+        $t->same(3, $tsvPacket['rowCount'] ?? null);
+        $t->same(2, $tsvPacket['columnCount'] ?? null);
+        $t->same(0, $tsvPacket['raggedRowCount'] ?? null);
+
+        $t->same('report-c0-del-controls-except-ht-lf-cr', $csvControl['policy'] ?? null);
+        $t->same('imports/control.csv', $csvControl['sourcePath'] ?? null);
+        $t->same(2, $csvControl['totalCount'] ?? null);
+        $t->same(1, $csvControl['nulCount'] ?? null);
+        $t->same(1, $csvControl['quotedFieldCount'] ?? null);
+        $t->same(1, $csvControl['unquotedFieldCount'] ?? null);
+        $t->same(8, $csvControl['sampleLimit'] ?? null);
+        $t->same(2, $csvControl['sampleCount'] ?? null);
+        $t->same(false, $csvControl['truncated'] ?? null);
+        $t->same(['U+0000' => 1, 'U+001F' => 1], $csvControl['byCodepoint'] ?? null);
+        $t->same('delimited-text-control-characters', $csvPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('warning', $csvPacket['diagnostics'][0]['severity'] ?? null);
+        $t->same('imports/control.csv', $csvPacket['diagnostics'][0]['sourcePath'] ?? null);
+        $t->same(2, $csvPacket['diagnostics'][0]['controlCount'] ?? null);
+        $t->same(1, $csvPacket['diagnostics'][0]['nulCount'] ?? null);
+        $t->same(2, $csvPacket['diagnostics'][0]['sampleCount'] ?? null);
+        $t->same(1, $csvSamples[0]['rowIndex'] ?? null);
+        $t->same(2, $csvSamples[0]['rowNumber'] ?? null);
+        $t->same(1, $csvSamples[0]['columnIndex'] ?? null);
+        $t->same(2, $csvSamples[0]['columnNumber'] ?? null);
+        $t->same(true, $csvSamples[0]['fieldQuoted'] ?? null);
+        $t->same('00', $csvSamples[0]['byteHex'] ?? null);
+        $t->same('U+0000', $csvSamples[0]['codepoint'] ?? null);
+        $t->same('NUL', $csvSamples[0]['name'] ?? null);
+        $t->contains('6F 74 65 64 00 74 69 74 6C', $csvSamples[0]['byteSampleHex'] ?? '');
+        $t->contains('oted\\x00titl', $csvSamples[0]['textSample'] ?? '');
+        $t->same(2, $csvSamples[1]['rowIndex'] ?? null);
+        $t->same(3, $csvSamples[1]['rowNumber'] ?? null);
+        $t->same(false, $csvSamples[1]['fieldQuoted'] ?? null);
+        $t->same('1F', $csvSamples[1]['byteHex'] ?? null);
+        $t->same('US', $csvSamples[1]['name'] ?? null);
+
+        $t->same('imports/control.tsv', $tsvControl['sourcePath'] ?? null);
+        $t->same(2, $tsvControl['totalCount'] ?? null);
+        $t->same(0, $tsvControl['nulCount'] ?? null);
+        $t->same(1, $tsvControl['quotedFieldCount'] ?? null);
+        $t->same(1, $tsvControl['unquotedFieldCount'] ?? null);
+        $t->same(['U+0007' => 1, 'U+001B' => 1], $tsvControl['byCodepoint'] ?? null);
+        $t->same('delimited-text-control-characters', $tsvPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('imports/control.tsv', $tsvPacket['diagnostics'][0]['sourcePath'] ?? null);
+        $t->same(2, $tsvPacket['diagnostics'][0]['controlCount'] ?? null);
+        $t->same(1, $tsvSamples[0]['rowIndex'] ?? null);
+        $t->same(1, $tsvSamples[0]['columnIndex'] ?? null);
+        $t->same(false, $tsvSamples[0]['fieldQuoted'] ?? null);
+        $t->same('1B', $tsvSamples[0]['byteHex'] ?? null);
+        $t->same('ESC', $tsvSamples[0]['name'] ?? null);
+        $t->contains('6C 61 69 6E 1B 66 69 65 6C', $tsvSamples[0]['byteSampleHex'] ?? '');
+        $t->same(2, $tsvSamples[1]['rowIndex'] ?? null);
+        $t->same(1, $tsvSamples[1]['columnIndex'] ?? null);
+        $t->same(true, $tsvSamples[1]['fieldQuoted'] ?? null);
+        $t->same('07', $tsvSamples[1]['byteHex'] ?? null);
+        $t->same('BEL', $tsvSamples[1]['name'] ?? null);
+        $t->contains('oted\\x07fiel', $tsvSamples[1]['textSample'] ?? '');
+    },
     'honors no-header option for csv and tsv table imports' => static function (TestRunner $t): void {
         $reader = new DelimitedTextReader();
         $csvDocument = $reader->readCsv(implode("\n", [
