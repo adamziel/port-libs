@@ -10691,6 +10691,7 @@ final class XmlHtmlDom
 
         if ($name === 'td' || $name === 'th') {
             $headersRaw = self::attributeOrNull($element, 'headers');
+            $headers = $headersRaw === null ? [] : self::spaceSeparatedTokens($headersRaw);
             $summary = [
                 'tablePart' => 'cell',
                 'tableCell' => $name === 'th' ? 'header' : 'data',
@@ -10699,7 +10700,7 @@ final class XmlHtmlDom
                 'rowSpanRaw' => self::attributeOrNull($element, 'rowspan'),
                 'rowSpan' => self::nonNegativeIntegerAttribute($element, 'rowspan', 1, 65534),
                 'headersRaw' => $headersRaw,
-                'headers' => $headersRaw === null ? [] : self::spaceSeparatedTokens($headersRaw),
+                'headers' => $headers,
             ];
             if ($headersRaw !== null) {
                 $summary += self::tableHeaderReferenceSummary($element, $headersRaw);
@@ -10725,6 +10726,8 @@ final class XmlHtmlDom
         $headersById = [];
         $headerIds = [];
         $headerCellCount = 0;
+        $dataCellCount = 0;
+        $headerReferenceCells = [];
         $elementIndex = 0;
 
         foreach ($table->getElementsByTagName('*') as $candidate) {
@@ -10738,7 +10741,14 @@ final class XmlHtmlDom
             }
 
             ++$elementIndex;
-            if (self::htmlElementName($candidate) !== 'th') {
+            $candidateName = self::htmlElementName($candidate);
+            if ($candidateName === 'td') {
+                ++$dataCellCount;
+            }
+            if (($candidateName === 'td' || $candidateName === 'th') && $candidate->hasAttribute('headers')) {
+                $headerReferenceCells[] = $candidate;
+            }
+            if ($candidateName !== 'th') {
                 continue;
             }
 
@@ -10761,14 +10771,14 @@ final class XmlHtmlDom
         }
 
         $duplicateHeaderIds = [];
-        $issues = [];
+        $tableHeaderIssues = [];
         foreach ($headersById as $id => $headers) {
             if (count($headers) < 2) {
                 continue;
             }
 
             $duplicateHeaderIds[] = $id;
-            $issues[] = [
+            $tableHeaderIssues[] = [
                 'code' => 'duplicate-table-header-id',
                 'headerId' => $id,
                 'count' => count($headers),
@@ -10779,15 +10789,73 @@ final class XmlHtmlDom
             ];
         }
 
+        $referencedIds = [];
+        $duplicateReferenceIds = [];
+        $invalidReferenceTokens = [];
+        $resolvedReferenceIds = [];
+        $missingReferenceIds = [];
+        $nonHeaderReferenceIds = [];
+        $duplicateHeaderTargetIds = [];
+        $referenceIssues = [];
+        foreach ($headerReferenceCells as $cell) {
+            $headersRaw = self::attributeOrNull($cell, 'headers');
+            if ($headersRaw === null) {
+                continue;
+            }
+
+            $reference = self::tableHeaderReferenceSummary($cell, $headersRaw);
+            foreach ($reference['headerReferenceIds'] as $id) {
+                self::appendUniqueString($referencedIds, $id);
+            }
+            foreach ($reference['duplicateHeaderReferenceIds'] as $id) {
+                self::appendUniqueString($duplicateReferenceIds, $id);
+            }
+            foreach ($reference['invalidHeaderReferenceTokens'] as $token) {
+                self::appendUniqueString($invalidReferenceTokens, $token);
+            }
+            foreach ($reference['resolvedHeaderReferenceIds'] as $id) {
+                self::appendUniqueString($resolvedReferenceIds, $id);
+            }
+            foreach ($reference['missingHeaderReferenceIds'] as $id) {
+                self::appendUniqueString($missingReferenceIds, $id);
+            }
+            foreach ($reference['nonHeaderReferenceIds'] as $id) {
+                self::appendUniqueString($nonHeaderReferenceIds, $id);
+            }
+            foreach ($reference['duplicateHeaderTargetIds'] as $id) {
+                self::appendUniqueString($duplicateHeaderTargetIds, $id);
+            }
+            array_push($referenceIssues, ...$reference['headerReferenceIssues']);
+        }
+
+        $tableHeaderReferenceIssues = array_merge($tableHeaderIssues, $referenceIssues);
+
         return [
             'tableHeaderCellCount' => $headerCellCount,
+            'tableDataCellCount' => $dataCellCount,
             'tableHeaderIds' => $headerIds,
             'duplicateTableHeaderIds' => $duplicateHeaderIds,
-            'tableHeaderIssues' => $issues,
+            'tableDuplicateHeaderIds' => $duplicateHeaderIds,
+            'tableHeaderIssues' => $tableHeaderIssues,
             'tableHeaderIssueCodes' => array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
-                $issues
+                $tableHeaderIssues
             ),
+            'explicitHeaderReferenceCellCount' => count($headerReferenceCells),
+            'explicitHeaderReferenceIds' => $referencedIds,
+            'duplicateHeaderReferenceIds' => $duplicateReferenceIds,
+            'invalidHeaderReferenceTokens' => $invalidReferenceTokens,
+            'resolvedHeaderReferenceIds' => $resolvedReferenceIds,
+            'missingHeaderReferenceIds' => $missingReferenceIds,
+            'nonHeaderReferenceIds' => $nonHeaderReferenceIds,
+            'duplicateHeaderTargetIds' => $duplicateHeaderTargetIds,
+            'tableHeaderReferenceIssueCount' => count($tableHeaderReferenceIssues),
+            'tableHeaderReferenceIssues' => $tableHeaderReferenceIssues,
+            'tableHeaderReferenceIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $tableHeaderReferenceIssues
+            ))),
+            'tableHeaderReferencesResolved' => $tableHeaderReferenceIssues === [],
         ];
     }
 
@@ -15173,6 +15241,16 @@ final class XmlHtmlDom
         $scope = strtolower(trim($header->getAttribute('scope')));
 
         return in_array($scope, ['row', 'col', 'rowgroup', 'colgroup'], true) ? $scope : null;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function appendUniqueString(array &$values, string $value): void
+    {
+        if ($value !== '' && !in_array($value, $values, true)) {
+            $values[] = $value;
+        }
     }
 
     private static function serializeNode(\DOMNode $node): string

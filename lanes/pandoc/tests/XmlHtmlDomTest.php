@@ -5237,6 +5237,25 @@ XML, 'BITS section metadata XML', preserveWhiteSpace: false);
         $t->same('dup', $table['tableHeaderIssues'][0]['headerId'] ?? null);
         $t->same(2, $table['tableHeaderIssues'][0]['count'] ?? null);
         $t->same(['Duplicate One', 'Duplicate Two'], $table['tableHeaderIssues'][0]['texts'] ?? null);
+        $t->same(2, $table['tableDataCellCount']);
+        $t->same(['dup'], $table['tableDuplicateHeaderIds']);
+        $t->same(1, $table['explicitHeaderReferenceCellCount']);
+        $t->same(['region', 'row-a', 'dup', 'missing', 'note', 'period', 'outer'], $table['explicitHeaderReferenceIds']);
+        $t->same(['dup'], $table['duplicateHeaderReferenceIds']);
+        $t->same(['bad<tag'], $table['invalidHeaderReferenceTokens']);
+        $t->same(['region', 'row-a', 'period'], $table['resolvedHeaderReferenceIds']);
+        $t->same(['missing', 'outer'], $table['missingHeaderReferenceIds']);
+        $t->same(['note'], $table['nonHeaderReferenceIds']);
+        $t->same(['dup'], $table['duplicateHeaderTargetIds']);
+        $t->same(8, $table['tableHeaderReferenceIssueCount']);
+        $t->same([
+            'duplicate-table-header-id',
+            'duplicate-table-header-reference-token',
+            'missing-table-header-target',
+            'non-header-table-header-target',
+            'invalid-table-header-reference-token',
+        ], $table['tableHeaderReferenceIssueCodes']);
+        $t->same(false, $table['tableHeaderReferencesResolved']);
         $t->same('Reg', $regionHeader['abbr']);
         $t->same('col', $regionHeader['scope']);
         $t->same('First', $duplicateHeader['abbr']);
