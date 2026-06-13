@@ -1049,7 +1049,7 @@ final class PandocJsonWriter
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
             'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), $this->targetTuple($node)]],
-            'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
+            'note' => $this->noteInline($node),
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
             'native_inline' => $this->nativeTaggedConstructor($node, 'inline'),
             default => throw new \InvalidArgumentException("Unsupported AST inline node for Pandoc JSON: {$node->type}"),
@@ -1067,6 +1067,33 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function noteInline(AstNode $node): array
+    {
+        $note = [
+            't' => 'Note',
+            'c' => $this->writeBlocks($node->children),
+        ];
+        $label = $this->sourceNoteLabel($node);
+        if ($label !== null) {
+            $note['noteLabel'] = $label;
+        }
+
+        return $note;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
     }
 
     /**
