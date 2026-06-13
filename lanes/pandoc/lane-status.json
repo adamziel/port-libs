@@ -491,6 +491,8 @@
   "xmlHtmlDomNoscriptFallbackReviewAssertions": 36,
   "mappedXmlHtmlDomJatsFrontMatterReviewCases": 1,
   "xmlHtmlDomJatsFrontMatterReviewAssertions": 45,
+  "mappedXmlHtmlDomDocBookBibliographyReferenceCases": 1,
+  "xmlHtmlDomDocBookBibliographyReferenceAssertions": 58,
   "mappedJsonNativeMetaInlineFallbackCases": 1,
   "jsonNativeMetaInlineFallbackAssertions": 10,
   "mappedEpubBindingHandlerByteDigestCases": 1,
