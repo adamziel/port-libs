@@ -390,4 +390,38 @@ return [
         $t->same('', $outputSupport['ipynb']['implementation']);
         $t->contains('No native PHP reader or writer is registered', $outputSupport['ipynb']['notes']);
     },
+    'reports native ipynb writer unsupported capability reason without notebook tooling' => static function (TestRunner $t): void {
+        $report = PandocFormatRegistry::ipynbNativeWriterCapabilityReport();
+
+        $t->same('ipynb', $report['format']);
+        $t->same('native-ipynb-writer', $report['capability']);
+        $t->same('output', $report['direction']);
+        $t->same('unsupported', $report['status']);
+        $t->same('partial-input-unsupported-output', $report['verdict']);
+        $t->same('partial', $report['readerStatus']);
+        $t->same('unsupported', $report['writerStatus']);
+        $t->same(IpynbReader::class, $report['inputImplementation']);
+        $t->same('', $report['outputImplementation']);
+        $t->same(false, $report['countsAsDirectSupport']);
+        $t->same(false, $report['nativeWriterParity']);
+        $t->same(false, $report['requiresNotebookExecution']);
+        $t->same(true, $report['externalToolFree']);
+        $t->same([], $report['externalValidators']);
+        $t->same(['output'], $report['unsupportedDirections']);
+        $t->same(['ipynb-notebook-writer-core'], $report['gates']);
+        $t->contains('notebook-writer-not-implemented', implode(',', $report['diagnostics']));
+        $t->contains('external-notebook-tooling-disallowed', implode(',', $report['diagnostics']));
+
+        $t->same('native-ipynb-writer-not-implemented', $report['reason']);
+        $t->same('native-ipynb-writer-not-implemented', $report['reasonPacket']['code']);
+        $t->contains('notebook-execution-not-run', implode(',', $report['reasonPacket']['details']));
+
+        $decodedReason = json_decode($report['reasonJson'], true, 512, JSON_THROW_ON_ERROR);
+        $t->same($report['reasonPacket'], $decodedReason);
+
+        $encodedReport = json_encode($report, JSON_THROW_ON_ERROR);
+        $decodedReport = json_decode($encodedReport, true, 512, JSON_THROW_ON_ERROR);
+        $t->same('native-ipynb-writer-not-implemented', $decodedReport['reason']);
+        $t->same('', $decodedReport['outputImplementation']);
+    },
 ];
