@@ -95,6 +95,15 @@ final class IpynbReader
         $outputLanguageCounts = [];
         $outputLanguageMimeCounts = [];
         $outputLanguageDiagnosticCounts = [];
+        $outputLanguagePolicyCounts = [
+            'digest-associated' => 0,
+            'digest-missing' => 0,
+            'match' => 0,
+            'mismatch' => 0,
+            'unknown' => 0,
+        ];
+        $outputLanguageDigestAssociationCount = 0;
+        $outputLanguageDigestMissingCount = 0;
 
         foreach ($cells as $index => $cell) {
             if (!is_array($cell)) {
@@ -193,6 +202,11 @@ final class IpynbReader
             foreach ($outputLanguageSummary['diagnosticCounts'] as $diagnostic => $count) {
                 $outputLanguageDiagnosticCounts[$diagnostic] = ($outputLanguageDiagnosticCounts[$diagnostic] ?? 0) + $count;
             }
+            foreach ($outputLanguageSummary['policyCounts'] as $policy => $count) {
+                $outputLanguagePolicyCounts[$policy] = ($outputLanguagePolicyCounts[$policy] ?? 0) + $count;
+            }
+            $outputLanguageDigestAssociationCount += $outputLanguageSummary['digestAssociatedLanguageCount'];
+            $outputLanguageDigestMissingCount += $outputLanguageSummary['digestMissingLanguageCount'];
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -240,6 +254,7 @@ final class IpynbReader
             if ($outputLanguageSummary['languageLikeMimeCount'] > 0) {
                 $attributes['data-ipynb-output-language-like-mime-count'] = (string) $outputLanguageSummary['languageLikeMimeCount'];
                 $attributes['data-ipynb-output-language-hints'] = implode(' ', $outputLanguageSummary['languages']);
+                $attributes['data-ipynb-output-language-policy'] = 'metadata-only';
             }
             if ($outputLanguageSummary['diagnostics'] !== []) {
                 $attributes['data-ipynb-output-language-diagnostics'] = implode(' ', $outputLanguageSummary['diagnostics']);
@@ -325,6 +340,8 @@ final class IpynbReader
                 'ipynbOutputLanguageUnknownCount' => $outputLanguageSummary['unknownLanguageCount'],
                 'ipynbOutputLanguageDiagnostics' => $outputLanguageSummary['diagnostics'],
                 'ipynbOutputLanguageDiagnosticCounts' => $outputLanguageSummary['diagnosticCounts'],
+                'ipynbOutputMimeLanguagePolicySummary' => $outputLanguageSummary['policySummary'],
+                'ipynbOutputMimeLanguagePolicyRecords' => $outputLanguageSummary['records'],
                 'ipynbUnsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['count'],
                 'ipynbUnsupportedResourceDiagnostics' => $cellDiagnostics,
                 'ipynbCellMetadataKeys' => $cellMetadataKeys,
@@ -390,6 +407,8 @@ final class IpynbReader
                 'outputLanguageUnknownCount' => $outputLanguageSummary['unknownLanguageCount'],
                 'outputLanguageDiagnostics' => $outputLanguageSummary['diagnostics'],
                 'outputLanguageDiagnosticCounts' => $outputLanguageSummary['diagnosticCounts'],
+                'outputMimeLanguagePolicySummary' => $outputLanguageSummary['policySummary'],
+                'outputMimeLanguagePolicyRecords' => $outputLanguageSummary['records'],
                 'unsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['count'],
                 'diagnostics' => $cellDiagnostics,
                 'metadataKeys' => $cellMetadataKeys,
@@ -410,6 +429,7 @@ final class IpynbReader
         ksort($outputLanguageCounts);
         ksort($outputLanguageMimeCounts);
         ksort($outputLanguageDiagnosticCounts);
+        ksort($outputLanguagePolicyCounts);
         foreach ($cellSummaries as &$cellSummary) {
             $cellSummary['sourceFingerprintCount'] = $sourceFingerprintCounts[$cellSummary['sourceFingerprint']] ?? 1;
         }
@@ -513,9 +533,30 @@ final class IpynbReader
                 'outputLanguageUnknownCount' => $outputLanguageUnknownCount,
                 'streamAssociatedOutputLanguageCount' => $streamAssociatedOutputLanguageCount,
                 'streamAssociatedOutputLanguageMismatchCount' => $streamAssociatedOutputLanguageMismatchCount,
+                'outputLanguageDigestAssociationCount' => $outputLanguageDigestAssociationCount,
+                'outputLanguageDigestMissingCount' => $outputLanguageDigestMissingCount,
+                'outputLanguagePolicyCounts' => $outputLanguagePolicyCounts,
                 'outputLanguageCounts' => $outputLanguageCounts,
                 'outputLanguageMimeCounts' => $outputLanguageMimeCounts,
                 'outputLanguageDiagnosticCounts' => $outputLanguageDiagnosticCounts,
+            ],
+            'notebookMimeLanguagePolicySummary' => [
+                'state' => $outputLanguageLikeMimeCount > 0 ? 'metadata-only' : 'none',
+                'byteExposure' => 'blocked',
+                'notebookLanguage' => $language,
+                'notebookLanguageSource' => $notebookLanguageHint['source'],
+                'notebookLanguageDiagnostics' => $notebookLanguageMetadataSummary['diagnostics'],
+                'languageLikeMimeCount' => $outputLanguageLikeMimeCount,
+                'languageLikeMimeCellCount' => $outputLanguageLikeMimeCellCount,
+                'matchedLanguageCount' => $outputLanguageMatchCount,
+                'mismatchedLanguageCount' => $outputLanguageMismatchCount,
+                'unknownLanguageCount' => $outputLanguageUnknownCount,
+                'digestAssociatedLanguageCount' => $outputLanguageDigestAssociationCount,
+                'digestMissingLanguageCount' => $outputLanguageDigestMissingCount,
+                'policyCounts' => $outputLanguagePolicyCounts,
+                'languageCounts' => $outputLanguageCounts,
+                'mimeTypeCounts' => $outputLanguageMimeCounts,
+                'diagnosticCounts' => $outputLanguageDiagnosticCounts,
             ],
         ], $blocks);
     }
@@ -1459,7 +1500,7 @@ final class IpynbReader
     /**
      * @param array<string, mixed> $outputSummary
      * @param array{languageHint:string, languageHintSource:string, languageHintDiagnostics:list<string>} $languageHintSummary
-     * @return array{languageLikeMimeCount:int, mimeTypes:list<string>, languages:list<string>, records:list<array<string, mixed>>, matchedLanguageCount:int, mismatchedLanguageCount:int, unknownLanguageCount:int, streamAssociatedLanguageCount:int, streamAssociatedMismatchCount:int, diagnostics:list<string>, diagnosticCounts:array<string, int>, languageCounts:array<string, int>, mimeTypeCounts:array<string, int>}
+     * @return array{languageLikeMimeCount:int, mimeTypes:list<string>, languages:list<string>, records:list<array<string, mixed>>, matchedLanguageCount:int, mismatchedLanguageCount:int, unknownLanguageCount:int, streamAssociatedLanguageCount:int, streamAssociatedMismatchCount:int, digestAssociatedLanguageCount:int, digestMissingLanguageCount:int, diagnostics:list<string>, diagnosticCounts:array<string, int>, policyCounts:array<string, int>, languageCounts:array<string, int>, mimeTypeCounts:array<string, int>, policySummary:array<string, mixed>}
      */
     private function outputLanguageConsistencySummary(array $outputSummary, array $languageHintSummary): array
     {
@@ -1471,11 +1512,20 @@ final class IpynbReader
         $diagnosticCounts = [];
         $languageCounts = [];
         $mimeTypeCounts = [];
+        $policyCounts = [
+            'digest-associated' => 0,
+            'digest-missing' => 0,
+            'match' => 0,
+            'mismatch' => 0,
+            'unknown' => 0,
+        ];
         $matchedLanguageCount = 0;
         $mismatchedLanguageCount = 0;
         $unknownLanguageCount = 0;
         $streamAssociatedLanguageCount = 0;
         $streamAssociatedMismatchCount = 0;
+        $digestAssociatedLanguageCount = 0;
+        $digestMissingLanguageCount = 0;
         $outputs = $outputSummary['outputs'] ?? [];
         if (!is_array($outputs)) {
             $outputs = [];
@@ -1502,17 +1552,34 @@ final class IpynbReader
 
                 $recordDiagnostics = [];
                 $matchesCellLanguage = null;
+                $policy = 'unknown';
                 if ($cellLanguage === 'unknown') {
                     $unknownLanguageCount++;
+                    $policyCounts['unknown']++;
+                    $policy = 'unknown-cell-language';
                     $recordDiagnostics[] = 'output-language-unknown-cell-language';
                 } else {
                     $matchesCellLanguage = $outputLanguage === $cellLanguage;
                     if ($matchesCellLanguage) {
                         $matchedLanguageCount++;
+                        $policyCounts['match']++;
+                        $policy = 'matches-cell-language';
                     } else {
                         $mismatchedLanguageCount++;
+                        $policyCounts['mismatch']++;
+                        $policy = 'mismatches-cell-language';
                         $recordDiagnostics[] = 'output-language-mismatch-cell-language';
                     }
+                }
+                $mimeBundleDigest = $outputRow['mimeBundleDigest'] ?? null;
+                $hasMimeBundleDigest = is_string($mimeBundleDigest) && $mimeBundleDigest !== '';
+                if ($hasMimeBundleDigest) {
+                    $digestAssociatedLanguageCount++;
+                    $policyCounts['digest-associated']++;
+                } else {
+                    $digestMissingLanguageCount++;
+                    $policyCounts['digest-missing']++;
+                    $recordDiagnostics[] = 'output-language-mime-digest-missing';
                 }
 
                 $record = [
@@ -1523,9 +1590,16 @@ final class IpynbReader
                     'cellLanguageHint' => $cellLanguage,
                     'cellLanguageHintSource' => $languageHintSummary['languageHintSource'],
                     'matchesCellLanguage' => $matchesCellLanguage,
+                    'policy' => $policy,
+                    'reviewPolicy' => 'metadata-only',
+                    'byteExposure' => 'blocked',
                     'outputGroupIndex' => $outputRow['groupIndex'] ?? null,
                     'diagnostics' => $recordDiagnostics,
                 ];
+                if ($hasMimeBundleDigest) {
+                    $record['mimeBundleDigest'] = $mimeBundleDigest;
+                    $record['mimeBundleFingerprintSource'] = $outputRow['mimeBundleFingerprintSource'] ?? 'metadata-only';
+                }
                 if (isset($outputRow['associatedStreamGroupIndex'], $outputRow['associatedStreamGroupName'])) {
                     $record['associatedStreamGroupIndex'] = $outputRow['associatedStreamGroupIndex'];
                     $record['associatedStreamGroupName'] = $outputRow['associatedStreamGroupName'];
@@ -1553,6 +1627,22 @@ final class IpynbReader
         ksort($languageCounts);
         ksort($mimeTypeCounts);
         ksort($diagnosticCounts);
+        ksort($policyCounts);
+        $policySummary = [
+            'state' => count($records) > 0 ? 'metadata-only' : 'none',
+            'byteExposure' => 'blocked',
+            'cellLanguageHint' => $cellLanguage,
+            'cellLanguageHintSource' => $languageHintSummary['languageHintSource'],
+            'languageLikeMimeCount' => count($records),
+            'matchedLanguageCount' => $matchedLanguageCount,
+            'mismatchedLanguageCount' => $mismatchedLanguageCount,
+            'unknownLanguageCount' => $unknownLanguageCount,
+            'digestAssociatedLanguageCount' => $digestAssociatedLanguageCount,
+            'digestMissingLanguageCount' => $digestMissingLanguageCount,
+            'policyCounts' => $policyCounts,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+            'diagnosticCounts' => $diagnosticCounts,
+        ];
 
         return [
             'languageLikeMimeCount' => count($records),
@@ -1564,10 +1654,14 @@ final class IpynbReader
             'unknownLanguageCount' => $unknownLanguageCount,
             'streamAssociatedLanguageCount' => $streamAssociatedLanguageCount,
             'streamAssociatedMismatchCount' => $streamAssociatedMismatchCount,
+            'digestAssociatedLanguageCount' => $digestAssociatedLanguageCount,
+            'digestMissingLanguageCount' => $digestMissingLanguageCount,
             'diagnostics' => array_values(array_unique($diagnostics)),
             'diagnosticCounts' => $diagnosticCounts,
+            'policyCounts' => $policyCounts,
             'languageCounts' => $languageCounts,
             'mimeTypeCounts' => $mimeTypeCounts,
+            'policySummary' => $policySummary,
         ];
     }
 

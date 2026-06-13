@@ -916,6 +916,7 @@ return [
         $cellSummaries = $document->attr('notebookCells');
         $metadataSummary = $document->attr('notebookLanguageMetadataSummary');
         $consistency = $document->attr('notebookLanguageOutputConsistencySummary');
+        $policySummary = $document->attr('notebookMimeLanguagePolicySummary');
         $records = $cell->attr('ipynbOutputLanguageRecords');
         $html = (new WordPressBlockWriter())->write($document);
 
@@ -943,6 +944,15 @@ return [
             'outputLanguageUnknownCount' => 0,
             'streamAssociatedOutputLanguageCount' => 2,
             'streamAssociatedOutputLanguageMismatchCount' => 1,
+            'outputLanguageDigestAssociationCount' => 2,
+            'outputLanguageDigestMissingCount' => 0,
+            'outputLanguagePolicyCounts' => [
+                'digest-associated' => 2,
+                'digest-missing' => 0,
+                'match' => 1,
+                'mismatch' => 1,
+                'unknown' => 0,
+            ],
             'outputLanguageCounts' => [
                 'javascript' => 1,
                 'php' => 1,
@@ -955,6 +965,38 @@ return [
                 'output-language-mismatch-cell-language' => 1,
             ],
         ], $consistency);
+        $t->same([
+            'state' => 'metadata-only',
+            'byteExposure' => 'blocked',
+            'notebookLanguage' => 'php',
+            'notebookLanguageSource' => 'notebook.language_info.name',
+            'notebookLanguageDiagnostics' => ['notebook-language-info-kernelspec-mismatch'],
+            'languageLikeMimeCount' => 2,
+            'languageLikeMimeCellCount' => 1,
+            'matchedLanguageCount' => 1,
+            'mismatchedLanguageCount' => 1,
+            'unknownLanguageCount' => 0,
+            'digestAssociatedLanguageCount' => 2,
+            'digestMissingLanguageCount' => 0,
+            'policyCounts' => [
+                'digest-associated' => 2,
+                'digest-missing' => 0,
+                'match' => 1,
+                'mismatch' => 1,
+                'unknown' => 0,
+            ],
+            'languageCounts' => [
+                'javascript' => 1,
+                'php' => 1,
+            ],
+            'mimeTypeCounts' => [
+                'application/javascript' => 1,
+                'text/x-php' => 1,
+            ],
+            'diagnosticCounts' => [
+                'output-language-mismatch-cell-language' => 1,
+            ],
+        ], $policySummary);
 
         $t->same(2, $cell->attr('ipynbOutputLanguageLikeMimeCount'));
         $t->same(['application/javascript', 'text/x-php'], $cell->attr('ipynbOutputLanguageLikeMimeTypes'));
@@ -964,19 +1006,50 @@ return [
         $t->same(0, $cell->attr('ipynbOutputLanguageUnknownCount'));
         $t->same(['output-language-mismatch-cell-language'], $cell->attr('ipynbOutputLanguageDiagnostics'));
         $t->same(['output-language-mismatch-cell-language' => 1], $cell->attr('ipynbOutputLanguageDiagnosticCounts'));
+        $t->same($cell->attr('ipynbOutputLanguageRecords'), $cell->attr('ipynbOutputMimeLanguagePolicyRecords'));
+        $t->same([
+            'state' => 'metadata-only',
+            'byteExposure' => 'blocked',
+            'cellLanguageHint' => 'php',
+            'cellLanguageHintSource' => 'cell.metadata.language',
+            'languageLikeMimeCount' => 2,
+            'matchedLanguageCount' => 1,
+            'mismatchedLanguageCount' => 1,
+            'unknownLanguageCount' => 0,
+            'digestAssociatedLanguageCount' => 2,
+            'digestMissingLanguageCount' => 0,
+            'policyCounts' => [
+                'digest-associated' => 2,
+                'digest-missing' => 0,
+                'match' => 1,
+                'mismatch' => 1,
+                'unknown' => 0,
+            ],
+            'diagnostics' => ['output-language-mismatch-cell-language'],
+            'diagnosticCounts' => [
+                'output-language-mismatch-cell-language' => 1,
+            ],
+        ], $cell->attr('ipynbOutputMimeLanguagePolicySummary'));
 
         $t->same('application/javascript', $records[0]['mimeType']);
         $t->same('javascript', $records[0]['language']);
         $t->same('php', $records[0]['cellLanguageHint']);
         $t->same(false, $records[0]['matchesCellLanguage']);
+        $t->same('mismatches-cell-language', $records[0]['policy']);
+        $t->same('metadata-only', $records[0]['reviewPolicy']);
+        $t->same('blocked', $records[0]['byteExposure']);
         $t->same(1, $records[0]['outputGroupIndex']);
         $t->same(0, $records[0]['associatedStreamGroupIndex']);
         $t->same('stdout', $records[0]['associatedStreamGroupName']);
         $t->same([0], $records[0]['associatedStreamGroupOutputIndexes']);
+        $t->same($cell->attr('ipynbOutputMimeBundleDigests')[0], $records[0]['mimeBundleDigest']);
+        $t->same('metadata-only', $records[0]['mimeBundleFingerprintSource']);
         $t->same(['output-language-mismatch-cell-language'], $records[0]['diagnostics']);
         $t->same('text/x-php', $records[1]['mimeType']);
         $t->same('php', $records[1]['language']);
         $t->same(true, $records[1]['matchesCellLanguage']);
+        $t->same('matches-cell-language', $records[1]['policy']);
+        $t->same($records[0]['mimeBundleDigest'], $records[1]['mimeBundleDigest']);
         $t->same(1, $records[1]['outputGroupIndex']);
         $t->same(0, $records[1]['associatedStreamGroupIndex']);
         $t->same([], $records[1]['diagnostics']);
@@ -986,19 +1059,25 @@ return [
         $t->same(['javascript', 'php'], $summary['outputLanguageHints']);
         $t->same(1, $summary['outputLanguageMismatchCount']);
         $t->same(['output-language-mismatch-cell-language'], $summary['outputLanguageDiagnostics']);
+        $t->same($cell->attr('ipynbOutputMimeLanguagePolicySummary'), $summary['outputMimeLanguagePolicySummary']);
+        $t->same($records, $summary['outputMimeLanguagePolicyRecords']);
         $t->same('sha256:' . hash('sha256', $source), $summary['sourceFingerprint']);
         $t->same(2, $summary['outputGroupCount']);
         $t->same(1, $summary['outputStreamGroupCount']);
 
         $t->contains('data-ipynb-output-language-like-mime-count="2"', $html);
         $t->contains('data-ipynb-output-language-hints="javascript php"', $html);
+        $t->contains('data-ipynb-output-language-policy="metadata-only"', $html);
         $t->contains('data-ipynb-output-language-diagnostics="output-language-mismatch-cell-language"', $html);
 
         $metadataOnly = json_encode([
             $metadataSummary,
             $consistency,
+            $policySummary,
             $records,
+            $cell->attr('ipynbOutputMimeLanguagePolicySummary'),
             $summary['outputLanguageRecords'],
+            $summary['outputMimeLanguagePolicyRecords'],
         ], JSON_THROW_ON_ERROR);
         $t->same(false, str_contains($metadataOnly, 'secret_language_consistency_source'));
         $t->same(false, str_contains($metadataOnly, 'secret stream bytes'));
@@ -1031,9 +1110,21 @@ return [
         $t->same(['notebook-language-unknown'], $unknownDocument->attr('notebookLanguageMetadataSummary')['diagnostics']);
         $t->same(1, $unknownCell->attr('ipynbOutputLanguageUnknownCount'));
         $t->same(['output-language-unknown-cell-language'], $unknownCell->attr('ipynbOutputLanguageDiagnostics'));
+        $t->same('unknown-cell-language', $unknownRecords[0]['policy']);
+        $t->same('metadata-only', $unknownRecords[0]['reviewPolicy']);
+        $t->same('blocked', $unknownRecords[0]['byteExposure']);
+        $t->true(isset($unknownRecords[0]['mimeBundleDigest']), 'unknown language records still associate MIME digests');
         $t->same(null, $unknownRecords[0]['matchesCellLanguage']);
         $t->same(['output-language-unknown-cell-language'], $unknownRecords[0]['diagnostics']);
         $t->same(1, $unknownConsistency['outputLanguageUnknownCount']);
+        $t->same(1, $unknownConsistency['outputLanguageDigestAssociationCount']);
+        $t->same([
+            'digest-associated' => 1,
+            'digest-missing' => 0,
+            'match' => 0,
+            'mismatch' => 0,
+            'unknown' => 1,
+        ], $unknownConsistency['outputLanguagePolicyCounts']);
         $t->same([
             'output-language-unknown-cell-language' => 1,
         ], $unknownConsistency['outputLanguageDiagnosticCounts']);
