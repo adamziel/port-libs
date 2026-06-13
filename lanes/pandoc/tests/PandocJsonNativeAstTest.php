@@ -5664,6 +5664,183 @@ return [
             $t->same($expectedInlines, $nativePacket['blocks'][0]['c'], "{$source} native writer regenerates nullary constructors");
         }
     },
+    'regenerates nested nullary block constructors with stale native content sidecars' => static function (TestRunner $t): void {
+        $quoteRule = ['t' => 'HorizontalRule', 'c' => ['stale'], 'reviewQueue' => 'quote-rule-source'];
+        $quoteNull = ['t' => 'Null', 'c' => ['stale'], 'reviewQueue' => 'quote-null-source'];
+        $quoteValidRule = ['t' => 'HorizontalRule', 'reviewQueue' => 'quote-valid-rule-source'];
+        $divRule = ['t' => 'HorizontalRule', 'c' => [], 'reviewQueue' => 'div-rule-source'];
+        $divNull = ['t' => 'Null', 'c' => 'stale', 'reviewQueue' => 'div-null-source'];
+        $divValidNull = ['t' => 'Null', 'reviewQueue' => 'div-valid-null-source'];
+        $noteRule = ['t' => 'HorizontalRule', 'c' => [['t' => 'Str', 'c' => 'stale']], 'reviewQueue' => 'note-rule-source'];
+        $noteNull = ['t' => 'Null', 'c' => [], 'reviewQueue' => 'note-null-source'];
+        $noteValidRule = ['t' => 'HorizontalRule', 'reviewQueue' => 'note-valid-rule-source'];
+        $captionRule = ['t' => 'HorizontalRule', 'c' => ['caption'], 'reviewQueue' => 'caption-rule-source'];
+        $captionNull = ['t' => 'Null', 'c' => ['caption'], 'reviewQueue' => 'caption-null-source'];
+        $captionValidNull = ['t' => 'Null', 'reviewQueue' => 'caption-valid-null-source'];
+        $cellRule = ['t' => 'HorizontalRule', 'c' => ['cell'], 'reviewQueue' => 'cell-rule-source'];
+        $cellNull = ['t' => 'Null', 'c' => ['cell'], 'reviewQueue' => 'cell-null-source'];
+        $cellValidRule = ['t' => 'HorizontalRule', 'reviewQueue' => 'cell-valid-rule-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BlockQuote', 'c' => [
+                    $quoteRule,
+                    $quoteNull,
+                    $quoteValidRule,
+                ], 'reviewQueue' => 'quote-source'],
+                ['t' => 'Div', 'c' => [
+                    ['nested-nullary', [], []],
+                    [
+                        $divRule,
+                        $divNull,
+                        $divValidNull,
+                    ],
+                ], 'reviewQueue' => 'div-source'],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'footnote'],
+                    ['t' => 'Space'],
+                    ['t' => 'Note', 'c' => [
+                        $noteRule,
+                        $noteNull,
+                        $noteValidRule,
+                    ], 'reviewQueue' => 'note-source'],
+                ], 'reviewQueue' => 'para-source'],
+                ['t' => 'Table', 'c' => [
+                    ['nested-table', [], []],
+                    ['t' => 'Caption', 'c' => [
+                        ['t' => 'Nothing'],
+                        [
+                            $captionRule,
+                            $captionNull,
+                            $captionValidNull,
+                        ],
+                    ], 'reviewQueue' => 'caption-source'],
+                    [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            ['t' => 'AlignDefault'],
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 1],
+                                            [
+                                                $cellRule,
+                                                $cellNull,
+                                                $cellValidRule,
+                                            ],
+                                        ], 'reviewQueue' => 'cell-source'],
+                                    ],
+                                ], 'reviewQueue' => 'row-source'],
+                            ],
+                        ], 'reviewQueue' => 'body-source'],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ], 'reviewQueue' => 'table-source'],
+            ],
+        ];
+        $expectedQuoteBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            $quoteValidRule,
+        ];
+        $expectedDivBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            $divValidNull,
+        ];
+        $expectedNoteBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            $noteValidRule,
+        ];
+        $expectedCaptionBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            $captionValidNull,
+        ];
+        $expectedCellBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            $cellValidRule,
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+        $childByType = static function (AstNode $parent, string $type): AstNode {
+            foreach ($parent->children as $child) {
+                if ($child->type === $type) {
+                    return $child;
+                }
+            }
+
+            throw new \RuntimeException("Missing {$type} child");
+        };
+        $inlineByConstructor = static function (array $inlines, string $constructor): array {
+            foreach ($inlines as $inline) {
+                if (is_array($inline) && ($inline['t'] ?? null) === $constructor) {
+                    return $inline;
+                }
+            }
+
+            throw new \RuntimeException("Missing {$constructor} inline constructor");
+        };
+        $taggedPayload = static function (array $value): array {
+            $content = $value['c'] ?? null;
+
+            return is_array($content) && array_is_list($content) ? $content : $value;
+        };
+        $tableCellBlocks = static function (array $encoded) use ($taggedPayload): array {
+            $table = $encoded['blocks'][3];
+            $body = $taggedPayload($table['c'][4][0]);
+            $row = $taggedPayload($body[3][0]);
+            $cell = $taggedPayload($row[1][0]);
+
+            return $cell[4];
+        };
+
+        foreach ($documents as $source => $document) {
+            $quote = $document->children[0];
+            $div = $document->children[1];
+            $paragraph = $document->children[2];
+            $note = $childByType($paragraph, 'note');
+            $table = $document->children[3];
+            $body = $childByType($table, 'table_body');
+            $cell = $body->children[0]->children[0];
+
+            $t->same($quoteRule, $quote->children[0]->attr('native'), "{$source} records stale blockquote rule source");
+            $t->same($quoteNull, $quote->children[1]->attr('native'), "{$source} records stale blockquote null source");
+            $t->same($divRule, $div->children[0]->attr('native'), "{$source} records stale div rule source");
+            $t->same($divNull, $div->children[1]->attr('native'), "{$source} records stale div null source");
+            $t->same($noteRule, $note->children[0]->attr('native'), "{$source} records stale note rule source");
+            $t->same($noteNull, $note->children[1]->attr('native'), "{$source} records stale note null source");
+            $t->same($cellRule, $cell->children[0]->attr('native'), "{$source} records stale table cell rule source");
+            $t->same($cellNull, $cell->children[1]->attr('native'), "{$source} records stale table cell null source");
+
+            foreach ([
+                'JSON writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedNote = $inlineByConstructor($encoded['blocks'][2]['c'], 'Note');
+
+                $t->same($expectedQuoteBlocks, $encoded['blocks'][0]['c'], "{$source} {$writer} regenerates blockquote nullary children");
+                $t->same($expectedDivBlocks, $encoded['blocks'][1]['c'][1], "{$source} {$writer} regenerates div nullary children");
+                $t->same($expectedNoteBlocks, $encodedNote['c'], "{$source} {$writer} regenerates note nullary children");
+                $t->same($expectedCaptionBlocks, $encoded['blocks'][3]['c'][1]['c'][1], "{$source} {$writer} regenerates table caption nullary children");
+                $t->same($expectedCellBlocks, $tableCellBlocks($encoded), "{$source} {$writer} regenerates table cell nullary children");
+            }
+        }
+    },
     'preserves current structural inline native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $structuralInlines = [
             ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'reviewQueue' => 'emph-source'],
