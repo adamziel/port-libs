@@ -2729,6 +2729,7 @@ return [
         ]));
         $meta = $document->attr('meta');
         $aliasProvenance = $document->attr('yamlMetadataAliasProvenance', []);
+        $summary = $document->attr('yamlMetadataReviewSummary', []);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('Alias provenance **Packet**', $meta['title']);
@@ -2744,6 +2745,8 @@ return [
         $t->same('https://example.test/export#alias-provenance', $meta['references'][0]['metadata']['source-uri']);
         $t->same('alias-provenance-ref', $meta['references'][1]['id']);
         $t->same(false, array_key_exists('__yamlMetadataAliasProvenance', $meta));
+        $t->same('clean', $summary['reviewStatus'] ?? null);
+        $t->same(9, $summary['aliasCount'] ?? null);
         $t->same(9, count($aliasProvenance));
         $t->same(array_fill(0, 9, 'yaml-alias'), array_column($aliasProvenance, 'type'));
         $t->same(array_fill(0, 9, 'true'), array_column($aliasProvenance, 'resolved'));

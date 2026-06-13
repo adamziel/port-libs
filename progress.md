@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,314 pass / 0 fail | [3,273 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue table geometry after LaTeX body-head row preservation | latex-table-body-head-writer-f286538a3b |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,315 pass / 0 fail | [3,274 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue YAML metadata/front-matter parity after alias summary accounting | yaml-metadata-alias-summary-17c91bad52 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -32,7 +32,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 
 | Input family | In-scope input tokens | Current input status | Local passing | Upstream denominator | Remaining input work |
 | --- | --- | --- | ---: | ---: | --- |
-| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 443 | 1,096 | Nested-list fixture round-trip is covered; complete extension and variant parity. |
+| Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 444 | 1,096 | YAML alias-summary review counters and nested-list fixture round-trip are covered; complete broader extension, variant, and front-matter parity. |
 | HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 275 | 29 | JATS/BITS front-matter review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS readers. |
 | JSON/native AST | `json`, `native` | partial | 50 | 252 | Nullary helper payload validation, task-list checkbox sidecars, note label sidecars, and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `f286538a3b`: 3,314 PHP passes, 0 failures, and 3,273 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), `php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test`, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
+Current branch counters are reconciled through `yaml-metadata-alias-summary-17c91bad52` over base `17c91bad52`: 3,315 PHP passes, 0 failures, and 3,274 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, `php -l` for `MarkdownReader.php`, `MarkdownReaderTest.php`, and `YamlMetadataReviewTest.php`, focused `YamlMetadataReviewTest.php` plus `MarkdownReaderTest.php` (`2` files, `6663` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74355` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -68,8 +68,17 @@ Current-main counters are reconciled through `f286538a3b`: 3,314 PHP passes, 0 f
 | Markdown block boundaries | Landed nested fenced Div and mixed-content nested-list slices | 1,096 Markdown-family rows | 443 Markdown-family cases; latest focused nested-list run 6,626 assertions | Partial | Markdown/CommonMark/GFM extension and variant parity. |
 | Media linked-resource handoff | Landed | 1 mapped cross-format resource slice | 1 focused `MediaBag` case, 144 assertions | Covered bounded handoff; not an input-format ship gate | Wider media/resource edge cases outside opt-in linked-resource handoff. |
 | Notes/references | Landed footnote label anchors and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/citation and JSON/native evidence; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, backlinks, and constructor parity. |
+| YAML metadata/front matter | Landed alias summary accounting and path-indexed alias review handoff | Markdown-family metadata slice | Focused YAML/Markdown run 6,663 assertions | Partial | Broader scalar/list/map parsing diagnostics, unsupported feature verdicts, and writer round-trip handoff coverage. |
 | Table geometry | Landed LaTeX table-foot longtable and body-local head-row handoffs | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot and body-head-row slices | Multi-body semantics, rowspan output, and package-specific table internals. |
 | PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+
+### YAML Metadata Alias Summary Update (2026-06-13)
+
+Bounded native PHP YAML metadata/front-matter parity advanced by one review-surface slice. `MarkdownReader` now carries YAML alias provenance into `yamlMetadataReviewSummary` as `aliasCount`, including alias-only review packets, and `YamlMetadataReview` indexes resolved alias provenance by metadata path for downstream diagnostics.
+
+Verification passed `php -l` for `MarkdownReader.php`, `MarkdownReaderTest.php`, and `YamlMetadataReviewTest.php`; focused `YamlMetadataReviewTest.php` plus `MarkdownReaderTest.php` passed (`2` files, `6663` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74355` assertions, `0` failures). No Pandoc binary, YAML CLI tooling, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.
+
+Remaining critical gap: YAML metadata/front matter is still partial; continue scalar/list/map diagnostics, unsupported feature verdicts, and round-trip handoff to JSON/native/Markdown writers.
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 

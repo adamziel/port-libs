@@ -7033,6 +7033,7 @@ final class MarkdownReader
             || $directiveProvenance !== []
             || $commentProvenance !== []
             || $anchorProvenance !== []
+            || $aliasProvenance !== []
             || $mergeProvenance !== []
             || $scalarProvenance !== []
             || $collectionProvenance !== []
@@ -7045,6 +7046,7 @@ final class MarkdownReader
                 $directiveProvenance,
                 $commentProvenance,
                 $anchorProvenance,
+                $aliasProvenance,
                 $mergeProvenance,
                 $scalarProvenance,
                 $collectionProvenance,
@@ -7062,6 +7064,7 @@ final class MarkdownReader
      * @param list<array<string, string>> $directiveProvenance
      * @param list<array<string, string>> $commentProvenance
      * @param list<array<string, string>> $anchorProvenance
+     * @param list<array<string, string>> $aliasProvenance
      * @param list<array<string, string>> $mergeProvenance
      * @param list<array<string, string>> $scalarProvenance
      * @param list<array<string, string>> $collectionProvenance
@@ -7075,6 +7078,7 @@ final class MarkdownReader
         array $directiveProvenance,
         array $commentProvenance,
         array $anchorProvenance,
+        array $aliasProvenance,
         array $mergeProvenance,
         array $scalarProvenance,
         array $collectionProvenance,
@@ -7153,6 +7157,7 @@ final class MarkdownReader
             'directiveCount' => count($directiveProvenance),
             'commentCount' => count($commentProvenance),
             'anchorCount' => count($anchorProvenance),
+            'aliasCount' => count($aliasProvenance),
             'mergeCount' => count($mergeProvenance),
             'scalarCount' => count($scalarProvenance),
             'collectionCount' => count($collectionProvenance),

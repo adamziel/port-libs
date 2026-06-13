@@ -58,4 +58,47 @@ return [
         $t->same('yaml-explicit-key-collection', $nestedEntries[0]['type'] ?? null);
         $t->same('7', $nestedEntries[0]['sourceLine'] ?? null);
     },
+    'indexes pandoc yaml alias provenance by metadata path' => static function (TestRunner $t): void {
+        $review = YamlMetadataReview::fromMarkdown(implode("\n", [
+            '---',
+            'title: Alias Review Packet',
+            'defaults_: &defaults {status: queued, labels: [migration, review]}',
+            'source-uri_: &source_uri https://example.test/export#alias-review',
+            'review:',
+            '  <<: *defaults',
+            '  source-uri: *source_uri',
+            'aliases:',
+            '  defaults-copy: *defaults',
+            '...',
+            '',
+            '# Body',
+        ]));
+
+        $meta = $review['meta'];
+        $summary = $review['summary'];
+        $byPath = $review['provenanceByPath'];
+
+        $t->same('Alias Review Packet', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['migration', 'review'], $meta['review']['labels']);
+        $t->same('https://example.test/export#alias-review', $meta['review']['source-uri']);
+        $t->same(['status' => 'queued', 'labels' => ['migration', 'review']], $meta['aliases']['defaults-copy']);
+        $t->same('clean', $summary['reviewStatus']);
+        $t->same(3, $summary['aliasCount']);
+        $t->same([], $review['diagnosticsByPath']);
+
+        foreach ([
+            '/review/<<' => '*defaults',
+            '/review/source-uri' => '*source_uri',
+            '/aliases/defaults-copy' => '*defaults',
+        ] as $path => $alias) {
+            $entries = array_values(array_filter(
+                $byPath[$path] ?? [],
+                static fn (array $entry): bool => ($entry['category'] ?? '') === 'alias'
+            ));
+            $t->same(1, count($entries), 'expected one YAML alias provenance entry at ' . $path);
+            $t->same($alias, $entries[0]['alias'] ?? null);
+            $t->same('true', $entries[0]['resolved'] ?? null);
+        }
+    },
 ];
