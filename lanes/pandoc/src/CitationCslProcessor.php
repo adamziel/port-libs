@@ -1233,7 +1233,8 @@ final class CitationCslProcessor
         $entrySetItems = self::relatedItemSummaries($item['entrySetItems'] ?? $item['entry-set-items'] ?? [], $id, 'entrySetItems');
         $missingEntrySetKeys = self::stringListFromFirstField($item, ['missingEntrySetKeys', 'missing-entry-set-keys', 'missing-entryset-keys']);
         $itemType = self::stringField($item, 'type');
-        $genre = self::stringField($item, 'genre');
+        $entrySubtype = self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']);
+        $genre = self::stringField($item, 'genre') ?: $entrySubtype;
         $patentType = self::firstStringField($item, ['patent-type', 'patentType', 'patenttype']);
         if ($patentType === '' && $itemType === 'patent') {
             $patentType = $genre;
@@ -1396,7 +1397,7 @@ final class CitationCslProcessor
             'genre' => $genre,
             'patentType' => $patentType,
             'patentTypeLabel' => $patentTypeLabel,
-            'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
+            'entrySubtype' => $entrySubtype,
             'gender' => $biblatexGender,
             'biblatexGender' => $biblatexGender,
             'biblatexGenderSummary' => $biblatexGender,
