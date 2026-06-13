@@ -119,6 +119,83 @@ return [
         $t->same('A', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('20', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
     },
+    'records csv diagnostics for multiline quotes trailing delimiters and partial eof records' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv(implode("\n", [
+            'id,note,status,',
+            "1,\"two\nline\",ok,",
+            "2,\"open\nlast",
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(10, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([2], $packet['raggedRows'] ?? null);
+        $t->same(false, $packet['finalRecordTerminated'] ?? null);
+        $t->same(2, $packet['multilineQuotedFieldCount'] ?? null);
+        $t->same([1, 2], $packet['multilineQuotedRows'] ?? null);
+        $t->same(2, $packet['quotedFieldNewlineCount'] ?? null);
+        $t->same(2, $packet['trailingDelimiterRowCount'] ?? null);
+        $t->same([0, 1], $packet['trailingDelimiterRows'] ?? null);
+        $t->same(true, $packet['unterminatedQuoteAtEof'] ?? null);
+        $t->same(2, $packet['unterminatedQuoteRow'] ?? null);
+        $t->same(true, $packet['partialFinalRecord'] ?? null);
+        $t->same(2, $packet['partialFinalRecordRow'] ?? null);
+        $t->same(2, $packet['partialFinalRecordFieldCount'] ?? null);
+        $t->same([
+            'delimited-text-multiline-quoted-field',
+            'delimited-text-trailing-delimiter-empty-field',
+            'delimited-text-unterminated-quote-eof',
+            'delimited-text-partial-final-record',
+        ], $codes);
+        $t->same("two\nline", $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('', $table->children[1]->children[0]->children[3]->attr('text'));
+        $t->same("open\nlast", $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
+    },
+    'records tsv diagnostics for multiline quotes trailing delimiters and partial eof records' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readTsv(implode("\n", [
+            "id\tnote\tstatus\t",
+            "1\t\"two\nline\"\tok\t",
+            "2\t\"open\nlast",
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(10, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['raggedRowCount'] ?? null);
+        $t->same([2], $packet['raggedRows'] ?? null);
+        $t->same(false, $packet['finalRecordTerminated'] ?? null);
+        $t->same(2, $packet['multilineQuotedFieldCount'] ?? null);
+        $t->same([1, 2], $packet['multilineQuotedRows'] ?? null);
+        $t->same(2, $packet['quotedFieldNewlineCount'] ?? null);
+        $t->same(2, $packet['trailingDelimiterRowCount'] ?? null);
+        $t->same([0, 1], $packet['trailingDelimiterRows'] ?? null);
+        $t->same(true, $packet['unterminatedQuoteAtEof'] ?? null);
+        $t->same(2, $packet['unterminatedQuoteRow'] ?? null);
+        $t->same(true, $packet['partialFinalRecord'] ?? null);
+        $t->same(2, $packet['partialFinalRecordRow'] ?? null);
+        $t->same(2, $packet['partialFinalRecordFieldCount'] ?? null);
+        $t->same([
+            'delimited-text-multiline-quoted-field',
+            'delimited-text-trailing-delimiter-empty-field',
+            'delimited-text-unterminated-quote-eof',
+            'delimited-text-partial-final-record',
+        ], $codes);
+        $t->same("two\nline", $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('', $table->children[1]->children[0]->children[3]->attr('text'));
+        $t->same("open\nlast", $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
+    },
     'rejects non-boolean delimited text header option' => static function (TestRunner $t): void {
         $message = '';
         try {

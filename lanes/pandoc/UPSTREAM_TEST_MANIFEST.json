@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3341,
-        "latestSlice": "pandoc-ipynb-rich-output-metadata-policy maps one native IpynbReader rich output metadata policy case after JSON/native table caption payload preservation on current main 54ec6ae. IpynbReader now summarizes display_data, execute_result, error, and stream output bundles with MIME-key inventories, metadata-only byte-presence policy, execution-count and error-name metadata, stream names, and blocked-resource diagnostics while preserving rich-output unsupported verdicts without exposing embedded output bytes or invoking Pandoc, Jupyter, Python notebook runners, Node tooling, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped upstream cases move 3340 -> 3341, mappedIpynbRichOutputMetadataPolicyCases is 1, and ipynbRichOutputMetadataPolicyAssertions is 84. Verification passed php -l for IpynbReader.php and IpynbReaderTest.php; focused IpynbReaderTest.php passed 1 file, 351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 77435 assertions, 0 failures after final rebase onto current main 54ec6ae.",
+        "mapped": 3343,
+        "latestSlice": "pandoc-csv-tsv-multiline-quoted-record-diagnostics maps two DelimitedTextReader cases for newline-containing quoted fields, trailing delimiters, unterminated quotes at EOF, and partial final records in CSV and TSV while preserving auto format inference and native table parsing without invoking Pandoc, spreadsheet applications, browsers, external validators, online services, or live provider tests. Mapped upstream cases move 3341 -> 3343, mappedCsvTsvMultilineQuotedRecordDiagnosticsCases is 2, and csvTsvMultilineQuotedRecordDiagnosticsAssertions is 44. Verification passed php -l for DelimitedTextReader.php and DelimitedTextReaderTest.php; focused DelimitedTextReaderTest.php passed 1 file, 121 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 77524 assertions, 0 failures after rebase onto current main e328a6b4.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "IPYNB rich output metadata policy is verified over current main 54ec6ae after JSON/native table caption payload preservation; IPYNB remains partial/not shippable and output rendering stays unsupported.",
-        "latestFocusedSource": "2026-06-13 IPYNB rich output metadata policy inspected native notebook output summaries against fixture and inline notebook cases over the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 54ec6ae after JSON/native table caption payload preservation; focused IpynbReaderTest.php passed 1 file, 351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 77435 assertions, 0 failures.",
+        "status": "DelimitedTextReader CSV/TSV multiline quoted-record diagnostics are verified over current main e328a6b4 after IPYNB execution metadata diagnostics; csv and tsv remain partial input support.",
+        "latestFocusedSource": "2026-06-13 CSV/TSV slice inspected DelimitedTextReader multiline quoted-record diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main e328a6b4 following IPYNB execution metadata diagnostics; focused DelimitedTextReaderTest.php passed 1 file, 121 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 77524 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -285,7 +285,9 @@
         "mappedXmlHtmlDomRawTextBoundaryCases": 1,
         "xmlHtmlDomRawTextBoundaryAssertions": 33,
         "mappedDocBookListMetadataCases": 1,
-        "docBookListMetadataAssertions": 32
+        "docBookListMetadataAssertions": 32,
+        "mappedCsvTsvMultilineQuotedRecordDiagnosticsCases": 2,
+        "csvTsvMultilineQuotedRecordDiagnosticsAssertions": 44
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1668,7 +1670,7 @@
     "xmlHtmlDomDocBookStructureReviewAssertions": 56,
     "mappedCsvTsvFormatInferenceCases": 2,
     "csvTsvFormatInferenceAssertions": 15,
-    "currentSlice": "pandoc-ipynb-rich-output-metadata-policy",
+    "currentSlice": "pandoc-csv-tsv-multiline-quoted-record-diagnostics",
     "mappedXmlHtmlDomJatsBodyDiagnosticsCases": 2,
     "xmlHtmlDomJatsBodyDiagnosticsAssertions": 60,
     "mappedTypstPackageUnsupportedReasonCases": 1,
@@ -1712,5 +1714,7 @@
     "mappedXmlHtmlDomRawTextBoundaryCases": 1,
     "xmlHtmlDomRawTextBoundaryAssertions": 33,
     "mappedDocBookListMetadataCases": 1,
-    "docBookListMetadataAssertions": 32
+    "docBookListMetadataAssertions": 32,
+    "mappedCsvTsvMultilineQuotedRecordDiagnosticsCases": 2,
+    "csvTsvMultilineQuotedRecordDiagnosticsAssertions": 44
 }
