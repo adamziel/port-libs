@@ -190,6 +190,16 @@ final class PandocFormatRegistry
         '.twiki' => 'twiki',
     ];
 
+    /** @var array<string, string> */
+    private const WIKI_INPUT_EXTENSION_STATUS_ALIASES = [
+        '.creole' => 'creole',
+        '.jira' => 'jira',
+        '.mediawiki' => 'mediawiki',
+        '.tikiwiki' => 'tikiwiki',
+        '.twiki' => 'twiki',
+        '.vimwiki' => 'vimwiki',
+    ];
+
     /** @var array<string, list<string>> */
     private const WIKI_READER_FIXTURE_SOURCES = [
         'creole' => [
@@ -1122,6 +1132,153 @@ final class PandocFormatRegistry
     public static function wikiInputStatusAliases(): array
     {
         return self::WIKI_INPUT_STATUS_ALIASES;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function wikiInputExtensionStatusAliases(): array
+    {
+        return self::WIKI_INPUT_EXTENSION_STATUS_ALIASES;
+    }
+
+    /**
+     * @return array{
+     *     extension:string,
+     *     format:string,
+     *     label:string,
+     *     family:string,
+     *     aliasKind:string,
+     *     upstreamExtensionInferred:bool,
+     *     input:bool,
+     *     output:bool,
+     *     direction:string,
+     *     inputStatus:string,
+     *     outputStatus:string,
+     *     verdict:string,
+     *     reasonCode:string,
+     *     reason:string,
+     *     unsupportedReason:array{family:string, format:string, alias:string, direction:string, status:string, reasonCode:string, reason:string},
+     *     serializedReason:string,
+     *     inputImplementation:string,
+     *     outputImplementation:string,
+     *     nativeImplementationRecords:list<string>,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool
+     * }|null
+     */
+    public static function wikiInputExtensionAliasStatus(string $extension): ?array
+    {
+        $normalized = strtolower(trim($extension));
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        $format = self::WIKI_INPUT_EXTENSION_STATUS_ALIASES[$normalized] ?? null;
+        if ($format === null) {
+            return null;
+        }
+
+        $status = self::wikiInputTokenStatus($format);
+        if ($status === null) {
+            return null;
+        }
+
+        $unsupportedReason = [
+            'family' => 'wiki',
+            'format' => $format,
+            'alias' => $normalized,
+            'direction' => 'input',
+            'status' => $status['inputStatus'],
+            'reasonCode' => $status['reasonCode'],
+            'reason' => $status['reason'],
+        ];
+
+        return [
+            'extension' => $normalized,
+            'format' => $format,
+            'label' => self::WIKI_FORMAT_LABELS[$format] ?? $format,
+            'family' => 'wiki',
+            'aliasKind' => 'wiki-input-extension-status-alias',
+            'upstreamExtensionInferred' => array_key_exists($normalized, self::WIKI_EXTENSION_INFERENCE),
+            'input' => true,
+            'output' => $status['output'],
+            'direction' => $status['direction'],
+            'inputStatus' => $status['inputStatus'],
+            'outputStatus' => $status['outputStatus'],
+            'verdict' => $status['verdict'],
+            'reasonCode' => $status['reasonCode'],
+            'reason' => $status['reason'],
+            'unsupportedReason' => $unsupportedReason,
+            'serializedReason' => json_encode($unsupportedReason, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'inputImplementation' => $status['inputImplementation'],
+            'outputImplementation' => $status['outputImplementation'],
+            'nativeImplementationRecords' => [],
+            'directReaderParitySupported' => $status['directReaderParitySupported'],
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     family:string,
+     *     inputFormats:list<string>,
+     *     extensionAliases:array<string, string>,
+     *     upstreamExtensionInference:array<string, string>,
+     *     unsupportedVerdict:string,
+     *     unsupportedExtensionAliases:list<string>,
+     *     unsupportedAliasCount:int,
+     *     directReaderParitySupported:bool,
+     *     externalToolFree:bool,
+     *     registeredNativeImplementationCount:int,
+     *     nativeImplementationRecords:list<string>,
+     *     aliases:array<string, array<string, mixed>>
+     * }
+     */
+    public static function wikiInputExtensionAliasStatusPacket(): array
+    {
+        $aliases = [];
+        $unsupportedExtensionAliases = [];
+        $registeredNativeImplementationCount = 0;
+
+        foreach (self::WIKI_INPUT_EXTENSION_STATUS_ALIASES as $extension => $_format) {
+            $status = self::wikiInputExtensionAliasStatus($extension);
+            if ($status === null) {
+                continue;
+            }
+
+            $aliases[$extension] = $status;
+            if ($status['verdict'] === 'unsupported') {
+                $unsupportedExtensionAliases[] = $extension;
+            }
+            if ($status['inputImplementation'] !== '' || $status['outputImplementation'] !== '') {
+                ++$registeredNativeImplementationCount;
+            }
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'family' => 'wiki-input-extension-alias-status',
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'extensionAliases' => self::WIKI_INPUT_EXTENSION_STATUS_ALIASES,
+            'upstreamExtensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'unsupportedVerdict' => $unsupportedExtensionAliases === [] ? 'supported' : 'unsupported',
+            'unsupportedExtensionAliases' => $unsupportedExtensionAliases,
+            'unsupportedAliasCount' => count($unsupportedExtensionAliases),
+            'directReaderParitySupported' => $unsupportedExtensionAliases === [],
+            'externalToolFree' => true,
+            'registeredNativeImplementationCount' => $registeredNativeImplementationCount,
+            'nativeImplementationRecords' => [],
+            'aliases' => $aliases,
+        ];
     }
 
     /**
