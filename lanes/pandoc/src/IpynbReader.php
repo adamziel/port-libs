@@ -1090,6 +1090,233 @@ final class IpynbReader
     }
 
     /**
+     * @param list<array<string, mixed>> $streamGroups
+     * @return array{streamGroupIndex:int, streamName:string, outputIndexes:list<int>}|null
+     */
+    private function associatedStreamGroup(array $streamGroups, int $outputIndex): ?array
+    {
+        $associated = null;
+        foreach ($streamGroups as $streamGroup) {
+            $endIndex = $streamGroup['endIndex'] ?? null;
+            if (!is_int($endIndex) || $endIndex >= $outputIndex) {
+                continue;
+            }
+            $associated = $streamGroup;
+        }
+        if ($associated === null) {
+            return null;
+        }
+
+        $streamGroupIndex = $associated['streamGroupIndex'] ?? null;
+        $streamName = $associated['streamName'] ?? null;
+        $outputIndexes = $associated['outputIndexes'] ?? null;
+        if (!is_int($streamGroupIndex) || !is_string($streamName) || !is_array($outputIndexes)) {
+            return null;
+        }
+
+        return [
+            'streamGroupIndex' => $streamGroupIndex,
+            'streamName' => $streamName,
+            'outputIndexes' => array_values(array_filter($outputIndexes, 'is_int')),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $outputSummary
+     * @param array{languageHint:string, languageHintSource:string, languageHintDiagnostics:list<string>} $languageHintSummary
+     * @return array{languageLikeMimeCount:int, mimeTypes:list<string>, languages:list<string>, records:list<array<string, mixed>>, matchedLanguageCount:int, mismatchedLanguageCount:int, unknownLanguageCount:int, streamAssociatedLanguageCount:int, streamAssociatedMismatchCount:int, diagnostics:list<string>, diagnosticCounts:array<string, int>, languageCounts:array<string, int>, mimeTypeCounts:array<string, int>}
+     */
+    private function outputLanguageConsistencySummary(array $outputSummary, array $languageHintSummary): array
+    {
+        $cellLanguage = $languageHintSummary['languageHint'];
+        $records = [];
+        $languages = [];
+        $mimeTypes = [];
+        $diagnostics = [];
+        $diagnosticCounts = [];
+        $languageCounts = [];
+        $mimeTypeCounts = [];
+        $matchedLanguageCount = 0;
+        $mismatchedLanguageCount = 0;
+        $unknownLanguageCount = 0;
+        $streamAssociatedLanguageCount = 0;
+        $streamAssociatedMismatchCount = 0;
+        $outputs = $outputSummary['outputs'] ?? [];
+        if (!is_array($outputs)) {
+            $outputs = [];
+        }
+
+        foreach ($outputs as $outputRow) {
+            if (!is_array($outputRow)) {
+                continue;
+            }
+            $outputIndex = $outputRow['index'] ?? null;
+            $outputType = $outputRow['type'] ?? null;
+            $outputMimeTypes = $outputRow['mimeTypes'] ?? [];
+            if (!is_array($outputMimeTypes)) {
+                continue;
+            }
+            foreach ($outputMimeTypes as $mimeType) {
+                if (!is_string($mimeType)) {
+                    continue;
+                }
+                $outputLanguage = $this->languageHintFromMimeType($mimeType);
+                if ($outputLanguage === null) {
+                    continue;
+                }
+
+                $recordDiagnostics = [];
+                $matchesCellLanguage = null;
+                if ($cellLanguage === 'unknown') {
+                    $unknownLanguageCount++;
+                    $recordDiagnostics[] = 'output-language-unknown-cell-language';
+                } else {
+                    $matchesCellLanguage = $outputLanguage === $cellLanguage;
+                    if ($matchesCellLanguage) {
+                        $matchedLanguageCount++;
+                    } else {
+                        $mismatchedLanguageCount++;
+                        $recordDiagnostics[] = 'output-language-mismatch-cell-language';
+                    }
+                }
+
+                $record = [
+                    'outputIndex' => $outputIndex,
+                    'outputType' => $outputType,
+                    'mimeType' => $mimeType,
+                    'language' => $outputLanguage,
+                    'cellLanguageHint' => $cellLanguage,
+                    'cellLanguageHintSource' => $languageHintSummary['languageHintSource'],
+                    'matchesCellLanguage' => $matchesCellLanguage,
+                    'outputGroupIndex' => $outputRow['groupIndex'] ?? null,
+                    'diagnostics' => $recordDiagnostics,
+                ];
+                if (isset($outputRow['associatedStreamGroupIndex'], $outputRow['associatedStreamGroupName'])) {
+                    $record['associatedStreamGroupIndex'] = $outputRow['associatedStreamGroupIndex'];
+                    $record['associatedStreamGroupName'] = $outputRow['associatedStreamGroupName'];
+                    $record['associatedStreamGroupOutputIndexes'] = $outputRow['associatedStreamGroupOutputIndexes'] ?? [];
+                    $streamAssociatedLanguageCount++;
+                    if ($matchesCellLanguage === false) {
+                        $streamAssociatedMismatchCount++;
+                    }
+                }
+
+                $records[] = $record;
+                $languages[] = $outputLanguage;
+                $mimeTypes[] = $mimeType;
+                $languageCounts[$outputLanguage] = ($languageCounts[$outputLanguage] ?? 0) + 1;
+                $mimeTypeCounts[$mimeType] = ($mimeTypeCounts[$mimeType] ?? 0) + 1;
+                foreach ($recordDiagnostics as $diagnostic) {
+                    $diagnostics[] = $diagnostic;
+                    $diagnosticCounts[$diagnostic] = ($diagnosticCounts[$diagnostic] ?? 0) + 1;
+                }
+            }
+        }
+        sort($languages);
+        sort($mimeTypes);
+        sort($diagnostics);
+        ksort($languageCounts);
+        ksort($mimeTypeCounts);
+        ksort($diagnosticCounts);
+
+        return [
+            'languageLikeMimeCount' => count($records),
+            'mimeTypes' => array_values(array_unique($mimeTypes)),
+            'languages' => array_values(array_unique($languages)),
+            'records' => $records,
+            'matchedLanguageCount' => $matchedLanguageCount,
+            'mismatchedLanguageCount' => $mismatchedLanguageCount,
+            'unknownLanguageCount' => $unknownLanguageCount,
+            'streamAssociatedLanguageCount' => $streamAssociatedLanguageCount,
+            'streamAssociatedMismatchCount' => $streamAssociatedMismatchCount,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+            'diagnosticCounts' => $diagnosticCounts,
+            'languageCounts' => $languageCounts,
+            'mimeTypeCounts' => $mimeTypeCounts,
+        ];
+    }
+
+    private function languageHintFromMimeType(string $mimeType): ?string
+    {
+        $normalized = strtolower(trim(explode(';', $mimeType, 2)[0]));
+        if ($normalized === '' || in_array($normalized, ['text/plain', 'application/json'], true)) {
+            return null;
+        }
+
+        $known = [
+            'application/ecmascript' => 'javascript',
+            'application/javascript' => 'javascript',
+            'application/x-javascript' => 'javascript',
+            'application/xhtml+xml' => 'html',
+            'application/x-latex' => 'latex',
+            'application/x-sh' => 'bash',
+            'text/css' => 'css',
+            'text/ecmascript' => 'javascript',
+            'text/html' => 'html',
+            'text/javascript' => 'javascript',
+            'text/latex' => 'latex',
+            'text/markdown' => 'markdown',
+            'text/x-julia' => 'julia',
+            'text/x-markdown' => 'markdown',
+            'text/x-python' => 'python',
+            'text/x-python3' => 'python',
+            'text/x-r' => 'r',
+            'text/x-r-source' => 'r',
+            'text/x-scala' => 'scala',
+            'text/x-shellscript' => 'bash',
+            'text/x-sh' => 'bash',
+            'text/xml' => 'xml',
+        ];
+        if (isset($known[$normalized])) {
+            return $known[$normalized];
+        }
+
+        if (preg_match('#^(?:text|application)/x-([a-z0-9.+_-]+)$#', $normalized, $matches) === 1) {
+            $language = $this->normalizeLanguageHint($matches[1]);
+
+            return $language === '' ? null : $language;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array{language:string, source:string} $notebookLanguageHint
+     * @return array{languageInfoName:?string, languageInfoLanguage:?string, kernelspecLanguage:?string, resolvedLanguage:string, resolvedLanguageSource:string, diagnostics:list<string>}
+     */
+    private function notebookLanguageMetadataSummary(array $metadata, array $notebookLanguageHint): array
+    {
+        $languageInfoName = $this->metadataString($metadata['language_info'] ?? null, 'name');
+        $languageInfoLanguage = $languageInfoName === null ? null : $this->normalizeLanguageHint($languageInfoName);
+        $kernelspecLanguage = $this->metadataString($metadata['kernelspec'] ?? null, 'language');
+        $kernelspecLanguage = $kernelspecLanguage === null ? null : $this->normalizeLanguageHint($kernelspecLanguage);
+        $diagnostics = [];
+
+        if (($languageInfoLanguage === null || $languageInfoLanguage === '') && ($kernelspecLanguage === null || $kernelspecLanguage === '')) {
+            $diagnostics[] = 'notebook-language-unknown';
+        }
+        if (
+            $languageInfoLanguage !== null
+            && $languageInfoLanguage !== ''
+            && $kernelspecLanguage !== null
+            && $kernelspecLanguage !== ''
+            && $languageInfoLanguage !== $kernelspecLanguage
+        ) {
+            $diagnostics[] = 'notebook-language-info-kernelspec-mismatch';
+        }
+
+        return [
+            'languageInfoName' => $languageInfoName,
+            'languageInfoLanguage' => $languageInfoLanguage === '' ? null : $languageInfoLanguage,
+            'kernelspecLanguage' => $kernelspecLanguage === '' ? null : $kernelspecLanguage,
+            'resolvedLanguage' => $notebookLanguageHint['language'],
+            'resolvedLanguageSource' => $notebookLanguageHint['source'],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      * @return array{language:string, source:string}
      */
