@@ -662,6 +662,131 @@ return [
         $t->same('application/json', $roundTrip->children[0]->children[6]->attr('attributes')['data-pandoc-media-type']);
     },
 
+    'adds linked resource normalization mime summaries and provenance diagnostics' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $encodedSource = 'assets/review%20style.css';
+        $declaredSource = 'assets/schema.css';
+        $duplicateSource = 'assets/theme.css';
+        $encodedBytes = "body { color: #126; }\n";
+        $declaredBytes = '{"declared":true}';
+        $duplicateBytes = "main { display: block; }\n";
+        $link = static fn (string $url, string $text): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $text,
+        ], [new AstNode('text', ['text' => $text])]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $link($encodedSource, 'encoded stylesheet'),
+                new AstNode('space'),
+                $link($declaredSource, 'declared metadata'),
+                new AstNode('space'),
+                $link($duplicateSource, 'theme stylesheet'),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'assets/review style.css' => $encodedBytes,
+            $declaredSource => [
+                'contents' => $declaredBytes,
+                'mimeType' => 'application/json',
+            ],
+            $duplicateSource => $duplicateBytes,
+        ]);
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+
+        $t->same([
+            'media-resource-link-loaded:' . $encodedSource,
+            'media-resource-link-source-normalized:' . $encodedSource . ':assets/review style.css',
+            'media-resource-link-loaded:' . $declaredSource,
+            'media-resource-link-mime-disagreement:' . $declaredSource . ':extension=text/css:content-type=application/json',
+            'media-resource-link-loaded:' . $duplicateSource,
+            'media-resource-link-mime-duplicate:text/css:2',
+        ], $filled['diagnostics']);
+        $t->same('assets/review style.css', $directoryBySource[$encodedSource]['path']);
+        $t->same('assets/review%20style.css', $directoryBySource[$encodedSource]['sourcePath']);
+        $t->same('assets/review style.css', $directoryBySource[$encodedSource]['normalizedSourcePath']);
+        $t->same('inferred-path', $directoryBySource[$encodedSource]['mimeTypeSource']);
+        $t->same('text/css', $directoryBySource[$encodedSource]['inferredMimeType']);
+        $t->same(null, $directoryBySource[$encodedSource]['declaredMimeType']);
+        $t->same('application/json', $directoryBySource[$declaredSource]['mimeType']);
+        $t->same('declared', $directoryBySource[$declaredSource]['mimeTypeSource']);
+        $t->same('text/css', $directoryBySource[$declaredSource]['inferredMimeType']);
+        $t->same('application/json', $directoryBySource[$declaredSource]['declaredMimeType']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedParagraph = $extracted['document']->children[0];
+        $mappedEncoded = $mappedParagraph->children[0];
+        $mappedDeclared = $mappedParagraph->children[2];
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+
+        $t->same('media/assets/review style.css', $mappedEncoded->attr('url'));
+        $t->same('assets/review%20style.css', $mappedEncoded->attr('attributes')['data-pandoc-media-source-path']);
+        $t->same('assets/review style.css', $mappedEncoded->attr('attributes')['data-pandoc-media-normalized-source-path']);
+        $t->same('inferred-path', $mappedEncoded->attr('attributes')['data-pandoc-media-type-source']);
+        $t->same('text/css', $mappedEncoded->attr('attributes')['data-pandoc-media-inferred-type']);
+        $t->same('media/assets/schema.css', $mappedDeclared->attr('url'));
+        $t->same('application/json', $mappedDeclared->attr('attributes')['data-pandoc-media-type']);
+        $t->same('declared', $mappedDeclared->attr('attributes')['data-pandoc-media-type-source']);
+        $t->same('text/css', $mappedDeclared->attr('attributes')['data-pandoc-media-inferred-type']);
+        $t->same('assets/review style.css', $entriesBySource[$encodedSource]['normalizedSourcePath']);
+        $t->same('declared', $entriesBySource[$declaredSource]['mimeTypeSource']);
+    },
+
+    'disambiguates case folded linked resource extraction path collisions' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $upperSource = 'assets/Logo.CSS';
+        $lowerSource = 'assets/logo.css';
+        $upperBytes = "body { color: #111; }\n";
+        $lowerBytes = "body { color: #222; }\n";
+        $link = static fn (string $url, string $text): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $text,
+        ], [new AstNode('text', ['text' => $text])]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $link($upperSource, 'upper case stylesheet'),
+                new AstNode('space'),
+                $link($lowerSource, 'lower case stylesheet'),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            $upperSource => $upperBytes,
+            $lowerSource => $lowerBytes,
+        ]);
+        $expectedLowerPath = 'assets/logo-' . substr(sha1($lowerSource . "\0" . sha1($lowerBytes)), 0, 12) . '.css';
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedParagraph = $extracted['document']->children[0];
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+
+        $t->same([
+            'media-resource-link-loaded:' . $upperSource,
+            'media-resource-link-loaded:' . $lowerSource,
+            'media-resource-link-mime-duplicate:text/css:2',
+        ], $filled['diagnostics']);
+        $t->same([
+            'media-resource-casefold-path-collision:' . $lowerSource,
+            'media-resource-link-mapped:' . $upperSource,
+            'media-resource-link-mapped:' . $lowerSource,
+        ], $extracted['diagnostics']);
+        $t->same('assets/Logo.CSS', $entriesBySource[$upperSource]['mediaPath']);
+        $t->same($expectedLowerPath, $entriesBySource[$lowerSource]['mediaPath']);
+        $t->same('media/assets/Logo.CSS', $mappedParagraph->children[0]->attr('url'));
+        $t->same('media/' . $expectedLowerPath, $mappedParagraph->children[2]->attr('url'));
+        $t->same($expectedLowerPath, $mappedParagraph->children[2]->attr('attributes')['data-pandoc-media-path']);
+        $t->same($lowerSource, $mappedParagraph->children[2]->attr('attributes')['data-pandoc-media-canonical-source']);
+        $t->same(2, count(array_unique(array_map('strtolower', array_column($extracted['entries'], 'mediaPath')))));
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';

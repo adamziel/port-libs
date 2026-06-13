@@ -6,7 +6,7 @@ namespace PortLibs\Pandoc;
 
 final class MediaBag
 {
-    /** @var array<string, array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}> */
+    /** @var array<string, array{source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, path:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string, sha1:string, byteLength:int}> */
     private array $itemsByCanonicalSource = [];
 
     /**
@@ -54,9 +54,14 @@ final class MediaBag
 
         $canonicalSource = self::canonicalizeSource($source);
         $decodedSource = rawurldecode($canonicalSource);
-        $normalizedMimeType = $mimeType === null || trim($mimeType) === ''
-            ? self::mimeTypeFromPath($decodedSource)
+        $sourcePath = self::sourcePathForProvenance($source);
+        $normalizedSourcePath = self::normalizedSourcePathForProvenance($source, $sourcePath);
+        $inferredMimeType = self::mimeTypeFromPath(self::uriPathOrSource($source, $decodedSource));
+        $declaredMimeType = $mimeType === null || trim($mimeType) === ''
+            ? null
             : strtolower(trim($mimeType));
+        $normalizedMimeType = $declaredMimeType ?? $inferredMimeType;
+        $mimeTypeSource = $declaredMimeType === null ? 'inferred-path' : 'declared';
         $hashPath = sha1($contents) . self::extensionFor($normalizedMimeType, self::uriPathOrSource($source, $decodedSource));
         $path = str_starts_with($source, 'data:')
             ? $hashPath
@@ -65,8 +70,13 @@ final class MediaBag
         $this->itemsByCanonicalSource[$canonicalSource] = [
             'source' => $source,
             'canonicalSource' => $canonicalSource,
+            'sourcePath' => $sourcePath,
+            'normalizedSourcePath' => $normalizedSourcePath,
             'path' => $path,
             'mimeType' => $normalizedMimeType,
+            'mimeTypeSource' => $mimeTypeSource,
+            'inferredMimeType' => $inferredMimeType,
+            'declaredMimeType' => $declaredMimeType,
             'contents' => $contents,
             'sha1' => sha1($contents),
             'byteLength' => strlen($contents),
@@ -84,7 +94,7 @@ final class MediaBag
     }
 
     /**
-     * @return array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}|null
+     * @return array{source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, path:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string, sha1:string, byteLength:int}|null
      */
     public function lookup(string $source): ?array
     {
@@ -92,7 +102,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string}>
+     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string}>
      */
     public function directory(): array
     {
@@ -104,6 +114,12 @@ final class MediaBag
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
                 'source' => $item['source'],
+                'canonicalSource' => $item['canonicalSource'],
+                'sourcePath' => $item['sourcePath'],
+                'normalizedSourcePath' => $item['normalizedSourcePath'],
+                'mimeTypeSource' => $item['mimeTypeSource'],
+                'inferredMimeType' => $item['inferredMimeType'],
+                'declaredMimeType' => $item['declaredMimeType'],
             ];
         }
 
@@ -113,7 +129,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, contents:string}>
+     * @return list<array{path:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string}>
      */
     public function mediaItems(): array
     {
@@ -125,6 +141,12 @@ final class MediaBag
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
                 'source' => $item['source'],
+                'canonicalSource' => $item['canonicalSource'],
+                'sourcePath' => $item['sourcePath'],
+                'normalizedSourcePath' => $item['normalizedSourcePath'],
+                'mimeTypeSource' => $item['mimeTypeSource'],
+                'inferredMimeType' => $item['inferredMimeType'],
+                'declaredMimeType' => $item['declaredMimeType'],
                 'contents' => $item['contents'],
             ];
         }
@@ -141,6 +163,7 @@ final class MediaBag
     public function fillDocument(AstNode $document, array $resources): array
     {
         $diagnostics = [];
+        $loadedLinkedMimeCounts = [];
         $resourcesByCanonicalSource = self::canonicalResourceMap($resources);
         $document = $this->mapResourceNodes($document, function (AstNode $image) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
@@ -177,7 +200,7 @@ final class MediaBag
             $diagnostics[] = 'media-resource-missing:' . self::diagnosticSource($source);
 
             return $this->placeholderFor($image);
-        }, function (AstNode $link) use ($resources, $resourcesByCanonicalSource, &$diagnostics): AstNode {
+        }, function (AstNode $link) use ($resources, $resourcesByCanonicalSource, &$diagnostics, &$loadedLinkedMimeCounts): AstNode {
             $source = (string) $link->attr('url', '');
             if ($source === '' || $this->lookupMediaSource($source) !== null) {
                 return $link;
@@ -205,12 +228,22 @@ final class MediaBag
                 $mimeType = is_array($resource) ? ($resource['mimeType'] ?? null) : null;
                 $this->insertMedia($source, is_string($mimeType) ? $mimeType : null, $contents);
                 $diagnostics[] = 'media-resource-link-loaded:' . self::diagnosticSource($source);
+                $item = $this->lookupMediaSource($source);
+                if ($item !== null) {
+                    $loadedLinkedMimeCounts[$item['mimeType']] = ($loadedLinkedMimeCounts[$item['mimeType']] ?? 0) + 1;
+                    array_push($diagnostics, ...self::linkedResourceLoadDiagnostics($source, $item));
+                }
 
                 return $link;
             }
 
             return $link;
         });
+        foreach ($loadedLinkedMimeCounts as $mimeType => $count) {
+            if ($count > 1) {
+                $diagnostics[] = 'media-resource-link-mime-duplicate:' . $mimeType . ':' . $count;
+            }
+        }
 
         return ['document' => $document, 'diagnostics' => $diagnostics];
     }
@@ -218,7 +251,7 @@ final class MediaBag
     /**
      * @return array{
      *     document:AstNode,
-     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, contents:string}>,
+     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string}>,
      *     diagnostics:list<string>
      * }
      */
@@ -227,7 +260,9 @@ final class MediaBag
         $destination = self::normalizeExtractionDestination($destination);
         $entries = [];
         $diagnostics = [];
-        $plannedPaths = $this->plannedExtractionPaths();
+        $extractionPlan = $this->plannedExtractionPlan();
+        $plannedPaths = $extractionPlan['paths'];
+        $collisionKinds = $extractionPlan['collisionKinds'];
         foreach ($this->itemsForExtraction() as $item) {
             $mediaPath = $plannedPaths[$item['canonicalSource']] ?? $item['path'];
             $entries[] = [
@@ -237,10 +272,21 @@ final class MediaBag
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
                 'source' => $item['source'],
+                'canonicalSource' => $item['canonicalSource'],
+                'sourcePath' => $item['sourcePath'],
+                'normalizedSourcePath' => $item['normalizedSourcePath'],
+                'mimeTypeSource' => $item['mimeTypeSource'],
+                'inferredMimeType' => $item['inferredMimeType'],
+                'declaredMimeType' => $item['declaredMimeType'],
                 'contents' => $item['contents'],
             ];
             if ($mediaPath !== $item['path']) {
-                $diagnostics[] = 'media-resource-path-collision:' . self::diagnosticSource($item['source']);
+                foreach ($collisionKinds[$item['canonicalSource']] ?? ['path'] as $collisionKind) {
+                    $diagnostics[] = match ($collisionKind) {
+                        'casefold' => 'media-resource-casefold-path-collision:' . self::diagnosticSource($item['source']),
+                        default => 'media-resource-path-collision:' . self::diagnosticSource($item['source']),
+                    };
+                }
             }
         }
 
@@ -287,7 +333,7 @@ final class MediaBag
 
     /**
      * @param array<string, mixed> $attrs
-     * @param array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int} $item
+     * @param array{source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, path:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string, sha1:string, byteLength:int} $item
      * @return array<string, string>
      */
     private function mediaProvenanceAttributes(array $attrs, array $item, string $mediaPath, string $mappedUrl): array
@@ -311,16 +357,21 @@ final class MediaBag
 
         return array_replace($attributes, [
             'data-pandoc-media-source' => $item['source'],
+            'data-pandoc-media-canonical-source' => $item['canonicalSource'],
+            'data-pandoc-media-source-path' => $item['sourcePath'],
+            'data-pandoc-media-normalized-source-path' => $item['normalizedSourcePath'],
             'data-pandoc-media-path' => $mediaPath,
             'data-pandoc-media-target' => $mappedUrl,
             'data-pandoc-media-type' => $item['mimeType'],
+            'data-pandoc-media-type-source' => $item['mimeTypeSource'],
+            'data-pandoc-media-inferred-type' => $item['inferredMimeType'],
             'data-pandoc-media-bytes' => (string) $item['byteLength'],
             'data-pandoc-media-sha1' => $item['sha1'],
         ]);
     }
 
     /**
-     * @return list<array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}>
+     * @return list<array{source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, path:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string, sha1:string, byteLength:int}>
      */
     private function itemsForExtraction(): array
     {
@@ -344,23 +395,36 @@ final class MediaBag
     }
 
     /**
-     * @return array<string, string>
+     * @return array{paths:array<string, string>, collisionKinds:array<string, list<string>>}
      */
-    private function plannedExtractionPaths(): array
+    private function plannedExtractionPlan(): array
     {
         $paths = [];
+        $collisionKinds = [];
         $used = [];
+        $usedCaseFolded = [];
         foreach ($this->itemsForExtraction() as $item) {
             $path = $item['path'];
+            $itemCollisionKinds = [];
             if (isset($used[$path]) && $used[$path] !== $item['sha1']) {
                 $path = self::disambiguateMediaPath($path, $item['sha1'], $item['canonicalSource'], $used);
+                $itemCollisionKinds[] = 'path';
+            }
+            $caseFoldedPath = self::caseFoldPath($path);
+            if (isset($usedCaseFolded[$caseFoldedPath]) && $usedCaseFolded[$caseFoldedPath] !== $path) {
+                $path = self::disambiguateCaseFoldedMediaPath($path, $item['sha1'], $item['canonicalSource'], $used, $usedCaseFolded);
+                $itemCollisionKinds[] = 'casefold';
             }
 
             $paths[$item['canonicalSource']] = $path;
+            if ($itemCollisionKinds !== []) {
+                $collisionKinds[$item['canonicalSource']] = $itemCollisionKinds;
+            }
             $used[$path] = $item['sha1'];
+            $usedCaseFolded[self::caseFoldPath($path)] = $path;
         }
 
-        return $paths;
+        return ['paths' => $paths, 'collisionKinds' => $collisionKinds];
     }
 
     private static function canonicalizeSource(string $source): string
@@ -432,6 +496,24 @@ final class MediaBag
         $path = parse_url($source, PHP_URL_PATH);
 
         return is_string($path) && $path !== '' ? rawurldecode($path) : $decodedSource;
+    }
+
+    private static function sourcePathForProvenance(string $source): string
+    {
+        if (str_starts_with($source, 'data:')) {
+            return 'data-uri';
+        }
+
+        return self::pathOnlyRelativeSource($source);
+    }
+
+    private static function normalizedSourcePathForProvenance(string $source, string $sourcePath): string
+    {
+        if (str_starts_with($source, 'data:')) {
+            return 'data-uri';
+        }
+
+        return rawurldecode($sourcePath);
     }
 
     private static function isSafeRelativeMediaPath(string $path): bool
@@ -557,6 +639,38 @@ final class MediaBag
         } while (isset($usedPaths[$candidate]) && $usedPaths[$candidate] !== $sha1);
 
         return $candidate;
+    }
+
+    /**
+     * @param array<string, string> $usedPaths
+     * @param array<string, string> $usedCaseFoldedPaths
+     */
+    private static function disambiguateCaseFoldedMediaPath(
+        string $path,
+        string $sha1,
+        string $canonicalSource,
+        array $usedPaths,
+        array $usedCaseFoldedPaths
+    ): string {
+        $extension = self::pathExtension($path);
+        $stem = $extension === '' ? $path : substr($path, 0, -strlen($extension));
+        $seed = $canonicalSource . "\0" . $sha1;
+
+        do {
+            $suffix = substr(sha1($seed), 0, 12);
+            $candidate = $stem . '-' . $suffix . $extension;
+            $seed = $candidate . "\0" . $seed;
+        } while (
+            (isset($usedPaths[$candidate]) && $usedPaths[$candidate] !== $sha1)
+            || isset($usedCaseFoldedPaths[self::caseFoldPath($candidate)])
+        );
+
+        return $candidate;
+    }
+
+    private static function caseFoldPath(string $path): string
+    {
+        return strtolower($path);
     }
 
     private static function pathExtension(string $path): string
@@ -693,6 +807,40 @@ final class MediaBag
         }
 
         return $decoded;
+    }
+
+    /**
+     * @param array{source:string, canonicalSource:string, sourcePath:string, normalizedSourcePath:string, path:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, declaredMimeType:?string, contents:string, sha1:string, byteLength:int} $item
+     * @return list<string>
+     */
+    private static function linkedResourceLoadDiagnostics(string $source, array $item): array
+    {
+        if (str_starts_with($source, 'data:')) {
+            return [];
+        }
+
+        $diagnostics = [];
+        if ($item['sourcePath'] !== $item['normalizedSourcePath']) {
+            $diagnostics[] = 'media-resource-link-source-normalized:'
+                . self::diagnosticSource($source)
+                . ':'
+                . $item['normalizedSourcePath'];
+        }
+
+        if (
+            $item['declaredMimeType'] !== null
+            && $item['inferredMimeType'] !== 'application/octet-stream'
+            && $item['declaredMimeType'] !== $item['inferredMimeType']
+        ) {
+            $diagnostics[] = 'media-resource-link-mime-disagreement:'
+                . self::diagnosticSource($source)
+                . ':extension='
+                . $item['inferredMimeType']
+                . ':content-type='
+                . $item['declaredMimeType'];
+        }
+
+        return $diagnostics;
     }
 
     private function placeholderFor(AstNode $image): AstNode
