@@ -4019,6 +4019,43 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
         $t->same(['template-content-unsafe-or-unparseable'], $unsafe['templateContentDiagnostics']);
         $t->contains('document type', $unsafe['templateContentError']);
     },
+    'summarizes html template content across nested template and raw text sentinels' => static function (TestRunner $t): void {
+        $templateSource = '<template data-inner="1"><p>Inner</p></template>'
+            . '<noscript><script>const fallback = "</template>";</script><p>Fallback</p></noscript>'
+            . '<script>const sentinel = "</template>";</script><p><a href="/tail">Tail</a><img src="tail.png" alt="Tail"></p>';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<template id="outer">' . $templateSource . '</template><p>after</p>',
+            'template nested boundary review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $expectedEscaped = '&lt;template data-inner="1"&gt;&lt;p&gt;Inner&lt;/p&gt;&lt;/template&gt;'
+            . '&lt;noscript&gt;&lt;script&gt;const fallback = "&lt;/template&gt;";&lt;/script&gt;&lt;p&gt;Fallback&lt;/p&gt;&lt;/noscript&gt;'
+            . '&lt;script&gt;const sentinel = "&lt;/template&gt;";&lt;/script&gt;&lt;p&gt;&lt;a href="/tail"&gt;Tail&lt;/a&gt;&lt;img src="tail.png" alt="Tail"&gt;&lt;/p&gt;';
+
+        $template = $summary[0];
+
+        $t->same(2, count($summary));
+        $t->same('template', $template['name']);
+        $t->same(['id' => 'outer'], $template['attributes']);
+        $t->same($templateSource, $template['templateText']);
+        $t->same('template-content-inert-fragment-review', $template['templateContentReviewPolicy']);
+        $t->same(true, $template['templateContentParsed']);
+        $t->same([], $template['templateContentDiagnostics']);
+        $t->same(['template', 'noscript', 'script', 'p'], $template['templateContentTopLevelElementNames']);
+        $t->same(4, $template['templateContentTopLevelElementCount']);
+        $t->contains('const sentinel = "</template>";', $template['templateContentText']);
+        $t->contains('Tail', $template['templateContentText']);
+        $t->same(['/tail'], $template['templateContentLinkHrefs']);
+        $t->same(['tail.png'], $template['templateContentImageSources']);
+        $t->same(0, $template['templateContentFormCount']);
+        $t->same(['script'], $template['templateContentActiveElementNames']);
+        $t->same([], $template['templateContentEmbeddedElementNames']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('after', $summary[1]['text']);
+        $t->same('<template id="outer">' . $expectedEscaped . '</template><p>after</p>', $html);
+        $t->true(!str_contains($html, '<a href="/tail">Tail</a>'), 'Expected parsed template content links to remain escaped in raw handoff');
+    },
     'summarizes html noscript fallback review provenance for reviewer handoff' => static function (TestRunner $t): void {
         $noscriptSource = '<article id="fallback"><h2>Fallback</h2><a href="/static">Static</a><img src="fallback.png" alt="Fallback"><form action="/offline"><input name="q" value="term"></form><script>blocked()</script><iframe src="fallback-frame.html"></iframe></article>';
         $unsafeSource = '<!doctype html><p>Blocked</p>';
