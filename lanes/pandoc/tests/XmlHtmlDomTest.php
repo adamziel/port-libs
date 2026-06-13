@@ -342,6 +342,78 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook = XmlHtmlDom::loadXmlDocument('<topic><title>Nope</title></topic>', 'non docbook XML')));
         json_encode($legacyPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook section title metadata without reader parity claims' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(
+            (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-sections.xml'),
+            'DocBook section metadata XML',
+            preserveWhiteSpace: false
+        );
+        $packet = XmlHtmlDom::summarizeDocBookSectionMetadata($dom);
+
+        $t->same('xml-html5-jats-dom', $packet['formatFamily']);
+        $t->same('docbook', $packet['format']);
+        $t->same('docbook-section-title-metadata-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('article', $packet['rootName']);
+        $t->same('5.0', $packet['documentVersion']);
+        $t->same('en', $packet['language']);
+        $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
+        $t->same('WordPress DocBook Review Packet', $packet['title']);
+        $t->same('info-title', $packet['titleSource']);
+        $t->same('Section title metadata', $packet['subtitle']);
+        $t->same(5, $packet['sectionCount']);
+        $t->same([
+            'Import Overview',
+            'Review Queue',
+            'Legacy Section',
+            'Duplicate Queue Identifier',
+        ], $packet['sectionTitles']);
+
+        $overview = $packet['sections'][0] ?? [];
+        $queue = $packet['sections'][1] ?? [];
+        $untitled = $packet['sections'][2] ?? [];
+        $legacy = $packet['sections'][3] ?? [];
+        $duplicate = $packet['sections'][4] ?? [];
+
+        $t->same('section', $overview['element'] ?? null);
+        $t->same('overview', $overview['id'] ?? null);
+        $t->same('overview', $overview['xmlId'] ?? null);
+        $t->same('summary', $overview['role'] ?? null);
+        $t->same('1', $overview['label'] ?? null);
+        $t->same('en-US', $overview['language'] ?? null);
+        $t->same(1, $overview['level'] ?? null);
+        $t->same(1, $overview['paragraphCount'] ?? null);
+        $t->same(2, $overview['childSectionCount'] ?? null);
+
+        $t->same('queue', $queue['id'] ?? null);
+        $t->same('Review Queue', $queue['title'] ?? null);
+        $t->same('info-title', $queue['titleSource'] ?? null);
+        $t->same('Metadata from info', $queue['subtitle'] ?? null);
+        $t->same(2, $queue['level'] ?? null);
+
+        $t->same('simplesect', $untitled['element'] ?? null);
+        $t->same('untitled', $untitled['id'] ?? null);
+        $t->same(null, $untitled['title'] ?? null);
+        $t->same(null, $untitled['titleSource'] ?? null);
+        $t->same(2, $untitled['level'] ?? null);
+
+        $t->same('sect1', $legacy['element'] ?? null);
+        $t->same('legacy-section', $legacy['id'] ?? null);
+        $t->same('legacy', $legacy['role'] ?? null);
+        $t->same(1, $legacy['level'] ?? null);
+
+        $t->same('queue', $duplicate['id'] ?? null);
+        $t->same(['docbook-section-missing-title', 'docbook-section-duplicate-id'], $packet['diagnosticCodes']);
+        $t->same(1, $packet['missingTitleCount']);
+        $t->same(1, $packet['duplicateIdCount']);
+        $t->same('untitled', $packet['diagnostics'][0]['sectionId'] ?? null);
+        $t->same('queue', $packet['diagnostics'][1]['sectionId'] ?? null);
+        $t->same(1, $packet['diagnostics'][1]['firstSectionIndex'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookSectionMetadata(
+            XmlHtmlDom::loadXmlDocument('<topic><title>Not DocBook</title></topic>', 'non DocBook XML')
+        ));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
