@@ -6373,6 +6373,177 @@ return [
         $t->true($nativeNote instanceof AstNode, 'Native round trip keeps note inline');
         $t->same(['plain', 'code_block', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $nativeNote instanceof AstNode ? $nativeNote->children : []));
     },
+    'stress tests mixed metadata block containers through json and native writers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'review' => ['type' => 'map', 'items' => [
+                    'inline' => ['type' => 'inlines', 'children' => [
+                        new AstNode('span', [
+                            'id' => 'meta-span',
+                            'classes' => ['review-meta'],
+                            'attributes' => ['data-source' => 'metadata'],
+                        ], [
+                            new AstNode('text', ['text' => 'MetaSpan']),
+                        ]),
+                        new AstNode('space'),
+                        new AstNode('note', [], [
+                            new AstNode('text', ['text' => 'NoteLead']),
+                            new AstNode('blockquote', [], [
+                                new AstNode('text', ['text' => 'NestedQuote']),
+                            ]),
+                            new AstNode('div', ['classes' => ['note-div']], [
+                                new AstNode('text', ['text' => 'NestedDiv']),
+                            ]),
+                            new AstNode('text', ['text' => 'NoteTail']),
+                        ]),
+                    ]],
+                    'body' => ['type' => 'blocks', 'children' => [
+                        new AstNode('div', [
+                            'id' => 'meta-div',
+                            'classes' => ['review-body'],
+                        ], [
+                            new AstNode('text', ['text' => 'DivLead']),
+                            new AstNode('blockquote', [], [
+                                new AstNode('text', ['text' => 'DivQuote']),
+                            ]),
+                            new AstNode('text', ['text' => 'DivTail']),
+                        ]),
+                        new AstNode('blockquote', [], [
+                            new AstNode('text', ['text' => 'QuoteLead']),
+                            new AstNode('div', ['classes' => ['quote-div']], [
+                                new AstNode('text', ['text' => 'QuoteDiv']),
+                            ]),
+                            new AstNode('text', ['text' => 'QuoteTail']),
+                        ]),
+                        new AstNode('table', [
+                            'alignments' => ['left'],
+                            'widths' => [0.5],
+                        ], [
+                            new AstNode('table_body', [], [
+                                new AstNode('table_row', [], [
+                                    new AstNode('table_cell', [], [
+                                        new AstNode('text', ['text' => 'CellLead']),
+                                        new AstNode('blockquote', [], [
+                                            new AstNode('text', ['text' => 'CellQuote']),
+                                        ]),
+                                        new AstNode('div', ['classes' => ['cell-div']], [
+                                            new AstNode('text', ['text' => 'CellDiv']),
+                                        ]),
+                                        new AstNode('text', ['text' => 'CellTail']),
+                                    ]),
+                                ]),
+                            ]),
+                        ]),
+                    ]],
+                ]],
+            ],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'CitationFixture']),
+                new AstNode('space'),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'source-a',
+                        'prefix' => [new AstNode('text', ['text' => 'see'])],
+                        'citationHash' => 10,
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-b',
+                        'mode' => 'author_in_text',
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-c',
+                        'mode' => 'suppress_author',
+                        'suffix' => [
+                            new AstNode('text', ['text' => 'p.']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => '2']),
+                        ],
+                    ]),
+                ]),
+            ]),
+        ]);
+        $blockTypes = static fn (array $blocks): array => array_map(static fn (array $block): string => (string) ($block['t'] ?? ''), $blocks);
+        $childTypes = static fn (AstNode $node): array => array_map(static fn (AstNode $child): string => $child->type, $node->children);
+        $tableCellBlocks = static function (array $table): array {
+            $body = $table['c'][4][0]['c'] ?? $table['c'][4][0];
+            $row = $body[3][0]['c'] ?? $body[3][0];
+            $cell = $row[1][0]['c'] ?? $row[1][0];
+
+            return $cell[4];
+        };
+        $citationModes = static function (array $packet): array {
+            $cites = array_values(array_filter(
+                $packet['blocks'][0]['c'],
+                static fn (array $inline): bool => ($inline['t'] ?? null) === 'Cite'
+            ));
+
+            return array_map(static fn (array $record): string => $record['citationMode']['t'], $cites[0]['c'][0] ?? []);
+        };
+        $firstChildOfType = static function (array $children, string $type): ?AstNode {
+            foreach ($children as $child) {
+                if ($child instanceof AstNode && $child->type === $type) {
+                    return $child;
+                }
+            }
+
+            return null;
+        };
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($jsonPacket['meta'], $nativePacket['meta']);
+        $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $writer => $packet) {
+            $review = $packet['meta']['review']['c'];
+            $inlineMeta = $review['inline']['c'];
+            $noteBlocks = $inlineMeta[2]['c'];
+            $bodyBlocks = $review['body']['c'];
+            $divBlocks = $bodyBlocks[0]['c'][1];
+            $quoteBlocks = $bodyBlocks[1]['c'];
+            $cellBlocks = $tableCellBlocks($bodyBlocks[2]);
+
+            $t->same('MetaMap', $packet['meta']['review']['t'], "{$writer} review metadata is a MetaMap");
+            $t->same('MetaInlines', $review['inline']['t'], "{$writer} inline metadata uses MetaInlines");
+            $t->same(['Span', 'Space', 'Note'], array_map(static fn (array $inline): string => $inline['t'], $inlineMeta), "{$writer} metadata inline constructors");
+            $t->same(['meta-span', ['review-meta'], [['data-source', 'metadata']]], $inlineMeta[0]['c'][0], "{$writer} metadata span attrs");
+            $t->same(['Plain', 'BlockQuote', 'Div', 'Plain'], $blockTypes($noteBlocks), "{$writer} metadata note children are valid blocks");
+            $t->same('NoteLead', $noteBlocks[0]['c'][0]['c'], "{$writer} note leading inline run flushed");
+            $t->same('NoteTail', $noteBlocks[3]['c'][0]['c'], "{$writer} note trailing inline run flushed");
+            $t->same('MetaBlocks', $review['body']['t'], "{$writer} block metadata uses MetaBlocks");
+            $t->same(['Div', 'BlockQuote', 'Table'], $blockTypes($bodyBlocks), "{$writer} metadata body block constructors");
+            $t->same(['Plain', 'BlockQuote', 'Plain'], $blockTypes($divBlocks), "{$writer} metadata div children are valid blocks");
+            $t->same(['Plain', 'Div', 'Plain'], $blockTypes($quoteBlocks), "{$writer} metadata blockquote children are valid blocks");
+            $t->same(['Plain', 'BlockQuote', 'Div', 'Plain'], $blockTypes($cellBlocks), "{$writer} metadata table cell children are valid blocks");
+            $t->same('CellLead', $cellBlocks[0]['c'][0]['c'], "{$writer} table cell leading inline run flushed");
+            $t->same('CellTail', $cellBlocks[3]['c'][0]['c'], "{$writer} table cell trailing inline run flushed");
+            $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], $citationModes($packet), "{$writer} cite fixture modes stay intact");
+        }
+
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+        $jsonMeta = $jsonRoundTrip->attr('meta')['review']['items'];
+        $jsonInlineMeta = $jsonMeta['inline']['children'];
+        $jsonNote = $jsonInlineMeta[2];
+        $jsonBodyBlocks = $jsonMeta['body']['children'];
+        $jsonCell = $jsonBodyBlocks[2]->children[0]->children[0]->children[0];
+        $nativeReview = $nativeRoundTrip->attr('meta')['review']['c'];
+
+        $t->same(['span', 'space', 'note'], array_map(static fn (AstNode $child): string => $child->type, $jsonInlineMeta), 'JSON reader keeps metadata inline children');
+        $t->same(['plain', 'blockquote', 'div', 'plain'], $childTypes($jsonNote), 'JSON reader keeps metadata note block boundaries');
+        $t->same(['div', 'blockquote', 'table'], array_map(static fn (AstNode $block): string => $block->type, $jsonBodyBlocks), 'JSON reader keeps metadata body blocks');
+        $t->same(['plain', 'blockquote', 'plain'], $childTypes($jsonBodyBlocks[0]), 'JSON reader keeps metadata div block boundaries');
+        $t->same(['plain', 'div', 'plain'], $childTypes($jsonBodyBlocks[1]), 'JSON reader keeps metadata blockquote block boundaries');
+        $t->same(['plain', 'blockquote', 'div', 'plain'], $childTypes($jsonCell), 'JSON reader keeps metadata table-cell block boundaries');
+        $t->same('citation_group', $firstChildOfType($jsonRoundTrip->children[0]->children, 'citation_group')?->type, 'JSON reader keeps cite fixture');
+        $t->same(['MetaInlines', 'MetaBlocks'], [$nativeReview['inline']['t'], $nativeReview['body']['t']], 'Native reader preserves metadata constructor wrappers');
+        $t->same(['Plain', 'BlockQuote', 'Div', 'Plain'], $blockTypes($nativeReview['inline']['c'][2]['c']), 'Native reader keeps metadata note native block list');
+        $t->same(['Plain', 'BlockQuote', 'Div', 'Plain'], $blockTypes($tableCellBlocks($nativeReview['body']['c'][2])), 'Native reader keeps metadata table-cell native block list');
+        $t->same('citation_group', $firstChildOfType($nativeRoundTrip->children[0]->children, 'citation_group')?->type, 'Native reader keeps cite fixture');
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
