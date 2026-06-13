@@ -180,6 +180,11 @@ final class MarkdownReader
                 $blocks[] = $divBlock;
                 continue;
             }
+            $docBookList = $paragraph === [] && $listStack === [] ? $this->tryReadDocBookListBlock($lines, $index) : null;
+            if ($docBookList !== null) {
+                $blocks[] = $docBookList;
+                continue;
+            }
             $docBookTable = $paragraph === [] && $listStack === [] ? $this->tryReadDocBookTableBlock($lines, $index) : null;
             if ($docBookTable !== null) {
                 $blocks[] = $docBookTable;
@@ -8946,6 +8951,580 @@ final class MarkdownReader
         $text = preg_replace('/\s+/', ' ', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadDocBookListBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<(?:(?:[A-Za-z_][A-Za-z0-9_.-]*):)?(itemizedlist|orderedlist|variablelist)\b[^>]*>/i', $line, $m) !== 1) {
+            return null;
+        }
+
+        $balanced = $this->collectBalancedDocBookElementBlock($lines, $index, strtolower($m[1]));
+        if ($balanced === null) {
+            return null;
+        }
+
+        [$xml, $end] = $balanced;
+        $list = $this->parseDocBookListBlock($xml);
+        if ($list === null) {
+            return null;
+        }
+
+        $index = $end;
+
+        return $list;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectBalancedDocBookElementBlock(array $lines, int $index, string $tag): ?array
+    {
+        $content = [];
+        $depth = 0;
+        $started = false;
+        $count = count($lines);
+        $pattern = '/<\/?(?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($tag, '/') . '\b[^>]*>/i';
+
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $line = rtrim($lines[$cursor]);
+            $content[] = $line;
+
+            preg_match_all($pattern, $line, $matches);
+            foreach ($matches[0] as $matchedTag) {
+                $trimmedTag = strtolower(trim($matchedTag));
+                if (str_starts_with($trimmedTag, '</')) {
+                    if ($started) {
+                        $depth--;
+                    }
+                } else {
+                    $started = true;
+                    if (!str_ends_with(rtrim($trimmedTag), '/>')) {
+                        $depth++;
+                    }
+                }
+
+                if ($started && $depth === 0) {
+                    return [implode("\n", $content), $cursor];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function parseDocBookListBlock(string $xml): ?AstNode
+    {
+        try {
+            $dom = XmlHtml5Dom::parseXmlDocument($xml, 'DocBook list XML');
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        $diagnostics = [];
+        $name = strtolower($root->localName);
+        $list = match ($name) {
+            'itemizedlist' => $this->parseDocBookItemizedListElement($root, $diagnostics),
+            'orderedlist' => $this->parseDocBookOrderedListElement($root, $diagnostics),
+            'variablelist' => $this->parseDocBookVariableListElement($root, $diagnostics),
+            default => null,
+        };
+        if ($list === null) {
+            return null;
+        }
+
+        if ($diagnostics !== []) {
+            $list = new AstNode(
+                $list->type,
+                array_merge($list->attrs, ['docbookListDiagnostics' => $diagnostics]),
+                $list->children
+            );
+        }
+
+        return $list;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function parseDocBookItemizedListElement(\DOMElement $list, array &$diagnostics): ?AstNode
+    {
+        $items = [];
+        $loose = false;
+        $title = null;
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'title') {
+                $title = trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent);
+                continue;
+            }
+
+            if ($name !== 'listitem') {
+                $diagnostics[] = $this->docBookListDiagnostic('docbook-list-child-unsupported', $child, count($items));
+                continue;
+            }
+
+            $item = $this->parseDocBookListItemElement($child, count($items) + 1, $diagnostics);
+            $items[] = $item;
+            $loose = $loose || (bool) $item->attr('loose', false);
+        }
+
+        if ($items === [] && $title === null) {
+            return null;
+        }
+
+        return new AstNode('bullet_list', [
+            'loose' => $loose,
+            'docbookListMetadata' => $this->docBookListMetadata($list, 'itemizedlist', count($items), $title),
+        ], $items);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function parseDocBookOrderedListElement(\DOMElement $list, array &$diagnostics): ?AstNode
+    {
+        $items = [];
+        $loose = false;
+        $title = null;
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'title') {
+                $title = trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent);
+                continue;
+            }
+
+            if ($name !== 'listitem') {
+                $diagnostics[] = $this->docBookListDiagnostic('docbook-list-child-unsupported', $child, count($items));
+                continue;
+            }
+
+            $item = $this->parseDocBookListItemElement($child, count($items) + 1, $diagnostics);
+            $items[] = $item;
+            $loose = $loose || (bool) $item->attr('loose', false);
+        }
+
+        if ($items === [] && $title === null) {
+            return null;
+        }
+
+        [$style, $styleDiagnostic] = $this->docBookOrderedListStyle($list);
+        if ($styleDiagnostic !== null) {
+            $diagnostics[] = $styleDiagnostic;
+        }
+
+        return new AstNode('ordered_list', [
+            'loose' => $loose,
+            'start' => $this->docBookOrderedListStart($list),
+            'style' => $style,
+            'delimiter' => 'default',
+            'docbookListMetadata' => $this->docBookListMetadata($list, 'orderedlist', count($items), $title),
+        ], $items);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function parseDocBookVariableListElement(\DOMElement $list, array &$diagnostics): ?AstNode
+    {
+        $items = [];
+        $title = null;
+        foreach ($list->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'title') {
+                $title = trim(preg_replace('/\s+/', ' ', $child->textContent) ?? $child->textContent);
+                continue;
+            }
+
+            if ($name !== 'varlistentry') {
+                $diagnostics[] = $this->docBookListDiagnostic('docbook-variablelist-child-unsupported', $child, count($items));
+                continue;
+            }
+
+            $item = $this->parseDocBookVariableListEntryElement($child, count($items) + 1, $diagnostics);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        if ($items === [] && $title === null) {
+            return null;
+        }
+
+        return new AstNode('definition_list', [
+            'docbookListMetadata' => $this->docBookListMetadata($list, 'variablelist', count($items), $title),
+        ], $items);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function parseDocBookVariableListEntryElement(\DOMElement $entry, int $ordinal, array &$diagnostics): ?AstNode
+    {
+        $termInlines = [];
+        $termTexts = [];
+        $definitions = [];
+        foreach ($entry->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if ($name === 'term') {
+                if ($termInlines !== []) {
+                    $termInlines[] = new AstNode('linebreak');
+                }
+                $inlines = $this->parseDocBookInlineNodes($child);
+                array_push($termInlines, ...$inlines);
+                $termTexts[] = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($inlines)) ?? '');
+                continue;
+            }
+
+            if ($name === 'listitem') {
+                $item = $this->parseDocBookListItemElement($child, count($definitions) + 1, $diagnostics);
+                $definitions[] = new AstNode(
+                    'definition',
+                    [
+                        'loose' => (bool) $item->attr('loose', false),
+                        'docbookListItemMetadata' => $item->attr('docbookListItemMetadata', []),
+                    ],
+                    $this->docBookDefinitionChildren($item->children)
+                );
+                continue;
+            }
+
+            $diagnostics[] = $this->docBookListDiagnostic('docbook-varlistentry-child-unsupported', $child, $ordinal);
+        }
+
+        if ($termInlines === []) {
+            $diagnostics[] = [
+                'code' => 'docbook-varlistentry-term-missing',
+                'source' => 'docbook-variablelist',
+                'entryOrdinal' => $ordinal,
+            ];
+
+            return null;
+        }
+
+        if ($definitions === []) {
+            $diagnostics[] = [
+                'code' => 'docbook-varlistentry-definition-missing',
+                'source' => 'docbook-variablelist',
+                'entryOrdinal' => $ordinal,
+            ];
+        }
+
+        $termText = implode("\n", $termTexts);
+        $term = new AstNode('term', ['text' => $termText], $termInlines);
+
+        return new AstNode('definition_item', [
+            'term' => $termText,
+            'docbookListItemMetadata' => [
+                'source' => 'docbook',
+                'element' => 'varlistentry',
+                'ordinal' => $ordinal,
+                'attributes' => $this->docBookElementAttributes($entry),
+            ],
+        ], array_merge([$term], $definitions));
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function docBookDefinitionChildren(array $children): array
+    {
+        if ($children === []) {
+            return [];
+        }
+
+        if ($this->docBookListChildrenAreInline($children)) {
+            return [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($children)], $children)];
+        }
+
+        return $children;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function parseDocBookListItemElement(\DOMElement $item, int $ordinal, array &$diagnostics): AstNode
+    {
+        $children = [];
+        $inlines = [];
+        $itemDiagnostics = [];
+        foreach ($item->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $this->appendDocBookTextNode($inlines, $child->wholeText);
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower($child->localName);
+            if (in_array($name, ['para', 'simpara'], true)) {
+                $this->flushDocBookListItemInlines($inlines, $children);
+                $paragraphInlines = $this->parseDocBookInlineNodes($child);
+                $children[] = new AstNode(
+                    'paragraph',
+                    ['text' => trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($paragraphInlines)) ?? '')],
+                    $paragraphInlines
+                );
+                continue;
+            }
+
+            if ($name === 'itemizedlist') {
+                $this->flushDocBookListItemInlines($inlines, $children);
+                $nested = $this->parseDocBookItemizedListElement($child, $diagnostics);
+                if ($nested !== null) {
+                    $children[] = $nested;
+                }
+                continue;
+            }
+
+            if ($name === 'orderedlist') {
+                $this->flushDocBookListItemInlines($inlines, $children);
+                $nested = $this->parseDocBookOrderedListElement($child, $diagnostics);
+                if ($nested !== null) {
+                    $children[] = $nested;
+                }
+                continue;
+            }
+
+            if ($name === 'variablelist') {
+                $this->flushDocBookListItemInlines($inlines, $children);
+                $nested = $this->parseDocBookVariableListElement($child, $diagnostics);
+                if ($nested !== null) {
+                    $children[] = $nested;
+                }
+                continue;
+            }
+
+            $diagnostic = $this->docBookListDiagnostic('docbook-listitem-child-unsupported', $child, $ordinal);
+            $diagnostics[] = $diagnostic;
+            $itemDiagnostics[] = $diagnostic;
+            $fallbackInlines = $this->parseDocBookInlineNodes($child);
+            if ($fallbackInlines !== []) {
+                $this->flushDocBookListItemInlines($inlines, $children);
+                $children[] = new AstNode(
+                    'paragraph',
+                    ['text' => trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($fallbackInlines)) ?? '')],
+                    $fallbackInlines
+                );
+            }
+        }
+
+        $this->flushDocBookListItemInlines($inlines, $children);
+        $loose = $this->docBookListItemIsLoose($children);
+        $attrs = [
+            'text' => trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($this->docBookFlattenListItemTextNodes($children))) ?? ''),
+            'loose' => $loose,
+            'docbookListItemMetadata' => [
+                'source' => 'docbook',
+                'element' => 'listitem',
+                'ordinal' => $ordinal,
+                'attributes' => $this->docBookElementAttributes($item),
+            ],
+        ];
+        if ($itemDiagnostics !== []) {
+            $attrs['docbookListItemDiagnostics'] = $itemDiagnostics;
+        }
+
+        return new AstNode('list_item', $attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<AstNode> $children
+     */
+    private function flushDocBookListItemInlines(array &$inlines, array &$children): void
+    {
+        $text = trim(preg_replace('/\s+/', ' ', $this->plainTextFromInlines($inlines)) ?? '');
+        if ($text !== '') {
+            array_push($children, ...$inlines);
+        }
+
+        $inlines = [];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function docBookListItemIsLoose(array $children): bool
+    {
+        foreach ($children as $child) {
+            if (!$this->docBookListChildIsInline($child) && !in_array($child->type, ['bullet_list', 'ordered_list'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function docBookListChildrenAreInline(array $children): bool
+    {
+        foreach ($children as $child) {
+            if (!$this->docBookListChildIsInline($child)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function docBookListChildIsInline(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'code',
+            'link',
+            'softbreak',
+            'linebreak',
+        ], true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function docBookFlattenListItemTextNodes(array $children): array
+    {
+        $inlines = [];
+        foreach ($children as $child) {
+            if ($this->docBookListChildIsInline($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+            if (in_array($child->type, ['paragraph', 'plain', 'term'], true)) {
+                array_push($inlines, ...$child->children);
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @return array{0:string, 1:array<string, mixed>|null}
+     */
+    private function docBookOrderedListStyle(\DOMElement $list): array
+    {
+        $numeration = strtolower(trim($list->getAttribute('numeration')));
+
+        return match ($numeration) {
+            '', 'arabic' => ['decimal', null],
+            'loweralpha' => ['lower_alpha', null],
+            'upperalpha' => ['upper_alpha', null],
+            'lowerroman' => ['lower_roman', null],
+            'upperroman' => ['upper_roman', null],
+            default => ['default', [
+                'code' => 'docbook-orderedlist-numeration-unsupported',
+                'source' => 'docbook-orderedlist',
+                'attribute' => 'numeration',
+                'rawValue' => $numeration,
+            ]],
+        };
+    }
+
+    private function docBookOrderedListStart(\DOMElement $list): int
+    {
+        foreach (['startingnumber', 'start'] as $attribute) {
+            $value = trim($list->getAttribute($attribute));
+            if (preg_match('/^\d+$/', $value) === 1 && (int) $value > 0) {
+                return (int) $value;
+            }
+        }
+
+        return 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function docBookListMetadata(\DOMElement $list, string $kind, int $itemCount, ?string $title): array
+    {
+        $metadata = [
+            'source' => 'docbook',
+            'element' => $kind,
+            'itemCount' => $itemCount,
+            'attributes' => $this->docBookElementAttributes($list),
+        ];
+        if ($title !== null && $title !== '') {
+            $metadata['title'] = $title;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function docBookElementAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $prefix = (string) $attribute->prefix;
+            $name = $prefix !== ''
+                ? strtolower($prefix . ':' . $attribute->localName)
+                : strtolower($attribute->name);
+            $value = trim(preg_replace('/\s+/', ' ', $attribute->value) ?? $attribute->value);
+            if ($name === '' || $value === '') {
+                continue;
+            }
+
+            $attributes[$name] = $value;
+        }
+
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function docBookListDiagnostic(string $code, \DOMElement $element, int $ordinal): array
+    {
+        return [
+            'code' => $code,
+            'source' => 'docbook-list',
+            'element' => strtolower($element->localName),
+            'ordinal' => $ordinal,
+            'attributes' => $this->docBookElementAttributes($element),
+            'text' => trim(preg_replace('/\s+/', ' ', $element->textContent) ?? $element->textContent),
+        ];
     }
 
     /**
