@@ -207,7 +207,7 @@ final class PdfEngineHandoff
         }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $typstBoundarySummary = $this->typstBoundarySummaryFor($typstBoundaryProvenance);
-        $typstImportPathPolicy = $this->typstImportPathPolicyFor($engine, is_string($sourceBytes) ? $sourceBytes : null);
+        $typstImportPathPolicy = $this->typstImportPathPolicy($engine, $sourceFile, is_string($sourceBytes) ? $sourceBytes : null);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
@@ -829,7 +829,7 @@ final class PdfEngineHandoff
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $typstImportPathPolicy = is_array($plan['typstImportPathPolicy'] ?? null)
             ? $plan['typstImportPathPolicy']
-            : $this->typstImportPathPolicyFor($engine, is_string($sourceBytes) ? $sourceBytes : null);
+            : $this->typstImportPathPolicy($engine, $sourceFile, is_string($sourceBytes) ? $sourceBytes : null);
         $this->appendTypstImportPathPolicyDiagnostics($diagnostics, $typstImportPathPolicy);
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
@@ -875,6 +875,15 @@ final class PdfEngineHandoff
         if (!$sourceIsStdin && array_key_exists($sourceFile, $files)) {
             $sourceSha256 = hash('sha256', $files[$sourceFile]);
         }
+        $typstSourceBytes = null;
+        if ($sourceIsStdin && is_string($sourceBytes)) {
+            $typstSourceBytes = $sourceBytes;
+        } elseif (!$sourceIsStdin && array_key_exists($sourceFile, $files)) {
+            $typstSourceBytes = $files[$sourceFile];
+        } elseif (is_string($sourceBytes)) {
+            $typstSourceBytes = $sourceBytes;
+        }
+        $typstImportPathPolicy = $this->typstImportPathPolicy($engine, $sourceFile, $typstSourceBytes);
 
         foreach ($this->normalizePlanStringList($plan['sourceArtifacts'] ?? [], 'PDF source artifact') as $artifactPath) {
             if (!array_key_exists($artifactPath, $files)) {
@@ -1020,7 +1029,8 @@ final class PdfEngineHandoff
             $engine,
             $engineTypstPackageDependencies,
             $engineDependencyEdges,
-            $engineDependencyArtifactsSha256
+            $engineDependencyArtifactsSha256,
+            $typstImportPathPolicy
         );
         $typstDependencyOutputPolicy = $this->typstDependencyOutputPolicy(
             $engine,
@@ -1123,6 +1133,31 @@ final class PdfEngineHandoff
             }
             if ($typstPackageDependencyPolicy['subpathDependencyCount'] > 0) {
                 $diagnostics[] = 'typst-package-dependency-subpaths:' . $typstPackageDependencyPolicy['subpathDependencyCount'];
+            }
+            if (($typstPackageDependencyPolicy['importConflictSummaryCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-package-import-conflicts:' . $typstPackageDependencyPolicy['importConflictSummaryCount'];
+            }
+            if (($typstPackageDependencyPolicy['sourceLiteralPackageInputCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-package-source-literal-imports:' . $typstPackageDependencyPolicy['sourceLiteralPackageInputCount'];
+            }
+            if (($typstPackageDependencyPolicy['sourceUnsupportedExpressionCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-package-source-dynamic-imports:' . $typstPackageDependencyPolicy['sourceUnsupportedExpressionCount'];
+            }
+            if (($typstPackageDependencyPolicy['sourceDuplicateUnsupportedExpressionCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-package-source-duplicate-dynamic-imports:' . $typstPackageDependencyPolicy['sourceDuplicateUnsupportedExpressionCount'];
+            }
+        }
+        if ($typstImportPathPolicy !== []) {
+            $diagnostics[] = 'typst-import-path-policy:' . $typstImportPathPolicy['reviewStatus'];
+            $diagnostics[] = 'typst-import-path-policy-directives:' . $typstImportPathPolicy['directiveCount'];
+            if ($typstImportPathPolicy['literalPathCount'] > 0) {
+                $diagnostics[] = 'typst-import-literal-paths:' . $typstImportPathPolicy['literalPathCount'];
+            }
+            if ($typstImportPathPolicy['unsupportedExpressionCount'] > 0) {
+                $diagnostics[] = 'typst-import-unsupported-expressions:' . $typstImportPathPolicy['unsupportedExpressionCount'];
+            }
+            if ($typstImportPathPolicy['duplicateUnsupportedExpressionCount'] > 0) {
+                $diagnostics[] = 'typst-import-unsupported-expression-duplicates:' . $typstImportPathPolicy['duplicateUnsupportedExpressionCount'];
             }
         }
         if ($engineDependencyEdges !== []) {
@@ -4958,6 +4993,7 @@ final class PdfEngineHandoff
      *     finalEngineTypstPackageInputs: list<string>,
      *     finalEngineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>,
      *     finalTypstPackageDependencyPolicy: array{reviewStatus:string, packageDependencyCount:int, namespaces:list<string>, packages:list<string>, versions:list<string>, subpathDependencyCount:int, issues:list<string>}|array{},
+     *     finalTypstImportPathPolicy: array<string, mixed>,
      *     finalEngineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     finalEngineOutputFiles: list<string>,
      *     finalTypstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
@@ -8432,6 +8468,22 @@ final class PdfEngineHandoff
         };
 
         $append('typst-import-path-policy:' . (is_string($policy['reviewStatus'] ?? null) ? $policy['reviewStatus'] : 'review'));
+        if (isset($policy['directiveCount'])) {
+            $append('typst-import-path-policy-directives:' . (int) ($policy['directiveCount'] ?? 0));
+            foreach ([
+                'literalPathCount' => 'typst-import-literal-paths',
+                'unsupportedExpressionCount' => 'typst-import-unsupported-expressions',
+                'duplicateUnsupportedExpressionCount' => 'typst-import-unsupported-expression-duplicates',
+            ] as $key => $diagnosticPrefix) {
+                $count = (int) ($policy[$key] ?? 0);
+                if ($count > 0) {
+                    $append($diagnosticPrefix . ':' . $count);
+                }
+            }
+
+            return;
+        }
+
         $append('typst-import-paths:' . (int) ($policy['pathCount'] ?? 0));
         foreach ([
             'packagePathCount' => 'typst-import-path-packages',
@@ -8810,7 +8862,8 @@ final class PdfEngineHandoff
         string $engine,
         array $dependencies,
         array $dependencyEdges,
-        array $engineDependencyArtifactsSha256
+        array $engineDependencyArtifactsSha256,
+        array $typstImportPathPolicy
     ): array
     {
         if ($engine !== 'typst' || $dependencies === []) {
@@ -8829,6 +8882,7 @@ final class PdfEngineHandoff
         $sourceClassCounts = [];
         $unsupportedPackageReasons = [];
         $unsupportedReasonCounts = [];
+        $dependencyInputs = [];
         $subpathDependencyCount = 0;
         foreach ($dependencies as $dependency) {
             $namespace = $dependency['namespace'];
@@ -8844,6 +8898,7 @@ final class PdfEngineHandoff
             $versionsByPackage[$packageName][$version] = true;
             $inputsByPackageVersion[$packageName][$version][] = $dependency['input'];
             $inputsByCoordinate[$coordinate][$dependency['input']] = true;
+            $dependencyInputs[$dependency['input']] = true;
             $sourceClass = $dependency['sourceClass'];
             $sourceClasses[$sourceClass] = true;
             $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
@@ -8873,6 +8928,8 @@ final class PdfEngineHandoff
         ksort($namespaceCounts);
         ksort($sourceClassCounts);
         ksort($unsupportedReasonCounts);
+        $dependencyInputList = array_keys($dependencyInputs);
+        sort($dependencyInputList);
 
         $versionConflicts = [];
         foreach ($versionsByPackage as $packageName => $packageVersions) {
@@ -8952,8 +9009,17 @@ final class PdfEngineHandoff
         foreach ($duplicateDependencySummaries as $summary) {
             $issues[] = 'duplicate-package-dependency:' . $summary['packageCoordinate'];
         }
+        $importConflictPolicy = $this->typstPackageImportConflictPolicy(
+            $typstImportPathPolicy,
+            $dependencyInputList
+        );
+        foreach ($importConflictPolicy['issues'] ?? [] as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $issues[] = $issue;
+            }
+        }
 
-        return [
+        $policy = [
             'reviewStatus' => 'review',
             'packageDependencyCount' => count($dependencies),
             'namespaces' => $namespaceList,
@@ -8981,6 +9047,12 @@ final class PdfEngineHandoff
             'versionConflicts' => $versionConflicts,
             'issues' => $issues,
         ];
+        if ($importConflictPolicy !== []) {
+            unset($importConflictPolicy['issues']);
+            $policy += $importConflictPolicy;
+        }
+
+        return $policy;
     }
 
     private function typstPackageUnsupportedReason(string $sourceClass): string
@@ -8993,6 +9065,593 @@ final class PdfEngineHandoff
         }
 
         return 'custom-namespace-not-resolved';
+    }
+
+    /**
+     * @param array<string, mixed> $typstImportPathPolicy
+     * @param list<string> $sidecarPackageInputs
+     * @return array<string, mixed>
+     */
+    private function typstPackageImportConflictPolicy(array $typstImportPathPolicy, array $sidecarPackageInputs): array
+    {
+        if ($typstImportPathPolicy === []) {
+            return [];
+        }
+
+        $sourcePackageInputs = [];
+        foreach (($typstImportPathPolicy['literalPaths'] ?? []) as $literalPath) {
+            if (!is_array($literalPath) || ($literalPath['pathClass'] ?? null) !== 'typst-package') {
+                continue;
+            }
+
+            $path = $literalPath['path'] ?? null;
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $packageInput = $this->typstPackageInputForDependencyPath($path);
+            if ($packageInput !== null) {
+                $sourcePackageInputs[$packageInput] = true;
+            }
+        }
+        $sourcePackageInputList = array_keys($sourcePackageInputs);
+        sort($sourcePackageInputList);
+
+        $unsupportedExpressions = $this->typstUnsupportedImportExpressionSummaries($typstImportPathPolicy['unsupportedExpressions'] ?? []);
+        $duplicateUnsupportedExpressions = $this->typstDuplicateUnsupportedImportExpressionSummaries($typstImportPathPolicy['duplicateUnsupportedExpressions'] ?? []);
+
+        $sourceOnlyPackageInputs = array_values(array_diff($sourcePackageInputList, $sidecarPackageInputs));
+        $sidecarOnlyPackageInputs = array_values(array_diff($sidecarPackageInputs, $sourcePackageInputList));
+        $sharedPackageInputs = array_values(array_intersect($sourcePackageInputList, $sidecarPackageInputs));
+        sort($sourceOnlyPackageInputs);
+        sort($sidecarOnlyPackageInputs);
+        sort($sharedPackageInputs);
+
+        $conflictSummaries = [];
+        $issues = [];
+        $hasDynamicImportContext = $unsupportedExpressions !== [] || $duplicateUnsupportedExpressions !== [];
+        if ($sourcePackageInputList !== [] && $unsupportedExpressions !== []) {
+            $conflictSummaries[] = [
+                'kind' => 'literal-dynamic-import-conflict',
+                'literalPackageInputCount' => count($sourcePackageInputList),
+                'unsupportedExpressionCount' => count($unsupportedExpressions),
+                'duplicateUnsupportedExpressionCount' => count($duplicateUnsupportedExpressions),
+                'literalPackageInputs' => $sourcePackageInputList,
+                'unsupportedExpressions' => $unsupportedExpressions,
+                'metadataOnly' => true,
+                'issues' => ['literal-dynamic-typst-imports'],
+            ];
+            $issues[] = 'literal-dynamic-typst-imports:' . count($unsupportedExpressions);
+        }
+        if ($duplicateUnsupportedExpressions !== []) {
+            $conflictSummaries[] = [
+                'kind' => 'duplicate-unsupported-import-expressions',
+                'duplicateUnsupportedExpressionCount' => count($duplicateUnsupportedExpressions),
+                'duplicateUnsupportedExpressions' => $duplicateUnsupportedExpressions,
+                'metadataOnly' => true,
+                'issues' => ['duplicate-unsupported-typst-import-expressions'],
+            ];
+            $issues[] = 'duplicate-unsupported-typst-import-expressions:' . count($duplicateUnsupportedExpressions);
+        }
+        if ($hasDynamicImportContext && ($sourceOnlyPackageInputs !== [] || $sidecarOnlyPackageInputs !== [])) {
+            $conflictSummaries[] = [
+                'kind' => 'source-sidecar-package-disagreement',
+                'sourcePackageInputCount' => count($sourcePackageInputList),
+                'sidecarPackageInputCount' => count($sidecarPackageInputs),
+                'sharedPackageInputCount' => count($sharedPackageInputs),
+                'sourcePackageInputs' => $sourcePackageInputList,
+                'sidecarPackageInputs' => $sidecarPackageInputs,
+                'sharedPackageInputs' => $sharedPackageInputs,
+                'sourceOnlyPackageInputs' => $sourceOnlyPackageInputs,
+                'sidecarOnlyPackageInputs' => $sidecarOnlyPackageInputs,
+                'metadataOnly' => true,
+                'issues' => ['source-sidecar-package-disagreement'],
+            ];
+            $issues[] = 'source-sidecar-package-disagreement:' . (count($sourceOnlyPackageInputs) + count($sidecarOnlyPackageInputs));
+        }
+        if ($conflictSummaries === []) {
+            return [];
+        }
+
+        return [
+            'sourceLiteralPackageInputCount' => count($sourcePackageInputList),
+            'sourceLiteralPackageInputs' => $sourcePackageInputList,
+            'sourceUnsupportedExpressionCount' => count($unsupportedExpressions),
+            'sourceUnsupportedExpressions' => $unsupportedExpressions,
+            'sourceDuplicateUnsupportedExpressionCount' => count($duplicateUnsupportedExpressions),
+            'sourceDuplicateUnsupportedExpressions' => $duplicateUnsupportedExpressions,
+            'sourceSidecarPackageDisagreementCount' => count($sourceOnlyPackageInputs) + count($sidecarOnlyPackageInputs),
+            'sourceSidecarPackageDisagreement' => $sourceOnlyPackageInputs !== [] || $sidecarOnlyPackageInputs !== [],
+            'importConflictSummaryCount' => count($conflictSummaries),
+            'importConflictSummaries' => $conflictSummaries,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param mixed $rows
+     * @return list<array{directive:string, expression:string, expressionKind:string, line:int, column:int}>
+     */
+    private function typstUnsupportedImportExpressionSummaries(mixed $rows): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $summaries = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $directive = $row['directive'] ?? null;
+            $expression = $row['expression'] ?? null;
+            if (!is_string($directive) || !is_string($expression) || $expression === '') {
+                continue;
+            }
+
+            $summaries[] = [
+                'directive' => $directive,
+                'expression' => $expression,
+                'expressionKind' => is_string($row['expressionKind'] ?? null) ? $row['expressionKind'] : 'unknown',
+                'line' => is_int($row['line'] ?? null) ? $row['line'] : 0,
+                'column' => is_int($row['column'] ?? null) ? $row['column'] : 0,
+            ];
+        }
+
+        usort($summaries, static fn (array $a, array $b): int => [$a['expression'], $a['line'], $a['column']] <=> [$b['expression'], $b['line'], $b['column']]);
+
+        return $summaries;
+    }
+
+    /**
+     * @param mixed $rows
+     * @return list<array{expression:string, count:int, directives:list<string>, lines:list<int>}>
+     */
+    private function typstDuplicateUnsupportedImportExpressionSummaries(mixed $rows): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $summaries = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $expression = $row['expression'] ?? null;
+            if (!is_string($expression) || $expression === '') {
+                continue;
+            }
+
+            $directives = array_values(array_filter($row['directives'] ?? [], static fn (mixed $directive): bool => is_string($directive) && $directive !== ''));
+            sort($directives);
+            $lines = array_values(array_filter($row['lines'] ?? [], static fn (mixed $line): bool => is_int($line)));
+            sort($lines);
+            $summaries[] = [
+                'expression' => $expression,
+                'count' => is_int($row['count'] ?? null) ? $row['count'] : count($lines),
+                'directives' => $directives,
+                'lines' => $lines,
+            ];
+        }
+
+        usort($summaries, static fn (array $a, array $b): int => $a['expression'] <=> $b['expression']);
+
+        return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function typstImportPathPolicy(string $engine, string $sourceFile, ?string $source): array
+    {
+        if ($engine !== 'typst' || !is_string($source) || $source === '') {
+            return [];
+        }
+
+        $rows = $this->extractTypstImportPathRows($source);
+        if ($rows === []) {
+            return [];
+        }
+
+        $literalPaths = [];
+        $unsupportedRows = [];
+        $duplicateBuckets = [];
+        foreach ($rows as $row) {
+            if (($row['pathPolicy'] ?? null) === 'literal-path') {
+                $literalPaths[] = [
+                    'directive' => $row['directive'],
+                    'path' => $row['path'],
+                    'pathClass' => $row['pathClass'],
+                    'line' => $row['line'],
+                    'column' => $row['column'],
+                ];
+                continue;
+            }
+
+            $unsupportedRows[] = $row;
+            $expression = (string) $row['expression'];
+            if (!isset($duplicateBuckets[$expression])) {
+                $duplicateBuckets[$expression] = [
+                    'expression' => $expression,
+                    'count' => 0,
+                    'directives' => [],
+                    'lines' => [],
+                ];
+            }
+            $duplicateBuckets[$expression]['count']++;
+            $duplicateBuckets[$expression]['directives'][$row['directive']] = true;
+            $duplicateBuckets[$expression]['lines'][] = $row['line'];
+        }
+
+        $duplicateUnsupportedExpressions = [];
+        foreach ($duplicateBuckets as $bucket) {
+            if ($bucket['count'] < 2) {
+                continue;
+            }
+
+            $directives = array_keys($bucket['directives']);
+            sort($directives);
+            $lines = array_values(array_unique($bucket['lines']));
+            sort($lines);
+            $duplicateUnsupportedExpressions[] = [
+                'expression' => $bucket['expression'],
+                'count' => $bucket['count'],
+                'directives' => $directives,
+                'lines' => $lines,
+                'pathPolicy' => 'unsupported-expression-duplicate',
+                'metadataOnly' => true,
+                'issues' => ['duplicate-unsupported-typst-import-expression'],
+            ];
+        }
+        usort($duplicateUnsupportedExpressions, static fn (array $a, array $b): int => $a['expression'] <=> $b['expression']);
+
+        $issues = [];
+        if ($unsupportedRows !== []) {
+            $issues[] = 'unsupported-typst-import-expressions:' . count($unsupportedRows);
+        }
+        foreach ($duplicateUnsupportedExpressions as $duplicate) {
+            $issues[] = 'duplicate-unsupported-typst-import-expression:' . $duplicate['expression'];
+        }
+
+        return [
+            'reviewStatus' => $unsupportedRows === [] ? 'ok' : 'review',
+            'sourceFile' => $sourceFile,
+            'directiveCount' => count($rows),
+            'literalPathCount' => count($literalPaths),
+            'unsupportedExpressionCount' => count($unsupportedRows),
+            'duplicateUnsupportedExpressionCount' => count($duplicateUnsupportedExpressions),
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'rows' => $rows,
+            'literalPaths' => $literalPaths,
+            'unsupportedExpressions' => $unsupportedRows,
+            'duplicateUnsupportedExpressions' => $duplicateUnsupportedExpressions,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function extractTypstImportPathRows(string $source): array
+    {
+        $rows = [];
+        $length = strlen($source);
+        $inLineComment = false;
+        $blockCommentDepth = 0;
+        $quote = null;
+        $escaping = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $character = $source[$i];
+            $next = $i + 1 < $length ? $source[$i + 1] : '';
+
+            if ($inLineComment) {
+                if ($character === "\n") {
+                    $inLineComment = false;
+                }
+                continue;
+            }
+
+            if ($blockCommentDepth > 0) {
+                if ($character === '/' && $next === '*') {
+                    $blockCommentDepth++;
+                    continue;
+                }
+                if ($character === '*' && $next === '/') {
+                    $blockCommentDepth--;
+                }
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($escaping) {
+                    $escaping = false;
+                    continue;
+                }
+                if ($character === '\\') {
+                    $escaping = true;
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($character === '/' && $next === '/') {
+                $inLineComment = true;
+                continue;
+            }
+            if ($character === '/' && $next === '*') {
+                $blockCommentDepth = 1;
+                continue;
+            }
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                $escaping = false;
+                continue;
+            }
+
+            $directive = $this->typstImportDirectiveAt($source, $i);
+            if ($directive === null) {
+                continue;
+            }
+
+            $row = $this->typstImportPathRowAt($source, $i, $directive);
+            if ($row !== null) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    private function typstImportDirectiveAt(string $source, int $offset): ?string
+    {
+        foreach (['import', 'include'] as $directive) {
+            $needle = '#' . $directive;
+            $length = strlen($needle);
+            if (substr($source, $offset, $length) !== $needle) {
+                continue;
+            }
+
+            $nextOffset = $offset + $length;
+            if (isset($source[$nextOffset]) && $this->isTypstIdentifierCharacter($source[$nextOffset])) {
+                continue;
+            }
+
+            return $directive;
+        }
+
+        return null;
+    }
+
+    private function typstImportPathRowAt(string $source, int $hashOffset, string $directive): ?array
+    {
+        $cursor = $hashOffset + strlen($directive) + 1;
+        $cursor = $this->skipTypstWhitespace($source, $cursor);
+        $parenthesized = false;
+        if (isset($source[$cursor]) && $source[$cursor] === '(') {
+            $parenthesized = true;
+            $cursor = $this->skipTypstWhitespace($source, $cursor + 1);
+        }
+
+        if (!isset($source[$cursor])) {
+            return null;
+        }
+
+        [$endOffset, $delimiter] = $this->typstImportArgumentEnd($source, $cursor, $parenthesized, $directive);
+        $expression = trim(substr($source, $cursor, max(0, $endOffset - $cursor)));
+        if ($expression === '') {
+            return null;
+        }
+
+        [$line, $column] = $this->lineColumnAt($source, $hashOffset);
+        [$expressionLine, $expressionColumn] = $this->lineColumnAt($source, $cursor);
+        $path = $this->decodeTypstStringLiteral($expression);
+        if ($path !== null) {
+            return [
+                'directive' => $directive,
+                'line' => $line,
+                'column' => $column,
+                'expressionLine' => $expressionLine,
+                'expressionColumn' => $expressionColumn,
+                'expression' => $expression,
+                'path' => $path,
+                'pathClass' => $this->typstLiteralImportPathClass($path),
+                'pathPolicy' => 'literal-path',
+                'delimiter' => $delimiter,
+                'metadataOnly' => true,
+                'byteExposurePolicy' => 'metadata-only',
+                'networkAccessPolicy' => 'not-executed',
+                'issues' => [],
+            ];
+        }
+
+        return [
+            'directive' => $directive,
+            'line' => $line,
+            'column' => $column,
+            'expressionLine' => $expressionLine,
+            'expressionColumn' => $expressionColumn,
+            'expression' => $expression,
+            'path' => null,
+            'pathClass' => 'dynamic-expression',
+            'expressionKind' => $this->typstImportExpressionKind($expression),
+            'pathPolicy' => 'unsupported-expression',
+            'delimiter' => $delimiter,
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'issues' => ['unsupported-typst-import-expression'],
+        ];
+    }
+
+    /**
+     * @return array{0:int, 1:string|null}
+     */
+    private function typstImportArgumentEnd(string $source, int $offset, bool $parenthesized, string $directive): array
+    {
+        $length = strlen($source);
+        $depth = 0;
+        $quote = null;
+        $escaping = false;
+
+        for ($i = $offset; $i < $length; $i++) {
+            $character = $source[$i];
+            $next = $i + 1 < $length ? $source[$i + 1] : '';
+
+            if ($quote !== null) {
+                if ($escaping) {
+                    $escaping = false;
+                    continue;
+                }
+                if ($character === '\\') {
+                    $escaping = true;
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                $escaping = false;
+                continue;
+            }
+            if ($character === '/' && ($next === '/' || $next === '*')) {
+                return [$i, 'comment'];
+            }
+            if ($character === '(' || $character === '[' || $character === '{') {
+                $depth++;
+                continue;
+            }
+            if ($character === ')' || $character === ']' || $character === '}') {
+                if ($parenthesized && $depth === 0 && $character === ')') {
+                    return [$i, ')'];
+                }
+                if ($depth > 0) {
+                    $depth--;
+                    continue;
+                }
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+            if ($parenthesized && $character === ',') {
+                return [$i, ','];
+            }
+            if (!$parenthesized && $directive === 'import' && $character === ':') {
+                return [$i, ':'];
+            }
+            if (!$parenthesized && ($character === "\n" || $character === "\r")) {
+                return [$i, 'newline'];
+            }
+        }
+
+        return [$length, null];
+    }
+
+    private function skipTypstWhitespace(string $source, int $offset): int
+    {
+        $length = strlen($source);
+        while ($offset < $length && ctype_space($source[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function decodeTypstStringLiteral(string $expression): ?string
+    {
+        if (preg_match('/\A"((?:\\\\.|[^"\\\\])*)"\z/s', $expression, $matches) !== 1) {
+            return null;
+        }
+
+        $inner = $matches[1];
+        $decoded = '';
+        $length = strlen($inner);
+        for ($i = 0; $i < $length; $i++) {
+            $character = $inner[$i];
+            if ($character !== '\\') {
+                $decoded .= $character;
+                continue;
+            }
+            if ($i + 1 >= $length) {
+                return null;
+            }
+
+            $escaped = $inner[++$i];
+            $decoded .= match ($escaped) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                '"' => '"',
+                '\\' => '\\',
+                default => $escaped,
+            };
+        }
+
+        return $decoded;
+    }
+
+    private function typstLiteralImportPathClass(string $path): string
+    {
+        if ($this->typstPackageInputForDependencyPath($path) !== null) {
+            return 'typst-package';
+        }
+        if ($this->isUriResourceReference($path)) {
+            return 'external-resource';
+        }
+        if (str_starts_with($path, '/') || preg_match('/\A[A-Za-z]:[\/\\\\]/', $path) === 1) {
+            return 'absolute-path';
+        }
+
+        return 'relative-path';
+    }
+
+    private function typstImportExpressionKind(string $expression): string
+    {
+        if (str_contains($expression, '+')) {
+            return 'concatenation';
+        }
+        if (preg_match('/\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\z/', $expression) === 1) {
+            return 'variable';
+        }
+        if (preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\s*\(/', $expression) === 1) {
+            return 'function-call';
+        }
+        if (str_starts_with($expression, '(')) {
+            return 'parenthesized-expression';
+        }
+
+        return 'expression';
+    }
+
+    private function isTypstIdentifierCharacter(string $character): bool
+    {
+        return preg_match('/[A-Za-z0-9_-]/', $character) === 1;
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function lineColumnAt(string $source, int $offset): array
+    {
+        $prefix = substr($source, 0, $offset);
+        $line = substr_count($prefix, "\n") + 1;
+        $lastNewline = strrpos($prefix, "\n");
+        $column = $lastNewline === false ? $offset + 1 : $offset - $lastNewline;
+
+        return [$line, $column];
     }
 
     /**

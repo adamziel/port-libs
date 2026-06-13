@@ -15,6 +15,8 @@ Counts are upstream tests passing out of upstream tests total.
 | Unsupported input formats | 28 |
 | PHP test failures | 0 |
 
+ODF/ODT is marked ship-ready: 52 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 260.0%, with 0 critical ODF/ODT gaps.
+
 ## Input / Import Formats
 
 | Format / path | State | Passed upstream | Upstream tests |

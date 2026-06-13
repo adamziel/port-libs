@@ -3888,17 +3888,6 @@ return [
                 'sourceClass' => 'preview-registry',
             ],
         ];
-        $expectedIssueCounts = [
-            'absolute-import-path' => 1,
-            'duplicate-import-path' => 1,
-            'parent-relative-import-path' => 1,
-            'remote-include-path' => 1,
-        ];
-        $expectedUnsupportedReasons = [
-            'dynamic-import-path' => 1,
-            'dynamic-include-path' => 1,
-        ];
-
         $result = $handoff->fakeRun($plan, [
             'files' => [
                 'build/import-paths.d' => $depfile,
@@ -3914,49 +3903,95 @@ return [
         $policy = $plan['typstImportPathPolicy'];
 
         $t->same('review', $policy['reviewStatus']);
+        $t->same('build/import-paths.typ', $policy['sourceFile']);
         $t->same(true, $policy['metadataOnly']);
         $t->same('not-executed', $policy['networkAccessPolicy']);
-        $t->same(6, $policy['pathCount']);
-        $t->same(4, $policy['importCount']);
-        $t->same(2, $policy['includeCount']);
-        $t->same(2, $policy['packagePathCount']);
-        $t->same(2, $policy['localPathCount']);
-        $t->same(1, $policy['remotePathCount']);
-        $t->same(1, $policy['absolutePathCount']);
-        $t->same(3, $policy['unsafePathCount']);
-        $t->same(1, $policy['duplicatePathCount']);
-        $t->same(1, $policy['duplicateReferenceCount']);
-        $t->same(2, $policy['unsupportedCount']);
-        $t->same(['preview-registry' => 2], $policy['sourceClassCounts']);
-        $t->same(['@preview/cetz:0.3.2/src/lib.typ'], $policy['packageImportReferences']);
-        $t->same($expectedPackageDependencies, $policy['packageDependencies']);
-        $t->same(['../shared/theme.typ', 'chapters/intro.typ'], $policy['localImportHints']);
-        $t->same(['https://cdn.example.invalid/theme.typ'], $policy['remoteImportPaths']);
-        $t->same(['../shared/theme.typ', '/etc/typst/local.typ', 'https://cdn.example.invalid/theme.typ'], $policy['unsafeImportPaths']);
+        $t->same(8, $policy['directiveCount']);
+        $t->same(6, $policy['literalPathCount']);
+        $t->same(2, $policy['unsupportedExpressionCount']);
+        $t->same(0, $policy['duplicateUnsupportedExpressionCount']);
         $t->same([
             [
+                'directive' => 'import',
                 'path' => '@preview/cetz:0.3.2/src/lib.typ',
-                'count' => 2,
-                'operations' => ['import' => 2],
-                'lines' => [2, 7],
+                'pathClass' => 'typst-package',
+                'line' => 2,
+                'column' => 1,
             ],
-        ], $policy['duplicates']);
-        $t->same($expectedIssueCounts, $policy['issueCounts']);
-        $t->same($expectedUnsupportedReasons, $policy['unsupportedReasonCounts']);
+            [
+                'directive' => 'include',
+                'path' => 'chapters/intro.typ',
+                'pathClass' => 'relative-path',
+                'line' => 3,
+                'column' => 1,
+            ],
+            [
+                'directive' => 'import',
+                'path' => '../shared/theme.typ',
+                'pathClass' => 'relative-path',
+                'line' => 4,
+                'column' => 1,
+            ],
+            [
+                'directive' => 'include',
+                'path' => 'https://cdn.example.invalid/theme.typ',
+                'pathClass' => 'external-resource',
+                'line' => 5,
+                'column' => 1,
+            ],
+            [
+                'directive' => 'import',
+                'path' => '/etc/typst/local.typ',
+                'pathClass' => 'absolute-path',
+                'line' => 6,
+                'column' => 1,
+            ],
+            [
+                'directive' => 'import',
+                'path' => '@preview/cetz:0.3.2/src/lib.typ',
+                'pathClass' => 'typst-package',
+                'line' => 7,
+                'column' => 1,
+            ],
+        ], $policy['literalPaths']);
         $t->same([
             [
-                'operation' => 'import',
-                'reason' => 'dynamic-import-path',
+                'directive' => 'import',
                 'line' => 8,
                 'column' => 1,
+                'expressionLine' => 8,
+                'expressionColumn' => 9,
+                'expression' => 'packagePath',
+                'path' => null,
+                'pathClass' => 'dynamic-expression',
+                'expressionKind' => 'variable',
+                'pathPolicy' => 'unsupported-expression',
+                'delimiter' => ':',
+                'metadataOnly' => true,
+                'byteExposurePolicy' => 'metadata-only',
+                'networkAccessPolicy' => 'not-executed',
+                'issues' => ['unsupported-typst-import-expression'],
             ],
             [
-                'operation' => 'include',
-                'reason' => 'dynamic-include-path',
+                'directive' => 'include',
                 'line' => 9,
                 'column' => 1,
+                'expressionLine' => 9,
+                'expressionColumn' => 10,
+                'expression' => 'module.path',
+                'path' => null,
+                'pathClass' => 'dynamic-expression',
+                'expressionKind' => 'variable',
+                'pathPolicy' => 'unsupported-expression',
+                'delimiter' => 'newline',
+                'metadataOnly' => true,
+                'byteExposurePolicy' => 'metadata-only',
+                'networkAccessPolicy' => 'not-executed',
+                'issues' => ['unsupported-typst-import-expression'],
             ],
-        ], $policy['unsupported']);
+        ], $policy['unsupportedExpressions']);
+        $t->same([], $policy['duplicateUnsupportedExpressions']);
+        $t->same(['unsupported-typst-import-expressions:2'], $policy['issues']);
         $t->same($policy, $result['typstImportPathPolicy']);
         $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
         $t->same($policy, $sequence['finalTypstImportPathPolicy']);
@@ -3967,21 +4002,9 @@ return [
         $t->same(2, $result['typstPackageDependencyPolicy']['packageDependencyCount']);
         $t->same(['custom-namespace' => 1, 'preview-registry' => 1], $result['typstPackageDependencyPolicy']['sourceClassCounts']);
         $t->contains('typst-import-path-policy:review', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-paths:6', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-packages:2', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-local:2', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-remote:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-absolute:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-unsafe:3', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-duplicates:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-unsupported:2', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-source:preview-registry:2', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-unsupported-reason:dynamic-include-path:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-unsupported-reason:dynamic-import-path:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-issue:absolute-import-path:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-issue:duplicate-import-path:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-issue:parent-relative-import-path:1', implode(',', $plan['diagnostics']));
-        $t->contains('typst-import-path-issue:remote-include-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-policy-directives:8', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-literal-paths:6', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-unsupported-expressions:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
     },
 
@@ -4519,6 +4542,467 @@ return [
         $t->contains('typst-package-dependency-subpaths:2', implode(',', $result['diagnostics']));
         $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstPackageDependencyPolicy']);
+    },
+
+    'fake runner reports typst dynamic import expressions as metadata-only path policy rows' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Import Policy Packet',
+            '',
+            '#let chapterPath = "chapters/dynamic.typ"',
+            '#let packagePath = "@preview/cetz:0.3.2"',
+            '#let chapterName = "intro.typ"',
+            '#show raw: it => "#include not-scanned.typ"',
+            '#import "@preview/cetz:0.3.2/src/lib.typ": canvas',
+            '#include "chapters/literal.typ"',
+            '#include chapterPath',
+            '#import packagePath: *',
+            '#include "chapters/" + chapterName',
+            '#include chapterPath',
+            '// #include commentedPath',
+            '/* #import commentedPackage: * */',
+            '',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-import-policy.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-import-policy.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst import policy packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-import-policy.pdf: build/typst-import-policy.typ @preview/cetz:0.3.2/src/lib.typ @typst/symbols:0.1.0',
+            '',
+        ]);
+        $expectedPathPolicy = [
+            'reviewStatus' => 'review',
+            'sourceFile' => 'build/typst-import-policy.typ',
+            'directiveCount' => 6,
+            'literalPathCount' => 2,
+            'unsupportedExpressionCount' => 4,
+            'duplicateUnsupportedExpressionCount' => 1,
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'rows' => [
+                [
+                    'directive' => 'import',
+                    'line' => 7,
+                    'column' => 1,
+                    'expressionLine' => 7,
+                    'expressionColumn' => 9,
+                    'expression' => '"@preview/cetz:0.3.2/src/lib.typ"',
+                    'path' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'pathClass' => 'typst-package',
+                    'pathPolicy' => 'literal-path',
+                    'delimiter' => ':',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => [],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 8,
+                    'column' => 1,
+                    'expressionLine' => 8,
+                    'expressionColumn' => 10,
+                    'expression' => '"chapters/literal.typ"',
+                    'path' => 'chapters/literal.typ',
+                    'pathClass' => 'relative-path',
+                    'pathPolicy' => 'literal-path',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => [],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 9,
+                    'column' => 1,
+                    'expressionLine' => 9,
+                    'expressionColumn' => 10,
+                    'expression' => 'chapterPath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'import',
+                    'line' => 10,
+                    'column' => 1,
+                    'expressionLine' => 10,
+                    'expressionColumn' => 9,
+                    'expression' => 'packagePath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => ':',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 11,
+                    'column' => 1,
+                    'expressionLine' => 11,
+                    'expressionColumn' => 10,
+                    'expression' => '"chapters/" + chapterName',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'concatenation',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 12,
+                    'column' => 1,
+                    'expressionLine' => 12,
+                    'expressionColumn' => 10,
+                    'expression' => 'chapterPath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+            ],
+            'literalPaths' => [
+                [
+                    'directive' => 'import',
+                    'path' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'pathClass' => 'typst-package',
+                    'line' => 7,
+                    'column' => 1,
+                ],
+                [
+                    'directive' => 'include',
+                    'path' => 'chapters/literal.typ',
+                    'pathClass' => 'relative-path',
+                    'line' => 8,
+                    'column' => 1,
+                ],
+            ],
+            'unsupportedExpressions' => [
+                [
+                    'directive' => 'include',
+                    'line' => 9,
+                    'column' => 1,
+                    'expressionLine' => 9,
+                    'expressionColumn' => 10,
+                    'expression' => 'chapterPath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'import',
+                    'line' => 10,
+                    'column' => 1,
+                    'expressionLine' => 10,
+                    'expressionColumn' => 9,
+                    'expression' => 'packagePath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => ':',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 11,
+                    'column' => 1,
+                    'expressionLine' => 11,
+                    'expressionColumn' => 10,
+                    'expression' => '"chapters/" + chapterName',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'concatenation',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+                [
+                    'directive' => 'include',
+                    'line' => 12,
+                    'column' => 1,
+                    'expressionLine' => 12,
+                    'expressionColumn' => 10,
+                    'expression' => 'chapterPath',
+                    'path' => null,
+                    'pathClass' => 'dynamic-expression',
+                    'expressionKind' => 'variable',
+                    'pathPolicy' => 'unsupported-expression',
+                    'delimiter' => 'newline',
+                    'metadataOnly' => true,
+                    'byteExposurePolicy' => 'metadata-only',
+                    'networkAccessPolicy' => 'not-executed',
+                    'issues' => ['unsupported-typst-import-expression'],
+                ],
+            ],
+            'duplicateUnsupportedExpressions' => [
+                [
+                    'expression' => 'chapterPath',
+                    'count' => 2,
+                    'directives' => ['include'],
+                    'lines' => [9, 12],
+                    'pathPolicy' => 'unsupported-expression-duplicate',
+                    'metadataOnly' => true,
+                    'issues' => ['duplicate-unsupported-typst-import-expression'],
+                ],
+            ],
+            'issues' => [
+                'unsupported-typst-import-expressions:4',
+                'duplicate-unsupported-typst-import-expression:chapterPath',
+            ],
+        ];
+        $expectedPackagePolicy = [
+            'reviewStatus' => 'review',
+            'packageDependencyCount' => 2,
+            'namespaces' => ['preview', 'typst'],
+            'packages' => ['preview/cetz', 'typst/symbols'],
+            'versions' => ['0.1.0', '0.3.2'],
+            'sourceClasses' => ['preview-registry', 'typst-registry'],
+            'sourceClassCounts' => [
+                'preview-registry' => 1,
+                'typst-registry' => 1,
+            ],
+            'subpathDependencyCount' => 1,
+            'packageCount' => 2,
+            'namespaceCounts' => [
+                'preview' => 1,
+                'typst' => 1,
+            ],
+            'packageCoordinates' => ['preview/cetz:0.3.2', 'typst/symbols:0.1.0'],
+            'packageNames' => ['preview/cetz', 'typst/symbols'],
+            'sidecarFileCount' => 1,
+            'sidecarFiles' => ['build/typst-import-policy.d'],
+            'sidecarPackageInputCounts' => [
+                [
+                    'artifact' => 'build/typst-import-policy.d',
+                    'packageInputCount' => 2,
+                    'packageInputs' => [
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@typst/symbols:0.1.0',
+                    ],
+                ],
+            ],
+            'metadataOnly' => true,
+            'byteExposurePolicy' => 'metadata-only',
+            'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => 2,
+            'unsupportedPackageReasons' => [
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                    'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                    'sourceClass' => 'preview-registry',
+                    'reason' => 'preview-registry-network-not-executed',
+                ],
+                [
+                    'input' => 'typst-package:@typst/symbols:0.1.0',
+                    'reference' => '@typst/symbols:0.1.0',
+                    'sourceClass' => 'typst-registry',
+                    'reason' => 'typst-registry-network-not-executed',
+                ],
+            ],
+            'unsupportedReasonCounts' => [
+                'preview-registry-network-not-executed' => 1,
+                'typst-registry-network-not-executed' => 1,
+            ],
+            'duplicateDependencyCount' => 0,
+            'duplicateDependencySummaries' => [],
+            'versionConflictCount' => 0,
+            'versionConflicts' => [],
+            'issues' => [
+                'typst-package-dependencies:2',
+                'literal-dynamic-typst-imports:4',
+                'duplicate-unsupported-typst-import-expressions:1',
+                'source-sidecar-package-disagreement:1',
+            ],
+            'sourceLiteralPackageInputCount' => 1,
+            'sourceLiteralPackageInputs' => ['typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+            'sourceUnsupportedExpressionCount' => 4,
+            'sourceUnsupportedExpressions' => [
+                [
+                    'directive' => 'include',
+                    'expression' => '"chapters/" + chapterName',
+                    'expressionKind' => 'concatenation',
+                    'line' => 11,
+                    'column' => 1,
+                ],
+                [
+                    'directive' => 'include',
+                    'expression' => 'chapterPath',
+                    'expressionKind' => 'variable',
+                    'line' => 9,
+                    'column' => 1,
+                ],
+                [
+                    'directive' => 'include',
+                    'expression' => 'chapterPath',
+                    'expressionKind' => 'variable',
+                    'line' => 12,
+                    'column' => 1,
+                ],
+                [
+                    'directive' => 'import',
+                    'expression' => 'packagePath',
+                    'expressionKind' => 'variable',
+                    'line' => 10,
+                    'column' => 1,
+                ],
+            ],
+            'sourceDuplicateUnsupportedExpressionCount' => 1,
+            'sourceDuplicateUnsupportedExpressions' => [
+                [
+                    'expression' => 'chapterPath',
+                    'count' => 2,
+                    'directives' => ['include'],
+                    'lines' => [9, 12],
+                ],
+            ],
+            'sourceSidecarPackageDisagreementCount' => 1,
+            'sourceSidecarPackageDisagreement' => true,
+            'importConflictSummaryCount' => 3,
+            'importConflictSummaries' => [
+                [
+                    'kind' => 'literal-dynamic-import-conflict',
+                    'literalPackageInputCount' => 1,
+                    'unsupportedExpressionCount' => 4,
+                    'duplicateUnsupportedExpressionCount' => 1,
+                    'literalPackageInputs' => ['typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+                    'unsupportedExpressions' => [
+                        [
+                            'directive' => 'include',
+                            'expression' => '"chapters/" + chapterName',
+                            'expressionKind' => 'concatenation',
+                            'line' => 11,
+                            'column' => 1,
+                        ],
+                        [
+                            'directive' => 'include',
+                            'expression' => 'chapterPath',
+                            'expressionKind' => 'variable',
+                            'line' => 9,
+                            'column' => 1,
+                        ],
+                        [
+                            'directive' => 'include',
+                            'expression' => 'chapterPath',
+                            'expressionKind' => 'variable',
+                            'line' => 12,
+                            'column' => 1,
+                        ],
+                        [
+                            'directive' => 'import',
+                            'expression' => 'packagePath',
+                            'expressionKind' => 'variable',
+                            'line' => 10,
+                            'column' => 1,
+                        ],
+                    ],
+                    'metadataOnly' => true,
+                    'issues' => ['literal-dynamic-typst-imports'],
+                ],
+                [
+                    'kind' => 'duplicate-unsupported-import-expressions',
+                    'duplicateUnsupportedExpressionCount' => 1,
+                    'duplicateUnsupportedExpressions' => [
+                        [
+                            'expression' => 'chapterPath',
+                            'count' => 2,
+                            'directives' => ['include'],
+                            'lines' => [9, 12],
+                        ],
+                    ],
+                    'metadataOnly' => true,
+                    'issues' => ['duplicate-unsupported-typst-import-expressions'],
+                ],
+                [
+                    'kind' => 'source-sidecar-package-disagreement',
+                    'sourcePackageInputCount' => 1,
+                    'sidecarPackageInputCount' => 2,
+                    'sharedPackageInputCount' => 1,
+                    'sourcePackageInputs' => ['typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+                    'sidecarPackageInputs' => [
+                        'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                        'typst-package:@typst/symbols:0.1.0',
+                    ],
+                    'sharedPackageInputs' => ['typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+                    'sourceOnlyPackageInputs' => [],
+                    'sidecarOnlyPackageInputs' => ['typst-package:@typst/symbols:0.1.0'],
+                    'metadataOnly' => true,
+                    'issues' => ['source-sidecar-package-disagreement'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-import-policy.d' => $depfile,
+                'build/typst-import-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-import-policy.d' => $depfile,
+                    'build/typst-import-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPathPolicy, $result['typstImportPathPolicy']);
+        $t->same($expectedPathPolicy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same($expectedPackagePolicy, $result['typstPackageDependencyPolicy']);
+        $t->same($expectedPackagePolicy, $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->same(['typst-package:@preview/cetz:0.3.2/src/lib.typ', 'typst-package:@typst/symbols:0.1.0'], $result['engineTypstPackageInputs']);
+        $t->contains('typst-import-path-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-policy-directives:6', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-literal-paths:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-unsupported-expressions:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-unsupported-expression-duplicates:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-import-conflicts:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-source-literal-imports:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-source-dynamic-imports:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-source-duplicate-dynamic-imports:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-package-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPathPolicy, $sequence['finalTypstImportPathPolicy']);
+        $t->same($expectedPackagePolicy, $sequence['finalTypstPackageDependencyPolicy']);
     },
 
     'fake runner reviews typst dependency output target provenance' => static function (TestRunner $t) use ($document): void {
