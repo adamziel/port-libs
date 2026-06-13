@@ -6796,7 +6796,6 @@ final class TableGeometry
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::emptyTableWriterDiagnostics($table, $writer));
-                    array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
@@ -11020,36 +11019,6 @@ final class TableGeometry
         ksort($attributes);
 
         return $attributes;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private static function latexLongtableFooterRequirements(AstNode $table, string $writer): array
-    {
-        $sectionSummary = self::tableSectionSummary($table);
-        if (($sectionSummary['footRowCount'] ?? 0) <= 0) {
-            return [];
-        }
-
-        return [[
-            'code' => 'latex-longtable-footer-required',
-            'writer' => $writer,
-            'reason' => 'table-foot',
-            'requiredFeature' => 'longtable-footer',
-            'caption' => (string) $table->attr('caption', ''),
-            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
-            'columnCount' => self::columnCount($table),
-            'sectionCount' => $sectionSummary['sectionCount'],
-            'rowCount' => $sectionSummary['rowCount'],
-            'bodyCount' => $sectionSummary['bodyCount'],
-            'headRowCount' => $sectionSummary['headRowCount'],
-            'bodyRowCount' => $sectionSummary['bodyRowCount'],
-            'footRowCount' => $sectionSummary['footRowCount'],
-            'sectionRanges' => $sectionSummary['sectionRanges'],
-            'footSectionRanges' => self::sectionRangeRecordsByRole($sectionSummary, 'foot'),
-            'sections' => $sectionSummary['sections'],
-        ]];
     }
 
     /**

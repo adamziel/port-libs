@@ -4682,7 +4682,7 @@ return [
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
-    'reports latex longtable footer requirements for table foot handoff' => static function (TestRunner $t): void {
+    'treats latex table foot sections as supported longtable handoff' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'LaTeX footer audit',
             'alignments' => ['left', 'right'],
@@ -4713,25 +4713,14 @@ return [
             'writers' => ['latex'],
         ]);
 
-        $t->same(['latex-longtable-footer-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
-        $t->same('latex', $diagnostics[0]['writer'] ?? null);
-        $t->same('table-foot', $diagnostics[0]['reason'] ?? null);
-        $t->same('longtable-footer', $diagnostics[0]['requiredFeature'] ?? null);
-        $t->same('LaTeX footer audit', $diagnostics[0]['caption'] ?? null);
-        $t->same(2, $diagnostics[0]['columnCount'] ?? null);
-        $t->same(3, $diagnostics[0]['sectionCount'] ?? null);
-        $t->same(3, $diagnostics[0]['rowCount'] ?? null);
-        $t->same(1, $diagnostics[0]['bodyCount'] ?? null);
-        $t->same(1, $diagnostics[0]['headRowCount'] ?? null);
-        $t->same(1, $diagnostics[0]['bodyRowCount'] ?? null);
-        $t->same(1, $diagnostics[0]['footRowCount'] ?? null);
-        $t->same(['head', 'body', 'foot'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $diagnostics[0]['sections'] ?? []));
-        $t->same([1, 1, 1], array_map(static fn (array $section): int => (int) ($section['rowCount'] ?? 0), $diagnostics[0]['sections'] ?? []));
+        $t->same([], $diagnostics);
         $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
         $t->same($diagnostics, $packet['writerDowngrades']['latex'] ?? null);
-        $t->same(1, $packet['summary']['writerDowngradeCount'] ?? null);
-        $t->same(['latex-longtable-footer-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
-        $t->same(['latex'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(0, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same([], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(true, $packet['summary']['hasTableFoot'] ?? null);
+        $t->same(1, $packet['summary']['tableFootRowCount'] ?? null);
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },

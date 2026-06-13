@@ -204,11 +204,63 @@ return [
                 '\hline',
                 'Metric & State \& owner & Notes\\\\',
                 '\hline',
-                '\textbf{Posts} & \multicolumn{2}{c}{Ready \% complete}\\\\',
+                '\endfirsthead',
+                '\hline',
+                'Metric & State \& owner & Notes\\\\',
+                '\hline',
+                '\endhead',
                 '\hline',
                 'Totals & 42 & Done\\\\',
+                '\hline',
+                '\endfoot',
+                '\hline',
+                'Totals & 42 & Done\\\\',
+                '\hline',
+                '\endlastfoot',
+                '\textbf{Posts} & \multicolumn{2}{c}{Ready \% complete}\\\\',
                 '\end{longtable}',
             ]),
+        ]), (new LatexWriter())->write($document));
+    },
+    'renders table foot rows as longtable footer sections without a table head' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $cell = static fn (string $value): AstNode => new AstNode('table_cell', [], [$text($value)]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'caption' => 'Totals only',
+                'alignments' => ['left', 'right'],
+            ], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        $cell('Posts'),
+                        $cell('42'),
+                    ]),
+                ]),
+                new AstNode('table_foot', [], [
+                    new AstNode('table_row', [], [
+                        $cell('Total'),
+                        $cell('Ready'),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '\begin{longtable}{lr}',
+            '\caption{Totals only}\\\\',
+            '\endfirsthead',
+            '\endhead',
+            '\hline',
+            'Total & Ready\\\\',
+            '\hline',
+            '\endfoot',
+            '\hline',
+            'Total & Ready\\\\',
+            '\hline',
+            '\endlastfoot',
+            'Posts & 42\\\\',
+            '\end{longtable}',
         ]), (new LatexWriter())->write($document));
     },
     'renders ordered list labels counters and task item commands' => static function (TestRunner $t): void {
