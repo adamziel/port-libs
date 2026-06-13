@@ -610,22 +610,22 @@ final class LatexWriter
                 'space' => ' ',
                 'softbreak' => "\n",
                 'linebreak' => '\\\\' . "\n",
-                'emph' => $this->renderCommand('emph', $this->renderInlines($node->children)),
-                'strong' => $this->renderCommand('textbf', $this->renderInlines($node->children)),
-                'strikeout' => $this->renderCommand('sout', $this->renderInlines($node->children)),
-                'superscript' => $this->renderCommand('textsuperscript', $this->renderInlines($node->children)),
-                'subscript' => $this->renderCommand('textsubscript', $this->renderInlines($node->children)),
-                'small_caps' => $this->renderCommand('textsc', $this->renderInlines($node->children)),
-                'underline' => $this->renderCommand('underline', $this->renderInlines($node->children)),
+                'emph' => $this->renderInlineCommand($node, 'emph'),
+                'strong' => $this->renderInlineCommand($node, 'textbf'),
+                'strikeout' => $this->renderInlineCommand($node, 'sout'),
+                'superscript' => $this->renderInlineCommand($node, 'textsuperscript'),
+                'subscript' => $this->renderInlineCommand($node, 'textsubscript'),
+                'small_caps' => $this->renderInlineCommand($node, 'textsc'),
+                'underline' => $this->renderInlineCommand($node, 'underline'),
                 'span' => $this->renderSpan($node),
                 'quoted' => $this->renderQuoted($node),
-                'code' => $this->renderCommand('texttt', $this->escapeText((string) $node->attr('text', ''))),
+                'code' => $this->wrapInlineAnchor($node, $this->renderCommand('texttt', $this->escapeText((string) $node->attr('text', '')))),
                 'link' => $this->renderLink($node),
                 'image' => $this->renderImage($node),
                 'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
                 'citation_group' => (string) $node->attr('text', $this->renderInlines($node->children)),
                 'note' => $this->renderNote($node),
-                'math' => $this->mathConverter()->latexFor($node),
+                'math' => $this->wrapInlineAnchor($node, $this->mathConverter()->latexFor($node)),
                 'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
                 'raw_html_inline', 'raw_markdown', 'native_inline', 'unsupported_command' => $this->renderUnsupportedCommandInline($node),
                 'raw_inline' => $this->renderRawInline($node),
@@ -639,6 +639,21 @@ final class LatexWriter
     private function renderCommand(string $command, string $content): string
     {
         return '\\' . $command . '{' . $content . '}';
+    }
+
+    private function renderInlineCommand(AstNode $node, string $command): string
+    {
+        return $this->wrapInlineAnchor($node, $this->renderCommand($command, $this->renderInlines($node->children)));
+    }
+
+    private function wrapInlineAnchor(AstNode $node, string $latex): string
+    {
+        $anchor = $this->nodeAnchorName($node);
+        if ($anchor === '') {
+            return $latex;
+        }
+
+        return '\protect\hypertarget{' . $anchor . '}{' . $latex . '}';
     }
 
     private function renderQuoted(AstNode $node): string

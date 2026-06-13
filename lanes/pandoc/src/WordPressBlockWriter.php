@@ -2766,13 +2766,13 @@ final class WordPressBlockWriter
     {
         return match ($node->type) {
             'text' => $this->esc((string) $node->attr('text', '')),
-            'emph' => '<em>' . $this->renderInlines($node) . '</em>',
-            'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
-            'small_caps' => '<span style="font-variant:small-caps">' . $this->renderInlines($node) . '</span>',
-            'underline' => '<u>' . $this->renderInlines($node) . '</u>',
-            'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
-            'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
-            'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
+            'emph' => '<em' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</em>',
+            'strong' => '<strong' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</strong>',
+            'small_caps' => '<span style="font-variant:small-caps"' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
+            'underline' => '<u' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</u>',
+            'strikeout' => '<del' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</del>',
+            'superscript' => '<sup' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</sup>',
+            'subscript' => '<sub' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</sub>',
             'space' => ' ',
             'softbreak' => "\n",
             'linebreak' => '<br/>',
@@ -2949,12 +2949,38 @@ final class WordPressBlockWriter
         return $attrs;
     }
 
-    private function renderInlineSpanAttrs(AstNode $node): string
+    /**
+     * @param list<string> $baseClasses
+     */
+    private function renderInlineSpanAttrs(AstNode $node, array $baseClasses = []): string
     {
         $attrs = '';
-        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $renderedClass = false;
+
+        if ($baseClasses !== []) {
+            $classes = [];
+            foreach ($baseClasses as $class) {
+                $class = trim($class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+            if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+                foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                    $classes[] = $class;
+                }
+            }
+            $classes = array_values(array_unique($classes));
+            if ($classes !== []) {
+                $attrs .= ' class="' . $this->esc(implode(' ', $classes)) . '"';
+                $renderedClass = true;
+            }
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
-            if (!$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
+            if (($name === 'class' && $renderedClass) || !$this->isAllowedInlineHtmlAttr($name) || !is_scalar($value)) {
                 continue;
             }
 
@@ -3082,13 +3108,13 @@ final class WordPressBlockWriter
         $class = $node->attr('display') === true ? 'display' : 'inline';
         $mathml = $node->attr('mathml', null);
         if (is_string($mathml) && trim($mathml) !== '') {
-            return '<span class="math ' . $class . '">' . trim($mathml) . '</span>';
+            return '<span' . $this->renderInlineSpanAttrs($node, ['math', $class]) . '>' . trim($mathml) . '</span>';
         }
 
         $open = $node->attr('display') === true ? '\\[' : '\\(';
         $close = $node->attr('display') === true ? '\\]' : '\\)';
 
-        return '<span class="math ' . $class . '">'
+        return '<span' . $this->renderInlineSpanAttrs($node, ['math', $class]) . '>'
             . $this->esc($open . (string) $node->attr('text', '') . $close)
             . '</span>';
     }
