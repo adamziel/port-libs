@@ -1014,6 +1014,7 @@ final class OdfReader
     ): array {
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
+        $selectedEntryHandoff = $this->selectedPackageEntryHandoff($package, $manifest);
         $manifestByPart = [];
         $undeclaredByPart = [];
         $packageDirectoryCount = 0;
@@ -1294,9 +1295,79 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'selectedEntryHandoff' => $selectedEntryHandoff,
             'embeddedObjectPackages' => $embeddedObjectPackages,
             'parts' => $parts,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function selectedPackageEntryHandoff(ZipPackage $package, array $manifest): array
+    {
+        $requests = [
+            ['name' => 'mimetype', 'required' => true, 'kind' => 'file', 'role' => 'odf-mimetype'],
+            ['name' => 'META-INF/manifest.xml', 'required' => true, 'kind' => 'file', 'role' => 'odf-manifest'],
+        ];
+        $requestedParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        $selectablePolicies = [
+            'package-bytes-exposable' => true,
+            'missing-package-part' => true,
+            'unsupported-compression-bytes-blocked' => true,
+        ];
+
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || str_ends_with($part, '/') || isset($requestedParts[$part])) {
+                continue;
+            }
+            $byteExposurePolicy = $item['byteExposurePolicy'] ?? null;
+            if (!is_string($byteExposurePolicy) || !isset($selectablePolicies[$byteExposurePolicy])) {
+                continue;
+            }
+
+            $requests[] = [
+                'name' => $part,
+                'required' => $part === 'content.xml',
+                'kind' => 'file',
+                'role' => $this->selectedPackageEntryRole($part, $item),
+            ];
+            $requestedParts[$part] = true;
+        }
+
+        return $package->entryHandoffPreflight($requests);
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     */
+    private function selectedPackageEntryRole(string $part, array $manifestItem): string
+    {
+        return match ($part) {
+            'content.xml' => 'odf-content',
+            'styles.xml' => 'odf-styles',
+            'meta.xml' => 'odf-meta',
+            'settings.xml' => 'odf-settings',
+            default => $this->selectedPackageEntryDefaultRole($part, $manifestItem),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     */
+    private function selectedPackageEntryDefaultRole(string $part, array $manifestItem): string
+    {
+        $mediaType = (string) ($manifestItem['mediaTypeBase'] ?? $manifestItem['mediaType'] ?? '');
+        if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
+            return 'media-resource';
+        }
+
+        return 'manifest-declared';
     }
 
     /**

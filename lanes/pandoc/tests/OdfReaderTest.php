@@ -10719,6 +10719,109 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'preflights ODT selected package entries for reader handoff review' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $sourceBytes = 'SIDECAR-RAW';
+        $scriptBytes = 'alert("blocked");';
+        $manifestWithSelectedEntries = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/missing.jpg" manifest:media-type="image/jpeg"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/source.raw" manifest:media-type="application/octet-stream" manifest:size="' . strlen($sourceBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Scripts/review.js" manifest:media-type="application/javascript" manifest:size="' . strlen($scriptBytes) . '"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithSelectedEntries],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/source.raw', 'data' => $sourceBytes, 'compressionMethod' => 12],
+            ['name' => 'Scripts/review.js', 'data' => $scriptBytes, 'compressionMethod' => 0],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $handoff = $provenance['selectedEntryHandoff'];
+        $entriesByName = [];
+        foreach ($handoff['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $roles = [];
+        foreach ($handoff['roleSummaries'] as $roleSummary) {
+            $roles[$roleSummary['role'] ?? '(none)'] = $roleSummary;
+        }
+
+        $t->same($handoff, $result['document']->attr('manifest')['packageProvenance']['selectedEntryHandoff']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/missing.jpg',
+            'Pictures/source.raw',
+        ], array_column($handoff['entries'], 'name'));
+        $t->same(8, $handoff['requestedEntryCount']);
+        $t->same(3, $handoff['requiredEntryCount']);
+        $t->same(5, $handoff['optionalEntryCount']);
+        $t->same(7, $handoff['presentEntryCount']);
+        $t->same(7, $handoff['selectedUniqueEntryCount']);
+        $t->same(2, $handoff['selectedStoredEntryCount']);
+        $t->same(4, $handoff['selectedDeflatedEntryCount']);
+        $t->same(1, $handoff['selectedUnsupportedCompressionMethodCount']);
+        $t->same(6, $handoff['handoffEntryCount']);
+        $t->same(1, $handoff['failedEntryCount']);
+        $t->same(1, $handoff['missingEntryCount']);
+        $t->same(1, $handoff['missingOptionalEntryCount']);
+        $t->same(0, $handoff['missingRequiredEntryCount']);
+        $t->same(7, $handoff['selectedLocalHeaderFixedFieldEntryCount']);
+        $t->same(0, $handoff['selectedLocalHeaderFixedFieldIssueEntryCount']);
+        $t->same(0, $handoff['selectedDataDescriptorEntryCount']);
+        $t->same(false, $handoff['isSupportedByBoundedReader']);
+        $t->same(['unreadable-entry'], $handoff['issues']);
+        $t->same(strlen($sourceBytes), $handoff['selectedUnsupportedCompressionMethodEntries'][0]['uncompressedSize']);
+        $t->same('Pictures/source.raw', $handoff['selectedUnsupportedCompressionMethodEntries'][0]['name']);
+        $t->same(false, in_array('Scripts/review.js', array_column($handoff['entries'], 'name'), true));
+        $t->same('script-package-bytes-blocked', $provenance['parts']['Scripts/review.js']['byteExposurePolicy']);
+
+        $content = $entriesByName['content.xml'];
+        $t->same('odf-content', $content['role']);
+        $t->same(true, $content['localHeaderFixedFieldsMatchCentralDirectory']);
+        $t->same($content['centralCrc32Hex'], $content['localFixedHeaderCrc32Hex']);
+        $t->same(hash('sha256', $contentXml), $content['contentSha256']);
+
+        $hero = $entriesByName['Pictures/hero.png'];
+        $t->same('ready', $hero['status']);
+        $t->same('media-resource', $hero['role']);
+        $t->same(hash('sha256', 'PNGDATA'), $hero['contentSha256']);
+
+        $missing = $entriesByName['Pictures/missing.jpg'];
+        $t->same('missing-optional', $missing['status']);
+        $t->same(false, $missing['exists']);
+        $t->same([], $missing['issues']);
+
+        $unsupported = $entriesByName['Pictures/source.raw'];
+        $t->same('blocked', $unsupported['status']);
+        $t->same(12, $unsupported['compressionMethod']);
+        $t->same('unsupported', $unsupported['compressionMethodName']);
+        $t->same(['unreadable-entry'], $unsupported['issues']);
+        $t->same(null, $unsupported['contentSha256']);
+
+        $mediaRole = $roles['media-resource'];
+        $t->same(3, $mediaRole['requestCount']);
+        $t->same(2, $mediaRole['presentEntryCount']);
+        $t->same(1, $mediaRole['missingEntryCount']);
+        $t->same(1, $mediaRole['handoffEntryCount']);
+        $t->same(1, $mediaRole['failedEntryCount']);
+        $t->same(['Pictures/hero.png', 'Pictures/source.raw'], $mediaRole['selectedEntryNames']);
+        $t->same(['Pictures/hero.png'], $mediaRole['handoffEntryNames']);
+        $t->same(['Pictures/missing.jpg'], $mediaRole['missingEntryNames']);
+        $t->same(['Pictures/source.raw'], $mediaRole['failedEntryNames']);
+        $t->same(['unreadable-entry'], $mediaRole['issues']);
+    },
     'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewImage = 'REVIEWPNG';
         $scriptBytes = 'alert("blocked");';
