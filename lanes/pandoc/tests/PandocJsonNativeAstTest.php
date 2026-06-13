@@ -4905,6 +4905,140 @@ return [
             }
         }
     },
+    'regenerates edited citation prefix suffix payloads instead of stale sidecars' => static function (TestRunner $t): void {
+        $prefixInlines = [
+            ['t' => 'Str', 'c' => 'see', 'reviewQueue' => 'prefix-word-source'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'archive', 'reviewQueue' => 'prefix-emphasis-text-source'],
+            ], 'reviewQueue' => 'prefix-emphasis-source'],
+        ];
+        $suffixInlines = [
+            ['t' => 'Str', 'c' => 'p.', 'reviewQueue' => 'suffix-label-source'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [
+                ['source-suffix-code', ['locator'], [['data-source', 'citation-suffix']]],
+                'A12',
+            ], 'reviewQueue' => 'suffix-code-source'],
+        ];
+        $citationRecord = [
+            'reviewQueue' => 'affix-record-source',
+            'sourceOrdinal' => 43,
+            'citationId' => 'source-affix',
+            'citationPrefix' => $prefixInlines,
+            'citationSuffix' => $suffixInlines,
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 7,
+            'citationHash' => 900,
+        ];
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => 'see'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'archive'],
+            ]],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@source-affix,'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'p.'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [
+                ['source-suffix-code', ['locator'], [['data-source', 'citation-suffix']]],
+                'A12',
+            ]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$citationRecord],
+                        $sourceInlines,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $citation = $document->children[0]->children[0];
+
+            $t->same($citationRecord, $citation->attr('citationNative'), "{$source} reader preserves affix citation sidecar");
+            $t->same($prefixInlines, $citation->attr('citationNative')['citationPrefix'], "{$source} reader preserves prefix inline sidecars");
+            $t->same($suffixInlines, $citation->attr('citationNative')['citationSuffix'], "{$source} reader preserves suffix inline sidecars");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedRecord = $encoded['blocks'][0]['c'][0]['c'][0][0];
+
+                $t->same($citationRecord, $encodedRecord, "{$source} {$writer} writer preserves unchanged citation affix sidecar");
+                $t->same('prefix-word-source', $encodedRecord['citationPrefix'][0]['reviewQueue'], "{$source} {$writer} writer preserves unchanged prefix token sidecar");
+                $t->same('prefix-emphasis-source', $encodedRecord['citationPrefix'][2]['reviewQueue'], "{$source} {$writer} writer preserves unchanged prefix wrapper sidecar");
+                $t->same('suffix-code-source', $encodedRecord['citationSuffix'][2]['reviewQueue'], "{$source} {$writer} writer preserves unchanged suffix code sidecar");
+            }
+
+            $editedCitation = new AstNode('citation', array_replace($citation->attrs, [
+                'prefix' => [
+                    new AstNode('text', ['text' => 'cf.']),
+                ],
+                'suffix' => [
+                    new AstNode('text', ['text' => 'ch.']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '2']),
+                ],
+                'text' => 'cf. @source-affix, ch. 2',
+            ]), [
+                new AstNode('text', ['text' => 'cf.']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => '@source-affix,']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'ch.']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => '2']),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [$editedCitation]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][0];
+                $encodedRecord = $encodedCite['c'][0][0];
+
+                $t->same('source-affix', $encodedRecord['citationId'], "{$source} {$writer} writer keeps edited affix citation id");
+                $t->same([['t' => 'Str', 'c' => 'cf.']], $encodedRecord['citationPrefix'], "{$source} {$writer} writer regenerates edited prefix");
+                $t->same([
+                    ['t' => 'Str', 'c' => 'ch.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '2'],
+                ], $encodedRecord['citationSuffix'], "{$source} {$writer} writer regenerates edited suffix");
+                $t->same(7, $encodedRecord['citationNoteNum'], "{$source} {$writer} writer preserves note number while regenerating affixes");
+                $t->same(900, $encodedRecord['citationHash'], "{$source} {$writer} writer preserves citation hash while regenerating affixes");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecord), "{$source} {$writer} writer drops stale citation record sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $encodedRecord), "{$source} {$writer} writer drops stale citation record ordinal");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecord['citationPrefix'][0]), "{$source} {$writer} writer drops stale prefix sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecord['citationSuffix'][0]), "{$source} {$writer} writer drops stale suffix sidecar");
+                $t->same([
+                    ['t' => 'Str', 'c' => 'cf.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '@source-affix,'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'ch.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '2'],
+                ], $encodedCite['c'][1], "{$source} {$writer} writer keeps edited affix source inlines");
+            }
+        }
+    },
     'preserves moved cite wrapper sidecars until citation records are edited' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],
