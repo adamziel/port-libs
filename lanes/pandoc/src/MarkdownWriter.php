@@ -6,8 +6,11 @@ namespace PortLibs\Pandoc;
 
 final class MarkdownWriter
 {
-    /** @var list<array{number:int, node:AstNode}> */
+    /** @var list<array{label:string, node:AstNode}> */
     private array $notes = [];
+
+    /** @var array<string, bool> */
+    private array $noteUsedLabels = [];
 
     /** @var list<array{label:string, url:string, title:string, attrs:array<string, mixed>}> */
     private array $references = [];
@@ -54,6 +57,7 @@ final class MarkdownWriter
         }
 
         $this->notes = [];
+        $this->noteUsedLabels = [];
         $this->references = [];
         $this->referenceLabelUses = [];
         $this->referenceUsedLabels = [];
@@ -1867,13 +1871,53 @@ final class MarkdownWriter
 
     private function renderNoteReference(AstNode $node): string
     {
-        $number = $this->nextNoteNumber++;
+        $label = $this->registerNoteLabel($node);
         $this->notes[] = [
-            'number' => $number,
+            'label' => $label,
             'node' => $node,
         ];
 
-        return '[^' . $number . ']';
+        return '[^' . $label . ']';
+    }
+
+    private function registerNoteLabel(AstNode $node): string
+    {
+        $preferred = $this->sourceNoteLabel($node);
+        if ($preferred !== null) {
+            return $this->uniqueNoteLabel($preferred);
+        }
+
+        do {
+            $candidate = (string) $this->nextNoteNumber++;
+        } while (isset($this->noteUsedLabels[strtolower($candidate)]));
+
+        $this->noteUsedLabels[strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
+    }
+
+    private function uniqueNoteLabel(string $label): string
+    {
+        $candidate = $label;
+        $suffix = 2;
+        while (isset($this->noteUsedLabels[strtolower($candidate)])) {
+            $candidate = $label . '-' . $suffix;
+            $suffix++;
+        }
+
+        $this->noteUsedLabels[strtolower($candidate)] = true;
+
+        return $candidate;
     }
 
     private function renderCode(AstNode $node): string
@@ -2463,7 +2507,7 @@ final class MarkdownWriter
             $this->abbreviationDefinitions = [];
 
             foreach ($notes as $note) {
-                $blocks[] = $this->renderNoteDefinition($note['number'], $note['node']);
+                $blocks[] = $this->renderNoteDefinition($note['label'], $note['node']);
             }
 
             $referenceDefinitions = [];
@@ -2486,16 +2530,16 @@ final class MarkdownWriter
         return $blocks;
     }
 
-    private function renderNoteDefinition(int $number, AstNode $node): string
+    private function renderNoteDefinition(string $label, AstNode $node): string
     {
         $body = $this->renderBlockCollection($node->children);
         if ($body === '') {
-            return '[^' . $number . ']:';
+            return '[^' . $label . ']:';
         }
 
         $lines = explode("\n", $body);
         $first = array_shift($lines);
-        $rendered = '[^' . $number . ']: ' . $first;
+        $rendered = '[^' . $label . ']: ' . $first;
         foreach ($lines as $line) {
             $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
         }

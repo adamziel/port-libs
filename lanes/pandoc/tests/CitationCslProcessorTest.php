@@ -17957,8 +17957,8 @@ XML);
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
 
-        $t->contains('<li id="fn-1"><p>Initial footnote cites Smith 2026.</p>', $blocks);
-        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note first locator 9th edition iii.</p>', $blocks);
+        $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Initial footnote cites Smith 2026.</p>', $blocks);
+        $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note first locator 9th edition iii.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Numeric Text Source A. pages xii, xviii &amp; xx. edition third. number 2nd-4th.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Numeric Text Source B. pages A7. edition Second. number Review 8.</dd>', $blocks);
     },
@@ -18387,10 +18387,10 @@ XML
         $t->same(['subsequent'], $citations[5]->attr('cslPositionTests'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<li id="fn-1"><p>Initial footnote cites (de la Cruz 2026).</p>', $blocks);
-        $t->contains('<li id="fn-3"><p>Nearby footnote cites (near-note de la Cruz 2026).</p>', $blocks);
-        $t->contains('<li id="fn-4"><p>Nearby bridge footnote cites (near-note Ng 2025).</p>', $blocks);
-        $t->contains('<li id="fn-6"><p>Far footnote cites (subsequent de la Cruz 2026).</p>', $blocks);
+        $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Initial footnote cites (de la Cruz 2026).</p>', $blocks);
+        $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Nearby footnote cites (near-note de la Cruz 2026).</p>', $blocks);
+        $t->contains('<li id="fn-d" data-pandoc-note-label="d"><p>Nearby bridge footnote cites (near-note Ng 2025).</p>', $blocks);
+        $t->contains('<li id="fn-f" data-pandoc-note-label="f"><p>Far footnote cites (subsequent de la Cruz 2026).</p>', $blocks);
         $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Near Note Source A.</dd>', $blocks);
 
         $explicit = new AstNode('document', [], [
@@ -22620,8 +22620,8 @@ XML);
         $t->same('subsequent', $citations[2]->attr('cslPosition'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<li id="fn-1"><p>Initial footnote cites Smith 2026.</p>', $blocks);
-        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
+        $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Initial footnote cites Smith 2026.</p>', $blocks);
+        $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. First Note Source A.</dd>', $blocks);
     },
     'renders bounded csl first reference note numbers in note bibliography handoff' => static function (TestRunner $t): void {
@@ -22738,7 +22738,7 @@ XML);
         $t->same(3, $citations[3]->attr('cslFirstReferenceNoteNumber'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026, p. 9; Roe 2024.</p>', $blocks);
+        $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026, p. 9; Roe 2024.</p>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>first-note 2nd raw 2. Ng, Nia. First Note Source B.</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>first-note 3rd raw 3. Roe, Pat. Later Note Source C.</dd>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>first-note 1st raw 1. Smith, Ada. First Note Source A.</dd>', $blocks);
@@ -22822,9 +22822,9 @@ XML);
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
 
-        $t->contains('<li id="fn-1"><p>Zeta first #1 Zeta 2026.</p>', $blocks);
-        $t->contains('<li id="fn-2"><p>Middle second #2 Middle 2025.</p>', $blocks);
-        $t->contains('<li id="fn-3"><p>Alpha late #3 Alpha 2024.</p>', $blocks);
+        $t->contains('<li id="fn-z" data-pandoc-note-label="z"><p>Zeta first #1 Zeta 2026.</p>', $blocks);
+        $t->contains('<li id="fn-m" data-pandoc-note-label="m"><p>Middle second #2 Middle 2025.</p>', $blocks);
+        $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Alpha late #3 Alpha 2024.</p>', $blocks);
 
         $zetaPosition = strpos($blocks, '<dt>Zeta 2026</dt><dd>1 :: #1 :: Zeta, Zoe :: Zeta First Packet</dd>');
         $middlePosition = strpos($blocks, '<dt>Middle 2025</dt><dd>2 :: #2 :: Middle, Mia :: Middle Second Packet</dd>');
