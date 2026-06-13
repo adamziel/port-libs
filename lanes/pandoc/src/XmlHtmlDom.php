@@ -55,6 +55,7 @@ final class XmlHtmlDom
         'required' => true,
         'reversed' => true,
         'selected' => true,
+        'typemustmatch' => true,
     ];
 
     /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
@@ -5244,9 +5245,17 @@ final class XmlHtmlDom
             'nameAttribute' => self::attributeOrNull($object, 'name'),
             'width' => self::attributeOrNull($object, 'width'),
             'height' => self::attributeOrNull($object, 'height'),
+            'typeMustMatch' => $object->hasAttribute('typemustmatch'),
             'params' => self::legacyObjectParamSummaries($paramDetails),
             'paramDetails' => $paramDetails,
         ];
+        $summary += self::formOwnerSummary($object);
+        if ($object->hasAttribute('usemap')) {
+            $useMap = self::useMapAttributeSummary($object->getAttribute('usemap'));
+            $summary['useMapRaw'] = $useMap['raw'];
+            $summary['useMapName'] = $useMap['name'];
+            $summary['useMapValid'] = $useMap['valid'];
+        }
         $summary += self::objectParamReviewSummary($paramDetails);
 
         if ($fallbackText !== '') {

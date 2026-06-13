@@ -33,6 +33,7 @@ final class Html5DomFragment
         'required' => true,
         'reversed' => true,
         'selected' => true,
+        'typemustmatch' => true,
     ];
 
     /** @var array<string, array<string, true>> */
