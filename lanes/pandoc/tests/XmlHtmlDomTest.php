@@ -23,6 +23,7 @@ return [
         $t->same('en', $item->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
         $t->same('Review & Import', $item->textContent);
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><item></pkg>', 'broken XML'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><bad:item/></pkg>', 'unbound prefix XML'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><pkg>&xxe;</pkg>', 'unsafe XML'));
     },
     'allows XML declarations but rejects XML processing instructions' => static function (TestRunner $t): void {
@@ -81,6 +82,95 @@ XML, 'package reader XML');
         $t->true($paragraph instanceof DOMElement);
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
+    },
+    'summarizes XML namespace collisions and default namespace transitions without reader parity claims' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<doc xmlns="urn:root" xmlns:a="urn:item-a" xmlns:b="urn:item-b" xmlns:attrA="urn:attr-a" xmlns:attrB="urn:attr-b" attrA:code="A0">
+  <item attrA:code="A1" code="plain-root">Root item</item>
+  <a:item attrB:code="B1">A item</a:item>
+  <group xmlns="urn:group" attrA:code="A2">
+    <item attrB:code="B2">Group item</item>
+    <item xmlns="" code="plain-reset">Reset item</item>
+  </group>
+  <b:item attrA:code="A3" attrB:code="B3">B item</b:item>
+</doc>
+XML, 'XML namespace collision packet', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
+
+        $t->same('xml-html5-generic-dom', $packet['formatFamily']);
+        $t->same('xml-namespace-usage-diagnostics-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'element-local-name-namespace-collisions',
+            'attribute-local-name-namespace-collisions',
+            'default-namespace-transitions',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(4, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][1]['details']['collisionCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['collisionCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][3]['details']['transitionCount'] ?? null);
+        $t->same('doc', $packet['rootName']);
+        $t->same('doc', $packet['rootQualifiedName']);
+        $t->same('urn:root', $packet['rootNamespaceUri']);
+        $t->same(7, $packet['elementCount']);
+        $t->same(9, $packet['attributeCount']);
+        $t->same([
+            'urn:attr-a',
+            'urn:attr-b',
+            'urn:group',
+            'urn:item-a',
+            'urn:item-b',
+            'urn:root',
+        ], $packet['namespaceUris']);
+        $t->same(6, $packet['namespaceUriCount']);
+
+        $t->same(1, $packet['elementNamespaceCollisionCount']);
+        $elementCollision = $packet['elementNamespaceCollisions'][0] ?? [];
+        $t->same('item', $elementCollision['localName'] ?? null);
+        $t->same([
+            '',
+            'urn:group',
+            'urn:item-a',
+            'urn:item-b',
+            'urn:root',
+        ], $elementCollision['namespaceUris'] ?? null);
+        $t->same(5, $elementCollision['namespaceCount'] ?? null);
+        $t->same(5, $elementCollision['useCount'] ?? null);
+        $t->same(['a:item', 'b:item', 'item'], $elementCollision['qualifiedNames'] ?? null);
+
+        $t->same(1, $packet['attributeNamespaceCollisionCount']);
+        $attributeCollision = $packet['attributeNamespaceCollisions'][0] ?? [];
+        $t->same('code', $attributeCollision['localName'] ?? null);
+        $t->same(['', 'urn:attr-a', 'urn:attr-b'], $attributeCollision['namespaceUris'] ?? null);
+        $t->same(3, $attributeCollision['namespaceCount'] ?? null);
+        $t->same(9, $attributeCollision['useCount'] ?? null);
+        $t->same(['attrA:code', 'attrB:code', 'code'], $attributeCollision['qualifiedNames'] ?? null);
+
+        $t->same(3, $packet['defaultNamespaceTransitionCount']);
+        $t->same([
+            [
+                'path' => '/doc[1]',
+                'element' => 'doc',
+                'fromNamespaceUri' => null,
+                'toNamespaceUri' => 'urn:root',
+            ],
+            [
+                'path' => '/doc[1]/group[1]',
+                'element' => 'group',
+                'fromNamespaceUri' => 'urn:root',
+                'toNamespaceUri' => 'urn:group',
+            ],
+            [
+                'path' => '/doc[1]/group[1]/item[2]',
+                'element' => 'item',
+                'fromNamespaceUri' => 'urn:group',
+                'toNamespaceUri' => null,
+            ],
+        ], $packet['defaultNamespaceTransitions']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes jats and bits front matter plus body diagnostics without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'

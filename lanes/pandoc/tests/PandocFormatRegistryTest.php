@@ -129,10 +129,12 @@ return [
         $t->same(true, $packet['explicitUnsupportedVerdict']);
         $t->contains('no full direct reader parity is registered', $packet['reviewNote']);
 
-        $t->same('loadXmlDocument', $packet['formats']['xml']['reviewMethod']);
-        $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
+        $t->same('summarizeXmlNamespaceUsage', $packet['formats']['xml']['reviewMethod']);
+        $t->same('xml-namespace-usage-diagnostics-review-only', $packet['formats']['xml']['reviewPolicy']);
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('namespace collision summaries', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('default namespace transition diagnostics', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('no full native PHP XML direct reader is registered yet', $packet['formats']['xml']['inputNotes']);
 
