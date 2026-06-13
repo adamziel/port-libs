@@ -3744,6 +3744,89 @@ return [
             $t->same(false, $encodedFigure === $figureBlock, "{$writer} writer does not reuse edited sidecar-free figure payload");
         }
     },
+    'preserves figure child block payloads when rebuilding edited figure wrappers' => static function (TestRunner $t): void {
+        $childDiv = [
+            't' => 'Div',
+            'c' => [
+                ['review-child', ['wp-import'], [['data-source', 'figure-child']]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Reviewed'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'child'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'figure-child-source',
+            'sourceOrdinal' => 83,
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['review-figure', ['wp-import'], [['data-source', 'figure']]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Original'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ]],
+                [$childDiv],
+            ],
+            'reviewQueue' => 'figure-wrapper-source',
+            'sourceOrdinal' => 82,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $figure = $document->children[0];
+            $t->same('figure', $figure->type, "{$source} figure node");
+            $t->same('div', $figure->children[0]->type, "{$source} figure child block node");
+            $t->same($childDiv, $figure->children[0]->attr('native'), "{$source} figure child native payload");
+
+            $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+                'caption' => 'Edited caption',
+                'captionInlines' => [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'caption']),
+                ],
+                'captionBlocks' => [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'Edited']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'caption']),
+                    ]),
+                ],
+            ]), $figure->children);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedFigure]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedFigure = $encoded['blocks'][0];
+
+                $t->same('Figure', $encodedFigure['t'], "{$source} {$writer} writer regenerates edited figure constructor");
+                $t->same('Edited', $encodedFigure['c'][1]['c'][1][0]['c'][0]['c'], "{$source} {$writer} writer regenerates edited caption");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFigure), "{$source} {$writer} writer drops stale figure wrapper sidecar");
+                $t->same(false, array_key_exists('sourceOrdinal', $encodedFigure), "{$source} {$writer} writer drops stale figure wrapper ordinal");
+                $t->same($childDiv, $encodedFigure['c'][2][0], "{$source} {$writer} writer preserves unchanged figure child block payload");
+            }
+        }
+    },
     'preserves table row and cell native payloads when rebuilding table wrappers' => static function (TestRunner $t): void {
         $cellNative = [
             't' => 'Cell',

@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3289,
-        "latestSlice": "pandoc-plain-writer-table-body-groups maps one plain-writer table body-group coverage slice after the Markdown HTML list item attribute slice. PlainWriter now separates consecutive native Pandoc table_body groups with a blank line in plain text while preserving body-local headRows in each group, without invoking Pandoc, TeX, Typst, browser renderers, Node tooling, office suites, online services, live provider tests, or external validators. Mapped denominator moves 3288 -> 3289, mappedPlainWriterBodyGroupCases is 1, and plainWriterBodyGroupAssertions is 7. Verification passed php -l for PlainWriter.php and PlainWriterTest.php; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures after final rebase onto current main 0072af8b00.",
+        "mapped": 3290,
+        "latestSlice": "pandoc-json-native-figure-child-block-payloads maps edited Figure wrapper regeneration with unchanged child block native payload preservation after PlainWriter table body-group preservation on current main 437a269855. PandocJsonWriter emits Figure child blocks through guarded block reuse after mixed inline flushing, matching NativeWriter, so stale Figure wrapper sidecars are dropped after caption edits while unchanged child Div payload sidecars survive. Mapped denominator moves 3289 -> 3290, mappedJsonNativeFigureChildBlockPayloadCases is 1, and jsonNativeFigureChildBlockPayloadAssertions is 26. Verification passed php -l for PandocJsonWriter.php and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 2159 assertions, 0 failures; and full lanes/pandoc/tests passed 45 files, 74792 assertions, 0 failures after final rebase onto current main 437a269855 without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "PlainWriter multiple table body-group boundaries are verified over current main 0072af8b00 after Markdown HTML list item attributes.",
-        "latestFocusedSource": "2026-06-13 PlainWriter table slice inspected multiple native Pandoc table body groups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 0072af8b00; focused PlainWriterTest.php passed 1 file, 223 assertions, 0 failures; TableGeometryTest.php passed 1 file, 1904 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74766 assertions, 0 failures.",
+        "status": "JSON/native Figure child block payload preservation is verified in focused and full native PHP Pandoc coverage over current main 437a269855 after PlainWriter table body-group preservation; broader native/json fixture parity remains partial.",
+        "latestFocusedSource": "2026-06-13 JSON/native Figure child block payload slice inspected edited Figure wrapper regeneration against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 437a269855; focused PandocJsonNativeAstTest.php passed 1 file, 2159 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74792 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -199,7 +199,9 @@
         "mappedMarkdownHtmlListItemAttributeCases": 1,
         "markdownHtmlListItemAttributeAssertions": 12,
         "mappedPlainWriterBodyGroupCases": 1,
-        "plainWriterBodyGroupAssertions": 7
+        "plainWriterBodyGroupAssertions": 7,
+        "mappedJsonNativeFigureChildBlockPayloadCases": 1,
+        "jsonNativeFigureChildBlockPayloadAssertions": 26
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
