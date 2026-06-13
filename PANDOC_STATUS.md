@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-12 UTC after JSON/native table caption block writers on base `78237badde`.
+Last reconciled: 2026-06-13 UTC after closure-wave evidence review on base `5cd9038b4c`.
 
 This file is the compact status companion to `progress.md`,
 `lanes/pandoc/lane-status.json`, and
@@ -18,6 +18,20 @@ This file is the compact status companion to `progress.md`,
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
 | Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,019 assertions, 0 failures. |
 | External validators | No Pandoc binary, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
+
+## Closure Wave
+
+The landed dashboard remains 3,299 PHP passes / 0 failures and 3,259 mapped upstream cases on `origin/main` `5cd9038b4c`. The closure wave also has closed bead or open MR evidence that is not yet counted in current-main metrics until those MRs land.
+
+| Surface | State | Denominator | Local passing | Verdict |
+| --- | --- | ---: | ---: | --- |
+| CSV/TSV direct readers | `plib-23ou2`, open MR `plib-wisp-60w` | 2 command fixtures | 2 reader cases, 34 assertions | Pending merge; partial after landing. |
+| Table caption block writers | Landed at `5cd9038b4c` | 252 JSON/native artifacts; +1 mapped slice | 46 current JSON/native cases; 4 focused assertions | Covered slice; JSON/native still partial. |
+| Raw HTML boundary | Landed at `78237badde` | 1 mapped boundary slice | 1 slice, 8 assertions | Covered slice; Markdown family still partial. |
+| Media linked-resource handoff | `plib-vby5t`, open MR `plib-wisp-1nv` | 1 mapped resource slice | 1 `MediaBag` case, 144 assertions | Pending merge; not an input-format ship gate. |
+| Nested fenced Div block boundaries | `plib-8lfdx`, open MR `plib-wisp-qd0` | 1 fenced-Div slice | 440 branch Markdown-family cases; 6,588 focused assertions | Pending merge; Markdown family still partial. |
+| Mixed-content nested-list round trip | `plib-7nyfh`, open MR `plib-wisp-28d` | JSON/native 252; Markdown 1,096 | 46 branch JSON/native cases; 440 branch Markdown cases; 11 focused assertions | Pending merge; both families still partial. |
+| Notes label recovery and sidecars | `plib-y2ua1` and `plib-xxzxt`, open MRs `plib-wisp-66o` and `plib-wisp-b5c` | JSON/native 252 plus notes/reference handoff slice | 46 branch JSON/native cases; 1,978 focused JSON/native assertions; recovered footnote-label evidence | Pending merge; notes evidence improved but not a format close. |
 
 ## Queue Snapshot
 

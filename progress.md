@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,299 pass / 0 fail | [3,259 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue JSON/native table parity after caption block writers | json-native-table-caption-block-writers-78237badde |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,299 pass / 0 fail | [3,259 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Track pending CSV/TSV and cross-format closure-wave MRs after caption block writers | json-native-table-caption-block-writers-5cd9038b4c |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -56,6 +56,20 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### Closure-Wave Evidence Snapshot (2026-06-13)
+
+Current-main counters are reconciled through `origin/main` `5cd9038b4c`: 3,299 PHP passes, 0 failures, and 3,259 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Pending rows below are closed bead or open merge-request evidence and are not counted in the current-main matrix until their MRs land.
+
+| Surface | Evidence state | Upstream denominator | Local passing numerator | Percent | Ship verdict | Remaining critical gaps |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| CSV/TSV direct readers | Closed bead `plib-23ou2`; open MR `plib-wisp-60w` at `1e619e4785` | 2 CSV command fixtures | 2 focused reader cases, 34 assertions | 100.0% bounded slice | Pending merge; partial after landing | Broader CSV/TSV option behavior, malformed input diagnostics, and table-reader edge cases. |
+| JSON/native table caption block writers | Landed on `origin/main` at `5cd9038b4c` | 252 JSON/native artifacts; latest mapped slice +1 | 46 current JSON/native cases; 4 focused assertions | 18.3% family; 100.0% slice | Covered writer slice; JSON/native still partial | Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips. |
+| Markdown/WordPress raw HTML boundary | Landed on `origin/main` at `78237badde` | 1 raw boundary slice; 1,096 Markdown-family rows | 1 slice, 8 assertions; 439 Markdown-family cases | 100.0% slice; 40.1% family | Covered boundary slice; text family still partial | Markdown/CommonMark/GFM extension and variant parity. |
+| Media linked-resource handoff | Closed bead `plib-vby5t`; open MR `plib-wisp-1nv` at `bcf78ec725` | 1 mapped cross-format resource slice | 1 focused `MediaBag` case, 144 assertions | 100.0% bounded slice | Pending merge; not an input-format ship gate | Wider media/resource edge cases outside opt-in linked-resource handoff. |
+| Nested fenced Div block boundaries | Closed bead `plib-8lfdx`; open MR `plib-wisp-qd0` at `6cf879d9a8` | 1 fenced-Div slice; 1,096 Markdown-family rows | 440 branch Markdown-family cases; 6,588 focused assertions | 100.0% slice; 40.1% family | Pending merge; Markdown family still partial | Broader block structure, section, and Markdown variant parity. |
+| Mixed-content nested-list round trip | Closed bead `plib-7nyfh`; open MR `plib-wisp-28d` at `ee5b8ceedc` | 252 JSON/native artifacts plus 1,096 Markdown-family rows | 46 branch JSON/native cases, 440 branch Markdown-family cases; 11 focused assertions | 18.3% JSON/native; 40.1% Markdown | Pending merge; both families still partial | Broader JSON/native constructors and Markdown fixture parity. |
+| Notes label recovery and sidecars | Closed beads `plib-y2ua1` and `plib-xxzxt`; open MRs `plib-wisp-66o` and `plib-wisp-b5c` at `2bf7c14870` and `e965a30c12` | 252 JSON/native artifacts plus notes/reference handoff slice | 46 branch JSON/native cases; 1,978 focused JSON/native assertions; recovered footnote-label diff evidence | 18.3% JSON/native | Pending merge; notes evidence improved but not a format close | Broader note/reference placement, backlinks, and constructor parity. |
 
 ### ODF/ODT Ship Readiness
 
@@ -170,10 +184,10 @@ Implemented highest-impact gap: `PandocJsonReader` and `NativeReader` now preser
 
 ### Pandoc Progress/Status Reconciliation
 
-Dashboard reconciliation on 2026-06-12: `PANDOC_STATUS.md` is now present, the
+Dashboard reconciliation on 2026-06-13: `PANDOC_STATUS.md` is now present, the
 root dashboard, lane status, upstream manifest, ready/open beads, and landed
 commit history agree on the current shipping call after the DOCX section-property
-slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, and JSON/native table caption block writer slice.
+slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, JSON/native table caption block writer slice, and closed closure-wave MR evidence for CSV/TSV, MediaBag linked resources, fenced Divs, mixed nested-list output, and notes label recovery.
 
 | Check | Evidence | Verdict |
 | --- | --- | --- |
@@ -183,7 +197,7 @@ slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter 
 | Shippable format gate | ODF/ODT is ship-ready with 49 local mapped cases / 20 upstream ODF/ODT cases, 245.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
 | Remaining critical gaps | 16 input tokens remain partial and 33 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and CSV/TSV. | Full Pandoc input lane remains active. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,019 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `NativeReaderTest.php`, `LatexWriterTest.php`, and `TableGeometryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed on the landed table-caption slice. Closure-wave pending rows use the closed bead and open MR evidence listed above. | Current main: 44 test files, 74,019 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
@@ -202,7 +216,7 @@ status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-stat
 `php -l lanes/pandoc/tests/TableGeometryTest.php`,
 `php tools/run-tests.php lanes/pandoc/tests/NativeReaderTest.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php`
 (`3` files, `2265` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`44` files, `74019` assertions, `0` failures on current main `78237badde`).
+(`44` files, `74019` assertions, `0` failures on current main `5cd9038b4c`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
