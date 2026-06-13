@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3274,
-        "latestSlice": "pandoc-markdown-fenced-div-escaped-attributes maps one Markdown fenced Div attribute preservation slice after LaTeX table body-head row preservation. MarkdownReader now tokenizes quoted key-value attributes with escaped delimiters so quote-bearing data attributes survive Markdown read/write, NativeWriter/NativeReader attr tuples, and WordPressBlockWriter HTML handoff without invoking Pandoc, Cabal/Haskell runners, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3314 -> 3315, phpFail remains 0, mappedMarkdownFencedDivEscapedAttributeCases is 1, and markdownFencedDivEscapedAttributeAssertions is 9. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
+        "mapped": 3275,
+        "latestSlice": "pandoc-markdown-wordpress-footnote-backlinks maps one notes/reference writer slice after Markdown fenced Div escaped-attribute preservation. WordPressBlockWriter now emits footnote backlinks with class=\"footnote-back\" and role=\"doc-backlink\" while preserving landed source-label fn/fnref anchors, generated numeric anchors, data-pandoc-note-label provenance, and note-body link serialization. The focused MarkdownReaderTest generated-inline-note case also keeps link-in-note bodies serializing through WordPress and verifies generated notes do not create source-label provenance. phpPass moves 3315 -> 3316, phpFail remains 0, mappedMarkdownWordpressFootnoteBacklinkCases is 1, and markdownWordpressFootnoteBacklinkAssertions is 4. Verification passed php -l for WordPressBlockWriter.php, MarkdownReaderTest.php, and DocxReaderTest.php; focused MarkdownReaderTest.php plus DocxReaderTest.php passed 2 files, 11750 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74349 assertions, 0 failures. Prior footnote-label preservation work was preserved, not reopened; remaining notes/reference gaps include endnote grouping, note-reference placement around complex block/table boundaries, and broader Native/Markdown/HTML/LaTeX/WordPress anchor round-trip coverage.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Markdown fenced Div escaped key-value attributes are verified over current main 17c91bad52 after LaTeX table body-head row preservation.",
-        "latestFocusedSource": "2026-06-13 Markdown fenced Div escaped-attribute slice inspected quote-bearing key-value attribute preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 17c91bad52; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
+        "status": "WordPress footnote backlink metadata is covered for label-derived and generated numeric backlinks with doc-backlink roles over current main a9ce0ba74f; broader notes/reference grouping, placement, and anchor round-trip parity remains partial.",
+        "latestFocusedSource": "2026-06-13 footnote backlink slice inspected WordPress footnote backlink metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main a9ce0ba74f; focused MarkdownReaderTest.php plus DocxReaderTest.php passed 2 files, 11750 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74349 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -169,7 +169,9 @@
         "mappedJsonNativeNullaryHelperPayloadCases": 1,
         "jsonNativeNullaryHelperPayloadAssertions": 82,
         "mappedMarkdownFencedDivEscapedAttributeCases": 1,
-        "markdownFencedDivEscapedAttributeAssertions": 9
+        "markdownFencedDivEscapedAttributeAssertions": 9,
+        "mappedMarkdownWordpressFootnoteBacklinkCases": 1,
+        "markdownWordpressFootnoteBacklinkAssertions": 4
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",

@@ -7420,7 +7420,7 @@ return [
         $t->contains('<a href="https://example.test/source-packet?post=42&amp;step=docx">source link</a>', $blocks);
         $t->contains('<br/>break', $blocks);
         $t->contains('<img src="word/media/hero.png" alt="DOCX hero alt" title="Hero title"/>', $blocks);
-        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote source audit.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol></section>', $blocks);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote source audit.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li></ol></section>', $blocks);
     },
     'resolves DOCX styles and numbering into headings and AST lists' => static function (TestRunner $t) use ($buildStylesNumberingPackage): void {
         $document = (new DocxReader())->readDocument($buildStylesNumberingPackage());
@@ -9494,8 +9494,8 @@ return [
         $t->contains('    Keep reviewer context with the import.', $markdown);
 
         $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup><span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> commented source </span><sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
-        $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'reports DOCX note and comment source part provenance from document relationships' => static function (TestRunner $t) use ($buildNotesSourcePackage): void {
         $result = (new DocxReader())->readPackage($buildNotesSourcePackage());
@@ -9662,7 +9662,7 @@ return [
 
         $t->contains('<p>Before <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">first paragraph note</span></p>', $blocks);
         $t->contains('<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">second paragraph note</span> after range <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
-        $t->contains('<li id="fn-1"><p>Comment spans two DOCX paragraphs.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"><p>Comment spans two DOCX paragraphs.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'preserves DOCX commentsExtended resolution and thread metadata' => static function (TestRunner $t) use ($buildCommentsExtendedPackage): void {
         $reader = new DocxReader();
@@ -9731,8 +9731,8 @@ return [
         $t->contains('[reply source]{.docx-comment-range data-docx-comment-id="10" data-docx-comment-author="Migration Reply" data-docx-comment-initials="MR2" data-docx-comment-date="2026-06-05T14:05:00Z" data-docx-comment-para-id="00FEDCBA" data-docx-comment-parent-para-id="00ABCDEF" data-docx-comment-resolved="false"}[^2].', $markdown);
         $t->contains('<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T14:00:00Z" data-docx-comment-para-id="00ABCDEF" data-docx-comment-resolved="true">resolved source</span>', $blocks);
         $t->contains('<span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reply" data-docx-comment-initials="MR2" data-docx-comment-date="2026-06-05T14:05:00Z" data-docx-comment-para-id="00FEDCBA" data-docx-comment-parent-para-id="00ABCDEF" data-docx-comment-resolved="false">reply source</span>', $blocks);
-        $t->contains('<li id="fn-1"><p>Resolved reviewer comment.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"><p>Reply reviewer comment.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"><p>Resolved reviewer comment.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Reply reviewer comment.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'preserves missing DOCX footnote and endnote references as empty note placeholders' => static function (TestRunner $t) use ($buildMissingNotesPackage): void {
         $reader = new DocxReader();
@@ -9765,8 +9765,8 @@ return [
         $t->contains('[^1]:', $markdown);
         $t->contains('[^2]:', $markdown);
         $t->contains('<p>Missing source note <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and missing endnote <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>.</p>', $blocks);
-        $t->contains('<li id="fn-1"> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
 
         $notes = $result['importReport']['notes'];
         $t->same(2, $notes['count']);
@@ -12895,11 +12895,11 @@ XML;
 
         $t->contains('<p>Custom note marker <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and endnote marker <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> plus unresolved marker <sup id="fnref-3"><a href="#fn-3" role="doc-noteref">3</a></sup>.</p>', $blocks);
         $t->contains('<p>Numbered note marker <sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup> and numbered endnote marker <sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>.</p>', $blocks);
-        $t->contains('<li id="fn-1"><p>Custom-marked footnote body.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"><p>Custom-marked endnote body.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-3"> <a href="#fnref-3" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-4"><p>Auto-numbered footnote body.</p> <a href="#fnref-4" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-5"><p>Auto-numbered endnote body.</p> <a href="#fnref-5" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"><p>Custom-marked footnote body.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Custom-marked endnote body.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-3"> <a href="#fnref-3" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-4"><p>Auto-numbered footnote body.</p> <a href="#fnref-4" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-5"><p>Auto-numbered endnote body.</p> <a href="#fnref-5" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'restarts DOCX footnote and endnote numbering at section boundaries' => static function (TestRunner $t) use ($buildSectionRestartNotePackage): void {
         $reader = new DocxReader();

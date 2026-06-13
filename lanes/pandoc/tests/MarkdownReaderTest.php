@@ -453,8 +453,8 @@ return [
         $t->same('b', $doubleNote->children[0]->children[0]->children[0]->attr('text'));
         $t->contains('<p>‘a<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> c.’</p>', $blocks);
         $t->contains('<p>“a<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> c.”</p>', $blocks);
-        $t->contains('<li id="fn-1"><p>‘b’.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"><p>“b”.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-1"><p>‘b’.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>“b”.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'maps upstream testsuite latex raw inline and math list items' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -14294,8 +14294,20 @@ XML;
 
         $t->contains('<p>Footnote audit: migration source<sup id="fnref-source-note" data-pandoc-note-label="source-note"><a href="#fn-source-note" role="doc-noteref">1</a></sup> and inline editor note.<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol>', $blocks);
-        $t->contains('<li id="fn-source-note" data-pandoc-note-label="source-note"><p>Source archive footnote keeps the reviewer trail.</p><p>Confirm media IDs before publishing.</p><pre class="wp-block-code"><code>  do_action(&#039;import_note&#039;);</code></pre> <a href="#fnref-source-note" aria-label="Back to content">Back</a></li>', $blocks);
-        $t->contains('<li id="fn-2"><p>Inline note keeps <a href="https://example.test/audit-footnote">audit link</a> and <code>]</code> marker visible.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-source-note" data-pandoc-note-label="source-note"><p>Source archive footnote keeps the reviewer trail.</p><p>Confirm media IDs before publishing.</p><pre class="wp-block-code"><code>  do_action(&#039;import_note&#039;);</code></pre> <a href="#fnref-source-note" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Inline note keeps <a href="https://example.test/audit-footnote">audit link</a> and <code>]</code> marker visible.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'writes wordpress footnote backlinks with doc-backlink roles' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Review inline note.^[Inline note keeps [audit](https://example.test/inline).] Another note.^[Second inline note.]',
+            '',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<p>Review inline note.<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> Another note.<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
+        $t->contains('<li id="fn-1"><p>Inline note keeps <a href="https://example.test/inline">audit</a>.</p> <a href="#fnref-1" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Second inline note.</p> <a href="#fnref-2" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->true(!str_contains($blocks, 'data-pandoc-note-label'), 'Generated inline notes should not create source-label provenance');
     },
     'preserves named footnote labels through markdown and wordpress note anchors' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -14311,7 +14323,7 @@ XML;
         $t->contains('[^editor-note]: Source-labelled note keeps its backlink.', $markdown);
         $t->contains('[^1]: Inline audit note.', $markdown);
         $t->contains('<sup id="fnref-editor-note" data-pandoc-note-label="editor-note"><a href="#fn-editor-note" role="doc-noteref">1</a></sup>', $blocks);
-        $t->contains('<li id="fn-editor-note" data-pandoc-note-label="editor-note"><p>Source-labelled note keeps its backlink.</p> <a href="#fnref-editor-note" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-editor-note" data-pandoc-note-label="editor-note"><p>Source-labelled note keeps its backlink.</p> <a href="#fnref-editor-note" class="footnote-back" role="doc-backlink" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>', $blocks);
     },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
@@ -14594,8 +14606,8 @@ XML;
         $t->contains("<p>French quote audit: \u{2018}\u{2026}legacy source\u{2019} starts truncated, and À l\u{2019}arrivée de la guerre, le thème de l\u{2019}«impossibilité du socialisme» plus D\u{2019}oh! A l\u{2019}<em>aide</em>! keep Pandoc smart punctuation.</p>", $blocks);
         $t->contains("<p>Unclosed quote audit: <strong>this should \u{201C}be bold</strong> during reviewer import.</p>", $blocks);
         $t->contains("<p>Inline note quote audit: \u{2018}a<sup id=\"fnref-3\"><a href=\"#fn-3\" role=\"doc-noteref\">3</a></sup> c.\u{2019} and \u{201C}a<sup id=\"fnref-4\"><a href=\"#fn-4\" role=\"doc-noteref\">4</a></sup> c.\u{201D} stay nested for reviewer import.</p>", $blocks);
-        $t->contains("<li id=\"fn-3\"><p>\u{2018}source quote\u{2019}.</p> <a href=\"#fnref-3\" aria-label=\"Back to content\">Back</a></li>", $blocks);
-        $t->contains("<li id=\"fn-4\"><p>\u{201C}review quote\u{201D}.</p> <a href=\"#fnref-4\" aria-label=\"Back to content\">Back</a></li>", $blocks);
+        $t->contains("<li id=\"fn-3\"><p>\u{2018}source quote\u{2019}.</p> <a href=\"#fnref-3\" class=\"footnote-back\" role=\"doc-backlink\" aria-label=\"Back to content\">Back</a></li>", $blocks);
+        $t->contains("<li id=\"fn-4\"><p>\u{201C}review quote\u{201D}.</p> <a href=\"#fnref-4\" class=\"footnote-back\" role=\"doc-backlink\" aria-label=\"Back to content\">Back</a></li>", $blocks);
     },
     'writes wordpress math and raw tex preservation markup from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
