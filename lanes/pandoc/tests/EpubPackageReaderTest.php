@@ -694,6 +694,128 @@ XML);
         $t->same('2', $pageList[1]['label']);
         $t->same('EPUB/chapter2.xhtml', $pageList[1]['path']);
         $t->same('details', $pageList[1]['fragment']);
+
+        $pageListReport = $epub['tocReport']['pageList'];
+        $t->same($epub['navReport'], $epub['tocReport']);
+        $t->same(true, $pageListReport['present']);
+        $t->same(2, $pageListReport['itemCount']);
+        $t->same(2, $pageListReport['pageBreakItemCount']);
+        $t->same(2, $pageListReport['targetedItemCount']);
+        $t->same(2, $pageListReport['manifestTargetCount']);
+        $t->same(2, $pageListReport['spineReadingOrderTargetCount']);
+        $t->same(0, $pageListReport['missingManifestTargetCount']);
+        $t->same(0, $pageListReport['outsideSpineTargetCount']);
+        $t->same(0, $pageListReport['externalTargetCount']);
+        $t->same(0, $pageListReport['unresolvedTargetCount']);
+        $t->same(0, $pageListReport['diagnosticCount']);
+        $t->same('chapter1', $pageListReport['items'][0]['manifestId']);
+        $t->same('application/xhtml+xml', $pageListReport['items'][0]['mediaType']);
+        $t->same(0, $pageListReport['items'][0]['spineIndex']);
+        $t->same('chapter1', $pageListReport['items'][0]['spineIdref']);
+        $t->same(true, $pageListReport['items'][0]['inSpineReadingOrder']);
+        $t->same('chapter2', $pageListReport['items'][1]['manifestId']);
+        $t->same(1, $pageListReport['items'][1]['spineIndex']);
+        $t->same(true, $pageListReport['items'][1]['spineLinear']);
+    },
+    'reports epub page-list manifest and spine reading order diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-page-list-spine-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-page-list-spine-review</dc:identifier>
+    <dc:title>Page List Spine Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="appendix" linear="no"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="stray.xhtml#page-2">2</a></li>
+        <li><a epub:type="pagebreak" href="appendix.xhtml#page-a">A</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="page-1">Chapter</h1></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="page-a">Appendix</h1></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $pageList = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'page-list'
+            ));
+            $pageListReport = $epub['tocReport']['pageList'];
+            $items = $pageListReport['items'];
+
+            $t->same(['1', '2', 'A'], array_column($pageList, 'label'));
+            $t->same('EPUB/stray.xhtml', $pageList[1]['path']);
+            $t->same('EPUB/appendix.xhtml', $pageList[2]['path']);
+            $t->same($epub['navReport'], $epub['tocReport']);
+            $t->same(4, $epub['tocReport']['itemCount']);
+            $t->same(true, $pageListReport['present']);
+            $t->same(3, $pageListReport['itemCount']);
+            $t->same(3, $pageListReport['pageBreakItemCount']);
+            $t->same(3, $pageListReport['targetedItemCount']);
+            $t->same(2, $pageListReport['manifestTargetCount']);
+            $t->same(1, $pageListReport['spineReadingOrderTargetCount']);
+            $t->same(1, $pageListReport['missingManifestTargetCount']);
+            $t->same(1, $pageListReport['outsideSpineTargetCount']);
+            $t->same(0, $pageListReport['externalTargetCount']);
+            $t->same(0, $pageListReport['unresolvedTargetCount']);
+            $t->same(2, $pageListReport['diagnosticCount']);
+            $t->same(['missing-page-list-manifest-item', 'page-list-target-outside-spine-reading-order'], array_column($pageListReport['diagnostics'], 'type'));
+
+            $t->same('chapter', $items[0]['manifestId']);
+            $t->same(0, $items[0]['spineIndex']);
+            $t->same('chapter', $items[0]['spineIdref']);
+            $t->same(true, $items[0]['spineLinear']);
+            $t->same(true, $items[0]['inSpineReadingOrder']);
+            $t->same([], $items[0]['diagnostics']);
+
+            $t->same(null, $items[1]['manifestId']);
+            $t->same(false, $items[1]['inSpineReadingOrder']);
+            $t->same(['missing-page-list-manifest-item'], array_column($items[1]['diagnostics'], 'type'));
+            $t->same('EPUB/stray.xhtml', $items[1]['diagnostics'][0]['path']);
+
+            $t->same('appendix', $items[2]['manifestId']);
+            $t->same(1, $items[2]['spineIndex']);
+            $t->same('appendix', $items[2]['spineIdref']);
+            $t->same(false, $items[2]['spineLinear']);
+            $t->same(false, $items[2]['inSpineReadingOrder']);
+            $t->same(['page-list-target-outside-spine-reading-order'], array_column($items[2]['diagnostics'], 'type'));
+            $t->same('nonlinear-spine-item', $items[2]['diagnostics'][0]['reason']);
+        } finally {
+            $removeDirectory($root);
+        }
     },
     'reports epub nav external and unsafe href policy by section' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-nav-policy-' . str_replace('.', '', uniqid('', true));

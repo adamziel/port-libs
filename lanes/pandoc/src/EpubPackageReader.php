@@ -690,7 +690,7 @@ final class EpubPackageReader
     private function navReport(array $entries, array $package, string $root): array
     {
         $flat = $this->flattenNavigationEntries($entries);
-        $pageListReport = $this->pageListReport($flat);
+        $pageListReport = $this->pageListReport($flat, $package);
         $hrefPolicyReport = $this->navHrefPolicyReport($flat);
         $sections = [];
         $sectionKeys = [];
@@ -738,6 +738,7 @@ final class EpubPackageReader
             'fragmentTargets' => $this->navFragmentTargetReport($flat, $root),
             'toc' => $this->tocNavigationReport($flat),
             'landmarks' => $this->landmarkReport($flat, $package),
+            'pageList' => $pageListReport,
             'pageListItemCount' => $pageListReport['itemCount'],
             'pageBreakItemCount' => $pageListReport['pageBreakItemCount'],
             'diagnosticCount' => $pageListReport['diagnosticCount'],
@@ -886,17 +887,55 @@ final class EpubPackageReader
 
     /**
      * @param list<array<string, mixed>> $flat
+     * @param array<string, mixed> $package
      * @return array<string, mixed>
      */
-    private function pageListReport(array $flat): array
+    private function pageListReport(array $flat, array $package): array
     {
+        $manifestByPath = [];
+        foreach (is_array($package['manifest'] ?? null) ? $package['manifest'] : [] as $manifestItem) {
+            if (!is_array($manifestItem) || ($manifestItem['external'] ?? false) === true) {
+                continue;
+            }
+            $path = is_string($manifestItem['path'] ?? null) ? $manifestItem['path'] : '';
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $manifestItem;
+            }
+        }
+
+        $spineByPath = [];
+        $readingSpineByPath = [];
+        foreach (is_array($package['spine'] ?? null) ? $package['spine'] : [] as $index => $spineItem) {
+            if (!is_array($spineItem)) {
+                continue;
+            }
+            $path = is_string($spineItem['path'] ?? null) ? $spineItem['path'] : '';
+            if ($path === '') {
+                continue;
+            }
+            $reportedSpineItem = ['index' => $index] + $spineItem;
+            if (!isset($spineByPath[$path])) {
+                $spineByPath[$path] = $reportedSpineItem;
+            }
+            if (($spineItem['linear'] ?? false) === true && !isset($readingSpineByPath[$path])) {
+                $readingSpineByPath[$path] = $reportedSpineItem;
+            }
+        }
+
         $pageListItems = [];
         $pageBreakItemCount = 0;
         $diagnostics = [];
         $seenPageListHrefs = [];
         $seenPageListLabels = [];
+        $targetedItemCount = 0;
+        $manifestTargetCount = 0;
+        $spineReadingOrderTargetCount = 0;
+        $missingManifestTargetCount = 0;
+        $outsideSpineTargetCount = 0;
+        $externalTargetCount = 0;
+        $unresolvedTargetCount = 0;
 
-        foreach ($flat as $item) {
+        foreach ($flat as $sourceIndex => $item) {
             $type = is_string($item['sectionType'] ?? null)
                 ? $item['sectionType']
                 : (is_string($item['type'] ?? null) ? $item['type'] : '');
@@ -910,6 +949,7 @@ final class EpubPackageReader
                 }
                 $diagnostics[] = [
                     'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'sourceIndex' => $sourceIndex,
                     'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
                     'navType' => $type,
                 ] + $diagnostic;
@@ -919,52 +959,188 @@ final class EpubPackageReader
                 continue;
             }
 
-            $pageListItems[] = $item;
             $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $external = (bool) ($item['external'] ?? false);
+            $manifestItem = !$external && $path !== '' ? ($manifestByPath[$path] ?? null) : null;
+            $spineItem = !$external && $path !== '' ? ($spineByPath[$path] ?? null) : null;
+            $readingSpineItem = !$external && $path !== '' ? ($readingSpineByPath[$path] ?? null) : null;
+            $itemDiagnostics = array_values(array_filter(
+                is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [],
+                static fn (mixed $diagnostic): bool => is_array($diagnostic)
+            ));
+            $pageListIndex = count($pageListItems);
+            $pageListItems[] = [
+                'index' => $pageListIndex,
+                'sourceIndex' => $sourceIndex,
+                'navIndex' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                'sectionIndex' => is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : null,
+                'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'labelProvenance' => is_array($item['labelProvenance'] ?? null) ? $item['labelProvenance'] : [],
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $fragment,
+                'external' => $external,
+                'unsafe' => (bool) ($item['unsafe'] ?? false),
+                'hrefKind' => is_string($item['hrefKind'] ?? null) ? $item['hrefKind'] : '',
+                'hrefScheme' => is_string($item['hrefScheme'] ?? null) ? $item['hrefScheme'] : null,
+                'exists' => (bool) ($item['exists'] ?? false),
+                'pageBreak' => ($item['pageBreakProvenance']['present'] ?? false) === true,
+                'pageBreakProvenance' => is_array($item['pageBreakProvenance'] ?? null) ? $item['pageBreakProvenance'] : [],
+                'epubTypes' => is_array($item['epubTypes'] ?? null) ? array_values($item['epubTypes']) : [],
+                'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
+                'mediaType' => is_array($manifestItem) && is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null,
+                'spineIndex' => is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null,
+                'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
+                'spineLinear' => is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null,
+                'inSpineReadingOrder' => is_array($readingSpineItem),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
             if ($href !== '') {
+                ++$targetedItemCount;
                 if (isset($seenPageListHrefs[$href])) {
-                    $diagnostics[] = [
+                    $diagnostic = [
                         'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'pageListIndex' => $pageListIndex,
+                        'sourceIndex' => $sourceIndex,
                         'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
                         'type' => 'duplicate-page-list-href',
                         'navType' => $type,
                         'source' => 'href',
                         'href' => $href,
-                        'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
-                        'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
-                        'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : '',
-                        'firstIndex' => is_int($seenPageListHrefs[$href]['index'] ?? null) ? $seenPageListHrefs[$href]['index'] : 0,
-                        'firstTarget' => is_string($seenPageListHrefs[$href]['target'] ?? null) ? $seenPageListHrefs[$href]['target'] : '',
+                        'target' => $target,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'firstIndex' => is_int($seenPageListHrefs[$href]['item']['index'] ?? null) ? $seenPageListHrefs[$href]['item']['index'] : 0,
+                        'firstPageListIndex' => is_int($seenPageListHrefs[$href]['pageListIndex'] ?? null) ? $seenPageListHrefs[$href]['pageListIndex'] : 0,
+                        'firstTarget' => is_string($seenPageListHrefs[$href]['item']['target'] ?? null) ? $seenPageListHrefs[$href]['item']['target'] : '',
                     ];
+                    $diagnostics[] = $diagnostic;
+                    $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
                 } else {
-                    $seenPageListHrefs[$href] = $item;
+                    $seenPageListHrefs[$href] = [
+                        'item' => $item,
+                        'pageListIndex' => $pageListIndex,
+                    ];
                 }
+            } else {
+                ++$unresolvedTargetCount;
             }
 
             $label = is_string($item['label'] ?? null) ? $item['label'] : '';
             if ($label !== '') {
                 if (isset($seenPageListLabels[$label])) {
-                    $diagnostics[] = [
+                    $diagnostic = [
                         'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'pageListIndex' => $pageListIndex,
+                        'sourceIndex' => $sourceIndex,
                         'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
                         'type' => 'duplicate-page-list-label',
                         'navType' => $type,
                         'source' => 'label',
                         'label' => $label,
                         'href' => $href,
-                        'target' => is_string($item['target'] ?? null) ? $item['target'] : '',
-                        'firstIndex' => is_int($seenPageListLabels[$label]['index'] ?? null) ? $seenPageListLabels[$label]['index'] : 0,
-                        'firstHref' => is_string($seenPageListLabels[$label]['href'] ?? null) ? $seenPageListLabels[$label]['href'] : '',
+                        'target' => $target,
+                        'firstIndex' => is_int($seenPageListLabels[$label]['item']['index'] ?? null) ? $seenPageListLabels[$label]['item']['index'] : 0,
+                        'firstPageListIndex' => is_int($seenPageListLabels[$label]['pageListIndex'] ?? null) ? $seenPageListLabels[$label]['pageListIndex'] : 0,
+                        'firstHref' => is_string($seenPageListLabels[$label]['item']['href'] ?? null) ? $seenPageListLabels[$label]['item']['href'] : '',
                     ];
+                    $diagnostics[] = $diagnostic;
+                    $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
                 } else {
-                    $seenPageListLabels[$label] = $item;
+                    $seenPageListLabels[$label] = [
+                        'item' => $item,
+                        'pageListIndex' => $pageListIndex,
+                    ];
                 }
             }
+
+            if ($href === '') {
+                continue;
+            }
+            if ($external) {
+                ++$externalTargetCount;
+                $diagnostic = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'pageListIndex' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'type' => 'external-page-list-reference',
+                    'navType' => $type,
+                    'href' => $href,
+                    'target' => $target,
+                    'message' => 'EPUB page-list target points outside the package and was not resolved against the manifest or spine',
+                ];
+                $diagnostics[] = $diagnostic;
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+                continue;
+            }
+            if ($path === '' || !is_array($manifestItem)) {
+                ++$missingManifestTargetCount;
+                $diagnostic = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'pageListIndex' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'type' => 'missing-page-list-manifest-item',
+                    'navType' => $type,
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'message' => 'EPUB page-list target is not present in the OPF manifest',
+                ];
+                $diagnostics[] = $diagnostic;
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+                continue;
+            }
+
+            ++$manifestTargetCount;
+            if (is_array($readingSpineItem)) {
+                ++$spineReadingOrderTargetCount;
+                continue;
+            }
+
+            ++$outsideSpineTargetCount;
+            $reason = is_array($spineItem) && ($spineItem['linear'] ?? false) !== true
+                ? 'nonlinear-spine-item'
+                : 'not-in-spine';
+            $diagnostic = [
+                'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                'pageListIndex' => $pageListIndex,
+                'sourceIndex' => $sourceIndex,
+                'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                'type' => 'page-list-target-outside-spine-reading-order',
+                'navType' => $type,
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
+                'spineIndex' => is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null,
+                'spineLinear' => is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null,
+                'reason' => $reason,
+                'message' => 'EPUB page-list target is in the manifest but outside the linear spine reading order',
+            ];
+            $diagnostics[] = $diagnostic;
+            $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
         }
 
         return [
+            'present' => $pageListItems !== [],
             'itemCount' => count($pageListItems),
             'pageBreakItemCount' => $pageBreakItemCount,
+            'targetedItemCount' => $targetedItemCount,
+            'manifestTargetCount' => $manifestTargetCount,
+            'spineReadingOrderTargetCount' => $spineReadingOrderTargetCount,
+            'missingManifestTargetCount' => $missingManifestTargetCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'unresolvedTargetCount' => $unresolvedTargetCount,
+            'items' => $pageListItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
