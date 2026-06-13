@@ -7584,7 +7584,7 @@ return [
     'maps markdown headings into nested section divs when requested' => static function (TestRunner $t): void {
         $document = (new MarkdownReader(['sectionDivs' => true]))->read(implode("\n\n", [
             'Preamble before sections.',
-            '# Imported Article {#article .review data-source="batch-91"}',
+            '# Imported Article {#article .review .localized data-source="batch-91" lang="en-US" xml:lang="en-US" role="doc-chapter"}',
             'Lead note.',
             '## Source Notes',
             'Review source.',
@@ -7603,8 +7603,13 @@ return [
 
         $t->same(['paragraph', 'div', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same('article', $article->attr('id'));
-        $t->same(['section', 'level1', 'review'], $article->attr('classes'));
-        $t->same(['data-source' => 'batch-91'], $article->attr('attributes'));
+        $t->same(['section', 'level1', 'review', 'localized'], $article->attr('classes'));
+        $t->same([
+            'data-source' => 'batch-91',
+            'lang' => 'en-US',
+            'xml:lang' => 'en-US',
+            'role' => 'doc-chapter',
+        ], $article->attr('attributes'));
         $t->same(['heading', 'paragraph', 'div'], array_map(static fn (AstNode $node): string => $node->type, $article->children));
         $t->same('', $article->children[0]->attr('id', ''));
         $t->same('source-notes', $sourceNotes->attr('id'));
@@ -7613,11 +7618,11 @@ return [
         $t->same(['section', 'level3'], $deepCheck->attr('classes'));
         $t->same('publish', $publish->attr('id'));
         $t->same(['section', 'level1'], $publish->attr('classes'));
-        $t->contains('::: {#article .section .level1 .review data-source="batch-91"}', $markdown);
+        $t->contains('::: {#article .section .level1 .review .localized data-source="batch-91" lang="en-US" xml:lang="en-US" role="doc-chapter"}', $markdown);
         $t->contains('::: {#source-notes .section .level2}', $markdown);
         $t->contains('::: {#deep-check .section .level3}', $markdown);
         $t->true(!str_contains($markdown, '# Imported Article {#article'), 'Sectionized headings should not duplicate wrapper identifiers');
-        $t->contains('<div id="article" class="section level1 review" data-source="batch-91"><h1>Imported Article</h1><p>Lead note.</p><div id="source-notes" class="section level2"><h2>Source Notes</h2><p>Review source.</p><div id="deep-check" class="section level3"><h3>Deep Check</h3><p>Verify nested.</p></div></div></div>', $blocks);
+        $t->contains('<div id="article" class="section level1 review localized" data-source="batch-91" lang="en-US" xml:lang="en-US" role="doc-chapter"><h1>Imported Article</h1><p>Lead note.</p><div id="source-notes" class="section level2"><h2>Source Notes</h2><p>Review source.</p><div id="deep-check" class="section level3"><h3>Deep Check</h3><p>Verify nested.</p></div></div></div>', $blocks);
     },
     'keeps explicit fenced section wrappers while nesting deeper section headings' => static function (TestRunner $t): void {
         $document = (new MarkdownReader(['sectionDivs' => true]))->read(implode("\n", [
