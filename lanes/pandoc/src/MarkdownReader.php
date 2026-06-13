@@ -7714,27 +7714,128 @@ final class MarkdownReader
         $id = null;
         $classes = [];
         $attributes = [];
-        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"[^"]*"|\'[^\']*\'|[^\s]+))/', $source, $matches);
 
-        foreach ($matches[1] as $token) {
+        $offset = 0;
+        $length = strlen($source);
+        while ($offset < $length) {
+            while ($offset < $length && ctype_space($source[$offset])) {
+                $offset++;
+            }
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $source[$offset];
+            if ($char !== '#' && $char !== '.') {
+                $attribute = $this->readMarkdownKeyValueAttribute($source, $offset);
+                if ($attribute !== null) {
+                    $attributes[$attribute['name']] = $this->decodeHtmlEntities($this->unescapeLinkComponent($attribute['value']));
+                    continue;
+                }
+            }
+
+            $token = $this->readMarkdownAttributeToken($source, $offset);
+            if (strlen($token) < 2) {
+                continue;
+            }
+
             if ($token[0] === '#') {
                 $id = substr($token, 1);
                 continue;
             }
             if ($token[0] === '.') {
                 $classes[] = substr($token, 1);
-                continue;
             }
-
-            [$name, $value] = explode('=', $token, 2);
-            $value = trim($value);
-            if ($value !== '' && (($value[0] === '"' && str_ends_with($value, '"')) || ($value[0] === "'" && str_ends_with($value, "'")))) {
-                $value = substr($value, 1, -1);
-            }
-            $attributes[$name] = $this->decodeHtmlEntities($this->unescapeLinkComponent($value));
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    private function readMarkdownAttributeToken(string $source, int &$offset): string
+    {
+        $start = $offset;
+        $length = strlen($source);
+        while ($offset < $length && !ctype_space($source[$offset])) {
+            $offset++;
+        }
+
+        return substr($source, $start, $offset - $start);
+    }
+
+    /**
+     * @return array{name:string, value:string}|null
+     */
+    private function readMarkdownKeyValueAttribute(string $source, int &$offset): ?array
+    {
+        $start = $offset;
+        $length = strlen($source);
+        if (preg_match('/^[A-Za-z_:][A-Za-z0-9_.:-]*/', substr($source, $offset), $m) !== 1) {
+            return null;
+        }
+
+        $name = $m[0];
+        $offset += strlen($name);
+        if (($source[$offset] ?? '') !== '=') {
+            $offset = $start;
+            return null;
+        }
+
+        $offset++;
+        if ($offset >= $length) {
+            $offset = $start;
+            return null;
+        }
+
+        $quote = $source[$offset];
+        if ($quote === '"' || $quote === "'") {
+            $value = $this->readMarkdownQuotedAttributeValue($source, $offset, $quote);
+            if ($value === null) {
+                $offset = $start;
+                return null;
+            }
+
+            return ['name' => $name, 'value' => $value];
+        }
+
+        $valueStart = $offset;
+        while ($offset < $length && !ctype_space($source[$offset])) {
+            $offset++;
+        }
+        if ($offset === $valueStart) {
+            $offset = $start;
+            return null;
+        }
+
+        return ['name' => $name, 'value' => substr($source, $valueStart, $offset - $valueStart)];
+    }
+
+    private function readMarkdownQuotedAttributeValue(string $source, int &$offset, string $quote): ?string
+    {
+        $offset++;
+        $start = $offset;
+        $length = strlen($source);
+        while ($offset < $length) {
+            if ($source[$offset] === $quote && !$this->isEscapedMarkdownAttributeQuote($source, $offset)) {
+                $value = substr($source, $start, $offset - $start);
+                $offset++;
+
+                return $value;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function isEscapedMarkdownAttributeQuote(string $source, int $offset): bool
+    {
+        $slashes = 0;
+        for ($index = $offset - 1; $index >= 0 && $source[$index] === '\\'; $index--) {
+            $slashes++;
+        }
+
+        return $slashes % 2 === 1;
     }
 
     /**

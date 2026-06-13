@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3273,
-        "latestSlice": "pandoc-latex-table-body-head-writer maps one LaTeX longtable writer slice for Pandoc table body-local head rows after JSON/native nullary helper payload validation. LatexWriter now keeps each table_body headRows group in body position instead of promoting those rows into the global table head, and TableGeometry no longer reports latex-body-head-rows-review-required for this covered writer path while Markdown and AsciiDoc diagnostics remain. phpPass moves 3313 -> 3314, phpFail remains 0, mappedLatexTableBodyHeadWriterCases is 1, and latexTableBodyHeadWriterAssertions is 1. Verification passed php -l for LatexWriter.php, TableGeometry.php, LatexWriterTest.php, TableGeometryTest.php, and wordpress-table-geometry-handoff.php; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; wordpress-table-geometry-handoff.php --self-test passed; and full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures. No external Pandoc, TeX, browser, Node, office, online service, live provider, or external validator was invoked.",
+        "mapped": 3274,
+        "latestSlice": "pandoc-markdown-fenced-div-escaped-attributes maps one Markdown fenced Div attribute preservation slice after LaTeX table body-head row preservation. MarkdownReader now tokenizes quoted key-value attributes with escaped delimiters so quote-bearing data attributes survive Markdown read/write, NativeWriter/NativeReader attr tuples, and WordPressBlockWriter HTML handoff without invoking Pandoc, Cabal/Haskell runners, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3314 -> 3315, phpFail remains 0, mappedMarkdownFencedDivEscapedAttributeCases is 1, and markdownFencedDivEscapedAttributeAssertions is 9. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "LaTeX table body-local head row preservation is verified over current main f286538a3b; remaining table geometry gaps are multiple body-group semantics in non-HTML writers and true LaTeX rowspan output beyond diagnostics.",
-        "latestFocusedSource": "2026-06-13 LaTeX table body-head writer slice inspected Pandoc table_body headRows/rowGroups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main f286538a3b; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures.",
+        "status": "Markdown fenced Div escaped key-value attributes are verified over current main 17c91bad52 after LaTeX table body-head row preservation.",
+        "latestFocusedSource": "2026-06-13 Markdown fenced Div escaped-attribute slice inspected quote-bearing key-value attribute preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 17c91bad52; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -167,7 +167,9 @@
         "mappedJsonNativeTaskListSidecarCases": 1,
         "jsonNativeTaskListSidecarAssertions": 28,
         "mappedJsonNativeNullaryHelperPayloadCases": 1,
-        "jsonNativeNullaryHelperPayloadAssertions": 82
+        "jsonNativeNullaryHelperPayloadAssertions": 82,
+        "mappedMarkdownFencedDivEscapedAttributeCases": 1,
+        "markdownFencedDivEscapedAttributeAssertions": 9
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
