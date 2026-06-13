@@ -308,6 +308,81 @@ final class PandocFormatRegistry
     ];
 
     /** @var list<string> */
+    private const RARE_TEXT_INPUT_FORMATS = [
+        'asciidoc',
+        'djot',
+        'fb2',
+        'haddock',
+        'muse',
+        'opml',
+        'org',
+        'pod',
+        'rst',
+        't2t',
+        'textile',
+    ];
+
+    /** @var list<string> */
+    private const RARE_TEXT_OUTPUT_FORMATS = [
+        'asciidoc',
+        'asciidoc_legacy',
+        'asciidoctor',
+        'djot',
+        'fb2',
+        'haddock',
+        'markua',
+        'muse',
+        'opml',
+        'org',
+        'rst',
+        'texinfo',
+        'textile',
+        'vimdoc',
+    ];
+
+    /** @var array<string, string> */
+    private const RARE_TEXT_FORMAT_LABELS = [
+        'asciidoc' => 'AsciiDoc',
+        'asciidoc_legacy' => 'AsciiDoc legacy',
+        'asciidoctor' => 'Asciidoctor',
+        'djot' => 'Djot',
+        'fb2' => 'FictionBook 2',
+        'haddock' => 'Haddock',
+        'markua' => 'Markua',
+        'muse' => 'Muse',
+        'opml' => 'OPML',
+        'org' => 'Org mode',
+        'pod' => 'POD',
+        'rst' => 'reStructuredText',
+        't2t' => 'txt2tags',
+        'texinfo' => 'Texinfo',
+        'textile' => 'Textile',
+        'vimdoc' => 'Vimdoc',
+    ];
+
+    /** @var array<string, string> */
+    private const RARE_TEXT_EXTENSION_INFERENCE = [
+        '.adoc' => 'asciidoc',
+        '.asciidoc' => 'asciidoc',
+        '.asc' => 'asciidoc',
+        '.dj' => 'djot',
+        '.djot' => 'djot',
+        '.fb2' => 'fb2',
+        '.haddock' => 'haddock',
+        '.markua' => 'markua',
+        '.muse' => 'muse',
+        '.opml' => 'opml',
+        '.org' => 'org',
+        '.pod' => 'pod',
+        '.rst' => 'rst',
+        '.t2t' => 't2t',
+        '.texi' => 'texinfo',
+        '.texinfo' => 'texinfo',
+        '.textile' => 'textile',
+        '.vimdoc' => 'vimdoc',
+    ];
+
+    /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
         'mdoc',
@@ -623,6 +698,7 @@ final class PandocFormatRegistry
 
     /** @var array<string, string> */
     private const OUTPUT_ALIASES = [
+        'asciidoc_legacy' => 'asciidoc',
         'asciidoctor' => 'asciidoc',
         'docbook' => 'docbook5',
         'epub' => 'epub3',
@@ -1390,6 +1466,405 @@ final class PandocFormatRegistry
             'unsupportedOutputOnly' => $unsupportedOutputOnly,
             'noNativeReader' => self::unsupportedWikiInputFormats(),
             'noNativeWriter' => self::unsupportedWikiOutputFormats(),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextInputFormats(): array
+    {
+        return self::RARE_TEXT_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextOutputFormats(): array
+    {
+        return self::RARE_TEXT_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function rareTextExtensionInference(): array
+    {
+        return self::RARE_TEXT_EXTENSION_INFERENCE;
+    }
+
+    /**
+     * @return string|null
+     */
+    public static function inferRareTextFormatFromExtension(string $extension): ?string
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        return self::RARE_TEXT_EXTENSION_INFERENCE[$normalized] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextFormatsWithExtensionInference(): array
+    {
+        return array_values(array_unique(array_values(self::RARE_TEXT_EXTENSION_INFERENCE)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextFormatsWithoutExtensionInference(): array
+    {
+        $inferred = array_flip(self::rareTextFormatsWithExtensionInference());
+        $formats = array_values(array_unique(array_merge(self::RARE_TEXT_INPUT_FORMATS, self::RARE_TEXT_OUTPUT_FORMATS)));
+        $withoutInference = [];
+
+        foreach ($formats as $format) {
+            if (!array_key_exists($format, $inferred)) {
+                $withoutInference[] = $format;
+            }
+        }
+
+        return $withoutInference;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function rareTextOutputAliases(): array
+    {
+        $rareTextFormats = array_flip(self::RARE_TEXT_OUTPUT_FORMATS);
+        $aliases = [];
+
+        foreach (self::OUTPUT_ALIASES as $alias => $baseFormat) {
+            if (array_key_exists($alias, $rareTextFormats) && array_key_exists($baseFormat, $rareTextFormats)) {
+                $aliases[$alias] = $baseFormat;
+            }
+        }
+
+        return $aliases;
+    }
+
+    /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function rareTextFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::rareTextInputSupport(),
+            self::rareTextOutputSupport(),
+            self::RARE_TEXT_INPUT_FORMATS,
+            self::RARE_TEXT_OUTPUT_FORMATS
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextBidirectionalFormats(): array
+    {
+        return self::rareTextFormatsWithDirection('input-output');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextInputOnlyFormats(): array
+    {
+        return self::rareTextFormatsWithDirection('input-only');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function rareTextOutputOnlyFormats(): array
+    {
+        return self::rareTextFormatsWithDirection('output-only');
+    }
+
+    /**
+     * @return array{extension:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, unsupportedInput:bool, unsupportedOutput:bool, inputImplementation:string, outputImplementation:string}|null
+     */
+    public static function rareTextUnsupportedFormatForExtension(string $extension): ?array
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        $format = self::RARE_TEXT_EXTENSION_INFERENCE[$normalized] ?? null;
+        if ($format === null) {
+            return null;
+        }
+
+        $directions = self::rareTextFormatDirections();
+        $inputSupport = self::rareTextInputSupport();
+        $outputSupport = self::rareTextOutputSupport();
+        $direction = $directions[$format];
+        $hasInput = $direction['input'];
+        $hasOutput = $direction['output'];
+
+        return [
+            'extension' => $normalized,
+            'format' => $format,
+            'input' => $hasInput,
+            'output' => $hasOutput,
+            'direction' => $direction['direction'],
+            'inputStatus' => $direction['inputStatus'],
+            'outputStatus' => $direction['outputStatus'],
+            'unsupportedInput' => $hasInput && $direction['inputStatus'] === 'unsupported',
+            'unsupportedOutput' => $hasOutput && $direction['outputStatus'] === 'unsupported',
+            'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+            'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     extensionInference:array<string, string>,
+     *     extensionInferredFormats:list<string>,
+     *     nonExtensionInferredFormats:list<string>,
+     *     outputAliases:array<string, string>,
+     *     paritySummary:array<string, mixed>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     unsupportedFormatSummary:array{
+     *         anyUnsupported:list<string>,
+     *         unsupportedBoth:list<string>,
+     *         unsupportedInputOnly:list<string>,
+     *         unsupportedOutputOnly:list<string>,
+     *         noNativeReader:list<string>,
+     *         noNativeWriter:list<string>
+     *     },
+     *     formats:array<string, array{label:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string}>
+     * }
+     */
+    public static function rareTextFormatReviewPacket(): array
+    {
+        $directions = self::rareTextFormatDirections();
+        $inputSupport = self::rareTextInputSupport();
+        $outputSupport = self::rareTextOutputSupport();
+        $extensionsByFormat = [];
+
+        foreach (self::RARE_TEXT_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $formats = [];
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+
+            $formats[$format] = [
+                'label' => self::RARE_TEXT_FORMAT_LABELS[$format] ?? $format,
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::RARE_TEXT_INPUT_FORMATS,
+            'outputFormats' => self::RARE_TEXT_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::rareTextBidirectionalFormats(),
+                'inputOnly' => self::rareTextInputOnlyFormats(),
+                'outputOnly' => self::rareTextOutputOnlyFormats(),
+            ],
+            'extensionInference' => self::RARE_TEXT_EXTENSION_INFERENCE,
+            'extensionInferredFormats' => self::rareTextFormatsWithExtensionInference(),
+            'nonExtensionInferredFormats' => self::rareTextFormatsWithoutExtensionInference(),
+            'outputAliases' => self::rareTextOutputAliases(),
+            'paritySummary' => self::rareTextFormatParitySummary(),
+            'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
+            'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'unsupportedFormatSummary' => self::rareTextUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamSourceCommit:string,
+     *     totalFormats:int,
+     *     uniqueFormatCount:int,
+     *     inputFormats:int,
+     *     inputFormatCount:int,
+     *     outputFormats:int,
+     *     outputFormatCount:int,
+     *     inputOutputFormats:int,
+     *     inputOnlyFormats:int,
+     *     outputOnlyFormats:int,
+     *     directionCounts:array{inputOutput:int, inputOnly:int, outputOnly:int},
+     *     inputSupportStatusCounts:array<string, int>,
+     *     outputSupportStatusCounts:array<string, int>,
+     *     extensionInferenceMappings:int,
+     *     extensionInferredFormats:int,
+     *     extensionInferredFormatCount:int,
+     *     nonExtensionInferredFormats:int,
+     *     nonExtensionInferredFormatCount:int,
+     *     outputAliasMappings:int,
+     *     unsupportedInputFormats:int,
+     *     unsupportedInputCount:int,
+     *     unsupportedOutputFormats:int,
+     *     unsupportedOutputCount:int,
+     *     registeredInputImplementations:int,
+     *     registeredOutputImplementations:int,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     directParityClaimed:bool,
+     *     directParityStatus:string,
+     *     reviewNote:string
+     * }
+     */
+    public static function rareTextFormatParitySummary(): array
+    {
+        $directions = self::rareTextFormatDirections();
+        $inputSupport = self::rareTextInputSupport();
+        $outputSupport = self::rareTextOutputSupport();
+        $inputFormatCount = count(self::RARE_TEXT_INPUT_FORMATS);
+        $outputFormatCount = count(self::RARE_TEXT_OUTPUT_FORMATS);
+        $inputOutputFormats = count(self::rareTextBidirectionalFormats());
+        $inputOnlyFormats = count(self::rareTextInputOnlyFormats());
+        $outputOnlyFormats = count(self::rareTextOutputOnlyFormats());
+        $extensionInferredFormatCount = count(self::rareTextFormatsWithExtensionInference());
+        $nonExtensionInferredFormatCount = count(self::rareTextFormatsWithoutExtensionInference());
+        $unsupportedInputFormats = self::formatsWithStatus($inputSupport, 'unsupported');
+        $unsupportedOutputFormats = self::formatsWithStatus($outputSupport, 'unsupported');
+        $registeredInputImplementations = 0;
+        $registeredOutputImplementations = 0;
+        $directParityClaimed = false;
+        $directReaderParitySupported = $unsupportedInputFormats === [];
+        $directWriterParitySupported = $unsupportedOutputFormats === [];
+
+        foreach ($directions as $format => $direction) {
+            $inputImplementation = $direction['input'] ? $inputSupport[$format]['implementation'] : '';
+            $outputImplementation = $direction['output'] ? $outputSupport[$format]['implementation'] : '';
+
+            if ($inputImplementation !== '') {
+                ++$registeredInputImplementations;
+            }
+            if ($outputImplementation !== '') {
+                ++$registeredOutputImplementations;
+            }
+            if (
+                $inputImplementation !== ''
+                || $outputImplementation !== ''
+                || !in_array($direction['inputStatus'], ['unsupported', 'not-applicable'], true)
+                || !in_array($direction['outputStatus'], ['unsupported', 'not-applicable'], true)
+            ) {
+                $directParityClaimed = true;
+            }
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'totalFormats' => count($directions),
+            'uniqueFormatCount' => count($directions),
+            'inputFormats' => $inputFormatCount,
+            'inputFormatCount' => $inputFormatCount,
+            'outputFormats' => $outputFormatCount,
+            'outputFormatCount' => $outputFormatCount,
+            'inputOutputFormats' => $inputOutputFormats,
+            'inputOnlyFormats' => $inputOnlyFormats,
+            'outputOnlyFormats' => $outputOnlyFormats,
+            'directionCounts' => [
+                'inputOutput' => $inputOutputFormats,
+                'inputOnly' => $inputOnlyFormats,
+                'outputOnly' => $outputOnlyFormats,
+            ],
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'outputSupportStatusCounts' => self::supportStatusCounts($outputSupport),
+            'extensionInferenceMappings' => count(self::RARE_TEXT_EXTENSION_INFERENCE),
+            'extensionInferredFormats' => $extensionInferredFormatCount,
+            'extensionInferredFormatCount' => $extensionInferredFormatCount,
+            'nonExtensionInferredFormats' => $nonExtensionInferredFormatCount,
+            'nonExtensionInferredFormatCount' => $nonExtensionInferredFormatCount,
+            'outputAliasMappings' => count(self::rareTextOutputAliases()),
+            'unsupportedInputFormats' => count($unsupportedInputFormats),
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'unsupportedOutputFormats' => count($unsupportedOutputFormats),
+            'unsupportedOutputCount' => count($unsupportedOutputFormats),
+            'registeredInputImplementations' => $registeredInputImplementations,
+            'registeredOutputImplementations' => $registeredOutputImplementations,
+            'directReaderParitySupported' => $directReaderParitySupported,
+            'directWriterParitySupported' => $directWriterParitySupported,
+            'directParityClaimed' => $directParityClaimed,
+            'directParityStatus' => $directReaderParitySupported && $directWriterParitySupported ? 'supported' : 'unsupported',
+            'reviewNote' => 'Pandoc rare text formats are tracked for registry review only; no native PHP rare text reader or writer is registered.',
+        ];
+    }
+
+    /**
+     * @return array{
+     *     anyUnsupported:list<string>,
+     *     unsupportedBoth:list<string>,
+     *     unsupportedInputOnly:list<string>,
+     *     unsupportedOutputOnly:list<string>,
+     *     noNativeReader:list<string>,
+     *     noNativeWriter:list<string>
+     * }
+     */
+    public static function rareTextUnsupportedFormatSummary(): array
+    {
+        $directions = self::rareTextFormatDirections();
+        $anyUnsupported = [];
+        $unsupportedBoth = [];
+        $unsupportedInputOnly = [];
+        $unsupportedOutputOnly = [];
+
+        foreach ($directions as $format => $direction) {
+            $inputUnsupported = $direction['inputStatus'] === 'unsupported';
+            $outputUnsupported = $direction['outputStatus'] === 'unsupported';
+
+            if ($inputUnsupported || $outputUnsupported) {
+                $anyUnsupported[] = $format;
+            }
+            if ($inputUnsupported && $outputUnsupported) {
+                $unsupportedBoth[] = $format;
+            }
+            if ($direction['direction'] === 'input-only' && $inputUnsupported) {
+                $unsupportedInputOnly[] = $format;
+            }
+            if ($direction['direction'] === 'output-only' && $outputUnsupported) {
+                $unsupportedOutputOnly[] = $format;
+            }
+        }
+
+        return [
+            'anyUnsupported' => $anyUnsupported,
+            'unsupportedBoth' => $unsupportedBoth,
+            'unsupportedInputOnly' => $unsupportedInputOnly,
+            'unsupportedOutputOnly' => $unsupportedOutputOnly,
+            'noNativeReader' => self::unsupportedRareTextInputFormats(),
+            'noNativeWriter' => self::unsupportedRareTextOutputFormats(),
         ];
     }
 
@@ -2938,6 +3413,22 @@ final class PandocFormatRegistry
     /**
      * @return array<string, array{status:string, implementation:string, notes:string}>
      */
+    public static function rareTextInputSupport(): array
+    {
+        return self::onlyFormats(self::phpInputSupport(), self::RARE_TEXT_INPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
+    public static function rareTextOutputSupport(): array
+    {
+        return self::onlyFormats(self::phpOutputSupport(), self::RARE_TEXT_OUTPUT_FORMATS);
+    }
+
+    /**
+     * @return array<string, array{status:string, implementation:string, notes:string}>
+     */
     public static function roffManualInputSupport(): array
     {
         return self::onlyFormats(self::phpInputSupport(), self::ROFF_MANUAL_INPUT_FORMATS);
@@ -3013,6 +3504,22 @@ final class PandocFormatRegistry
     public static function unsupportedWikiOutputFormats(): array
     {
         return self::formatsWithStatus(self::wikiOutputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedRareTextInputFormats(): array
+    {
+        return self::formatsWithStatus(self::rareTextInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedRareTextOutputFormats(): array
+    {
+        return self::formatsWithStatus(self::rareTextOutputSupport(), 'unsupported');
     }
 
     /**
@@ -3274,6 +3781,14 @@ final class PandocFormatRegistry
         $extensionOffset = strcspn($normalized, '+-');
 
         return substr($normalized, 0, $extensionOffset);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function rareTextFormatsWithDirection(string $direction): array
+    {
+        return self::formatsWithDirection(self::rareTextFormatDirections(), $direction);
     }
 
     /**
