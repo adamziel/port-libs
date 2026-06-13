@@ -748,7 +748,15 @@ final class XmlHtmlDom
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
-        $figureIds = self::jatsElementIds($root, 'fig');
+        $figures = self::jatsFigureSummaries($root);
+        $figureIds = array_values(array_unique(array_filter(
+            array_map(static fn (array $figure): ?string => $figure['id'], $figures),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        )));
+        $figureMediaReferences = self::jatsFigureMediaReferenceList($figures);
+        $figureMediaIssueCodes = self::jatsFigureMediaIssueCodes($figureMediaReferences);
+        $figureMediaMissingTargetCount = self::jatsFigureMediaIssueCount($figureMediaReferences, 'missing-target');
+        $figureMediaExternalReferenceCount = self::jatsFigureMediaIssueCount($figureMediaReferences, 'unsupported-external-reference');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
@@ -757,6 +765,9 @@ final class XmlHtmlDom
             count($sections),
             count($referenceIds),
             count($figureIds),
+            count($figureMediaReferences),
+            $figureMediaMissingTargetCount,
+            $figureMediaExternalReferenceCount,
             count($tableWrapIds),
             $bookPartCount
         );
@@ -815,6 +826,12 @@ final class XmlHtmlDom
             'referenceCount' => count($referenceIds),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
+            'figures' => $figures,
+            'figureMediaReferences' => $figureMediaReferences,
+            'figureMediaReferenceCount' => count($figureMediaReferences),
+            'figureMediaIssueCodes' => $figureMediaIssueCodes,
+            'figureMediaIssueCount' => count($figureMediaIssueCodes),
+            'figureMediaPayloadBytesExposed' => false,
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'bookPartCount' => $bookPartCount,
@@ -830,6 +847,9 @@ final class XmlHtmlDom
         int $sectionCount,
         int $referenceCount,
         int $figureCount,
+        int $figureMediaReferenceCount,
+        int $figureMediaMissingTargetCount,
+        int $figureMediaExternalReferenceCount,
         int $tableWrapCount,
         int $bookPartCount
     ): array {
@@ -883,6 +903,42 @@ final class XmlHtmlDom
                 false,
                 false,
                 ['figureCount' => $figureCount]
+            );
+        }
+
+        if ($figureMediaReferenceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-references-review-only',
+                'unsupported',
+                'Figure graphic/media references are exposed as metadata-only targets; payload bytes are not extracted.',
+                false,
+                true,
+                [
+                    'mediaReferenceCount' => $figureMediaReferenceCount,
+                    'payloadBytesExposed' => false,
+                ]
+            );
+        }
+
+        if ($figureMediaMissingTargetCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-target-missing',
+                'warning',
+                'One or more figure graphic/media elements omit an href target.',
+                false,
+                true,
+                ['missingTargetCount' => $figureMediaMissingTargetCount]
+            );
+        }
+
+        if ($figureMediaExternalReferenceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figure-media-external-reference-unsupported',
+                'unsupported',
+                'External figure graphic/media references are recorded for review but are not fetched.',
+                false,
+                true,
+                ['externalReferenceCount' => $figureMediaExternalReferenceCount]
             );
         }
 
@@ -1206,6 +1262,281 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureSummaries(\DOMElement $root): array
+    {
+        $figures = [];
+        foreach (self::descendantElements($root, 'fig') as $figure) {
+            $mediaReferences = self::jatsFigureMediaReferences($figure);
+
+            $figures[] = [
+                'id' => self::attribute($figure, 'id'),
+                'label' => self::jatsFirstChildText($figure, ['label']),
+                'title' => self::jatsFigureTitle($figure),
+                'captionText' => self::jatsFigureCaptionText($figure),
+                'captionParagraphCount' => self::jatsFigureCaptionParagraphCount($figure),
+                'xrefTargets' => self::jatsXrefTargets($figure),
+                'mediaReferences' => $mediaReferences,
+                'mediaReferenceCount' => count($mediaReferences),
+                'mediaIssueCodes' => self::jatsFigureMediaIssueCodes($mediaReferences),
+            ];
+        }
+
+        return $figures;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $figures
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMediaReferenceList(array $figures): array
+    {
+        $references = [];
+        foreach ($figures as $figure) {
+            foreach (($figure['mediaReferences'] ?? []) as $reference) {
+                if (is_array($reference)) {
+                    $references[] = $reference;
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return list<string>
+     */
+    private static function jatsFigureMediaIssueCodes(array $references): array
+    {
+        $codes = [];
+        foreach ($references as $reference) {
+            foreach (($reference['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $codes[] = $issue;
+                }
+            }
+        }
+
+        $codes = array_values(array_unique($codes));
+        $priority = [
+            'missing-target' => 0,
+            'unsupported-external-reference' => 1,
+        ];
+        usort($codes, static function (string $left, string $right) use ($priority): int {
+            return ($priority[$left] ?? 99) <=> ($priority[$right] ?? 99)
+                ?: $left <=> $right;
+        });
+
+        return $codes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     */
+    private static function jatsFigureMediaIssueCount(array $references, string $code): int
+    {
+        $count = 0;
+        foreach ($references as $reference) {
+            $issues = $reference['issues'] ?? [];
+            if (is_array($issues) && in_array($code, $issues, true)) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    private static function jatsFirstChildText(\DOMElement $root, array $localNames): ?string
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstChildElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsFigureTitle(\DOMElement $figure): ?string
+    {
+        $title = self::jatsFirstChildText($figure, ['title']);
+        if ($title !== null) {
+            return $title;
+        }
+
+        $caption = self::firstChildElement($figure, 'caption');
+        if ($caption instanceof \DOMElement) {
+            return self::jatsFirstChildText($caption, ['title']);
+        }
+
+        return null;
+    }
+
+    private static function jatsFigureCaptionText(\DOMElement $figure): ?string
+    {
+        $caption = self::firstChildElement($figure, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return null;
+        }
+
+        $segments = [];
+        foreach ($caption->childNodes as $child) {
+            $text = self::normalizedText($child);
+            if ($text !== '') {
+                $segments[] = $text;
+            }
+        }
+        $text = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', implode(' ', $segments)) ?? implode(' ', $segments));
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function jatsFigureCaptionParagraphCount(\DOMElement $figure): int
+    {
+        $caption = self::firstChildElement($figure, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return 0;
+        }
+
+        return count(self::descendantElements($caption, 'p'));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMediaReferences(\DOMElement $figure): array
+    {
+        $references = [];
+        $figureId = self::attribute($figure, 'id');
+
+        foreach (self::descendantElements($figure) as $element) {
+            if (!in_array($element->localName, ['graphic', 'media'], true)) {
+                continue;
+            }
+
+            $href = self::jatsFigureMediaHref($element);
+            $target = $href['target'];
+            $issues = self::jatsFigureMediaIssues($target);
+
+            $references[] = [
+                'figureId' => $figureId,
+                'element' => $element->localName,
+                'id' => self::attribute($element, 'id'),
+                'hrefAttribute' => $href['attribute'],
+                'target' => $target,
+                'targetBasename' => self::jatsFigureMediaTargetBasename($target),
+                'targetKind' => self::jatsFigureMediaTargetKind($target),
+                'mimetype' => self::attribute($element, 'mimetype'),
+                'mimeSubtype' => self::attribute($element, 'mime-subtype'),
+                'contentType' => self::jatsFigureMediaContentType($element),
+                'specificUse' => self::attribute($element, 'specific-use'),
+                'position' => self::attribute($element, 'position'),
+                'orientation' => self::attribute($element, 'orientation'),
+                'payloadBytesExposed' => false,
+                'issues' => $issues,
+                'issueCount' => count($issues),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return array{attribute:?string, target:?string}
+     */
+    private static function jatsFigureMediaHref(\DOMElement $element): array
+    {
+        $xlinkHref = self::attribute($element, 'href', 'http://www.w3.org/1999/xlink');
+        if ($xlinkHref !== null) {
+            return [
+                'attribute' => 'xlink:href',
+                'target' => trim($xlinkHref) === '' ? null : trim($xlinkHref),
+            ];
+        }
+
+        $href = self::attribute($element, 'href');
+        if ($href !== null) {
+            return [
+                'attribute' => 'href',
+                'target' => trim($href) === '' ? null : trim($href),
+            ];
+        }
+
+        return [
+            'attribute' => null,
+            'target' => null,
+        ];
+    }
+
+    private static function jatsFigureMediaContentType(\DOMElement $element): ?string
+    {
+        $mimetype = self::attribute($element, 'mimetype');
+        $subtype = self::attribute($element, 'mime-subtype');
+        if ($mimetype === null || trim($mimetype) === '' || $subtype === null || trim($subtype) === '') {
+            return null;
+        }
+
+        return strtolower(trim($mimetype)) . '/' . strtolower(trim($subtype));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsFigureMediaIssues(?string $target): array
+    {
+        if ($target === null || trim($target) === '') {
+            return ['missing-target'];
+        }
+
+        if (self::jatsFigureMediaTargetKind($target) === 'external') {
+            return ['unsupported-external-reference'];
+        }
+
+        return [];
+    }
+
+    private static function jatsFigureMediaTargetKind(?string $target): string
+    {
+        if ($target === null || trim($target) === '') {
+            return 'missing';
+        }
+
+        $target = trim($target);
+        if (str_starts_with($target, '//') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
+            return 'external';
+        }
+
+        if (str_starts_with($target, '#')) {
+            return 'fragment';
+        }
+
+        return 'internal';
+    }
+
+    private static function jatsFigureMediaTargetBasename(?string $target): ?string
+    {
+        if ($target === null || trim($target) === '') {
+            return null;
+        }
+
+        $target = trim($target);
+        $cut = strcspn($target, '?#');
+        $path = $cut === 0 ? $target : substr($target, 0, $cut);
+        $path = str_replace('\\', '/', $path);
+        $basename = basename($path);
+
+        return $basename === '' || $basename === '.' ? null : $basename;
     }
 
     /**
