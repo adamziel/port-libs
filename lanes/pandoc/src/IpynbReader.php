@@ -86,6 +86,16 @@ final class IpynbReader
         $sourceLineEndingCounts = ['lf' => 0, 'crlf' => 0, 'cr' => 0];
         $sourceTrailingNewlineCount = 0;
         $emptySourceCount = 0;
+        $sourceContentStateCounts = [
+            'empty' => 0,
+            'whitespace-only' => 0,
+            'content' => 0,
+        ];
+        $sourceFingerprintCounts = [];
+        $sourceFingerprintIndexes = [];
+        $totalSourceBytes = 0;
+        $totalSourceLineCount = 0;
+        $mixedLineEndingSourceCount = 0;
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -103,7 +113,7 @@ final class IpynbReader
 
             $sourcePresent = array_key_exists('source', $cell);
             $sourceValue = $sourcePresent ? $cell['source'] : '';
-            $sourceReview = $this->sourceReview($sourceValue, "IPYNB cell {$cellIndex} source");
+            $sourceReview = $this->sourceReview($sourceValue, $sourcePresent, "IPYNB cell {$cellIndex} source");
             $source = $sourceReview['text'];
             if ($sourceReview['bytes'] > self::MAX_CELL_SOURCE_BYTES) {
                 throw new \InvalidArgumentException("IPYNB cell {$cellIndex} exceeds the bounded native reader source limit");
@@ -122,6 +132,15 @@ final class IpynbReader
             }
             if ($sourceReview['bytes'] === 0) {
                 $emptySourceCount++;
+            }
+            $sourceContentStateCounts[$sourceReview['contentState']] = ($sourceContentStateCounts[$sourceReview['contentState']] ?? 0) + 1;
+            $sourceFingerprint = $sourceReview['fingerprint'];
+            $sourceFingerprintCounts[$sourceFingerprint] = ($sourceFingerprintCounts[$sourceFingerprint] ?? 0) + 1;
+            $sourceFingerprintIndexes[$sourceFingerprint][] = $cellIndex;
+            $totalSourceBytes += $sourceReview['bytes'];
+            $totalSourceLineCount += $sourceReview['lineCount'];
+            if ($sourceReview['hasMixedLineEndings']) {
+                $mixedLineEndingSourceCount++;
             }
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
@@ -248,8 +267,14 @@ final class IpynbReader
                 'ipynbSourceBytes' => $sourceReview['bytes'],
                 'ipynbSourceLineCount' => $sourceReview['lineCount'],
                 'ipynbSourceLineEnding' => $sourceReview['lineEnding'],
+                'ipynbSourceLineEndingCount' => $sourceReview['lineEndingCount'],
                 'ipynbSourceLineEndingCounts' => $sourceReview['lineEndingCounts'],
                 'ipynbSourceTrailingNewline' => $sourceReview['trailingNewline'],
+                'ipynbSourceHasTrailingLineEnding' => $sourceReview['trailingNewline'],
+                'ipynbSourceHasMixedLineEndings' => $sourceReview['hasMixedLineEndings'],
+                'ipynbSourceContentState' => $sourceReview['contentState'],
+                'ipynbSourceDigest' => $sourceReview['digest'],
+                'ipynbSourceFingerprint' => $sourceFingerprint,
                 'ipynbSourceDiagnostics' => $sourceReview['diagnostics'],
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
@@ -310,8 +335,15 @@ final class IpynbReader
                 'sourcePartCount' => $sourceReview['partCount'],
                 'sourceLineCount' => $sourceReview['lineCount'],
                 'sourceLineEnding' => $sourceReview['lineEnding'],
+                'sourceLineEndingCount' => $sourceReview['lineEndingCount'],
+                'sourceLineEndings' => $sourceReview['lineEndingCounts'],
                 'sourceLineEndingCounts' => $sourceReview['lineEndingCounts'],
                 'sourceTrailingNewline' => $sourceReview['trailingNewline'],
+                'sourceHasTrailingLineEnding' => $sourceReview['trailingNewline'],
+                'sourceHasMixedLineEndings' => $sourceReview['hasMixedLineEndings'],
+                'sourceContentState' => $sourceReview['contentState'],
+                'sourceDigest' => $sourceReview['digest'],
+                'sourceFingerprint' => $sourceFingerprint,
                 'sourceDiagnostics' => $sourceReview['diagnostics'],
                 'attachmentCount' => $attachmentSummary['count'],
                 'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
@@ -365,6 +397,25 @@ final class IpynbReader
 
         ksort($sourceShapeCounts);
         ksort($sourceLineEndingStyles);
+        ksort($sourceFingerprintCounts);
+        $duplicateSourceFingerprints = [];
+        $duplicateSourceCellCount = 0;
+        foreach ($sourceFingerprintCounts as $sourceFingerprint => $count) {
+            if ($count <= 1) {
+                continue;
+            }
+            $duplicateSourceCellCount += $count;
+            $duplicateSourceFingerprints[] = [
+                'sourceFingerprint' => $sourceFingerprint,
+                'count' => $count,
+                'cellIndexes' => $sourceFingerprintIndexes[$sourceFingerprint] ?? [],
+            ];
+        }
+        foreach ($cellSummaries as &$cellSummary) {
+            $fingerprint = (string) ($cellSummary['sourceFingerprint'] ?? '');
+            $cellSummary['sourceFingerprintCount'] = $sourceFingerprintCounts[$fingerprint] ?? 1;
+        }
+        unset($cellSummary);
         $attachmentCollisionGroups = $this->attachmentCollisionGroups($attachmentManifestEntries);
         if ($attachmentCollisionGroups !== []) {
             $attachmentDiagnostics[] = 'ipynb-attachment-safe-name-collision';
@@ -393,6 +444,24 @@ final class IpynbReader
             'notebookSourceLineEndingCounts' => $sourceLineEndingCounts,
             'notebookSourceTrailingNewlineCount' => $sourceTrailingNewlineCount,
             'notebookEmptySourceCount' => $emptySourceCount,
+            'notebookSourceContentStateCounts' => $sourceContentStateCounts,
+            'notebookSourceSummary' => [
+                'cellCount' => count($cells),
+                'totalSourceBytes' => $totalSourceBytes,
+                'totalSourceLineCount' => $totalSourceLineCount,
+                'sourceShapeCounts' => $sourceShapeCounts,
+                'sourceLineEndingCounts' => $sourceLineEndingCounts,
+                'emptySourceCount' => $sourceContentStateCounts['empty'],
+                'whitespaceOnlySourceCount' => $sourceContentStateCounts['whitespace-only'],
+                'contentSourceCount' => $sourceContentStateCounts['content'],
+                'mixedLineEndingSourceCount' => $mixedLineEndingSourceCount,
+                'trailingLineEndingSourceCount' => $sourceTrailingNewlineCount,
+                'uniqueSourceFingerprintCount' => count($sourceFingerprintCounts),
+                'duplicateSourceFingerprintCount' => count($duplicateSourceFingerprints),
+                'duplicateSourceCellCount' => $duplicateSourceCellCount,
+            ],
+            'notebookSourceFingerprintCounts' => $sourceFingerprintCounts,
+            'notebookDuplicateSourceFingerprints' => $duplicateSourceFingerprints,
             'notebookAttachmentCount' => $attachmentCount,
             'notebookAttachmentMediaCount' => count($attachmentMedia),
             'notebookAttachmentMedia' => $attachmentMedia,
@@ -641,13 +710,26 @@ final class IpynbReader
      *     lineCount:int,
      *     trailingNewline:bool,
      *     lineEnding:string,
+     *     lineEndingCount:int,
      *     lineEndingCounts:array{lf:int, crlf:int, cr:int},
+     *     hasMixedLineEndings:bool,
+     *     contentState:string,
+     *     digest:array{algorithm:string, value:string},
+     *     fingerprint:string,
      *     diagnostics:list<string>
      * }
      */
-    private function sourceReview(mixed $source, string $label): array
+    private function sourceReview(mixed $source, bool $sourcePresent, string $label): array
     {
-        if (is_string($source)) {
+        if (!$sourcePresent) {
+            $text = '';
+            $shape = 'missing';
+            $partCount = 0;
+        } elseif ($source === null) {
+            $text = '';
+            $shape = 'null';
+            $partCount = 0;
+        } elseif (is_string($source)) {
             $text = $source;
             $shape = 'string';
             $partCount = 1;
@@ -661,19 +743,25 @@ final class IpynbReader
             }
 
             $text = implode('', $parts);
-            $shape = 'line-array';
+            $shape = 'list';
             $partCount = count($parts);
         } else {
-            throw new \InvalidArgumentException("{$label} must be a string or string array");
+            throw new \InvalidArgumentException("{$label} must be a string, string array, null, or missing");
         }
 
         $lineEndingCounts = $this->lineEndingCounts($text);
+        $lineEndingCount = array_sum($lineEndingCounts);
         $lineEnding = $this->lineEndingStyle($lineEndingCounts);
         $bytes = strlen($text);
         $trailingNewline = $text !== '' && (str_ends_with($text, "\n") || str_ends_with($text, "\r"));
         $lineCount = $bytes === 0
             ? 0
-            : array_sum($lineEndingCounts) + ($trailingNewline ? 0 : 1);
+            : $lineEndingCount + ($trailingNewline ? 0 : 1);
+        $sourceDigest = hash('sha256', $text);
+        $contentState = $bytes === 0
+            ? 'empty'
+            : (trim($text) === '' ? 'whitespace-only' : 'content');
+        $hasMixedLineEndings = count(array_filter($lineEndingCounts, static fn (int $count): bool => $count > 0)) > 1;
 
         $diagnostics = [
             'source-shape:' . $shape,
@@ -697,7 +785,15 @@ final class IpynbReader
             'lineCount' => $lineCount,
             'trailingNewline' => $trailingNewline,
             'lineEnding' => $lineEnding,
+            'lineEndingCount' => $lineEndingCount,
             'lineEndingCounts' => $lineEndingCounts,
+            'hasMixedLineEndings' => $hasMixedLineEndings,
+            'contentState' => $contentState,
+            'digest' => [
+                'algorithm' => 'sha256',
+                'value' => $sourceDigest,
+            ],
+            'fingerprint' => 'sha256:' . $sourceDigest,
             'diagnostics' => $diagnostics,
         ];
     }
