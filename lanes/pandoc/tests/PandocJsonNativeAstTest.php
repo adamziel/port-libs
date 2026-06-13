@@ -5896,6 +5896,131 @@ return [
         $t->same(2, $nativeRoundTrip->children[0]->children[0]->children[0]->attr('rowspan'));
         $t->same(3, $nativeRoundTrip->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'preserves table cell attr and span helper sidecars until edited boundaries' => static function (TestRunner $t): void {
+        $firstCellAttr = ['t' => 'Attr', 'c' => [
+            'source-cell',
+            ['metric', 'review'],
+            [['data-source', 'json'], ['data-state', 'raw']],
+            ['reviewQueue' => 'first-cell-attr-source'],
+        ]];
+        $firstCellAlignment = ['t' => 'AlignRight', 'reviewQueue' => 'first-cell-align-source'];
+        $firstCellRowSpan = ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'first-cell-rowspan-source'];
+        $firstCellColSpan = ['t' => 'ColSpan', 'c' => 3, 'reviewQueue' => 'first-cell-colspan-source'];
+        $firstCell = ['t' => 'Cell', 'c' => [
+            $firstCellAttr,
+            $firstCellAlignment,
+            $firstCellRowSpan,
+            $firstCellColSpan,
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Source']]]],
+        ], 'reviewQueue' => 'first-cell-source', 'sourceOrdinal' => 4];
+
+        $secondCellAttr = ['t' => 'Attr', 'c' => [
+            'stable-cell',
+            ['kept'],
+            [['data-source', 'neighbor']],
+            ['reviewQueue' => 'second-cell-attr-source'],
+        ]];
+        $secondCell = ['t' => 'Cell', 'c' => [
+            $secondCellAttr,
+            ['t' => 'AlignCenter', 'reviewQueue' => 'second-cell-align-source'],
+            ['t' => 'RowSpan', 'c' => 1, 'reviewQueue' => 'second-cell-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => 1, 'reviewQueue' => 'second-cell-colspan-source'],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Neighbor']]]],
+        ], 'reviewQueue' => 'second-cell-source', 'sourceOrdinal' => 5];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'Table',
+                'c' => [
+                    ['', [], []],
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [
+                        [['t' => 'AlignRight'], ['t' => 'ColWidthDefault']],
+                        [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                    ],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [[['', [], []], [$firstCell, $secondCell]]],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ],
+            ]],
+        ];
+        $encodedCells = static function (array $encoded): array {
+            $body = $encoded['blocks'][0]['c'][4][0];
+            $bodyPayload = $body['c'] ?? $body;
+            $row = $bodyPayload[3][0];
+            $rowPayload = $row['c'] ?? $row;
+
+            return $rowPayload[1];
+        };
+        $cellPayload = static fn (array $cell): array => $cell['c'] ?? $cell;
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $first = $document->children[0]->children[0]->children[0]->children[0];
+
+            $t->same('source-cell', $first->attr('id'), "{$source} cell attr id");
+            $t->same(['metric', 'review'], $first->attr('classes'), "{$source} cell attr classes");
+            $t->same(['data-source' => 'json', 'data-state' => 'raw'], $first->attr('attributes'), "{$source} cell attr key-values");
+            $t->same($firstCellAttr, $first->attr('attrNative'), "{$source} cell attr native sidecar");
+            $t->same('right', $first->attr('align'), "{$source} cell alignment");
+            $t->same($firstCellAlignment, $first->attr('alignmentNative'), "{$source} cell alignment native sidecar");
+            $t->same(2, $first->attr('rowspan'), "{$source} cell rowspan");
+            $t->same($firstCellRowSpan, $first->attr('rowSpanNative'), "{$source} cell rowspan native sidecar");
+            $t->same(3, $first->attr('colspan'), "{$source} cell colspan");
+            $t->same($firstCellColSpan, $first->attr('colSpanNative'), "{$source} cell colspan native sidecar");
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($document),
+                "{$source} native" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $cells = $encodedCells($encoded);
+
+                $t->same($firstCell, $cells[0], "{$writer} writer preserves unchanged first cell payload");
+                $t->same($secondCell, $cells[1], "{$writer} writer preserves unchanged second cell payload");
+            }
+
+            $editedFirst = new AstNode('table_cell', array_replace($first->attrs, [
+                'id' => 'edited-cell',
+                'classes' => ['metric', 'review', 'edited'],
+                'attributes' => ['data-source' => 'json', 'data-state' => 'edited'],
+            ]), $first->children);
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $editedRow = new AstNode('table_row', $row->attrs, [$editedFirst, $row->children[1]]);
+            $editedBody = new AstNode('table_body', $body->attrs, [$editedRow]);
+            $editedTable = new AstNode('table', $table->attrs, [$editedBody]);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedTable]);
+
+            foreach ([
+                "{$source} json edited" => (new PandocJsonWriter())->toArray($editedDocument),
+                "{$source} native edited" => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $cells = $encodedCells($encoded);
+                $editedPayload = $cellPayload($cells[0]);
+
+                $t->same(false, array_key_exists('t', $cells[0]), "{$writer} writer regenerates edited cell boundary");
+                $t->same(false, array_key_exists('reviewQueue', $cells[0]), "{$writer} writer drops stale edited cell sidecar");
+                $t->same(['edited-cell', ['metric', 'review', 'edited'], [['data-source', 'json'], ['data-state', 'edited']]], $editedPayload[0], "{$writer} writer regenerates edited cell Attr tuple");
+                $t->same($firstCellAlignment, $editedPayload[1], "{$writer} writer preserves unchanged cell alignment sidecar");
+                $t->same($firstCellRowSpan, $editedPayload[2], "{$writer} writer preserves unchanged cell rowspan sidecar");
+                $t->same($firstCellColSpan, $editedPayload[3], "{$writer} writer preserves unchanged cell colspan sidecar");
+                $t->same($secondCell, $cells[1], "{$writer} writer keeps neighboring cell payload");
+            }
+        }
+    },
     'writes shared short caption blocks as pandoc json caption inlines' => static function (TestRunner $t): void {
         $sourceTable = new AstNode('table', [
             'captionBlocks' => [
