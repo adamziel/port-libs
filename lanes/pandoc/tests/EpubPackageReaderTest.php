@@ -189,6 +189,103 @@ return [
         $t->same('EPUB/chapter2.xhtml', $pageList[1]['path']);
         $t->same('details', $pageList[1]['fragment']);
     },
+    'reports epub page-list pagebreak href and label diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-pages-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-page-list-review</dc:identifier>
+    <dc:title>Page List Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak">3</a></li>
+        <li><span epub:type="pagebreak">4</span></li>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#p5">   </a></li>
+        <li><a href="chapter.xhtml#p6">6</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="p1">Chapter</h1><p>Readable page list package.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $pageList = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'page-list'
+            ));
+            $report = $epub['tocReport'];
+
+            $t->same(7, $report['itemCount']);
+            $t->same(['toc' => 1, 'page-list' => 6], $report['typeCounts']);
+            $t->same(6, $report['pageListItemCount']);
+            $t->same(5, $report['pageBreakItemCount']);
+            $t->same(6, $report['diagnosticCount']);
+            $t->same([
+                'duplicate-page-list-href',
+                'duplicate-page-list-label',
+                'missing-page-list-href',
+                'missing-page-list-href',
+                'missing-page-list-label',
+                'missing-pagebreak-type',
+            ], array_column($report['diagnostics'], 'type'));
+            $t->same(1, $report['diagnostics'][0]['firstIndex']);
+            $t->same(2, $report['diagnostics'][0]['index']);
+            $t->same('EPUB/chapter.xhtml#p1', $report['diagnostics'][0]['target']);
+            $t->same('href', $report['diagnostics'][0]['source']);
+            $t->same('1', $report['diagnostics'][1]['label']);
+            $t->same('label', $report['diagnostics'][1]['source']);
+            $t->same('a@href', $report['diagnostics'][2]['source']);
+            $t->same('span@href', $report['diagnostics'][3]['source']);
+            $t->same('textContent', $report['diagnostics'][4]['source']);
+            $t->same('epub:type', $report['diagnostics'][5]['source']);
+
+            $t->same(6, count($pageList));
+            $t->same(true, $pageList[0]['pageBreakProvenance']['present']);
+            $t->same(['pagebreak'], $pageList[0]['epubTypes']);
+            $t->same('textContent', $pageList[0]['labelProvenance']['source']);
+            $t->same([], $pageList[0]['diagnostics']);
+            $t->same(['missing-page-list-href'], array_column($pageList[2]['diagnostics'], 'type'));
+            $t->same(['missing-page-list-href'], array_column($pageList[3]['diagnostics'], 'type'));
+            $t->same(['missing-page-list-label'], array_column($pageList[4]['diagnostics'], 'type'));
+            $t->same(['missing-pagebreak-type'], array_column($pageList[5]['diagnostics'], 'type'));
+            $t->same(false, $pageList[5]['pageBreakProvenance']['present']);
+            $t->same('missing', $pageList[5]['pageBreakProvenance']['source']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub spine xhtml assets into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);

@@ -59,13 +59,13 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through the Typst package source-class policy provenance slice rebased on `d1cb8cab8d`: 3,336 PHP passes, 0 failures, and 3,295 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for the touched PdfEngine files, focused `PdfEngineHandoffTest.php` (`1` file, `2231` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `75045` assertions, `0` failures).
+Current-main counters are reconciled through the EPUB nav page-list diagnostics slice rebased on `d1cb8cab8d` after the Typst package source-class policy slice: 3,337 PHP passes, 0 failures, and 3,296 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for the touched EPUB reader and test files, focused `EpubPackageReaderTest.php` (`1` file, `240` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `75072` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
 | CSV/TSV direct readers | Landed headed and no-header option parity | 2 CSV command fixtures | 4 local CSV/TSV cases; latest focused reader/registry run 1,410 assertions | Partial after bounded reader slices | Broader CSV/TSV option behavior, malformed input diagnostics, and table-reader edge cases. |
 | DOCX/OpenXML package reader | Landed subdocument relationship diagnostics | 35 DOCX/OpenXML rows | 93 DOCX/OpenXML cases; latest focused run 2,412 assertions | Partial | Broader WordprocessingML/package reader parity, fields, content controls, revisions, lists, tables, and package edge cases. |
-| EPUB direct package reader | Landed manifest suffix diagnostics, skipped spine-entry reports, XHTML definition-list handoff, and XHTML table-section review metadata | 9 EPUB package rows | 62 EPUB evidence cases; latest focused run 4,328 assertions | Partial | Broader direct EPUB package reader structural/content parity and upstream runner parity. |
+| EPUB direct package reader | Landed manifest suffix diagnostics, skipped spine-entry reports, XHTML definition-list handoff, XHTML table-section review metadata, and nav page-list diagnostics | 9 EPUB package rows | 63 EPUB evidence cases; latest focused package-reader run 240 assertions | Partial | Broader direct EPUB package reader structural/content parity and upstream runner parity. |
 | Shared ZIP/OPC package | Landed selected-entry handoff role buckets | 67 ZIP/OPC dependency rows | 107 ZIP/OPC evidence cases; latest focused run 4,448 assertions | Partial dependency | ZIP64 expansion, encrypted payload decryption, non-deflate extraction, cryptographic signature validation, and remaining DOCX/EPUB/PPTX/XLSX package-reader parity. |
 | JSON/native table, list, and block handoff | Landed table-caption, note-label, Div Plain, mixed block-container, task-list sidecar, definition-list term-group, and nullary helper payload slices | 252 JSON/native artifacts | 52 JSON/native cases; latest focused JSON/native run 2,133 assertions | Partial | Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips. |
 | Markdown block/list/note/section boundaries | Landed HTML list item attributes, math attributes, nested fenced Div, escaped fenced-Div attributes, fenced Div section-reference boundaries, mixed-content nested-list, definition-list term-group, table-cell note placement, and header section Div slices | 1,096 Markdown-family rows | 450 Markdown-family cases; latest focused MarkdownReader run 6,716 assertions | Partial | Markdown/CommonMark/GFM extension and variant parity. |
@@ -286,6 +286,12 @@ Bounded native PHP EPUB3 content-reader coverage advanced by one XHTML table sem
 
 Remaining critical EPUB gaps: direct EPUB package reader parity still needs broader structural/content coverage beyond this bounded table-semantics slice, including full XHTML-to-AST conversion policy, section/header mapping, nav/NCX edge provenance, metadata propagation, package structural diagnostics, and media/resource handling. EPUB denominator/local numerator is now 9 upstream rows / 62 local mapped EPUB evidence cases (688.9%). Verification passed `php -l` for `EpubReader.php` and `EpubReaderTest.php`, focused `EpubReaderTest.php` (`1` file, `4328` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74818` assertions, `0` failures). No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.
 
+### EPUB Nav Page-List Diagnostics Update (2026-06-13)
+
+Bounded native PHP EPUB3 direct package-reader coverage advanced by one nav page-list diagnostics slice. `EpubPackageReader` now exposes `tocReport` counts, duplicate page-list href and label diagnostics, missing href/label diagnostics, missing `pagebreak` type diagnostics, and per-entry label/pageBreak provenance while preserving the existing `toc` list and NCX hierarchy behavior.
+
+Verification passed `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` passed (`1` file, `240` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `75072` assertions, `0` failures). No Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderer, Node tooling, online service, live provider test, or external validator was invoked. EPUB denominator/local numerator is now 9 upstream rows / 63 local mapped EPUB evidence cases (700.0%); broader direct EPUB package reader parity remains partial.
+
 ### Shared ZIP/OPC Selected Handoff Role Bucket Update (2026-06-13)
 
 Bounded native PHP shared ZIP/OPC package coverage advanced by one selected-entry role bucket slice after EPUB XHTML table semantics. `ZipPackage::entryHandoffPreflight()` role summaries now expose `handoffUniqueEntryCount`, `handoffCompressedBytes`, `handoffUncompressedBytes`, `handoffEntryNames`, and `issueCounts`, so DOCX/EPUB/ODT package readers can review readable bytes, duplicate requests, oversized sidecars, and missing required package parts by semantic role before exposing selected package payloads.
@@ -419,12 +425,12 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/notes/pandoc-pdf-typst-package-source-policy-20260613T010153Z.md lanes/pandoc/src/PdfEngineHandoff.php lanes/pandoc/tests/PdfEngineHandoffTest.php`,
-`php -l lanes/pandoc/src/PdfEngineHandoff.php`,
-`php -l lanes/pandoc/tests/PdfEngineHandoffTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/PdfEngineHandoffTest.php`
-(`1` file, `2231` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`45` files, `75045` assertions, `0` failures after final rebase onto base `d1cb8cab8d`).
+status, `git diff --check -- progress.md lanes/pandoc/lane-status.json lanes/pandoc/src/EpubPackageReader.php lanes/pandoc/tests/EpubPackageReaderTest.php`,
+`php -l lanes/pandoc/src/EpubPackageReader.php`,
+`php -l lanes/pandoc/tests/EpubPackageReaderTest.php`,
+`php tools/run-tests.php lanes/pandoc/tests/EpubPackageReaderTest.php`
+(`1` file, `240` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
+(`45` files, `75072` assertions, `0` failures after final rebase onto base `d1cb8cab8d`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.

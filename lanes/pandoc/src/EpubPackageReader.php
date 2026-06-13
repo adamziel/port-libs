@@ -18,7 +18,7 @@ final class EpubPackageReader
         $rootfile = $this->readContainerRootfile($root);
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
-        $toc = $this->readNavigationDocument($root, $package);
+        $navigation = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -49,7 +49,8 @@ final class EpubPackageReader
                 'spine' => $package['spine'],
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
-                'toc' => $toc,
+                'toc' => $navigation['items'],
+                'tocReport' => $navigation['report'],
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -517,7 +518,10 @@ final class EpubPackageReader
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return array{
+     *     items:list<array<string, mixed>>,
+     *     report:array<string, mixed>
+     * }
      */
     private function readNavigationDocument(string $root, array $package): array
     {
@@ -529,7 +533,10 @@ final class EpubPackageReader
             }
         }
         if (!is_array($navItem)) {
-            return [];
+            return [
+                'items' => [],
+                'report' => $this->navigationReport([], false, ''),
+            ];
         }
 
         $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navItem['path']));
@@ -555,7 +562,10 @@ final class EpubPackageReader
             }
         }
 
-        return $entries;
+        return [
+            'items' => $entries,
+            'report' => $this->navigationReport($entries, true, $navItem['path']),
+        ];
     }
 
     /**
@@ -974,7 +984,7 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>>
      */
     private function readNavList(\DOMElement $ol, string $baseDir, string $type): array
     {
@@ -991,6 +1001,41 @@ final class EpubPackageReader
 
             $href = $link->localName === 'a' ? trim($link->getAttribute('href')) : '';
             [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $label = $this->normalizedText($link->textContent);
+            $linkTypes = $this->epubTypes($link);
+            $hasPageBreakType = in_array('pagebreak', $linkTypes, true);
+            $itemDiagnostics = [];
+            if ($type === 'page-list') {
+                if ($href === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-page-list-href',
+                        'source' => $link->localName . '@href',
+                        'linkElement' => $link->localName,
+                        'label' => $label,
+                        'pageBreak' => $hasPageBreakType,
+                    ];
+                }
+                if ($label === '') {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-page-list-label',
+                        'source' => 'textContent',
+                        'linkElement' => $link->localName,
+                        'href' => $href,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'pageBreak' => $hasPageBreakType,
+                    ];
+                }
+                if (!$hasPageBreakType) {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-pagebreak-type',
+                        'source' => 'epub:type',
+                        'linkElement' => $link->localName,
+                        'href' => $href,
+                        'label' => $label,
+                    ];
+                }
+            }
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
@@ -1000,16 +1045,176 @@ final class EpubPackageReader
             }
 
             $entries[] = [
-                'label' => $this->normalizedText($link->textContent),
+                'label' => $label,
                 'href' => $href,
                 'path' => $path,
                 'fragment' => $fragment,
                 'type' => $type,
+                'linkElement' => $link->localName,
+                'epubTypes' => $linkTypes,
+                'labelProvenance' => [
+                    'source' => $label === '' ? 'missing' : 'textContent',
+                    'linkElement' => $link->localName,
+                    'epubTypes' => $linkTypes,
+                ],
+                'pageBreakProvenance' => [
+                    'present' => $hasPageBreakType,
+                    'source' => $hasPageBreakType ? 'epub:type' : ($type === 'page-list' ? 'missing' : ''),
+                    'linkElement' => $link->localName,
+                    'epubTypes' => $linkTypes,
+                ],
+                'diagnostics' => $itemDiagnostics,
                 'children' => $children,
             ];
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private function navigationReport(array $entries, bool $present, string $path): array
+    {
+        $flat = $this->flattenNavigationEntries($entries);
+        $typeCounts = [];
+        $pageListItems = [];
+        $pageBreakItemCount = 0;
+        $diagnostics = [];
+        $seenPageListHrefs = [];
+        $seenPageListLabels = [];
+
+        foreach ($flat as $item) {
+            $type = (string) ($item['type'] ?? '');
+            if ($type !== '') {
+                $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+            }
+            if (($item['pageBreak'] ?? false) === true) {
+                ++$pageBreakItemCount;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = [
+                    'index' => $item['index'],
+                    'depth' => $item['depth'],
+                    'navType' => $type,
+                ] + $diagnostic;
+            }
+
+            if ($type !== 'page-list') {
+                continue;
+            }
+
+            $pageListItems[] = $item;
+            $href = (string) ($item['href'] ?? '');
+            if ($href !== '') {
+                if (isset($seenPageListHrefs[$href])) {
+                    $diagnostics[] = [
+                        'index' => $item['index'],
+                        'depth' => $item['depth'],
+                        'type' => 'duplicate-page-list-href',
+                        'navType' => $type,
+                        'source' => 'href',
+                        'href' => $href,
+                        'target' => $this->navigationTarget($item),
+                        'path' => (string) ($item['path'] ?? ''),
+                        'fragment' => (string) ($item['fragment'] ?? ''),
+                        'firstIndex' => $seenPageListHrefs[$href]['index'],
+                        'firstTarget' => $this->navigationTarget($seenPageListHrefs[$href]),
+                    ];
+                } else {
+                    $seenPageListHrefs[$href] = $item;
+                }
+            }
+
+            $label = (string) ($item['label'] ?? '');
+            if ($label !== '') {
+                if (isset($seenPageListLabels[$label])) {
+                    $diagnostics[] = [
+                        'index' => $item['index'],
+                        'depth' => $item['depth'],
+                        'type' => 'duplicate-page-list-label',
+                        'navType' => $type,
+                        'source' => 'label',
+                        'label' => $label,
+                        'href' => $href,
+                        'target' => $this->navigationTarget($item),
+                        'firstIndex' => $seenPageListLabels[$label]['index'],
+                        'firstHref' => (string) ($seenPageListLabels[$label]['href'] ?? ''),
+                    ];
+                } else {
+                    $seenPageListLabels[$label] = $item;
+                }
+            }
+        }
+
+        return [
+            'present' => $present,
+            'path' => $path,
+            'itemCount' => count($flat),
+            'topLevelItemCount' => count($entries),
+            'typeCounts' => $typeCounts,
+            'pageListItemCount' => count($pageListItems),
+            'pageBreakItemCount' => $pageBreakItemCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function flattenNavigationEntries(array $entries): array
+    {
+        $index = 0;
+
+        return $this->flattenNavigationEntriesFrom($entries, 0, [], $index);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<int> $position
+     * @return list<array<string, mixed>>
+     */
+    private function flattenNavigationEntriesFrom(array $entries, int $depth, array $position, int &$index): array
+    {
+        $flat = [];
+        foreach ($entries as $offset => $entry) {
+            $currentPosition = [...$position, $offset];
+            $flatEntry = $entry;
+            $flatEntry['index'] = $index;
+            $flatEntry['depth'] = $depth;
+            $flatEntry['position'] = $currentPosition;
+            $flatEntry['pageBreak'] = ($entry['pageBreakProvenance']['present'] ?? false) === true;
+            $flat[] = $flatEntry;
+            ++$index;
+
+            $children = $entry['children'] ?? [];
+            if (is_array($children) && $children !== []) {
+                array_push($flat, ...$this->flattenNavigationEntriesFrom($children, $depth + 1, $currentPosition, $index));
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function navigationTarget(array $item): string
+    {
+        $path = (string) ($item['path'] ?? '');
+        $fragment = (string) ($item['fragment'] ?? '');
+        if ($path === '') {
+            return '';
+        }
+
+        return $path . ($fragment === '' ? '' : '#' . $fragment);
     }
 
     /**
@@ -1131,21 +1336,35 @@ final class EpubPackageReader
 
     private function epubType(\DOMElement $element): string
     {
-        $value = trim($element->getAttributeNS(self::EPUB_TYPE_NS, 'type'));
-        if ($value === '') {
-            $value = trim($element->getAttribute('epub:type'));
-        }
-        if ($value === '') {
-            $value = trim($element->getAttribute('type'));
-        }
-
-        foreach ($this->tokens($value) as $token) {
+        foreach ($this->epubTypes($element) as $token) {
             if ($token === 'toc' || $token === 'landmarks' || $token === 'page-list') {
                 return $token;
             }
         }
 
         return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function epubTypes(\DOMElement $element): array
+    {
+        $values = [
+            trim($element->getAttributeNS(self::EPUB_TYPE_NS, 'type')),
+            trim($element->getAttribute('epub:type')),
+            trim($element->getAttribute('type')),
+        ];
+        $types = [];
+        foreach ($values as $value) {
+            foreach ($this->tokens($value) as $token) {
+                if (!in_array($token, $types, true)) {
+                    $types[] = $token;
+                }
+            }
+        }
+
+        return $types;
     }
 
     /**
