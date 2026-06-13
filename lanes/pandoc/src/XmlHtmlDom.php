@@ -1404,6 +1404,9 @@ final class XmlHtmlDom
         if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param', 'canvas'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
+        if (self::isDocBookMediaElementName($name)) {
+            $summary += self::docBookMediaSummary($node, $name);
+        }
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
@@ -4762,6 +4765,396 @@ final class XmlHtmlDom
             'param' => self::paramElementSummary($element),
             'canvas' => self::canvasSummary($element),
             default => [],
+        };
+    }
+
+    private static function isDocBookMediaElementName(string $name): bool
+    {
+        return in_array($name, ['mediaobject', 'inlinemediaobject', 'imageobject', 'imagedata', 'textobject', 'alt'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaSummary(\DOMElement $element, string $name): array
+    {
+        return match ($name) {
+            'mediaobject', 'inlinemediaobject' => self::docBookMediaObjectSummary($element, $name),
+            'imageobject' => self::docBookImageObjectSummary($element),
+            'imagedata' => ['docBookMediaPart' => 'imagedata'] + self::docBookImageDataSummary($element),
+            'textobject' => self::docBookTextObjectSummary($element),
+            'alt' => self::docBookAltSummary($element),
+            default => [],
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaObjectSummary(\DOMElement $media, string $name): array
+    {
+        $altTexts = self::docBookAltTexts($media);
+        $textObjects = self::docBookTextObjectSummaries($media);
+        $imageData = self::docBookImageDataSummaries($media);
+        $linkendAssociations = self::docBookLinkendAssociations($media);
+        $hasAccessibleText = $altTexts !== [] || array_filter(
+            array_map(static fn (array $textObject): string => (string) ($textObject['text'] ?? ''), $textObjects),
+            static fn (string $text): bool => $text !== ''
+        ) !== [];
+        $issues = [];
+
+        if (!$hasAccessibleText && $imageData !== []) {
+            $issues[] = [
+                'code' => 'missing-docbook-media-alt',
+                'media' => $name,
+                'imageDataCount' => count($imageData),
+            ];
+        }
+
+        foreach ($imageData as $index => $image) {
+            if (($image['target'] ?? null) === null) {
+                $issues[] = [
+                    'code' => 'missing-docbook-imagedata-target',
+                    'imageDataIndex' => $index,
+                ];
+            }
+        }
+
+        foreach ($linkendAssociations as $association) {
+            foreach (($association['invalidIds'] ?? []) as $invalidId) {
+                $issues[] = [
+                    'code' => 'invalid-docbook-linkend',
+                    'element' => $association['element'],
+                    'linkendId' => $invalidId,
+                ];
+            }
+            foreach (($association['missingIds'] ?? []) as $missingId) {
+                $issues[] = [
+                    'code' => 'missing-docbook-linkend-target',
+                    'element' => $association['element'],
+                    'linkendId' => $missingId,
+                ];
+            }
+        }
+
+        return [
+            'docBookMediaObject' => $name,
+            'docBookMediaInline' => $name === 'inlinemediaobject',
+            'docBookMediaId' => self::docBookElementId($media),
+            'docBookAltTexts' => $altTexts,
+            'docBookTextObjects' => $textObjects,
+            'docBookTextObjectTexts' => array_values(array_filter(
+                array_map(static fn (array $textObject): string => (string) ($textObject['text'] ?? ''), $textObjects),
+                static fn (string $text): bool => $text !== ''
+            )),
+            'docBookImageData' => $imageData,
+            'docBookImageTargetBasenames' => array_values(array_filter(
+                array_map(static fn (array $image): ?string => $image['targetBasename'] ?? null, $imageData),
+                static fn (?string $basename): bool => $basename !== null && $basename !== ''
+            )),
+            'docBookImageContentTypes' => array_values(array_filter(
+                array_map(static fn (array $image): ?string => $image['contentType'] ?? null, $imageData),
+                static fn (?string $contentType): bool => $contentType !== null && $contentType !== ''
+            )),
+            'docBookLinkendAssociations' => $linkendAssociations,
+            'docBookMissingAlt' => !$hasAccessibleText && $imageData !== [],
+            'docBookMediaIssues' => $issues,
+            'docBookMediaIssueCount' => count($issues),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookImageObjectSummary(\DOMElement $imageObject): array
+    {
+        $imageData = self::docBookImageDataSummaries($imageObject);
+
+        return [
+            'docBookMediaPart' => 'imageobject',
+            'docBookImageData' => $imageData,
+            'docBookImageDataCount' => count($imageData),
+            'docBookImageTargetBasenames' => array_values(array_filter(
+                array_map(static fn (array $image): ?string => $image['targetBasename'] ?? null, $imageData),
+                static fn (?string $basename): bool => $basename !== null && $basename !== ''
+            )),
+            'docBookImageContentTypes' => array_values(array_filter(
+                array_map(static fn (array $image): ?string => $image['contentType'] ?? null, $imageData),
+                static fn (?string $contentType): bool => $contentType !== null && $contentType !== ''
+            )),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookTextObjectSummary(\DOMElement $textObject): array
+    {
+        $text = self::normalizedText($textObject);
+
+        return [
+            'docBookMediaPart' => 'textobject',
+            'docBookTextObjectText' => $text,
+            'docBookTextObjectTextLength' => strlen($text),
+            'docBookTextObjectId' => self::docBookElementId($textObject),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookAltSummary(\DOMElement $alt): array
+    {
+        $text = self::normalizedText($alt);
+
+        return [
+            'docBookMediaPart' => 'alt',
+            'docBookAltText' => $text,
+            'docBookAltTextLength' => strlen($text),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookAltTexts(\DOMElement $media): array
+    {
+        $texts = [];
+        foreach (self::descendantHtmlElements($media, 'alt') as $alt) {
+            $text = self::normalizedText($alt);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookTextObjectSummaries(\DOMElement $media): array
+    {
+        $summaries = [];
+        foreach (self::descendantHtmlElements($media, 'textobject') as $index => $textObject) {
+            $text = self::normalizedText($textObject);
+            $summaries[] = [
+                'index' => $index,
+                'id' => self::docBookElementId($textObject),
+                'text' => $text,
+                'textLength' => strlen($text),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookImageDataSummaries(\DOMElement $media): array
+    {
+        $summaries = [];
+        foreach (self::descendantHtmlElements($media, 'imagedata') as $index => $imageData) {
+            $summaries[] = ['index' => $index] + self::docBookImageDataSummary($imageData);
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookImageDataSummary(\DOMElement $imageData): array
+    {
+        $fileref = self::attributeOrNull($imageData, 'fileref');
+        $entityref = self::attributeOrNull($imageData, 'entityref');
+        $format = self::attributeOrNull($imageData, 'format');
+        $target = self::normalizedNonEmptyAttribute($fileref) ?? self::normalizedNonEmptyAttribute($entityref);
+        $path = $target === null ? null : self::docBookTargetPath($target);
+        $basename = $path === null ? null : self::docBookTargetBasename($path);
+        $extension = $basename === null ? null : self::docBookTargetExtension($basename);
+        $contentType = self::docBookImageContentType($format, $extension);
+
+        return [
+            'target' => $target,
+            'fileref' => $fileref,
+            'entityref' => $entityref,
+            'format' => $format,
+            'targetPath' => $path,
+            'targetBasename' => $basename,
+            'targetExtension' => $extension,
+            'contentType' => $contentType['contentType'],
+            'contentTypeSource' => $contentType['source'],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookLinkendAssociations(\DOMElement $context): array
+    {
+        $knownIds = self::docBookDocumentIds($context);
+        $associations = [];
+        $elements = [];
+        if ($context->hasAttribute('linkend')) {
+            $elements[] = $context;
+        }
+        foreach ($context->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->hasAttribute('linkend')) {
+                $elements[] = $element;
+            }
+        }
+
+        foreach ($elements as $element) {
+            $raw = $element->getAttribute('linkend');
+            $ids = self::spaceSeparatedTokens($raw);
+            $invalid = [];
+            $resolved = [];
+            $missing = [];
+            foreach ($ids as $id) {
+                if (!self::isHtmlReferenceToken($id)) {
+                    $invalid[] = $id;
+                    continue;
+                }
+                if (isset($knownIds[$id])) {
+                    $resolved[] = $id;
+                } else {
+                    $missing[] = $id;
+                }
+            }
+
+            $associations[] = [
+                'element' => self::htmlElementName($element),
+                'sourceId' => self::docBookElementId($element),
+                'linkendRaw' => $raw,
+                'linkendIds' => $ids,
+                'resolvedIds' => $resolved,
+                'missingIds' => $missing,
+                'invalidIds' => $invalid,
+                'valid' => $ids !== [] && $invalid === [] && $missing === [],
+            ];
+        }
+
+        return $associations;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function docBookDocumentIds(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            foreach (['id', 'xml:id'] as $attribute) {
+                if (!$element->hasAttribute($attribute)) {
+                    continue;
+                }
+                $id = trim($element->getAttribute($attribute));
+                if ($id !== '' && self::isHtmlReferenceToken($id)) {
+                    $ids[$id] = true;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    private static function docBookElementId(\DOMElement $element): ?string
+    {
+        foreach (['id', 'xml:id'] as $attribute) {
+            $id = self::normalizedNonEmptyAttribute(self::attributeOrNull($element, $attribute));
+            if ($id !== null) {
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    private static function docBookTargetPath(string $target): string
+    {
+        $cut = strlen($target);
+        foreach (['#', '?'] as $delimiter) {
+            $position = strpos($target, $delimiter);
+            if ($position !== false) {
+                $cut = min($cut, $position);
+            }
+        }
+
+        return substr($target, 0, $cut);
+    }
+
+    private static function docBookTargetBasename(string $path): ?string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        if ($path === '') {
+            return null;
+        }
+
+        $basename = basename($path);
+
+        return $basename === '' || $basename === '.' ? null : $basename;
+    }
+
+    private static function docBookTargetExtension(string $basename): ?string
+    {
+        $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+
+        return $extension === '' ? null : $extension;
+    }
+
+    /**
+     * @return array{contentType:?string, source:?string}
+     */
+    private static function docBookImageContentType(?string $format, ?string $extension): array
+    {
+        $format = self::normalizedNonEmptyAttribute($format);
+        if ($format !== null) {
+            $normalized = strtolower($format);
+            if (str_contains($normalized, ';')) {
+                $normalized = trim(strstr($normalized, ';', true) ?: $normalized);
+            }
+            if (str_contains($normalized, '/')) {
+                return ['contentType' => $normalized, 'source' => 'format'];
+            }
+
+            $fromFormat = self::docBookImageExtensionContentType($normalized);
+            if ($fromFormat !== null) {
+                return ['contentType' => $fromFormat, 'source' => 'format'];
+            }
+        }
+
+        $fromExtension = $extension === null ? null : self::docBookImageExtensionContentType($extension);
+
+        return ['contentType' => $fromExtension, 'source' => $fromExtension === null ? null : 'extension'];
+    }
+
+    private static function docBookImageExtensionContentType(string $extension): ?string
+    {
+        return match (strtolower($extension)) {
+            'apng' => 'image/apng',
+            'avif' => 'image/avif',
+            'bmp' => 'image/bmp',
+            'eps', 'epsf', 'ps' => 'application/postscript',
+            'gif' => 'image/gif',
+            'heic' => 'image/heic',
+            'ico' => 'image/x-icon',
+            'jpeg', 'jpg', 'jpe' => 'image/jpeg',
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'svg', 'svgz' => 'image/svg+xml',
+            'tif', 'tiff' => 'image/tiff',
+            'webp' => 'image/webp',
+            default => null,
         };
     }
 

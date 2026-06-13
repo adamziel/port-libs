@@ -2409,6 +2409,79 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes docbook inline media alt text and linkend diagnostics for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<mediaobject id="fig-chart"><imageobject><imagedata fileref="images/chart.svg#view" format="SVG"></imagedata></imageobject><textobject id="fig-chart-text"><phrase>Chart described in text</phrase></textobject><alt>Quarterly chart</alt><xref linkend="fig-caption"></xref></mediaobject>'
+                . '<para id="fig-caption">Figure caption target</para>'
+                . '<inlinemediaobject id="inline-logo"><imageobject><imagedata fileref="../assets/logo.png?rev=2" format="PNG"></imagedata></imageobject><alt>Logo mark</alt></inlinemediaobject>'
+                . '<inlinemediaobject id="missing-alt"><imageobject><imagedata fileref="screens/missing-alt.tiff" format="image/tiff"></imagedata></imageobject><xref linkend="missing-id bad:token"></xref></inlinemediaobject>',
+            'docbook inline media review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+
+        $media = $summary[0];
+        $imageObject = $media['children'][0];
+        $imageData = $media['docBookImageData'][0];
+        $textObject = $media['children'][1];
+        $alt = $media['children'][2];
+        $association = $media['docBookLinkendAssociations'][0];
+        $inline = $summary[2];
+        $missingAlt = $summary[3];
+
+        $t->same('mediaobject', $media['docBookMediaObject']);
+        $t->same(false, $media['docBookMediaInline']);
+        $t->same('fig-chart', $media['docBookMediaId']);
+        $t->same(['Quarterly chart'], $media['docBookAltTexts']);
+        $t->same(['Chart described in text'], $media['docBookTextObjectTexts']);
+        $t->same(['chart.svg'], $media['docBookImageTargetBasenames']);
+        $t->same(['image/svg+xml'], $media['docBookImageContentTypes']);
+        $t->same(false, $media['docBookMissingAlt']);
+        $t->same([], $media['docBookMediaIssues']);
+
+        $t->same('imageobject', $imageObject['docBookMediaPart']);
+        $t->same(1, $imageObject['docBookImageDataCount']);
+        $t->same('imagedata', $media['children'][0]['children'][0]['docBookMediaPart']);
+        $t->same('images/chart.svg#view', $imageData['target']);
+        $t->same('images/chart.svg', $imageData['targetPath']);
+        $t->same('chart.svg', $imageData['targetBasename']);
+        $t->same('svg', $imageData['targetExtension']);
+        $t->same('image/svg+xml', $imageData['contentType']);
+        $t->same('format', $imageData['contentTypeSource']);
+
+        $t->same('textobject', $textObject['docBookMediaPart']);
+        $t->same('Chart described in text', $textObject['docBookTextObjectText']);
+        $t->same('alt', $alt['docBookMediaPart']);
+        $t->same('Quarterly chart', $alt['docBookAltText']);
+        $t->same('xref', $association['element']);
+        $t->same('fig-caption', $association['linkendRaw']);
+        $t->same(['fig-caption'], $association['resolvedIds']);
+        $t->same([], $association['missingIds']);
+        $t->same([], $association['invalidIds']);
+        $t->same(true, $association['valid']);
+
+        $t->same('inlinemediaobject', $inline['docBookMediaObject']);
+        $t->same(true, $inline['docBookMediaInline']);
+        $t->same('inline-logo', $inline['docBookMediaId']);
+        $t->same(['logo.png'], $inline['docBookImageTargetBasenames']);
+        $t->same('image/png', $inline['docBookImageData'][0]['contentType']);
+        $t->same('../assets/logo.png', $inline['docBookImageData'][0]['targetPath']);
+        $t->same(false, $inline['docBookMissingAlt']);
+
+        $t->same('missing-alt', $missingAlt['docBookMediaId']);
+        $t->same(true, $missingAlt['docBookMissingAlt']);
+        $t->same(['missing-alt.tiff'], $missingAlt['docBookImageTargetBasenames']);
+        $t->same('image/tiff', $missingAlt['docBookImageData'][0]['contentType']);
+        $t->same([
+            ['code' => 'missing-docbook-media-alt', 'media' => 'inlinemediaobject', 'imageDataCount' => 1],
+            ['code' => 'invalid-docbook-linkend', 'element' => 'xref', 'linkendId' => 'bad:token'],
+            ['code' => 'missing-docbook-linkend-target', 'element' => 'xref', 'linkendId' => 'missing-id'],
+        ], $missingAlt['docBookMediaIssues']);
+        $t->same(3, $missingAlt['docBookMediaIssueCount']);
+        $t->same(['missing-id', 'bad:token'], $missingAlt['docBookLinkendAssociations'][0]['linkendIds']);
+        $t->same(['missing-id'], $missingAlt['docBookLinkendAssociations'][0]['missingIds']);
+        $t->same(['bad:token'], $missingAlt['docBookLinkendAssociations'][0]['invalidIds']);
+        $t->same(false, $missingAlt['docBookLinkendAssociations'][0]['valid']);
+    },
     'summarizes html media text track provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="review" controls>'
