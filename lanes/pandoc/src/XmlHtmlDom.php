@@ -1554,6 +1554,25 @@ final class XmlHtmlDom
             'safeReferenceDateCount' => $referenceBackMatter['safeReferenceDateCount'],
             'safeReferenceYears' => $referenceBackMatter['safeReferenceYears'],
             'safeReferenceYearCount' => $referenceBackMatter['safeReferenceYearCount'],
+            'referenceTitleSourceReviewPolicy' => 'safe-reference-title-source-summaries-block-citation-text-payloads',
+            'safeReferenceTitles' => $referenceBackMatter['safeReferenceTitles'],
+            'safeReferenceTitleFieldCount' => $referenceBackMatter['safeReferenceTitleFieldCount'],
+            'safeReferenceSources' => $referenceBackMatter['safeReferenceSources'],
+            'safeReferenceSourceCount' => $referenceBackMatter['safeReferenceSourceCount'],
+            'referenceSourceTypes' => $referenceBackMatter['referenceSourceTypes'],
+            'referenceSourceTypeSummaries' => $referenceBackMatter['referenceSourceTypeSummaries'],
+            'referenceSourceTypeSummaryCount' => $referenceBackMatter['referenceSourceTypeSummaryCount'],
+            'duplicateReferenceTitles' => $referenceBackMatter['duplicateReferenceTitles'],
+            'duplicateReferenceTitleCount' => $referenceBackMatter['duplicateReferenceTitleCount'],
+            'duplicateReferenceSources' => $referenceBackMatter['duplicateReferenceSources'],
+            'duplicateReferenceSourceCount' => $referenceBackMatter['duplicateReferenceSourceCount'],
+            'referencesMissingTitles' => $referenceBackMatter['referencesMissingTitles'],
+            'referencesMissingTitleCount' => $referenceBackMatter['referencesMissingTitleCount'],
+            'referencesMissingSources' => $referenceBackMatter['referencesMissingSources'],
+            'referencesMissingSourceCount' => $referenceBackMatter['referencesMissingSourceCount'],
+            'referenceTitleSourceDiagnostics' => $referenceBackMatter['referenceTitleSourceDiagnostics'],
+            'referenceTitleSourceDiagnosticCodes' => $referenceBackMatter['referenceTitleSourceDiagnosticCodes'],
+            'referenceTitleSourceDiagnosticCount' => $referenceBackMatter['referenceTitleSourceDiagnosticCount'],
             'referenceIdentifierReviewPolicy' => 'safe-reference-identifier-provenance-only-block-citation-text-payloads',
             'referenceIdentifiers' => $referenceBackMatter['referenceIdentifiers'],
             'referenceIdentifierCount' => $referenceBackMatter['referenceIdentifierCount'],
@@ -1570,6 +1589,7 @@ final class XmlHtmlDom
             'blockedCitationTextPayloadElementNames' => $referenceBackMatter['blockedCitationTextPayloadElementNames'],
             'bibliographyXrefs' => $referenceBackMatter['bibliographyXrefs'],
             'bibliographyXrefCount' => $referenceBackMatter['bibliographyXrefCount'],
+            'citationTargetLinkage' => $referenceBackMatter['citationTargetLinkage'],
             'resolvedReferenceIds' => $referenceBackMatter['resolvedReferenceIds'],
             'resolvedBibrXrefCount' => $referenceBackMatter['resolvedBibrXrefCount'],
             'unresolvedReferenceIds' => $referenceBackMatter['unresolvedReferenceIds'],
@@ -5899,6 +5919,14 @@ final class XmlHtmlDom
         $safeReferenceAuthors = [];
         $safeReferenceDates = [];
         $safeReferenceYears = [];
+        $safeReferenceTitles = [];
+        $safeReferenceSources = [];
+        $referenceTitleBuckets = [];
+        $referenceSourceBuckets = [];
+        $referenceSourceTypes = [];
+        $referenceSourceTypeCounts = [];
+        $referencesMissingTitles = [];
+        $referencesMissingSources = [];
         $referenceIdentifiers = [];
         $referenceIdentifierSourceCounts = [];
         $referenceIdentifierTypes = [];
@@ -5941,6 +5969,65 @@ final class XmlHtmlDom
                     'id' => $summary['id'] ?? null,
                     'years' => $years,
                 ];
+            }
+            $titleFields = $summary['titleFields'] ?? [];
+            if (is_array($titleFields) && $titleFields !== []) {
+                $safeReferenceTitles[] = [
+                    'id' => $summary['id'] ?? null,
+                    'status' => $summary['status'] ?? null,
+                    'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                    'titleFields' => $titleFields,
+                ];
+                foreach ($titleFields as $titleField) {
+                    if (!is_array($titleField)) {
+                        continue;
+                    }
+                    self::appendJatsReferenceTextBucket(
+                        $referenceTitleBuckets,
+                        $summary,
+                        $titleField,
+                        (string) ($titleField['value'] ?? '')
+                    );
+                }
+            } elseif (($summary['citationElementNames'] ?? []) !== []) {
+                $referencesMissingTitles[] = [
+                    'id' => $summary['id'] ?? null,
+                    'status' => $summary['status'] ?? null,
+                    'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                    'citationElementNames' => $summary['citationElementNames'] ?? [],
+                ];
+            }
+            $sourceFields = $summary['sourceFields'] ?? [];
+            if (is_array($sourceFields) && $sourceFields !== []) {
+                $safeReferenceSources[] = [
+                    'id' => $summary['id'] ?? null,
+                    'status' => $summary['status'] ?? null,
+                    'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                    'sourceFields' => $sourceFields,
+                ];
+                foreach ($sourceFields as $sourceField) {
+                    if (!is_array($sourceField)) {
+                        continue;
+                    }
+                    self::appendJatsReferenceTextBucket(
+                        $referenceSourceBuckets,
+                        $summary,
+                        $sourceField,
+                        (string) ($sourceField['value'] ?? '')
+                    );
+                }
+            } elseif (($summary['citationElementNames'] ?? []) !== []) {
+                $referencesMissingSources[] = [
+                    'id' => $summary['id'] ?? null,
+                    'status' => $summary['status'] ?? null,
+                    'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+                    'citationElementNames' => $summary['citationElementNames'] ?? [],
+                ];
+            }
+            $referenceSourceType = $summary['referenceSourceType'] ?? null;
+            if (is_string($referenceSourceType) && $referenceSourceType !== '') {
+                $referenceSourceTypes[] = $referenceSourceType;
+                $referenceSourceTypeCounts[$referenceSourceType] = ($referenceSourceTypeCounts[$referenceSourceType] ?? 0) + 1;
             }
             $identifiers = $summary['identifiers'] ?? [];
             if (is_array($identifiers) && $identifiers !== []) {
@@ -6026,6 +6113,43 @@ final class XmlHtmlDom
 
         $duplicateReferenceIdentifiers = self::jatsDuplicateReferenceIdentifiers($referenceIdentifierBuckets);
         $referenceIdentifierSourceSummaries = self::jatsReferenceIdentifierSourceSummaries($referenceIdentifierSourceCounts);
+        $duplicateReferenceTitles = self::jatsDuplicateReferenceTextFields($referenceTitleBuckets);
+        $duplicateReferenceSources = self::jatsDuplicateReferenceTextFields($referenceSourceBuckets);
+        $referenceSourceTypeSummaries = self::jatsReferenceSourceTypeSummaries($referenceSourceTypeCounts);
+        $citationTargetLinkage = [
+            'resolvedReferenceIds' => $resolvedReferenceIds,
+            'resolvedBibrXrefCount' => count(array_filter(
+                $bibliographyXrefs,
+                static fn (array $xref): bool => (bool) $xref['resolved']
+            )),
+            'unresolvedReferenceIds' => $unresolvedReferenceIds,
+            'unresolvedBibrXrefCount' => count($bibliographyXrefs) - count(array_filter(
+                $bibliographyXrefs,
+                static fn (array $xref): bool => (bool) $xref['resolved']
+            )),
+            'unreferencedReferenceIds' => $unreferencedReferenceIds,
+            'unreferencedReferenceCount' => count($unreferencedReferenceIds),
+        ];
+        $referenceTitleSourceDiagnostics = self::jatsReferenceTitleSourceDiagnostics(
+            count($referenceElements),
+            array_sum(array_map(
+                static fn (array $summary): int => count($summary['titleFields'] ?? []),
+                $safeReferenceTitles
+            )),
+            array_sum(array_map(
+                static fn (array $summary): int => count($summary['sourceFields'] ?? []),
+                $safeReferenceSources
+            )),
+            count($referenceSourceTypeSummaries),
+            count($duplicateReferenceTitles),
+            count($duplicateReferenceSources),
+            count($referencesMissingTitles),
+            count($referencesMissingSources),
+            $citationTargetLinkage['resolvedBibrXrefCount'],
+            $citationTargetLinkage['unresolvedBibrXrefCount'],
+            $citationTargetLinkage['unreferencedReferenceCount'],
+            $blockedCitationTextPayloadCount
+        );
 
         return [
             'refLists' => $refLists,
@@ -6050,6 +6174,33 @@ final class XmlHtmlDom
                 static fn (array $summary): int => count($summary['years'] ?? []),
                 $safeReferenceYears
             )),
+            'safeReferenceTitles' => $safeReferenceTitles,
+            'safeReferenceTitleFieldCount' => array_sum(array_map(
+                static fn (array $summary): int => count($summary['titleFields'] ?? []),
+                $safeReferenceTitles
+            )),
+            'safeReferenceSources' => $safeReferenceSources,
+            'safeReferenceSourceCount' => array_sum(array_map(
+                static fn (array $summary): int => count($summary['sourceFields'] ?? []),
+                $safeReferenceSources
+            )),
+            'referenceSourceTypes' => self::jatsUniqueNonEmptyStrings($referenceSourceTypes),
+            'referenceSourceTypeSummaries' => $referenceSourceTypeSummaries,
+            'referenceSourceTypeSummaryCount' => count($referenceSourceTypeSummaries),
+            'duplicateReferenceTitles' => $duplicateReferenceTitles,
+            'duplicateReferenceTitleCount' => count($duplicateReferenceTitles),
+            'duplicateReferenceSources' => $duplicateReferenceSources,
+            'duplicateReferenceSourceCount' => count($duplicateReferenceSources),
+            'referencesMissingTitles' => $referencesMissingTitles,
+            'referencesMissingTitleCount' => count($referencesMissingTitles),
+            'referencesMissingSources' => $referencesMissingSources,
+            'referencesMissingSourceCount' => count($referencesMissingSources),
+            'referenceTitleSourceDiagnostics' => $referenceTitleSourceDiagnostics,
+            'referenceTitleSourceDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $referenceTitleSourceDiagnostics
+            ),
+            'referenceTitleSourceDiagnosticCount' => count($referenceTitleSourceDiagnostics),
             'referenceIdentifiers' => $referenceIdentifiers,
             'referenceIdentifierCount' => count($referenceIdentifiers),
             'referenceIdentifierTypes' => self::jatsUniqueNonEmptyStrings($referenceIdentifierTypes),
@@ -6065,12 +6216,13 @@ final class XmlHtmlDom
             'blockedCitationTextPayloadElementNames' => array_values(array_unique($blockedCitationTextPayloadElementNames)),
             'bibliographyXrefs' => $bibliographyXrefs,
             'bibliographyXrefCount' => count($bibliographyXrefs),
+            'citationTargetLinkage' => $citationTargetLinkage,
             'resolvedReferenceIds' => $resolvedReferenceIds,
-            'resolvedBibrXrefCount' => $resolvedBibrXrefCount,
+            'resolvedBibrXrefCount' => $citationTargetLinkage['resolvedBibrXrefCount'],
             'unresolvedReferenceIds' => $unresolvedReferenceIds,
-            'unresolvedBibrXrefCount' => count($bibliographyXrefs) - $resolvedBibrXrefCount,
+            'unresolvedBibrXrefCount' => $citationTargetLinkage['unresolvedBibrXrefCount'],
             'unreferencedReferenceIds' => $unreferencedReferenceIds,
-            'unreferencedReferenceCount' => count($unreferencedReferenceIds),
+            'unreferencedReferenceCount' => $citationTargetLinkage['unreferencedReferenceCount'],
             'missingIdReferenceCount' => $missingIdReferenceCount,
             'referenceMetadataSummaryCount' => count($references),
         ];
@@ -6114,6 +6266,8 @@ final class XmlHtmlDom
         $authors = self::jatsReferenceAuthorSummaries($reference);
         $dates = self::jatsReferenceDateSummaries($reference);
         $years = self::jatsReferenceYears($reference);
+        $titleFields = self::jatsReferenceTitleFieldSummaries($reference);
+        $sourceFields = self::jatsReferenceSourceFieldSummaries($reference);
         $identifiers = self::jatsReferenceIdentifierSummaries($reference);
         $text = self::normalizedText($reference);
 
@@ -6131,7 +6285,16 @@ final class XmlHtmlDom
             'publicationTypes' => self::jatsUniqueNonEmptyStrings($publicationTypes),
             'publicationIds' => self::jatsTypedTextRecords($reference, ['pub-id'], ['pub-id-type']),
             'articleTitle' => self::jatsFirstText($reference, ['article-title']),
+            'articleTitles' => self::jatsReferenceFieldValues($titleFields, 'article-title'),
+            'chapterTitle' => self::jatsFirstText($reference, ['chapter-title']),
+            'chapterTitles' => self::jatsReferenceFieldValues($titleFields, 'chapter-title'),
             'sourceTitle' => self::jatsFirstText($reference, ['source', 'journal-title', 'book-title']),
+            'sourceTitles' => self::jatsReferenceFieldValues($sourceFields, 'source'),
+            'titleFields' => $titleFields,
+            'titleFieldCount' => count($titleFields),
+            'sourceFields' => $sourceFields,
+            'sourceFieldCount' => count($sourceFields),
+            'referenceSourceType' => self::jatsReferenceSourceType($publicationTypes, $titleFields, $sourceFields),
             'year' => self::jatsFirstText($reference, ['year']),
             'years' => $years,
             'yearCount' => count($years),
@@ -6158,6 +6321,352 @@ final class XmlHtmlDom
             'textLength' => strlen($text),
             'textSha256' => hash('sha256', $text),
         ];
+    }
+
+    /**
+     * @return list<array{element:string, value:string, sourceType:?string, sourceCitationElement:?string}>
+     */
+    private static function jatsReferenceTitleFieldSummaries(\DOMElement $reference): array
+    {
+        $fields = [];
+        foreach (self::descendantElements($reference) as $element) {
+            if (!in_array($element->localName, ['article-title', 'chapter-title'], true)) {
+                continue;
+            }
+
+            $value = self::normalizedText($element);
+            if ($value === '') {
+                continue;
+            }
+
+            $fields[] = [
+                'element' => $element->localName,
+                'value' => $value,
+                'sourceType' => self::jatsReferenceFieldSourceType($element),
+                'sourceCitationElement' => self::jatsNearestAncestorElementName($element, [
+                    'element-citation',
+                    'mixed-citation',
+                    'nlm-citation',
+                ]),
+            ];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @return list<array{element:string, value:string, sourceType:?string, sourceCitationElement:?string}>
+     */
+    private static function jatsReferenceSourceFieldSummaries(\DOMElement $reference): array
+    {
+        $fields = [];
+        foreach (self::descendantElements($reference, 'source') as $element) {
+            $value = self::normalizedText($element);
+            if ($value === '') {
+                continue;
+            }
+
+            $fields[] = [
+                'element' => $element->localName,
+                'value' => $value,
+                'sourceType' => self::jatsReferenceFieldSourceType($element),
+                'sourceCitationElement' => self::jatsNearestAncestorElementName($element, [
+                    'element-citation',
+                    'mixed-citation',
+                    'nlm-citation',
+                ]),
+            ];
+        }
+
+        return $fields;
+    }
+
+    private static function jatsReferenceFieldSourceType(\DOMElement $field): ?string
+    {
+        foreach (['source-type', 'publication-type', 'content-type', 'specific-use'] as $attribute) {
+            $value = self::jatsTrimmedAttribute($field, $attribute);
+            if ($value !== null) {
+                return self::jatsReferenceNormalizedType($value);
+            }
+        }
+
+        $parent = $field->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (in_array($parent->localName, ['element-citation', 'mixed-citation', 'nlm-citation'], true)) {
+                $publicationType = self::jatsTrimmedAttribute($parent, 'publication-type');
+
+                return $publicationType === null ? null : self::jatsReferenceNormalizedType($publicationType);
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private static function jatsReferenceNormalizedType(string $type): string
+    {
+        $normalized = strtolower(trim(preg_replace('/[ \t\r\n\f_]+/u', '-', $type) ?? $type));
+        $normalized = trim((string) preg_replace('/-+/', '-', $normalized), '-');
+
+        return $normalized === '' ? 'unspecified' : $normalized;
+    }
+
+    /**
+     * @param list<string> $publicationTypes
+     * @param list<array{element:string, value:string, sourceType:?string, sourceCitationElement:?string}> $titleFields
+     * @param list<array{element:string, value:string, sourceType:?string, sourceCitationElement:?string}> $sourceFields
+     */
+    private static function jatsReferenceSourceType(array $publicationTypes, array $titleFields, array $sourceFields): ?string
+    {
+        foreach ([...$sourceFields, ...$titleFields] as $field) {
+            $sourceType = $field['sourceType'] ?? null;
+            if (is_string($sourceType) && $sourceType !== '') {
+                return $sourceType;
+            }
+        }
+
+        foreach ($publicationTypes as $publicationType) {
+            if ($publicationType !== '') {
+                return self::jatsReferenceNormalizedType($publicationType);
+            }
+        }
+
+        if ($titleFields !== [] && $sourceFields !== []) {
+            $hasChapterTitle = count(self::jatsReferenceFieldValues($titleFields, 'chapter-title')) > 0;
+
+            return $hasChapterTitle ? 'book-chapter' : 'article-container';
+        }
+        if ($sourceFields !== []) {
+            return 'source-only';
+        }
+        if ($titleFields !== []) {
+            return 'title-only';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{element:string, value:string, sourceType:?string, sourceCitationElement:?string}> $fields
+     * @return list<string>
+     */
+    private static function jatsReferenceFieldValues(array $fields, string $element): array
+    {
+        $values = [];
+        foreach ($fields as $field) {
+            if ($field['element'] === $element) {
+                $values[] = $field['value'];
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $buckets
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $field
+     */
+    private static function appendJatsReferenceTextBucket(array &$buckets, array $summary, array $field, string $value): void
+    {
+        $key = self::jatsReferenceTextKey($value);
+        if ($key === '') {
+            return;
+        }
+
+        $buckets[$key][] = [
+            'id' => $summary['id'] ?? null,
+            'status' => $summary['status'] ?? null,
+            'inboundBibrXrefCount' => $summary['inboundBibrXrefCount'] ?? 0,
+            'element' => $field['element'] ?? null,
+            'value' => $value,
+            'sourceType' => $field['sourceType'] ?? null,
+            'sourceCitationElement' => $field['sourceCitationElement'] ?? null,
+        ];
+    }
+
+    private static function jatsReferenceTextKey(string $value): string
+    {
+        $normalized = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $value) ?? $value);
+        if ($normalized === '') {
+            return '';
+        }
+
+        return function_exists('mb_strtolower')
+            ? mb_strtolower($normalized, 'UTF-8')
+            : strtolower($normalized);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $buckets
+     * @return list<array{value:string, normalizedValueSha256:string, referenceIds:list<string>, referenceCount:int, sourceCount:int, elements:list<string>, sourceTypes:list<string>}>
+     */
+    private static function jatsDuplicateReferenceTextFields(array $buckets): array
+    {
+        $duplicates = [];
+        ksort($buckets);
+        foreach ($buckets as $key => $fields) {
+            if (count($fields) < 2) {
+                continue;
+            }
+
+            $referenceIds = [];
+            $elements = [];
+            $sourceTypes = [];
+            foreach ($fields as $field) {
+                $id = $field['id'] ?? null;
+                if (is_string($id) && $id !== '') {
+                    $referenceIds[] = $id;
+                }
+                $element = $field['element'] ?? null;
+                if (is_string($element) && $element !== '') {
+                    $elements[] = $element;
+                }
+                $sourceType = $field['sourceType'] ?? null;
+                if (is_string($sourceType) && $sourceType !== '') {
+                    $sourceTypes[] = $sourceType;
+                }
+            }
+
+            $duplicates[] = [
+                'value' => (string) ($fields[0]['value'] ?? ''),
+                'normalizedValueSha256' => hash('sha256', $key),
+                'referenceIds' => array_values(array_unique($referenceIds)),
+                'referenceCount' => count(array_unique($referenceIds)),
+                'sourceCount' => count($fields),
+                'elements' => array_values(array_unique($elements)),
+                'sourceTypes' => array_values(array_unique($sourceTypes)),
+            ];
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * @param array<string, int> $sourceTypeCounts
+     * @return list<array{sourceType:string, referenceCount:int}>
+     */
+    private static function jatsReferenceSourceTypeSummaries(array $sourceTypeCounts): array
+    {
+        $summaries = [];
+        ksort($sourceTypeCounts);
+        foreach ($sourceTypeCounts as $sourceType => $count) {
+            $summaries[] = [
+                'sourceType' => $sourceType,
+                'referenceCount' => $count,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function jatsReferenceTitleSourceDiagnostics(
+        int $referenceCount,
+        int $safeReferenceTitleFieldCount,
+        int $safeReferenceSourceCount,
+        int $referenceSourceTypeSummaryCount,
+        int $duplicateReferenceTitleCount,
+        int $duplicateReferenceSourceCount,
+        int $referencesMissingTitleCount,
+        int $referencesMissingSourceCount,
+        int $resolvedBibrXrefCount,
+        int $unresolvedBibrXrefCount,
+        int $unreferencedReferenceCount,
+        int $blockedCitationTextPayloadCount
+    ): array {
+        if ($referenceCount === 0) {
+            return [];
+        }
+
+        $diagnostics = [
+            self::jatsDirectReaderDiagnostic(
+                'reference-title-source-policy',
+                'warning',
+                'Reference article-title, chapter-title, and source fields are exposed as bounded summaries while citation text payloads stay blocked.',
+                false,
+                true,
+                [
+                    'referenceCount' => $referenceCount,
+                    'safeReferenceTitleFieldCount' => $safeReferenceTitleFieldCount,
+                    'safeReferenceSourceCount' => $safeReferenceSourceCount,
+                    'referenceSourceTypeSummaryCount' => $referenceSourceTypeSummaryCount,
+                    'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+                ]
+            ),
+            self::jatsDirectReaderDiagnostic(
+                'reference-citation-target-linkage',
+                'warning',
+                'Bibliography xref targets are linked to reference title/source summaries without exposing raw citation payload text.',
+                false,
+                true,
+                [
+                    'resolvedBibrXrefCount' => $resolvedBibrXrefCount,
+                    'unresolvedBibrXrefCount' => $unresolvedBibrXrefCount,
+                    'unreferencedReferenceCount' => $unreferencedReferenceCount,
+                ]
+            ),
+        ];
+
+        if ($duplicateReferenceTitleCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-titles-duplicate',
+                'warning',
+                'Duplicate reference article-title or chapter-title values were found across back-matter references.',
+                false,
+                true,
+                [
+                    'duplicateReferenceTitleCount' => $duplicateReferenceTitleCount,
+                    'safeReferenceTitleFieldCount' => $safeReferenceTitleFieldCount,
+                ]
+            );
+        }
+
+        if ($duplicateReferenceSourceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-sources-duplicate',
+                'warning',
+                'Duplicate reference source values were found across back-matter references.',
+                false,
+                true,
+                [
+                    'duplicateReferenceSourceCount' => $duplicateReferenceSourceCount,
+                    'safeReferenceSourceCount' => $safeReferenceSourceCount,
+                ]
+            );
+        }
+
+        if ($referencesMissingTitleCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-titles-missing',
+                'warning',
+                'Some citation-bearing references do not expose article-title or chapter-title metadata.',
+                false,
+                true,
+                [
+                    'referencesMissingTitleCount' => $referencesMissingTitleCount,
+                    'referenceCount' => $referenceCount,
+                ]
+            );
+        }
+
+        if ($referencesMissingSourceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-sources-missing',
+                'warning',
+                'Some citation-bearing references do not expose source metadata.',
+                false,
+                true,
+                [
+                    'referencesMissingSourceCount' => $referencesMissingSourceCount,
+                    'referenceCount' => $referenceCount,
+                ]
+            );
+        }
+
+        return $diagnostics;
     }
 
     /**

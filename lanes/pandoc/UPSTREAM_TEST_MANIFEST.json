@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3380,
-        "latestSlice": "pandoc-cross-format-evidence-refinery-batch maps 4 native PHP cross-format evidence cases on current main ba742c66 after the wiki-family unsupported reason registry matrix: HTML table header provenance, CSL translated-title raw provenance, ODF media role conflict diagnostics, and MediaBag repair conflict diagnostics. phpPass moves 3421 -> 3425, phpFail remains 0, mapped upstream cases move 3377 -> 3380, mappedPandocCrossFormatEvidenceBatchCases is 4, and pandocCrossFormatEvidenceBatchAssertions is 135. Verification passed php -l for changed PHP files; jq empty for lane-status and UPSTREAM_TEST_MANIFEST; git diff --check; conflict scan clean; focused changed test set passed 4 files, 13409 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79273 assertions, 0 failures. No Pandoc binary, browser renderer, office suite, zip/unzip, CSL processor, online service, live provider test, or external validator was invoked.",
+        "mapped": 3381,
+        "latestSlice": "pandoc-xml-jats-reference-title-source-diagnostics maps one XML/HTML5 DOM JATS/BITS reference title/source diagnostics slice on current main a1ff2bfc after the wide format evidence slices. XmlHtmlDomTest covers bounded article-title, chapter-title, and source summaries, source-type buckets, duplicate title/source signals, missing title/source diagnostics, and bibr citation target linkage while raw citation payload text stays blocked and directReaderParity remains false without invoking Pandoc, XML validators, browsers, Node tooling, online services, live provider tests, or external validators. Mapped upstream cases move 3380 -> 3381, mappedXmlHtmlDomJatsReferenceTitleSourceCases is 1, and xmlHtmlDomJatsReferenceTitleSourceAssertions is 61. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; jq empty lane-status/UPSTREAM_TEST_MANIFEST; focused XmlHtmlDomTest.php passed 1 file, 3244 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79505 assertions, 0 failures after rebase onto current main a1ff2bfc.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -42,8 +42,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc cross-format evidence refinery batch is verified over current main ba742c66 after the wiki-family unsupported reason registry matrix; HTML/XML, CSL, ODF, and MediaBag surfaces remain partial where broader parity is outside the native PHP no-external-tooling policy.",
-        "latestFocusedSource": "2026-06-13 cross-format evidence refinery batch inspected HTML table header provenance, CSL translated-title raw provenance, ODF media role conflict diagnostics, and MediaBag repair conflict diagnostics against the accepted static Pandoc inventory after refresh onto current main ba742c66 following the wiki-family unsupported reason registry matrix; focused changed tests passed 4 files, 13409 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79273 assertions, 0 failures.",
+        "status": "JATS/BITS reference title/source diagnostics are verified over current main a1ff2bfc after the wide format evidence slices; XML/HTML5 DOM direct reader parity remains partial, not ship-ready.",
+        "latestFocusedSource": "2026-06-13 JATS/BITS reference title/source diagnostics inspected XmlHtmlDom bounded article-title/chapter-title/source summaries against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main a1ff2bfc following the wide format evidence slices; focused XmlHtmlDomTest.php passed 1 file, 3244 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79505 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -335,7 +335,9 @@
         "mappedDocBookListMetadataCases": 1,
         "docBookListMetadataAssertions": 32,
         "mappedCsvTsvMultilineQuotedRecordDiagnosticsCases": 2,
-        "csvTsvMultilineQuotedRecordDiagnosticsAssertions": 44
+        "csvTsvMultilineQuotedRecordDiagnosticsAssertions": 44,
+        "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
+        "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1318,7 +1320,9 @@
         "mappedXmlHtmlDomTableFosterParentingCases": 1,
         "xmlHtmlDomTableFosterParentingAssertions": 20,
         "mappedXmlHtmlDomJatsRelationshipDiagnosticCases": 1,
-        "xmlHtmlDomJatsRelationshipDiagnosticAssertions": 28
+        "xmlHtmlDomJatsRelationshipDiagnosticAssertions": 28,
+        "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
+        "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61
     },
     "wordpressScenario": "Cross-format evidence packets preserve HTML table, CSL, ODF media-role, and MediaBag repair provenance while keeping handoff paths native and external-tool-free.",
     "nextTask": "Continue the next bounded PDF/Typst, DOCX/OpenXML, EPUB3, shared ZIP/OPC, JSON/native, citation, XML/HTML5 DOM, DocBook, table, CSV/TSV, IPYNB, or format-registry parity blocker slice while keeping phpFail at zero.",
@@ -1822,5 +1826,7 @@
     "mappedPandocFormatRegistryWikiExtensionAliasStatusCases": 1,
     "pandocFormatRegistryWikiExtensionAliasStatusAssertions": 103,
     "mappedTypstImportPathPolicyCases": 1,
-    "typstImportPathPolicyAssertions": 47
+    "typstImportPathPolicyAssertions": 47,
+    "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
+    "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61
 }
