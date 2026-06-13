@@ -788,9 +788,19 @@ final class XmlHtmlDom
         $bookIds = $metadata instanceof \DOMElement
             ? self::jatsTypedTextRecords($metadata, ['book-id'], ['book-id-type', 'pub-id-type'])
             : [];
+        $titleMetadata = $metadata instanceof \DOMElement
+            ? self::jatsFirstTextRecord($metadata, ['article-title', 'book-title', 'title'])
+            : null;
+        $subtitleMetadata = $metadata instanceof \DOMElement
+            ? self::jatsFirstTextRecord($metadata, ['subtitle'])
+            : null;
         $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
         $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
+        $sectionTitlePaths = array_values(array_filter(
+            array_map(static fn (array $section): array => $section['titlePath'], $sections),
+            static fn (array $path): bool => $path !== []
+        ));
         $bookParts = self::jatsBookPartSummaries($root);
         $elementIdMap = self::jatsElementIdMap($root);
         $xrefs = self::jatsXrefSummaries($root, $elementIdMap);
@@ -851,10 +861,10 @@ final class XmlHtmlDom
                 ?? self::attribute($root, 'lang'),
             'metadataRoot' => $metadata instanceof \DOMElement ? $metadata->localName : null,
             'hasFrontMatter' => $metadata instanceof \DOMElement,
-            'title' => $metadata instanceof \DOMElement
-                ? self::jatsFirstText($metadata, ['article-title', 'book-title', 'title'])
-                : null,
-            'subtitle' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['subtitle']) : null,
+            'title' => $titleMetadata['text'] ?? null,
+            'titleMetadata' => $titleMetadata,
+            'subtitle' => $subtitleMetadata['text'] ?? null,
+            'subtitleMetadata' => $subtitleMetadata,
             'journalTitle' => self::jatsFirstText($root, ['journal-title']),
             'publisherName' => self::jatsFirstText($root, ['publisher-name']),
             'articleIds' => $articleIds,
@@ -889,6 +899,11 @@ final class XmlHtmlDom
                 array_map(static fn (array $section): ?string => $section['title'], $sections),
                 static fn (?string $title): bool => $title !== null && $title !== ''
             )),
+            'sectionTitlePaths' => $sectionTitlePaths,
+            'sectionTitlePathText' => array_map(
+                static fn (array $path): string => implode(' > ', $path),
+                $sectionTitlePaths
+            ),
             'sections' => $sections,
             'xrefs' => $xrefs,
             'xrefTargets' => $xrefTargets,
@@ -1677,6 +1692,30 @@ final class XmlHtmlDom
     }
 
     /**
+     * @param list<string> $localNames
+     * @return array{element:string, text:string}|null
+     */
+    private static function jatsFirstTextRecord(\DOMElement $root, array $localNames): ?array
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstDescendantElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return [
+                    'element' => $localName,
+                    'text' => $text,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<string>
      */
     private static function jatsTextList(\DOMElement $root, string $localName): array
@@ -1829,28 +1868,38 @@ final class XmlHtmlDom
     {
         $sections = [];
         $ordinal = 1;
-        self::collectJatsSectionSummaries($body, 1, null, $ordinal, $sections);
+        self::collectJatsSectionSummaries($body, 1, null, [], $ordinal, $sections);
 
         return $sections;
     }
 
     /**
+     * @param list<string> $parentTitlePath
      * @param list<array<string, mixed>> $sections
      */
     private static function collectJatsSectionSummaries(
         \DOMElement $container,
         int $depth,
         ?string $parentId,
+        array $parentTitlePath,
         int &$ordinal,
         array &$sections
     ): void {
         foreach (self::childElements($container) as $child) {
             if ($child->localName !== 'sec') {
-                self::collectJatsSectionSummaries($child, $depth, $parentId, $ordinal, $sections);
+                self::collectJatsSectionSummaries($child, $depth, $parentId, $parentTitlePath, $ordinal, $sections);
                 continue;
             }
 
             $title = self::firstChildElement($child, 'title');
+            $titleText = $title instanceof \DOMElement ? self::normalizedText($title) : null;
+            if ($titleText === '') {
+                $titleText = null;
+            }
+            $titlePath = $parentTitlePath;
+            if ($titleText !== null) {
+                $titlePath[] = $titleText;
+            }
             $id = self::attribute($child, 'id');
             $sections[] = [
                 'ordinal' => $ordinal++,
@@ -1858,12 +1907,14 @@ final class XmlHtmlDom
                 'parentId' => $parentId,
                 'depth' => $depth,
                 'type' => self::attribute($child, 'sec-type'),
-                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
+                'title' => $titleText,
+                'titlePath' => $titlePath,
+                'titlePathText' => $titlePath === [] ? null : implode(' > ', $titlePath),
                 'directParagraphCount' => count(self::childElements($child, 'p')),
                 'paragraphCount' => count(self::descendantElements($child, 'p')),
                 'childSectionCount' => count(self::childElements($child, 'sec')),
             ];
-            self::collectJatsSectionSummaries($child, $depth + 1, $id, $ordinal, $sections);
+            self::collectJatsSectionSummaries($child, $depth + 1, $id, $titlePath, $ordinal, $sections);
         }
     }
 
