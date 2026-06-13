@@ -9974,6 +9974,158 @@ XML;
         $t->same('undeclared-package-entry-no-bytes', $undeclared['byteExposurePolicy']);
         $t->same(['odf-manifest-undeclared-package-entry'], $undeclared['diagnostics']);
     },
+    'preserves ODT sidecar blocked-byte provenance and package ordering' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $stylesXml, $metaXml): void {
+        $declaredImage = 'DECLAREDPNG';
+        $unsupportedImage = 'WEBP-BYTES';
+        $basicModuleXml = <<<'XML'
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review" script:language="StarBasic">Sub Approve
+End Sub</script:module>
+XML;
+        $rdfXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="Pictures/declared.png">
+    <dc:format>image/png</dc:format>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+        $contentWithBasicReference = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Macro <text:a xlink:href="https://example.test/review.odt"><office:event-listeners><script:event-listener script:event-name="dom:activate" script:language="ooo:Basic" xlink:href="vnd.sun.star.script:Standard.Review.Approve?language=Basic&amp;location=document" xlink:type="simple"/></office:event-listeners>review</text:a> remains inert.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $manifestWithSidecars = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Basic/" manifest:media-type=""/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml" manifest:size="144"/>
+  <manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/declared.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/unsupported.webp" manifest:media-type="image/webp"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithSidecars, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentWithBasicReference, 'compressionMethod' => 0],
+            ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+            ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/declared.png', 'data' => $declaredImage, 'compressionMethod' => 0],
+            ['name' => 'Pictures/unsupported.webp', 'data' => $unsupportedImage, 'compressionMethod' => 12],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 8],
+        ];
+        $centralOrder = [
+            'mimetype',
+            'content.xml',
+            'Basic/Standard/Review.xml',
+            'manifest.rdf',
+            'Pictures/unsupported.webp',
+            'Pictures/declared.png',
+            'styles.xml',
+            'meta.xml',
+            'Basic/',
+            'META-INF/manifest.xml',
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, $centralOrder));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $scriptByPart = [];
+        foreach ($result['scriptMetadata']['parts'] as $item) {
+            $scriptByPart[$item['part']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $inventory = $provenance['parts'];
+        $compression = $provenance['compressionMethods'];
+        $rdfPart = $result['rdfMetadata']['parts'][0];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(['/', 'content.xml', 'Basic/', 'Basic/Standard/Review.xml', 'manifest.rdf', 'Pictures/declared.png', 'Pictures/missing.png', 'Pictures/unsupported.webp', 'styles.xml', 'meta.xml'], array_column($provenance['manifestFileEntryOrder'], 'fullPath'));
+        $t->same(array_column($parts, 'name'), $provenance['localHeaderOrder']['localHeaderOrderNames']);
+        $t->same($centralOrder, $provenance['localHeaderOrder']['centralDirectoryOrderNames']);
+        $t->same(true, $provenance['localHeaderOrder']['hasCentralDirectoryOrderMismatch']);
+        $t->same(['Pictures/declared.png', 'Pictures/missing.png', 'Pictures/unsupported.webp'], array_column($result['media'], 'part'));
+        $t->same(['Pictures/missing.png'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
+
+        $t->same('package-bytes-exposable', $manifestByPart['Pictures/declared.png']['byteExposurePolicy']);
+        $t->same(true, $mediaByPart['Pictures/declared.png']['canExposeBytes']);
+        $t->same(strlen($declaredImage), $mediaByPart['Pictures/declared.png']['byteLength']);
+        $t->same(hash('sha256', $declaredImage), $mediaByPart['Pictures/declared.png']['byteSha256']);
+        $t->same('missing-package-part', $manifestByPart['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same(false, $mediaByPart['Pictures/missing.png']['exists']);
+        $t->same(null, $mediaByPart['Pictures/missing.png']['byteLength']);
+        $t->same(null, $mediaByPart['Pictures/missing.png']['byteSha256']);
+        $t->same('unsupported-compression-bytes-blocked', $manifestByPart['Pictures/unsupported.webp']['byteExposurePolicy']);
+        $t->same(false, $manifestByPart['Pictures/unsupported.webp']['canExposeBytes']);
+        $t->same(null, $manifestByPart['Pictures/unsupported.webp']['byteLength']);
+        $t->same(strlen($unsupportedImage), $manifestByPart['Pictures/unsupported.webp']['storedByteLength']);
+        $t->same(12, $manifestByPart['Pictures/unsupported.webp']['compressionMethod']);
+        $t->same('unsupported', $manifestByPart['Pictures/unsupported.webp']['compressionMethodName']);
+        $t->same(null, $manifestByPart['Pictures/unsupported.webp']['byteSha256']);
+        $t->same(false, $mediaByPart['Pictures/unsupported.webp']['canExposeBytes']);
+        $t->same(null, $mediaByPart['Pictures/unsupported.webp']['crc32']);
+        $t->same(sprintf('%08x', crc32($unsupportedImage)), $mediaByPart['Pictures/unsupported.webp']['storedCrc32']);
+        $t->same(1, $compression['unsupportedCompressionMethodCount']);
+        $t->same('Pictures/unsupported.webp', $compression['unsupportedEntries'][0]['name']);
+
+        $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Review.xml']['byteExposurePolicy']);
+        $t->same(false, $manifestByPart['Basic/Standard/Review.xml']['canExposeBytes']);
+        $t->same(null, $manifestByPart['Basic/Standard/Review.xml']['byteSha256']);
+        $t->same('basic-module', $scriptByPart['Basic/Standard/Review.xml']['kind']);
+        $t->same(true, $scriptByPart['Basic/Standard/Review.xml']['referenced']);
+        $t->same(false, $scriptByPart['Basic/Standard/Review.xml']['canExposeBytes']);
+        $t->same(null, $scriptByPart['Basic/Standard/Review.xml']['byteLength']);
+        $t->same(strlen($basicModuleXml), $scriptByPart['Basic/Standard/Review.xml']['storedByteLength']);
+        $t->same(['vnd.sun.star.script:Standard.Review.Approve?language=Basic&location=document'], $scriptByPart['Basic/Standard/Review.xml']['hrefs']);
+
+        $t->same('rdf-metadata-bytes-blocked', $manifestByPart['manifest.rdf']['byteExposurePolicy']);
+        $t->same(false, $manifestByPart['manifest.rdf']['canExposeBytes']);
+        $t->same(null, $manifestByPart['manifest.rdf']['byteSha256']);
+        $t->same('rdf-metadata-bytes-blocked', $rdfPart['byteExposurePolicy']);
+        $t->same('rdf-metadata-only', $rdfPart['reviewPolicy']);
+        $t->same(false, $rdfPart['canExposeBytes']);
+        $t->same(null, $rdfPart['byteLength']);
+        $t->same(strlen($rdfXml), $rdfPart['storedByteLength']);
+        $t->same(1, $rdfPart['tripleCount']);
+
+        $t->same(['zip-directory', 'manifest-declared', 'script-package'], $inventory['Basic/']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $inventory['Basic/Standard/Review.xml']['roles']);
+        $t->same(['rdf-metadata', 'manifest-declared'], $inventory['manifest.rdf']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $inventory['Pictures/unsupported.webp']['roles']);
+        $t->same('unsupported-compression-bytes-blocked', $inventory['Pictures/unsupported.webp']['byteExposurePolicy']);
+        $t->same(null, $inventory['Pictures/unsupported.webp']['byteSha256']);
+        $t->same(2, $provenance['roleCounts']['script-package']);
+        $t->same(1, $provenance['roleCounts']['rdf-metadata']);
+        $t->same(2, $provenance['roleCounts']['media-resource']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Macro <a href="https://example.test/review.odt"', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'Sub Approve'), 'Basic macro source bytes must stay out of WordPress output');
+        $t->true(!str_contains($blocksHtml, 'WEBP-BYTES'), 'Unsupported-compression media bytes must stay out of WordPress output');
+    },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
@@ -10102,7 +10254,11 @@ XML;
         $t->same(null, $part['mediaType']);
         $t->same(true, $part['exists']);
         $t->same(true, $part['parseable']);
-        $t->same(strlen($rdfXml), $part['byteLength']);
+        $t->same(false, $part['canExposeBytes']);
+        $t->same(null, $part['byteLength']);
+        $t->same(strlen($rdfXml), $part['storedByteLength']);
+        $t->same('rdf-metadata-bytes-blocked', $part['byteExposurePolicy']);
+        $t->same('rdf-metadata-only', $part['reviewPolicy']);
 
         $subject = $rdf['subjectsBySubject']['meta.xml'];
         $t->same(2, $subject['tripleCount']);
