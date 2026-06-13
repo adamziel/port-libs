@@ -28799,6 +28799,171 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
     },
+    'parses bounded endnote xml name groups with raw diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <database name="WordPress Review Library"/>
+      <ref-type name="Journal Article">17</ref-type>
+      <rec-number>77</rec-number>
+      <accession-num>endnote-name-groups</accession-num>
+      <contributors>
+        <authors>
+          <author>
+            <last-name>Ng</last-name>
+            <first-name>Nia</first-name>
+          </author>
+          <author corporate="true">Migration Review Desk</author>
+          <author>Roe,</author>
+          <author>
+            <last-name></last-name>
+            <first-name></first-name>
+          </author>
+        </authors>
+        <secondary-authors>
+          <author>Editor, Eli</author>
+        </secondary-authors>
+        <editors>
+          <editor>
+            <last-name>Curator</last-name>
+            <first-name>Cory</first-name>
+          </editor>
+          <editor>
+            <first-name>GivenOnly</first-name>
+          </editor>
+        </editors>
+      </contributors>
+      <titles>
+        <title>EndNote XML Name Diagnostics Packet</title>
+        <secondary-title>Journal of Import Diagnostics</secondary-title>
+      </titles>
+      <periodical>
+        <abbr-1>J. Import Diagn.</abbr-1>
+      </periodical>
+      <dates>
+        <year>2026</year>
+      </dates>
+      <volume>8</volume>
+      <number>1</number>
+      <pages>51-55</pages>
+      <electronic-resource-num>10.5555/endnote-names</electronic-resource-num>
+      <urls>
+        <related-urls>
+          <url>https://example.test/endnote-names</url>
+        </related-urls>
+        <pdf-urls>
+          <url>internal-pdf://review-library/endnote-names.pdf</url>
+        </pdf-urls>
+      </urls>
+      <keywords>
+        <keyword>endnote</keyword>
+        <keyword>names</keyword>
+      </keywords>
+      <custom1>Reviewer name group note</custom1>
+      <custom2>Raw custom value</custom2>
+      <research-notes>Preserve this research note</research-notes>
+    </record>
+  </records>
+</xml>
+XML;
+
+        $items = CitationCslProcessor::endnoteXmlItems($xml);
+        $t->same(1, count($items));
+        $item = $items[0];
+        $t->same('endnote-name-groups', $item['id']);
+        $t->same('article-journal', $item['type']);
+        $t->same('EndNote XML Name Diagnostics Packet', $item['title']);
+        $t->same('Journal of Import Diagnostics', $item['container-title']);
+        $t->same('51-55', $item['page']);
+        $t->same([2026], $item['issued']['date-parts'][0]);
+        $t->same(['endnote', 'names'], $item['keyword']);
+        $t->same('Ng', $item['author'][0]['family'] ?? null);
+        $t->same('Nia', $item['author'][0]['given'] ?? null);
+        $t->same('Migration Review Desk', $item['author'][1]['literal'] ?? null);
+        $t->same('Roe', $item['author'][2]['family'] ?? null);
+        $t->same(3, count($item['author']));
+        $t->same('Editor', $item['editor'][0]['family'] ?? null);
+        $t->same('Eli', $item['editor'][0]['given'] ?? null);
+        $t->same('Curator', $item['editor'][1]['family'] ?? null);
+        $t->same('GivenOnly', $item['editor'][2]['given'] ?? null);
+        $t->same('endnote-attachment-not-imported', $item['sourceFileDiagnostics'][0]['reason']);
+        $t->same('internal-pdf://review-library/endnote-names.pdf', $item['sourceFileDiagnostics'][0]['path']);
+        $t->same(['custom1', 'custom2', 'research-notes'], array_column($item['rawEndnoteXml']['unsupportedFields'], 'field'));
+        $t->same(['Reviewer name group note', 'Raw custom value', 'Preserve this research note'], array_column($item['rawEndnoteXml']['unsupportedFields'], 'value'));
+        $t->same([
+            'endnote-name-malformed-comma-parts',
+            'endnote-name-empty-structured-parts',
+            'endnote-name-missing-family',
+        ], array_column($item['rawEndnoteXml']['nameGroupDiagnostics'], 'reason'));
+        $t->same(
+            'endnote-name-empty-structured-parts: 1; endnote-name-malformed-comma-parts: 1; endnote-name-missing-family: 1',
+            $item['rawEndnoteXml']['nameGroupDiagnosticSummary']
+        );
+
+        $processor = CitationCslProcessor::fromEndnoteXml($xml);
+        $normalized = $processor->item('endnote-name-groups');
+        $t->same('Ng', $normalized['authors'][0]['family'] ?? null);
+        $t->same('Migration Review Desk', $normalized['authors'][1]['literal'] ?? null);
+        $t->same('Editor', $normalized['editors'][0]['family'] ?? null);
+        $t->same('Curator', $normalized['editors'][1]['family'] ?? null);
+        $t->same('GivenOnly', $normalized['editors'][2]['given'] ?? null);
+        $t->same('10.5555/endnote-names', $normalized['doi'] ?? null);
+        $t->same('endnote-attachment-not-imported', $normalized['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('custom1', $normalized['raw']['rawEndnoteXml']['unsupportedFields'][0]['field'] ?? null);
+        $t->same('endnote-name-empty-structured-parts: 1; endnote-name-malformed-comma-parts: 1; endnote-name-missing-family: 1', $normalized['raw']['rawEndnoteXml']['nameGroupDiagnosticSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded EndNote XML Name Group Review</title>
+    <id>https://example.test/styles/bounded-endnote-xml-name-group-review</id>
+    <updated>2026-06-13T05:12:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author" delimiter=", " et-al-min="10" et-al-use-first="9"/>
+        <names variable="editor" delimiter=", " et-al-min="10" et-al-use-first="9"/>
+        <text variable="source-file-diagnostic-reasons"/>
+        <text variable="locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="author" delimiter=", " et-al-min="10" et-al-use-first="9"/>
+      <names variable="editor" delimiter=", " et-al-min="10" et-al-use-first="9"/>
+      <text variable="source-file-diagnostic-reasons"/>
+      <text variable="keyword-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $locatorCitation = $citation('endnote-name-groups', '[@endnote-name-groups]', 'normal', ['prefix' => 'see', 'suffix' => 'sec. 4-5']);
+        $diagnostics = $processor->citationLocatorDiagnostics($locatorCitation);
+        $t->same(1, count($diagnostics));
+        $t->same('citation-locator-suffix-inferred', $diagnostics[0]['reason']);
+        $t->same('section', $diagnostics[0]['locatorLabel']);
+        $t->same('4-5', $diagnostics[0]['locatorValue']);
+        $t->same(
+            '[see Ng, Migration Review Desk, and Roe | Editor, Curator, and GivenOnly | endnote-attachment-not-imported | citation-locator-suffix-inferred]',
+            $styled->renderCitationCluster([$locatorCitation])
+        );
+        $t->same(
+            'EndNote XML Name Diagnostics Packet :: Ng, Nia, Migration Review Desk, Roe :: Editor, Eli, Curator, Cory, GivenOnly :: endnote-attachment-not-imported :: endnote; names',
+            $styled->renderBibliographyEntry('endnote-name-groups')
+        );
+
+        $document = (new MarkdownReader())->read('EndNote XML name import [see @endnote-name-groups, sec. 4-5].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>EndNote XML name import [see Ng, Migration Review Desk, and Roe | Editor, Curator, and GivenOnly | endnote-attachment-not-imported].</p>', $blocks);
+        $t->contains('<dt>Ng, Migration Review Desk, and Roe 2026</dt><dd>EndNote XML Name Diagnostics Packet :: Ng, Nia, Migration Review Desk, Roe :: Editor, Eli, Curator, Cory, GivenOnly :: endnote-attachment-not-imported :: endnote; names</dd>', $blocks);
+    },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
 TY  - JOUR
