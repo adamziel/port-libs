@@ -4141,6 +4141,116 @@ return [
             $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} edited citation drops stale record ordinal");
         }
     },
+    'preserves moved cite wrapper sidecars until citation records are edited' => static function (TestRunner $t): void {
+        $sourceInlines = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899;'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@doe1901]'],
+        ];
+        $firstRecord = [
+            'reviewQueue' => 'first-record-source',
+            'citationId' => 'smith1899',
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationNoteNum' => 1,
+            'citationHash' => 1899,
+        ];
+        $secondRecord = [
+            'reviewQueue' => 'second-record-source',
+            'citationId' => 'doe1901',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'AuthorInText'],
+            'citationNoteNum' => 2,
+            'citationHash' => 1901,
+        ];
+        $citeInline = [
+            't' => 'Cite',
+            'c' => [
+                [$firstRecord, $secondRecord],
+                $sourceInlines,
+            ],
+            'reviewQueue' => 'cite-wrapper-source',
+            'sourceOrdinal' => 88,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Original'],
+                    ['t' => 'Space'],
+                    $citeInline,
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $clusters = array_values(array_filter(
+                $document->children[0]->children,
+                static fn (AstNode $child): bool => $child->type === 'citation_group'
+            ));
+            $t->same(1, count($clusters), "{$source} contains one citation cluster");
+            $cluster = $clusters[0];
+            $moved = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Moved']),
+                    new AstNode('space'),
+                    $cluster,
+                ]),
+            ]);
+            $editedFirstCitation = new AstNode('citation', array_replace($cluster->children[0]->attrs, [
+                'citationHash' => 1999,
+            ]), $cluster->children[0]->children);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $cluster->attrs, [
+                        $editedFirstCitation,
+                        $cluster->children[1],
+                    ]),
+                ]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} citation cluster node");
+            $t->same($citeInline, $cluster->attr('native'), "{$source} records cite wrapper native sidecar payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($moved),
+                'native' => json_decode((new NativeWriter())->write($moved), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][2];
+
+                $t->same($citeInline, $encodedCite, "{$source} {$writer} writer preserves moved current cite wrapper sidecars");
+                $t->same('cite-wrapper-source', $encodedCite['reviewQueue'], "{$source} {$writer} writer keeps cite wrapper provenance");
+                $t->same(88, $encodedCite['sourceOrdinal'], "{$source} {$writer} writer keeps cite wrapper ordinal");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedCite = $encoded['blocks'][0]['c'][0];
+                $encodedRecords = $encodedCite['c'][0];
+
+                $t->same('Cite', $encodedCite['t'], "{$source} {$writer} edited cluster regenerates cite wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encodedCite), "{$source} {$writer} edited cluster drops stale cite wrapper provenance");
+                $t->same(false, array_key_exists('sourceOrdinal', $encodedCite), "{$source} {$writer} edited cluster drops stale cite wrapper ordinal");
+                $t->same(1999, $encodedRecords[0]['citationHash'], "{$source} {$writer} edited cluster emits edited citation hash");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecords[0]), "{$source} {$writer} edited cluster drops stale first-record provenance");
+                $t->same('second-record-source', $encodedRecords[1]['reviewQueue'], "{$source} {$writer} edited cluster preserves unchanged second-record provenance");
+            }
+        }
+    },
     'regenerates nullary inline constructors with stale native content sidecars' => static function (TestRunner $t): void {
         $spaceInline = ['t' => 'Space', 'c' => ['stale'], 'reviewQueue' => 'space-source'];
         $softBreakInline = ['t' => 'SoftBreak', 'c' => 'stale', 'reviewQueue' => 'softbreak-source'];
