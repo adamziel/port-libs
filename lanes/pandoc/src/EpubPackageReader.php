@@ -20,6 +20,7 @@ final class EpubPackageReader
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
+        $ncxReport = $this->ncxReport($ncx);
         $children = [];
 
         foreach ($package['spine'] as $spineItem) {
@@ -51,6 +52,7 @@ final class EpubPackageReader
                 'guide' => $package['guide'],
                 'toc' => $toc,
                 'ncx' => $ncx,
+                'ncxReport' => $ncxReport,
             ],
         ], $children);
     }
@@ -587,6 +589,79 @@ final class EpubPackageReader
     }
 
     /**
+     * @param list<array<string, mixed>> $points
+     * @return array<string, mixed>
+     */
+    private function ncxReport(array $points): array
+    {
+        $flat = [];
+        $this->flattenNcxPoints($points, $flat);
+        $diagnostics = [];
+        $seenTargets = [];
+        $previousPositivePlayOrder = null;
+        $missingPlayOrderCount = 0;
+        $nonIncreasingPlayOrderCount = 0;
+        $duplicateTargetCount = 0;
+
+        foreach ($flat as $index => $point) {
+            $playOrder = (int) ($point['playOrder'] ?? 0);
+            if ($playOrder <= 0) {
+                ++$missingPlayOrderCount;
+            } elseif ($previousPositivePlayOrder !== null && $playOrder <= $previousPositivePlayOrder) {
+                ++$nonIncreasingPlayOrderCount;
+                $diagnostics[] = [
+                    'type' => 'non-increasing-ncx-play-order',
+                    'index' => $index,
+                    'label' => (string) ($point['label'] ?? ''),
+                    'playOrder' => $playOrder,
+                    'previousPlayOrder' => $previousPositivePlayOrder,
+                    'path' => (string) ($point['path'] ?? ''),
+                    'fragment' => (string) ($point['fragment'] ?? ''),
+                ];
+            }
+
+            if ($playOrder > 0) {
+                $previousPositivePlayOrder = $playOrder;
+            }
+
+            $target = $this->ncxPointTarget($point);
+            if ($target === '') {
+                continue;
+            }
+            if (isset($seenTargets[$target])) {
+                ++$duplicateTargetCount;
+                $diagnostics[] = [
+                    'type' => 'duplicate-ncx-target',
+                    'index' => $index,
+                    'firstIndex' => $seenTargets[$target]['index'],
+                    'label' => (string) ($point['label'] ?? ''),
+                    'firstLabel' => $seenTargets[$target]['label'],
+                    'target' => $target,
+                    'path' => (string) ($point['path'] ?? ''),
+                    'fragment' => (string) ($point['fragment'] ?? ''),
+                ];
+                continue;
+            }
+
+            $seenTargets[$target] = [
+                'index' => $index,
+                'label' => (string) ($point['label'] ?? ''),
+            ];
+        }
+
+        return [
+            'pointCount' => count($flat),
+            'topLevelPointCount' => count($points),
+            'maxDepth' => $this->maxNcxDepth($points),
+            'missingPlayOrderCount' => $missingPlayOrderCount,
+            'nonIncreasingPlayOrderCount' => $nonIncreasingPlayOrderCount,
+            'duplicateTargetCount' => $duplicateTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @return list<AstNode>
      */
     private function readXhtmlDocument(string $root, string $path): array
@@ -1043,6 +1118,51 @@ final class EpubPackageReader
         }
 
         return $points;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $points
+     * @param list<array<string, mixed>> $flat
+     */
+    private function flattenNcxPoints(array $points, array &$flat, int $depth = 1): void
+    {
+        foreach ($points as $point) {
+            $entry = $point;
+            $entry['depth'] = $depth;
+            unset($entry['children']);
+            $flat[] = $entry;
+            $children = is_array($point['children'] ?? null) ? $point['children'] : [];
+            $this->flattenNcxPoints($children, $flat, $depth + 1);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $points
+     */
+    private function maxNcxDepth(array $points, int $depth = 1): int
+    {
+        $maxDepth = $points === [] ? 0 : $depth;
+        foreach ($points as $point) {
+            $children = is_array($point['children'] ?? null) ? $point['children'] : [];
+            $maxDepth = max($maxDepth, $this->maxNcxDepth($children, $depth + 1));
+        }
+
+        return $maxDepth;
+    }
+
+    /**
+     * @param array<string, mixed> $point
+     */
+    private function ncxPointTarget(array $point): string
+    {
+        $path = (string) ($point['path'] ?? '');
+        if ($path === '') {
+            return '';
+        }
+
+        $fragment = (string) ($point['fragment'] ?? '');
+
+        return $path . ($fragment === '' ? '' : '#' . $fragment);
     }
 
     /**
