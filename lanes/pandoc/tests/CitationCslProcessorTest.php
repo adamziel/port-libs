@@ -98,6 +98,96 @@ return [
         $t->same('[@missing]', $missingNormalized->attr('rendered'));
         $t->same(true, (bool) $missingNormalized->attr('missingCslItem', false));
     },
+    'preserves citation prefix and suffix review metadata for csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'affix-source',
+                'type' => 'report',
+                'title' => 'Affix Source Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'plain-source',
+                'type' => 'report',
+                'title' => 'Plain Source Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-prefix"/>
+        <text variable="citation-suffix"/>
+        <text variable="citation-affix-summary"/>
+        <text variable="locator-label"/>
+        <text variable="locator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $affixed = $citation('affix-source', '[see also @affix-source, p. 42]', 'normal', [
+            'prefix' => [
+                new AstNode('emphasis', [], [new AstNode('text', ['text' => 'see'])]),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'also']),
+            ],
+            'suffix' => [
+                new AstNode('text', ['text' => 'p.']),
+                new AstNode('space'),
+                new AstNode('code', ['text' => '42']),
+            ],
+        ]);
+        $plain = $citation('plain-source', '[@plain-source]');
+
+        $t->same(
+            '[Ng | see also | p. 42 | prefix: see also; suffix: p. 42 | page | 42; Roe]',
+            $processor->renderCitationCluster([$affixed, $plain])
+        );
+
+        $normalized = $processor->normalizeCitation($affixed);
+        $t->same('see also', $normalized->attr('cslCitationPrefix'));
+        $t->same('p. 42', $normalized->attr('cslCitationSuffix'));
+        $t->same('prefix: see also; suffix: p. 42', $normalized->attr('cslCitationAffixSummary'));
+        $t->same('citation-locator-suffix-inferred', $normalized->attr('cslLocatorDiagnosticReasons'));
+        $t->same('inferred', $normalized->attr('cslLocator')['sourceClass'] ?? null);
+
+        $group = $processor->normalizeCitationGroup(new AstNode('citation_group', [], [$affixed, $plain]));
+        $t->same('affix-source', $group->attr('cslCitationAffixes')[0]['id'] ?? null);
+        $t->same('see also', $group->attr('cslCitationAffixes')[0]['prefix'] ?? null);
+        $t->same('p. 42', $group->attr('cslCitationAffixes')[0]['suffix'] ?? null);
+        $t->same('affix-source [prefix: see also; suffix: p. 42]', $group->attr('cslCitationAffixSummary'));
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Affix source ']),
+                new AstNode('citation_group', [], [$affixed, $plain]),
+                new AstNode('text', ['text' => ' stays reviewable.']),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Affix source [Ng | see also | p. 42 | prefix: see also; suffix: p. 42 | page | 42; Roe] stays reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Affix Source Packet :: 2026</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Plain Source Packet :: 2025</dd>', $blocks);
+    },
     'normalizes csl date variables and name particles for bibliography handoff' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
