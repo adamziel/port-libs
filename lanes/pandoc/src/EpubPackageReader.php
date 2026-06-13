@@ -726,6 +726,7 @@ final class EpubPackageReader
             'typeCounts' => $typeCounts,
             'sections' => $sections,
             'hierarchy' => $this->hierarchySummary($flat, count($entries)),
+            'toc' => $this->tocNavigationReport($flat),
             'landmarks' => $this->landmarkReport($flat, $package),
             'pageListItemCount' => $pageListReport['itemCount'],
             'pageBreakItemCount' => $pageListReport['pageBreakItemCount'],
@@ -816,6 +817,193 @@ final class EpubPackageReader
             'itemCount' => count($pageListItems),
             'pageBreakItemCount' => $pageBreakItemCount,
             'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array<string, mixed>
+     */
+    private function tocNavigationReport(array $flat): array
+    {
+        $relationTargets = [
+            'landmarks' => [],
+            'page-list' => [],
+        ];
+        foreach ($flat as $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'landmarks' && $sectionType !== 'page-list') {
+                continue;
+            }
+
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            if ($target !== '') {
+                $relationTargets[$sectionType][$target] = true;
+            }
+        }
+
+        $items = [];
+        $diagnostics = [];
+        $targetBuckets = [];
+        $targetedItemCount = 0;
+        $accessibilityLabelCount = 0;
+        $missingLabelCount = 0;
+        $missingTargetCount = 0;
+        $roleConflictCount = 0;
+        $landmarkRelationCount = 0;
+        $pageListRelationCount = 0;
+
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'toc') {
+                continue;
+            }
+
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            $label = is_string($item['label'] ?? null) ? $item['label'] : '';
+            $accessibilityLabel = is_string($item['accessibilityLabel'] ?? null) ? $item['accessibilityLabel'] : $label;
+            $semanticTypes = is_array($item['semanticTypes'] ?? null) ? array_values($item['semanticTypes']) : [];
+            $itemDiagnostics = [];
+            $tocIndex = count($items);
+
+            if ($href === '') {
+                ++$missingTargetCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-toc-target',
+                    'message' => 'EPUB toc nav item has no href target for reading-order relation checks',
+                ];
+            } else {
+                ++$targetedItemCount;
+                if ($target !== '') {
+                    $targetBuckets[$target][] = [
+                        'index' => $tocIndex,
+                        'sourceIndex' => $sourceIndex,
+                        'label' => $label,
+                        'href' => $href,
+                    ];
+                }
+            }
+
+            if ($accessibilityLabel === '') {
+                ++$missingLabelCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-toc-accessibility-label',
+                    'message' => 'EPUB toc nav item has no text, aria-label, or title for accessible review handoff',
+                ];
+            } else {
+                ++$accessibilityLabelCount;
+            }
+
+            $conflictingTypes = array_values(array_intersect($semanticTypes, ['landmarks', 'page-list']));
+            if ($conflictingTypes !== []) {
+                ++$roleConflictCount;
+                $itemDiagnostics[] = [
+                    'type' => 'toc-nav-role-conflict',
+                    'semanticTypes' => $conflictingTypes,
+                    'message' => 'EPUB toc nav item carries a primary nav role from another section type',
+                ];
+            }
+
+            $relationSections = [];
+            if ($target !== '' && isset($relationTargets['landmarks'][$target])) {
+                $relationSections[] = 'landmarks';
+                ++$landmarkRelationCount;
+            }
+            if ($target !== '' && isset($relationTargets['page-list'][$target])) {
+                $relationSections[] = 'page-list';
+                ++$pageListRelationCount;
+            }
+
+            $reportedItem = [
+                'index' => $tocIndex,
+                'sourceIndex' => $sourceIndex,
+                'sectionIndex' => is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : null,
+                'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                'label' => $label,
+                'labelProvenance' => is_array($item['labelProvenance'] ?? null) ? $item['labelProvenance'] : [],
+                'accessibilityLabel' => $accessibilityLabel,
+                'accessibilityLabelSource' => is_string($item['accessibilityLabelSource'] ?? null) ? $item['accessibilityLabelSource'] : null,
+                'href' => $href,
+                'target' => $target,
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : '',
+                'external' => (bool) ($item['external'] ?? false),
+                'exists' => (bool) ($item['exists'] ?? false),
+                'semanticType' => is_string($item['semanticType'] ?? null) ? $item['semanticType'] : null,
+                'semanticTypes' => $semanticTypes,
+                'itemTypes' => is_array($item['itemTypes'] ?? null) ? array_values($item['itemTypes']) : [],
+                'labelTypes' => is_array($item['labelTypes'] ?? null) ? array_values($item['labelTypes']) : [],
+                'typeSource' => is_string($item['typeSource'] ?? null) ? $item['typeSource'] : null,
+                'relationSections' => $relationSections,
+                'duplicateTargetCount' => 0,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $tocIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'sectionIndex' => $reportedItem['sectionIndex'],
+                    'sectionId' => $reportedItem['sectionId'],
+                    'label' => $label,
+                    'href' => $href,
+                    'target' => $target,
+                ] + $diagnostic;
+            }
+
+            $items[] = $reportedItem;
+        }
+
+        $duplicateTargetCount = 0;
+        foreach ($targetBuckets as $target => $matches) {
+            if (count($matches) <= 1) {
+                continue;
+            }
+
+            ++$duplicateTargetCount;
+            $diagnostic = [
+                'type' => 'duplicate-toc-target',
+                'target' => $target,
+                'itemCount' => count($matches),
+                'items' => $matches,
+                'message' => 'EPUB toc nav target is reused by multiple entries',
+            ];
+            $diagnostics[] = $diagnostic;
+
+            foreach ($matches as $match) {
+                $index = is_int($match['index'] ?? null) ? $match['index'] : -1;
+                if (!isset($items[$index])) {
+                    continue;
+                }
+                $items[$index]['duplicateTargetCount'] = count($matches);
+                $items[$index]['diagnostics'][] = [
+                    'type' => 'duplicate-toc-target',
+                    'target' => $target,
+                    'itemCount' => count($matches),
+                    'message' => 'EPUB toc nav target is reused by multiple entries',
+                ];
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'targetedItemCount' => $targetedItemCount,
+            'accessibilityLabelCount' => $accessibilityLabelCount,
+            'missingLabelCount' => $missingLabelCount,
+            'missingTargetCount' => $missingTargetCount,
+            'roleConflictCount' => $roleConflictCount,
+            'duplicateTargetCount' => $duplicateTargetCount,
+            'landmarkRelationCount' => $landmarkRelationCount,
+            'pageListRelationCount' => $pageListRelationCount,
+            'diagnosticCount' => count($diagnostics),
+            'items' => $items,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -1540,6 +1728,7 @@ final class EpubPackageReader
                     ];
                 }
             }
+            $accessibilityLabel = $this->navAccessibilityLabel($link, $label);
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
@@ -1572,6 +1761,10 @@ final class EpubPackageReader
 
             $entries[] = [
                 'label' => $label,
+                'accessibilityLabel' => $accessibilityLabel['text'],
+                'accessibilityLabelSource' => $accessibilityLabel['source'],
+                'ariaLabel' => $this->nullableAttribute($link, 'aria-label'),
+                'title' => $this->nullableAttribute($link, 'title'),
                 'href' => $href,
                 'target' => $target,
                 'path' => $path,
@@ -1610,6 +1803,28 @@ final class EpubPackageReader
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array{text:string, source:?string}
+     */
+    private function navAccessibilityLabel(\DOMElement $labelElement, string $visibleLabel): array
+    {
+        $ariaLabel = $this->nullableAttribute($labelElement, 'aria-label');
+        if ($ariaLabel !== null) {
+            return ['text' => $ariaLabel, 'source' => 'aria-label'];
+        }
+
+        $title = $this->nullableAttribute($labelElement, 'title');
+        if ($title !== null) {
+            return ['text' => $title, 'source' => 'title'];
+        }
+
+        if ($visibleLabel !== '') {
+            return ['text' => $visibleLabel, 'source' => 'text'];
+        }
+
+        return ['text' => '', 'source' => null];
     }
 
     /**
