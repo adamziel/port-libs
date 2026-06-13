@@ -175,6 +175,7 @@ return [
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('root, element, language, id, and attribute provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('namespace declaration provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('full Pandoc XML reader parity remains open', $packet['formats']['xml']['inputNotes']);
 

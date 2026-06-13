@@ -990,6 +990,120 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeXmlNamespaceDeclarations(\DOMDocument $dom): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('XML namespace declaration review packet requires a document element');
+        }
+
+        $declarations = [];
+        $declarationKeys = [];
+        $namespaceXPath = new \DOMXPath($dom);
+        $elementCount = 0;
+        $namespacedElementCount = 0;
+        $namespacedAttributeCount = 0;
+        $maxDepth = 0;
+
+        foreach (self::xmlElementWalk($root) as $entry) {
+            $element = $entry['element'];
+            $path = $entry['path'];
+            $depth = $entry['depth'];
+            ++$elementCount;
+            $maxDepth = max($maxDepth, $depth);
+
+            if (($element->namespaceURI ?? '') !== '') {
+                ++$namespacedElementCount;
+            }
+
+            $namespaceNodes = $namespaceXPath->query('namespace::*', $element);
+            if ($namespaceNodes !== false) {
+                foreach ($namespaceNodes as $namespaceNode) {
+                    self::recordXmlNamespaceDeclaration(
+                        $declarations,
+                        $declarationKeys,
+                        self::xmlNamespaceNodePrefix($namespaceNode),
+                        (string) $namespaceNode->nodeValue,
+                        $path,
+                        $depth,
+                        'namespace-axis'
+                    );
+                }
+            }
+
+            foreach ($element->attributes ?? [] as $attribute) {
+                if (!$attribute instanceof \DOMAttr) {
+                    continue;
+                }
+
+                if (self::isXmlNamespaceDeclaration($attribute)) {
+                    continue;
+                }
+
+                if (($attribute->namespaceURI ?? '') !== '') {
+                    ++$namespacedAttributeCount;
+                }
+            }
+        }
+
+        self::sortXmlNamespaceDeclarations($declarations);
+        $byPrefix = self::xmlNamespaceDeclarationSummaryByPrefix($declarations);
+        $prefixReuses = [];
+        $prefixConflicts = [];
+
+        foreach ($byPrefix as $summary) {
+            if ($summary['declarationCount'] > 1) {
+                $prefixReuses[] = $summary;
+            }
+            if (count($summary['namespaceUris']) > 1) {
+                $prefixConflicts[] = $summary;
+            }
+        }
+
+        $namespaceUris = self::xmlNamespaceUris($declarations);
+        $directReaderDiagnostics = self::xmlNamespaceDirectReaderDiagnostics(
+            count($declarations),
+            count($prefixReuses),
+            count($prefixConflicts)
+        );
+
+        return [
+            'formatFamily' => 'xml-html5-jats-dom',
+            'format' => 'xml',
+            'reviewPolicy' => 'xml-namespace-declaration-review-only',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $directReaderDiagnostics
+            ),
+            'directReaderDiagnosticCount' => count($directReaderDiagnostics),
+            'directReaderDiagnostics' => $directReaderDiagnostics,
+            'rootName' => $root->localName,
+            'rootQualifiedName' => self::xmlQualifiedName($root),
+            'rootNamespacePrefix' => $root->prefix === '' ? null : $root->prefix,
+            'rootNamespaceUri' => $root->namespaceURI === '' ? null : $root->namespaceURI,
+            'elementCount' => $elementCount,
+            'maxDepth' => $maxDepth,
+            'namespacedElementCount' => $namespacedElementCount,
+            'namespacedAttributeCount' => $namespacedAttributeCount,
+            'namespaceDeclarationCount' => count($declarations),
+            'namespacePrefixCount' => count($byPrefix),
+            'namespaceUriCount' => count($namespaceUris),
+            'namespaceUris' => $namespaceUris,
+            'namespacePrefixes' => array_keys($byPrefix),
+            'namespaceDeclarations' => $declarations,
+            'namespaceDeclarationsByPrefix' => $byPrefix,
+            'namespacePrefixReuses' => $prefixReuses,
+            'namespacePrefixReuseCount' => count($prefixReuses),
+            'namespacePrefixConflicts' => $prefixConflicts,
+            'namespacePrefixConflictCount' => count($prefixConflicts),
+            'hasNamespacePrefixConflicts' => $prefixConflicts !== [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeJatsFrontMatter(\DOMDocument $dom, string $format = 'jats'): array
     {
         $root = $dom->documentElement;
@@ -1710,6 +1824,269 @@ final class XmlHtmlDom
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function xmlNamespaceDirectReaderDiagnostics(
+        int $declarationCount,
+        int $prefixReuseCount,
+        int $prefixConflictCount
+    ): array {
+        $diagnostics = [
+            self::xmlNamespaceDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                'XML direct reader parity is not implemented; this packet exposes bounded namespace declaration diagnostics only.',
+                false,
+                true,
+                ['format' => 'xml']
+            ),
+            self::xmlNamespaceDirectReaderDiagnostic(
+                'namespace-declarations-review-only',
+                'metadata',
+                'Namespace declaration provenance is summarized for review but is not mapped as a full Pandoc direct reader AST.',
+                false,
+                true,
+                ['namespaceDeclarationCount' => $declarationCount]
+            ),
+        ];
+
+        if ($prefixReuseCount > 0) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'namespace-prefix-reuse-review-only',
+                'metadata',
+                'Namespace prefix declarations are grouped to expose scoped prefix reuse without claiming reader parity.',
+                false,
+                true,
+                ['namespacePrefixReuseCount' => $prefixReuseCount]
+            );
+        }
+
+        if ($prefixConflictCount > 0) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'namespace-prefix-conflict-review-only',
+                'warning',
+                'Namespace prefixes that bind to multiple namespace URIs are flagged for bounded review only.',
+                false,
+                true,
+                ['namespacePrefixConflictCount' => $prefixConflictCount]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, int|string|bool> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     */
+    private static function xmlNamespaceDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        bool $directReaderParity,
+        bool $coveredByPacket,
+        array $details = []
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => $directReaderParity,
+            'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @return list<array{element:\DOMElement, path:string, depth:int}>
+     */
+    private static function xmlElementWalk(\DOMElement $root): array
+    {
+        $entries = [];
+        $stack = [[
+            'element' => $root,
+            'path' => '/' . self::xmlQualifiedName($root),
+            'depth' => 0,
+        ]];
+
+        while ($stack !== []) {
+            $entry = array_pop($stack);
+            if (!is_array($entry) || !$entry['element'] instanceof \DOMElement) {
+                continue;
+            }
+
+            $element = $entry['element'];
+            $path = (string) $entry['path'];
+            $depth = (int) $entry['depth'];
+            $entries[] = [
+                'element' => $element,
+                'path' => $path,
+                'depth' => $depth,
+            ];
+
+            $children = [];
+            $siblingCounts = [];
+            foreach ($element->childNodes as $child) {
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+
+                $name = self::xmlQualifiedName($child);
+                $siblingCounts[$name] = ($siblingCounts[$name] ?? 0) + 1;
+                $children[] = [
+                    'element' => $child,
+                    'path' => $path . '/' . $name . '[' . $siblingCounts[$name] . ']',
+                    'depth' => $depth + 1,
+                ];
+            }
+
+            for ($index = count($children) - 1; $index >= 0; --$index) {
+                $stack[] = $children[$index];
+            }
+        }
+
+        return $entries;
+    }
+
+    private static function xmlQualifiedName(\DOMElement $element): string
+    {
+        $prefix = $element->prefix;
+        if (is_string($prefix) && $prefix !== '') {
+            return $prefix . ':' . $element->localName;
+        }
+
+        return $element->localName !== '' ? $element->localName : $element->tagName;
+    }
+
+    private static function isXmlNamespaceDeclaration(\DOMAttr $attribute): bool
+    {
+        return ($attribute->namespaceURI ?? '') === 'http://www.w3.org/2000/xmlns/'
+            || $attribute->name === 'xmlns'
+            || str_starts_with($attribute->name, 'xmlns:');
+    }
+
+    private static function xmlNamespaceNodePrefix(object $node): string
+    {
+        return $node->nodeName === 'xmlns' || $node->localName === 'xmlns' ? '' : $node->localName;
+    }
+
+    /**
+     * @param list<array{prefix:string, namespaceUri:string, attributeName:string, elementPath:string, depth:int, defaultNamespace:bool, observedAs:string}> $declarations
+     * @param array<string, true> $declarationKeys
+     */
+    private static function recordXmlNamespaceDeclaration(
+        array &$declarations,
+        array &$declarationKeys,
+        string $prefix,
+        string $namespaceUri,
+        string $elementPath,
+        int $depth,
+        string $observedAs
+    ): void {
+        if ($namespaceUri === '' || $prefix === 'xml') {
+            return;
+        }
+
+        $key = $prefix . "\0" . $namespaceUri;
+        if (isset($declarationKeys[$key])) {
+            return;
+        }
+        $declarationKeys[$key] = true;
+
+        $declarations[] = [
+            'prefix' => $prefix,
+            'namespaceUri' => $namespaceUri,
+            'attributeName' => $prefix === '' ? 'xmlns' : 'xmlns:' . $prefix,
+            'elementPath' => $elementPath,
+            'depth' => $depth,
+            'defaultNamespace' => $prefix === '',
+            'observedAs' => $observedAs,
+        ];
+    }
+
+    /**
+     * @param list<array{prefix:string, namespaceUri:string, attributeName:string, elementPath:string, depth:int, defaultNamespace:bool, observedAs:string}> $declarations
+     */
+    private static function sortXmlNamespaceDeclarations(array &$declarations): void
+    {
+        usort(
+            $declarations,
+            static function (array $left, array $right): int {
+                $pathComparison = strcmp($left['elementPath'], $right['elementPath']);
+                if ($pathComparison !== 0) {
+                    return $pathComparison;
+                }
+
+                return strcmp($left['prefix'], $right['prefix']);
+            }
+        );
+    }
+
+    /**
+     * @param list<array{prefix:string, namespaceUri:string, attributeName:string, elementPath:string, depth:int, defaultNamespace:bool, observedAs:string}> $declarations
+     * @return array<string, array{prefix:string, defaultNamespace:bool, declarationCount:int, namespaceUris:list<string>, elementPaths:list<string>, declarations:list<array{prefix:string, namespaceUri:string, attributeName:string, elementPath:string, depth:int, defaultNamespace:bool, observedAs:string}>}>
+     */
+    private static function xmlNamespaceDeclarationSummaryByPrefix(array $declarations): array
+    {
+        $byPrefix = [];
+        foreach ($declarations as $declaration) {
+            $prefix = $declaration['prefix'];
+            $byPrefix[$prefix] ??= [
+                'prefix' => $prefix,
+                'defaultNamespace' => $prefix === '',
+                'declarationCount' => 0,
+                'namespaceUris' => [],
+                'elementPaths' => [],
+                'declarations' => [],
+            ];
+
+            ++$byPrefix[$prefix]['declarationCount'];
+            $byPrefix[$prefix]['namespaceUris'][] = $declaration['namespaceUri'];
+            $byPrefix[$prefix]['elementPaths'][] = $declaration['elementPath'];
+            $byPrefix[$prefix]['declarations'][] = $declaration;
+        }
+
+        foreach ($byPrefix as &$summary) {
+            $summary['namespaceUris'] = self::uniqueSortedStrings($summary['namespaceUris']);
+            $summary['elementPaths'] = array_values(array_unique($summary['elementPaths']));
+        }
+        unset($summary);
+
+        uksort(
+            $byPrefix,
+            static fn (string $left, string $right): int => $left === ''
+                ? ($right === '' ? 0 : -1)
+                : ($right === '' ? 1 : strcmp($left, $right))
+        );
+
+        return $byPrefix;
+    }
+
+    /**
+     * @param list<array{prefix:string, namespaceUri:string, attributeName:string, elementPath:string, depth:int, defaultNamespace:bool, observedAs:string}> $declarations
+     * @return list<string>
+     */
+    private static function xmlNamespaceUris(array $declarations): array
+    {
+        return self::uniqueSortedStrings(array_map(
+            static fn (array $declaration): string => $declaration['namespaceUri'],
+            $declarations
+        ));
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function uniqueSortedStrings(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values, SORT_STRING);
+
+        return $values;
     }
 
     private static function jatsMetadataElement(\DOMElement $root): ?\DOMElement
