@@ -582,6 +582,25 @@ final class PandocFormatRegistry
         'bits',
     ];
 
+    /** @var array<string, int> */
+    private const XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS = [
+        'phpPass' => 3369,
+        'phpFail' => 0,
+        'mappedUpstreamCases' => 3329,
+        'mappedPandocXmlDirectInputRegistryCases' => 1,
+        'pandocXmlDirectInputRegistryAssertions' => 17,
+        'mappedXmlHtmlDomJatsFrontMatterReviewCases' => 2,
+        'xmlHtmlDomJatsFrontMatterReviewAssertions' => 69,
+        'mappedXmlHtmlDomJatsBodyDiagnosticsCases' => 2,
+        'xmlHtmlDomJatsBodyDiagnosticsAssertions' => 60,
+        'mappedXmlHtmlDomJatsBackMatterReferenceCases' => 1,
+        'xmlHtmlDomJatsBackMatterReferenceAssertions' => 39,
+        'mappedXmlHtmlDomJatsRelationshipDiagnosticCases' => 1,
+        'xmlHtmlDomJatsRelationshipDiagnosticAssertions' => 28,
+        'mappedXmlHtmlDomDirectReaderCapabilityCases' => 1,
+        'xmlHtmlDomDirectReaderCapabilityAssertions' => 91,
+    ];
+
     /**
      * @var array<string, array{diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
      */
@@ -2950,6 +2969,14 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, int>
+     */
+    public static function xmlJatsBitsLocalEvidenceCounters(): array
+    {
+        return self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS;
+    }
+
+    /**
      * @return array<string, array{status:string, implementation:string, notes:string}>
      */
     public static function xmlJatsBitsInputSupport(): array
@@ -2987,12 +3014,15 @@ final class PandocFormatRegistry
      *     unsupportedInputFormats:list<string>,
      *     unsupportedInputCount:int,
      *     inputSupportStatusCounts:array<string, int>,
+     *     localEvidenceCounters:array<string, int>,
+     *     unsupportedDirectReaderFormats:list<string>,
+     *     unsupportedDirectReaderCount:int,
      *     directReaderParitySupported:bool,
      *     registeredDirectReaderImplementations:int,
      *     boundedDiagnosticSurfaceCount:int,
      *     explicitUnsupportedVerdict:bool,
      *     reviewNote:string,
-     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, unsupportedDirectReaderReason:array{code:string, message:string, status:string, directReaderParity:bool}, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, remainingReaderGaps:list<string>}>
      * }
      */
     public static function xmlJatsBitsDirectReaderCapabilityPacket(): array
@@ -3000,6 +3030,7 @@ final class PandocFormatRegistry
         $directions = self::xmlJatsBitsFormatDirections();
         $inputSupport = self::xmlJatsBitsInputSupport();
         $unsupportedInputFormats = self::unsupportedXmlJatsBitsInputFormats();
+        $unsupportedDirectReaderFormats = self::XML_JATS_BITS_INPUT_FORMATS;
         $formats = [];
         $registeredDirectReaderImplementations = 0;
         $boundedDiagnosticSurfaceCount = 0;
@@ -3023,6 +3054,12 @@ final class PandocFormatRegistry
                 'outputStatus' => $direction['outputStatus'],
                 'inputImplementation' => $support['implementation'],
                 'inputNotes' => $support['notes'],
+                'unsupportedDirectReaderReason' => [
+                    'code' => 'full-direct-reader-missing',
+                    'message' => $support['notes'],
+                    'status' => 'unsupported',
+                    'directReaderParity' => false,
+                ],
                 'diagnosticImplementation' => $diagnosticSurface['diagnosticImplementation'],
                 'reviewMethod' => $diagnosticSurface['reviewMethod'],
                 'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
@@ -3041,10 +3078,13 @@ final class PandocFormatRegistry
             'unsupportedInputFormats' => $unsupportedInputFormats,
             'unsupportedInputCount' => count($unsupportedInputFormats),
             'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'localEvidenceCounters' => self::XML_JATS_BITS_LOCAL_EVIDENCE_COUNTERS,
+            'unsupportedDirectReaderFormats' => $unsupportedDirectReaderFormats,
+            'unsupportedDirectReaderCount' => count($unsupportedDirectReaderFormats),
             'directReaderParitySupported' => false,
             'registeredDirectReaderImplementations' => $registeredDirectReaderImplementations,
             'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
-            'explicitUnsupportedVerdict' => false,
+            'explicitUnsupportedVerdict' => true,
             'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no full direct reader parity is registered.',
             'formats' => $formats,
         ];
