@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,305 pass / 0 fail | [3,265 / 2,276 (143.5%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Markdown fixture nested-list round-trip is covered; continue Markdown/JSON parity | markdown-fixture-nested-list-roundtrip-4c296642da |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,305 pass / 0 fail | [3,265 / 2,276 (143.5%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Markdown fixture nested-list round-trip landed; remaining closure-wave MRs are tracked separately | 43dbb735c4 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -62,6 +62,23 @@ Adjacent import targets outside the Pandoc input denominator:
 Bounded native PHP Markdown/JSON-native fixture coverage advanced by one cross-format round-trip slice. `PandocJsonWriter` and `NativeWriter` now flush mixed inline runs to `Plain` blocks before nested list blocks, preserving the existing `wordpress-import-markdown.md` nested task-list fixture through Pandoc JSON/native writer output, JSON reader import, Markdown writer output, and WordPress block output.
 
 Verification passed `php -l` for `PandocJsonWriter.php`, `NativeWriter.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderTest.php` passed (`1` file, `6626` assertions, `0` failures); full `lanes/pandoc/tests` passed (`44` files, `74167` assertions, `0` failures). No Pandoc, Cabal/Haskell runner, office suite, browser renderer, TeX engine, Node tooling, online service, live provider, or external validator was invoked.
+
+### Closure-Wave Landed vs Pending Evidence (2026-06-13)
+
+The landed dashboard counters are `3,305` PHP passes / `0` failures and `3,265 / 2,276` mapped upstream cases on `origin/main` at `43dbb735c4`. Closed beads with open merge-request beads are evidence, but they are not shipped counters until their commits become ancestors of `origin/main`.
+
+| Closure item | Landed main status | Pending MR evidence |
+| --- | --- | --- |
+| CSV/TSV 2/2 direct readers | Not landed; tabular/data readers remain `0 / 2` on the landed input matrix. | `plib-wisp-60w` is open for `plib-23ou2` at `1e619e4785`; notes report 2 focused cases, 34 assertions, full 45-file gate with 74,049 assertions / 0 failures on pre-verified base `b266b6e53c`. |
+| MediaBag linked resources | Landed at `6c77acbadb` from `plib-vby5t`; mapped cases moved 3,259 -> 3,260 and phpPass moved 3,299 -> 3,300. | None for this slice; source verification covered focused `MediaBagTest.php` and the full 44-file Pandoc gate. |
+| Markdown adjacent-list separators | Landed at `659cae59e4` from `plib-3ep16`; mapped cases moved 3,260 -> 3,261 and phpPass moved 3,300 -> 3,301. | None for this slice; source verification covered focused `MarkdownReaderTest.php` and the full 44-file Pandoc gate. |
+| Notes label recovery | Landed at `04585158b3` from `plib-y2ua1`; mapped cases moved 3,261 -> 3,262 and phpPass moved 3,301 -> 3,302. | `plib-wisp-b5c` is open for follow-up `plib-xxzxt` at `e965a30c12`; the landed source note-label slice came through `plib-wisp-66o` / `2bf7c14870`. |
+| Nested fenced Divs | Landed at `e9fb37d55a` from `plib-8lfdx`; mapped cases moved 3,262 -> 3,263 and phpPass moved 3,302 -> 3,303. | None for this slice; source verification covered focused `MarkdownReaderTest.php` and the full 44-file Pandoc gate. |
+| ODT configuration package metadata | Landed at `4c296642da` from `plib-iifwg`; mapped cases moved 3,263 -> 3,264 and phpPass moved 3,303 -> 3,304. | Not a closure-wave MR, but it is included in the current landed counters. |
+| Mixed nested-list round trip | Landed at `43dbb735c4` from `plib-7nyfh`; mapped cases moved 3,264 -> 3,265 and phpPass moved 3,304 -> 3,305. | None for this slice; source verification covered focused `MarkdownReaderTest.php` and the full 44-file Pandoc gate. |
+| Typst/PDF package policy | Base no-external-engine package dependency policy landed at `d93f02136f` / `b266b6e53c`; current landed evidence remains 46 / 17 boundary/provenance cases. | `plib-wisp-od2` is open for `plib-va7tv` at `49427c9ca3`; notes report extended sidecar package input counts, metadata-only byte exposure, network policy, and full 44-file gate with 74,031 assertions / 0 failures. |
+| Task-list sidecars | Not landed; JSON/native task-list checkbox sidecar preservation is not included in the landed 3,265 mapped cases. | `plib-wisp-f0m` is open for `plib-jc0ia` at `914eaec344`; notes report focused `PandocJsonNativeAstTest.php` with 1,996 assertions and full 44-file gate with 74,047 assertions / 0 failures. |
+| Table geometry continuation | Table caption block writers landed at `5cd9038b4c`; table-foot longtable handoff is not landed. | `plib-wisp-8wv` is open for `plib-9rsig` at `d899f30297`; notes report focused `LatexWriterTest.php` + `TableGeometryTest.php` with 1,918 assertions, WordPress table self-test, and full 44-file gate with 74,001 assertions / 0 failures. |
 
 ### ODT Configuration Package Metadata Update (2026-06-12)
 
@@ -225,8 +242,9 @@ slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter 
 | Percent | 3,265 / 2,276 = 143.5%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
 | Shippable format gate | ODF/ODT is ship-ready with 50 local mapped cases / 20 upstream ODF/ODT cases, 250.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
 | Remaining critical gaps | 16 input tokens remain partial and 33 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and CSV/TSV. | Full Pandoc input lane remains active. |
+| Closure-wave split | CSV/TSV, task-list sidecars, Typst/PDF follow-up policy, and table-foot geometry have closed beads or open MRs where noted above, but only MediaBag linked resources, Markdown adjacent-list separators, notes label recovery, nested fenced Divs, ODT configuration metadata, mixed nested-list round trip, raw HTML, table caption blocks, and base PDF/Typst package policy are currently ancestors of `origin/main`. | Shipped-vs-pending evidence is explicit. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonWriter.php lanes/pandoc/src/NativeWriter.php lanes/pandoc/tests/MarkdownReaderTest.php`, focused `MarkdownReaderTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,167 assertions, 0 failures. |
+| Verification | This reconciliation passed `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, focused `MediaBagTest.php`, focused `MarkdownReaderTest.php`, and focused `OpenDocumentPackageTest.php`. The latest landed source branches also carried full-suite evidence. | Current lightweight gate passed; latest source-branch full gate was 44 test files, 74,167 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
@@ -237,13 +255,18 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PandocJsonWriter.php lanes/pandoc/src/NativeWriter.php lanes/pandoc/tests/MarkdownReaderTest.php`,
-`php -l lanes/pandoc/src/PandocJsonWriter.php`,
-`php -l lanes/pandoc/src/NativeWriter.php`,
-`php -l lanes/pandoc/tests/MarkdownReaderTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
-(`1` file, `6626` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`44` files, `74167` assertions, `0` failures on current main `4c296642da`).
+status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+`php tools/run-tests.php lanes/pandoc/tests/MediaBagTest.php` (`1` file,
+`144` assertions, `0` failures),
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` (`1` file,
+`6626` assertions, `0` failures), and
+`php tools/run-tests.php lanes/pandoc/tests/OpenDocumentPackageTest.php`
+(`1` file, `1154` assertions, `0` failures). Source-branch verification for
+the latest landed Markdown fixture nested-list slice also passed `php -l` on
+PandocJsonWriter, NativeWriter, and MarkdownReaderTest files and full
+`php tools/run-tests.php lanes/pandoc/tests` (`44` files, `74167` assertions,
+`0` failures) on source base `4c296642da`; the slice is landed on `origin/main`
+at `43dbb735c4`.
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
