@@ -7108,7 +7108,7 @@ return [
         $t->same('@cita [foo]', $regularCitation->attr('text'));
 
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read("@cita[^note]\n\n[^note]: note\n\n@cita [link](http://www.com)\n\n@cita [foo]"));
-        $t->contains('<p>@cita<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
+        $t->contains('<p>@cita<sup id="fnref-note" data-pandoc-note-label="note"><a href="#fn-note" role="doc-noteref">1</a></sup></p>', $blocks);
         $t->contains('<p>@cita <a href="http://www.com">link</a></p>', $blocks);
         $t->contains('<p>@cita [foo]</p>', $blocks);
     },
@@ -14054,10 +14054,27 @@ XML;
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
-        $t->contains('<p>Footnote audit: migration source<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and inline editor note.<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
+        $t->contains('<p>Footnote audit: migration source<sup id="fnref-source-note" data-pandoc-note-label="source-note"><a href="#fn-source-note" role="doc-noteref">1</a></sup> and inline editor note.<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol>', $blocks);
-        $t->contains('<li id="fn-1"><p>Source archive footnote keeps the reviewer trail.</p><p>Confirm media IDs before publishing.</p><pre class="wp-block-code"><code>  do_action(&#039;import_note&#039;);</code></pre> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-source-note" data-pandoc-note-label="source-note"><p>Source archive footnote keeps the reviewer trail.</p><p>Confirm media IDs before publishing.</p><pre class="wp-block-code"><code>  do_action(&#039;import_note&#039;);</code></pre> <a href="#fnref-source-note" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Inline note keeps <a href="https://example.test/audit-footnote">audit link</a> and <code>]</code> marker visible.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'preserves named footnote labels through markdown and wordpress note anchors' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Named note[^editor-note] and inline note^[Inline audit note.] stay distinct.',
+            '',
+            '[^editor-note]: Source-labelled note keeps its backlink.',
+        ]));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('Named note[^editor-note] and inline note[^1] stay distinct.', $markdown);
+        $t->contains('[^editor-note]: Source-labelled note keeps its backlink.', $markdown);
+        $t->contains('[^1]: Inline audit note.', $markdown);
+        $t->contains('<sup id="fnref-editor-note" data-pandoc-note-label="editor-note"><a href="#fn-editor-note" role="doc-noteref">1</a></sup>', $blocks);
+        $t->contains('<li id="fn-editor-note" data-pandoc-note-label="editor-note"><p>Source-labelled note keeps its backlink.</p> <a href="#fnref-editor-note" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>', $blocks);
     },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");

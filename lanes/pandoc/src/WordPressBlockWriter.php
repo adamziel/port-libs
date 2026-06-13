@@ -8,8 +8,11 @@ final class WordPressBlockWriter
 {
     private const TABLE_CELL_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
 
-    /** @var list<AstNode> */
+    /** @var list<array{id:string, label:string|null, node:AstNode}> */
     private array $footnotes = [];
+
+    /** @var array<string, bool> */
+    private array $footnoteUsedIds = [];
 
     private bool $highlightCodeBlocks;
 
@@ -37,7 +40,9 @@ final class WordPressBlockWriter
         }
 
         $previousFootnotes = $this->footnotes;
+        $previousFootnoteUsedIds = $this->footnoteUsedIds;
         $this->footnotes = [];
+        $this->footnoteUsedIds = [];
         $blocks = [];
         $pendingList = [];
         foreach ($document->children as $node) {
@@ -90,6 +95,7 @@ final class WordPressBlockWriter
 
         $output = implode("\n\n", $blocks);
         $this->footnotes = $previousFootnotes;
+        $this->footnoteUsedIds = $previousFootnoteUsedIds;
 
         return $output;
     }
@@ -2776,21 +2782,69 @@ final class WordPressBlockWriter
     private function renderNoteReference(AstNode $node): string
     {
         $number = count($this->footnotes) + 1;
-        $this->footnotes[] = $node;
+        $label = $this->sourceNoteLabel($node);
+        $id = $this->registerFootnoteId($label, $number);
+        $labelAttr = $label !== null && !ctype_digit($label)
+            ? ' data-pandoc-note-label="' . $this->esc($label) . '"'
+            : '';
+        $this->footnotes[] = [
+            'id' => $id,
+            'label' => $label,
+            'node' => $node,
+        ];
 
-        return '<sup id="fnref-' . $number . '"><a href="#fn-' . $number . '" role="doc-noteref">'
+        return '<sup id="fnref-' . $this->esc($id) . '"' . $labelAttr . '><a href="#fn-' . $this->esc($id) . '" role="doc-noteref">'
             . $number
             . '</a></sup>';
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
+    }
+
+    private function registerFootnoteId(?string $label, int $number): string
+    {
+        $base = $label === null ? (string) $number : $this->footnoteIdLabel($label);
+        if ($base === '') {
+            $base = (string) $number;
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+        while (isset($this->footnoteUsedIds[strtolower($candidate)])) {
+            $candidate = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        $this->footnoteUsedIds[strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    private function footnoteIdLabel(string $label): string
+    {
+        $normalized = preg_replace('/[^A-Za-z0-9:._-]+/', '-', trim($label)) ?? '';
+
+        return trim($normalized, '-');
     }
 
     private function renderFootnotesBlock(): string
     {
         $items = [];
-        foreach ($this->footnotes as $index => $note) {
-            $number = $index + 1;
-            $items[] = '<li id="fn-' . $number . '">'
-                . $this->renderBlocksAsHtml($note->children)
-                . ' <a href="#fnref-' . $number . '" aria-label="Back to content">Back</a>'
+        foreach ($this->footnotes as $footnote) {
+            $label = $footnote['label'];
+            $labelAttr = $label !== null && !ctype_digit($label)
+                ? ' data-pandoc-note-label="' . $this->esc($label) . '"'
+                : '';
+            $items[] = '<li id="fn-' . $this->esc($footnote['id']) . '"' . $labelAttr . '>'
+                . $this->renderBlocksAsHtml($footnote['node']->children)
+                . ' <a href="#fnref-' . $this->esc($footnote['id']) . '" aria-label="Back to content">Back</a>'
                 . '</li>';
         }
 
