@@ -310,6 +310,123 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub toc accessibility labels roles and duplicate nav relations' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-toc-a11y-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-toc-a11y-review</dc:identifier>
+    <dc:title>Navigation TOC Accessibility Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li id="chapter-li"><a id="chapter-link" href="chapter.xhtml">Chapter</a></li>
+        <li id="duplicate-li"><a id="duplicate-link" href="chapter.xhtml" aria-label="Chapter duplicate"></a></li>
+        <li id="role-li" epub:type="landmarks"><a id="role-link" href="appendix.xhtml">Appendix role leak</a></li>
+        <li id="empty-li"><span id="empty-label"></span></li>
+      </ol>
+    </nav>
+    <nav id="landmarks" epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="chapter.xhtml">Start</a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a href="chapter.xhtml#p1">1</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/toc.ncx', <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="np-1" playOrder="1">
+      <navLabel id="np-1-label"><text id="np-1-text">Chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="p1">Chapter</h1></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Appendix</h1></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $navReport = $epub['navReport'];
+            $tocReport = $navReport['toc'];
+            $tocItems = $tocReport['items'];
+
+            $t->same($navReport, $epub['tocReport']);
+            $t->same(true, $tocReport['present']);
+            $t->same(4, $tocReport['itemCount']);
+            $t->same(3, $tocReport['targetedItemCount']);
+            $t->same(3, $tocReport['accessibilityLabelCount']);
+            $t->same(1, $tocReport['missingLabelCount']);
+            $t->same(1, $tocReport['missingTargetCount']);
+            $t->same(1, $tocReport['roleConflictCount']);
+            $t->same(1, $tocReport['duplicateTargetCount']);
+            $t->same(2, $tocReport['landmarkRelationCount']);
+            $t->same(0, $tocReport['pageListRelationCount']);
+            $t->same(4, $tocReport['diagnosticCount']);
+            $t->same(['toc-nav-role-conflict', 'missing-toc-target', 'missing-toc-accessibility-label', 'duplicate-toc-target'], array_column($tocReport['diagnostics'], 'type'));
+
+            $t->same('Chapter', $tocItems[0]['accessibilityLabel']);
+            $t->same('text', $tocItems[0]['accessibilityLabelSource']);
+            $t->same('anchor', $tocItems[0]['labelProvenance']['source']);
+            $t->same(['landmarks'], $tocItems[0]['relationSections']);
+            $t->same(2, $tocItems[0]['duplicateTargetCount']);
+            $t->same('duplicate-toc-target', $tocItems[0]['diagnostics'][0]['type']);
+
+            $t->same('', $tocItems[1]['label']);
+            $t->same('Chapter duplicate', $tocItems[1]['accessibilityLabel']);
+            $t->same('aria-label', $tocItems[1]['accessibilityLabelSource']);
+            $t->same(2, $tocItems[1]['duplicateTargetCount']);
+
+            $t->same(['landmarks'], $tocItems[2]['itemTypes']);
+            $t->same('item', $tocItems[2]['typeSource']);
+            $t->same('toc-nav-role-conflict', $tocItems[2]['diagnostics'][0]['type']);
+
+            $t->same('', $tocItems[3]['href']);
+            $t->same('', $tocItems[3]['accessibilityLabel']);
+            $t->same(null, $tocItems[3]['accessibilityLabelSource']);
+            $t->same(['missing-toc-target', 'missing-toc-accessibility-label'], array_column($tocItems[3]['diagnostics'], 'type'));
+
+            $ncxReport = $epub['ncxReport'];
+            $t->same(true, $ncxReport['present']);
+            $t->same(1, $ncxReport['itemCount']);
+            $t->same(0, $ncxReport['diagnosticCount']);
+            $t->same('ncx-navLabel', $ncxReport['items'][0]['labelProvenance']['source']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
