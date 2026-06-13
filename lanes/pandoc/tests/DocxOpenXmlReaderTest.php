@@ -4425,14 +4425,26 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rFootExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote" TargetMode="External"/>
   <Relationship Id="rFootMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-footnote.bin?review=1#media"/>
+  <Relationship Id="rFootOrphanInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/shared-target.png?dup=1#same"/>
+  <Relationship Id="rFootOrphanExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="media/shared-target.png?dup=1#same" TargetMode="External"/>
+  <Relationship Id="rFootSuffixTwin" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/twin-footnote.png?dup=1#same"/>
 </Relationships>
 XML;
+        $parts['notes/media/shared-target.png'] = 'footnote shared target bytes';
+        $parts['notes/media/twin-footnote.png'] = 'footnote suffix twin bytes';
         $parts['notes/review-endnotes.xml'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:endnote w:id="7"><w:p><w:r><w:t>Endnote audit.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
 XML;
+        $parts['notes/_rels/review-endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-orphan.png?trace=end#media"/>
+</Relationships>
+XML;
+        $parts['notes/media/end-orphan.png'] = 'endnote orphan target bytes';
         $parts['word/comments/review-comments.xml'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
@@ -4444,8 +4456,10 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rCommentExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/comment" TargetMode="External"/>
   <Relationship Id="rCommentMissingMedia" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-comment.bin#review"/>
+  <Relationship Id="rCommentOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment-orphan.png?audit=orphan#comment"/>
 </Relationships>
 XML;
+        $parts['word/comments/media/comment-orphan.png'] = 'comment orphan target bytes';
 
         $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
         $footnotes = $docx['footnotes'];
@@ -4453,35 +4467,74 @@ XML;
         $comments = $docx['comments'];
 
         $t->same('notes/_rels/review-footnotes.xml.rels', $footnotes['relationshipsPart']);
-        $t->same(2, $footnotes['relationshipCount']);
-        $t->same(1, $footnotes['internalRelationshipCount']);
-        $t->same(1, $footnotes['externalRelationshipCount']);
+        $t->same(5, $footnotes['relationshipCount']);
+        $t->same(3, $footnotes['internalRelationshipCount']);
+        $t->same(2, $footnotes['externalRelationshipCount']);
         $t->same(1, $footnotes['missingRelationshipTargetCount']);
         $t->same(1, $footnotes['missingRelationshipContentTypeCount']);
-        $t->same(['rFootExternal', 'rFootMissingMedia'], $footnotes['relationshipIds']);
-        $t->same(['notes/media/missing-footnote.bin'], $footnotes['relationshipTargetParts']);
-        $t->same(['https://example.test/footnote'], $footnotes['relationshipExternalTargets']);
+        $t->same(['rFootExternal', 'rFootMissingMedia', 'rFootOrphanInternal', 'rFootOrphanExternal', 'rFootSuffixTwin'], $footnotes['relationshipIds']);
+        $t->same(['rFootExternal'], $footnotes['referencedRelationshipIds']);
+        $t->same(['rFootMissingMedia', 'rFootOrphanInternal', 'rFootOrphanExternal', 'rFootSuffixTwin'], $footnotes['unreferencedRelationshipIds']);
+        $t->same(['rFootMissingMedia', 'rFootOrphanInternal', 'rFootOrphanExternal', 'rFootSuffixTwin'], $footnotes['orphanedRelationshipIds']);
+        $t->same(4, $footnotes['orphanedRelationshipCount']);
+        $t->same([], $footnotes['missingReferencedRelationshipIds']);
+        $t->same(['notes/media/missing-footnote.bin', 'notes/media/shared-target.png', 'notes/media/twin-footnote.png'], $footnotes['relationshipTargetParts']);
+        $t->same(['https://example.test/footnote', 'media/shared-target.png?dup=1#same'], $footnotes['relationshipExternalTargets']);
+        $t->same(['?review=1#media', '?dup=1#same'], $footnotes['relationshipTargetReferenceSuffixes']);
         $t->same(['missing-target-content-type', 'missing-target-part'], $footnotes['relationshipIssueCodes']);
         $t->same(['rFootExternal'], $footnotes['byId']['42']['relationshipIds']);
+        $t->same(['rFootExternal'], $footnotes['byId']['42']['knownRelationshipIds']);
+        $t->same(1, $footnotes['byId']['42']['knownRelationshipCount']);
+        $t->same(0, $footnotes['byId']['42']['missingRelationshipCount']);
+        $t->same('42', $footnotes['relationships']['rFootExternal']['referencedItemIds'][0]);
+        $t->same(false, $footnotes['relationships']['rFootExternal']['orphaned']);
+        $t->same(true, $footnotes['relationships']['rFootMissingMedia']['orphaned']);
         $t->same('review=1', $footnotes['relationships']['rFootMissingMedia']['targetQuery']);
         $t->same('media', $footnotes['relationships']['rFootMissingMedia']['targetFragment']);
         $t->same(['missing-target-part', 'missing-target-content-type'], $footnotes['relationships']['rFootMissingMedia']['issues']);
+        $t->same(1, $footnotes['internalExternalRelationshipTargetCollisionCount']);
+        $t->same(2, $footnotes['internalExternalRelationshipTargetCollisionRelationshipCount']);
+        $t->same('media/shared-target.png', $footnotes['internalExternalRelationshipTargetCollisions'][0]['target']);
+        $t->same(['rFootOrphanInternal'], $footnotes['internalExternalRelationshipTargetCollisions'][0]['internalRelationshipIds']);
+        $t->same(['rFootOrphanExternal'], $footnotes['internalExternalRelationshipTargetCollisions'][0]['externalRelationshipIds']);
+        $t->same(['notes/media/shared-target.png'], $footnotes['internalExternalRelationshipTargetCollisions'][0]['targetParts']);
+        $t->same(['media/shared-target.png?dup=1#same'], $footnotes['internalExternalRelationshipTargetCollisions'][0]['externalTargets']);
+        $t->same(1, $footnotes['repeatedRelationshipTargetReferenceSuffixCount']);
+        $t->same(3, $footnotes['repeatedRelationshipTargetReferenceSuffixRelationshipCount']);
+        $t->same(['?dup=1#same'], $footnotes['repeatedRelationshipTargetReferenceSuffixes']);
+        $t->same(['rFootOrphanInternal', 'rFootOrphanExternal', 'rFootSuffixTwin'], $footnotes['repeatedRelationshipTargetReferenceSuffixGroups'][0]['relationshipIds']);
 
         $t->same('notes/_rels/review-endnotes.xml.rels', $endnotes['relationshipsPart']);
-        $t->same(0, $endnotes['relationshipCount']);
+        $t->same(1, $endnotes['relationshipCount']);
+        $t->same(['rEndOrphan'], $endnotes['relationshipIds']);
+        $t->same([], $endnotes['referencedRelationshipIds']);
+        $t->same(['rEndOrphan'], $endnotes['unreferencedRelationshipIds']);
+        $t->same(['rEndOrphan'], $endnotes['orphanedRelationshipIds']);
+        $t->same(1, $endnotes['orphanedRelationshipCount']);
         $t->same([], $endnotes['byId']['7']['relationshipIds']);
+        $t->same([], $endnotes['byId']['7']['knownRelationshipIds']);
+        $t->same(true, $endnotes['relationships']['rEndOrphan']['orphaned']);
+        $t->same(['notes/media/end-orphan.png'], $endnotes['relationshipTargetParts']);
 
         $t->same('word/comments/_rels/review-comments.xml.rels', $comments['relationshipsPart']);
-        $t->same(2, $comments['relationshipCount']);
-        $t->same(1, $comments['internalRelationshipCount']);
+        $t->same(3, $comments['relationshipCount']);
+        $t->same(2, $comments['internalRelationshipCount']);
         $t->same(1, $comments['externalRelationshipCount']);
-        $t->same(['rCommentExternal', 'rCommentMissingMedia'], $comments['relationshipIds']);
-        $t->same(['word/comments/media/missing-comment.bin'], $comments['relationshipTargetParts']);
+        $t->same(['rCommentExternal', 'rCommentMissingMedia', 'rCommentOrphan'], $comments['relationshipIds']);
+        $t->same(['rCommentExternal'], $comments['referencedRelationshipIds']);
+        $t->same(['rCommentMissingMedia', 'rCommentOrphan'], $comments['unreferencedRelationshipIds']);
+        $t->same(['rCommentMissingMedia', 'rCommentOrphan'], $comments['orphanedRelationshipIds']);
+        $t->same(['word/comments/media/missing-comment.bin', 'word/comments/media/comment-orphan.png'], $comments['relationshipTargetParts']);
         $t->same(['https://example.test/comment'], $comments['relationshipExternalTargets']);
         $t->same(['missing-target-content-type', 'missing-target-part'], $comments['relationshipIssueCodes']);
         $t->same(['rCommentExternal'], $comments['byId']['12']['relationshipIds']);
+        $t->same(['rCommentExternal'], $comments['byId']['12']['knownRelationshipIds']);
+        $t->same('12', $comments['relationships']['rCommentExternal']['referencedItemIds'][0]);
+        $t->same(false, $comments['relationships']['rCommentExternal']['orphaned']);
         $t->same('review', $comments['relationships']['rCommentMissingMedia']['targetFragment']);
         $t->same(['missing-target-part', 'missing-target-content-type'], $comments['relationships']['rCommentMissingMedia']['issues']);
+        $t->same(true, $comments['relationships']['rCommentOrphan']['orphaned']);
+        $t->same('audit=orphan', $comments['relationships']['rCommentOrphan']['targetQuery']);
     },
     'preserves docx commentsExtended package metadata from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
