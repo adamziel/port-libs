@@ -848,6 +848,111 @@ XML, 'BITS relationship XML', preserveWhiteSpace: false);
         $t->same('BITS chart', $bitsRelationships['figureTargets'][0]['captionText'] ?? null);
         $t->same('BITS totals', $bitsRelationships['tableWrapTargets'][0]['captionText'] ?? null);
     },
+    'summarizes docbook structural media diagnostics without reader parity claims' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2" xml:lang="en" xml:id="book-root">
+  <title>DocBook Review Guide</title>
+  <section xml:id="intro">
+    <title>Intro</title>
+    <para>See <xref linkend="warn-media missing-target"/> and <link linkend="fig-cover">cover</link>.</para>
+    <warning xml:id="warn-media">
+      <title>Warning</title>
+      <para>Careful review.</para>
+      <programlisting>rm -rf /tmp/example</programlisting>
+    </warning>
+    <tip id="legacy-tip"><para>Legacy id target.</para></tip>
+    <figure xml:id="fig-cover">
+      <title>Cover</title>
+      <mediaobject xml:id="media-cover">
+        <imageobject><imagedata fileref="images/cover.png" format="PNG" width="640px" depth="480px" contentwidth="320px" align="center"/></imageobject>
+        <videoobject><videodata fileref="movie.mp4"/></videoobject>
+      </mediaobject>
+    </figure>
+    <inlinemediaobject><imageobject><imagedata entityref="logo-entity" format="SVG"/></imageobject></inlinemediaobject>
+    <calloutlist><callout arearefs="co1"><para>Unsupported callout list.</para></callout></calloutlist>
+  </section>
+</article>
+XML, 'DocBook review XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookReviewPacket($docbook);
+
+        $t->same('xml-html5-docbook-dom', $packet['formatFamily']);
+        $t->same('docbook', $packet['format']);
+        $t->same('docbook-structural-media-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'structural-blocks-review-only',
+            'admonitions-review-only',
+            'figures-review-only',
+            'mediaobjects-review-only',
+            'image-references-review-only',
+            'linkend-targets-review-only',
+            'unsupported-children-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(8, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
+        $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][2]['details']['admonitionCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][4]['details']['mediaObjectCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][5]['details']['imageDataRefCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][6]['details']['linkendReferenceCount'] ?? null);
+        $t->true(($packet['directReaderDiagnostics'][7]['details']['unsupportedChildDiagnosticCount'] ?? 0) >= 3);
+        $t->same('article', $packet['rootName']);
+        $t->same('http://docbook.org/ns/docbook', $packet['rootNamespace']);
+        $t->same('5.2', $packet['version']);
+        $t->same('en', $packet['language']);
+        $t->same('book-root', $packet['rootAttributes']['xml:id'] ?? null);
+        $t->same('DocBook Review Guide', $packet['title']);
+        $t->same(true, $packet['bounded']);
+        $t->same(25, $packet['maxReviewItems']);
+        $t->true($packet['structuralBlockCount'] >= 8);
+        $t->true(in_array('warning', $packet['structuralBlockNames'], true));
+        $t->true(in_array('figure', $packet['structuralBlockNames'], true));
+        $t->same(false, $packet['structuralBlocksTruncated']);
+        $t->same(2, $packet['admonitionCount']);
+        $t->same(['warning', 'tip'], $packet['admonitionTypes']);
+        $t->same('warn-media', $packet['admonitions'][0]['xmlId'] ?? null);
+        $t->same('Warning', $packet['admonitions'][0]['title'] ?? null);
+        $t->same(1, $packet['admonitions'][0]['paragraphCount'] ?? null);
+        $t->same('legacy-tip', $packet['admonitions'][1]['id'] ?? null);
+        $t->same(1, $packet['figureCount']);
+        $t->same(['fig-cover'], $packet['figureXmlIds']);
+        $t->same('Cover', $packet['figures'][0]['title'] ?? null);
+        $t->same(1, $packet['figures'][0]['mediaObjectCount'] ?? null);
+        $t->same(2, $packet['mediaObjectCount']);
+        $t->same('mediaobject', $packet['mediaObjects'][0]['type'] ?? null);
+        $t->same('fig-cover', $packet['mediaObjects'][0]['parentFigureXmlId'] ?? null);
+        $t->same('inlinemediaobject', $packet['mediaObjects'][1]['type'] ?? null);
+        $t->same(2, $packet['imageDataRefCount']);
+        $t->same('images/cover.png', $packet['imageDataRefs'][0]['fileref'] ?? null);
+        $t->same('PNG', $packet['imageDataRefs'][0]['format'] ?? null);
+        $t->same('640px', $packet['imageDataRefs'][0]['width'] ?? null);
+        $t->same('480px', $packet['imageDataRefs'][0]['depth'] ?? null);
+        $t->same('320px', $packet['imageDataRefs'][0]['contentwidth'] ?? null);
+        $t->same('center', $packet['imageDataRefs'][0]['align'] ?? null);
+        $t->same('logo-entity', $packet['imageDataRefs'][1]['entityref'] ?? null);
+        $t->same('SVG', $packet['imageDataRefs'][1]['format'] ?? null);
+        $t->same(['book-root', 'intro', 'warn-media', 'fig-cover', 'media-cover'], $packet['xmlIdTargets']);
+        $t->same(['legacy-tip'], $packet['idTargets']);
+        $t->same(6, $packet['targetSummaryCount']);
+        $t->same(2, $packet['linkendReferenceCount']);
+        $t->same(['warn-media', 'missing-target'], $packet['linkendReferences'][0]['targets'] ?? null);
+        $t->same(['warn-media'], $packet['linkendReferences'][0]['resolvedTargets'] ?? null);
+        $t->same(['missing-target'], $packet['linkendReferences'][0]['missingTargets'] ?? null);
+        $t->same(['warn-media', 'missing-target', 'fig-cover'], $packet['linkendTargets']);
+        $t->same(['missing-target'], $packet['missingLinkendTargets']);
+        $t->true($packet['unsupportedChildDiagnosticCount'] >= 4);
+        $t->true(in_array('programlisting', $packet['unsupportedChildNames'], true));
+        $t->true(in_array('videoobject', $packet['unsupportedChildNames'], true));
+        $t->true(in_array('calloutlist', $packet['unsupportedChildNames'], true));
+        $t->same('docbook-unsupported-child', $packet['unsupportedChildDiagnostics'][0]['code'] ?? null);
+        $t->same(false, $packet['unsupportedChildDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(false, $packet['unsupportedChildDiagnostics'][0]['coveredByPacket'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookReviewPacket($docbook, 'xml'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes docbook structure review packets without direct reader parity claims' => static function (TestRunner $t): void {
         $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:lang="en">

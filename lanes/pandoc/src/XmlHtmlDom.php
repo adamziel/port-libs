@@ -10,6 +10,7 @@ final class XmlHtmlDom
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
+    private const DOCBOOK_REVIEW_PACKET_MAX_ITEMS = 25;
     private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
     private const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
 
@@ -193,8 +194,102 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const DOCBOOK_STRUCTURAL_BLOCK_NAMES = [
+        'abstract' => true,
+        'appendix' => true,
+        'blockquote' => true,
+        'bridgehead' => true,
+        'calloutlist' => true,
+        'caution' => true,
+        'chapter' => true,
+        'example' => true,
+        'figure' => true,
+        'formalpara' => true,
+        'important' => true,
+        'informalexample' => true,
+        'informalfigure' => true,
+        'inlinemediaobject' => true,
+        'itemizedlist' => true,
+        'literallayout' => true,
+        'mediaobject' => true,
+        'note' => true,
+        'orderedlist' => true,
+        'para' => true,
+        'part' => true,
+        'preface' => true,
+        'procedure' => true,
+        'programlisting' => true,
+        'screen' => true,
+        'section' => true,
+        'sect1' => true,
+        'sect2' => true,
+        'sect3' => true,
+        'sect4' => true,
+        'sect5' => true,
+        'sidebar' => true,
+        'simpara' => true,
+        'simplesect' => true,
+        'tip' => true,
+        'variablelist' => true,
+        'warning' => true,
+    ];
+
+    /** @var array<string, true> */
     private const DOCBOOK_XREF_LINK_ELEMENTS = [
         'link' => true,
+        'xref' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const DOCBOOK_REVIEW_PACKET_COVERED_CHILD_NAMES = [
+        'anchor' => true,
+        'caption' => true,
+        'caution' => true,
+        'chapter' => true,
+        'colspec' => true,
+        'emphasis' => true,
+        'entry' => true,
+        'figure' => true,
+        'formalpara' => true,
+        'imagedata' => true,
+        'imageobject' => true,
+        'important' => true,
+        'informalfigure' => true,
+        'informaltable' => true,
+        'info' => true,
+        'inlinemediaobject' => true,
+        'itemizedlist' => true,
+        'link' => true,
+        'listitem' => true,
+        'literal' => true,
+        'mediaobject' => true,
+        'note' => true,
+        'orderedlist' => true,
+        'para' => true,
+        'phrase' => true,
+        'row' => true,
+        'section' => true,
+        'sect1' => true,
+        'sect2' => true,
+        'sect3' => true,
+        'sect4' => true,
+        'sect5' => true,
+        'simpara' => true,
+        'simplesect' => true,
+        'subtitle' => true,
+        'tbody' => true,
+        'term' => true,
+        'textobject' => true,
+        'tfoot' => true,
+        'tgroup' => true,
+        'thead' => true,
+        'tip' => true,
+        'title' => true,
+        'titleabbrev' => true,
+        'ulink' => true,
+        'variablelist' => true,
+        'varlistentry' => true,
+        'warning' => true,
         'xref' => true,
     ];
 
@@ -1701,6 +1796,136 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function docBookDirectReaderDiagnostics(
+        string $format,
+        int $structuralBlockCount,
+        int $admonitionCount,
+        int $figureCount,
+        int $mediaObjectCount,
+        int $imageDataRefCount,
+        int $linkendReferenceCount,
+        int $xmlIdTargetCount,
+        int $unsupportedChildDiagnosticCount
+    ): array {
+        $diagnostics = [
+            self::docBookDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                'DocBook direct reader parity is not implemented; this packet exposes bounded XML diagnostics only.',
+                false,
+                true,
+                ['format' => $format]
+            ),
+        ];
+
+        if ($structuralBlockCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'structural-blocks-review-only',
+                'unsupported',
+                'DocBook structural blocks are inventoried for review but are not mapped as a full Pandoc direct reader AST.',
+                false,
+                false,
+                ['structuralBlockCount' => $structuralBlockCount]
+            );
+        }
+
+        if ($admonitionCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'admonitions-review-only',
+                'unsupported',
+                'DocBook admonition-like blocks are summarized but are not converted into Pandoc admonition/body blocks.',
+                false,
+                false,
+                ['admonitionCount' => $admonitionCount]
+            );
+        }
+
+        if ($figureCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'figures-review-only',
+                'unsupported',
+                'DocBook figure elements are summarized for review but are not converted into Pandoc figure blocks.',
+                false,
+                false,
+                ['figureCount' => $figureCount]
+            );
+        }
+
+        if ($mediaObjectCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'mediaobjects-review-only',
+                'unsupported',
+                'DocBook mediaobject elements are summarized for review but are not mapped as media-bearing blocks.',
+                false,
+                false,
+                ['mediaObjectCount' => $mediaObjectCount]
+            );
+        }
+
+        if ($imageDataRefCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'image-references-review-only',
+                'unsupported',
+                'DocBook imagedata references are inventoried but are not loaded or converted into image resources.',
+                false,
+                false,
+                ['imageDataRefCount' => $imageDataRefCount]
+            );
+        }
+
+        if ($linkendReferenceCount > 0 || $xmlIdTargetCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'linkend-targets-review-only',
+                'unsupported',
+                'DocBook xml:id/id targets and linkend references are summarized without full cross-reference conversion.',
+                false,
+                false,
+                [
+                    'linkendReferenceCount' => $linkendReferenceCount,
+                    'xmlIdTargetCount' => $xmlIdTargetCount,
+                ]
+            );
+        }
+
+        if ($unsupportedChildDiagnosticCount > 0) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'unsupported-children-review-only',
+                'unsupported',
+                'DocBook child elements outside the bounded review packet are reported as unsupported direct-reader gaps.',
+                false,
+                false,
+                ['unsupportedChildDiagnosticCount' => $unsupportedChildDiagnosticCount]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, int|string|bool> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     */
+    private static function docBookDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        bool $directReaderParity,
+        bool $coveredByPacket,
+        array $details = []
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => $directReaderParity,
+            'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
+        ];
+    }
+
+    /**
      * @return array{
      *     name:string,
      *     qualifiedName:string,
@@ -1730,6 +1955,108 @@ final class XmlHtmlDom
             'attributes' => $attributes,
             'attributeNames' => array_keys($attributes),
             'attributeCount' => count($attributes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeDocBookReviewPacket(\DOMDocument $dom, string $format = 'docbook'): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('DocBook review packet requires a document element');
+        }
+
+        $format = strtolower(trim($format));
+        if (!in_array($format, ['docbook', 'docbook4', 'docbook5'], true)) {
+            throw new \InvalidArgumentException('DocBook review packet format must be docbook, docbook4, or docbook5');
+        }
+        if (!self::docBookRootLooksLikeDocBook($root)) {
+            throw new \InvalidArgumentException('DocBook review packet root must be a DocBook structural element');
+        }
+
+        $structuralBlocks = self::docBookStructuralBlockSummaries($root);
+        $admonitions = self::docBookReviewAdmonitionSummaries($root);
+        $figures = self::docBookFigureSummaries($root);
+        $mediaObjects = self::docBookMediaObjectSummaries($root);
+        $imageDataRefs = self::docBookImageDataReferences($root);
+        $targetSummary = self::docBookTargetSummary($root);
+        $unsupportedChildDiagnostics = self::docBookUnsupportedChildDiagnostics($root);
+        $directReaderDiagnostics = self::docBookDirectReaderDiagnostics(
+            $format,
+            $structuralBlocks['count'],
+            $admonitions['count'],
+            $figures['count'],
+            $mediaObjects['count'],
+            $imageDataRefs['count'],
+            count($targetSummary['linkendReferences']),
+            count($targetSummary['xmlIdTargets']),
+            $unsupportedChildDiagnostics['count']
+        );
+
+        return [
+            'formatFamily' => 'xml-html5-docbook-dom',
+            'format' => $format,
+            'reviewPolicy' => 'docbook-structural-media-review-only',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $directReaderDiagnostics
+            ),
+            'directReaderDiagnosticCount' => count($directReaderDiagnostics),
+            'directReaderDiagnostics' => $directReaderDiagnostics,
+            'rootName' => $root->localName,
+            'rootNamespace' => $root->namespaceURI,
+            'rootAttributes' => self::xmlAttributeMap($root),
+            'version' => self::attribute($root, 'version'),
+            'language' => self::attribute($root, 'lang', self::XML_NAMESPACE)
+                ?? self::attribute($root, 'lang'),
+            'title' => self::docBookReviewTitleText($root),
+            'bounded' => true,
+            'maxReviewItems' => self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS,
+            'structuralBlocks' => $structuralBlocks['items'],
+            'structuralBlockCount' => $structuralBlocks['count'],
+            'structuralBlockNames' => array_values(array_unique(array_map(
+                static fn (array $item): string => (string) $item['name'],
+                $structuralBlocks['items']
+            ))),
+            'structuralBlocksTruncated' => $structuralBlocks['truncated'],
+            'admonitions' => $admonitions['items'],
+            'admonitionCount' => $admonitions['count'],
+            'admonitionTypes' => array_values(array_unique(array_map(
+                static fn (array $item): string => (string) $item['type'],
+                $admonitions['items']
+            ))),
+            'admonitionsTruncated' => $admonitions['truncated'],
+            'figures' => $figures['items'],
+            'figureCount' => $figures['count'],
+            'figureXmlIds' => array_values(array_filter(array_map(
+                static fn (array $item): ?string => $item['xmlId'],
+                $figures['items']
+            ), static fn (?string $id): bool => $id !== null && $id !== '')),
+            'figuresTruncated' => $figures['truncated'],
+            'mediaObjects' => $mediaObjects['items'],
+            'mediaObjectCount' => $mediaObjects['count'],
+            'mediaObjectsTruncated' => $mediaObjects['truncated'],
+            'imageDataRefs' => $imageDataRefs['items'],
+            'imageDataRefCount' => $imageDataRefs['count'],
+            'imageDataRefsTruncated' => $imageDataRefs['truncated'],
+            'xmlIdTargets' => $targetSummary['xmlIdTargets'],
+            'idTargets' => $targetSummary['idTargets'],
+            'targetSummaries' => $targetSummary['targetSummaries'],
+            'targetSummaryCount' => count($targetSummary['targetSummaries']),
+            'linkendReferences' => $targetSummary['linkendReferences'],
+            'linkendReferenceCount' => count($targetSummary['linkendReferences']),
+            'linkendTargets' => $targetSummary['linkendTargets'],
+            'missingLinkendTargets' => $targetSummary['missingLinkendTargets'],
+            'unsupportedChildDiagnostics' => $unsupportedChildDiagnostics['items'],
+            'unsupportedChildDiagnosticCount' => $unsupportedChildDiagnostics['count'],
+            'unsupportedChildNames' => array_values(array_unique(array_map(
+                static fn (array $item): string => (string) $item['childName'],
+                $unsupportedChildDiagnostics['items']
+            ))),
+            'unsupportedChildDiagnosticsTruncated' => $unsupportedChildDiagnostics['truncated'],
         ];
     }
 
@@ -2619,6 +2946,436 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($refs));
+    }
+
+    private static function docBookRootLooksLikeDocBook(\DOMElement $root): bool
+    {
+        if (($root->namespaceURI ?? '') === 'http://docbook.org/ns/docbook') {
+            return true;
+        }
+
+        return in_array($root->localName, [
+            'appendix',
+            'article',
+            'book',
+            'chapter',
+            'part',
+            'preface',
+            'reference',
+            'section',
+            'sect1',
+            'sect2',
+            'sect3',
+            'sect4',
+            'sect5',
+            'set',
+        ], true);
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookStructuralBlockSummaries(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::descendantElements($root) as $element) {
+            if (!isset(self::DOCBOOK_STRUCTURAL_BLOCK_NAMES[$element->localName])) {
+                continue;
+            }
+            ++$count;
+            if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                continue;
+            }
+
+            $items[] = [
+                'name' => $element->localName,
+                'path' => self::docBookElementPath($element),
+                'parentName' => $element->parentNode instanceof \DOMElement ? $element->parentNode->localName : null,
+                'xmlId' => self::docBookXmlId($element),
+                'id' => self::attribute($element, 'id'),
+                'title' => self::docBookReviewTitleText($element),
+                'text' => self::docBookBoundedText($element),
+                'childElementNames' => self::docBookChildElementNames($element),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookReviewAdmonitionSummaries(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::descendantElements($root) as $element) {
+            if (!isset(self::DOCBOOK_ADMONITION_ELEMENTS[$element->localName])) {
+                continue;
+            }
+            ++$count;
+            if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                continue;
+            }
+
+            $items[] = [
+                'type' => $element->localName,
+                'path' => self::docBookElementPath($element),
+                'xmlId' => self::docBookXmlId($element),
+                'id' => self::attribute($element, 'id'),
+                'title' => self::docBookReviewTitleText($element),
+                'text' => self::docBookBoundedText($element),
+                'paragraphCount' => self::docBookParagraphCount($element),
+                'linkendTargets' => self::docBookLinkendTargets($element),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookFigureSummaries(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::descendantElements($root) as $element) {
+            if (!in_array($element->localName, ['figure', 'informalfigure'], true)) {
+                continue;
+            }
+            ++$count;
+            if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                continue;
+            }
+
+            $imageDataRefs = self::docBookImageDataReferences($element);
+            $items[] = [
+                'type' => $element->localName,
+                'path' => self::docBookElementPath($element),
+                'xmlId' => self::docBookXmlId($element),
+                'id' => self::attribute($element, 'id'),
+                'title' => self::docBookReviewTitleText($element),
+                'mediaObjectCount' => count(self::descendantElements($element, 'mediaobject'))
+                    + count(self::descendantElements($element, 'inlinemediaobject')),
+                'imageDataRefs' => $imageDataRefs['items'],
+                'imageDataRefCount' => $imageDataRefs['count'],
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookMediaObjectSummaries(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::descendantElements($root) as $element) {
+            if (!in_array($element->localName, ['mediaobject', 'inlinemediaobject'], true)) {
+                continue;
+            }
+            ++$count;
+            if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                continue;
+            }
+
+            $figure = self::docBookNearestAncestor($element, ['figure', 'informalfigure']);
+            $imageDataRefs = self::docBookImageDataReferences($element);
+            $items[] = [
+                'type' => $element->localName,
+                'path' => self::docBookElementPath($element),
+                'xmlId' => self::docBookXmlId($element),
+                'id' => self::attribute($element, 'id'),
+                'parentFigureXmlId' => $figure instanceof \DOMElement ? self::docBookXmlId($figure) : null,
+                'parentFigureId' => $figure instanceof \DOMElement ? self::attribute($figure, 'id') : null,
+                'imageDataRefs' => $imageDataRefs['items'],
+                'imageDataRefCount' => $imageDataRefs['count'],
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookImageDataReferences(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::descendantElements($root, 'imagedata') as $element) {
+            ++$count;
+            if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                continue;
+            }
+
+            $mediaObject = self::docBookNearestAncestor($element, ['mediaobject', 'inlinemediaobject']);
+            $items[] = [
+                'path' => self::docBookElementPath($element),
+                'parentMediaObjectType' => $mediaObject instanceof \DOMElement ? $mediaObject->localName : null,
+                'fileref' => self::attribute($element, 'fileref'),
+                'entityref' => self::attribute($element, 'entityref'),
+                'format' => self::attribute($element, 'format'),
+                'width' => self::attribute($element, 'width'),
+                'depth' => self::attribute($element, 'depth'),
+                'contentwidth' => self::attribute($element, 'contentwidth'),
+                'contentdepth' => self::attribute($element, 'contentdepth'),
+                'scale' => self::attribute($element, 'scale'),
+                'scalefit' => self::attribute($element, 'scalefit'),
+                'align' => self::attribute($element, 'align'),
+                'valign' => self::attribute($element, 'valign'),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookTargetSummary(\DOMElement $root): array
+    {
+        $targetSummaries = [];
+        $xmlIdTargets = [];
+        $idTargets = [];
+        foreach (self::docBookElementAndDescendants($root) as $element) {
+            $xmlId = self::docBookXmlId($element);
+            $id = self::attribute($element, 'id');
+            if (($xmlId === null || trim($xmlId) === '') && ($id === null || trim($id) === '')) {
+                continue;
+            }
+
+            if ($xmlId !== null && trim($xmlId) !== '') {
+                $xmlIdTargets[] = trim($xmlId);
+            }
+            if ($id !== null && trim($id) !== '') {
+                $idTargets[] = trim($id);
+            }
+            if (count($targetSummaries) < self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                $targetSummaries[] = [
+                    'name' => $element->localName,
+                    'path' => self::docBookElementPath($element),
+                    'xmlId' => $xmlId,
+                    'id' => $id,
+                    'title' => self::docBookReviewTitleText($element),
+                ];
+            }
+        }
+
+        $knownTargets = array_fill_keys(array_merge($xmlIdTargets, $idTargets), true);
+        $linkendReferences = [];
+        $linkendTargets = [];
+        $missingTargets = [];
+        foreach (self::docBookElementAndDescendants($root) as $element) {
+            $linkend = self::attribute($element, 'linkend');
+            if ($linkend === null || trim($linkend) === '') {
+                continue;
+            }
+
+            $targets = self::spaceSeparatedTokens($linkend);
+            $resolved = [];
+            $missing = [];
+            foreach ($targets as $target) {
+                $linkendTargets[] = $target;
+                if (isset($knownTargets[$target])) {
+                    $resolved[] = $target;
+                } else {
+                    $missing[] = $target;
+                    $missingTargets[] = $target;
+                }
+            }
+
+            if (count($linkendReferences) < self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                $endterm = self::attribute($element, 'endterm');
+                $linkendReferences[] = [
+                    'name' => $element->localName,
+                    'path' => self::docBookElementPath($element),
+                    'linkendRaw' => $linkend,
+                    'targets' => $targets,
+                    'resolvedTargets' => $resolved,
+                    'missingTargets' => $missing,
+                    'endterm' => $endterm,
+                    'endtermResolved' => $endterm !== null && isset($knownTargets[$endterm]),
+                    'text' => self::docBookBoundedText($element, 80),
+                ];
+            }
+        }
+
+        return [
+            'xmlIdTargets' => array_values(array_unique($xmlIdTargets)),
+            'idTargets' => array_values(array_unique($idTargets)),
+            'targetSummaries' => $targetSummaries,
+            'linkendReferences' => $linkendReferences,
+            'linkendTargets' => array_values(array_unique($linkendTargets)),
+            'missingLinkendTargets' => array_values(array_unique($missingTargets)),
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookUnsupportedChildDiagnostics(\DOMElement $root): array
+    {
+        $items = [];
+        $count = 0;
+        foreach (self::docBookElementAndDescendants($root) as $parent) {
+            foreach (self::childElements($parent) as $child) {
+                if (isset(self::DOCBOOK_REVIEW_PACKET_COVERED_CHILD_NAMES[$child->localName])) {
+                    continue;
+                }
+
+                ++$count;
+                if (count($items) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+                    continue;
+                }
+
+                $items[] = [
+                    'code' => 'docbook-unsupported-child',
+                    'severity' => 'unsupported',
+                    'parentName' => $parent->localName,
+                    'childName' => $child->localName,
+                    'path' => self::docBookElementPath($child),
+                    'message' => 'DocBook child element is outside the bounded XML review packet and full direct-reader conversion remains unsupported.',
+                    'directReaderParity' => false,
+                    'coveredByPacket' => false,
+                    'text' => self::docBookBoundedText($child, 80),
+                ];
+            }
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'truncated' => $count > count($items),
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function docBookElementAndDescendants(\DOMElement $root): array
+    {
+        return [$root, ...self::descendantElements($root)];
+    }
+
+    private static function docBookReviewTitleText(\DOMElement $element): ?string
+    {
+        $title = self::firstChildElement($element, 'title') ?? self::firstDescendantElement($element, 'title');
+        if (!$title instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($title);
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function docBookXmlId(\DOMElement $element): ?string
+    {
+        $id = self::attribute($element, 'id', self::XML_NAMESPACE);
+
+        return $id === null || trim($id) === '' ? null : trim($id);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookChildElementNames(\DOMElement $element): array
+    {
+        return array_values(array_map(
+            static fn (\DOMElement $child): string => $child->localName,
+            self::childElements($element)
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookLinkendTargets(\DOMElement $element): array
+    {
+        $targets = [];
+        foreach (self::docBookElementAndDescendants($element) as $candidate) {
+            $linkend = self::attribute($candidate, 'linkend');
+            if ($linkend === null || trim($linkend) === '') {
+                continue;
+            }
+            foreach (self::spaceSeparatedTokens($linkend) as $target) {
+                $targets[] = $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private static function docBookNearestAncestor(\DOMElement $element, array $names): ?\DOMElement
+    {
+        $lookup = array_fill_keys($names, true);
+        $node = $element->parentNode;
+        while ($node instanceof \DOMElement) {
+            if (isset($lookup[$node->localName])) {
+                return $node;
+            }
+            $node = $node->parentNode;
+        }
+
+        return null;
+    }
+
+    private static function docBookElementPath(\DOMElement $element): string
+    {
+        $segments = [];
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            $segment = $node->localName;
+            $xmlId = self::docBookXmlId($node);
+            $id = self::attribute($node, 'id');
+            if ($xmlId !== null) {
+                $segment .= '[@xml:id="' . $xmlId . '"]';
+            } elseif ($id !== null && trim($id) !== '') {
+                $segment .= '[@id="' . trim($id) . '"]';
+            }
+            array_unshift($segments, $segment);
+            $node = $node->parentNode;
+        }
+
+        return '/' . implode('/', $segments);
+    }
+
+    private static function docBookBoundedText(\DOMElement $element, int $limit = 160): string
+    {
+        $text = self::normalizedText($element);
+        if (strlen($text) <= $limit) {
+            return $text;
+        }
+
+        return rtrim(substr($text, 0, $limit)) . '...';
     }
 
     /**

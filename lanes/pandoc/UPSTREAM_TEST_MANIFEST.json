@@ -8,7 +8,7 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3343,
+        "mapped": 3344,
         "latestSlice": "pandoc-csv-tsv-multiline-quoted-record-diagnostics maps two DelimitedTextReader cases for newline-containing quoted fields, trailing delimiters, unterminated quotes at EOF, and partial final records in CSV and TSV while preserving auto format inference and native table parsing without invoking Pandoc, spreadsheet applications, browsers, external validators, online services, or live provider tests. Mapped upstream cases move 3341 -> 3343, mappedCsvTsvMultilineQuotedRecordDiagnosticsCases is 2, and csvTsvMultilineQuotedRecordDiagnosticsAssertions is 44. Verification passed php -l for DelimitedTextReader.php and DelimitedTextReaderTest.php; focused DelimitedTextReaderTest.php passed 1 file, 121 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 77524 assertions, 0 failures after rebase onto current main e328a6b4.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
