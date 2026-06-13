@@ -10643,11 +10643,13 @@ final class XmlHtmlDom
         if ($name === 'table') {
             $captions = self::childHtmlElements($element, 'caption');
 
-            return [
+            $summary = [
                 'tablePart' => 'table',
                 'captionText' => isset($captions[0]) ? self::normalizedText($captions[0]) : null,
                 'captionCount' => count($captions),
             ];
+
+            return $summary + self::tableHeaderAssociationSummary($element);
         }
 
         if ($name === 'caption') {
@@ -10713,6 +10715,80 @@ final class XmlHtmlDom
         }
 
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tableHeaderAssociationSummary(\DOMElement $table): array
+    {
+        $headersById = [];
+        $headerIds = [];
+        $headerCellCount = 0;
+        $elementIndex = 0;
+
+        foreach ($table->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement) {
+                continue;
+            }
+
+            $candidateTable = self::nearestHtmlTable($candidate);
+            if (!$candidateTable instanceof \DOMElement || !$candidateTable->isSameNode($table)) {
+                continue;
+            }
+
+            ++$elementIndex;
+            if (self::htmlElementName($candidate) !== 'th') {
+                continue;
+            }
+
+            ++$headerCellCount;
+            $id = self::normalizedNonEmptyAttribute(self::attributeOrNull($candidate, 'id'));
+            if ($id === null) {
+                continue;
+            }
+
+            if (!isset($headersById[$id])) {
+                $headerIds[] = $id;
+            }
+            $headersById[$id][] = [
+                'id' => $id,
+                'text' => self::normalizedText($candidate),
+                'scope' => self::tableHeaderScope($candidate),
+                'abbr' => self::attributeOrNull($candidate, 'abbr'),
+                'index' => $elementIndex,
+            ];
+        }
+
+        $duplicateHeaderIds = [];
+        $issues = [];
+        foreach ($headersById as $id => $headers) {
+            if (count($headers) < 2) {
+                continue;
+            }
+
+            $duplicateHeaderIds[] = $id;
+            $issues[] = [
+                'code' => 'duplicate-table-header-id',
+                'headerId' => $id,
+                'count' => count($headers),
+                'texts' => array_map(
+                    static fn (array $header): string => (string) ($header['text'] ?? ''),
+                    $headers
+                ),
+            ];
+        }
+
+        return [
+            'tableHeaderCellCount' => $headerCellCount,
+            'tableHeaderIds' => $headerIds,
+            'duplicateTableHeaderIds' => $duplicateHeaderIds,
+            'tableHeaderIssues' => $issues,
+            'tableHeaderIssueCodes' => array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ),
+        ];
     }
 
     /**
