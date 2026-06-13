@@ -1085,7 +1085,7 @@ return [
         $nativeTable = [
             't' => 'Table',
             'c' => [
-                ['', ['native-review'], [['data-source', 'batch-52']]],
+                ['native-table', ['native-review'], [['data-source', 'batch-52']]],
                 [
                     [
                         ['t' => 'Str', 'c' => 'Short'],
@@ -1205,11 +1205,13 @@ return [
         $shortCaptionInlines = $table->attr('shortCaptionInlines');
         $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
         $markdown = (new MarkdownWriter())->write($document);
+        $latex = (new LatexWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
         $t->same('table', $table->type);
         $t->same('Table', $table->attr('constructor'));
+        $t->same('native-table', $table->attr('id'));
         $t->same(['native-review'], $table->attr('classes'));
         $t->same(['data-source' => 'batch-52'], $table->attr('attributes'));
         $t->same('Long caption reviewer', $table->attr('caption'));
@@ -1226,7 +1228,9 @@ return [
         $t->same(true, is_array($shortCaptionInlines));
         $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
         $t->same($nativeTable, $roundTrip['blocks'][0]);
-        $t->contains(': [Short **queue**] Long *caption* [reviewer](https://example.test/review "Review")', $markdown);
+        $t->contains(': [Short **queue**] Long *caption* [reviewer](https://example.test/review "Review") {#native-table .native-review data-source="batch-52"}', $markdown);
+        $t->contains('\caption[Short \textbf{queue}]{Long \emph{caption} \href{https://example.test/review}{reviewer}}\label{native-table}', $latex);
+        $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $blocks);
         $t->contains('<figcaption class="wp-element-caption"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></figcaption>', $blocks);
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);

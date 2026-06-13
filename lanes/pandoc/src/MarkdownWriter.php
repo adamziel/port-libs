@@ -1453,9 +1453,10 @@ final class MarkdownWriter
         }
 
         $caption = $this->renderTableCaption($node);
-        if ($caption !== '') {
+        $attrs = $this->renderTableAttributes($node);
+        if ($caption !== '' || $attrs !== '') {
             $lines[] = '';
-            $lines[] = $prefix . ': ' . $caption;
+            $lines[] = $prefix . ': ' . trim($caption . ($attrs === '' ? '' : ' ' . $attrs));
         }
 
         return $lines;
@@ -1670,6 +1671,38 @@ final class MarkdownWriter
         }
 
         return true;
+    }
+
+    private function renderTableAttributes(AstNode $node): string
+    {
+        return $this->renderAttributesTuple($this->tableAttrTuple($node));
+    }
+
+    /**
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function tableAttrTuple(AstNode $node): array
+    {
+        $attrs = $this->linkAttrTuple($node);
+        $attrs['attributes'] = array_filter(
+            $attrs['attributes'],
+            fn (string $value, string $name): bool => $this->isMarkdownTableAttribute($name),
+            ARRAY_FILTER_USE_BOTH
+        );
+
+        return $attrs;
+    }
+
+    private function isMarkdownTableAttribute(string $name): bool
+    {
+        $name = strtolower($name);
+        if (str_starts_with($name, 'data-docx-')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['dir', 'lang', 'role', 'title', 'xml:lang'], true);
     }
 
     /**
