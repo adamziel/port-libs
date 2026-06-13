@@ -4330,6 +4330,143 @@ return [
             }
         }
     },
+    'preserves table foot row and cell native payloads until foot cells are edited' => static function (TestRunner $t): void {
+        $footCellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['foot-cell-id', ['total'], [['data-source', 'foot']]],
+                ['t' => 'AlignRight', 'c' => []],
+                ['t' => 'RowSpan', 'c' => [1]],
+                ['t' => 'ColSpan', 'c' => [1]],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Total'],
+                    ]],
+                ],
+            ],
+            'reviewQueue' => 'foot-cell-source',
+            'sourceOrdinal' => 104,
+        ];
+        $footRowNative = [
+            't' => 'Row',
+            'c' => [
+                ['foot-row-id', ['summary'], [['data-row', 'foot']]],
+                [$footCellNative],
+            ],
+            'reviewQueue' => 'foot-row-source',
+            'sourceOrdinal' => 103,
+        ];
+        $footNative = [
+            't' => 'TableFoot',
+            'c' => [
+                ['foot-section-id', ['tfoot'], [['data-section', 'foot']]],
+                [$footRowNative],
+            ],
+            'reviewQueue' => 'foot-section-source',
+            'sourceOrdinal' => 102,
+        ];
+        $bodyNative = [
+            't' => 'TableBody',
+            'c' => [
+                ['', [], []],
+                ['t' => 'RowHeadColumns', 'c' => [0]],
+                [],
+                [],
+            ],
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-foot-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignRight', 'c' => []], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [$bodyNative],
+                $footNative,
+            ],
+            'reviewQueue' => 'table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $sectionByType = static function (AstNode $table, string $type): AstNode {
+            foreach ($table->children as $child) {
+                if ($child->type === $type) {
+                    return $child;
+                }
+            }
+
+            throw new \RuntimeException("Missing {$type} section");
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $sectionByType($table, 'table_body');
+            $foot = $sectionByType($table, 'table_foot');
+            $footRow = $foot->children[0];
+            $footCell = $footRow->children[0];
+
+            $t->same($footNative, $foot->attr('native'), "{$source} reader preserves table foot native payload");
+            $t->same($footRowNative, $footRow->attr('native'), "{$source} reader preserves table foot row native payload");
+            $t->same($footCellNative, $footCell->attr('native'), "{$source} reader preserves table foot cell native payload");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'rebuilt-foot-table']), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedFootPayload = $encodedTable['c'][5]['c'] ?? $encodedTable['c'][5];
+                $encodedFootRow = $encodedFootPayload[1][0];
+                $encodedFootRowPayload = $encodedFootRow['c'] ?? $encodedFootRow;
+                $encodedFootCell = $encodedFootRowPayload[1][0];
+
+                $t->same('rebuilt-foot-table', $encodedTable['c'][0][0], "{$source} {$writer} writer regenerates edited table attr");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$source} {$writer} writer drops stale table sidecar");
+                $t->same($footNative, $encodedTable['c'][5], "{$source} {$writer} writer preserves unchanged table foot native payload");
+                $t->same($footRowNative, $encodedFootRow, "{$source} {$writer} writer preserves unchanged table foot row native payload");
+                $t->same($footCellNative, $encodedFootCell, "{$source} {$writer} writer preserves unchanged table foot cell native payload");
+            }
+
+            $editedFootCell = new AstNode('table_cell', $footCell->attrs, [
+                new AstNode('text', ['text' => 'Edited']),
+            ]);
+            $editedFootRow = new AstNode('table_row', $footRow->attrs, [$editedFootCell]);
+            $editedFoot = new AstNode('table_foot', $foot->attrs, [$editedFootRow]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'edited-foot-table']), [$body, $editedFoot]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedFoot = $encodedTable['c'][5];
+                $encodedFootPayload = $encodedFoot['c'] ?? $encodedFoot;
+                $encodedFootRow = $encodedFootPayload[1][0];
+                $encodedFootRowPayload = $encodedFootRow['c'] ?? $encodedFootRow;
+                $encodedFootCell = $encodedFootRowPayload[1][0];
+                $encodedFootCellPayload = $encodedFootCell['c'] ?? $encodedFootCell;
+
+                $t->same('edited-foot-table', $encodedTable['c'][0][0], "{$source} {$writer} edited foot keeps edited table attr");
+                $t->same('Edited', $encodedFootCellPayload[4][0]['c'][0]['c'], "{$source} {$writer} edited foot cell regenerates content");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFoot), "{$source} {$writer} edited foot drops stale foot sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFootRow), "{$source} {$writer} edited foot drops stale row sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedFootCell), "{$source} {$writer} edited foot drops stale cell sidecar");
+            }
+        }
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
