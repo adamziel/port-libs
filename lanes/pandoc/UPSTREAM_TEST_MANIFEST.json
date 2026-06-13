@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3278,
-        "latestSlice": "pandoc-inline-attribute-writer-handoff maps one cross-format inline writer slice for semantic inline, code, and math attribute preservation after EPUB direct manifest/spine diagnostics on current main. WordPressBlockWriter now emits safe attrs on emphasis, strong, small caps, underline, strikeout, superscript, subscript, and math spans while filtering unsafe style/event attrs; LatexWriter now preserves inline ids as hypertarget anchors for semantic, code, and math nodes. phpPass moves 3318 -> 3319, phpFail remains 0, mappedPandocInlineAttributeWriterCases is 1, and pandocInlineAttributeWriterAssertions is 13. Verification passed php -l for LatexWriter.php, WordPressBlockWriter.php, LatexWriterTest.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php plus LatexWriterTest.php passed 2 files, 6665 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74485 assertions, 0 failures after rebase onto current main 4487923aa2. No Pandoc, TeX, browser renderer, JSON filter, spreadsheet tool, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3279,
+        "latestSlice": "pandoc-markdown-fenced-div-section-reference-boundaries keeps referenceLocation=end_of_section definitions scoped inside fenced Div section block collections after inline attribute writer handoff on current main. MarkdownWriter now flushes pending footnote and reference definitions before nested headings and before the closing fence when rendering fenced Div children, so section-local notes and links no longer leak to the document tail. phpPass moves 3319 -> 3320, phpFail remains 0, mappedMarkdownFencedDivSectionReferenceBoundaryCases is 1, and markdownFencedDivSectionReferenceBoundaryAssertions is 2. Verification passed php -l for MarkdownWriter.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6653 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74487 assertions, 0 failures after final rebase onto current main 057a4c4e57. No Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, TeX or office tooling, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc inline attribute writer handoff is verified over current main 4487923aa2 after EPUB direct manifest/spine diagnostics; broader Markdown/CommonMark/GFM and LaTeX/math parity remain partial.",
-        "latestFocusedSource": "2026-06-13 inline writer slice inspected semantic/code/math attribute handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 4487923aa2; focused MarkdownReaderTest.php plus LatexWriterTest.php passed 2 files, 6665 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74485 assertions, 0 failures.",
+        "status": "Markdown fenced Div section-reference boundary coverage is verified over current main 057a4c4e57 after inline attribute writer handoff; broader Markdown/CommonMark/GFM remains partial.",
+        "latestFocusedSource": "2026-06-13 Markdown fenced Div section-reference boundary slice inspected Markdown writer section/reference behavior against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 057a4c4e57; focused MarkdownReaderTest.php passed 1 file, 6653 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74487 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -177,7 +177,9 @@
         "mappedEpubDirectManifestSpineReportCases": 1,
         "epubDirectManifestSpineReportAssertions": 38,
         "mappedPandocInlineAttributeWriterCases": 1,
-        "pandocInlineAttributeWriterAssertions": 13
+        "pandocInlineAttributeWriterAssertions": 13,
+        "mappedMarkdownFencedDivSectionReferenceBoundaryCases": 1,
+        "markdownFencedDivSectionReferenceBoundaryAssertions": 2
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",

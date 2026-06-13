@@ -1714,7 +1714,7 @@ final class MarkdownWriter
 
         $attrs = $this->renderLinkAttributes($node);
         $prefix = str_repeat(' ', $indent);
-        $body = $this->renderBlockCollection($node->children);
+        $body = $this->renderBlockCollection($node->children, true);
         $fenceLength = max(3, $this->longestColonRun($body) + 1);
         $fence = str_repeat(':', $fenceLength);
         $opening = rtrim($prefix . $fence . ($attrs === '' ? '' : ' ' . $attrs));
@@ -2467,14 +2467,22 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $nodes
      */
-    private function renderBlockCollection(array $nodes): string
+    private function renderBlockCollection(array $nodes, bool $sectionBoundaries = false): string
     {
         $blocks = [];
         foreach ($nodes as $node) {
+            if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section' && $node->type === 'heading' && $blocks !== []) {
+                $this->appendPendingDefinitions($blocks);
+            }
+
             $lines = $this->renderBlock($node, 0);
             if ($lines !== []) {
                 $blocks[] = implode("\n", $lines);
             }
+        }
+
+        if ($sectionBoundaries && $this->referenceLocation() === 'end_of_section') {
+            $this->appendPendingDefinitions($blocks);
         }
 
         return implode("\n\n", $blocks);
