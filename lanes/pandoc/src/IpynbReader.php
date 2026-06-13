@@ -8,6 +8,17 @@ final class IpynbReader
 {
     private const MAX_CELLS = 200;
     private const MAX_CELL_SOURCE_BYTES = 1048576;
+    private const UNSAFE_CELL_METADATA_KEYS = [
+        'collapsed',
+        'deletable',
+        'editable',
+        'hide_input',
+        'jupyter',
+        'scrolled',
+        'slideshow',
+        'tags',
+        'trusted',
+    ];
 
     private readonly MarkdownReader $markdownReader;
 
@@ -34,6 +45,7 @@ final class IpynbReader
         $notebookSchemaDiagnostics = $this->notebookSchemaDiagnostics($notebook, $cells);
         $schemaDiagnostics = $notebookSchemaDiagnostics;
         $cellSchemaDiagnosticCount = 0;
+        $rawMarkdownCellDiagnostics = [];
 
         $metadata = isset($notebook['metadata']) && is_array($notebook['metadata']) ? $notebook['metadata'] : [];
         $language = $this->metadataString($metadata['language_info'] ?? null, 'name')
@@ -68,9 +80,15 @@ final class IpynbReader
             }
             $cellSchemaDiagnosticCount += count($cellSchemaDiagnostics);
 
-            $source = $this->normalizeSource($cell['source'] ?? '', "IPYNB cell {$cellIndex} source");
+            $sourcePresent = array_key_exists('source', $cell);
+            $sourceValue = $sourcePresent ? $cell['source'] : '';
+            $source = $this->normalizeSource($sourceValue, "IPYNB cell {$cellIndex} source");
             if (strlen($source) > self::MAX_CELL_SOURCE_BYTES) {
                 throw new \InvalidArgumentException("IPYNB cell {$cellIndex} exceeds the bounded native reader source limit");
+            }
+            $cellSourceDiagnostics = $this->rawMarkdownCellDiagnostics($cell, $cellType, $cellIndex, $sourcePresent, $sourceValue, $source);
+            foreach ($cellSourceDiagnostics as $diagnostic) {
+                $rawMarkdownCellDiagnostics[] = $diagnostic;
             }
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
@@ -169,6 +187,10 @@ final class IpynbReader
                 $cellAttrs['ipynbCellSchemaDiagnosticCount'] = count($cellSchemaDiagnostics);
                 $cellAttrs['ipynbCellSchemaDiagnostics'] = $cellSchemaDiagnostics;
             }
+            if ($cellSourceDiagnostics !== []) {
+                $cellAttrs['ipynbCellSourceDiagnosticCount'] = count($cellSourceDiagnostics);
+                $cellAttrs['ipynbCellSourceDiagnostics'] = $cellSourceDiagnostics;
+            }
 
             $blocks[] = new AstNode('div', $cellAttrs, $children);
             $cellSummary = [
@@ -193,6 +215,10 @@ final class IpynbReader
             if ($cellSchemaDiagnostics !== []) {
                 $cellSummary['schemaDiagnosticCount'] = count($cellSchemaDiagnostics);
                 $cellSummary['schemaDiagnostics'] = $cellSchemaDiagnostics;
+            }
+            if ($cellSourceDiagnostics !== []) {
+                $cellSummary['sourceDiagnosticCount'] = count($cellSourceDiagnostics);
+                $cellSummary['sourceDiagnostics'] = $cellSourceDiagnostics;
             }
             $cellSummaries[] = $cellSummary;
         }
@@ -227,6 +253,10 @@ final class IpynbReader
                 $cellSchemaDiagnosticCount,
                 $schemaDiagnostics
             ),
+            'notebookRawMarkdownCellByteExposurePolicy' => 'metadata-only',
+            'notebookRawMarkdownCellDiagnosticCount' => count($rawMarkdownCellDiagnostics),
+            'notebookRawMarkdownCellDiagnostics' => $rawMarkdownCellDiagnostics,
+            'notebookRawMarkdownCellReview' => $this->rawMarkdownCellReview($markdownCellCount, $rawCellCount, $rawMarkdownCellDiagnostics),
             'notebookCells' => $cellSummaries,
             'notebookResourcePolicy' => [
                 'state' => $unsupportedResourceCount > 0 ? 'metadata-only' : 'none',
@@ -588,6 +618,106 @@ final class IpynbReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return list<array<string, mixed>>
+     */
+    private function rawMarkdownCellDiagnostics(
+        array $cell,
+        string $cellType,
+        int $index,
+        bool $sourcePresent,
+        mixed $sourceValue,
+        string $source
+    ): array {
+        if (!in_array($cellType, ['markdown', 'raw'], true)) {
+            return [];
+        }
+
+        $metadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
+        $conversionSupported = $cellType === 'markdown';
+
+        return [[
+            'type' => $cellType . '-cell-source-review',
+            'scope' => 'cell-source',
+            'severity' => 'info',
+            'cellIndex' => $index,
+            'cellType' => $cellType,
+            'sourceShape' => $this->sourceShape($sourcePresent, $sourceValue),
+            'sourceBytes' => strlen($source),
+            'sourceLineCount' => $this->sourceLineCount($source),
+            'byteExposurePolicy' => 'metadata-only',
+            'sourcePayloadIncluded' => false,
+            'metadataPolicy' => 'keys-only',
+            'metadataKeyCount' => count($metadata),
+            'unsafeMetadataKeys' => $this->unsafeCellMetadataKeys($metadata),
+            'conversionSupported' => $conversionSupported,
+            'conversionVerdict' => $conversionSupported
+                ? 'parsed-as-native-markdown-blocks'
+                : 'unsupported-native-conversion-preserved-as-code-block',
+            'externalTooling' => false,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function rawMarkdownCellReview(int $markdownCellCount, int $rawCellCount, array $diagnostics): array
+    {
+        return [
+            'scope' => 'raw-markdown-cell-source',
+            'byteExposurePolicy' => 'metadata-only',
+            'checkedCellCount' => $markdownCellCount + $rawCellCount,
+            'diagnosticCount' => count($diagnostics),
+            'externalTooling' => false,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function sourceShape(bool $sourcePresent, mixed $source): string
+    {
+        if (!$sourcePresent) {
+            return 'missing';
+        }
+        if (is_string($source)) {
+            return 'string';
+        }
+        if (is_array($source)) {
+            return array_is_list($source) ? 'string-array' : 'object';
+        }
+
+        return $this->jsonValueType($source);
+    }
+
+    private function sourceLineCount(string $source): int
+    {
+        if ($source === '') {
+            return 0;
+        }
+
+        return substr_count($source, "\n") + 1;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return list<string>
+     */
+    private function unsafeCellMetadataKeys(array $metadata): array
+    {
+        $unsafe = [];
+        foreach (array_keys($metadata) as $key) {
+            $normalized = strtolower((string) $key);
+            if (in_array($normalized, self::UNSAFE_CELL_METADATA_KEYS, true)) {
+                $unsafe[] = $normalized;
+            }
+        }
+        $unsafe = array_values(array_unique($unsafe));
+        sort($unsafe);
+
+        return $unsafe;
     }
 
     /**

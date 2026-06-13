@@ -465,6 +465,107 @@ return [
         $t->same(false, str_contains($reviewJson, 'private-cell-metadata'));
         $t->same(false, str_contains($reviewJson, 'private-notebook-metadata'));
     },
+    'collects raw and markdown source diagnostics without leaking private source or metadata payloads' => static function (TestRunner $t): void {
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'id' => 'markdown-review',
+                    'metadata' => [
+                        'trusted' => true,
+                        'tags' => ['remove-input'],
+                        'private' => ['token' => 'secret-metadata-token'],
+                    ],
+                    'source' => [
+                        "# Secret heading should not appear in diagnostics\n",
+                        'private markdown payload secret-markdown-token',
+                    ],
+                ],
+                [
+                    'cell_type' => 'raw',
+                    'id' => 'raw-review',
+                    'metadata' => [
+                        'jupyter' => ['source_hidden' => true],
+                        'private' => 'secret-raw-metadata',
+                    ],
+                    'source' => "secret raw payload\nstill private",
+                ],
+                [
+                    'cell_type' => 'code',
+                    'metadata' => ['trusted' => true],
+                    'execution_count' => null,
+                    'outputs' => [],
+                    'source' => 'print("not checked by this slice")',
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $review = $document->attr('notebookRawMarkdownCellReview');
+
+        $t->same('raw-markdown-cell-source', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(2, $review['checkedCellCount']);
+        $t->same(2, $review['diagnosticCount']);
+        $t->same([
+            'markdown-cell-source-review',
+            'raw-cell-source-review',
+        ], array_column($review['diagnostics'], 'type'));
+        $t->same(2, $document->attr('notebookRawMarkdownCellDiagnosticCount'));
+        $t->same($review['diagnostics'], $document->attr('notebookRawMarkdownCellDiagnostics'));
+
+        $markdownDiagnostic = $review['diagnostics'][0];
+        $t->same(0, $markdownDiagnostic['cellIndex']);
+        $t->same('markdown', $markdownDiagnostic['cellType']);
+        $t->same('string-array', $markdownDiagnostic['sourceShape']);
+        $t->same(2, $markdownDiagnostic['sourceLineCount']);
+        $t->same(false, $markdownDiagnostic['sourcePayloadIncluded']);
+        $t->same('keys-only', $markdownDiagnostic['metadataPolicy']);
+        $t->same(3, $markdownDiagnostic['metadataKeyCount']);
+        $t->same(['tags', 'trusted'], $markdownDiagnostic['unsafeMetadataKeys']);
+        $t->same(true, $markdownDiagnostic['conversionSupported']);
+        $t->same('parsed-as-native-markdown-blocks', $markdownDiagnostic['conversionVerdict']);
+
+        $rawDiagnostic = $review['diagnostics'][1];
+        $t->same(1, $rawDiagnostic['cellIndex']);
+        $t->same('raw', $rawDiagnostic['cellType']);
+        $t->same('string', $rawDiagnostic['sourceShape']);
+        $t->same(2, $rawDiagnostic['sourceLineCount']);
+        $t->same(false, $rawDiagnostic['sourcePayloadIncluded']);
+        $t->same('keys-only', $rawDiagnostic['metadataPolicy']);
+        $t->same(2, $rawDiagnostic['metadataKeyCount']);
+        $t->same(['jupyter'], $rawDiagnostic['unsafeMetadataKeys']);
+        $t->same(false, $rawDiagnostic['conversionSupported']);
+        $t->same('unsupported-native-conversion-preserved-as-code-block', $rawDiagnostic['conversionVerdict']);
+
+        $markdownCell = $document->children[0];
+        $rawCell = $document->children[1];
+        $codeCell = $document->children[2];
+        $t->same(1, $markdownCell->attr('ipynbCellSourceDiagnosticCount'));
+        $t->same([$markdownDiagnostic], $markdownCell->attr('ipynbCellSourceDiagnostics'));
+        $t->same(1, $rawCell->attr('ipynbCellSourceDiagnosticCount'));
+        $t->same([$rawDiagnostic], $rawCell->attr('ipynbCellSourceDiagnostics'));
+        $t->same(null, $codeCell->attr('ipynbCellSourceDiagnostics'));
+
+        $cells = $document->attr('notebookCells');
+        $t->same(1, $cells[0]['sourceDiagnosticCount']);
+        $t->same(1, $cells[1]['sourceDiagnosticCount']);
+        $t->same(false, array_key_exists('sourceDiagnosticCount', $cells[2]));
+
+        $diagnosticsJson = json_encode([
+            $review,
+            $markdownCell->attr('ipynbCellSourceDiagnostics'),
+            $rawCell->attr('ipynbCellSourceDiagnostics'),
+        ], JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($diagnosticsJson, 'secret-markdown-token'));
+        $t->same(false, str_contains($diagnosticsJson, 'secret raw payload'));
+        $t->same(false, str_contains($diagnosticsJson, 'secret-metadata-token'));
+        $t->same(false, str_contains($diagnosticsJson, 'secret-raw-metadata'));
+    },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
         $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
