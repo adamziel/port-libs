@@ -116,7 +116,7 @@ return [
         $t->same(['data-source' => 'batch-55'], $underline->attr('attributes'));
         $t->same('inserted note', $underline->children[0]->attr('text'));
         $t->contains('<span style="font-variant:small-caps">review <strong>label</strong></span>', $blocks);
-        $t->contains('<u>inserted note</u>', $blocks);
+        $t->contains('<u data-source="batch-55">inserted note</u>', $blocks);
         $t->same($markdown, (new MarkdownWriter())->write($document));
         $t->same('span', (new MarkdownReader())->read('[ordinary]{.review .smallcaps}')->children[0]->children[0]->type);
     },
@@ -140,9 +140,9 @@ return [
         $t->same('subscript', $subscript->type);
         $t->same(['chem'], $subscript->attr('classes'));
         $t->same('H2O', $subscript->children[0]->attr('text'));
-        $t->contains('<del>removed <strong>claim</strong></del>', $blocks);
-        $t->contains('<sup>build 42</sup>', $blocks);
-        $t->contains('<sub>H2O</sub>', $blocks);
+        $t->contains('<del data-source="batch-62">removed <strong>claim</strong></del>', $blocks);
+        $t->contains('<sup id="release-note">build 42</sup>', $blocks);
+        $t->contains('<sub class="chem">H2O</sub>', $blocks);
         $t->same($markdown, (new MarkdownWriter())->write($document));
 
         $plain = new AstNode('document', [], [
@@ -18202,6 +18202,98 @@ HTML);
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe inline event handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe inline focus handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'style='), 'Unsafe inline style attributes should not survive HTML writer attribute handoff');
+    },
+    'writes wordpress semantic inline and math attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', [
+                    'id' => 'emph-source',
+                    'classes' => ['review-emph'],
+                    'attributes' => [
+                        'data-inline' => 'emph',
+                        'aria-label' => 'Emphasis source',
+                        'onclick' => 'alert(1)',
+                        'style' => 'color:red',
+                    ],
+                ], [$text('emphasis')]),
+                $space(),
+                new AstNode('strong', [
+                    'attributes' => [
+                        'data-inline' => 'strong',
+                        'lang' => 'en',
+                    ],
+                ], [$text('strong')]),
+                $space(),
+                new AstNode('small_caps', [
+                    'id' => 'smallcaps-source',
+                    'attributes' => [
+                        'data-inline' => 'smallcaps',
+                    ],
+                ], [$text('small caps')]),
+                $space(),
+                new AstNode('underline', [
+                    'attributes' => [
+                        'data-inline' => 'underline',
+                        'xml:lang' => 'fr',
+                    ],
+                ], [$text('underline')]),
+                $space(),
+                new AstNode('strikeout', [
+                    'classes' => ['review-delete'],
+                    'attributes' => [
+                        'data-inline' => 'strikeout',
+                    ],
+                ], [$text('strike')]),
+                $space(),
+                new AstNode('superscript', [
+                    'attributes' => [
+                        'data-inline' => 'superscript',
+                    ],
+                ], [$text('2')]),
+                $space(),
+                new AstNode('subscript', [
+                    'attributes' => [
+                        'data-inline' => 'subscript',
+                    ],
+                ], [$text('n')]),
+                $space(),
+                new AstNode('math', [
+                    'id' => 'math-source',
+                    'classes' => ['review-math'],
+                    'attributes' => [
+                        'data-inline' => 'math',
+                        'xml:lang' => 'en',
+                        'onmouseover' => 'alert(1)',
+                    ],
+                    'text' => 'x + y',
+                ]),
+                $space(),
+                new AstNode('math', [
+                    'classes' => ['mathml-review'],
+                    'attributes' => [
+                        'data-inline' => 'mathml',
+                    ],
+                    'mathml' => '<math><mi>x</mi></math>',
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<em id="emph-source" class="review-emph" data-inline="emph" aria-label="Emphasis source">emphasis</em>', $blocks);
+        $t->contains('<strong data-inline="strong" lang="en">strong</strong>', $blocks);
+        $t->contains('<span style="font-variant:small-caps" id="smallcaps-source" data-inline="smallcaps">small caps</span>', $blocks);
+        $t->contains('<u data-inline="underline" xml:lang="fr">underline</u>', $blocks);
+        $t->contains('<del class="review-delete" data-inline="strikeout">strike</del>', $blocks);
+        $t->contains('<sup data-inline="superscript">2</sup>', $blocks);
+        $t->contains('<sub data-inline="subscript">n</sub>', $blocks);
+        $t->contains('<span class="math inline review-math" id="math-source" data-inline="math" xml:lang="en">\\(x + y\\)</span>', $blocks);
+        $t->contains('<span class="math inline mathml-review" data-inline="mathml"><math><mi>x</mi></math></span>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe semantic inline event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe math inline event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style="color:red"'), 'Unsafe semantic inline style attributes should not survive HTML writer attribute handoff');
     },
     'writes wordpress html writer role attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

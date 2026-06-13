@@ -92,6 +92,45 @@ return [
             (new LatexWriter())->write($document)
         );
     },
+    'preserves inline attribute ids as latex anchors' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', [
+                    'id' => 'emph source',
+                    'classes' => ['review-emph'],
+                    'attributes' => [
+                        'data-inline' => 'emph',
+                    ],
+                ], [$text('emphasis')]),
+                $space(),
+                new AstNode('code', [
+                    'attributes' => [
+                        'id' => 'code:source',
+                        'data-inline' => 'code',
+                    ],
+                    'text' => 'wp_title()',
+                ]),
+                $space(),
+                new AstNode('math', [
+                    'id' => 'math source',
+                    'attributes' => [
+                        'data-inline' => 'math',
+                    ],
+                    'text' => 'x + y',
+                ]),
+            ]),
+        ]);
+
+        $t->same(
+            '\protect\hypertarget{emph-source}{\emph{emphasis}} '
+                . '\protect\hypertarget{code:source}{\texttt{wp\_title()}} '
+                . '\protect\hypertarget{math-source}{$x + y$}',
+            (new LatexWriter())->write($document)
+        );
+    },
     'renders line blocks and definition lists without dropping native ast nodes' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
