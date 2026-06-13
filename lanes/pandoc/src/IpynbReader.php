@@ -113,6 +113,7 @@ final class IpynbReader
         ];
         $outputLanguageDigestAssociationCount = 0;
         $outputLanguageDigestMissingCount = 0;
+        $outputMimeLanguageDigestProvenanceRecords = [];
 
         foreach ($cells as $index => $cell) {
             if (!is_array($cell)) {
@@ -258,6 +259,12 @@ final class IpynbReader
             }
             $outputLanguageDigestAssociationCount += $outputLanguageSummary['digestAssociatedLanguageCount'];
             $outputLanguageDigestMissingCount += $outputLanguageSummary['digestMissingLanguageCount'];
+            foreach ($outputLanguageSummary['records'] as $languageRecord) {
+                $languageRecord['languagePolicyRecordIndex'] = count($outputMimeLanguageDigestProvenanceRecords);
+                $languageRecord['cellIndex'] = $index;
+                $languageRecord['cellType'] = $cellType;
+                $outputMimeLanguageDigestProvenanceRecords[] = $languageRecord;
+            }
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -508,6 +515,10 @@ final class IpynbReader
             $outputMimeBundleDigestCollisionRecords
         );
         $outputDigestCollisionCounts = $outputMimeBundleDigestCollisionPolicy['counts'];
+        $outputMimeLanguageDigestProvenance = $this->mimeLanguageDigestProvenance(
+            $outputMimeLanguageDigestProvenanceRecords,
+            $outputMimeBundleDigestCollisionRecords
+        );
 
         return new AstNode('document', [
             'sourceFormat' => 'ipynb',
@@ -648,6 +659,9 @@ final class IpynbReader
                 'mimeTypeCounts' => $outputLanguageMimeCounts,
                 'diagnosticCounts' => $outputLanguageDiagnosticCounts,
             ],
+            'notebookMimeLanguageDigestProvenanceSummary' => $outputMimeLanguageDigestProvenance['summary'],
+            'notebookMimeLanguageDigestProvenanceRecords' => $outputMimeLanguageDigestProvenance['records'],
+            'notebookMimeLanguageDigestDuplicateSummaries' => $outputMimeLanguageDigestProvenance['duplicateSummaries'],
         ], $blocks);
     }
 
@@ -1036,8 +1050,10 @@ final class IpynbReader
             if ($hasMimeBundle && is_array($data)) {
                 $mimeBundlePayloadShapes = $this->mimeBundlePayloadShapes($data, $dataMimeTypes);
                 $mimeBundleDigest = $this->mimeBundleDigest($dataMimeTypes, $mimeBundlePayloadShapes);
+                $mimeBundleDigestRecordIndex = count($mimeBundleDigestRecords);
                 $mimeBundleDigests[] = $mimeBundleDigest;
                 $mimeBundleDigestRecord = [
+                    'recordIndex' => $mimeBundleDigestRecordIndex,
                     'digest' => $mimeBundleDigest,
                     'outputIndex' => $outputIndex,
                     'groupIndex' => $groupIndex,
@@ -1045,11 +1061,28 @@ final class IpynbReader
                     'mimeTypes' => $dataMimeTypes,
                     'payloadShapes' => $mimeBundlePayloadShapes,
                     'fingerprintSource' => 'metadata-only',
+                    'payloadPolicy' => 'shape-only',
+                    'byteExposure' => 'blocked',
                 ];
                 $mimeBundleDigestRecords[] = $mimeBundleDigestRecord;
                 $row['mimeBundleDigest'] = $mimeBundleDigest;
+                $row['mimeBundleDigestRecordIndex'] = $mimeBundleDigestRecordIndex;
                 $row['mimeBundleFingerprintSource'] = 'metadata-only';
+                $row['mimeBundlePayloadPolicy'] = 'shape-only';
+                $row['mimeBundleByteExposure'] = 'blocked';
                 $row['mimeBundlePayloadShapes'] = $mimeBundlePayloadShapes;
+                $row['mimeBundleDigestProvenance'] = [
+                    'state' => 'linked',
+                    'recordIndex' => $mimeBundleDigestRecordIndex,
+                    'digest' => $mimeBundleDigest,
+                    'outputIndex' => $outputIndex,
+                    'outputGroupIndex' => $groupIndex,
+                    'outputType' => $type,
+                    'mimeTypes' => $dataMimeTypes,
+                    'fingerprintSource' => 'metadata-only',
+                    'payloadPolicy' => 'shape-only',
+                    'byteExposure' => 'blocked',
+                ];
             }
             if ($type === 'display_data') {
                 $row['richOutputKind'] = 'display_data';
@@ -1852,6 +1885,15 @@ final class IpynbReader
         $streamAssociatedMismatchCount = 0;
         $digestAssociatedLanguageCount = 0;
         $digestMissingLanguageCount = 0;
+        $digestProvenanceCounts = [
+            'linkedRecordCount' => 0,
+            'missingRecordCount' => 0,
+            'digestRecordIndexedCount' => 0,
+            'outputGroupAssociatedRecordCount' => 0,
+            'matchedRecordCount' => 0,
+            'mismatchedRecordCount' => 0,
+            'unknownRecordCount' => 0,
+        ];
         $outputs = $outputSummary['outputs'] ?? [];
         if (!is_array($outputs)) {
             $outputs = [];
@@ -1902,10 +1944,19 @@ final class IpynbReader
                 if ($hasMimeBundleDigest) {
                     $digestAssociatedLanguageCount++;
                     $policyCounts['digest-associated']++;
+                    $digestProvenanceCounts['linkedRecordCount']++;
                 } else {
                     $digestMissingLanguageCount++;
                     $policyCounts['digest-missing']++;
+                    $digestProvenanceCounts['missingRecordCount']++;
                     $recordDiagnostics[] = 'output-language-mime-digest-missing';
+                }
+                if ($policy === 'matches-cell-language') {
+                    $digestProvenanceCounts['matchedRecordCount']++;
+                } elseif ($policy === 'mismatches-cell-language') {
+                    $digestProvenanceCounts['mismatchedRecordCount']++;
+                } elseif ($policy === 'unknown-cell-language') {
+                    $digestProvenanceCounts['unknownRecordCount']++;
                 }
 
                 $record = [
@@ -1922,9 +1973,38 @@ final class IpynbReader
                     'outputGroupIndex' => $outputRow['groupIndex'] ?? null,
                     'diagnostics' => $recordDiagnostics,
                 ];
+                if (is_int($record['outputGroupIndex'])) {
+                    $digestProvenanceCounts['outputGroupAssociatedRecordCount']++;
+                }
                 if ($hasMimeBundleDigest) {
                     $record['mimeBundleDigest'] = $mimeBundleDigest;
+                    if (is_int($outputRow['mimeBundleDigestRecordIndex'] ?? null)) {
+                        $record['mimeBundleDigestRecordIndex'] = $outputRow['mimeBundleDigestRecordIndex'];
+                        $digestProvenanceCounts['digestRecordIndexedCount']++;
+                    }
                     $record['mimeBundleFingerprintSource'] = $outputRow['mimeBundleFingerprintSource'] ?? 'metadata-only';
+                    $record['mimeBundlePayloadPolicy'] = $outputRow['mimeBundlePayloadPolicy'] ?? 'shape-only';
+                    $record['mimeBundleDigestProvenance'] = $outputRow['mimeBundleDigestProvenance'] ?? [
+                        'state' => 'linked',
+                        'digest' => $mimeBundleDigest,
+                        'outputIndex' => $outputIndex,
+                        'outputGroupIndex' => $outputRow['groupIndex'] ?? null,
+                        'outputType' => $outputType,
+                        'mimeTypes' => $outputMimeTypes,
+                        'fingerprintSource' => $record['mimeBundleFingerprintSource'],
+                        'payloadPolicy' => $record['mimeBundlePayloadPolicy'],
+                        'byteExposure' => 'blocked',
+                    ];
+                } else {
+                    $record['mimeBundleDigestProvenance'] = [
+                        'state' => 'missing',
+                        'byteExposure' => 'blocked',
+                        'reason' => 'no-mime-bundle-digest',
+                        'outputIndex' => $outputIndex,
+                        'outputGroupIndex' => $outputRow['groupIndex'] ?? null,
+                        'outputType' => $outputType,
+                        'mimeType' => $mimeType,
+                    ];
                 }
                 if (isset($outputRow['associatedStreamGroupIndex'], $outputRow['associatedStreamGroupName'])) {
                     $record['associatedStreamGroupIndex'] = $outputRow['associatedStreamGroupIndex'];
@@ -1965,6 +2045,7 @@ final class IpynbReader
             'unknownLanguageCount' => $unknownLanguageCount,
             'digestAssociatedLanguageCount' => $digestAssociatedLanguageCount,
             'digestMissingLanguageCount' => $digestMissingLanguageCount,
+            'digestProvenanceCounts' => $digestProvenanceCounts,
             'policyCounts' => $policyCounts,
             'diagnostics' => array_values(array_unique($diagnostics)),
             'diagnosticCounts' => $diagnosticCounts,
@@ -1982,12 +2063,176 @@ final class IpynbReader
             'streamAssociatedMismatchCount' => $streamAssociatedMismatchCount,
             'digestAssociatedLanguageCount' => $digestAssociatedLanguageCount,
             'digestMissingLanguageCount' => $digestMissingLanguageCount,
+            'digestProvenanceCounts' => $digestProvenanceCounts,
             'diagnostics' => array_values(array_unique($diagnostics)),
             'diagnosticCounts' => $diagnosticCounts,
             'policyCounts' => $policyCounts,
             'languageCounts' => $languageCounts,
             'mimeTypeCounts' => $mimeTypeCounts,
             'policySummary' => $policySummary,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @param list<array<string, mixed>> $collisionRecords
+     * @return array{summary:array<string, mixed>, records:list<array<string, mixed>>, duplicateSummaries:list<array<string, mixed>>}
+     */
+    private function mimeLanguageDigestProvenance(array $records, array $collisionRecords): array
+    {
+        $collisionIndexByDigest = [];
+        foreach ($collisionRecords as $index => $collisionRecord) {
+            $digest = $collisionRecord['digest'] ?? null;
+            if (is_string($digest) && $digest !== '') {
+                $collisionIndexByDigest[$digest] = $index;
+            }
+        }
+
+        $recordsByDigest = [];
+        $languageCounts = [];
+        $mimeTypeCounts = [];
+        $policyCounts = [];
+        $summary = [
+            'state' => count($records) > 0 ? 'metadata-only' : 'none',
+            'byteExposure' => 'blocked',
+            'policyRecordCount' => count($records),
+            'digestLinkedRecordCount' => 0,
+            'digestMissingRecordCount' => 0,
+            'digestRecordIndexedCount' => 0,
+            'outputGroupAssociatedRecordCount' => 0,
+            'matchedRecordCount' => 0,
+            'mismatchedRecordCount' => 0,
+            'unknownRecordCount' => 0,
+            'duplicateDigestCount' => 0,
+            'duplicateDigestPolicyRecordCount' => 0,
+            'crossCellDuplicateDigestCount' => 0,
+            'crossCellDuplicatePolicyRecordCount' => 0,
+        ];
+
+        $provenanceRecords = [];
+        foreach ($records as $record) {
+            $digest = $record['mimeBundleDigest'] ?? null;
+            $policy = is_string($record['policy'] ?? null) ? $record['policy'] : 'unknown';
+            $language = is_string($record['language'] ?? null) ? $record['language'] : '';
+            $mimeType = is_string($record['mimeType'] ?? null) ? $record['mimeType'] : '';
+
+            if ($language !== '') {
+                $this->incrementCount($languageCounts, $language);
+            }
+            if ($mimeType !== '') {
+                $this->incrementCount($mimeTypeCounts, $mimeType);
+            }
+            $this->incrementCount($policyCounts, $policy);
+
+            if ($policy === 'matches-cell-language') {
+                $summary['matchedRecordCount']++;
+            } elseif ($policy === 'mismatches-cell-language') {
+                $summary['mismatchedRecordCount']++;
+            } elseif ($policy === 'unknown-cell-language') {
+                $summary['unknownRecordCount']++;
+            }
+
+            if (is_int($record['outputGroupIndex'] ?? null)) {
+                $summary['outputGroupAssociatedRecordCount']++;
+            }
+            if (is_int($record['mimeBundleDigestRecordIndex'] ?? null)) {
+                $summary['digestRecordIndexedCount']++;
+            }
+
+            if (is_string($digest) && $digest !== '') {
+                $summary['digestLinkedRecordCount']++;
+                if (isset($collisionIndexByDigest[$digest])) {
+                    $record['mimeBundleDigestCollisionRecordIndex'] = $collisionIndexByDigest[$digest];
+                }
+                $recordsByDigest[$digest] ??= [];
+                $recordsByDigest[$digest][] = $record;
+            } else {
+                $summary['digestMissingRecordCount']++;
+            }
+
+            $provenanceRecords[] = $record;
+        }
+        ksort($recordsByDigest);
+
+        $duplicateSummaries = [];
+        foreach ($recordsByDigest as $digest => $digestRecords) {
+            if (count($digestRecords) < 2) {
+                continue;
+            }
+
+            $cellIndexes = [];
+            $outputIndexes = [];
+            $outputGroupIndexes = [];
+            $languagePolicyRecordIndexes = [];
+            $languages = [];
+            $mimeTypes = [];
+            $policies = [];
+            $digestPolicyCounts = [];
+            foreach ($digestRecords as $digestRecord) {
+                if (is_int($digestRecord['cellIndex'] ?? null)) {
+                    $cellIndexes[] = $digestRecord['cellIndex'];
+                }
+                if (is_int($digestRecord['outputIndex'] ?? null)) {
+                    $outputIndexes[] = $digestRecord['outputIndex'];
+                }
+                if (is_int($digestRecord['outputGroupIndex'] ?? null)) {
+                    $outputGroupIndexes[] = $digestRecord['outputGroupIndex'];
+                }
+                if (is_int($digestRecord['languagePolicyRecordIndex'] ?? null)) {
+                    $languagePolicyRecordIndexes[] = $digestRecord['languagePolicyRecordIndex'];
+                }
+                if (is_string($digestRecord['language'] ?? null) && $digestRecord['language'] !== '') {
+                    $languages[] = $digestRecord['language'];
+                }
+                if (is_string($digestRecord['mimeType'] ?? null) && $digestRecord['mimeType'] !== '') {
+                    $mimeTypes[] = $digestRecord['mimeType'];
+                }
+                if (is_string($digestRecord['policy'] ?? null) && $digestRecord['policy'] !== '') {
+                    $policies[] = $digestRecord['policy'];
+                    $this->incrementCount($digestPolicyCounts, $digestRecord['policy']);
+                }
+            }
+
+            $cellIndexes = $this->sortedUniqueInts($cellIndexes);
+            $crossCell = count($cellIndexes) > 1;
+            $summary['duplicateDigestCount']++;
+            $summary['duplicateDigestPolicyRecordCount'] += count($digestRecords);
+            if ($crossCell) {
+                $summary['crossCellDuplicateDigestCount']++;
+                $summary['crossCellDuplicatePolicyRecordCount'] += count($digestRecords);
+            }
+
+            $duplicateSummary = [
+                'digest' => $digest,
+                'recordCount' => count($digestRecords),
+                'duplicateCount' => count($digestRecords) - 1,
+                'crossCell' => $crossCell,
+                'cellIndexes' => $cellIndexes,
+                'outputIndexes' => $this->sortedUniqueInts($outputIndexes),
+                'outputGroupIndexes' => $this->sortedUniqueInts($outputGroupIndexes),
+                'languagePolicyRecordIndexes' => $this->sortedUniqueInts($languagePolicyRecordIndexes),
+                'languages' => $this->sortedUniqueStrings($languages),
+                'mimeTypes' => $this->sortedUniqueStrings($mimeTypes),
+                'policies' => $this->sortedUniqueStrings($policies),
+                'policyCounts' => $this->sortedIntMap($digestPolicyCounts),
+                'byteExposure' => 'blocked',
+                'fingerprintSource' => 'metadata-only',
+                'payloadPolicy' => 'shape-only',
+            ];
+            if (isset($collisionIndexByDigest[$digest])) {
+                $duplicateSummary['mimeBundleDigestCollisionRecordIndex'] = $collisionIndexByDigest[$digest];
+            }
+            $duplicateSummaries[] = $duplicateSummary;
+        }
+
+        $summary['languageCounts'] = $this->sortedIntMap($languageCounts);
+        $summary['mimeTypeCounts'] = $this->sortedIntMap($mimeTypeCounts);
+        $summary['policyCounts'] = $this->sortedIntMap($policyCounts);
+
+        return [
+            'summary' => $summary,
+            'records' => $provenanceRecords,
+            'duplicateSummaries' => $duplicateSummaries,
         ];
     }
 

@@ -1018,6 +1018,15 @@ return [
             'unknownLanguageCount' => 0,
             'digestAssociatedLanguageCount' => 2,
             'digestMissingLanguageCount' => 0,
+            'digestProvenanceCounts' => [
+                'linkedRecordCount' => 2,
+                'missingRecordCount' => 0,
+                'digestRecordIndexedCount' => 2,
+                'outputGroupAssociatedRecordCount' => 2,
+                'matchedRecordCount' => 1,
+                'mismatchedRecordCount' => 1,
+                'unknownRecordCount' => 0,
+            ],
             'policyCounts' => [
                 'digest-associated' => 2,
                 'digest-missing' => 0,
@@ -1128,6 +1137,177 @@ return [
         $t->same([
             'output-language-unknown-cell-language' => 1,
         ], $unknownConsistency['outputLanguageDiagnosticCounts']);
+    },
+    'links ipynb MIME language policy rows to digest provenance without exposing payload bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [
+                        'language' => 'php',
+                    ],
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['secret stream cell zero'],
+                        ],
+                        [
+                            'data' => [
+                                'application/javascript' => 'secret js cell zero',
+                                'text/x-php' => ['secret php cell zero'],
+                            ],
+                            'metadata' => ['display_id' => 'digest-link-0'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => "secret_digest_language_source_zero()\n",
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'name' => 'stderr',
+                            'output_type' => 'stream',
+                            'text' => ['secret stream cell one'],
+                        ],
+                        [
+                            'data' => [
+                                'application/javascript' => 'secret js cell one',
+                                'text/x-php' => ['secret php cell one'],
+                            ],
+                            'metadata' => ['display_id' => 'digest-link-1'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => "secret_digest_language_source_one()\n",
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $cellZero = $document->children[0];
+        $cellOne = $document->children[1];
+        $cellZeroRecords = $cellZero->attr('ipynbOutputLanguageRecords');
+        $cellOneRecords = $cellOne->attr('ipynbOutputLanguageRecords');
+        $summary = $document->attr('notebookMimeLanguageDigestProvenanceSummary');
+        $provenanceRecords = $document->attr('notebookMimeLanguageDigestProvenanceRecords');
+        $duplicateSummaries = $document->attr('notebookMimeLanguageDigestDuplicateSummaries');
+
+        $t->same('mismatches-cell-language', $cellZeroRecords[0]['policy']);
+        $t->same('matches-cell-language', $cellZeroRecords[1]['policy']);
+        $t->same('unknown-cell-language', $cellOneRecords[0]['policy']);
+        $t->same('unknown-cell-language', $cellOneRecords[1]['policy']);
+
+        $digest = $cellZero->attr('ipynbOutputMimeBundleDigests')[0];
+        $t->same($digest, $cellOne->attr('ipynbOutputMimeBundleDigests')[0]);
+        $t->same($digest, $cellZeroRecords[0]['mimeBundleDigest']);
+        $t->same(0, $cellZeroRecords[0]['mimeBundleDigestRecordIndex']);
+        $t->same([
+            'state' => 'linked',
+            'recordIndex' => 0,
+            'digest' => $digest,
+            'outputIndex' => 1,
+            'outputGroupIndex' => 1,
+            'outputType' => 'display_data',
+            'mimeTypes' => ['application/javascript', 'text/x-php'],
+            'fingerprintSource' => 'metadata-only',
+            'payloadPolicy' => 'shape-only',
+            'byteExposure' => 'blocked',
+        ], $cellZeroRecords[0]['mimeBundleDigestProvenance']);
+        $t->same(0, $cellZeroRecords[0]['associatedStreamGroupIndex']);
+        $t->same('stdout', $cellZeroRecords[0]['associatedStreamGroupName']);
+        $t->same(0, $cellOneRecords[0]['associatedStreamGroupIndex']);
+        $t->same('stderr', $cellOneRecords[0]['associatedStreamGroupName']);
+
+        $t->same([
+            'linkedRecordCount' => 2,
+            'missingRecordCount' => 0,
+            'digestRecordIndexedCount' => 2,
+            'outputGroupAssociatedRecordCount' => 2,
+            'matchedRecordCount' => 1,
+            'mismatchedRecordCount' => 1,
+            'unknownRecordCount' => 0,
+        ], $cellZero->attr('ipynbOutputMimeLanguagePolicySummary')['digestProvenanceCounts']);
+        $t->same([
+            'linkedRecordCount' => 2,
+            'missingRecordCount' => 0,
+            'digestRecordIndexedCount' => 2,
+            'outputGroupAssociatedRecordCount' => 2,
+            'matchedRecordCount' => 0,
+            'mismatchedRecordCount' => 0,
+            'unknownRecordCount' => 2,
+        ], $cellOne->attr('ipynbOutputMimeLanguagePolicySummary')['digestProvenanceCounts']);
+
+        $t->same('metadata-only', $summary['state']);
+        $t->same('blocked', $summary['byteExposure']);
+        $t->same(4, $summary['policyRecordCount']);
+        $t->same(4, $summary['digestLinkedRecordCount']);
+        $t->same(0, $summary['digestMissingRecordCount']);
+        $t->same(4, $summary['digestRecordIndexedCount']);
+        $t->same(4, $summary['outputGroupAssociatedRecordCount']);
+        $t->same(1, $summary['matchedRecordCount']);
+        $t->same(1, $summary['mismatchedRecordCount']);
+        $t->same(2, $summary['unknownRecordCount']);
+        $t->same(1, $summary['duplicateDigestCount']);
+        $t->same(4, $summary['duplicateDigestPolicyRecordCount']);
+        $t->same(1, $summary['crossCellDuplicateDigestCount']);
+        $t->same(4, $summary['crossCellDuplicatePolicyRecordCount']);
+        $t->same(['javascript' => 2, 'php' => 2], $summary['languageCounts']);
+        $t->same(['application/javascript' => 2, 'text/x-php' => 2], $summary['mimeTypeCounts']);
+        $t->same([
+            'matches-cell-language' => 1,
+            'mismatches-cell-language' => 1,
+            'unknown-cell-language' => 2,
+        ], $summary['policyCounts']);
+
+        $t->same(4, count($provenanceRecords));
+        $t->same(0, $provenanceRecords[0]['languagePolicyRecordIndex']);
+        $t->same(1, $provenanceRecords[2]['cellIndex']);
+        $t->same('unknown-cell-language', $provenanceRecords[2]['policy']);
+        $t->same(0, $provenanceRecords[2]['mimeBundleDigestCollisionRecordIndex']);
+
+        $t->same(1, count($duplicateSummaries));
+        $duplicate = $duplicateSummaries[0];
+        $t->same($digest, $duplicate['digest']);
+        $t->same(4, $duplicate['recordCount']);
+        $t->same(3, $duplicate['duplicateCount']);
+        $t->same(true, $duplicate['crossCell']);
+        $t->same([0, 1], $duplicate['cellIndexes']);
+        $t->same([1], $duplicate['outputIndexes']);
+        $t->same([1], $duplicate['outputGroupIndexes']);
+        $t->same([0, 1, 2, 3], $duplicate['languagePolicyRecordIndexes']);
+        $t->same(['javascript', 'php'], $duplicate['languages']);
+        $t->same(['application/javascript', 'text/x-php'], $duplicate['mimeTypes']);
+        $t->same([
+            'matches-cell-language',
+            'mismatches-cell-language',
+            'unknown-cell-language',
+        ], $duplicate['policies']);
+        $t->same([
+            'matches-cell-language' => 1,
+            'mismatches-cell-language' => 1,
+            'unknown-cell-language' => 2,
+        ], $duplicate['policyCounts']);
+        $t->same(0, $duplicate['mimeBundleDigestCollisionRecordIndex']);
+        $t->same('shape-only', $duplicate['payloadPolicy']);
+        $t->same('blocked', $duplicate['byteExposure']);
+
+        $metadataOnly = json_encode([
+            $cellZeroRecords,
+            $cellOneRecords,
+            $summary,
+            $provenanceRecords,
+            $duplicateSummaries,
+        ], JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($metadataOnly, 'secret js cell zero'));
+        $t->same(false, str_contains($metadataOnly, 'secret php cell zero'));
+        $t->same(false, str_contains($metadataOnly, 'secret js cell one'));
+        $t->same(false, str_contains($metadataOnly, 'secret php cell one'));
+        $t->same(false, str_contains($metadataOnly, 'secret stream cell zero'));
+        $t->same(false, str_contains($metadataOnly, 'secret_digest_language_source'));
     },
     'reports ipynb MIME bundle digest collision policy across cells without exposing output bytes' => static function (TestRunner $t): void {
         $document = (new IpynbReader())->read(json_encode([
