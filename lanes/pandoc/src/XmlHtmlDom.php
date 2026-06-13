@@ -764,7 +764,9 @@ final class XmlHtmlDom
             (int) $referenceBackMatter['resolvedBibrXrefCount'],
             (int) $referenceBackMatter['unresolvedBibrXrefCount'],
             (int) $referenceBackMatter['unreferencedReferenceCount'],
-            (int) $referenceBackMatter['referenceMetadataSummaryCount']
+            (int) $referenceBackMatter['referenceMetadataSummaryCount'],
+            (int) $referenceBackMatter['safeReferenceLabelCount'],
+            (int) $referenceBackMatter['blockedCitationTextPayloadCount']
         );
 
         return [
@@ -818,11 +820,16 @@ final class XmlHtmlDom
             'xrefTargets' => $xrefTargets,
             'xrefTargetCount' => count($xrefTargets),
             'referenceReviewPolicy' => 'jats-bits-ref-list-metadata-only',
+            'referenceCitationTextPolicy' => 'safe-labels-only-block-citation-text-payloads',
             'referenceLists' => $referenceBackMatter['refLists'],
             'referenceListCount' => $referenceBackMatter['refListCount'],
             'references' => $referenceBackMatter['references'],
             'referenceIds' => $referenceIds,
             'referenceCount' => $referenceBackMatter['referenceCount'],
+            'safeReferenceLabels' => $referenceBackMatter['safeReferenceLabels'],
+            'safeReferenceLabelCount' => $referenceBackMatter['safeReferenceLabelCount'],
+            'blockedCitationTextPayloadCount' => $referenceBackMatter['blockedCitationTextPayloadCount'],
+            'blockedCitationTextPayloadElementNames' => $referenceBackMatter['blockedCitationTextPayloadElementNames'],
             'bibliographyXrefs' => $referenceBackMatter['bibliographyXrefs'],
             'bibliographyXrefCount' => $referenceBackMatter['bibliographyXrefCount'],
             'resolvedReferenceIds' => $referenceBackMatter['resolvedReferenceIds'],
@@ -856,7 +863,9 @@ final class XmlHtmlDom
         int $resolvedBibrXrefCount,
         int $unresolvedBibrXrefCount,
         int $unreferencedReferenceCount,
-        int $referenceMetadataSummaryCount
+        int $referenceMetadataSummaryCount,
+        int $safeReferenceLabelCount,
+        int $blockedCitationTextPayloadCount
     ): array {
         $formatLabel = strtoupper($format);
         $diagnostics = [
@@ -903,6 +912,22 @@ final class XmlHtmlDom
                     'unresolvedBibrXrefCount' => $unresolvedBibrXrefCount,
                     'unreferencedReferenceCount' => $unreferencedReferenceCount,
                     'referenceMetadataSummaryCount' => $referenceMetadataSummaryCount,
+                    'safeReferenceLabelCount' => $safeReferenceLabelCount,
+                    'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+                ]
+            );
+        }
+
+        if ($safeReferenceLabelCount > 0 || $blockedCitationTextPayloadCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'reference-citation-text-policy',
+                'warning',
+                'Reference labels are exposed as safe summaries; citation text payloads remain blocked from raw packet text.',
+                false,
+                true,
+                [
+                    'safeReferenceLabelCount' => $safeReferenceLabelCount,
+                    'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
                 ]
             );
         }
@@ -1303,12 +1328,29 @@ final class XmlHtmlDom
         ));
 
         $references = [];
+        $safeReferenceLabels = [];
+        $blockedCitationTextPayloadCount = 0;
+        $blockedCitationTextPayloadElementNames = [];
         foreach ($referenceElements as $reference) {
             $id = self::jatsTrimmedAttribute($reference, 'id');
-            $references[] = self::jatsReferenceSummary(
+            $summary = self::jatsReferenceSummary(
                 $reference,
                 $id !== null ? ($inboundBibrXrefCounts[$id] ?? 0) : 0
             );
+            $label = $summary['label'] ?? null;
+            if (is_string($label) && $label !== '') {
+                $safeReferenceLabels[] = [
+                    'id' => $summary['id'] ?? null,
+                    'label' => $label,
+                ];
+            }
+            $blockedCitationTextPayloadCount += (int) ($summary['blockedCitationTextPayloadCount'] ?? 0);
+            foreach (($summary['citationElementNames'] ?? []) as $elementName) {
+                if (is_string($elementName) && $elementName !== '') {
+                    $blockedCitationTextPayloadElementNames[] = $elementName;
+                }
+            }
+            $references[] = $summary;
         }
 
         return [
@@ -1317,6 +1359,10 @@ final class XmlHtmlDom
             'references' => $references,
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceElements),
+            'safeReferenceLabels' => $safeReferenceLabels,
+            'safeReferenceLabelCount' => count($safeReferenceLabels),
+            'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
+            'blockedCitationTextPayloadElementNames' => array_values(array_unique($blockedCitationTextPayloadElementNames)),
             'bibliographyXrefs' => $bibliographyXrefs,
             'bibliographyXrefCount' => count($bibliographyXrefs),
             'resolvedReferenceIds' => $resolvedReferenceIds,
@@ -1344,12 +1390,16 @@ final class XmlHtmlDom
         $id = self::jatsTrimmedAttribute($reference, 'id');
         $citationElementNames = [];
         $publicationTypes = [];
+        $blockedCitationTextPayloadCount = 0;
         foreach (self::descendantElements($reference) as $element) {
             if (!in_array($element->localName, ['element-citation', 'mixed-citation', 'nlm-citation'], true)) {
                 continue;
             }
 
             $citationElementNames[] = $element->localName;
+            if (self::normalizedText($element) !== '') {
+                ++$blockedCitationTextPayloadCount;
+            }
             $publicationType = self::jatsTrimmedAttribute($element, 'publication-type');
             if ($publicationType !== null) {
                 $publicationTypes[] = $publicationType;
@@ -1375,6 +1425,7 @@ final class XmlHtmlDom
             'inboundBibrXrefCount' => $inboundBibrXrefCount,
             'metadataOnly' => true,
             'citationElementNames' => array_values(array_unique($citationElementNames)),
+            'blockedCitationTextPayloadCount' => $blockedCitationTextPayloadCount,
             'publicationTypes' => array_values(array_unique($publicationTypes)),
             'publicationIds' => self::jatsTypedTextRecords($reference, ['pub-id'], ['pub-id-type']),
             'articleTitle' => self::jatsFirstText($reference, ['article-title']),

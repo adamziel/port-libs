@@ -123,18 +123,23 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'direct-reader-unsupported',
             'body-sections-review-only',
             'references-review-only',
+            'reference-citation-text-policy',
             'figures-review-only',
             'table-wraps-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(5, $packet['directReaderDiagnosticCount']);
+        $t->same(6, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][1]['details']['sectionCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['safeReferenceLabelCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][2]['details']['blockedCitationTextPayloadCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['safeReferenceLabelCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][3]['details']['blockedCitationTextPayloadCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['figureCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -160,12 +165,17 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(1, $packet['sections'][0]['paragraphCount'] ?? null);
         $t->same(['aff1', 'r1'], $packet['xrefTargets']);
         $t->same('jats-bits-ref-list-metadata-only', $packet['referenceReviewPolicy']);
+        $t->same('safe-labels-only-block-citation-text-payloads', $packet['referenceCitationTextPolicy']);
         $t->same(1, $packet['referenceListCount']);
         $t->same(null, $packet['referenceLists'][0]['id']);
         $t->same(null, $packet['referenceLists'][0]['title']);
         $t->same(['r1'], $packet['referenceLists'][0]['referenceIds'] ?? null);
         $t->same(['r1'], $packet['referenceIds']);
         $t->same(1, $packet['referenceCount']);
+        $t->same([['id' => 'r1', 'label' => '1']], $packet['safeReferenceLabels']);
+        $t->same(1, $packet['safeReferenceLabelCount']);
+        $t->same(0, $packet['blockedCitationTextPayloadCount']);
+        $t->same([], $packet['blockedCitationTextPayloadElementNames']);
         $t->same(1, $packet['referenceMetadataSummaryCount']);
         $t->same(['r1'], $packet['resolvedReferenceIds']);
         $t->same(1, $packet['resolvedBibrXrefCount']);
@@ -174,6 +184,7 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('resolved-by-bibr-xref', $packet['references'][0]['status'] ?? null);
         $t->same(true, $packet['references'][0]['metadataOnly'] ?? null);
         $t->same(1, $packet['references'][0]['inboundBibrXrefCount'] ?? null);
+        $t->same(0, $packet['references'][0]['blockedCitationTextPayloadCount'] ?? null);
         $t->same('r1', $packet['bibliographyXrefs'][0]['targetId'] ?? null);
         $t->same('resolved', $packet['bibliographyXrefs'][0]['status'] ?? null);
         $t->same(['f1'], $packet['figureIds']);
@@ -241,9 +252,9 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
       </ref>
       <ref id="ref-b">
         <label>2</label>
-        <mixed-citation publication-type="book"><collab>Review Group</collab><source>Back Matter Handbook</source><year>2025</year><ext-link ext-link-type="uri" xlink:href="https://example.invalid/book">Book</ext-link></mixed-citation>
+        <mixed-citation publication-type="book">Blocked raw book citation payload <collab>Review Group</collab><source>Back Matter Handbook</source><year>2025</year><ext-link ext-link-type="uri" xlink:href="https://example.invalid/book">Book</ext-link></mixed-citation>
       </ref>
-      <ref><mixed-citation>Unidentified safe citation</mixed-citation></ref>
+      <ref><mixed-citation>Blocked unidentified citation payload</mixed-citation></ref>
     </ref-list>
   </back>
 </article>
@@ -255,6 +266,7 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
             'direct-reader-unsupported',
             'body-sections-review-only',
             'references-review-only',
+            'reference-citation-text-policy',
             'bibliography-xrefs-unresolved',
         ], $packet['directReaderDiagnosticCodes']);
         $t->same(1, $packet['referenceListCount']);
@@ -265,6 +277,11 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(3, $packet['referenceCount']);
         $t->same(3, $packet['referenceMetadataSummaryCount']);
         $t->same(1, $packet['missingIdReferenceCount']);
+        $t->same('safe-labels-only-block-citation-text-payloads', $packet['referenceCitationTextPolicy']);
+        $t->same([['id' => 'ref-a', 'label' => '1'], ['id' => 'ref-b', 'label' => '2']], $packet['safeReferenceLabels']);
+        $t->same(2, $packet['safeReferenceLabelCount']);
+        $t->same(3, $packet['blockedCitationTextPayloadCount']);
+        $t->same(['element-citation', 'mixed-citation'], $packet['blockedCitationTextPayloadElementNames']);
         $t->same(2, $packet['bibliographyXrefCount']);
         $t->same(1, $packet['resolvedBibrXrefCount']);
         $t->same(1, $packet['unresolvedBibrXrefCount']);
@@ -279,7 +296,11 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same('unresolved', $packet['bibliographyXrefs'][1]['status'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['resolvedBibrXrefCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['unresolvedBibrXrefCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['unresolvedBibrXrefCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][2]['details']['safeReferenceLabelCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][2]['details']['blockedCitationTextPayloadCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][3]['details']['safeReferenceLabelCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][3]['details']['blockedCitationTextPayloadCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['unresolvedBibrXrefCount'] ?? null);
 
         $resolved = $packet['references'][0];
         $t->same('ref-a', $resolved['id'] ?? null);
@@ -287,6 +308,7 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same('resolved-by-bibr-xref', $resolved['status'] ?? null);
         $t->same(true, $resolved['metadataOnly'] ?? null);
         $t->same(['element-citation'], $resolved['citationElementNames'] ?? null);
+        $t->same(1, $resolved['blockedCitationTextPayloadCount'] ?? null);
         $t->same(['journal'], $resolved['publicationTypes'] ?? null);
         $t->same([['element' => 'pub-id', 'type' => 'doi', 'value' => '10.5555/native.1']], $resolved['publicationIds'] ?? null);
         $t->same('Bounded Citation Metadata', $resolved['articleTitle'] ?? null);
@@ -304,10 +326,14 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same('ref-b', $unreferenced['id'] ?? null);
         $t->same('unreferenced', $unreferenced['status'] ?? null);
         $t->same(['mixed-citation'], $unreferenced['citationElementNames'] ?? null);
+        $t->same(1, $unreferenced['blockedCitationTextPayloadCount'] ?? null);
         $t->same(1, $unreferenced['collabCount'] ?? null);
         $t->same(1, $unreferenced['extLinkCount'] ?? null);
         $t->same('missing-id', $packet['references'][2]['status'] ?? null);
-        json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->same(1, $packet['references'][2]['blockedCitationTextPayloadCount'] ?? null);
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked raw book citation payload'), 'Expected raw mixed-citation payload text to stay blocked');
+        $t->true(!str_contains($encodedPacket, 'Blocked unidentified citation payload'), 'Expected raw unidentified citation payload text to stay blocked');
 
         $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <book book-type="edited-book" xml:lang="en">
@@ -324,6 +350,7 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same([
             'direct-reader-unsupported',
             'references-review-only',
+            'reference-citation-text-policy',
             'bibliography-xrefs-unresolved',
             'book-parts-review-only',
         ], $bitsPacket['directReaderDiagnosticCodes']);
@@ -331,6 +358,9 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(['book-ref'], $bitsPacket['referenceIds']);
         $t->same(['book-ref'], $bitsPacket['resolvedReferenceIds']);
         $t->same(['lost-ref'], $bitsPacket['unresolvedReferenceIds']);
+        $t->same(0, $bitsPacket['safeReferenceLabelCount']);
+        $t->same(1, $bitsPacket['blockedCitationTextPayloadCount']);
+        $t->same(['mixed-citation'], $bitsPacket['blockedCitationTextPayloadElementNames']);
         $t->same('resolved-by-bibr-xref', $bitsPacket['references'][0]['status'] ?? null);
         $t->same('Native BITS References', $bitsPacket['references'][0]['sourceTitle'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
