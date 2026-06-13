@@ -2389,6 +2389,86 @@ XML);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.</dd>', $blocks);
     },
+    'normalizes bounded direct csl json translated title subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-translated-subtitle-camel',
+                'type' => 'book',
+                'title' => 'Manual fuente',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'translatedTitle' => 'Migration Manual',
+                'translatedSubtitle' => 'Source Annex',
+            ],
+            [
+                'id' => 'direct-title-translation-subtitle',
+                'type' => 'article-journal',
+                'title' => 'Rapport source',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'titleTranslation' => 'Source Report',
+                'titleTranslationSubtitle' => 'Review Appendix',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-translated-subtitle-camel');
+        $translation = $processor->item('direct-title-translation-subtitle');
+        $t->same('Migration Manual: Source Annex', $camel['translatedTitle'] ?? null);
+        $t->same('Source Report: Review Appendix', $translation['translatedTitle'] ?? null);
+        $t->same('Source Annex', $camel['translatedSubtitle'] ?? null);
+        $t->same('Review Appendix', $translation['translatedSubtitle'] ?? null);
+        $t->same('Source Annex', $camel['raw']['translatedSubtitle'] ?? null);
+        $t->same('Review Appendix', $translation['raw']['titleTranslationSubtitle'] ?? null);
+        $t->same('Ng, Nia. Manual fuente. 2026. Translated title: Migration Manual: Source Annex. Translated subtitle: Source Annex.', $processor->renderBibliographyEntry('direct-translated-subtitle-camel'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Translated Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-translated-subtitle-alias-review</id>
+    <updated>2026-06-13T09:42:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="translated-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="titletranslation"/>
+      <text variable="title-translation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Translated Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('translated-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('[Ng | Migration Manual: Source Annex; Roe | Source Report: Review Appendix]', $styled->renderCitationCluster([
+            $citation('direct-translated-subtitle-camel', '[@direct-translated-subtitle-camel]'),
+            $citation('direct-title-translation-subtitle', '[@direct-title-translation-subtitle]'),
+        ]));
+        $t->same('Manual fuente :: Migration Manual: Source Annex :: Migration Manual: Source Annex', $styled->renderBibliographyEntry('direct-translated-subtitle-camel'));
+        $t->same('Rapport source :: Source Report: Review Appendix :: Source Report: Review Appendix', $styled->renderBibliographyEntry('direct-title-translation-subtitle'));
+
+        $document = (new MarkdownReader())->read('Translated subtitle aliases [@direct-translated-subtitle-camel; @direct-title-translation-subtitle] stay composed.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Translated subtitle aliases [Ng | Migration Manual: Source Annex; Roe | Source Report: Review Appendix] stay composed.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Manual fuente :: Migration Manual: Source Annex :: Migration Manual: Source Annex</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Rapport source :: Source Report: Review Appendix :: Source Report: Review Appendix</dd>', $blocks);
+    },
     'maps bounded biblatex translated subtitle aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-subtitle-compact,
