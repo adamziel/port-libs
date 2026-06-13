@@ -751,6 +751,11 @@ final class XmlHtmlDom
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
+        $tableWraps = self::jatsTableWrapSummaries($root);
+        $tableBodyCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['tbodyCount'], $tableWraps));
+        $tableBodyRowCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyRowCount'], $tableWraps));
+        $tableBodyCellCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyCellCount'], $tableWraps));
+        $relationshipDiagnostics = self::jatsRelationshipDiagnostics($root);
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
             $format,
             $body instanceof \DOMElement,
@@ -817,6 +822,27 @@ final class XmlHtmlDom
             'figureCount' => count($figureIds),
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
+            'tableWraps' => $tableWraps,
+            'tableLabelCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['label'] ?? null) !== null
+            )),
+            'tableCaptionCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['captionText'] ?? null) !== null
+            )),
+            'tableCaptionTitleCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['captionTitle'] ?? null) !== null
+            )),
+            'tableCaptionDiagnostics' => self::jatsTableCaptionDiagnostics($tableWraps),
+            'tableBodyCount' => $tableBodyCount,
+            'tableBodyRowCount' => $tableBodyRowCount,
+            'tableBodyCellCount' => $tableBodyCellCount,
+            'tableBodyDiagnostics' => self::jatsTableBodyDiagnostics($tableWraps),
+            'relationshipDiagnostics' => $relationshipDiagnostics,
+            'relationshipDiagnosticCount' => $relationshipDiagnostics['diagnosticCount'],
+            'unresolvedXrefTargetCount' => $relationshipDiagnostics['unresolvedXrefTargetCount'],
             'bookPartCount' => $bookPartCount,
         ];
     }
@@ -1173,6 +1199,288 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsTableWrapSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        $ordinal = 1;
+        foreach (self::descendantElements($root, 'table-wrap') as $tableWrap) {
+            $label = self::firstChildElement($tableWrap, 'label');
+            $caption = self::firstChildElement($tableWrap, 'caption');
+            $captionTitle = $caption instanceof \DOMElement ? self::firstChildElement($caption, 'title') : null;
+            $captionParagraphs = $caption instanceof \DOMElement
+                ? self::jatsNonEmptyTexts(self::childElements($caption, 'p'))
+                : [];
+            $captionText = $caption instanceof \DOMElement ? self::jatsElementReviewText($caption) : null;
+            if ($captionText === '') {
+                $captionText = null;
+            }
+
+            $tables = self::descendantElements($tableWrap, 'table');
+            $bodyRows = [];
+            $bodyOrdinal = 1;
+            $tbodyCount = 0;
+            $theadRowCount = 0;
+
+            foreach ($tables as $table) {
+                foreach (self::descendantElements($table, 'thead') as $thead) {
+                    $theadRowCount += count(self::childElements($thead, 'tr'));
+                }
+
+                foreach (self::descendantElements($table, 'tbody') as $tbody) {
+                    ++$tbodyCount;
+                    foreach (self::childElements($tbody, 'tr') as $row) {
+                        $bodyRows[] = self::jatsTableBodyRowSummary($row, $bodyOrdinal++);
+                    }
+                }
+            }
+
+            $bodyCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['cellCount'], $bodyRows));
+            $headerCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['headerCellCount'], $bodyRows));
+            $dataCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['dataCellCount'], $bodyRows));
+            $bodyDiagnostics = [];
+            if ($tbodyCount > 0) {
+                $bodyDiagnostics[] = 'jats-bits-table-body-summary-review-only';
+            }
+            if ($tables !== [] && $tbodyCount === 0) {
+                $bodyDiagnostics[] = 'jats-bits-table-wrap-missing-tbody';
+            }
+            if ($tbodyCount > 0 && $bodyRows === []) {
+                $bodyDiagnostics[] = 'jats-bits-table-body-empty';
+            }
+
+            $labelText = $label instanceof \DOMElement ? self::normalizedText($label) : null;
+            if ($labelText === '') {
+                $labelText = null;
+            }
+            $titleText = $captionTitle instanceof \DOMElement ? self::normalizedText($captionTitle) : null;
+            if ($titleText === '') {
+                $titleText = null;
+            }
+
+            $summaries[] = [
+                'ordinal' => $ordinal++,
+                'id' => self::attribute($tableWrap, 'id'),
+                'label' => $labelText,
+                'caption' => $captionText,
+                'captionText' => $captionText,
+                'captionTitle' => $titleText,
+                'captionParagraphs' => $captionParagraphs,
+                'captionParagraphCount' => count($captionParagraphs),
+                'attributes' => self::xmlAttributeMap($tableWrap),
+                'tableCount' => count($tables),
+                'theadRowCount' => $theadRowCount,
+                'tbodyCount' => $tbodyCount,
+                'bodyRowCount' => count($bodyRows),
+                'bodyCellCount' => $bodyCellCount,
+                'bodyHeaderCellCount' => $headerCellCount,
+                'bodyDataCellCount' => $dataCellCount,
+                'bodyRows' => $bodyRows,
+                'metadataDiagnostics' => self::jatsTableWrapMetadataDiagnostics($labelText, $captionText, $titleText, $captionParagraphs),
+                'diagnostics' => $bodyDiagnostics,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @return list<string>
+     */
+    private static function jatsNonEmptyTexts(array $elements): array
+    {
+        $texts = [];
+        foreach ($elements as $element) {
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
+    }
+
+    private static function jatsElementReviewText(\DOMElement $element): string
+    {
+        $childTexts = self::jatsNonEmptyTexts(self::childElements($element));
+        if ($childTexts !== []) {
+            return implode(' ', $childTexts);
+        }
+
+        return self::normalizedText($element);
+    }
+
+    /**
+     * @param list<string> $captionParagraphs
+     * @return list<string>
+     */
+    private static function jatsTableWrapMetadataDiagnostics(
+        ?string $labelText,
+        ?string $captionText,
+        ?string $titleText,
+        array $captionParagraphs
+    ): array {
+        $diagnostics = [];
+        $diagnostics[] = $labelText === null
+            ? 'jats-bits-table-label-missing'
+            : 'jats-bits-table-label-review-only';
+
+        if ($captionText === null) {
+            $diagnostics[] = 'jats-bits-table-caption-missing';
+
+            return $diagnostics;
+        }
+
+        $diagnostics[] = 'jats-bits-table-caption-review-only';
+        $diagnostics[] = $titleText === null
+            ? 'jats-bits-table-caption-title-missing'
+            : 'jats-bits-table-caption-title-review-only';
+
+        if ($captionParagraphs !== []) {
+            $diagnostics[] = 'jats-bits-table-caption-paragraphs-review-only';
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsTableBodyRowSummary(\DOMElement $row, int $ordinal): array
+    {
+        $cells = [];
+        $cellOrdinal = 1;
+        foreach (self::childElements($row) as $cell) {
+            if (!in_array($cell->localName, ['td', 'th'], true)) {
+                continue;
+            }
+
+            $cells[] = self::jatsTableCellSummary($cell, $cellOrdinal++);
+        }
+
+        $diagnostics = [];
+        if ($cells === []) {
+            $diagnostics[] = 'jats-bits-table-body-row-without-cells';
+        }
+
+        return [
+            'ordinal' => $ordinal,
+            'id' => self::attribute($row, 'id'),
+            'attributes' => self::xmlAttributeMap($row),
+            'cellCount' => count($cells),
+            'headerCellCount' => count(array_filter(
+                $cells,
+                static fn (array $cell): bool => $cell['name'] === 'th'
+            )),
+            'dataCellCount' => count(array_filter(
+                $cells,
+                static fn (array $cell): bool => $cell['name'] === 'td'
+            )),
+            'texts' => array_values(array_map(
+                static fn (array $cell): string => (string) $cell['text'],
+                $cells
+            )),
+            'cells' => $cells,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsTableCellSummary(\DOMElement $cell, int $ordinal): array
+    {
+        $headers = self::attribute($cell, 'headers');
+
+        return [
+            'ordinal' => $ordinal,
+            'name' => $cell->localName,
+            'id' => self::attribute($cell, 'id'),
+            'attributes' => self::xmlAttributeMap($cell),
+            'text' => self::normalizedText($cell),
+            'rowspan' => self::jatsPositiveIntegerAttribute($cell, 'rowspan'),
+            'colspan' => self::jatsPositiveIntegerAttribute($cell, 'colspan'),
+            'align' => self::jatsTrimmedAttribute($cell, 'align'),
+            'valign' => self::jatsTrimmedAttribute($cell, 'valign'),
+            'scope' => self::jatsTrimmedAttribute($cell, 'scope'),
+            'headers' => $headers === null ? [] : self::spaceSeparatedTokens($headers),
+        ];
+    }
+
+    private static function jatsPositiveIntegerAttribute(\DOMElement $element, string $name): ?int
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $value;
+
+        return $integer > 0 ? $integer : null;
+    }
+
+    private static function jatsTrimmedAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tableWraps
+     * @return list<string>
+     */
+    private static function jatsTableCaptionDiagnostics(array $tableWraps): array
+    {
+        $diagnostics = [];
+        foreach ($tableWraps as $tableWrap) {
+            foreach ($tableWrap['metadataDiagnostics'] as $diagnostic) {
+                $diagnostics[] = (string) $diagnostic;
+            }
+        }
+
+        return array_values(array_unique($diagnostics));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tableWraps
+     * @return list<string>
+     */
+    private static function jatsTableBodyDiagnostics(array $tableWraps): array
+    {
+        $diagnostics = [];
+        foreach ($tableWraps as $tableWrap) {
+            foreach ($tableWrap['diagnostics'] as $diagnostic) {
+                $diagnostics[] = (string) $diagnostic;
+            }
+
+            if ((int) $tableWrap['bodyCellCount'] > 0) {
+                $diagnostics[] = 'jats-bits-table-cell-summary-review-only';
+            }
+
+            foreach ($tableWrap['bodyRows'] as $row) {
+                foreach ($row['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = (string) $diagnostic;
+                }
+            }
+        }
+
+        return array_values(array_unique($diagnostics));
+    }
+
+    /**
      * @return list<string>
      */
     private static function jatsXrefTargets(\DOMElement $root): array
@@ -1206,6 +1514,211 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsRelationshipDiagnostics(\DOMElement $root): array
+    {
+        $targetIndex = self::jatsElementIndexById($root);
+        $targetReferenceCounts = [];
+        $targetTypeCounts = [];
+        $xrefRecords = [];
+        $diagnostics = [];
+        $resolvedXrefCount = 0;
+        $unresolvedXrefCount = 0;
+        $unresolvedXrefTargetCount = 0;
+        $missingRidXrefCount = 0;
+        $multiTargetXrefCount = 0;
+        $typeMismatchCount = 0;
+
+        foreach (self::descendantElements($root, 'xref') as $xrefIndex => $xref) {
+            $ridRaw = self::attribute($xref, 'rid');
+            $refType = self::jatsNormalizedAttribute($xref, 'ref-type');
+            $targetIds = $ridRaw === null ? [] : self::spaceSeparatedTokens($ridRaw);
+            $resolvedTargetIds = [];
+            $unresolvedTargetIds = [];
+            $targetElementNames = [];
+            $issues = [];
+
+            if ($targetIds === []) {
+                $issues[] = 'missing-xref-rid';
+                ++$missingRidXrefCount;
+                $diagnostics[] = [
+                    'type' => 'missing-jats-xref-rid',
+                    'xrefIndex' => $xrefIndex,
+                    'refType' => $refType,
+                    'text' => self::normalizedText($xref),
+                ];
+            }
+
+            if (count($targetIds) > 1) {
+                ++$multiTargetXrefCount;
+            }
+
+            foreach ($targetIds as $targetId) {
+                if (!isset($targetIndex[$targetId])) {
+                    $issues[] = 'unresolved-xref-target';
+                    $unresolvedTargetIds[] = $targetId;
+                    ++$unresolvedXrefTargetCount;
+                    $diagnostics[] = [
+                        'type' => 'unresolved-jats-xref-target',
+                        'xrefIndex' => $xrefIndex,
+                        'refType' => $refType,
+                        'targetId' => $targetId,
+                        'text' => self::normalizedText($xref),
+                    ];
+                    continue;
+                }
+
+                $resolvedTargetIds[] = $targetId;
+                $targetReferenceCounts[$targetId] = ($targetReferenceCounts[$targetId] ?? 0) + 1;
+                foreach ($targetIndex[$targetId] as $target) {
+                    $targetElementNames[] = $target->localName;
+                    $targetTypeCounts[$target->localName] = ($targetTypeCounts[$target->localName] ?? 0) + 1;
+                }
+            }
+
+            $expectedTargetNames = self::jatsExpectedXrefTargetNames($refType);
+            foreach (array_values(array_unique($targetElementNames)) as $targetElementName) {
+                if ($expectedTargetNames === [] || in_array($targetElementName, $expectedTargetNames, true)) {
+                    continue;
+                }
+
+                $issues[] = 'xref-ref-type-target-mismatch';
+                ++$typeMismatchCount;
+                $diagnostics[] = [
+                    'type' => 'jats-xref-ref-type-target-mismatch',
+                    'xrefIndex' => $xrefIndex,
+                    'refType' => $refType,
+                    'expectedTargetNames' => $expectedTargetNames,
+                    'actualTargetName' => $targetElementName,
+                    'targetIds' => $targetIds,
+                ];
+            }
+
+            if ($resolvedTargetIds !== []) {
+                ++$resolvedXrefCount;
+            }
+            if ($unresolvedTargetIds !== []) {
+                ++$unresolvedXrefCount;
+            }
+
+            $xrefRecords[] = [
+                'xrefIndex' => $xrefIndex,
+                'refType' => $refType,
+                'ridRaw' => $ridRaw,
+                'targetIds' => $targetIds,
+                'resolvedTargetIds' => array_values(array_unique($resolvedTargetIds)),
+                'unresolvedTargetIds' => array_values(array_unique($unresolvedTargetIds)),
+                'targetElementNames' => array_values(array_unique($targetElementNames)),
+                'resolved' => $targetIds !== [] && $unresolvedTargetIds === [],
+                'text' => self::normalizedText($xref),
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+
+        ksort($targetTypeCounts, SORT_STRING);
+
+        return [
+            'reviewPolicy' => 'jats-bits-relationship-diagnostics-review-only',
+            'directReaderParity' => false,
+            'xrefCount' => count($xrefRecords),
+            'resolvedXrefCount' => $resolvedXrefCount,
+            'unresolvedXrefCount' => $unresolvedXrefCount,
+            'unresolvedXrefTargetCount' => $unresolvedXrefTargetCount,
+            'missingRidXrefCount' => $missingRidXrefCount,
+            'multiTargetXrefCount' => $multiTargetXrefCount,
+            'typeMismatchCount' => $typeMismatchCount,
+            'targetTypeCounts' => $targetTypeCounts,
+            'figureTargets' => self::jatsRelationshipTargetSummaries($root, 'fig', $targetReferenceCounts),
+            'tableWrapTargets' => self::jatsRelationshipTargetSummaries($root, 'table-wrap', $targetReferenceCounts),
+            'referenceTargets' => self::jatsRelationshipTargetSummaries($root, 'ref', $targetReferenceCounts),
+            'xrefRecords' => $xrefRecords,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @return array<string, list<\DOMElement>>
+     */
+    private static function jatsElementIndexById(\DOMElement $root): array
+    {
+        $index = [];
+        foreach ([$root, ...self::descendantElements($root)] as $element) {
+            $id = self::jatsNormalizedAttribute($element, 'id');
+            if ($id === null) {
+                continue;
+            }
+
+            $index[$id] ??= [];
+            $index[$id][] = $element;
+        }
+
+        return $index;
+    }
+
+    private static function jatsNormalizedAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        return trim($value);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsExpectedXrefTargetNames(?string $refType): array
+    {
+        return match ($refType) {
+            'aff' => ['aff'],
+            'app' => ['app'],
+            'bibr', 'ref' => ['ref'],
+            'boxed-text' => ['boxed-text'],
+            'fig' => ['fig'],
+            'fn' => ['fn'],
+            'sec' => ['sec'],
+            'supplementary-material' => ['supplementary-material'],
+            'table', 'table-wrap' => ['table-wrap'],
+            default => [],
+        };
+    }
+
+    /**
+     * @param array<string, int> $targetReferenceCounts
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsRelationshipTargetSummaries(\DOMElement $root, string $localName, array $targetReferenceCounts): array
+    {
+        $summaries = [];
+        foreach (self::descendantElements($root, $localName) as $element) {
+            $id = self::jatsNormalizedAttribute($element, 'id');
+            if ($id === null) {
+                continue;
+            }
+
+            $summary = [
+                'id' => $id,
+                'label' => self::jatsFirstText($element, ['label']),
+                'xrefCount' => $targetReferenceCounts[$id] ?? 0,
+            ];
+
+            if ($localName === 'fig' || $localName === 'table-wrap') {
+                $caption = self::firstChildElement($element, 'caption');
+                $summary['captionText'] = $caption instanceof \DOMElement ? self::jatsElementReviewText($caption) : null;
+            } elseif ($localName === 'ref') {
+                $summary['referenceText'] = self::normalizedText($element);
+            }
+
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
     }
 
     /**
