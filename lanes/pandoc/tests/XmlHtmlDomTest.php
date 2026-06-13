@@ -360,6 +360,74 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes jats and bits inline xref citation diagnostics for reviewer handoff' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group><article-title>Citation diagnostics</article-title></title-group>
+      <contrib-group><contrib><name><surname>Zed</surname></name><xref ref-type="aff" rid="aff1"/></contrib></contrib-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1 r-missing">[1]</xref> and <xref ref-type="fig" rid="f1">Figure 1</xref>.</p></sec>
+    <fig id="f1"><caption><p>Figure</p></caption></fig>
+  </body>
+  <back>
+    <ref-list><ref id="r1"><label>1</label><mixed-citation>Review source.</mixed-citation></ref></ref-list>
+  </back>
+</article>
+XML, 'JATS inline citation diagnostics XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+
+        $t->same(['aff1', 'r1', 'r-missing', 'f1'], $packet['xrefTargets']);
+        $t->same(['r1'], $packet['referenceIds']);
+        $t->same(['r1'], $packet['backReferenceIds']);
+        $t->same(1, $packet['backReferenceCount']);
+        $t->same(2, $packet['inlineXrefDiagnosticCount']);
+        $t->same(['r1'], $packet['inlineXrefLocalReferenceIds']);
+        $t->same(1, $packet['inlineXrefLocalReferenceCount']);
+        $t->same(['r-missing', 'f1'], $packet['inlineXrefUnsupportedTargetIds']);
+        $t->same(2, $packet['inlineXrefUnsupportedTargetCount']);
+        $t->same('bibr', $packet['inlineXrefDiagnostics'][0]['refType'] ?? null);
+        $t->same('r1 r-missing', $packet['inlineXrefDiagnostics'][0]['ridRaw'] ?? null);
+        $t->same(['r1', 'r-missing'], $packet['inlineXrefDiagnostics'][0]['targets'] ?? null);
+        $t->same('[1]', $packet['inlineXrefDiagnostics'][0]['text'] ?? null);
+        $t->same(['r1'], $packet['inlineXrefDiagnostics'][0]['localBackReferenceIds'] ?? null);
+        $t->same(1, $packet['inlineXrefDiagnostics'][0]['unsupportedTargetCount'] ?? null);
+        $t->same('r-missing', $packet['inlineXrefDiagnostics'][0]['unsupportedTargets'][0]['id'] ?? null);
+        $t->same(null, $packet['inlineXrefDiagnostics'][0]['unsupportedTargets'][0]['targetElement'] ?? null);
+        $t->same('missing-local-target', $packet['inlineXrefDiagnostics'][0]['unsupportedTargets'][0]['reason'] ?? null);
+        $t->same(['jats-inline-xref-local-back-reference', 'jats-inline-xref-unsupported-citation-target'], $packet['inlineXrefDiagnostics'][0]['diagnostics'] ?? null);
+        $t->same('fig', $packet['inlineXrefDiagnostics'][1]['refType'] ?? null);
+        $t->same('f1', $packet['inlineXrefDiagnostics'][1]['unsupportedTargets'][0]['id'] ?? null);
+        $t->same('fig', $packet['inlineXrefDiagnostics'][1]['unsupportedTargets'][0]['targetElement'] ?? null);
+        $t->same('target-is-not-back-reference', $packet['inlineXrefDiagnostics'][1]['unsupportedTargets'][0]['reason'] ?? null);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="monograph">
+  <book-meta><title-group><book-title>Review Book</book-title></title-group></book-meta>
+  <book-body>
+    <book-part id="ch1">
+      <book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta>
+      <body><p>See <xref ref-type="bibr" rid="book-ref1 appendix-ref">[A]</xref>.</p></body>
+    </book-part>
+  </book-body>
+  <book-back><ref-list><ref id="book-ref1"><mixed-citation>Camille, Review Book.</mixed-citation></ref></ref-list></book-back>
+</book>
+XML, 'BITS inline citation diagnostics XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same(['book-ref1'], $bitsPacket['backReferenceIds']);
+        $t->same(1, $bitsPacket['inlineXrefDiagnosticCount']);
+        $t->same(['book-ref1'], $bitsPacket['inlineXrefLocalReferenceIds']);
+        $t->same(['appendix-ref'], $bitsPacket['inlineXrefUnsupportedTargetIds']);
+        $t->same('book-ref1 appendix-ref', $bitsPacket['inlineXrefDiagnostics'][0]['ridRaw'] ?? null);
+        $t->same('[A]', $bitsPacket['inlineXrefDiagnostics'][0]['text'] ?? null);
+        $t->same('appendix-ref', $bitsPacket['inlineXrefDiagnostics'][0]['unsupportedTargets'][0]['id'] ?? null);
+        $t->same('missing-local-target', $bitsPacket['inlineXrefDiagnostics'][0]['unsupportedTargets'][0]['reason'] ?? null);
+        json_encode([$packet, $bitsPacket], JSON_THROW_ON_ERROR);
+    },
     'summarizes jats and bits figure table reference diagnostics without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article">

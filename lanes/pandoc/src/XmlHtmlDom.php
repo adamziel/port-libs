@@ -813,6 +813,17 @@ final class XmlHtmlDom
         $backMatterReferenceLists = $backMatter instanceof \DOMElement ? self::jatsReferenceListSummaries($backMatter) : [];
         $backMatterReferences = $backMatter instanceof \DOMElement ? self::jatsBackMatterReferenceSummaries($backMatter) : [];
         $backMatterReferenceIds = self::jatsFlattenUniqueStringField($backMatterReferences, 'id');
+        $inlineXrefDiagnostics = self::jatsInlineXrefDiagnostics($root, $backMatterReferenceIds, $elementIdMap);
+        $inlineXrefLocalReferenceIds = self::jatsFlattenUniqueStringField($inlineXrefDiagnostics, 'localBackReferenceIds');
+        $inlineXrefUnsupportedTargetIds = [];
+        foreach ($inlineXrefDiagnostics as $diagnostic) {
+            foreach ($diagnostic['unsupportedTargets'] as $unsupportedTarget) {
+                if (is_array($unsupportedTarget) && isset($unsupportedTarget['id']) && is_string($unsupportedTarget['id'])) {
+                    $inlineXrefUnsupportedTargetIds[] = $unsupportedTarget['id'];
+                }
+            }
+        }
+        $inlineXrefUnsupportedTargetIds = self::jatsUniqueNonEmptyStrings($inlineXrefUnsupportedTargetIds);
         $citationXrefs = self::jatsCitationXrefSummaries(
             $root,
             $backMatterReferenceIds !== [] ? $backMatterReferenceIds : $referenceIds
@@ -916,6 +927,8 @@ final class XmlHtmlDom
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
             'references' => $references,
+            'backReferenceIds' => $backMatterReferenceIds,
+            'backReferenceCount' => count($backMatterReferenceIds),
             'hasBackMatter' => $backMatter instanceof \DOMElement,
             'backMatterRoot' => $backMatter instanceof \DOMElement ? $backMatter->localName : null,
             'backMatterReferenceLists' => $backMatterReferenceLists,
@@ -923,6 +936,12 @@ final class XmlHtmlDom
             'backMatterReferences' => $backMatterReferences,
             'backMatterReferenceIds' => $backMatterReferenceIds,
             'backMatterReferenceCount' => count($backMatterReferences),
+            'inlineXrefDiagnostics' => $inlineXrefDiagnostics,
+            'inlineXrefDiagnosticCount' => count($inlineXrefDiagnostics),
+            'inlineXrefLocalReferenceIds' => $inlineXrefLocalReferenceIds,
+            'inlineXrefLocalReferenceCount' => count($inlineXrefLocalReferenceIds),
+            'inlineXrefUnsupportedTargetIds' => $inlineXrefUnsupportedTargetIds,
+            'inlineXrefUnsupportedTargetCount' => count($inlineXrefUnsupportedTargetIds),
             'citationXrefs' => $citationXrefs,
             'citationXrefCount' => count($citationXrefs),
             'citationTargetIds' => $citationTargetIds,
@@ -1936,6 +1955,90 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param list<string> $backReferenceIds
+     * @param array<string, string> $elementIdMap
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsInlineXrefDiagnostics(\DOMElement $root, array $backReferenceIds, array $elementIdMap): array
+    {
+        $backReferenceSet = array_fill_keys($backReferenceIds, true);
+        $diagnostics = [];
+
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            if (!self::jatsIsBodyInlineMarker($xref)) {
+                continue;
+            }
+
+            $ridRaw = self::attribute($xref, 'rid');
+            if ($ridRaw === null || trim($ridRaw) === '') {
+                continue;
+            }
+
+            $targets = self::spaceSeparatedTokens($ridRaw);
+            if ($targets === []) {
+                continue;
+            }
+
+            $localReferenceIds = [];
+            $unsupportedTargets = [];
+            foreach ($targets as $target) {
+                if (isset($backReferenceSet[$target])) {
+                    $localReferenceIds[] = $target;
+                    continue;
+                }
+
+                $targetElement = $elementIdMap[$target] ?? null;
+                $unsupportedTargets[] = [
+                    'id' => $target,
+                    'targetElement' => $targetElement,
+                    'reason' => $targetElement === null ? 'missing-local-target' : 'target-is-not-back-reference',
+                ];
+            }
+
+            $markerDiagnostics = [];
+            if ($localReferenceIds !== []) {
+                $markerDiagnostics[] = 'jats-inline-xref-local-back-reference';
+            }
+            if ($unsupportedTargets !== []) {
+                $markerDiagnostics[] = 'jats-inline-xref-unsupported-citation-target';
+            }
+
+            $diagnostics[] = [
+                'element' => $xref->localName,
+                'refType' => self::jatsNormalizedAttribute($xref, 'ref-type'),
+                'ridRaw' => trim($ridRaw),
+                'targets' => $targets,
+                'text' => self::normalizedText($xref),
+                'localBackReferenceIds' => self::jatsUniqueNonEmptyStrings($localReferenceIds),
+                'unsupportedTargets' => $unsupportedTargets,
+                'unsupportedTargetCount' => count($unsupportedTargets),
+                'diagnostics' => $markerDiagnostics,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private static function jatsIsBodyInlineMarker(\DOMElement $element): bool
+    {
+        $node = $element->parentNode;
+        $inBody = false;
+        while ($node instanceof \DOMElement) {
+            $name = $node->localName;
+            if (in_array($name, ['front', 'article-meta', 'book-meta', 'journal-meta', 'back', 'book-back', 'book-part-back', 'ref-list'], true)) {
+                return false;
+            }
+            if (in_array($name, ['body', 'book-body'], true)) {
+                $inBody = true;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return $inBody;
     }
 
     /**
