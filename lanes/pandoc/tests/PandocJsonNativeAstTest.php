@@ -4717,6 +4717,106 @@ return [
         $t->same(3, $jsonRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
         $t->same(3, $nativeRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
     },
+    'flushes mixed inline children inside block containers for json and native writers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'fixture' => 'lanes/pandoc/fixtures/wordpress-import-markdown.md:blockquotes-divs-footnotes',
+            ],
+        ], [
+            new AstNode('blockquote', [], [
+                new AstNode('text', ['text' => 'Reviewer checklist:']),
+                new AstNode('code_block', [
+                    'classes' => ['php'],
+                    'text' => 'wp_update_post($post);',
+                ]),
+                new AstNode('ordered_list', [], [
+                    new AstNode('list_item', ['text' => 'Confirm source quote']),
+                    new AstNode('list_item', ['text' => 'Publish block version']),
+                ]),
+                new AstNode('text', ['text' => 'Nested reviewer approval stays attached.']),
+            ]),
+            new AstNode('div', ['classes' => ['legacy-import']], [
+                new AstNode('text', ['text' => 'Migration audit']),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', ['text' => 'Preserve div-wrapped glossary notes']),
+                ]),
+                new AstNode('text', ['text' => 'Raw HTML boundary complete.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Footnote audit']),
+                new AstNode('space'),
+                new AstNode('note', [], [
+                    new AstNode('text', ['text' => 'Source archive footnote keeps the reviewer trail.']),
+                    new AstNode('code_block', ['text' => "do_action('import_note');"]),
+                    new AstNode('text', ['text' => 'Confirm media IDs before publishing.']),
+                ]),
+            ]),
+        ]);
+        $plainText = static function (array $inlines): string {
+            $text = '';
+            foreach ($inlines as $inline) {
+                $text .= match ($inline['t'] ?? '') {
+                    'Str', 'Code', 'Math' => (string) ($inline['c'] ?? ''),
+                    'Space', 'SoftBreak', 'LineBreak' => ' ',
+                    default => '',
+                };
+            }
+
+            return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        };
+        $firstNodeOfType = static function (array $nodes, string $type): ?AstNode {
+            foreach ($nodes as $node) {
+                if ($node instanceof AstNode && $node->type === $type) {
+                    return $node;
+                }
+            }
+
+            return null;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($document),
+            'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $packet) {
+            $quoteBlocks = $packet['blocks'][0]['c'];
+            $divBlocks = $packet['blocks'][1]['c'][1];
+            $noteInline = null;
+            foreach ($packet['blocks'][2]['c'] as $inline) {
+                if (($inline['t'] ?? null) === 'Note') {
+                    $noteInline = $inline;
+                    break;
+                }
+            }
+            $t->true($noteInline !== null, "{$writer} paragraph includes note inline");
+            $noteBlocks = is_array($noteInline['c'] ?? null) ? $noteInline['c'] : [];
+
+            $t->same(['BlockQuote', 'Div', 'Para'], array_map(static fn (array $block): string => $block['t'], $packet['blocks']), "{$writer} top-level constructors");
+            $t->same(['Plain', 'CodeBlock', 'OrderedList', 'Plain'], array_map(static fn (array $block): string => $block['t'], $quoteBlocks), "{$writer} blockquote mixed children become blocks");
+            $t->same('Reviewer checklist:', $plainText($quoteBlocks[0]['c']), "{$writer} blockquote leading inline run flushed to Plain");
+            $t->same('Nested reviewer approval stays attached.', $plainText($quoteBlocks[3]['c']), "{$writer} blockquote trailing inline run flushed to Plain");
+            $t->same(['Plain', 'BulletList', 'Plain'], array_map(static fn (array $block): string => $block['t'], $divBlocks), "{$writer} div mixed children become blocks");
+            $t->same('Migration audit', $plainText($divBlocks[0]['c']), "{$writer} div leading inline run flushed to Plain");
+            $t->same('Raw HTML boundary complete.', $plainText($divBlocks[2]['c']), "{$writer} div trailing inline run flushed to Plain");
+            $t->same(['Plain', 'CodeBlock', 'Plain'], array_map(static fn (array $block): string => $block['t'], $noteBlocks), "{$writer} note mixed children become blocks");
+            $t->same('Source archive footnote keeps the reviewer trail.', $plainText($noteBlocks[0]['c']), "{$writer} note leading inline run flushed to Plain");
+            $t->same('Confirm media IDs before publishing.', $plainText($noteBlocks[2]['c']), "{$writer} note trailing inline run flushed to Plain");
+        }
+
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket((new PandocJsonWriter())->toArray($document));
+        $nativeRoundTrip = (new NativeReader())->read((new NativeWriter())->write($document));
+        $jsonNote = $firstNodeOfType($jsonRoundTrip->children[2]->children, 'note');
+        $nativeNote = $firstNodeOfType($nativeRoundTrip->children[2]->children, 'note');
+
+        $t->same(['plain', 'code_block', 'ordered_list', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $jsonRoundTrip->children[0]->children));
+        $t->same(['plain', 'bullet_list', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $jsonRoundTrip->children[1]->children));
+        $t->true($jsonNote instanceof AstNode, 'JSON round trip keeps note inline');
+        $t->same(['plain', 'code_block', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $jsonNote instanceof AstNode ? $jsonNote->children : []));
+        $t->same(['plain', 'code_block', 'ordered_list', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $nativeRoundTrip->children[0]->children));
+        $t->same(['plain', 'bullet_list', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $nativeRoundTrip->children[1]->children));
+        $t->true($nativeNote instanceof AstNode, 'Native round trip keeps note inline');
+        $t->same(['plain', 'code_block', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $nativeNote instanceof AstNode ? $nativeNote->children : []));
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
