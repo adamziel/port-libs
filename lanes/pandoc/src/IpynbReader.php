@@ -43,6 +43,10 @@ final class IpynbReader
         $rawCellCount = 0;
         $attachmentCount = 0;
         $outputCount = 0;
+        $unsupportedResourceCount = 0;
+        $outputBytePresenceCount = 0;
+        $outputMimeBundleCount = 0;
+        $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
             if (!is_array($cell)) {
@@ -59,9 +63,16 @@ final class IpynbReader
             $outputs = isset($cell['outputs']) && is_array($cell['outputs']) ? $cell['outputs'] : [];
             $attachmentSummary = $this->attachmentSummary($attachments);
             $outputSummary = $this->outputSummary($outputs);
+            $cellMetadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
+            $cellMetadataKeys = $this->metadataKeys($cellMetadata);
+            $cellTags = $this->metadataStringList($cellMetadata['tags'] ?? null);
+            $cellDiagnostics = $this->cellDiagnostics($attachmentSummary, $outputSummary);
 
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
+            $unsupportedResourceCount += $attachmentSummary['count'] + $outputSummary['bytePresenceCount'];
+            $outputBytePresenceCount += $outputSummary['bytePresenceCount'];
+            $outputMimeBundleCount += $outputSummary['mimeBundleCount'];
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -75,6 +86,28 @@ final class IpynbReader
             }
             if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
                 $attributes['data-ipynb-execution-count'] = (string) $cell['execution_count'];
+            }
+            if ($cellTags !== []) {
+                $attributes['data-ipynb-cell-tags'] = implode(' ', $cellTags);
+            }
+            if ($cellDiagnostics !== []) {
+                $attributes['data-ipynb-diagnostics'] = implode(' ', $cellDiagnostics);
+            }
+            if ($outputSummary['mimeTypes'] !== []) {
+                $attributes['data-ipynb-output-mime-types'] = implode(' ', $outputSummary['mimeTypes']);
+            }
+            if ($outputSummary['bytePresenceCount'] > 0) {
+                $attributes['data-ipynb-output-byte-policy'] = 'metadata-only';
+                $attributes['data-ipynb-output-byte-presence-count'] = (string) $outputSummary['bytePresenceCount'];
+            }
+            if ($outputSummary['executionCounts'] !== []) {
+                $attributes['data-ipynb-output-execution-counts'] = implode(' ', array_map(static fn (int $count): string => (string) $count, $outputSummary['executionCounts']));
+            }
+            if ($outputSummary['errorNames'] !== []) {
+                $attributes['data-ipynb-output-error-names'] = implode(' ', $outputSummary['errorNames']);
+            }
+            if ($outputSummary['streamNames'] !== []) {
+                $attributes['data-ipynb-output-stream-names'] = implode(' ', $outputSummary['streamNames']);
             }
 
             $children = match ($cellType) {
@@ -99,8 +132,20 @@ final class IpynbReader
                 'ipynbCellIndex' => $index,
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
+                'ipynbAttachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
+                'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
+                'ipynbOutputSummaries' => $outputSummary['outputs'],
+                'ipynbOutputMimeBundleCount' => $outputSummary['mimeBundleCount'],
+                'ipynbOutputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'ipynbOutputExecutionCounts' => $outputSummary['executionCounts'],
+                'ipynbOutputErrorNames' => $outputSummary['errorNames'],
+                'ipynbOutputStreamNames' => $outputSummary['streamNames'],
+                'ipynbUnsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['bytePresenceCount'],
+                'ipynbUnsupportedResourceDiagnostics' => $cellDiagnostics,
+                'ipynbCellMetadataKeys' => $cellMetadataKeys,
+                'ipynbCellTags' => $cellTags,
             ];
             if (array_key_exists('id', $cell) && is_string($cell['id']) && $cell['id'] !== '') {
                 $cellAttrs['ipynbCellId'] = $cell['id'];
@@ -115,7 +160,17 @@ final class IpynbReader
                 'type' => $cellType,
                 'sourceBytes' => strlen($source),
                 'attachmentCount' => $attachmentSummary['count'],
+                'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'outputCount' => $outputSummary['count'],
+                'outputTypes' => $outputSummary['types'],
+                'outputMimeTypes' => $outputSummary['mimeTypes'],
+                'outputSummaries' => $outputSummary['outputs'],
+                'outputMimeBundleCount' => $outputSummary['mimeBundleCount'],
+                'outputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'unsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['bytePresenceCount'],
+                'diagnostics' => $cellDiagnostics,
+                'metadataKeys' => $cellMetadataKeys,
+                'tags' => $cellTags,
             ];
         }
 
@@ -127,11 +182,25 @@ final class IpynbReader
             'notebookRawCellCount' => $rawCellCount,
             'notebookAttachmentCount' => $attachmentCount,
             'notebookOutputCount' => $outputCount,
+            'notebookUnsupportedResourceCount' => $unsupportedResourceCount,
+            'notebookOutputBytePresenceCount' => $outputBytePresenceCount,
+            'notebookOutputMimeBundleCount' => $outputMimeBundleCount,
             'notebookNbformat' => $notebook['nbformat'] ?? null,
             'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
+            'notebookMetadataKeys' => $metadataKeys,
             'notebookKernelName' => $this->metadataString($metadata['kernelspec'] ?? null, 'name'),
             'notebookLanguage' => $language,
             'notebookCells' => $cellSummaries,
+            'notebookResourcePolicy' => [
+                'state' => $unsupportedResourceCount > 0 ? 'metadata-only' : 'none',
+                'byteExposure' => 'blocked',
+                'diagnostics' => $unsupportedResourceCount > 0 ? ['external-notebook-resource-bytes-blocked'] : [],
+            ],
+            'notebookOutputBytePolicy' => [
+                'state' => $outputBytePresenceCount > 0 ? 'metadata-only' : 'none',
+                'byteExposure' => 'blocked',
+                'diagnostics' => $outputBytePresenceCount > 0 ? ['ipynb-rich-output-bytes-blocked'] : [],
+            ],
         ], $blocks);
     }
 
@@ -230,46 +299,163 @@ final class IpynbReader
 
     /**
      * @param array<string, mixed> $attachments
-     * @return array{count:int, names:list<string>}
+     * @return array{count:int, names:list<string>, mimeTypes:list<string>}
      */
     private function attachmentSummary(array $attachments): array
     {
         $names = [];
+        $mimeTypes = [];
         foreach ($attachments as $name => $payload) {
             if (!is_array($payload)) {
                 continue;
             }
             $names[] = (string) $name;
+            foreach ($payload as $mimeType => $data) {
+                if (!is_string($mimeType) || $mimeType === '' || !(is_scalar($data) || is_array($data))) {
+                    continue;
+                }
+                $mimeTypes[] = $mimeType;
+            }
         }
         sort($names);
+        sort($mimeTypes);
 
         return [
             'count' => count($names),
             'names' => $names,
+            'mimeTypes' => array_values(array_unique($mimeTypes)),
         ];
     }
 
     /**
      * @param array<int, mixed> $outputs
-     * @return array{count:int, types:list<string>}
+     * @return array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>}
      */
     private function outputSummary(array $outputs): array
     {
         $types = [];
+        $mimeTypes = [];
+        $outputRows = [];
+        $mimeBundleCount = 0;
+        $bytePresenceCount = 0;
+        $executionCounts = [];
+        $errorNames = [];
+        $streamNames = [];
+        $diagnostics = [];
+
         foreach ($outputs as $output) {
             if (!is_array($output)) {
                 continue;
             }
             $type = $output['output_type'] ?? null;
-            if (is_string($type) && $type !== '') {
-                $types[] = $type;
+            $type = is_string($type) && $type !== '' ? $type : 'unknown';
+            $types[] = $type;
+
+            $dataMimeTypes = [];
+            $data = $output['data'] ?? null;
+            if (is_array($data)) {
+                $dataMimeTypes = $this->mimeTypesFromBundle($data);
             }
+            foreach ($dataMimeTypes as $mimeType) {
+                $mimeTypes[] = $mimeType;
+            }
+
+            $outputDiagnostics = [];
+            $hasMimeBundle = $dataMimeTypes !== [];
+            $hasStreamPayload = $type === 'stream' && $this->hasStringOrStringList($output['text'] ?? null);
+            $errorName = $this->nonEmptyString($output['ename'] ?? null);
+            $hasErrorValue = $this->nonEmptyString($output['evalue'] ?? null) !== null;
+            $tracebackLines = $this->stringList($output['traceback'] ?? null);
+            $hasErrorPayload = $type === 'error' && ($errorName !== null || $hasErrorValue || $tracebackLines !== []);
+            $hasBytePresence = $hasMimeBundle || $hasStreamPayload || $hasErrorPayload;
+
+            if ($hasBytePresence) {
+                $bytePresenceCount++;
+                $outputDiagnostics[] = 'output-bytes-blocked';
+            }
+            if ($hasMimeBundle) {
+                $mimeBundleCount++;
+                $outputDiagnostics[] = 'output-mime-bundle-metadata-only';
+            }
+            if ($hasStreamPayload) {
+                $outputDiagnostics[] = 'output-stream-bytes-blocked';
+            }
+            if ($type === 'error') {
+                $outputDiagnostics[] = 'output-error-metadata-only';
+                if ($tracebackLines !== []) {
+                    $outputDiagnostics[] = 'output-error-traceback-bytes-blocked';
+                }
+            }
+            foreach ($outputDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+
+            $row = [
+                'index' => count($outputRows),
+                'type' => $type,
+                'mimeTypes' => $dataMimeTypes,
+                'metadataKeys' => isset($output['metadata']) && is_array($output['metadata']) ? $this->metadataKeys($output['metadata']) : [],
+                'bytePresence' => $hasBytePresence ? 'present' : 'none',
+                'byteExposure' => $hasBytePresence ? 'blocked' : 'none',
+                'diagnostics' => array_values(array_unique($outputDiagnostics)),
+            ];
+
+            if (array_key_exists('execution_count', $output) && (is_int($output['execution_count']) || $output['execution_count'] === null)) {
+                $row['executionCount'] = $output['execution_count'];
+                if (is_int($output['execution_count'])) {
+                    $executionCounts[] = $output['execution_count'];
+                }
+            }
+
+            $streamName = $this->nonEmptyString($output['name'] ?? null);
+            if ($type === 'stream' && $streamName !== null) {
+                $row['streamName'] = $streamName;
+                $streamNames[] = $streamName;
+            }
+
+            if ($type === 'error') {
+                if ($errorName !== null) {
+                    $row['errorName'] = $errorName;
+                    $errorNames[] = $errorName;
+                }
+                $row['errorValuePresent'] = $hasErrorValue;
+                $row['tracebackLineCount'] = count($tracebackLines);
+            }
+
+            $outputRows[] = $row;
         }
+        sort($mimeTypes);
 
         return [
             'count' => count($outputs),
             'types' => array_values(array_unique($types)),
+            'mimeTypes' => array_values(array_unique($mimeTypes)),
+            'outputs' => $outputRows,
+            'mimeBundleCount' => $mimeBundleCount,
+            'bytePresenceCount' => $bytePresenceCount,
+            'executionCounts' => array_values(array_unique($executionCounts)),
+            'errorNames' => $this->sortedUniqueStrings($errorNames),
+            'streamNames' => $this->sortedUniqueStrings($streamNames),
+            'diagnostics' => array_values(array_unique($diagnostics)),
         ];
+    }
+
+    /**
+     * @param array{count:int, names:list<string>, mimeTypes:list<string>} $attachmentSummary
+     * @param array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>} $outputSummary
+     * @return list<string>
+     */
+    private function cellDiagnostics(array $attachmentSummary, array $outputSummary): array
+    {
+        $diagnostics = [];
+        if ($attachmentSummary['count'] > 0) {
+            $diagnostics[] = 'attachment-bytes-blocked';
+        }
+        foreach ($outputSummary['diagnostics'] as $diagnostic) {
+            $diagnostics[] = $diagnostic;
+        }
+
+        return array_values(array_unique($diagnostics));
     }
 
     /**
@@ -284,6 +470,92 @@ final class IpynbReader
         $value = $metadata[$key] ?? null;
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return list<string>
+     */
+    private function metadataKeys(array $metadata): array
+    {
+        $keys = [];
+        foreach ($metadata as $key => $_value) {
+            if (is_string($key) && $key !== '') {
+                $keys[] = $key;
+            }
+        }
+        sort($keys);
+
+        return $keys;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metadataStringList(mixed $value): array
+    {
+        return $this->sortedUniqueStrings($this->stringList($value));
+    }
+
+    /**
+     * @param array<string, mixed> $bundle
+     * @return list<string>
+     */
+    private function mimeTypesFromBundle(array $bundle): array
+    {
+        $mimeTypes = [];
+        foreach ($bundle as $mimeType => $payload) {
+            if (!is_string($mimeType) || $mimeType === '' || !(is_scalar($payload) || is_array($payload))) {
+                continue;
+            }
+            $mimeTypes[] = $mimeType;
+        }
+        sort($mimeTypes);
+
+        return array_values(array_unique($mimeTypes));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            return $value === '' ? [] : [$value];
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
+    }
+
+    private function hasStringOrStringList(mixed $value): bool
+    {
+        return $this->stringList($value) !== [];
+    }
+
+    private function nonEmptyString(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param list<string> $strings
+     * @return list<string>
+     */
+    private function sortedUniqueStrings(array $strings): array
+    {
+        sort($strings);
+
+        return array_values(array_unique($strings));
     }
 
     private function sanitizeClassToken(string $token): string
