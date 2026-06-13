@@ -1083,6 +1083,9 @@ final class PdfEngineHandoff
             foreach (($typstPackageDependencyPolicy['sourceClassCounts'] ?? []) as $sourceClass => $count) {
                 $diagnostics[] = 'typst-package-dependency-source:' . $sourceClass . ':' . $count;
             }
+            foreach (($typstPackageDependencyPolicy['unsupportedReasonCounts'] ?? []) as $reasonKey => $count) {
+                $diagnostics[] = 'typst-package-unsupported-reason:' . $reasonKey . ':' . $count;
+            }
             if ($typstPackageDependencyPolicy['sidecarFileCount'] > 0) {
                 $diagnostics[] = 'typst-package-dependency-policy-sidecars:' . $typstPackageDependencyPolicy['sidecarFileCount'];
             }
@@ -8391,6 +8394,8 @@ final class PdfEngineHandoff
         $inputsByPackageVersion = [];
         $sourceClasses = [];
         $sourceClassCounts = [];
+        $unsupportedPackageReasons = [];
+        $unsupportedReasonCounts = [];
         $subpathDependencyCount = 0;
         foreach ($dependencies as $dependency) {
             $namespace = $dependency['namespace'];
@@ -8408,6 +8413,14 @@ final class PdfEngineHandoff
             $sourceClass = $dependency['sourceClass'];
             $sourceClasses[$sourceClass] = true;
             $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
+            $unsupportedReason = $this->typstPackageUnsupportedReason($sourceClass);
+            $unsupportedReasonCounts[$unsupportedReason] = ($unsupportedReasonCounts[$unsupportedReason] ?? 0) + 1;
+            $unsupportedPackageReasons[] = [
+                'input' => $dependency['input'],
+                'reference' => $dependency['reference'],
+                'sourceClass' => $sourceClass,
+                'reason' => $unsupportedReason,
+            ];
             if ($dependency['subpath'] !== null) {
                 $subpathDependencyCount++;
             }
@@ -8425,6 +8438,7 @@ final class PdfEngineHandoff
         sort($sourceClassList);
         ksort($namespaceCounts);
         ksort($sourceClassCounts);
+        ksort($unsupportedReasonCounts);
 
         $versionConflicts = [];
         foreach ($versionsByPackage as $packageName => $packageVersions) {
@@ -8503,10 +8517,25 @@ final class PdfEngineHandoff
             'metadataOnly' => true,
             'byteExposurePolicy' => 'metadata-only',
             'networkAccessPolicy' => 'not-executed',
+            'unsupportedPackageCount' => count($unsupportedPackageReasons),
+            'unsupportedPackageReasons' => $unsupportedPackageReasons,
+            'unsupportedReasonCounts' => $unsupportedReasonCounts,
             'versionConflictCount' => count($versionConflicts),
             'versionConflicts' => $versionConflicts,
             'issues' => $issues,
         ];
+    }
+
+    private function typstPackageUnsupportedReason(string $sourceClass): string
+    {
+        if ($sourceClass === 'preview-registry') {
+            return 'preview-registry-network-not-executed';
+        }
+        if ($sourceClass === 'typst-registry') {
+            return 'typst-registry-network-not-executed';
+        }
+
+        return 'custom-namespace-not-resolved';
     }
 
     /**

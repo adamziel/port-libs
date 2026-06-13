@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,318 pass / 0 fail | [3,277 / 2,276 (144.0%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue EPUB3 package reader parity after direct manifest/spine diagnostics | epub-direct-manifest-spine-report-2b00b60b67 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,320 pass / 0 fail | [3,279 / 2,276 (144.1%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Typst reader parity after package unsupported-reason reporting | typst-package-unsupported-reasons-4487923aa2 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -43,7 +43,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
 | DocBook/table geometry | `docbook` | partial | 16 | 16 | Finish DocBook XML reader parity. |
 | RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
-| Typst | `typst` | unsupported | 47 | 17 | Implement Typst reader; package dependency conflict policy is covered, but current evidence is boundary/provenance only. |
+| Typst | `typst` | unsupported | 49 | 17 | Implement Typst reader; package dependency conflict, source-class, and unsupported-reason policy are covered, but current evidence is boundary/provenance only. |
 | PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Explicit unsupported ship-gate verdict is covered; implement the first native text-format reader. |
 | Tabular/data readers | `csv`, `tsv` | partial | 2 | 2 | Finish full CSV/TSV reader parity beyond the bounded headed-table slice. |
@@ -53,13 +53,13 @@ Adjacent import targets outside the Pandoc input denominator:
 
 | Target | Current evidence | Scope note | Remaining input work |
 | --- | ---: | --- | --- |
-| PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
+| PDF | 49 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `2b00b60b67`: 3,318 PHP passes, 0 failures, and 3,277 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for the touched EPUB files, focused `EpubPackageReaderTest.php` (`1` file, `187` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74472` assertions, `0` failures).
+Current-branch counters are reconciled on base `4487923aa2`: 3,320 PHP passes, 0 failures, and 3,279 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2237` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74484` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -71,7 +71,7 @@ Current-main counters are reconciled through `2b00b60b67`: 3,318 PHP passes, 0 f
 | Notes/references | Landed footnote label anchors, WordPress backlink metadata, and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/DOCX run 11,750 assertions; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, endnote grouping, anchor round-trips, and constructor parity. |
 | Wiki/roff/text reader ship gate | Landed explicit unsupported verdict for 20 text markup reader input tokens | 20 wiki/roff/man/text markup tokens | Focused registry run 1,106 assertions | Unsupported | Implement native readers after registry-level ship-gate accounting. |
 | Table geometry | Landed LaTeX table-foot longtable and body-local head-row handoffs | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot and body-head-row slices | Multi-body semantics, rowspan output, and package-specific table internals. |
-| PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+| PDF/Typst dependency policy | Landed package dependency conflict, source-class, and unsupported-reason policy | 17 PDF/Typst boundary rows | 49 PDF/Typst boundary/provenance cases; latest focused run 2,237 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 
@@ -235,13 +235,13 @@ Implemented highest-impact gap: `MarkdownWriter` now emits typed `raw_html_inlin
 
 ### PDF/Typst Boundary Ship-Readiness Update (2026-06-13)
 
-Verdict: not shippable for real PDF/Typst output parity because native PHP does not execute external TeX/Typst/PDF engines. Graceful no-external-engine boundary diagnostics now have 47 local mapped PDF/Typst boundary/provenance cases against 17 upstream format-related cases (276.5%), with no known critical uncovered graceful-boundary rows.
+Verdict: not shippable for real PDF/Typst output parity because native PHP does not execute external TeX/Typst/PDF engines. Graceful no-external-engine boundary diagnostics now have 49 local mapped PDF/Typst boundary/provenance cases against 17 upstream format-related cases (288.2%), with no known critical uncovered graceful-boundary rows.
 
 | Format focus | Upstream denominator | Local passing evidence | Evidence percent | Remaining critical gap |
 | --- | ---: | ---: | ---: | --- |
-| PDF/Typst graceful boundary/provenance diagnostics | 17 | 47 | 276.5% | Full output parity still requires external engine execution, which remains unsupported in native PHP. |
+| PDF/Typst graceful boundary/provenance diagnostics | 17 | 49 | 288.2% | Full output parity still requires external engine execution, which remains unsupported in native PHP. |
 
-Implemented highest-impact gap: `PdfEngineHandoff::fakeRun()` now extends Typst package dependency policy with sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, and multi-version conflict diagnostics while preserving successful graceful behavior without external engines. Verification passed `php -l` for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74226` assertions, `0` failures). No Pandoc, Typst, TeX/PDF engine, browser, Node, online service, live provider, or external validator was invoked.
+Implemented highest-impact gap: `PdfEngineHandoff::fakeRun()` now extends Typst package dependency policy with deterministic source-class provenance plus unsupported package reason reporting for preview registry, Typst registry, and custom namespace package dependencies while preserving metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, sidecar package input counts, and multi-version conflict diagnostics. Verification passed `php -l` for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2237` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74361` assertions, `0` failures). No Pandoc, Typst, TeX/PDF engine, browser, Node, online service, live provider, or external validator was invoked.
 
 ### Text Format Ship-Readiness Update (2026-06-12)
 
