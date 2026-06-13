@@ -1280,6 +1280,18 @@ final class CitationCslProcessor
         $viaf = self::firstStringField($item, ['VIAF', 'viaf']);
         $ror = self::firstStringField($item, ['ROR', 'ror']);
         $wikidata = self::firstStringField($item, ['Wikidata', 'wikidata', 'wikidata-id', 'wikidataId', 'wikidataid', 'wd']);
+        $translatedTitleKeys = ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation'];
+        $translatedSubtitleKeys = [
+            'translated-subtitle',
+            'translatedSubtitle',
+            'translatedsubtitle',
+            'title-translation-subtitle',
+            'titleTranslationSubtitle',
+            'titletranslationsubtitle',
+            'subtitle-translation',
+            'subtitleTranslation',
+            'subtitletranslation',
+        ];
 
         return [
             'id' => $id,
@@ -1315,8 +1327,8 @@ final class CitationCslProcessor
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
-            'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
-            'translatedSubtitle' => self::firstStringField($item, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
+            'translatedTitle' => self::composedStringField($item, $translatedTitleKeys, $translatedSubtitleKeys),
+            'translatedSubtitle' => self::firstStringField($item, $translatedSubtitleKeys),
             'reviewedTitle' => $reviewedTitle,
             'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
@@ -10436,9 +10448,9 @@ final class CitationCslProcessor
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
-            'translated-subtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitletranslation' => (string) ($item['translatedSubtitle'] ?? ''),
+            'translated-subtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitletranslation' => (string) ($item['translatedSubtitle'] ?? ''),
             'translated-title-raw', 'translatedtitleraw', 'title-translation-raw', 'titletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
-            'translated-subtitle-raw', 'translatedsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
+            'translated-subtitle-raw', 'translatedsubtitleraw', 'title-translation-subtitle-raw', 'titletranslationsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titleTranslationSubtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
             'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
