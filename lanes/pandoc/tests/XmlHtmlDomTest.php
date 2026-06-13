@@ -201,6 +201,90 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'diagnoses jats and bits section id label language metadata review packets' => static function (TestRunner $t): void {
+        $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="review-article" xml:lang="en">
+  <front><article-meta><title-group><article-title>Section Metadata Review</article-title></title-group></article-meta></front>
+  <body>
+    <sec id="dup" xml:lang="en-US"><label>1</label><title>Intro</title><p>Lead section.</p></sec>
+    <sec id="dup" lang="fr"><label>1bis</label><title>Deux</title><title>Duplicate title</title><p>French section.</p></sec>
+    <sec><p>Untitled imported section.</p></sec>
+  </body>
+</article>
+XML, 'JATS section metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
+        $diagnostics = [];
+        foreach ($packet['sectionMetadataDiagnostics'] as $diagnostic) {
+            $diagnostics[$diagnostic['code']] = $diagnostic;
+        }
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'section-metadata-diagnostics-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(3, $packet['directReaderDiagnosticCount']);
+        $t->same(6, $packet['sectionMetadataDiagnosticCount']);
+        $t->same([
+            'section-id-missing',
+            'section-id-duplicate',
+            'section-labels-review-only',
+            'section-languages-review-only',
+            'section-title-missing',
+            'section-title-duplicate',
+        ], $packet['sectionMetadataDiagnosticCodes']);
+        $t->same(3, $packet['sectionCount']);
+        $t->same(['Intro', 'Deux'], $packet['sectionTitles']);
+        $t->same(['dup'], $packet['sectionIds']);
+        $t->same(['1', '1bis'], $packet['sectionLabels']);
+        $t->same(['en-US', 'fr'], $packet['sectionLanguages']);
+        $t->same('dup', $packet['sections'][0]['id'] ?? null);
+        $t->same('1', $packet['sections'][0]['label'] ?? null);
+        $t->same('en-US', $packet['sections'][0]['language'] ?? null);
+        $t->same(1, $packet['sections'][0]['titleCount'] ?? null);
+        $t->same(2, $packet['sections'][1]['titleCount'] ?? null);
+        $t->same(['Deux', 'Duplicate title'], $packet['sections'][1]['titleTexts'] ?? null);
+        $t->same(null, $packet['sections'][2]['id'] ?? null);
+        $t->same(0, $packet['sections'][2]['titleCount'] ?? null);
+        $t->same(1, $diagnostics['section-id-missing']['details']['missingSectionIdCount'] ?? null);
+        $t->same(['section[3]'], $diagnostics['section-id-missing']['details']['sections'] ?? null);
+        $t->same(['dup'], $diagnostics['section-id-duplicate']['details']['duplicateSectionIds'] ?? null);
+        $t->same(['section[1]#dup', 'section[2]#dup'], $diagnostics['section-id-duplicate']['details']['duplicates'][0]['sections'] ?? null);
+        $t->same(['1', '1bis'], $diagnostics['section-labels-review-only']['details']['labels'] ?? null);
+        $t->same(['en-US', 'fr'], $diagnostics['section-languages-review-only']['details']['languages'] ?? null);
+        $t->same(['section[3]'], $diagnostics['section-title-missing']['details']['sections'] ?? null);
+        $t->same(1, $diagnostics['section-title-duplicate']['details']['duplicateSectionTitleCount'] ?? null);
+        $t->same('section[2]#dup', $diagnostics['section-title-duplicate']['details']['sections'][0]['section'] ?? null);
+        $t->same(2, $diagnostics['section-title-duplicate']['details']['sections'][0]['titleCount'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="handbook" xml:lang="es">
+  <book-meta><title-group><book-title>Bits Section Review</book-title></title-group></book-meta>
+  <book-body>
+    <sec id="b1" xml:lang="es-MX"><label>Cap. 1</label><title>Inicio</title><p>Review body.</p></sec>
+  </book-body>
+</book>
+XML, 'BITS section metadata XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same('bits', $bitsPacket['format']);
+        $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same(['b1'], $bitsPacket['sectionIds']);
+        $t->same(['Cap. 1'], $bitsPacket['sectionLabels']);
+        $t->same(['es-MX'], $bitsPacket['sectionLanguages']);
+        $t->same([
+            'section-labels-review-only',
+            'section-languages-review-only',
+        ], $bitsPacket['sectionMetadataDiagnosticCodes']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'section-metadata-diagnostics-review-only',
+        ], $bitsPacket['directReaderDiagnosticCodes']);
+        json_encode($bitsPacket, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
