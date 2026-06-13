@@ -18,7 +18,7 @@ final class EpubPackageReader
         $rootfile = $this->readContainerRootfile($root);
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
-        $toc = $this->readNavigationDocument($root, $package);
+        $navigation = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -49,7 +49,8 @@ final class EpubPackageReader
                 'spine' => $package['spine'],
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
-                'toc' => $toc,
+                'toc' => $navigation['entries'],
+                'navReport' => $navigation['report'],
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -517,7 +518,7 @@ final class EpubPackageReader
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return array{entries:list<array<string, mixed>>, report:array<string, mixed>}
      */
     private function readNavigationDocument(string $root, array $package): array
     {
@@ -529,12 +530,19 @@ final class EpubPackageReader
             }
         }
         if (!is_array($navItem)) {
-            return [];
+            return [
+                'entries' => [],
+                'report' => $this->emptyNavReport(),
+            ];
         }
 
         $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navItem['path']));
         $navDir = $this->relativeDirname($navItem['path']);
         $entries = [];
+        $sections = [];
+        $sectionsByType = [];
+        $typeCounts = [];
+        $diagnostics = [];
         foreach ($document->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
@@ -550,12 +558,60 @@ final class EpubPackageReader
                 continue;
             }
 
-            foreach ($this->readNavList($ol, $navDir, $type) as $entry) {
-                $entries[] = $entry;
-            }
+            $sectionIndex = count($sections);
+            $sectionId = trim($element->getAttribute('id'));
+            $entryIndex = 0;
+            $sectionReport = $this->readNavList($root, $ol, $navDir, $type, $sectionIndex, $sectionId, 1, $entryIndex);
+            array_push($entries, ...$sectionReport['entries']);
+            array_push($diagnostics, ...$sectionReport['diagnostics']);
+
+            $section = [
+                'index' => $sectionIndex,
+                'id' => $sectionId,
+                'type' => $type,
+                'entryCount' => $sectionReport['entryCount'],
+                'localTargetCount' => $sectionReport['localTargetCount'],
+                'externalTargetCount' => $sectionReport['externalTargetCount'],
+                'missingTargetCount' => $sectionReport['missingTargetCount'],
+                'fragmentTargetCount' => $sectionReport['fragmentTargetCount'],
+                'normalizedHrefCount' => $sectionReport['normalizedHrefCount'],
+                'percentDecodedHrefCount' => $sectionReport['percentDecodedHrefCount'],
+                'dotSegmentNormalizedHrefCount' => $sectionReport['dotSegmentNormalizedHrefCount'],
+                'packageRootEscapeCount' => $sectionReport['packageRootEscapeCount'],
+                'caseMismatchCount' => $sectionReport['caseMismatchCount'],
+                'emptyHrefCount' => $sectionReport['emptyHrefCount'],
+                'diagnosticCount' => count($sectionReport['diagnostics']),
+                'diagnostics' => $sectionReport['diagnostics'],
+            ];
+            $sections[] = $section;
+            $sectionsByType[$type][] = $section;
+            $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
         }
 
-        return $entries;
+        return [
+            'entries' => $entries,
+            'report' => [
+                'present' => $sections !== [],
+                'sectionCount' => count($sections),
+                'entryCount' => array_sum(array_column($sections, 'entryCount')),
+                'typeCounts' => $typeCounts,
+                'sections' => $sections,
+                'sectionsByType' => $sectionsByType,
+                'localTargetCount' => array_sum(array_column($sections, 'localTargetCount')),
+                'externalTargetCount' => array_sum(array_column($sections, 'externalTargetCount')),
+                'missingTargetCount' => array_sum(array_column($sections, 'missingTargetCount')),
+                'fragmentTargetCount' => array_sum(array_column($sections, 'fragmentTargetCount')),
+                'normalizedHrefCount' => array_sum(array_column($sections, 'normalizedHrefCount')),
+                'percentDecodedHrefCount' => array_sum(array_column($sections, 'percentDecodedHrefCount')),
+                'dotSegmentNormalizedHrefCount' => array_sum(array_column($sections, 'dotSegmentNormalizedHrefCount')),
+                'packageRootEscapeCount' => array_sum(array_column($sections, 'packageRootEscapeCount')),
+                'caseMismatchCount' => array_sum(array_column($sections, 'caseMismatchCount')),
+                'emptyHrefCount' => array_sum(array_column($sections, 'emptyHrefCount')),
+                'diagnosticCount' => count($diagnostics),
+                'diagnosticTypes' => $this->diagnosticTypeCounts($diagnostics),
+                'diagnostics' => $diagnostics,
+            ],
+        ];
     }
 
     /**
@@ -974,11 +1030,75 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return array<string, mixed>
      */
-    private function readNavList(\DOMElement $ol, string $baseDir, string $type): array
+    private function emptyNavReport(): array
+    {
+        return [
+            'present' => false,
+            'sectionCount' => 0,
+            'entryCount' => 0,
+            'typeCounts' => [],
+            'sections' => [],
+            'sectionsByType' => [],
+            'localTargetCount' => 0,
+            'externalTargetCount' => 0,
+            'missingTargetCount' => 0,
+            'fragmentTargetCount' => 0,
+            'normalizedHrefCount' => 0,
+            'percentDecodedHrefCount' => 0,
+            'dotSegmentNormalizedHrefCount' => 0,
+            'packageRootEscapeCount' => 0,
+            'caseMismatchCount' => 0,
+            'emptyHrefCount' => 0,
+            'diagnosticCount' => 0,
+            'diagnosticTypes' => [],
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entries:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>,
+     *     entryCount:int,
+     *     localTargetCount:int,
+     *     externalTargetCount:int,
+     *     missingTargetCount:int,
+     *     fragmentTargetCount:int,
+     *     normalizedHrefCount:int,
+     *     percentDecodedHrefCount:int,
+     *     dotSegmentNormalizedHrefCount:int,
+     *     packageRootEscapeCount:int,
+     *     caseMismatchCount:int,
+     *     emptyHrefCount:int
+     * }
+     */
+    private function readNavList(
+        string $root,
+        \DOMElement $ol,
+        string $baseDir,
+        string $type,
+        int $sectionIndex,
+        string $sectionId,
+        int $depth,
+        int &$entryIndex
+    ): array
     {
         $entries = [];
+        $diagnostics = [];
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+        $fragmentTargetCount = 0;
+        $normalizedHrefCount = 0;
+        $percentDecodedHrefCount = 0;
+        $dotSegmentNormalizedHrefCount = 0;
+        $packageRootEscapeCount = 0;
+        $caseMismatchCount = 0;
+        $emptyHrefCount = 0;
+        $entryCount = 0;
+
         foreach ($ol->childNodes as $node) {
             if (!$node instanceof \DOMElement || $node->localName !== 'li') {
                 continue;
@@ -989,27 +1109,379 @@ final class EpubPackageReader
                 continue;
             }
 
+            $currentEntryIndex = $entryIndex++;
+            ++$entryCount;
             $href = $link->localName === 'a' ? trim($link->getAttribute('href')) : '';
-            [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $label = $this->normalizedText($link->textContent);
+            $hrefReport = $this->navHrefReport($root, $baseDir, $href, $link->localName === 'a');
+            $entryDiagnostics = $hrefReport['diagnostics'];
+            if ($label === '') {
+                $entryDiagnostics[] = [
+                    'type' => 'empty-nav-item-label',
+                    'href' => $href,
+                    'message' => 'EPUB navigation list item label is empty',
+                ];
+            }
+
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
-                    $children = $this->readNavList($child, $baseDir, $type);
+                    $childReport = $this->readNavList($root, $child, $baseDir, $type, $sectionIndex, $sectionId, $depth + 1, $entryIndex);
+                    $children = $childReport['entries'];
+                    array_push($diagnostics, ...$childReport['diagnostics']);
+                    $entryCount += $childReport['entryCount'];
+                    $localTargetCount += $childReport['localTargetCount'];
+                    $externalTargetCount += $childReport['externalTargetCount'];
+                    $missingTargetCount += $childReport['missingTargetCount'];
+                    $fragmentTargetCount += $childReport['fragmentTargetCount'];
+                    $normalizedHrefCount += $childReport['normalizedHrefCount'];
+                    $percentDecodedHrefCount += $childReport['percentDecodedHrefCount'];
+                    $dotSegmentNormalizedHrefCount += $childReport['dotSegmentNormalizedHrefCount'];
+                    $packageRootEscapeCount += $childReport['packageRootEscapeCount'];
+                    $caseMismatchCount += $childReport['caseMismatchCount'];
+                    $emptyHrefCount += $childReport['emptyHrefCount'];
                     break;
                 }
             }
 
+            if ($hrefReport['external']) {
+                ++$externalTargetCount;
+            } elseif ($href !== '' && !$hrefReport['unsafe'] && $hrefReport['path'] !== '') {
+                ++$localTargetCount;
+            }
+            if ($href !== '' && !$hrefReport['external'] && !$hrefReport['unsafe'] && $hrefReport['path'] !== '' && !$hrefReport['exists']) {
+                ++$missingTargetCount;
+            }
+            if ($hrefReport['fragment'] !== '') {
+                ++$fragmentTargetCount;
+            }
+            if ($hrefReport['normalization']['normalized']) {
+                ++$normalizedHrefCount;
+            }
+            if ($hrefReport['normalization']['percentDecoded']) {
+                ++$percentDecodedHrefCount;
+            }
+            if ($hrefReport['normalization']['dotSegmentNormalized']) {
+                ++$dotSegmentNormalizedHrefCount;
+            }
+            if ($hrefReport['normalization']['packageRootEscape']) {
+                ++$packageRootEscapeCount;
+            }
+            if ($hrefReport['normalization']['caseMismatch']) {
+                ++$caseMismatchCount;
+            }
+            if ($href === '' && $link->localName === 'a') {
+                ++$emptyHrefCount;
+            }
+
+            foreach ($entryDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionType' => $type,
+                    'entryIndex' => $currentEntryIndex,
+                    'depth' => $depth,
+                    'label' => $label,
+                ] + $diagnostic;
+            }
+
             $entries[] = [
-                'label' => $this->normalizedText($link->textContent),
+                'index' => $currentEntryIndex,
+                'depth' => $depth,
+                'label' => $label,
                 'href' => $href,
-                'path' => $path,
-                'fragment' => $fragment,
+                'target' => $hrefReport['target'],
+                'path' => $hrefReport['path'],
+                'fragment' => $hrefReport['fragment'],
                 'type' => $type,
+                'external' => $hrefReport['external'],
+                'exists' => $hrefReport['exists'],
+                'unsafe' => $hrefReport['unsafe'],
+                'caseMatchedPath' => $hrefReport['caseMatchedPath'],
+                'normalization' => $hrefReport['normalization'],
+                'diagnostics' => $entryDiagnostics,
                 'children' => $children,
             ];
         }
 
-        return $entries;
+        return [
+            'entries' => $entries,
+            'diagnostics' => $diagnostics,
+            'entryCount' => $entryCount,
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'fragmentTargetCount' => $fragmentTargetCount,
+            'normalizedHrefCount' => $normalizedHrefCount,
+            'percentDecodedHrefCount' => $percentDecodedHrefCount,
+            'dotSegmentNormalizedHrefCount' => $dotSegmentNormalizedHrefCount,
+            'packageRootEscapeCount' => $packageRootEscapeCount,
+            'caseMismatchCount' => $caseMismatchCount,
+            'emptyHrefCount' => $emptyHrefCount,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     target:string,
+     *     path:string,
+     *     fragment:string,
+     *     external:bool,
+     *     exists:bool,
+     *     unsafe:bool,
+     *     caseMatchedPath:?string,
+     *     hrefHasQuery:bool,
+     *     hrefQuery:?string,
+     *     hrefHasFragment:bool,
+     *     hrefFragment:?string,
+     *     normalization:array{normalized:bool, percentDecoded:bool, dotSegmentNormalized:bool, packageRootEscape:bool, caseMismatch:bool},
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function navHrefReport(string $root, string $baseDir, string $href, bool $requiresHref): array
+    {
+        $suffix = $this->hrefSuffix($href);
+        if ($href === '') {
+            return [
+                'target' => '',
+                'path' => '',
+                'fragment' => '',
+                'external' => false,
+                'exists' => false,
+                'unsafe' => false,
+                'caseMatchedPath' => null,
+                'hrefHasQuery' => false,
+                'hrefQuery' => null,
+                'hrefHasFragment' => false,
+                'hrefFragment' => null,
+                'normalization' => [
+                    'normalized' => false,
+                    'percentDecoded' => false,
+                    'dotSegmentNormalized' => false,
+                    'packageRootEscape' => false,
+                    'caseMismatch' => false,
+                ],
+                'diagnostics' => $requiresHref ? [[
+                    'type' => 'missing-nav-item-href',
+                    'message' => 'EPUB navigation link item is missing an href target',
+                ]] : [],
+            ];
+        }
+
+        $external = $this->isExternalHref($href);
+        $hrefBeforeFragment = explode('#', $href, 2)[0];
+        $hrefPath = explode('?', $hrefBeforeFragment, 2)[0];
+        $diagnostics = [];
+
+        if ($external) {
+            $path = $hrefPath;
+            $target = $this->targetWithSuffix($path, $suffix);
+            $diagnostics[] = [
+                'type' => 'external-nav-reference',
+                'href' => $href,
+                'target' => $target,
+                'message' => 'EPUB navigation href points outside the package and was not fetched',
+            ];
+            if ($suffix['hasQuery']) {
+                $diagnostics[] = [
+                    'type' => 'nav-href-query-component',
+                    'href' => $href,
+                    'query' => $suffix['query'],
+                ];
+            }
+            if ($suffix['hasFragment']) {
+                $diagnostics[] = [
+                    'type' => 'nav-href-fragment-component',
+                    'href' => $href,
+                    'fragment' => $suffix['fragment'],
+                ];
+            }
+
+            return [
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $suffix['fragment'] ?? '',
+                'external' => true,
+                'exists' => false,
+                'unsafe' => false,
+                'caseMatchedPath' => null,
+                'hrefHasQuery' => $suffix['hasQuery'],
+                'hrefQuery' => $suffix['query'],
+                'hrefHasFragment' => $suffix['hasFragment'],
+                'hrefFragment' => $suffix['fragment'],
+                'normalization' => [
+                    'normalized' => false,
+                    'percentDecoded' => false,
+                    'dotSegmentNormalized' => false,
+                    'packageRootEscape' => false,
+                    'caseMismatch' => false,
+                ],
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $hrefPath) === 1) {
+            return [
+                'target' => '',
+                'path' => '',
+                'fragment' => $suffix['fragment'] ?? '',
+                'external' => false,
+                'exists' => false,
+                'unsafe' => true,
+                'caseMatchedPath' => null,
+                'hrefHasQuery' => $suffix['hasQuery'],
+                'hrefQuery' => $suffix['query'],
+                'hrefHasFragment' => $suffix['hasFragment'],
+                'hrefFragment' => $suffix['fragment'],
+                'normalization' => [
+                    'normalized' => false,
+                    'percentDecoded' => false,
+                    'dotSegmentNormalized' => false,
+                    'packageRootEscape' => false,
+                    'caseMismatch' => false,
+                ],
+                'diagnostics' => [[
+                    'type' => 'invalid-nav-reference',
+                    'href' => $href,
+                    'message' => 'EPUB navigation href contains a malformed percent escape',
+                ]],
+            ];
+        }
+
+        $decodedHrefPath = rawurldecode($hrefPath);
+        $percentDecoded = $decodedHrefPath !== $hrefPath;
+        $dotSegmentNormalized = $this->hasDotSegments($decodedHrefPath);
+        try {
+            $path = $hrefPath === '' ? '' : $this->normalizeRelativePath($baseDir . '/' . $decodedHrefPath);
+        } catch (\RuntimeException $exception) {
+            return [
+                'target' => '',
+                'path' => '',
+                'fragment' => $suffix['fragment'] ?? '',
+                'external' => false,
+                'exists' => false,
+                'unsafe' => true,
+                'caseMatchedPath' => null,
+                'hrefHasQuery' => $suffix['hasQuery'],
+                'hrefQuery' => $suffix['query'],
+                'hrefHasFragment' => $suffix['hasFragment'],
+                'hrefFragment' => $suffix['fragment'],
+                'normalization' => [
+                    'normalized' => false,
+                    'percentDecoded' => false,
+                    'dotSegmentNormalized' => false,
+                    'packageRootEscape' => true,
+                    'caseMismatch' => false,
+                ],
+                'diagnostics' => [[
+                    'type' => 'nav-href-package-root-escape',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $exists = $path !== '' && $this->packagePathExists($root, $path);
+        $caseMatchedPath = !$exists && $path !== '' ? $this->caseInsensitivePackagePathMatch($root, $path) : null;
+        $caseMismatch = $caseMatchedPath !== null;
+        $target = $this->targetWithSuffix($path, $suffix);
+
+        if ($percentDecoded) {
+            $diagnostics[] = [
+                'type' => 'nav-href-percent-decoded',
+                'href' => $href,
+                'path' => $path,
+            ];
+        }
+        if ($dotSegmentNormalized) {
+            $diagnostics[] = [
+                'type' => 'nav-href-dot-segment-normalized',
+                'href' => $href,
+                'path' => $path,
+            ];
+        }
+        if ($caseMismatch) {
+            $diagnostics[] = [
+                'type' => 'case-sensitive-nav-target-mismatch',
+                'href' => $href,
+                'path' => $path,
+                'caseMatchedPath' => $caseMatchedPath,
+                'message' => 'EPUB navigation href differs from a package-local path only by case',
+            ];
+        } elseif ($path !== '' && !$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-nav-reference',
+                'href' => $href,
+                'path' => $path,
+                'message' => 'EPUB navigation href target is missing from the package',
+            ];
+        }
+        if ($suffix['hasQuery']) {
+            $diagnostics[] = [
+                'type' => 'nav-href-query-component',
+                'href' => $href,
+                'query' => $suffix['query'],
+            ];
+        }
+        if ($suffix['hasFragment']) {
+            $diagnostics[] = [
+                'type' => 'nav-href-fragment-component',
+                'href' => $href,
+                'fragment' => $suffix['fragment'],
+            ];
+        }
+
+        return [
+            'target' => $target,
+            'path' => $path,
+            'fragment' => $suffix['fragment'] ?? '',
+            'external' => false,
+            'exists' => $exists,
+            'unsafe' => false,
+            'caseMatchedPath' => $caseMatchedPath,
+            'hrefHasQuery' => $suffix['hasQuery'],
+            'hrefQuery' => $suffix['query'],
+            'hrefHasFragment' => $suffix['hasFragment'],
+            'hrefFragment' => $suffix['fragment'],
+            'normalization' => [
+                'normalized' => $percentDecoded || $dotSegmentNormalized || $caseMismatch,
+                'percentDecoded' => $percentDecoded,
+                'dotSegmentNormalized' => $dotSegmentNormalized,
+                'packageRootEscape' => false,
+                'caseMismatch' => $caseMismatch,
+            ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticTypeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $type = (string) ($diagnostic['type'] ?? '');
+            if ($type === '') {
+                continue;
+            }
+
+            $counts[$type] = ($counts[$type] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    private function hasDotSegments(string $path): bool
+    {
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '.' || $segment === '..') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1249,6 +1721,54 @@ final class EpubPackageReader
         $absolute = realpath($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalized));
 
         return $absolute !== false && str_starts_with($absolute, $root . DIRECTORY_SEPARATOR) && is_file($absolute);
+    }
+
+    private function caseInsensitivePackagePathMatch(string $root, string $relative): ?string
+    {
+        $normalized = $this->normalizeRelativePath($relative);
+        $directory = $root;
+        $matched = [];
+        $caseMismatch = false;
+
+        foreach (explode('/', $normalized) as $segment) {
+            if ($segment === '' || !is_dir($directory)) {
+                return null;
+            }
+
+            $entries = scandir($directory);
+            if ($entries === false) {
+                return null;
+            }
+
+            $next = null;
+            foreach ($entries as $entry) {
+                if ($entry === $segment) {
+                    $next = $entry;
+                    break;
+                }
+            }
+            if ($next === null) {
+                foreach ($entries as $entry) {
+                    if (strcasecmp($entry, $segment) === 0) {
+                        $next = $entry;
+                        $caseMismatch = true;
+                        break;
+                    }
+                }
+            }
+            if ($next === null) {
+                return null;
+            }
+
+            $matched[] = $next;
+            $directory .= DIRECTORY_SEPARATOR . $next;
+        }
+
+        if (!$caseMismatch || !is_file($directory)) {
+            return null;
+        }
+
+        return implode('/', $matched);
     }
 
     private function resolvePackageHref(string $baseDir, string $href): string
