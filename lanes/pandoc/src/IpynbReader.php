@@ -8,6 +8,17 @@ final class IpynbReader
 {
     private const MAX_CELLS = 200;
     private const MAX_CELL_SOURCE_BYTES = 1048576;
+    private const UNSAFE_CELL_METADATA_KEYS = [
+        'collapsed',
+        'deletable',
+        'editable',
+        'hide_input',
+        'jupyter',
+        'scrolled',
+        'slideshow',
+        'tags',
+        'trusted',
+    ];
 
     private readonly MarkdownReader $markdownReader;
 
@@ -31,6 +42,11 @@ final class IpynbReader
             throw new \InvalidArgumentException('IPYNB notebook exceeds the bounded native reader cell limit');
         }
 
+        $notebookSchemaDiagnostics = $this->notebookSchemaDiagnostics($notebook, $cells);
+        $schemaDiagnostics = $notebookSchemaDiagnostics;
+        $cellSchemaDiagnosticCount = 0;
+        $rawMarkdownCellDiagnostics = [];
+
         $metadata = isset($notebook['metadata']) && is_array($notebook['metadata']) ? $notebook['metadata'] : [];
         $language = $this->metadataString($metadata['language_info'] ?? null, 'name')
             ?? $this->metadataString($metadata['kernelspec'] ?? null, 'language')
@@ -45,14 +61,27 @@ final class IpynbReader
         $outputCount = 0;
 
         foreach ($cells as $index => $cell) {
+            $cellIndex = is_int($index) ? $index : count($cellSummaries);
             if (!is_array($cell)) {
-                throw new \InvalidArgumentException("IPYNB cell {$index} is not an object");
+                throw new \InvalidArgumentException("IPYNB cell {$cellIndex} is not an object");
             }
 
             $cellType = $this->cellType($cell['cell_type'] ?? null);
-            $source = $this->normalizeSource($cell['source'] ?? '', "IPYNB cell {$index} source");
+            $cellSchemaDiagnostics = $this->cellSchemaDiagnostics($cell, $cellType, $cellIndex);
+            foreach ($cellSchemaDiagnostics as $diagnostic) {
+                $schemaDiagnostics[] = $diagnostic;
+            }
+            $cellSchemaDiagnosticCount += count($cellSchemaDiagnostics);
+
+            $sourcePresent = array_key_exists('source', $cell);
+            $sourceValue = $sourcePresent ? $cell['source'] : '';
+            $source = $this->normalizeSource($sourceValue, "IPYNB cell {$cellIndex} source");
             if (strlen($source) > self::MAX_CELL_SOURCE_BYTES) {
-                throw new \InvalidArgumentException("IPYNB cell {$index} exceeds the bounded native reader source limit");
+                throw new \InvalidArgumentException("IPYNB cell {$cellIndex} exceeds the bounded native reader source limit");
+            }
+            $cellSourceDiagnostics = $this->rawMarkdownCellDiagnostics($cell, $cellType, $cellIndex, $sourcePresent, $sourceValue, $source);
+            foreach ($cellSourceDiagnostics as $diagnostic) {
+                $rawMarkdownCellDiagnostics[] = $diagnostic;
             }
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
@@ -64,7 +93,7 @@ final class IpynbReader
             $outputCount += $outputSummary['count'];
 
             $attributes = [
-                'data-ipynb-cell-index' => (string) $index,
+                'data-ipynb-cell-index' => (string) $cellIndex,
                 'data-ipynb-cell-type' => $cellType,
             ];
             if ($attachmentSummary['count'] > 0) {
@@ -79,9 +108,9 @@ final class IpynbReader
 
             $children = match ($cellType) {
                 'markdown' => $this->markdownCellBlocks($source),
-                'code' => [$this->codeCellBlock($source, $language, $index, $cell)],
-                'raw' => [$this->rawCellBlock($source, $index)],
-                default => [$this->unsupportedCellBlock($source, $cellType, $index)],
+                'code' => [$this->codeCellBlock($source, $language, $cellIndex, $cell)],
+                'raw' => [$this->rawCellBlock($source, $cellIndex)],
+                default => [$this->unsupportedCellBlock($source, $cellType, $cellIndex)],
             };
 
             if ($cellType === 'markdown') {
@@ -96,7 +125,7 @@ final class IpynbReader
                 'classes' => ['ipynb-cell', 'ipynb-' . $cellType . '-cell'],
                 'attributes' => $attributes,
                 'ipynbCellType' => $cellType,
-                'ipynbCellIndex' => $index,
+                'ipynbCellIndex' => $cellIndex,
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
                 'ipynbOutputCount' => $outputSummary['count'],
@@ -108,15 +137,32 @@ final class IpynbReader
             if (array_key_exists('execution_count', $cell) && (is_int($cell['execution_count']) || $cell['execution_count'] === null)) {
                 $cellAttrs['ipynbExecutionCount'] = $cell['execution_count'];
             }
+            if ($cellSchemaDiagnostics !== []) {
+                $cellAttrs['ipynbCellSchemaDiagnosticCount'] = count($cellSchemaDiagnostics);
+                $cellAttrs['ipynbCellSchemaDiagnostics'] = $cellSchemaDiagnostics;
+            }
+            if ($cellSourceDiagnostics !== []) {
+                $cellAttrs['ipynbCellSourceDiagnosticCount'] = count($cellSourceDiagnostics);
+                $cellAttrs['ipynbCellSourceDiagnostics'] = $cellSourceDiagnostics;
+            }
 
             $blocks[] = new AstNode('div', $cellAttrs, $children);
-            $cellSummaries[] = [
-                'index' => $index,
+            $cellSummary = [
+                'index' => $cellIndex,
                 'type' => $cellType,
                 'sourceBytes' => strlen($source),
                 'attachmentCount' => $attachmentSummary['count'],
                 'outputCount' => $outputSummary['count'],
             ];
+            if ($cellSchemaDiagnostics !== []) {
+                $cellSummary['schemaDiagnosticCount'] = count($cellSchemaDiagnostics);
+                $cellSummary['schemaDiagnostics'] = $cellSchemaDiagnostics;
+            }
+            if ($cellSourceDiagnostics !== []) {
+                $cellSummary['sourceDiagnosticCount'] = count($cellSourceDiagnostics);
+                $cellSummary['sourceDiagnostics'] = $cellSourceDiagnostics;
+            }
+            $cellSummaries[] = $cellSummary;
         }
 
         return new AstNode('document', [
@@ -131,6 +177,20 @@ final class IpynbReader
             'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
             'notebookKernelName' => $this->metadataString($metadata['kernelspec'] ?? null, 'name'),
             'notebookLanguage' => $language,
+            'notebookSchemaByteExposurePolicy' => 'metadata-only',
+            'notebookSchemaDiagnosticCount' => count($schemaDiagnostics),
+            'notebookSchemaDiagnostics' => $schemaDiagnostics,
+            'notebookSchemaReview' => $this->notebookSchemaReview(
+                $notebook,
+                count($cells),
+                count($notebookSchemaDiagnostics),
+                $cellSchemaDiagnosticCount,
+                $schemaDiagnostics
+            ),
+            'notebookRawMarkdownCellByteExposurePolicy' => 'metadata-only',
+            'notebookRawMarkdownCellDiagnosticCount' => count($rawMarkdownCellDiagnostics),
+            'notebookRawMarkdownCellDiagnostics' => $rawMarkdownCellDiagnostics,
+            'notebookRawMarkdownCellReview' => $this->rawMarkdownCellReview($markdownCellCount, $rawCellCount, $rawMarkdownCellDiagnostics),
             'notebookCells' => $cellSummaries,
         ], $blocks);
     }
@@ -270,6 +330,278 @@ final class IpynbReader
             'count' => count($outputs),
             'types' => array_values(array_unique($types)),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return list<array<string, mixed>>
+     */
+    private function rawMarkdownCellDiagnostics(
+        array $cell,
+        string $cellType,
+        int $index,
+        bool $sourcePresent,
+        mixed $sourceValue,
+        string $source
+    ): array {
+        if (!in_array($cellType, ['markdown', 'raw'], true)) {
+            return [];
+        }
+
+        $metadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
+        $conversionSupported = $cellType === 'markdown';
+
+        return [[
+            'type' => $cellType . '-cell-source-review',
+            'scope' => 'cell-source',
+            'severity' => 'info',
+            'cellIndex' => $index,
+            'cellType' => $cellType,
+            'sourceShape' => $this->sourceShape($sourcePresent, $sourceValue),
+            'sourceBytes' => strlen($source),
+            'sourceLineCount' => $this->sourceLineCount($source),
+            'byteExposurePolicy' => 'metadata-only',
+            'sourcePayloadIncluded' => false,
+            'metadataPolicy' => 'keys-only',
+            'metadataKeyCount' => count($metadata),
+            'unsafeMetadataKeys' => $this->unsafeCellMetadataKeys($metadata),
+            'conversionSupported' => $conversionSupported,
+            'conversionVerdict' => $conversionSupported
+                ? 'parsed-as-native-markdown-blocks'
+                : 'unsupported-native-conversion-preserved-as-code-block',
+            'externalTooling' => false,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function rawMarkdownCellReview(int $markdownCellCount, int $rawCellCount, array $diagnostics): array
+    {
+        return [
+            'scope' => 'raw-markdown-cell-source',
+            'byteExposurePolicy' => 'metadata-only',
+            'checkedCellCount' => $markdownCellCount + $rawCellCount,
+            'diagnosticCount' => count($diagnostics),
+            'externalTooling' => false,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function sourceShape(bool $sourcePresent, mixed $source): string
+    {
+        if (!$sourcePresent) {
+            return 'missing';
+        }
+        if (is_string($source)) {
+            return 'string';
+        }
+        if (is_array($source)) {
+            return array_is_list($source) ? 'string-array' : 'object';
+        }
+
+        return $this->jsonValueType($source);
+    }
+
+    private function sourceLineCount(string $source): int
+    {
+        if ($source === '') {
+            return 0;
+        }
+
+        return substr_count($source, "\n") + 1;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return list<string>
+     */
+    private function unsafeCellMetadataKeys(array $metadata): array
+    {
+        $unsafe = [];
+        foreach (array_keys($metadata) as $key) {
+            $normalized = strtolower((string) $key);
+            if (in_array($normalized, self::UNSAFE_CELL_METADATA_KEYS, true)) {
+                $unsafe[] = $normalized;
+            }
+        }
+        $unsafe = array_values(array_unique($unsafe));
+        sort($unsafe);
+
+        return $unsafe;
+    }
+
+    /**
+     * @param array<string, mixed> $notebook
+     * @param array<int|string, mixed> $cells
+     * @return list<array<string, mixed>>
+     */
+    private function notebookSchemaDiagnostics(array $notebook, array $cells): array
+    {
+        $diagnostics = [];
+
+        if (!array_key_exists('nbformat', $notebook)) {
+            $diagnostics[] = $this->schemaDiagnostic('missing-nbformat', 'notebook', 'nbformat', 'integer 4', 'missing');
+        } elseif (!is_int($notebook['nbformat'])) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-nbformat', 'notebook', 'nbformat', 'integer 4', $this->jsonValueType($notebook['nbformat']));
+        } elseif ($notebook['nbformat'] !== 4) {
+            $diagnostics[] = $this->schemaDiagnostic('unsupported-nbformat', 'notebook', 'nbformat', 'integer 4', 'integer');
+        }
+
+        if (!array_key_exists('nbformat_minor', $notebook)) {
+            $diagnostics[] = $this->schemaDiagnostic('missing-nbformat-minor', 'notebook', 'nbformat_minor', 'non-negative integer', 'missing');
+        } elseif (!is_int($notebook['nbformat_minor']) || $notebook['nbformat_minor'] < 0) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-nbformat-minor', 'notebook', 'nbformat_minor', 'non-negative integer', $this->jsonValueType($notebook['nbformat_minor']));
+        }
+
+        if (array_key_exists('metadata', $notebook) && !is_array($notebook['metadata'])) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-notebook-metadata', 'notebook', 'metadata', 'object', $this->jsonValueType($notebook['metadata']));
+        }
+
+        if (!array_is_list($cells)) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-cells-shape', 'notebook', 'cells', 'array', 'object');
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return list<array<string, mixed>>
+     */
+    private function cellSchemaDiagnostics(array $cell, string $cellType, int $index): array
+    {
+        $diagnostics = [];
+
+        if (!array_key_exists('cell_type', $cell)) {
+            $diagnostics[] = $this->schemaDiagnostic('missing-cell-type', 'cell', 'cell_type', 'markdown, code, or raw', 'missing', $index);
+        } elseif (!is_string($cell['cell_type']) || $cell['cell_type'] === '') {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-cell-type', 'cell', 'cell_type', 'non-empty string', $this->jsonValueType($cell['cell_type']), $index);
+        } elseif (!in_array($cellType, ['markdown', 'code', 'raw'], true)) {
+            $diagnostics[] = $this->schemaDiagnostic('unsupported-cell-type', 'cell', 'cell_type', 'markdown, code, or raw', 'string', $index);
+        }
+
+        if (!array_key_exists('metadata', $cell)) {
+            $diagnostics[] = $this->schemaDiagnostic('missing-cell-metadata', 'cell', 'metadata', 'object', 'missing', $index);
+        } elseif (!is_array($cell['metadata'])) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-cell-metadata', 'cell', 'metadata', 'object', $this->jsonValueType($cell['metadata']), $index);
+        }
+
+        if (array_key_exists('id', $cell) && (!is_string($cell['id']) || $cell['id'] === '')) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-cell-id', 'cell', 'id', 'non-empty string', $this->jsonValueType($cell['id']), $index);
+        }
+
+        if (array_key_exists('attachments', $cell)) {
+            if (!is_array($cell['attachments'])) {
+                $diagnostics[] = $this->schemaDiagnostic('invalid-cell-attachments', 'cell', 'attachments', 'object', $this->jsonValueType($cell['attachments']), $index);
+            } elseif ($cell['attachments'] !== [] && array_is_list($cell['attachments'])) {
+                $diagnostics[] = $this->schemaDiagnostic('invalid-cell-attachments', 'cell', 'attachments', 'object', 'array', $index);
+            }
+        }
+
+        if ($cellType === 'code') {
+            if (!array_key_exists('execution_count', $cell)) {
+                $diagnostics[] = $this->schemaDiagnostic('missing-code-execution-count', 'cell', 'execution_count', 'integer or null', 'missing', $index);
+            } elseif (!is_int($cell['execution_count']) && $cell['execution_count'] !== null) {
+                $diagnostics[] = $this->schemaDiagnostic('invalid-code-execution-count', 'cell', 'execution_count', 'integer or null', $this->jsonValueType($cell['execution_count']), $index);
+            }
+
+            if (!array_key_exists('outputs', $cell)) {
+                $diagnostics[] = $this->schemaDiagnostic('missing-code-outputs', 'cell', 'outputs', 'array', 'missing', $index);
+            } elseif (!is_array($cell['outputs'])) {
+                $diagnostics[] = $this->schemaDiagnostic('invalid-code-outputs', 'cell', 'outputs', 'array', $this->jsonValueType($cell['outputs']), $index);
+            } elseif (!array_is_list($cell['outputs'])) {
+                $diagnostics[] = $this->schemaDiagnostic('invalid-code-outputs', 'cell', 'outputs', 'array', 'object', $index);
+            }
+        } elseif (array_key_exists('outputs', $cell)) {
+            $diagnostics[] = $this->schemaDiagnostic('unexpected-cell-outputs', 'cell', 'outputs', 'absent on non-code cells', $this->jsonValueType($cell['outputs']), $index);
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $notebook
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function notebookSchemaReview(
+        array $notebook,
+        int $cellCount,
+        int $notebookDiagnosticCount,
+        int $cellDiagnosticCount,
+        array $diagnostics
+    ): array {
+        $review = [
+            'schema' => 'nbformat-v4-bounded',
+            'byteExposurePolicy' => 'metadata-only',
+            'checkedCellCount' => $cellCount,
+            'diagnosticCount' => count($diagnostics),
+            'notebookDiagnosticCount' => $notebookDiagnosticCount,
+            'cellDiagnosticCount' => $cellDiagnosticCount,
+            'diagnostics' => $diagnostics,
+        ];
+
+        if (array_key_exists('nbformat', $notebook) && is_int($notebook['nbformat'])) {
+            $review['nbformat'] = $notebook['nbformat'];
+        }
+        if (array_key_exists('nbformat_minor', $notebook) && is_int($notebook['nbformat_minor'])) {
+            $review['nbformatMinor'] = $notebook['nbformat_minor'];
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function schemaDiagnostic(
+        string $type,
+        string $scope,
+        string $field,
+        string $expected,
+        string $actual,
+        ?int $cellIndex = null
+    ): array {
+        $diagnostic = [
+            'type' => $type,
+            'scope' => $scope,
+            'field' => $field,
+            'severity' => 'warning',
+            'expected' => $expected,
+            'actual' => $actual,
+        ];
+
+        if ($cellIndex !== null) {
+            $diagnostic['cellIndex'] = $cellIndex;
+        }
+
+        return $diagnostic;
+    }
+
+    private function jsonValueType(mixed $value): string
+    {
+        if (is_array($value)) {
+            return array_is_list($value) ? 'array' : 'object';
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_bool($value)) {
+            return 'boolean';
+        }
+        if (is_int($value)) {
+            return 'integer';
+        }
+        if (is_float($value)) {
+            return 'number';
+        }
+        if (is_string($value)) {
+            return 'string';
+        }
+
+        return get_debug_type($value);
     }
 
     /**
