@@ -20,7 +20,7 @@ final class EpubPackageReader
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
-        $navReport = $this->navReport($toc, $package);
+        $navReport = $this->navReport($toc, $package, $root);
         $ncxReport = $this->ncxReport($ncx);
         $children = [];
 
@@ -686,7 +686,7 @@ final class EpubPackageReader
      * @param array<string, mixed> $package
      * @return array<string, mixed>
      */
-    private function navReport(array $entries, array $package): array
+    private function navReport(array $entries, array $package, string $root): array
     {
         $flat = $this->flattenNavigationEntries($entries);
         $pageListReport = $this->pageListReport($flat);
@@ -726,6 +726,7 @@ final class EpubPackageReader
             'typeCounts' => $typeCounts,
             'sections' => $sections,
             'hierarchy' => $this->hierarchySummary($flat, count($entries)),
+            'fragmentTargets' => $this->navFragmentTargetReport($flat, $root),
             'toc' => $this->tocNavigationReport($flat),
             'landmarks' => $this->landmarkReport($flat, $package),
             'pageListItemCount' => $pageListReport['itemCount'],
@@ -817,6 +818,179 @@ final class EpubPackageReader
             'itemCount' => count($pageListItems),
             'pageBreakItemCount' => $pageBreakItemCount,
             'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array<string, mixed>
+     */
+    private function navFragmentTargetReport(array $flat, string $root): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $sectionTypeCounts = [];
+        $targetIndexes = [];
+        $targetedItemCount = 0;
+        $fragmentItemCount = 0;
+        $fragmentlessTargetCount = 0;
+        $resolvedFragmentCount = 0;
+        $missingFragmentCount = 0;
+        $duplicateFragmentCount = 0;
+        $missingDocumentCount = 0;
+        $externalTargetCount = 0;
+
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'toc' && $sectionType !== 'landmarks' && $sectionType !== 'page-list') {
+                continue;
+            }
+
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            if ($href === '') {
+                continue;
+            }
+
+            ++$targetedItemCount;
+            $sectionTypeCounts[$sectionType] = ($sectionTypeCounts[$sectionType] ?? 0) + 1;
+
+            $targetIndex = count($items);
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $decodedFragment = $fragment === '' ? '' : rawurldecode($fragment);
+            $external = (bool) ($item['external'] ?? false);
+            $exists = (bool) ($item['exists'] ?? false);
+            $fragmentState = $fragment === '' ? 'document' : 'unresolved';
+            $fragmentMatchCount = 0;
+            $targetIdCount = 0;
+            $targetUniqueIdCount = 0;
+            $itemDiagnostics = [];
+
+            if ($external) {
+                ++$externalTargetCount;
+                $fragmentState = 'external';
+            } elseif ($path !== '' && !$exists) {
+                ++$missingDocumentCount;
+                $fragmentState = 'missing-document';
+                if ($fragment !== '') {
+                    ++$fragmentItemCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-nav-fragment-document',
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'message' => 'EPUB nav fragment target points at a missing package document',
+                    ];
+                }
+            } elseif ($fragment === '') {
+                ++$fragmentlessTargetCount;
+            } else {
+                ++$fragmentItemCount;
+                if (!isset($targetIndexes[$path])) {
+                    $targetIndexes[$path] = $this->packageXhtmlIdIndex($root, $path);
+                }
+
+                $targetIndexReport = $targetIndexes[$path];
+                $targetIdCount = is_int($targetIndexReport['idCount'] ?? null) ? $targetIndexReport['idCount'] : 0;
+                $targetUniqueIdCount = is_int($targetIndexReport['uniqueIdCount'] ?? null) ? $targetIndexReport['uniqueIdCount'] : 0;
+                $idCounts = is_array($targetIndexReport['idCounts'] ?? null) ? $targetIndexReport['idCounts'] : [];
+                $parseError = is_string($targetIndexReport['parseError'] ?? null) ? $targetIndexReport['parseError'] : null;
+
+                if ($parseError !== null) {
+                    $fragmentState = 'unreadable-document';
+                    $itemDiagnostics[] = [
+                        'type' => 'unreadable-nav-fragment-document',
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'message' => 'EPUB nav fragment target document could not be parsed for id lookup',
+                    ];
+                } else {
+                    $fragmentMatchCount = is_int($idCounts[$fragment] ?? null) ? $idCounts[$fragment] : 0;
+                    if ($fragmentMatchCount === 0 && $decodedFragment !== $fragment) {
+                        $fragmentMatchCount = is_int($idCounts[$decodedFragment] ?? null) ? $idCounts[$decodedFragment] : 0;
+                    }
+
+                    if ($fragmentMatchCount === 0) {
+                        ++$missingFragmentCount;
+                        $fragmentState = 'missing-fragment';
+                        $itemDiagnostics[] = [
+                            'type' => 'missing-nav-fragment-target',
+                            'path' => $path,
+                            'fragment' => $fragment,
+                            'message' => 'EPUB nav href fragment does not match a known XHTML id',
+                        ];
+                    } elseif ($fragmentMatchCount > 1) {
+                        ++$duplicateFragmentCount;
+                        $fragmentState = 'duplicate-fragment';
+                        $itemDiagnostics[] = [
+                            'type' => 'duplicate-nav-fragment-target',
+                            'path' => $path,
+                            'fragment' => $fragment,
+                            'matchCount' => $fragmentMatchCount,
+                            'message' => 'EPUB nav href fragment matches multiple XHTML ids in the target document',
+                        ];
+                    } else {
+                        ++$resolvedFragmentCount;
+                        $fragmentState = 'resolved-fragment';
+                    }
+                }
+            }
+
+            $reportedItem = [
+                'index' => $targetIndex,
+                'sourceIndex' => $sourceIndex,
+                'sectionType' => $sectionType,
+                'sectionIndex' => is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : null,
+                'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'labelProvenance' => is_array($item['labelProvenance'] ?? null) ? $item['labelProvenance'] : [],
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $fragment,
+                'decodedFragment' => $decodedFragment,
+                'external' => $external,
+                'exists' => $exists,
+                'fragmentState' => $fragmentState,
+                'fragmentMatchCount' => $fragmentMatchCount,
+                'targetIdCount' => $targetIdCount,
+                'targetUniqueIdCount' => $targetUniqueIdCount,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $targetIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'sectionType' => $sectionType,
+                    'sectionIndex' => $reportedItem['sectionIndex'],
+                    'sectionId' => $reportedItem['sectionId'],
+                    'label' => $reportedItem['label'],
+                    'href' => $href,
+                    'target' => $target,
+                ] + $diagnostic;
+            }
+
+            $items[] = $reportedItem;
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'targetedItemCount' => $targetedItemCount,
+            'fragmentItemCount' => $fragmentItemCount,
+            'fragmentlessTargetCount' => $fragmentlessTargetCount,
+            'resolvedFragmentCount' => $resolvedFragmentCount,
+            'missingFragmentCount' => $missingFragmentCount,
+            'duplicateFragmentCount' => $duplicateFragmentCount,
+            'missingDocumentCount' => $missingDocumentCount,
+            'externalTargetCount' => $externalTargetCount,
+            'sectionTypeCounts' => $sectionTypeCounts,
+            'diagnosticCount' => count($diagnostics),
+            'items' => $items,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -2213,6 +2387,66 @@ final class EpubPackageReader
         return $path
             . (($suffix['hasQuery'] && $suffix['query'] !== null) ? '?' . $suffix['query'] : '')
             . (($suffix['hasFragment'] && $suffix['fragment'] !== null) ? '#' . $suffix['fragment'] : '');
+    }
+
+    /**
+     * @return array{exists:bool, parseError:?string, idCount:int, uniqueIdCount:int, idCounts:array<string, int>, duplicateIds:array<string, int>}
+     */
+    private function packageXhtmlIdIndex(string $root, string $relative): array
+    {
+        $empty = [
+            'exists' => false,
+            'parseError' => null,
+            'idCount' => 0,
+            'uniqueIdCount' => 0,
+            'idCounts' => [],
+            'duplicateIds' => [],
+        ];
+
+        if (!$this->packagePathExists($root, $relative)) {
+            return $empty;
+        }
+
+        try {
+            $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $relative));
+        } catch (\RuntimeException $exception) {
+            return [
+                'exists' => true,
+                'parseError' => $exception->getMessage(),
+                'idCount' => 0,
+                'uniqueIdCount' => 0,
+                'idCounts' => [],
+                'duplicateIds' => [],
+            ];
+        }
+
+        $idCounts = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $id = trim($element->getAttribute('id'));
+            if ($id !== '') {
+                $idCounts[$id] = ($idCounts[$id] ?? 0) + 1;
+            }
+
+            $xmlId = trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'id'));
+            if ($xmlId !== '' && $xmlId !== $id) {
+                $idCounts[$xmlId] = ($idCounts[$xmlId] ?? 0) + 1;
+            }
+        }
+
+        $duplicateIds = array_filter($idCounts, static fn (int $count): bool => $count > 1);
+
+        return [
+            'exists' => true,
+            'parseError' => null,
+            'idCount' => array_sum($idCounts),
+            'uniqueIdCount' => count($idCounts),
+            'idCounts' => $idCounts,
+            'duplicateIds' => $duplicateIds,
+        ];
     }
 
     private function loadXmlFile(string $path): \DOMDocument

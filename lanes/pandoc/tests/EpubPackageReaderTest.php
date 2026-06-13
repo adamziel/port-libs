@@ -553,6 +553,130 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub nav fragment target diagnostics across toc landmarks and page list' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-fragments-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-fragment-review</dc:identifier>
+    <dc:title>Navigation Fragment Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a id="known-link" href="chapter.xhtml#known">Known</a></li>
+        <li><a href="chapter.xhtml#missing">Missing</a></li>
+        <li><a href="chapter.xhtml#duplicate">Duplicate</a></li>
+        <li><a href="chapter.xhtml">Whole chapter</a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks" epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="chapter.xhtml#known">Start</a></li>
+      </ol>
+    </nav>
+    <nav id="pages" epub:type="page-list">
+      <ol>
+        <li><a href="chapter.xhtml#page-1">1</a></li>
+        <li><a href="chapter.xhtml#missing-page">2</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="known">Known section</h1>
+    <section id="duplicate"><p>First duplicate anchor.</p></section>
+    <aside id="duplicate"><p>Second duplicate anchor.</p></aside>
+    <p id="page-1">Printed page one.</p>
+  </body>
+</html>
+XML);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $navReport = $epub['navReport'];
+            $fragmentReport = $navReport['fragmentTargets'];
+            $tocReport = $navReport['toc'];
+            $landmarkReport = $navReport['landmarks'];
+            $items = $fragmentReport['items'];
+
+            $t->same($navReport, $epub['tocReport']);
+            $t->same(true, $fragmentReport['present']);
+            $t->same(7, $fragmentReport['itemCount']);
+            $t->same(7, $fragmentReport['targetedItemCount']);
+            $t->same(6, $fragmentReport['fragmentItemCount']);
+            $t->same(1, $fragmentReport['fragmentlessTargetCount']);
+            $t->same(3, $fragmentReport['resolvedFragmentCount']);
+            $t->same(2, $fragmentReport['missingFragmentCount']);
+            $t->same(1, $fragmentReport['duplicateFragmentCount']);
+            $t->same(0, $fragmentReport['missingDocumentCount']);
+            $t->same(['toc' => 4, 'landmarks' => 1, 'page-list' => 2], $fragmentReport['sectionTypeCounts']);
+            $t->same(3, $fragmentReport['diagnosticCount']);
+            $t->same(['missing-nav-fragment-target', 'duplicate-nav-fragment-target', 'missing-nav-fragment-target'], array_column($fragmentReport['diagnostics'], 'type'));
+
+            $t->same('resolved-fragment', $items[0]['fragmentState']);
+            $t->same('known', $items[0]['fragment']);
+            $t->same(1, $items[0]['fragmentMatchCount']);
+            $t->same(4, $items[0]['targetIdCount']);
+            $t->same(3, $items[0]['targetUniqueIdCount']);
+            $t->same('xhtml-nav', $items[0]['labelProvenance']['source']);
+            $t->same('known-link', $items[0]['labelProvenance']['labelId']);
+
+            $t->same('missing-fragment', $items[1]['fragmentState']);
+            $t->same('missing-nav-fragment-target', $items[1]['diagnostics'][0]['type']);
+            $t->same(0, $items[1]['fragmentMatchCount']);
+
+            $t->same('duplicate-fragment', $items[2]['fragmentState']);
+            $t->same('duplicate-nav-fragment-target', $items[2]['diagnostics'][0]['type']);
+            $t->same(2, $items[2]['fragmentMatchCount']);
+
+            $t->same('document', $items[3]['fragmentState']);
+            $t->same('', $items[3]['fragment']);
+            $t->same([], $items[3]['diagnostics']);
+
+            $t->same('landmarks', $items[4]['sectionType']);
+            $t->same('resolved-fragment', $items[4]['fragmentState']);
+            $t->same('page-list', $items[5]['sectionType']);
+            $t->same('resolved-fragment', $items[5]['fragmentState']);
+            $t->same('page-list', $items[6]['sectionType']);
+            $t->same('missing-fragment', $items[6]['fragmentState']);
+
+            $t->same(4, $tocReport['itemCount']);
+            $t->same(0, $tocReport['diagnosticCount']);
+            $t->same('xhtml-nav', $tocReport['items'][0]['labelProvenance']['source']);
+            $t->same(1, $tocReport['landmarkRelationCount']);
+            $t->same(0, $tocReport['pageListRelationCount']);
+            $t->same(1, $landmarkReport['itemCount']);
+            $t->same(0, $landmarkReport['diagnosticCount']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
