@@ -15,6 +15,7 @@ use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\UpstreamRunnerDependencyAudit;
+use PortLibs\Pandoc\XmlHtmlDom;
 
 return [
     'tracks upstream wiki formats and php support status in the pandoc registry' => static function (TestRunner $t): void {
@@ -84,12 +85,24 @@ return [
         $t->same(OdtReader::class, $inputSupport['odt']['implementation']);
         $t->same(RtfReader::class, $inputSupport['rtf']['implementation']);
         $t->same(PandocJsonReader::class, $inputSupport['json']['implementation']);
+        $t->same('partial', $inputSupport['xml']['status']);
+        $t->same(XmlHtmlDom::class, $inputSupport['xml']['implementation']);
+        $t->contains('full Pandoc XML reader parity remains open', $inputSupport['xml']['notes']);
+        $t->same('partial', $inputSupport['jats']['status']);
+        $t->same(XmlHtmlDom::class, $inputSupport['jats']['implementation']);
+        $t->contains('unsupported direct-reader parity reasons', $inputSupport['jats']['notes']);
+        $t->same('partial', $inputSupport['bits']['status']);
+        $t->same(XmlHtmlDom::class, $inputSupport['bits']['implementation']);
+        $t->contains('full Pandoc BITS reader parity remains open', $inputSupport['bits']['notes']);
         $t->same(MarkdownWriter::class, $outputSupport['markdown']['implementation']);
         $t->same(PandocJsonWriter::class, $outputSupport['json']['implementation']);
         $t->same(PlainWriter::class, $outputSupport['plain']['implementation']);
         $t->contains('wrapping diagnostics', $outputSupport['plain']['notes']);
 
-        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(false, in_array('xml', PandocFormatRegistry::unsupportedInputFormats(), true));
+        $t->same(false, in_array('jats', PandocFormatRegistry::unsupportedInputFormats(), true));
+        $t->same(false, in_array('bits', PandocFormatRegistry::unsupportedInputFormats(), true));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
@@ -122,7 +135,7 @@ return [
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
 
-        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
@@ -630,7 +643,7 @@ return [
             $t->contains('No native PHP reader or writer is registered', $outputSupport[$format]['notes']);
         }
 
-        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks rich package input output direction buckets without direct writer parity claims' => static function (TestRunner $t): void {

@@ -482,6 +482,11 @@ final class PandocFormatRegistry
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
     private const PHP_INPUT_SUPPORT = [
+        'bits' => [
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'BITS XML front-matter review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc BITS reader parity remains open.',
+        ],
         'commonmark' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -526,6 +531,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => IpynbReader::class,
             'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving execution/output metadata; full Jupyter notebook parity remains open.',
+        ],
+        'jats' => [
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'JATS XML front-matter review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc JATS reader parity remains open.',
         ],
         'json' => [
             'status' => 'partial',
@@ -591,6 +601,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => DelimitedTextReader::class,
             'notes' => 'Bounded native PHP TSV reader maps tab-delimited text into the shared table AST with geometry review packets; full Pandoc TSV reader parity remains open.',
+        ],
+        'xml' => [
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'Direct XML input is routed through XmlHtmlDom safe DOM loading and diagnostic serialization; full Pandoc XML reader parity remains open.',
         ],
     ];
 

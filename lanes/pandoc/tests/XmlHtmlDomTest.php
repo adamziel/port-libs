@@ -119,6 +119,9 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('jats', $packet['format']);
         $t->same('jats-bits-front-matter-review-only', $packet['reviewPolicy']);
         $t->same(false, $packet['directReaderParity']);
+        $t->same('unsupported', $packet['directReaderParityStatus']);
+        $t->same('front-matter-review-packet-only', $packet['unsupportedDirectReaderReason']);
+        $t->contains('full Pandoc direct reader parity is not implemented', $packet['unsupportedDirectReaderDetail']);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -174,6 +177,8 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
         $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same('unsupported', $bitsPacket['directReaderParityStatus']);
+        $t->same('front-matter-review-packet-only', $bitsPacket['unsupportedDirectReaderReason']);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
