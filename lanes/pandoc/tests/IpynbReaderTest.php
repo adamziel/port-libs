@@ -315,4 +315,155 @@ return [
         $t->same(false, str_contains($metadata, 'alpha'));
         $t->same(false, str_contains($metadata, 'beta'));
     },
+    'summarizes ipynb per-cell language hints with notebook fallback and source digests' => static function (TestRunner $t): void {
+        $phpSource = "secret_python_source()\n";
+        $javascriptSource = "secret_javascript_source()\n";
+        $fallbackSource = "secret_fallback_source()\n";
+        $unknownSource = "secret_unknown_source()\n";
+
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [
+                        'language' => 'PHP',
+                    ],
+                    'source' => $phpSource,
+                ],
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [
+                        'vscode' => [
+                            'languageId' => 'JavaScript',
+                        ],
+                    ],
+                    'source' => $javascriptSource,
+                ],
+                [
+                    'cell_type' => 'code',
+                    'metadata' => [],
+                    'source' => $fallbackSource,
+                ],
+            ],
+            'metadata' => [
+                'language_info' => [
+                    'name' => 'php',
+                ],
+                'kernelspec' => [
+                    'language' => 'python',
+                    'name' => 'python3',
+                ],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $cells = $document->attr('notebookCells');
+        $summary = $document->attr('notebookLanguageHintSummary');
+        $html = (new WordPressBlockWriter())->write($document);
+
+        $t->same('php', $document->attr('notebookLanguage'));
+        $t->same([
+            'notebookLanguage' => 'php',
+            'notebookLanguageSource' => 'notebook.language_info.name',
+            'cellCount' => 3,
+            'cellMetadataLanguageHintCount' => 2,
+            'notebookLanguageFallbackCount' => 1,
+            'unknownLanguageHintCount' => 0,
+            'mismatchedLanguageHintCount' => 1,
+            'languageHintCounts' => [
+                'javascript' => 1,
+                'php' => 2,
+            ],
+            'languageHintSourceCounts' => [
+                'cell.metadata.language' => 1,
+                'cell.metadata.vscode.languageId' => 1,
+                'notebook.language_info.name' => 1,
+            ],
+            'languageHintDiagnosticCounts' => [
+                'language-hint-mismatch-notebook-language' => 1,
+            ],
+        ], $summary);
+
+        $t->same('php', $cells[0]['languageHint']);
+        $t->same('cell.metadata.language', $cells[0]['languageHintSource']);
+        $t->same(true, $cells[0]['languageHintIsCellMetadata']);
+        $t->same(false, $cells[0]['languageHintIsNotebookFallback']);
+        $t->same(true, $cells[0]['languageHintMatchesNotebook']);
+        $t->same([], $cells[0]['languageHintDiagnostics']);
+        $t->same(['algorithm' => 'sha256', 'value' => hash('sha256', $phpSource)], $cells[0]['sourceDigest']);
+
+        $t->same('javascript', $cells[1]['languageHint']);
+        $t->same('cell.metadata.vscode.languageId', $cells[1]['languageHintSource']);
+        $t->same(false, $cells[1]['languageHintMatchesNotebook']);
+        $t->same(['language-hint-mismatch-notebook-language'], $cells[1]['languageHintDiagnostics']);
+        $t->same('sha256:' . hash('sha256', $javascriptSource), $cells[1]['sourceFingerprint']);
+
+        $t->same('php', $cells[2]['languageHint']);
+        $t->same('notebook.language_info.name', $cells[2]['languageHintSource']);
+        $t->same(false, $cells[2]['languageHintIsCellMetadata']);
+        $t->same(true, $cells[2]['languageHintIsNotebookFallback']);
+        $t->same(true, $cells[2]['languageHintMatchesNotebook']);
+        $t->same([], $cells[2]['languageHintDiagnostics']);
+        $t->same('sha256:' . hash('sha256', $fallbackSource), $cells[2]['sourceFingerprint']);
+
+        $firstCode = $document->children[0]->children[0];
+        $secondCode = $document->children[1]->children[0];
+        $fallbackCode = $document->children[2]->children[0];
+        $t->same(['php', 'ipynb-code-cell-source'], $firstCode->attr('classes'));
+        $t->same(['javascript', 'ipynb-code-cell-source'], $secondCode->attr('classes'));
+        $t->same(['php', 'ipynb-code-cell-source'], $fallbackCode->attr('classes'));
+        $t->same('language-hint-mismatch-notebook-language', $secondCode->attr('attributes')['data-ipynb-language-diagnostics']);
+        $t->contains('data-ipynb-language-hint="javascript"', $html);
+        $t->contains('data-ipynb-language-diagnostics="language-hint-mismatch-notebook-language"', $html);
+
+        $unknownJson = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'source' => $unknownSource,
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+        $unknownDocument = (new IpynbReader())->read($unknownJson);
+        $unknownCells = $unknownDocument->attr('notebookCells');
+        $unknownSummary = $unknownDocument->attr('notebookLanguageHintSummary');
+
+        $t->same('unknown', $unknownCells[0]['languageHint']);
+        $t->same('none', $unknownCells[0]['languageHintSource']);
+        $t->same(['language-hint-unknown'], $unknownCells[0]['languageHintDiagnostics']);
+        $t->same([
+            'notebookLanguage' => '',
+            'notebookLanguageSource' => 'none',
+            'cellCount' => 1,
+            'cellMetadataLanguageHintCount' => 0,
+            'notebookLanguageFallbackCount' => 0,
+            'unknownLanguageHintCount' => 1,
+            'mismatchedLanguageHintCount' => 0,
+            'languageHintCounts' => [
+                'unknown' => 1,
+            ],
+            'languageHintSourceCounts' => [
+                'none' => 1,
+            ],
+            'languageHintDiagnosticCounts' => [
+                'language-hint-unknown' => 1,
+            ],
+        ], $unknownSummary);
+
+        $metadata = json_encode([
+            $cells,
+            $summary,
+            $unknownCells,
+            $unknownSummary,
+        ], JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($metadata, 'secret_python_source'));
+        $t->same(false, str_contains($metadata, 'secret_javascript_source'));
+        $t->same(false, str_contains($metadata, 'secret_fallback_source'));
+        $t->same(false, str_contains($metadata, 'secret_unknown_source'));
+    },
 ];

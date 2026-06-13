@@ -32,9 +32,8 @@ final class IpynbReader
         }
 
         $metadata = isset($notebook['metadata']) && is_array($notebook['metadata']) ? $notebook['metadata'] : [];
-        $language = $this->metadataString($metadata['language_info'] ?? null, 'name')
-            ?? $this->metadataString($metadata['kernelspec'] ?? null, 'language')
-            ?? '';
+        $notebookLanguageHint = $this->notebookLanguageHint($metadata);
+        $language = $notebookLanguageHint['language'];
 
         $blocks = [];
         $cellSummaries = [];
@@ -67,6 +66,13 @@ final class IpynbReader
         $totalSourceLineCount = 0;
         $mixedLineEndingSourceCount = 0;
         $trailingLineEndingSourceCount = 0;
+        $languageHintCounts = [];
+        $languageHintSourceCounts = [];
+        $languageHintDiagnosticCounts = [];
+        $cellMetadataLanguageHintCount = 0;
+        $notebookLanguageFallbackCount = 0;
+        $unknownLanguageHintCount = 0;
+        $mismatchedLanguageHintCount = 0;
 
         foreach ($cells as $index => $cell) {
             if (!is_array($cell)) {
@@ -92,6 +98,7 @@ final class IpynbReader
             $cellMetadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
             $cellMetadataKeys = $this->metadataKeys($cellMetadata);
             $cellTags = $this->metadataStringList($cellMetadata['tags'] ?? null);
+            $languageHintSummary = $this->cellLanguageHintSummary($cellMetadata, $notebookLanguageHint);
             $cellDiagnostics = $this->cellDiagnostics($attachmentSummary, $outputSummary);
 
             $attachmentCount += $attachmentSummary['count'];
@@ -113,6 +120,25 @@ final class IpynbReader
             if ($sourceSummary['sourceHasTrailingLineEnding']) {
                 $trailingLineEndingSourceCount++;
             }
+            $languageHint = $languageHintSummary['languageHint'];
+            $languageHintSource = $languageHintSummary['languageHintSource'];
+            $languageHintCounts[$languageHint] = ($languageHintCounts[$languageHint] ?? 0) + 1;
+            $languageHintSourceCounts[$languageHintSource] = ($languageHintSourceCounts[$languageHintSource] ?? 0) + 1;
+            if ($languageHintSummary['languageHintIsCellMetadata']) {
+                $cellMetadataLanguageHintCount++;
+            }
+            if ($languageHintSummary['languageHintIsNotebookFallback']) {
+                $notebookLanguageFallbackCount++;
+            }
+            if ($languageHint === 'unknown') {
+                $unknownLanguageHintCount++;
+            }
+            foreach ($languageHintSummary['languageHintDiagnostics'] as $diagnostic) {
+                $languageHintDiagnosticCounts[$diagnostic] = ($languageHintDiagnosticCounts[$diagnostic] ?? 0) + 1;
+                if ($diagnostic === 'language-hint-mismatch-notebook-language') {
+                    $mismatchedLanguageHintCount++;
+                }
+            }
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -133,10 +159,17 @@ final class IpynbReader
             if ($cellDiagnostics !== []) {
                 $attributes['data-ipynb-diagnostics'] = implode(' ', $cellDiagnostics);
             }
+            if ($languageHint !== 'unknown') {
+                $attributes['data-ipynb-language-hint'] = $languageHint;
+                $attributes['data-ipynb-language-hint-source'] = $languageHintSource;
+            }
+            if ($languageHintSummary['languageHintDiagnostics'] !== []) {
+                $attributes['data-ipynb-language-diagnostics'] = implode(' ', $languageHintSummary['languageHintDiagnostics']);
+            }
 
             $children = match ($cellType) {
                 'markdown' => $this->markdownCellBlocks($source),
-                'code' => [$this->codeCellBlock($source, $language, $index, $cell)],
+                'code' => [$this->codeCellBlock($source, $languageHintSummary, $index, $cell)],
                 'raw' => [$this->rawCellBlock($source, $index)],
                 default => [$this->unsupportedCellBlock($source, $cellType, $index)],
             };
@@ -164,6 +197,12 @@ final class IpynbReader
                 'ipynbUnsupportedResourceDiagnostics' => $cellDiagnostics,
                 'ipynbCellMetadataKeys' => $cellMetadataKeys,
                 'ipynbCellTags' => $cellTags,
+                'ipynbLanguageHint' => $languageHint,
+                'ipynbLanguageHintSource' => $languageHintSource,
+                'ipynbLanguageHintIsCellMetadata' => $languageHintSummary['languageHintIsCellMetadata'],
+                'ipynbLanguageHintIsNotebookFallback' => $languageHintSummary['languageHintIsNotebookFallback'],
+                'ipynbLanguageHintMatchesNotebook' => $languageHintSummary['languageHintMatchesNotebook'],
+                'ipynbLanguageHintDiagnostics' => $languageHintSummary['languageHintDiagnostics'],
             ];
             if (array_key_exists('id', $cell) && is_string($cell['id']) && $cell['id'] !== '') {
                 $cellAttrs['ipynbCellId'] = $cell['id'];
@@ -196,10 +235,19 @@ final class IpynbReader
                 'diagnostics' => $cellDiagnostics,
                 'metadataKeys' => $cellMetadataKeys,
                 'tags' => $cellTags,
+                'languageHint' => $languageHint,
+                'languageHintSource' => $languageHintSource,
+                'languageHintIsCellMetadata' => $languageHintSummary['languageHintIsCellMetadata'],
+                'languageHintIsNotebookFallback' => $languageHintSummary['languageHintIsNotebookFallback'],
+                'languageHintMatchesNotebook' => $languageHintSummary['languageHintMatchesNotebook'],
+                'languageHintDiagnostics' => $languageHintSummary['languageHintDiagnostics'],
             ];
         }
 
         ksort($sourceFingerprintCounts);
+        ksort($languageHintCounts);
+        ksort($languageHintSourceCounts);
+        ksort($languageHintDiagnosticCounts);
         foreach ($cellSummaries as &$cellSummary) {
             $cellSummary['sourceFingerprintCount'] = $sourceFingerprintCounts[$cellSummary['sourceFingerprint']] ?? 1;
         }
@@ -256,6 +304,18 @@ final class IpynbReader
             ],
             'notebookSourceFingerprintCounts' => $sourceFingerprintCounts,
             'notebookDuplicateSourceFingerprints' => $duplicateSourceFingerprints,
+            'notebookLanguageHintSummary' => [
+                'notebookLanguage' => $language,
+                'notebookLanguageSource' => $notebookLanguageHint['source'],
+                'cellCount' => count($cells),
+                'cellMetadataLanguageHintCount' => $cellMetadataLanguageHintCount,
+                'notebookLanguageFallbackCount' => $notebookLanguageFallbackCount,
+                'unknownLanguageHintCount' => $unknownLanguageHintCount,
+                'mismatchedLanguageHintCount' => $mismatchedLanguageHintCount,
+                'languageHintCounts' => $languageHintCounts,
+                'languageHintSourceCounts' => $languageHintSourceCounts,
+                'languageHintDiagnosticCounts' => $languageHintDiagnosticCounts,
+            ],
         ], $blocks);
     }
 
@@ -272,13 +332,15 @@ final class IpynbReader
     }
 
     /**
+     * @param array{languageHint:string, languageHintSource:string, languageHintDiagnostics:list<string>} $languageHintSummary
      * @param array<string, mixed> $cell
      */
-    private function codeCellBlock(string $source, string $language, int $index, array $cell): AstNode
+    private function codeCellBlock(string $source, array $languageHintSummary, int $index, array $cell): AstNode
     {
         $classes = ['ipynb-code-cell-source'];
-        if ($language !== '') {
-            array_unshift($classes, $this->sanitizeClassToken($language));
+        $languageHint = $languageHintSummary['languageHint'];
+        if ($languageHint !== 'unknown') {
+            array_unshift($classes, $this->sanitizeClassToken($languageHint));
         }
 
         $attrs = [
@@ -291,6 +353,13 @@ final class IpynbReader
         ];
         if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
             $attrs['attributes']['data-ipynb-execution-count'] = (string) $cell['execution_count'];
+        }
+        if ($languageHint !== 'unknown') {
+            $attrs['attributes']['data-ipynb-language-hint'] = $languageHint;
+            $attrs['attributes']['data-ipynb-language-hint-source'] = $languageHintSummary['languageHintSource'];
+        }
+        if ($languageHintSummary['languageHintDiagnostics'] !== []) {
+            $attrs['attributes']['data-ipynb-language-diagnostics'] = implode(' ', $languageHintSummary['languageHintDiagnostics']);
         }
 
         return new AstNode('code_block', $attrs);
@@ -526,6 +595,137 @@ final class IpynbReader
     }
 
     /**
+     * @param array<string, mixed> $metadata
+     * @return array{language:string, source:string}
+     */
+    private function notebookLanguageHint(array $metadata): array
+    {
+        $languageInfoName = $this->metadataString($metadata['language_info'] ?? null, 'name');
+        if ($languageInfoName !== null) {
+            $language = $this->normalizeLanguageHint($languageInfoName);
+            if ($language !== '') {
+                return [
+                    'language' => $language,
+                    'source' => 'notebook.language_info.name',
+                ];
+            }
+        }
+
+        $kernelspecLanguage = $this->metadataString($metadata['kernelspec'] ?? null, 'language');
+        if ($kernelspecLanguage !== null) {
+            $language = $this->normalizeLanguageHint($kernelspecLanguage);
+            if ($language !== '') {
+                return [
+                    'language' => $language,
+                    'source' => 'notebook.kernelspec.language',
+                ];
+            }
+        }
+
+        return [
+            'language' => '',
+            'source' => 'none',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $cellMetadata
+     * @param array{language:string, source:string} $notebookLanguageHint
+     * @return array{languageHint:string, languageHintSource:string, languageHintIsCellMetadata:bool, languageHintIsNotebookFallback:bool, languageHintMatchesNotebook:?bool, languageHintDiagnostics:list<string>}
+     */
+    private function cellLanguageHintSummary(array $cellMetadata, array $notebookLanguageHint): array
+    {
+        $cellHint = $this->cellMetadataLanguageHint($cellMetadata);
+        $diagnostics = [];
+        $languageHint = $cellHint['language'];
+        $languageHintSource = $cellHint['source'];
+        $isCellMetadata = $languageHint !== '';
+        $isNotebookFallback = false;
+
+        if ($languageHint === '' && $notebookLanguageHint['language'] !== '') {
+            $languageHint = $notebookLanguageHint['language'];
+            $languageHintSource = $notebookLanguageHint['source'];
+            $isNotebookFallback = true;
+        }
+
+        $matchesNotebook = null;
+        if ($languageHint !== '' && $notebookLanguageHint['language'] !== '') {
+            $matchesNotebook = $languageHint === $notebookLanguageHint['language'];
+            if ($isCellMetadata && !$matchesNotebook) {
+                $diagnostics[] = 'language-hint-mismatch-notebook-language';
+            }
+        }
+
+        if ($languageHint === '') {
+            $languageHint = 'unknown';
+            $languageHintSource = 'none';
+            $diagnostics[] = 'language-hint-unknown';
+        }
+
+        return [
+            'languageHint' => $languageHint,
+            'languageHintSource' => $languageHintSource,
+            'languageHintIsCellMetadata' => $isCellMetadata,
+            'languageHintIsNotebookFallback' => $isNotebookFallback,
+            'languageHintMatchesNotebook' => $matchesNotebook,
+            'languageHintDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $cellMetadata
+     * @return array{language:string, source:string}
+     */
+    private function cellMetadataLanguageHint(array $cellMetadata): array
+    {
+        $directLanguage = $this->normalizeLanguageHintValue($cellMetadata['language'] ?? null);
+        if ($directLanguage !== '') {
+            return [
+                'language' => $directLanguage,
+                'source' => 'cell.metadata.language',
+            ];
+        }
+
+        $languageInfoName = $this->metadataString($cellMetadata['language_info'] ?? null, 'name');
+        if ($languageInfoName !== null) {
+            $language = $this->normalizeLanguageHint($languageInfoName);
+            if ($language !== '') {
+                return [
+                    'language' => $language,
+                    'source' => 'cell.metadata.language_info.name',
+                ];
+            }
+        }
+
+        $vscodeLanguage = $this->metadataString($cellMetadata['vscode'] ?? null, 'languageId');
+        if ($vscodeLanguage !== null) {
+            $language = $this->normalizeLanguageHint($vscodeLanguage);
+            if ($language !== '') {
+                return [
+                    'language' => $language,
+                    'source' => 'cell.metadata.vscode.languageId',
+                ];
+            }
+        }
+
+        $jupyterLanguage = $this->metadataString($cellMetadata['jupyter'] ?? null, 'language');
+        if ($jupyterLanguage !== null) {
+            $language = $this->normalizeLanguageHint($jupyterLanguage);
+            if ($language !== '') {
+                return [
+                    'language' => $language,
+                    'source' => 'cell.metadata.jupyter.language',
+                ];
+            }
+        }
+
+        return [
+            'language' => '',
+            'source' => 'none',
+        ];
+    }
+
+    /**
      * @param mixed $metadata
      */
     private function metadataString(mixed $metadata, string $key): ?string
@@ -574,6 +774,23 @@ final class IpynbReader
         sort($strings);
 
         return array_values(array_unique($strings));
+    }
+
+    private function normalizeLanguageHintValue(mixed $value): string
+    {
+        return is_string($value) ? $this->normalizeLanguageHint($value) : '';
+    }
+
+    private function normalizeLanguageHint(string $language): string
+    {
+        $normalized = strtolower(trim($language));
+        if ($normalized === '') {
+            return '';
+        }
+
+        $normalized = preg_replace('/[^a-z0-9_+.-]+/', '-', $normalized) ?? '';
+
+        return trim($normalized, '-.');
     }
 
     private function sanitizeClassToken(string $token): string
