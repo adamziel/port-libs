@@ -6,6 +6,8 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -10198,6 +10200,41 @@ MD;
             'Class shortcut block.',
             ':::',
         ]), (new MarkdownWriter())->write($document));
+    },
+    'keeps nested fenced divs out of definition list parsing across native handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            ':::: outer',
+            'Outer review starts.',
+            '',
+            '::: {#inner .callout data-source="nested"}',
+            'Inner **review** note.',
+            ':::',
+            '',
+            'Outer review ends.',
+            '::::',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $outer = $document->children[0] ?? new AstNode('missing');
+        $inner = $outer->children[1] ?? new AstNode('missing');
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+        $markdownRoundTrip = (new MarkdownReader())->read((new MarkdownWriter())->write($document));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $outer->type);
+        $t->same(['outer'], $outer->attr('classes'));
+        $t->same(['paragraph', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $outer->children));
+        $t->same('div', $inner->type);
+        $t->same('inner', $inner->attr('id'));
+        $t->same(['callout'], $inner->attr('classes'));
+        $t->same(['data-source' => 'nested'], $inner->attr('attributes'));
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $inner->children[0]->children));
+        $t->same('Div', $nativePacket['blocks'][0]['t']);
+        $t->same('Div', $nativePacket['blocks'][0]['c'][1][1]['t']);
+        $t->same(['paragraph', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $nativeRoundTrip->children[0]->children));
+        $t->same(['paragraph', 'div', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $markdownRoundTrip->children[0]->children));
+        $t->contains(':::: {.outer}', (new MarkdownWriter())->write($document));
+        $t->contains('<div class="outer"><p>Outer review starts.</p><div id="inner" class="callout" data-source="nested"><p>Inner <strong>review</strong> note.</p></div><p>Outer review ends.</p></div>', $blocks);
     },
     'maps upstream markdown writer fenced code block attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

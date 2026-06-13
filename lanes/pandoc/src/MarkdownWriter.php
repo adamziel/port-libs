@@ -2403,7 +2403,7 @@ final class MarkdownWriter
 
     private function longestColonRun(string $text): int
     {
-        if (preg_match_all('/:+/', $text, $matches) !== 1) {
+        if (preg_match_all('/:+/', $text, $matches) < 1) {
             return 0;
         }
 

@@ -15047,6 +15047,10 @@ final class MarkdownReader
      */
     private function matchDefinitionMarker(string $line): ?array
     {
+        if ($this->matchFencedDivOpening($line) !== null || $this->isFencedDivClosing($line, 3)) {
+            return null;
+        }
+
         if (preg_match('/^\s{0,4}([:~])\s*(.*)$/', $line, $m) !== 1) {
             return null;
         }
