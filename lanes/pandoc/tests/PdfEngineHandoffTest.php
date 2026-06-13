@@ -3777,6 +3777,139 @@ return [
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
     },
 
+    'plans typst import and include path diagnostics without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Import Path Packet',
+            '#import "@preview/cetz:0.3.2/src/lib.typ": canvas',
+            '#include "chapters/intro.typ"',
+            '#import "../shared/theme.typ": palette',
+            '#include "https://cdn.example.invalid/theme.typ"',
+            '#import "/etc/typst/local.typ": secret',
+            '#import "@preview/cetz:0.3.2/src/lib.typ": canvas2',
+            '#import packagePath: dynamic',
+            '#include module.path',
+            '',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/import-paths.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/import-paths.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst import path packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/import-paths.pdf: build/import-paths.typ @preview/cetz:0.3.2/src/lib.typ @team/private:1.2.0/theme.typ',
+            '',
+        ]);
+        $expectedPackageDependencies = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
+            ],
+        ];
+        $expectedIssueCounts = [
+            'absolute-import-path' => 1,
+            'duplicate-import-path' => 1,
+            'parent-relative-import-path' => 1,
+            'remote-include-path' => 1,
+        ];
+        $expectedUnsupportedReasons = [
+            'dynamic-import-path' => 1,
+            'dynamic-include-path' => 1,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/import-paths.d' => $depfile,
+                'build/import-paths.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/import-paths.d' => $depfile,
+                'build/import-paths.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $policy = $plan['typstImportPathPolicy'];
+
+        $t->same('review', $policy['reviewStatus']);
+        $t->same(true, $policy['metadataOnly']);
+        $t->same('not-executed', $policy['networkAccessPolicy']);
+        $t->same(6, $policy['pathCount']);
+        $t->same(4, $policy['importCount']);
+        $t->same(2, $policy['includeCount']);
+        $t->same(2, $policy['packagePathCount']);
+        $t->same(2, $policy['localPathCount']);
+        $t->same(1, $policy['remotePathCount']);
+        $t->same(1, $policy['absolutePathCount']);
+        $t->same(3, $policy['unsafePathCount']);
+        $t->same(1, $policy['duplicatePathCount']);
+        $t->same(1, $policy['duplicateReferenceCount']);
+        $t->same(2, $policy['unsupportedCount']);
+        $t->same(['preview-registry' => 2], $policy['sourceClassCounts']);
+        $t->same(['@preview/cetz:0.3.2/src/lib.typ'], $policy['packageImportReferences']);
+        $t->same($expectedPackageDependencies, $policy['packageDependencies']);
+        $t->same(['../shared/theme.typ', 'chapters/intro.typ'], $policy['localImportHints']);
+        $t->same(['https://cdn.example.invalid/theme.typ'], $policy['remoteImportPaths']);
+        $t->same(['../shared/theme.typ', '/etc/typst/local.typ', 'https://cdn.example.invalid/theme.typ'], $policy['unsafeImportPaths']);
+        $t->same([
+            [
+                'path' => '@preview/cetz:0.3.2/src/lib.typ',
+                'count' => 2,
+                'operations' => ['import' => 2],
+                'lines' => [2, 7],
+            ],
+        ], $policy['duplicates']);
+        $t->same($expectedIssueCounts, $policy['issueCounts']);
+        $t->same($expectedUnsupportedReasons, $policy['unsupportedReasonCounts']);
+        $t->same([
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'line' => 8,
+                'column' => 1,
+            ],
+            [
+                'operation' => 'include',
+                'reason' => 'dynamic-include-path',
+                'line' => 9,
+                'column' => 1,
+            ],
+        ], $policy['unsupported']);
+        $t->same($policy, $result['typstImportPathPolicy']);
+        $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same($policy, $sequence['finalTypstImportPathPolicy']);
+        $t->same([
+            'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'typst-package:@team/private:1.2.0/theme.typ',
+        ], $result['engineTypstPackageInputs']);
+        $t->same(2, $result['typstPackageDependencyPolicy']['packageDependencyCount']);
+        $t->same(['custom-namespace' => 1, 'preview-registry' => 1], $result['typstPackageDependencyPolicy']['sourceClassCounts']);
+        $t->contains('typst-import-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-paths:6', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-packages:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-local:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-remote:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-absolute:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsafe:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-source:preview-registry:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported-reason:dynamic-include-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported-reason:dynamic-import-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:absolute-import-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:duplicate-import-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:parent-relative-import-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:remote-include-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+    },
+
     'fake runner normalizes typst package cache paths into dependency provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Cache Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
