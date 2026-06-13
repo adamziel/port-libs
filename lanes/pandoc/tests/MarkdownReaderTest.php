@@ -14280,6 +14280,31 @@ XML;
         $t->contains('<li id="fn-editor-note" data-pandoc-note-label="editor-note"><p>Source-labelled note keeps its backlink.</p> <a href="#fnref-editor-note" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>', $blocks);
     },
+    'keeps table cell note references and linked note bodies outside the table boundary' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '| Source | Note |',
+            '| --- | --- |',
+            '| Packet | linked note[^audit] |',
+            '',
+            '[^audit]: Review [source](https://example.test/audit) and table \\| pipe.',
+        ]));
+        $table = $document->children[0];
+        $bodyCell = $table->children[1]->children[0]->children[1];
+        $note = $bodyCell->children[1];
+        $noteParagraph = $note->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('note', $note->type);
+        $t->same('audit', $note->attr('label'));
+        $t->same('link', $noteParagraph->children[1]->type);
+        $t->same('https://example.test/audit', $noteParagraph->children[1]->attr('url'));
+        $t->contains('| Packet | linked note[^audit] |', $markdown);
+        $t->contains('[^audit]: Review [source](https://example.test/audit) and table \\| pipe.', $markdown);
+        $t->contains('<td>linked note<sup id="fnref-audit" data-pandoc-note-label="audit"><a href="#fn-audit" role="doc-noteref">1</a></sup></td>', $blocks);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-audit" data-pandoc-note-label="audit"><p>Review <a href="https://example.test/audit">source</a> and table | pipe.</p> <a href="#fnref-audit" aria-label="Back to content">Back</a></li></ol></section>', $blocks);
+    },
     'writes nested wordpress list markup from upstream-shaped ast' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("* a\n* b\n* c\n    * d");
         $blocks = (new WordPressBlockWriter())->write($document);
