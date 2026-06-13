@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\IpynbReader;
@@ -75,6 +76,10 @@ return [
         $t->same(MarkdownReader::class, $inputSupport['markdown']['implementation']);
         $t->same('partial', $inputSupport['docx']['status']);
         $t->same(DocxReader::class, $inputSupport['docx']['implementation']);
+        $t->same('partial', $inputSupport['csv']['status']);
+        $t->same(DelimitedTextReader::class, $inputSupport['csv']['implementation']);
+        $t->same('partial', $inputSupport['tsv']['status']);
+        $t->same(DelimitedTextReader::class, $inputSupport['tsv']['implementation']);
         $t->same(EpubReader::class, $inputSupport['epub']['implementation']);
         $t->same(OdtReader::class, $inputSupport['odt']['implementation']);
         $t->same(RtfReader::class, $inputSupport['rtf']['implementation']);
@@ -84,7 +89,7 @@ return [
         $t->same(PlainWriter::class, $outputSupport['plain']['implementation']);
         $t->contains('wrapping diagnostics', $outputSupport['plain']['notes']);
 
-        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
@@ -117,7 +122,7 @@ return [
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
 
-        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
@@ -625,7 +630,7 @@ return [
             $t->contains('No native PHP reader or writer is registered', $outputSupport[$format]['notes']);
         }
 
-        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks rich package input output direction buckets without direct writer parity claims' => static function (TestRunner $t): void {

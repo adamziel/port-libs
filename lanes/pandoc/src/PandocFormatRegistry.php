@@ -468,6 +468,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open.',
         ],
+        'csv' => [
+            'status' => 'partial',
+            'implementation' => DelimitedTextReader::class,
+            'notes' => 'Bounded native PHP CSV reader maps simple delimited text into the shared table AST with geometry review packets; full Pandoc CSV reader parity remains open.',
+        ],
         'docbook' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -557,6 +562,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => RtfReader::class,
             'notes' => 'RTF reader slices map bounded control-word and text cases into the shared AST; full RTF reader parity remains open.',
+        ],
+        'tsv' => [
+            'status' => 'partial',
+            'implementation' => DelimitedTextReader::class,
+            'notes' => 'Bounded native PHP TSV reader maps tab-delimited text into the shared table AST with geometry review packets; full Pandoc TSV reader parity remains open.',
         ],
     ];
 

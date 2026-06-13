@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3257,
-        "latestSlice": "pandoc-typst-package-dependency-policy maps one PDF/Typst output-boundary coverage slice for no-external-engine package dependency review. PdfEngineHandoff::fakeRun now turns Typst @namespace/package:version imports discovered in dependency sidecars into typstPackageDependencyPolicy review metadata in fake-run results, artifact provenance, and sequence summaries while preserving successful graceful behavior without executing Typst, Pandoc, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3296 -> 3297, phpFail remains 0, mappedTypstPackageDependencyPolicyCases is 1, and typstPackageDependencyPolicyAssertions is 16. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php (1 file, 2213 assertions, 0 failures); full lanes/pandoc/tests (44 files, 74011 assertions, 0 failures) after final rebase onto current main b27ac9eb06.",
+        "mapped": 3259,
+        "latestSlice": "pandoc-csv-tsv-direct-text-reader maps two bounded native PHP CSV/TSV input cases into the shared table AST. DelimitedTextReader now parses CSV and TSV text with PHP's native CSV parser, treats the first row as a table header, pads ragged rows, attaches delimitedText and tableGeometry review packets, and proves Markdown, WordPress, and Pandoc JSON table export without invoking Pandoc, spreadsheet tools, browser renderers, Node tooling, online validators, online services, live provider tests, or live-service provider tests. phpPass moves 3297 -> 3299, phpFail remains 0, mappedCsvTsvDirectTextReaderCases is 2, and csvTsvDirectTextReaderAssertions is 34. Verification passed php -l for DelimitedTextReader.php, DelimitedTextReaderTest.php, PandocFormatRegistry.php, and PandocFormatRegistryTest.php, focused DelimitedTextReaderTest.php plus PandocFormatRegistryTest.php (2 files, 1055 assertions, 0 failures), and full lanes/pandoc/tests (45 files, 74049 assertions, 0 failures) after final rebase onto current main b266b6e53c.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -139,7 +139,9 @@
         "mappedPlainWriterTableCaptionRowCases": 1,
         "plainWriterTableCaptionRowAssertions": 7,
         "mappedTypstPackageDependencyPolicyCases": 1,
-        "typstPackageDependencyPolicyAssertions": 16
+        "typstPackageDependencyPolicyAssertions": 16,
+        "mappedCsvTsvDirectTextReaderCases": 2,
+        "csvTsvDirectTextReaderAssertions": 34
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1350,5 +1352,7 @@
     "mappedPlainWriterTableCaptionRowCases": 1,
     "plainWriterTableCaptionRowAssertions": 7,
     "mappedTypstPackageDependencyPolicyCases": 1,
-    "typstPackageDependencyPolicyAssertions": 16
+    "typstPackageDependencyPolicyAssertions": 16,
+    "mappedCsvTsvDirectTextReaderCases": 2,
+    "csvTsvDirectTextReaderAssertions": 34
 }

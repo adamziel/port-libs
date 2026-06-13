@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,297 pass / 0 fail | [3,257 / 2,276 (143.1%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Typst reader parity after package dependency policy | typst-package-dependency-policy-b27ac9eb06 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,299 pass / 0 fail | [3,259 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Finish CSV/TSV, HTML5/XML/JATS/BITS direct readers | csv-tsv-direct-text-reader-b266b6e53c |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -25,8 +25,8 @@ Input scope after skipping IPYNB:
 | --- | ---: |
 | Upstream Pandoc input tokens in scope | 50 |
 | Shippable native PHP input support | 1 |
-| Partial native PHP input support to finish | 16 |
-| Unsupported native PHP input tokens to implement | 33 |
+| Partial native PHP input support to finish | 18 |
+| Unsupported native PHP input tokens to implement | 31 |
 
 Focused test counts below are evidence counters, not a strict remaining-test burn-down. Percentages above 100% mean the local PHP tests are more granular than the upstream case counter available for that family; they do not claim upstream runner parity.
 
@@ -46,8 +46,8 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Typst | `typst` | unsupported | 46 | 17 | Implement Typst reader; package dependency policy is covered, but current evidence is boundary/provenance only. |
 | PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
-| Tabular/data readers | `csv`, `tsv` | unsupported | 0 | 2 | Implement CSV/TSV table readers. |
-| Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 33 | Close the remaining unsupported input registry rows. |
+| Tabular/data readers | `csv`, `tsv` | partial | 2 | 2 | Finish full CSV/TSV reader parity beyond the bounded headed-table slice. |
+| Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 31 | Close the remaining unsupported input registry rows. |
 
 Adjacent import targets outside the Pandoc input denominator:
 
@@ -56,6 +56,27 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 45 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### CSV/TSV Direct Text Reader Update (2026-06-13)
+
+Verdict: partial, not ship-ready. The native PHP lane now has 2 local passing
+CSV/TSV reader cases against the 2 CSV command fixture rows recorded in the
+accepted static upstream inventory (`test/command/01.csv` and
+`test/command/3533-rst-csv-tables.csv`).
+
+Implemented gap: `DelimitedTextReader` parses bounded headed CSV and TSV input
+into shared table AST nodes, treats the first row as a header, pads ragged rows,
+attaches `delimitedText` and `tableGeometry` review packets, and proves
+Markdown, WordPress table, and Pandoc JSON table export. Registry status for
+`csv` and `tsv` moved from unsupported to partial. Focused verification passed
+`DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php` (`2` files,
+`1055` assertions, `0` failures). No Pandoc binary, spreadsheet application,
+browser renderer, Node tooling, online validator, online service, live provider
+test, or live-service provider test was invoked.
+
+Remaining critical gap: finish full Pandoc CSV/TSV reader parity, including
+broader upstream fixture hydration, option behavior, malformed input
+diagnostics, and table-reader edge cases.
 
 ### ODF/ODT Ship Readiness
 
@@ -157,18 +178,20 @@ Implemented highest-impact gap: `PandocJsonReader` and `NativeReader` now preser
 Dashboard reconciliation on 2026-06-12: `PANDOC_STATUS.md` is now present, the
 root dashboard, lane status, upstream manifest, ready/open beads, and landed
 commit history agree on the current shipping call after the DOCX section-property
-slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, and plain writer table caption row slice.
-The latest reconciliation also includes the PDF/Typst package dependency policy slice.
+slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter
+slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain
+writer table caption row slice, PDF/Typst package dependency policy slice, and
+CSV/TSV direct text reader slice.
 
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static upstream inventory remains 2,276 Pandoc test/data/benchmark artifacts at `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`; input-format scope is 50 tokens after skipping IPYNB for this phase. | Denominator accepted for native PHP progress accounting; not upstream runner parity. |
-| Local passing numerator | `lane-status.json` reports 3,297 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,257 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,257 / 2,276 = 143.1%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
+| Local passing numerator | `lane-status.json` reports 3,299 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,259 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,259 / 2,276 = 143.2%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
 | Shippable format gate | ODF/ODT is ship-ready with 49 local mapped cases / 20 upstream ODF/ODT cases, 245.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
-| Remaining critical gaps | 16 input tokens remain partial and 33 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and CSV/TSV. | Full Pandoc input lane remains active. |
+| Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, wiki/roff/text readers, and remaining CSV/TSV parity. | Full Pandoc input lane remains active. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json`, focused `PdfEngineHandoffTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 44 test files, 74,011 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check`, syntax checks for the CSV/TSV reader and registry files, focused `DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed after rebase. | 45 test files, 74,049 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
