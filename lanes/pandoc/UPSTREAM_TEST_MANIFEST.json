@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3290,
-        "latestSlice": "pandoc-epub-xhtml-table-semantics maps one EPUB3 XHTML spine-content table semantics slice after PlainWriter table body-group boundaries. EpubReader now preserves XHTML table caption text and ids, colgroup counts, direct section order, thead/tbody/tfoot and implicit-body row counts, header-cell scope/header associations, row/column spans, nested-table counts, diagnostics, aggregate XHTML resource report counters, import-report propagation, and raw_html handoff attributes without converting the full XHTML tree. Mapped denominator moves 3289 -> 3290, mappedEpubXhtmlTableSemanticsCases is 1, and epubXhtmlTableSemanticsAssertions is 52. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures after final rebase onto current main 437a269855 without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, Node tooling, online services, live provider tests, or external validators.",
+        "mapped": 3291,
+        "latestSlice": "pandoc-jats-bits-ref-list-bibliography-diagnostics maps one JATS/BITS ref-list bibliography diagnostic slice after EPUB XHTML table semantics. XmlHtmlDom::summarizeJatsFrontMatter() now emits metadata-only ref-list/reference summaries, resolved/unresolved bibr xref inventories, unreferenced/missing-id reference counts, and unresolved bibliography diagnostics while preserving directReaderParity=false and avoiding full citation-reader parity claims. Mapped denominator moves 3290 -> 3291, mappedXmlHtmlDomJatsBibliographyReferenceDiagnosticsCases is 1, and xmlHtmlDomJatsBibliographyReferenceDiagnosticsAssertions is 75. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 1918 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74893 assertions, 0 failures after final rebase onto current main 70d29eb6f8 without invoking Pandoc, Cabal/Haskell runners, browser renderers, Node tooling, external XML validators, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB XHTML table semantics review metadata is verified over current main 437a269855 after PlainWriter table body-group boundaries.",
-        "latestFocusedSource": "2026-06-13 EPUB slice inspected bounded XHTML table caption, section, span, and header-cell review metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 437a269855; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures.",
+        "status": "JATS/BITS ref-list bibliography diagnostics are verified over current main 70d29eb6f8 after EPUB XHTML table semantics.",
+        "latestFocusedSource": "2026-06-13 JATS/BITS slice inspected bounded metadata-only ref-list/reference summaries, resolved and unresolved bibr xref inventories, unreferenced references, and missing-id references against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 70d29eb6f8; focused XmlHtmlDomTest.php passed 1 file, 1918 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74893 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -201,7 +201,9 @@
         "mappedPlainWriterBodyGroupCases": 1,
         "plainWriterBodyGroupAssertions": 7,
         "mappedEpubXhtmlTableSemanticsCases": 1,
-        "epubXhtmlTableSemanticsAssertions": 52
+        "epubXhtmlTableSemanticsAssertions": 52,
+        "mappedXmlHtmlDomJatsBibliographyReferenceDiagnosticsCases": 1,
+        "xmlHtmlDomJatsBibliographyReferenceDiagnosticsAssertions": 75
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1113,12 +1115,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "EPUB handoff now preserves XHTML table section, caption, span, and header-cell review metadata on raw_html spine nodes and import reports without invoking Pandoc, EPUBCheck, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
-    "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "EPUB XHTML table semantics review metadata is verified over current main 437a269855 after PlainWriter table body-group boundaries.",
-    "mapping": "Adds one bounded native PHP EPUB3 spine XHTML content case for table caption, colgroup, section order, thead/tbody/tfoot and implicit-body rows, header-cell scope/header associations, spans, nested-table counts, diagnostics, aggregate XHTML reports, import-report propagation, and raw_html handoff attributes while preserving prior closure-wave matrix, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
+    "wordpressScenario": "No WordPress behavior changed in this slice; JATS/BITS bibliography diagnostics remain metadata-only XML review packets without invoking Pandoc, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "nextTask": "Continue XML/JATS/BITS direct reader parity or the next bounded DOCX/OpenXML, EPUB3, shared ZIP/OPC, JSON/native, citation, PDF/Typst, or table blocker slice while keeping phpFail at zero.",
+    "status": "JATS/BITS ref-list bibliography diagnostics are verified over current main 70d29eb6f8 after EPUB XHTML table semantics.",
+    "mapping": "Adds one bounded native PHP JATS/BITS ref-list bibliography diagnostic case for metadata-only ref-list/reference summaries, resolved and unresolved bibr xref inventories, unreferenced reference IDs, missing-id reference counts, and unresolved xref diagnostics while preserving prior EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-epub-xhtml-table-semantics maps one EPUB3 XHTML spine-content table semantics slice after PlainWriter table body-group boundaries. EpubReader now preserves XHTML table caption text and ids, colgroup counts, direct section order, thead/tbody/tfoot and implicit-body row counts, header-cell scope/header associations, row/column spans, nested-table counts, diagnostics, aggregate XHTML resource report counters, import-report propagation, and raw_html handoff attributes without converting the full XHTML tree. Mapped denominator moves 3289 -> 3290, mappedEpubXhtmlTableSemanticsCases is 1, and epubXhtmlTableSemanticsAssertions is 52. Verification passed php -l for EpubReader.php and EpubReaderTest.php; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures after final rebase onto current main 437a269855 without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, Node tooling, online services, live provider tests, or external validators.",
+    "latestSlice": "pandoc-jats-bits-ref-list-bibliography-diagnostics maps one JATS/BITS ref-list bibliography diagnostic slice after EPUB XHTML table semantics. XmlHtmlDom::summarizeJatsFrontMatter() now emits metadata-only ref-list/reference summaries, resolved/unresolved bibr xref inventories, unreferenced/missing-id reference counts, and unresolved bibliography diagnostics while preserving directReaderParity=false and avoiding full citation-reader parity claims. Mapped denominator moves 3290 -> 3291, mappedXmlHtmlDomJatsBibliographyReferenceDiagnosticsCases is 1, and xmlHtmlDomJatsBibliographyReferenceDiagnosticsAssertions is 75. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 1918 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74893 assertions, 0 failures after final rebase onto current main 70d29eb6f8 without invoking Pandoc, Cabal/Haskell runners, browser renderers, Node tooling, external XML validators, online services, live provider tests, or live-service provider tests.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1260,7 +1262,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 EPUB slice inspected bounded XHTML table caption, section, span, and header-cell review metadata against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 437a269855; focused EpubReaderTest.php passed 1 file, 4328 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74818 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 JATS/BITS slice inspected bounded metadata-only ref-list/reference summaries, resolved and unresolved bibr xref inventories, unreferenced references, and missing-id references against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 70d29eb6f8; focused XmlHtmlDomTest.php passed 1 file, 1918 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74893 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1478,5 +1480,7 @@
     "mappedLatexTableBodyHeadWriterCases": 1,
     "latexTableBodyHeadWriterAssertions": 1,
     "mappedEpubXhtmlTableSemanticsCases": 1,
-    "epubXhtmlTableSemanticsAssertions": 52
+    "epubXhtmlTableSemanticsAssertions": 52,
+    "mappedXmlHtmlDomJatsBibliographyReferenceDiagnosticsCases": 1,
+    "xmlHtmlDomJatsBibliographyReferenceDiagnosticsAssertions": 75
 }
