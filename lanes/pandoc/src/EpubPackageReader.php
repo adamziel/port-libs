@@ -20,6 +20,7 @@ final class EpubPackageReader
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
+        $ncxReport = $this->ncxReport($ncx);
         $children = [];
 
         foreach ($package['spine'] as $spineItem) {
@@ -51,6 +52,7 @@ final class EpubPackageReader
                 'guide' => $package['guide'],
                 'toc' => $toc,
                 'ncx' => $ncx,
+                'ncxReport' => $ncxReport,
             ],
         ], $children);
     }
@@ -517,7 +519,7 @@ final class EpubPackageReader
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
      */
     private function readNavigationDocument(string $root, array $package): array
     {
@@ -560,7 +562,7 @@ final class EpubPackageReader
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>, spine:list<array{idref:string}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, children:list<array<string, mixed>>}>
+     * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
      */
     private function readNcxDocument(string $root, array $package): array
     {
@@ -584,6 +586,79 @@ final class EpubPackageReader
         }
 
         return $this->readNcxPoints($navMapElement, $this->relativeDirname($ncxItem['path']));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $points
+     * @return array<string, mixed>
+     */
+    private function ncxReport(array $points): array
+    {
+        $flat = [];
+        $this->flattenNcxPoints($points, $flat);
+        $diagnostics = [];
+        $seenTargets = [];
+        $previousPositivePlayOrder = null;
+        $missingPlayOrderCount = 0;
+        $nonIncreasingPlayOrderCount = 0;
+        $duplicateTargetCount = 0;
+
+        foreach ($flat as $index => $point) {
+            $playOrder = (int) ($point['playOrder'] ?? 0);
+            if ($playOrder <= 0) {
+                ++$missingPlayOrderCount;
+            } elseif ($previousPositivePlayOrder !== null && $playOrder <= $previousPositivePlayOrder) {
+                ++$nonIncreasingPlayOrderCount;
+                $diagnostics[] = [
+                    'type' => 'non-increasing-ncx-play-order',
+                    'index' => $index,
+                    'label' => (string) ($point['label'] ?? ''),
+                    'playOrder' => $playOrder,
+                    'previousPlayOrder' => $previousPositivePlayOrder,
+                    'path' => (string) ($point['path'] ?? ''),
+                    'fragment' => (string) ($point['fragment'] ?? ''),
+                ];
+            }
+
+            if ($playOrder > 0) {
+                $previousPositivePlayOrder = $playOrder;
+            }
+
+            $target = $this->ncxPointTarget($point);
+            if ($target === '') {
+                continue;
+            }
+            if (isset($seenTargets[$target])) {
+                ++$duplicateTargetCount;
+                $diagnostics[] = [
+                    'type' => 'duplicate-ncx-target',
+                    'index' => $index,
+                    'firstIndex' => $seenTargets[$target]['index'],
+                    'label' => (string) ($point['label'] ?? ''),
+                    'firstLabel' => $seenTargets[$target]['label'],
+                    'target' => $target,
+                    'path' => (string) ($point['path'] ?? ''),
+                    'fragment' => (string) ($point['fragment'] ?? ''),
+                ];
+                continue;
+            }
+
+            $seenTargets[$target] = [
+                'index' => $index,
+                'label' => (string) ($point['label'] ?? ''),
+            ];
+        }
+
+        return [
+            'pointCount' => count($flat),
+            'topLevelPointCount' => count($points),
+            'maxDepth' => $this->maxNcxDepth($points),
+            'missingPlayOrderCount' => $missingPlayOrderCount,
+            'nonIncreasingPlayOrderCount' => $nonIncreasingPlayOrderCount,
+            'duplicateTargetCount' => $duplicateTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -974,7 +1049,7 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
      */
     private function readNavList(\DOMElement $ol, string $baseDir, string $type): array
     {
@@ -1005,6 +1080,7 @@ final class EpubPackageReader
                 'path' => $path,
                 'fragment' => $fragment,
                 'type' => $type,
+                'labelProvenance' => $this->labelProvenance($link, 'xhtml-nav', $baseDir),
                 'children' => $children,
             ];
         }
@@ -1013,7 +1089,7 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, children:list<array<string, mixed>>}>
+     * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
      */
     private function readNcxPoints(\DOMElement $parent, string $baseDir): array
     {
@@ -1023,7 +1099,10 @@ final class EpubPackageReader
                 continue;
             }
 
-            $label = $this->firstChildPathText($node, ['navLabel', 'text']);
+            $labelContainer = $this->firstDirectChild($node, 'navLabel');
+            $label = $labelContainer instanceof \DOMElement
+                ? $this->firstChildPathText($node, ['navLabel', 'text'])
+                : '';
             $content = $this->firstDirectChild($node, 'content');
             $href = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
             [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
@@ -1033,11 +1112,116 @@ final class EpubPackageReader
                 'path' => $path,
                 'fragment' => $fragment,
                 'playOrder' => is_numeric($node->getAttribute('playOrder')) ? (int) $node->getAttribute('playOrder') : 0,
+                'labelProvenance' => $this->ncxLabelProvenance($labelContainer),
                 'children' => $this->readNcxPoints($node, $baseDir),
             ];
         }
 
         return $points;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $points
+     * @param list<array<string, mixed>> $flat
+     */
+    private function flattenNcxPoints(array $points, array &$flat, int $depth = 1): void
+    {
+        foreach ($points as $point) {
+            $entry = $point;
+            $entry['depth'] = $depth;
+            unset($entry['children']);
+            $flat[] = $entry;
+            $children = is_array($point['children'] ?? null) ? $point['children'] : [];
+            $this->flattenNcxPoints($children, $flat, $depth + 1);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $points
+     */
+    private function maxNcxDepth(array $points, int $depth = 1): int
+    {
+        $maxDepth = $points === [] ? 0 : $depth;
+        foreach ($points as $point) {
+            $children = is_array($point['children'] ?? null) ? $point['children'] : [];
+            $maxDepth = max($maxDepth, $this->maxNcxDepth($children, $depth + 1));
+        }
+
+        return $maxDepth;
+    }
+
+    /**
+     * @param array<string, mixed> $point
+     */
+    private function ncxPointTarget(array $point): string
+    {
+        $path = (string) ($point['path'] ?? '');
+        if ($path === '') {
+            return '';
+        }
+
+        $fragment = (string) ($point['fragment'] ?? '');
+
+        return $path . ($fragment === '' ? '' : '#' . $fragment);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function labelProvenance(\DOMElement $element, string $source, string $baseDir): array
+    {
+        $imageLabels = [];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement || $descendant->localName !== 'img') {
+                continue;
+            }
+
+            $src = trim($descendant->getAttribute('src'));
+            [$path, $fragment] = $this->splitResolvedHref($baseDir, $src);
+            $imageLabels[] = [
+                'src' => $src,
+                'path' => $path,
+                'fragment' => $fragment,
+                'alt' => trim($descendant->getAttribute('alt')),
+                'title' => trim($descendant->getAttribute('title')),
+                'attributes' => $this->htmlAttributes($descendant),
+            ];
+        }
+
+        return [
+            'source' => $source,
+            'element' => $element->localName,
+            'text' => $this->normalizedText($element->textContent),
+            'language' => $this->elementLanguage($element),
+            'direction' => trim($element->getAttribute('dir')),
+            'attributes' => $this->htmlAttributes($element),
+            'epubTypes' => $this->epubTypes($element),
+            'imageLabels' => $imageLabels,
+            'imageLabelCount' => count($imageLabels),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function ncxLabelProvenance(?\DOMElement $labelContainer): array
+    {
+        $textElement = $labelContainer instanceof \DOMElement
+            ? $this->firstDescendantByLocalName($labelContainer, 'text')
+            : null;
+
+        return [
+            'source' => 'ncx-navLabel',
+            'element' => $labelContainer instanceof \DOMElement ? $labelContainer->localName : null,
+            'text' => $textElement instanceof \DOMElement ? $this->normalizedText($textElement->textContent) : '',
+            'language' => $labelContainer instanceof \DOMElement ? $this->elementLanguage($labelContainer) : '',
+            'direction' => $labelContainer instanceof \DOMElement ? trim($labelContainer->getAttribute('dir')) : '',
+            'attributes' => $labelContainer instanceof \DOMElement ? $this->htmlAttributes($labelContainer) : [],
+            'textAttributes' => $textElement instanceof \DOMElement ? $this->htmlAttributes($textElement) : [],
+            'epubTypes' => [],
+            'imageLabels' => [],
+            'imageLabelCount' => 0,
+        ];
     }
 
     /**
@@ -1131,6 +1315,20 @@ final class EpubPackageReader
 
     private function epubType(\DOMElement $element): string
     {
+        foreach ($this->epubTypes($element) as $token) {
+            if ($token === 'toc' || $token === 'landmarks' || $token === 'page-list') {
+                return $token;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function epubTypes(\DOMElement $element): array
+    {
         $value = trim($element->getAttributeNS(self::EPUB_TYPE_NS, 'type'));
         if ($value === '') {
             $value = trim($element->getAttribute('epub:type'));
@@ -1139,13 +1337,20 @@ final class EpubPackageReader
             $value = trim($element->getAttribute('type'));
         }
 
-        foreach ($this->tokens($value) as $token) {
-            if ($token === 'toc' || $token === 'landmarks' || $token === 'page-list') {
-                return $token;
-            }
+        return $this->tokens($value);
+    }
+
+    private function elementLanguage(\DOMElement $element): string
+    {
+        $language = trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
+        if ($language === '') {
+            $language = trim($element->getAttribute('xml:lang'));
+        }
+        if ($language === '') {
+            $language = trim($element->getAttribute('lang'));
         }
 
-        return '';
+        return $language;
     }
 
     /**

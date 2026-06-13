@@ -284,6 +284,12 @@ Bounded native PHP shared ZIP/OPC package coverage advanced by one selected-entr
 
 Remaining critical ZIP/OPC gaps: full package parity is still partial because ZIP64 expansion, encrypted payload decryption, non-deflate extraction, cryptographic signature validation, DOCX/EPUB package readers, and PPTX/XLSX package readers are not globally shippable. Shared ZIP/OPC denominator/local numerator is now 67 upstream dependency rows / 107 local mapped evidence cases (159.7%). Verification passed `php -l` for `ZipPackage.php` and `ZipPackageTest.php`, focused `ZipPackageTest.php` (`1` file, `4448` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74831` assertions, `0` failures). No Pandoc, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.
 
+### EPUB NCX Hierarchy Diagnostics Update (2026-06-13)
+
+Bounded native PHP EPUB3 direct package-reader coverage advanced by two compact nav/NCX review cases. `EpubPackageReader` now preserves XHTML nav and NCX `labelProvenance` on outline entries and exposes `epub.ncxReport` diagnostics for flattened NCX hierarchy counts, max depth, duplicate NCX targets, missing `playOrder`, and non-increasing positive `playOrder` while keeping `epub.ncx` hierarchy entries intact.
+
+Verification passed `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` passed (`1` file, `261` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74879` assertions, `0` failures). No Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderer, Node tooling, external validator, online service, live provider, or live-service provider test was invoked.
+
 ### XML/HTML5/JATS DOM Ship-Readiness Update (2026-06-12)
 
 Verdict: not shippable yet. The native PHP lane now has 275 local passing XML/HTML/JATS/DocBook DOM evidence cases against 29 upstream format-related cases (948.3% evidence ratio; local cases are intentionally more granular than the upstream denominator), but `html` remains partial and `xml`, `jats`, and `bits` are still not registered as full direct readers.

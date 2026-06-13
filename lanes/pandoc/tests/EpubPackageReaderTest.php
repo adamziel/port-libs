@@ -171,6 +171,132 @@ return [
         $t->same(3, $ncx[1]['playOrder']);
         $t->same('details', $ncx[1]['fragment']);
     },
+    'preserves epub nav and ncx label provenance for package review' => static function (TestRunner $t) use ($fixture): void {
+        $document = (new EpubPackageReader())->readDirectory($fixture());
+        $epub = $document->attr('epub');
+        $toc = array_values(array_filter(
+            $epub['toc'],
+            static fn (array $entry): bool => $entry['type'] === 'toc'
+        ));
+        $ncx = $epub['ncx'];
+
+        $navLabel = $toc[0]['labelProvenance'];
+        $t->same('xhtml-nav', $navLabel['source']);
+        $t->same('a', $navLabel['element']);
+        $t->same('Opening Packet', $navLabel['text']);
+        $t->same('nav-opening-label', $navLabel['attributes']['id']);
+        $t->same('source-label', $navLabel['attributes']['class']);
+        $t->same('en', $navLabel['language']);
+        $t->same('ltr', $navLabel['direction']);
+        $t->same(['bodymatter'], $navLabel['epubTypes']);
+        $t->same(1, $navLabel['imageLabelCount']);
+        $t->same('images/cover.png', $navLabel['imageLabels'][0]['src']);
+        $t->same('EPUB/images/cover.png', $navLabel['imageLabels'][0]['path']);
+        $t->same('Cover label', $navLabel['imageLabels'][0]['alt']);
+        $t->same('Cover thumbnail', $navLabel['imageLabels'][0]['title']);
+
+        $ncxLabel = $ncx[0]['labelProvenance'];
+        $t->same('ncx-navLabel', $ncxLabel['source']);
+        $t->same('navLabel', $ncxLabel['element']);
+        $t->same('Opening Packet', $ncxLabel['text']);
+        $t->same('np-1-label', $ncxLabel['attributes']['id']);
+        $t->same('source-label', $ncxLabel['attributes']['class']);
+        $t->same('en', $ncxLabel['language']);
+        $t->same('ltr', $ncxLabel['direction']);
+        $t->same('np-1-text', $ncxLabel['textAttributes']['id']);
+        $t->same('source-text', $ncxLabel['textAttributes']['class']);
+    },
+    'reports ncx hierarchy duplicate targets and play order diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-reader-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-ncx-review</dc:identifier>
+    <dc:title>NCX Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/toc.ncx', <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:reader-ncx-review"/>
+  </head>
+  <docTitle><text>NCX Review</text></docTitle>
+  <navMap>
+    <navPoint id="np-start" playOrder="1">
+      <navLabel><text>Start</text></navLabel>
+      <content src="chapter.xhtml#start"/>
+      <navPoint id="np-overview" playOrder="2">
+        <navLabel><text>Overview</text></navLabel>
+        <content src="chapter.xhtml#overview"/>
+      </navPoint>
+      <navPoint id="np-overview-duplicate" playOrder="2">
+        <navLabel><text>Duplicate Overview</text></navLabel>
+        <content src="chapter.xhtml#overview"/>
+      </navPoint>
+    </navPoint>
+    <navPoint id="np-closing" playOrder="1">
+      <navLabel><text>Closing</text></navLabel>
+      <content src="chapter.xhtml#closing"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable NCX packet.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $ncx = $epub['ncx'];
+            $report = $epub['ncxReport'];
+
+            $t->same(2, count($ncx));
+            $t->same('Start', $ncx[0]['label']);
+            $t->same(2, count($ncx[0]['children']));
+            $t->same('Duplicate Overview', $ncx[0]['children'][1]['label']);
+            $t->same('Duplicate Overview', $ncx[0]['children'][1]['labelProvenance']['text']);
+            $t->same('chapter.xhtml#overview', $ncx[0]['children'][1]['href']);
+            $t->same('EPUB/chapter.xhtml', $ncx[0]['children'][1]['path']);
+            $t->same('overview', $ncx[0]['children'][1]['fragment']);
+
+            $t->same(4, $report['pointCount']);
+            $t->same(2, $report['topLevelPointCount']);
+            $t->same(2, $report['maxDepth']);
+            $t->same(0, $report['missingPlayOrderCount']);
+            $t->same(2, $report['nonIncreasingPlayOrderCount']);
+            $t->same(1, $report['duplicateTargetCount']);
+            $t->same(3, $report['diagnosticCount']);
+            $t->same(['non-increasing-ncx-play-order', 'duplicate-ncx-target', 'non-increasing-ncx-play-order'], array_column($report['diagnostics'], 'type'));
+            $t->same(2, $report['diagnostics'][0]['index']);
+            $t->same('Duplicate Overview', $report['diagnostics'][0]['label']);
+            $t->same(2, $report['diagnostics'][0]['playOrder']);
+            $t->same(2, $report['diagnostics'][0]['previousPlayOrder']);
+            $t->same(2, $report['diagnostics'][1]['index']);
+            $t->same(1, $report['diagnostics'][1]['firstIndex']);
+            $t->same('EPUB/chapter.xhtml#overview', $report['diagnostics'][1]['target']);
+            $t->same('Overview', $report['diagnostics'][1]['firstLabel']);
+            $t->same(3, $report['diagnostics'][2]['index']);
+            $t->same('Closing', $report['diagnostics'][2]['label']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
