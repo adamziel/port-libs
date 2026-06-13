@@ -24,6 +24,8 @@ return [
         $t->same(1, $document->attr('notebookRawCellCount'));
         $t->same(1, $document->attr('notebookAttachmentCount'));
         $t->same(2, $document->attr('notebookOutputCount'));
+        $t->same(['text/plain'], $document->attr('notebookOutputMimeTypes'));
+        $t->same(1, $document->attr('notebookRichOutputUnsupportedCount'));
         $t->same(3, $document->attr('notebookUnsupportedResourceCount'));
         $t->same(['kernelspec', 'language_info'], $document->attr('notebookMetadataKeys'));
         $t->same('python3', $document->attr('notebookKernelName'));
@@ -59,6 +61,8 @@ return [
         $t->same(2, $code->attr('ipynbOutputCount'));
         $t->same(['stream', 'display_data'], $code->attr('ipynbOutputTypes'));
         $t->same(['text/plain'], $code->attr('ipynbOutputMimeTypes'));
+        $t->same(1, $code->attr('ipynbRichOutputUnsupportedCount'));
+        $t->same('1', $code->attr('attributes')['data-ipynb-rich-output-unsupported-count']);
         $t->same(2, $code->attr('ipynbUnsupportedResourceCount'));
         $t->same(['output-bytes-blocked', 'output-mime-bundle-metadata-only'], $code->attr('ipynbUnsupportedResourceDiagnostics'));
         $t->same([], $code->attr('ipynbCellMetadataKeys'));
@@ -89,6 +93,8 @@ return [
         $t->contains('data-ipynb-cell-tags="review"', $html);
         $t->contains('data-ipynb-diagnostics="attachment-bytes-blocked"', $html);
         $t->contains('data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only"', $html);
+        $t->contains('data-ipynb-output-mime-types="text/plain"', $html);
+        $t->contains('data-ipynb-rich-output-unsupported-count="1"', $html);
         $t->contains('<h1 id="notebook-import">Notebook import</h1>', $html);
         $t->contains('class="language-python"', $html);
         $t->contains('print(&quot;ready&quot;)', $html);
@@ -171,6 +177,97 @@ return [
         $t->contains('display(points)', $html);
         $t->same(false, str_contains($html, '<svg><text>hidden</text></svg>'));
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
+    },
+    'reports unsupported rich output verdicts without exposing payload bytes' => static function (TestRunner $t): void {
+        $secretPayload = 'SECRET_PAYLOAD_BYTES_MUST_NOT_SURFACE';
+        $json = json_encode([
+            'cells' => [[
+                'cell_type' => 'code',
+                'execution_count' => 3,
+                'metadata' => [],
+                'outputs' => [
+                    [
+                        'name' => 'stdout',
+                        'output_type' => 'stream',
+                        'text' => ["summary only\n"],
+                    ],
+                    [
+                        'data' => [
+                            'text/plain' => ["<Figure size 640x480>\n"],
+                            'text/html' => '<strong>' . $secretPayload . '</strong>',
+                            'image/png' => 'iVBORw0KGgo' . $secretPayload,
+                        ],
+                        'metadata' => [
+                            'image/png' => ['width' => 640, 'height' => 480],
+                        ],
+                        'output_type' => 'display_data',
+                    ],
+                    [
+                        'data' => [
+                            'application/json' => ['token' => $secretPayload],
+                            'text/plain' => 'application result',
+                        ],
+                        'execution_count' => 3,
+                        'metadata' => [],
+                        'output_type' => 'execute_result',
+                    ],
+                ],
+                'source' => 'plot(values)',
+            ]],
+            'metadata' => [
+                'kernelspec' => ['language' => 'python', 'name' => 'python3'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $html = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, $document->attr('notebookOutputCount'));
+        $t->same(['application/json', 'image/png', 'text/html', 'text/plain'], $document->attr('notebookOutputMimeTypes'));
+        $t->same(2, $document->attr('notebookRichOutputUnsupportedCount'));
+
+        $diagnostics = $document->attr('notebookOutputDiagnostics');
+        $t->same(2, count($diagnostics));
+        $t->same('ipynb-rich-output-unsupported', $diagnostics[0]['code']);
+        $t->same(0, $diagnostics[0]['cellIndex']);
+        $t->same(1, $diagnostics[0]['outputIndex']);
+        $t->same('display_data', $diagnostics[0]['outputType']);
+        $t->same(['image/png', 'text/html', 'text/plain'], $diagnostics[0]['mimeTypes']);
+        $t->same('metadata-only-no-payload-bytes', $diagnostics[0]['payloadPolicy']);
+        $t->same(2, $diagnostics[1]['outputIndex']);
+        $t->same('execute_result', $diagnostics[1]['outputType']);
+        $t->same(['application/json', 'text/plain'], $diagnostics[1]['mimeTypes']);
+
+        $cell = $document->children[0];
+        $t->same(['stream', 'display_data', 'execute_result'], $cell->attr('ipynbOutputTypes'));
+        $t->same(['application/json', 'image/png', 'text/html', 'text/plain'], $cell->attr('ipynbOutputMimeTypes'));
+        $t->same(2, $cell->attr('ipynbRichOutputUnsupportedCount'));
+        $t->same('application/json image/png text/html text/plain', $cell->attr('attributes')['data-ipynb-output-mime-types']);
+        $t->same('2', $cell->attr('attributes')['data-ipynb-rich-output-unsupported-count']);
+
+        $outputSummaries = $cell->attr('ipynbOutputSummaries');
+        $t->same('stream', $outputSummaries[0]['outputType']);
+        $t->same('stdout', $outputSummaries[0]['streamName']);
+        $t->same(1, $outputSummaries[0]['textLineCount']);
+        $t->same('display_data', $outputSummaries[1]['outputType']);
+        $t->same(['image/png', 'text/html', 'text/plain'], $outputSummaries[1]['mimeTypes']);
+        $t->same(3, $outputSummaries[1]['mimeCount']);
+        $t->same(1, $outputSummaries[1]['metadataKeyCount']);
+        $t->same('ipynb-rich-output-unsupported', $outputSummaries[1]['unsupportedVerdict']);
+        $t->same('execute_result', $outputSummaries[2]['outputType']);
+        $t->same(['application/json', 'text/plain'], $outputSummaries[2]['mimeTypes']);
+
+        $encodedDocument = json_encode($document, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($encodedDocument, $secretPayload));
+        $t->same(false, str_contains($encodedDocument, 'iVBORw0KGgo'));
+        $t->same(false, str_contains($encodedDocument, '<strong>'));
+        $t->same(false, str_contains($html, $secretPayload));
+        $t->same(false, str_contains($html, 'iVBORw0KGgo'));
+        $t->contains('data-ipynb-output-mime-types="application/json image/png text/html text/plain"', $html);
+        $t->contains('data-ipynb-rich-output-unsupported-count="2"', $html);
+        $t->contains('plot(values)', $html);
     },
     'plans metadata-only ipynb attachment media extraction diagnostics' => static function (TestRunner $t): void {
         $unsafeName = '../private/plot.png?download=1';
