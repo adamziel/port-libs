@@ -307,6 +307,9 @@ final class PandocFormatRegistry
         ],
     ];
 
+    private const WIKI_OUTPUT_UNSUPPORTED_WRITER_REASON_CODE = 'wiki-writer-not-ported';
+    private const WIKI_OUTPUT_UNSUPPORTED_WRITER_REASON = 'Upstream wiki writer output token is inventoried, but no native PHP wiki writer is registered for this format.';
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -1207,6 +1210,93 @@ final class PandocFormatRegistry
             'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
             'templateResources' => $templates,
             'fixtureSources' => $fixtureSources,
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     family:string,
+     *     outputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     unsupportedOutputCount:int,
+     *     outputSupportStatusCounts:array<string, int>,
+     *     registeredWriterImplementations:int,
+     *     nativeWriterImplementations:list<string>,
+     *     directWriterParitySupported:bool,
+     *     externalToolFree:bool,
+     *     inputExtensionInference:array<string, string>,
+     *     formats:array<string, array{format:string, label:string, family:string, input:bool, output:bool, direction:string, outputStatus:string, unsupported:bool, unsupportedDirections:list<string>, unsupportedWriterReason:array{code:string, reason:string}, nativeImplementation:array{reader:string, writer:string}, writerImplementationRecord:array{status:string, implementation:string, notes:string}, writerCapable:bool, directWriterParitySupported:bool, externalToolFree:bool, sourceProvenance:array{module:string, function:string, registry:string}, writerFixturePaths:list<string>, upstreamTemplatePath:?string}>
+     * }
+     */
+    public static function wikiOutputTokenTaxonomyPacket(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $fixtures = self::wikiFixtureSources();
+        $templates = self::wikiTemplateResources();
+        $sourceProvenance = self::wikiOutputSourceProvenance();
+        $formats = [];
+        $nativeWriterImplementations = [];
+
+        foreach (self::WIKI_OUTPUT_FORMATS as $format) {
+            $direction = $directions[$format];
+            $writerSupport = $outputSupport[$format];
+            $readerImplementation = $direction['input'] ? $inputSupport[$format]['implementation'] : '';
+            $writerImplementation = $writerSupport['implementation'];
+
+            if ($writerImplementation !== '') {
+                $nativeWriterImplementations[] = $writerImplementation;
+            }
+
+            $formats[$format] = [
+                'format' => $format,
+                'label' => self::WIKI_FORMAT_LABELS[$format],
+                'family' => 'wiki',
+                'input' => $direction['input'],
+                'output' => true,
+                'direction' => $direction['direction'],
+                'outputStatus' => $writerSupport['status'],
+                'unsupported' => $writerSupport['status'] === 'unsupported',
+                'unsupportedDirections' => $writerSupport['status'] === 'unsupported' ? ['output'] : [],
+                'unsupportedWriterReason' => [
+                    'code' => self::WIKI_OUTPUT_UNSUPPORTED_WRITER_REASON_CODE,
+                    'reason' => self::WIKI_OUTPUT_UNSUPPORTED_WRITER_REASON,
+                ],
+                'nativeImplementation' => [
+                    'reader' => $readerImplementation,
+                    'writer' => $writerImplementation,
+                ],
+                'writerImplementationRecord' => $writerSupport,
+                'writerCapable' => $writerImplementation !== '' && $writerSupport['status'] !== 'unsupported',
+                'directWriterParitySupported' => $writerImplementation !== '' && $writerSupport['status'] !== 'unsupported',
+                'externalToolFree' => true,
+                'sourceProvenance' => $sourceProvenance[$format],
+                'writerFixturePaths' => $fixtures[$format]['writer'] ?? [],
+                'upstreamTemplatePath' => $templates[$format] ?? null,
+            ];
+        }
+
+        $unsupportedOutputFormats = self::formatsWithStatus($outputSupport, 'unsupported');
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'family' => 'wiki-output-writers',
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'unsupportedOutputFormats' => $unsupportedOutputFormats,
+            'unsupportedOutputCount' => count($unsupportedOutputFormats),
+            'outputSupportStatusCounts' => self::supportStatusCounts($outputSupport),
+            'registeredWriterImplementations' => count($nativeWriterImplementations),
+            'nativeWriterImplementations' => array_values(array_unique($nativeWriterImplementations)),
+            'directWriterParitySupported' => $unsupportedOutputFormats === [] && $nativeWriterImplementations !== [],
+            'externalToolFree' => true,
+            'inputExtensionInference' => self::WIKI_EXTENSION_INFERENCE,
             'formats' => $formats,
         ];
     }

@@ -1552,6 +1552,133 @@ return [
             $t->same('', $review['outputImplementation']);
         }
     },
+    'builds wiki output token taxonomy without writer parity claims' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::wikiOutputTokenTaxonomyPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same('wiki-output-writers', $packet['family']);
+        $t->same([
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'xwiki',
+            'zimwiki',
+        ], $packet['outputFormats']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $packet['unsupportedOutputFormats']);
+        $t->same(5, $packet['unsupportedOutputCount']);
+        $t->same(['unsupported' => 5], $packet['outputSupportStatusCounts']);
+        $t->same(0, $packet['registeredWriterImplementations']);
+        $t->same([], $packet['nativeWriterImplementations']);
+        $t->same(false, $packet['directWriterParitySupported']);
+        $t->same(true, $packet['externalToolFree']);
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $packet['inputExtensionInference']);
+        $t->same([
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($packet['formats']));
+
+        $reason = [
+            'code' => 'wiki-writer-not-ported',
+            'reason' => 'Upstream wiki writer output token is inventoried, but no native PHP wiki writer is registered for this format.',
+        ];
+
+        $t->same([
+            'format' => 'dokuwiki',
+            'label' => 'DokuWiki',
+            'family' => 'wiki',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'outputStatus' => 'unsupported',
+            'unsupported' => true,
+            'unsupportedDirections' => ['output'],
+            'unsupportedWriterReason' => $reason,
+            'nativeImplementation' => [
+                'reader' => '',
+                'writer' => '',
+            ],
+            'writerImplementationRecord' => [
+                'status' => 'unsupported',
+                'implementation' => '',
+                'notes' => 'No native PHP reader or writer is registered for this upstream Pandoc format yet.',
+            ],
+            'writerCapable' => false,
+            'directWriterParitySupported' => false,
+            'externalToolFree' => true,
+            'sourceProvenance' => [
+                'module' => 'Text.Pandoc.Writers.DokuWiki',
+                'function' => 'writeDokuWiki',
+                'registry' => '("dokuwiki"     , TextWriter writeDokuWiki)',
+            ],
+            'writerFixturePaths' => [
+                'test/tables.dokuwiki',
+                'test/writer.dokuwiki',
+            ],
+            'upstreamTemplatePath' => 'data/templates/default.dokuwiki',
+        ], $packet['formats']['dokuwiki']);
+
+        $t->same([
+            'format' => 'xwiki',
+            'label' => 'XWiki',
+            'family' => 'wiki',
+            'input' => false,
+            'output' => true,
+            'direction' => 'output-only',
+            'outputStatus' => 'unsupported',
+            'unsupported' => true,
+            'unsupportedDirections' => ['output'],
+            'unsupportedWriterReason' => $reason,
+            'nativeImplementation' => [
+                'reader' => '',
+                'writer' => '',
+            ],
+            'writerImplementationRecord' => [
+                'status' => 'unsupported',
+                'implementation' => '',
+                'notes' => 'No native PHP reader or writer is registered for this upstream Pandoc format yet.',
+            ],
+            'writerCapable' => false,
+            'directWriterParitySupported' => false,
+            'externalToolFree' => true,
+            'sourceProvenance' => [
+                'module' => 'Text.Pandoc.Writers.XWiki',
+                'function' => 'writeXWiki',
+                'registry' => '("xwiki"        , TextWriter writeXWiki)',
+            ],
+            'writerFixturePaths' => [
+                'test/tables.xwiki',
+                'test/writer.xwiki',
+            ],
+            'upstreamTemplatePath' => 'data/templates/default.xwiki',
+        ], $packet['formats']['xwiki']);
+
+        foreach ($packet['formats'] as $format => $taxonomy) {
+            $t->same('wiki', $taxonomy['family'], "Wiki output taxonomy {$format} should stay in the wiki family");
+            $t->same(true, $taxonomy['output'], "Wiki output taxonomy {$format} should cover an output token");
+            $t->same('unsupported', $taxonomy['outputStatus'], "Wiki output taxonomy {$format} should keep unsupported writer status");
+            $t->same(true, $taxonomy['unsupported'], "Wiki output taxonomy {$format} should be explicitly unsupported");
+            $t->same(['output'], $taxonomy['unsupportedDirections'], "Wiki output taxonomy {$format} should only mark writer output unsupported");
+            $t->same($reason, $taxonomy['unsupportedWriterReason'], "Wiki output taxonomy {$format} should expose the stable writer reason payload");
+            $t->same([
+                'reader' => '',
+                'writer' => '',
+            ], $taxonomy['nativeImplementation'], "Wiki output taxonomy {$format} must not register native implementations");
+            $t->same('', $taxonomy['writerImplementationRecord']['implementation'], "Wiki output taxonomy {$format} must keep an empty writer implementation record");
+            $t->same(false, $taxonomy['writerCapable'], "Wiki output taxonomy {$format} must not claim writer capability");
+            $t->same(false, $taxonomy['directWriterParitySupported'], "Wiki output taxonomy {$format} must not claim direct writer parity");
+            $t->same(true, $taxonomy['externalToolFree'], "Wiki output taxonomy {$format} must remain external-tool free");
+            $t->contains('Text.Pandoc.Writers.', $taxonomy['sourceProvenance']['module']);
+            $t->contains('TextWriter', $taxonomy['sourceProvenance']['registry']);
+        }
+    },
     'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
         $formats = [
             'asciidoc',
