@@ -58,7 +58,7 @@ final class IpynbReader
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
             $outputs = isset($cell['outputs']) && is_array($cell['outputs']) ? $cell['outputs'] : [];
             $attachmentSummary = $this->attachmentSummary($attachments);
-            $outputSummary = $this->outputSummary($outputs);
+            $outputSummary = $this->outputSummary($outputs, $index);
 
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
@@ -72,6 +72,12 @@ final class IpynbReader
             }
             if ($outputSummary['count'] > 0) {
                 $attributes['data-ipynb-output-count'] = (string) $outputSummary['count'];
+            }
+            if ($outputSummary['mimeTypes'] !== []) {
+                $attributes['data-ipynb-output-mime-types'] = implode(' ', $outputSummary['mimeTypes']);
+            }
+            if ($outputSummary['richUnsupportedCount'] > 0) {
+                $attributes['data-ipynb-rich-output-unsupported-count'] = (string) $outputSummary['richUnsupportedCount'];
             }
             if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
                 $attributes['data-ipynb-execution-count'] = (string) $cell['execution_count'];
@@ -101,6 +107,10 @@ final class IpynbReader
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
+                'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
+                'ipynbOutputSummaries' => $outputSummary['outputs'],
+                'ipynbOutputUnsupportedVerdicts' => $outputSummary['unsupportedVerdicts'],
+                'ipynbRichOutputUnsupportedCount' => $outputSummary['richUnsupportedCount'],
             ];
             if (array_key_exists('id', $cell) && is_string($cell['id']) && $cell['id'] !== '') {
                 $cellAttrs['ipynbCellId'] = $cell['id'];
@@ -116,8 +126,38 @@ final class IpynbReader
                 'sourceBytes' => strlen($source),
                 'attachmentCount' => $attachmentSummary['count'],
                 'outputCount' => $outputSummary['count'],
+                'outputTypes' => $outputSummary['types'],
+                'outputMimeTypes' => $outputSummary['mimeTypes'],
+                'richOutputUnsupportedCount' => $outputSummary['richUnsupportedCount'],
             ];
         }
+
+        $notebookOutputMimeTypes = [];
+        $notebookOutputDiagnostics = [];
+        $notebookRichOutputUnsupportedCount = 0;
+        foreach ($blocks as $block) {
+            $mimeTypes = $block->attr('ipynbOutputMimeTypes', []);
+            if (is_array($mimeTypes)) {
+                foreach ($mimeTypes as $mimeType) {
+                    if (is_string($mimeType) && $mimeType !== '') {
+                        $notebookOutputMimeTypes[] = $mimeType;
+                    }
+                }
+            }
+
+            $unsupportedVerdicts = $block->attr('ipynbOutputUnsupportedVerdicts', []);
+            if (is_array($unsupportedVerdicts)) {
+                foreach ($unsupportedVerdicts as $verdict) {
+                    if (is_array($verdict)) {
+                        $notebookOutputDiagnostics[] = $verdict;
+                    }
+                }
+            }
+
+            $notebookRichOutputUnsupportedCount += (int) $block->attr('ipynbRichOutputUnsupportedCount', 0);
+        }
+        $notebookOutputMimeTypes = array_values(array_unique($notebookOutputMimeTypes));
+        sort($notebookOutputMimeTypes);
 
         return new AstNode('document', [
             'sourceFormat' => 'ipynb',
@@ -127,6 +167,9 @@ final class IpynbReader
             'notebookRawCellCount' => $rawCellCount,
             'notebookAttachmentCount' => $attachmentCount,
             'notebookOutputCount' => $outputCount,
+            'notebookOutputMimeTypes' => $notebookOutputMimeTypes,
+            'notebookRichOutputUnsupportedCount' => $notebookRichOutputUnsupportedCount,
+            'notebookOutputDiagnostics' => $notebookOutputDiagnostics,
             'notebookNbformat' => $notebook['nbformat'] ?? null,
             'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
             'notebookKernelName' => $this->metadataString($metadata['kernelspec'] ?? null, 'name'),
@@ -251,25 +294,147 @@ final class IpynbReader
 
     /**
      * @param array<int, mixed> $outputs
-     * @return array{count:int, types:list<string>}
+     * @return array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int}
      */
-    private function outputSummary(array $outputs): array
+    private function outputSummary(array $outputs, int $cellIndex): array
     {
         $types = [];
-        foreach ($outputs as $output) {
+        $mimeTypes = [];
+        $summaries = [];
+        $unsupportedVerdicts = [];
+        foreach ($outputs as $index => $output) {
             if (!is_array($output)) {
+                $summaries[] = [
+                    'index' => $index,
+                    'outputType' => 'unknown',
+                    'diagnostics' => ['ipynb-output-not-object'],
+                ];
                 continue;
             }
             $type = $output['output_type'] ?? null;
-            if (is_string($type) && $type !== '') {
-                $types[] = $type;
+            $outputType = is_string($type) && $type !== '' ? $type : 'unknown';
+            if ($outputType !== 'unknown') {
+                $types[] = $outputType;
             }
+
+            $summary = [
+                'index' => $index,
+                'outputType' => $outputType,
+            ];
+
+            $outputMimeTypes = $this->outputMimeTypes($output);
+            if ($outputMimeTypes !== []) {
+                $summary['mimeTypes'] = $outputMimeTypes;
+                $summary['mimeCount'] = count($outputMimeTypes);
+                array_push($mimeTypes, ...$outputMimeTypes);
+            }
+
+            if (isset($output['metadata']) && is_array($output['metadata'])) {
+                $summary['metadataKeyCount'] = count($output['metadata']);
+            }
+
+            if ($outputType === 'stream') {
+                $streamName = $output['name'] ?? null;
+                if (is_string($streamName) && $streamName !== '') {
+                    $summary['streamName'] = $streamName;
+                }
+                $summary['textLineCount'] = $this->outputTextLineCount($output['text'] ?? null);
+            } elseif ($outputType === 'error') {
+                $errorName = $output['ename'] ?? null;
+                if (is_string($errorName) && $errorName !== '') {
+                    $summary['errorName'] = $errorName;
+                }
+                $summary['tracebackLineCount'] = $this->outputTextLineCount($output['traceback'] ?? null);
+            }
+
+            if ($this->isRichOutputType($outputType) && $outputMimeTypes !== []) {
+                $verdict = [
+                    'code' => 'ipynb-rich-output-unsupported',
+                    'cellIndex' => $cellIndex,
+                    'outputIndex' => $index,
+                    'outputType' => $outputType,
+                    'mimeTypes' => $outputMimeTypes,
+                    'mimeCount' => count($outputMimeTypes),
+                    'reason' => 'rich-output-rendering-not-implemented',
+                    'payloadPolicy' => 'metadata-only-no-payload-bytes',
+                ];
+                $summary['unsupportedVerdict'] = $verdict['code'];
+                $unsupportedVerdicts[] = $verdict;
+            }
+
+            $summaries[] = $summary;
         }
+        $types = array_values(array_unique($types));
+        $mimeTypes = array_values(array_unique($mimeTypes));
+        sort($mimeTypes);
 
         return [
             'count' => count($outputs),
-            'types' => array_values(array_unique($types)),
+            'types' => $types,
+            'mimeTypes' => $mimeTypes,
+            'outputs' => $summaries,
+            'unsupportedVerdicts' => $unsupportedVerdicts,
+            'richUnsupportedCount' => count($unsupportedVerdicts),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $output
+     * @return list<string>
+     */
+    private function outputMimeTypes(array $output): array
+    {
+        $data = $output['data'] ?? null;
+        if (!is_array($data)) {
+            return [];
+        }
+
+        $mimeTypes = [];
+        foreach ($data as $mimeType => $_payload) {
+            $mimeType = $this->normalizeMimeType((string) $mimeType);
+            if ($mimeType !== '') {
+                $mimeTypes[] = $mimeType;
+            }
+        }
+        $mimeTypes = array_values(array_unique($mimeTypes));
+        sort($mimeTypes);
+
+        return $mimeTypes;
+    }
+
+    private function normalizeMimeType(string $mimeType): string
+    {
+        $mimeType = strtolower(trim($mimeType));
+        if (preg_match('/^[a-z0-9][a-z0-9.+_-]*\/[a-z0-9][a-z0-9.+_-]*(?:\s*;\s*[a-z0-9_.-]+=(?:"[^"]*"|[^;\s]+))*$/', $mimeType) !== 1) {
+            return '';
+        }
+
+        return $mimeType;
+    }
+
+    private function outputTextLineCount(mixed $text): int
+    {
+        if (is_string($text)) {
+            return $text === '' ? 0 : substr_count($text, "\n") + 1;
+        }
+
+        if (!is_array($text)) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ($text as $line) {
+            if (is_string($line)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function isRichOutputType(string $outputType): bool
+    {
+        return in_array($outputType, ['display_data', 'execute_result'], true);
     }
 
     /**
