@@ -8,6 +8,7 @@ final class IpynbReader
 {
     private const MAX_CELLS = 200;
     private const MAX_CELL_SOURCE_BYTES = 1048576;
+    private const MAX_EXECUTION_COUNT = 2147483647;
     private const UNSAFE_CELL_METADATA_KEYS = [
         'collapsed',
         'deletable',
@@ -42,6 +43,10 @@ final class IpynbReader
             throw new \InvalidArgumentException('IPYNB notebook exceeds the bounded native reader cell limit');
         }
 
+        $nbformat = $notebook['nbformat'] ?? null;
+        $nbformatMinor = $notebook['nbformat_minor'] ?? null;
+        $cellIdsRequired = $this->cellIdsRequired($nbformat, $nbformatMinor);
+
         $notebookSchemaDiagnostics = $this->notebookSchemaDiagnostics($notebook, $cells);
         $schemaDiagnostics = $notebookSchemaDiagnostics;
         $cellSchemaDiagnosticCount = 0;
@@ -65,10 +70,15 @@ final class IpynbReader
         $notebookRichOutputUnsupportedCount = 0;
         $notebookOutputMimeTypes = [];
         $notebookOutputDiagnostics = [];
+        $notebookDiagnostics = [];
         $attachmentMedia = [];
         $attachmentMediaDiagnostics = [];
         $attachmentManifestEntries = [];
         $attachmentDiagnostics = [];
+        $cellExecutionCountPresentCount = 0;
+        $cellExecutionCountValidCount = 0;
+        $outputExecutionCountRecordCount = 0;
+        $outputExecutionCountMismatchCount = 0;
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -97,30 +107,46 @@ final class IpynbReader
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
             $outputs = isset($cell['outputs']) && is_array($cell['outputs']) ? $cell['outputs'] : [];
-            $attachmentSummary = $this->attachmentSummary($attachments, $index);
-            $outputSummary = $this->outputSummary($outputs, $index);
+            $attachmentSummary = $this->attachmentSummary($attachments, $cellIndex);
+            $cellId = $this->cellIdValue($cell);
+            $cellIdDiagnostics = $this->cellIdDiagnostics($cell, $cellType, $cellIndex, $cellIdsRequired);
+            $executionSummary = $this->executionCountSummary($cell, $cellType, $cellIndex, $cellId);
+            $outputSummary = $this->outputSummary($outputs, $executionSummary['validInteger'], $cellType, $cellIndex, $cellId);
             $cellMetadata = isset($cell['metadata']) && is_array($cell['metadata']) ? $cell['metadata'] : [];
             $cellMetadataKeys = $this->metadataKeys($cellMetadata);
             $cellTags = $this->metadataStringList($cellMetadata['tags'] ?? null);
             $cellDiagnostics = $this->cellDiagnostics($attachmentSummary, $outputSummary);
+            $cellExecutionDiagnostics = array_merge($cellIdDiagnostics, $executionSummary['diagnostics'], $outputSummary['executionDiagnostics']);
 
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
             $unsupportedResourceCount += $attachmentSummary['count'] + $outputSummary['bytePresenceCount'];
             $outputBytePresenceCount += $outputSummary['bytePresenceCount'];
             $outputMimeBundleCount += $outputSummary['mimeBundleCount'];
+            $outputExecutionCountRecordCount += $outputSummary['executionCountRecordCount'];
+            $outputExecutionCountMismatchCount += $outputSummary['executionCountMismatchCount'];
             $notebookRichOutputUnsupportedCount += $outputSummary['richUnsupportedCount'];
             $notebookOutputMimeTypes = array_merge($notebookOutputMimeTypes, $outputSummary['mimeTypes']);
             $notebookOutputDiagnostics = array_merge($notebookOutputDiagnostics, $outputSummary['unsupportedVerdicts']);
+            $notebookDiagnostics = array_merge($notebookDiagnostics, $cellExecutionDiagnostics);
             $attachmentMedia = array_merge($attachmentMedia, $attachmentSummary['media']);
             $attachmentMediaDiagnostics = array_merge($attachmentMediaDiagnostics, $attachmentSummary['diagnostics']);
             $attachmentManifestEntries = array_merge($attachmentManifestEntries, $attachmentSummary['manifestEntries']);
             $attachmentDiagnostics = array_merge($attachmentDiagnostics, $attachmentSummary['manifestDiagnostics']);
+            if ($executionSummary['present']) {
+                $cellExecutionCountPresentCount++;
+            }
+            if ($executionSummary['valid']) {
+                $cellExecutionCountValidCount++;
+            }
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $cellIndex,
                 'data-ipynb-cell-type' => $cellType,
             ];
+            if ($cellId !== null) {
+                $attributes['data-ipynb-cell-id'] = $cellId;
+            }
             if ($attachmentSummary['count'] > 0) {
                 $attributes['data-ipynb-attachment-count'] = (string) $attachmentSummary['count'];
             }
@@ -140,17 +166,23 @@ final class IpynbReader
             if ($outputSummary['executionCounts'] !== []) {
                 $attributes['data-ipynb-output-execution-counts'] = implode(' ', array_map(static fn (int $count): string => (string) $count, $outputSummary['executionCounts']));
             }
+            if ($outputSummary['executionCountMismatchCount'] > 0) {
+                $attributes['data-ipynb-output-execution-count-mismatch-count'] = (string) $outputSummary['executionCountMismatchCount'];
+            }
             if ($outputSummary['errorNames'] !== []) {
                 $attributes['data-ipynb-output-error-names'] = implode(' ', $outputSummary['errorNames']);
             }
             if ($outputSummary['streamNames'] !== []) {
                 $attributes['data-ipynb-output-stream-names'] = implode(' ', $outputSummary['streamNames']);
             }
-            if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
-                $attributes['data-ipynb-execution-count'] = (string) $cell['execution_count'];
+            if ($executionSummary['validInteger'] !== null) {
+                $attributes['data-ipynb-execution-count'] = (string) $executionSummary['validInteger'];
             }
             if ($cellTags !== []) {
                 $attributes['data-ipynb-cell-tags'] = implode(' ', $cellTags);
+            }
+            if ($cellExecutionDiagnostics !== []) {
+                $attributes['data-ipynb-diagnostic-count'] = (string) count($cellExecutionDiagnostics);
             }
             if ($cellDiagnostics !== []) {
                 $attributes['data-ipynb-diagnostics'] = implode(' ', $cellDiagnostics);
@@ -164,7 +196,7 @@ final class IpynbReader
 
             $children = match ($cellType) {
                 'markdown' => $this->markdownCellBlocks($source),
-                'code' => [$this->codeCellBlock($source, $language, $cellIndex, $cell)],
+                'code' => [$this->codeCellBlock($source, $language, $cellIndex, $executionSummary['validInteger'])],
                 'raw' => [$this->rawCellBlock($source, $cellIndex)],
                 default => [$this->unsupportedCellBlock($source, $cellType, $cellIndex)],
             };
@@ -195,6 +227,9 @@ final class IpynbReader
                 'ipynbOutputMimeBundleCount' => $outputSummary['mimeBundleCount'],
                 'ipynbOutputBytePresenceCount' => $outputSummary['bytePresenceCount'],
                 'ipynbOutputExecutionCounts' => $outputSummary['executionCounts'],
+                'ipynbOutputExecutionCountRecords' => $outputSummary['executionCountRecords'],
+                'ipynbOutputExecutionCountRecordCount' => $outputSummary['executionCountRecordCount'],
+                'ipynbOutputExecutionCountMismatchCount' => $outputSummary['executionCountMismatchCount'],
                 'ipynbOutputErrorNames' => $outputSummary['errorNames'],
                 'ipynbOutputStreamNames' => $outputSummary['streamNames'],
                 'ipynbOutputUnsupportedVerdicts' => $outputSummary['unsupportedVerdicts'],
@@ -203,9 +238,14 @@ final class IpynbReader
                 'ipynbUnsupportedResourceDiagnostics' => $cellDiagnostics,
                 'ipynbCellMetadataKeys' => $cellMetadataKeys,
                 'ipynbCellTags' => $cellTags,
+                'ipynbExecutionCountPresent' => $executionSummary['present'],
+                'ipynbExecutionCountValid' => $executionSummary['valid'],
+                'ipynbExecutionCountType' => $executionSummary['type'],
+                'ipynbDiagnosticCount' => count($cellExecutionDiagnostics),
+                'ipynbDiagnostics' => $cellExecutionDiagnostics,
             ];
-            if (array_key_exists('id', $cell) && is_string($cell['id']) && $cell['id'] !== '') {
-                $cellAttrs['ipynbCellId'] = $cell['id'];
+            if ($cellId !== null) {
+                $cellAttrs['ipynbCellId'] = $cellId;
             }
             if (array_key_exists('execution_count', $cell) && (is_int($cell['execution_count']) || $cell['execution_count'] === null)) {
                 $cellAttrs['ipynbExecutionCount'] = $cell['execution_count'];
@@ -236,15 +276,28 @@ final class IpynbReader
                 'outputMimeBundleCount' => $outputSummary['mimeBundleCount'],
                 'outputBytePresenceCount' => $outputSummary['bytePresenceCount'],
                 'outputExecutionCounts' => $outputSummary['executionCounts'],
+                'outputExecutionCountRecords' => $outputSummary['executionCountRecords'],
+                'outputExecutionCountRecordCount' => $outputSummary['executionCountRecordCount'],
+                'outputExecutionCountMismatchCount' => $outputSummary['executionCountMismatchCount'],
                 'outputErrorNames' => $outputSummary['errorNames'],
                 'outputStreamNames' => $outputSummary['streamNames'],
                 'outputUnsupportedVerdicts' => $outputSummary['unsupportedVerdicts'],
                 'richOutputUnsupportedCount' => $outputSummary['richUnsupportedCount'],
                 'unsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['bytePresenceCount'],
                 'diagnostics' => $cellDiagnostics,
+                'executionCountPresent' => $executionSummary['present'],
+                'executionCountValid' => $executionSummary['valid'],
+                'diagnosticCount' => count($cellExecutionDiagnostics),
+                'executionDiagnostics' => $cellExecutionDiagnostics,
                 'metadataKeys' => $cellMetadataKeys,
                 'tags' => $cellTags,
             ];
+            if ($cellId !== null) {
+                $cellSummary['id'] = $cellId;
+            }
+            if (array_key_exists('execution_count', $cell) && (is_int($cell['execution_count']) || $cell['execution_count'] === null)) {
+                $cellSummary['executionCount'] = $cell['execution_count'];
+            }
             if ($cellSchemaDiagnostics !== []) {
                 $cellSummary['schemaDiagnosticCount'] = count($cellSchemaDiagnostics);
                 $cellSummary['schemaDiagnostics'] = $cellSchemaDiagnostics;
@@ -290,11 +343,18 @@ final class IpynbReader
             'notebookOutputMimeTypes' => $this->uniqueSortedStrings($notebookOutputMimeTypes),
             'notebookOutputBytePresenceCount' => $outputBytePresenceCount,
             'notebookOutputMimeBundleCount' => $outputMimeBundleCount,
+            'notebookCellIdsRequired' => $cellIdsRequired,
+            'notebookCellExecutionCountPresentCount' => $cellExecutionCountPresentCount,
+            'notebookCellExecutionCountValidCount' => $cellExecutionCountValidCount,
+            'notebookOutputExecutionCountRecordCount' => $outputExecutionCountRecordCount,
+            'notebookOutputExecutionCountMismatchCount' => $outputExecutionCountMismatchCount,
+            'notebookDiagnosticCount' => count($notebookDiagnostics),
+            'notebookDiagnostics' => $notebookDiagnostics,
             'notebookRichOutputUnsupportedCount' => $notebookRichOutputUnsupportedCount,
             'notebookOutputDiagnostics' => $notebookOutputDiagnostics,
             'notebookUnsupportedResourceCount' => $unsupportedResourceCount,
-            'notebookNbformat' => $notebook['nbformat'] ?? null,
-            'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
+            'notebookNbformat' => $nbformat,
+            'notebookNbformatMinor' => $nbformatMinor,
             'notebookMetadataKeys' => $metadataKeys,
             'notebookKernelName' => $this->metadataString($metadata['kernelspec'] ?? null, 'name'),
             'notebookLanguage' => $language,
@@ -341,7 +401,7 @@ final class IpynbReader
     /**
      * @param array<string, mixed> $cell
      */
-    private function codeCellBlock(string $source, string $language, int $index, array $cell): AstNode
+    private function codeCellBlock(string $source, string $language, int $index, ?int $executionCount): AstNode
     {
         $classes = ['ipynb-code-cell-source'];
         if ($language !== '') {
@@ -356,8 +416,8 @@ final class IpynbReader
             ],
             'text' => $source,
         ];
-        if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
-            $attrs['attributes']['data-ipynb-execution-count'] = (string) $cell['execution_count'];
+        if ($executionCount !== null) {
+            $attrs['attributes']['data-ipynb-execution-count'] = (string) $executionCount;
         }
 
         return new AstNode('code_block', $attrs);
@@ -396,6 +456,116 @@ final class IpynbReader
         $normalized = $this->sanitizeClassToken(strtolower($cellType));
 
         return $normalized === '' ? 'unknown' : $normalized;
+    }
+
+    private function cellIdsRequired(mixed $nbformat, mixed $nbformatMinor): bool
+    {
+        if (!is_int($nbformat)) {
+            return false;
+        }
+        if ($nbformat > 4) {
+            return true;
+        }
+
+        return $nbformat === 4 && is_int($nbformatMinor) && $nbformatMinor >= 5;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     */
+    private function cellIdValue(array $cell): ?string
+    {
+        $id = $cell['id'] ?? null;
+
+        return is_string($id) && $id !== '' ? $id : null;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return list<array<string, mixed>>
+     */
+    private function cellIdDiagnostics(array $cell, string $cellType, int $index, bool $required): array
+    {
+        if (!$required) {
+            return [];
+        }
+
+        if (!array_key_exists('id', $cell)) {
+            return [$this->diagnostic('missing-cell-id', $index, $cellType, null)];
+        }
+
+        $id = $cell['id'];
+        if (!is_string($id) || $id === '') {
+            return [$this->diagnostic('invalid-cell-id', $index, $cellType, null, [
+                'valueType' => $this->valueKind($id),
+            ])];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return array{present:bool, valid:bool, validInteger:int|null, type:string, diagnostics:list<array<string, mixed>>}
+     */
+    private function executionCountSummary(array $cell, string $cellType, int $index, ?string $cellId): array
+    {
+        $present = array_key_exists('execution_count', $cell);
+        $diagnostics = [];
+        $type = 'missing';
+        $valid = false;
+        $validInteger = null;
+
+        if (!$present) {
+            if ($cellType === 'code') {
+                $diagnostics[] = $this->diagnostic('missing-cell-execution-count', $index, $cellType, $cellId);
+            }
+
+            return [
+                'present' => false,
+                'valid' => false,
+                'validInteger' => null,
+                'type' => $type,
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        $value = $cell['execution_count'];
+        if ($value === null) {
+            $type = 'null';
+            $valid = true;
+        } elseif (is_int($value)) {
+            $type = 'integer';
+            if ($value < 0 || $value > self::MAX_EXECUTION_COUNT) {
+                $diagnostics[] = $this->diagnostic('cell-execution-count-out-of-range', $index, $cellType, $cellId, [
+                    'value' => $value,
+                    'min' => 0,
+                    'max' => self::MAX_EXECUTION_COUNT,
+                ]);
+            } else {
+                $valid = true;
+                $validInteger = $value;
+            }
+        } else {
+            $type = $this->valueKind($value);
+            $diagnostics[] = $this->diagnostic('cell-execution-count-invalid-type', $index, $cellType, $cellId, [
+                'valueType' => $type,
+            ]);
+        }
+
+        if ($cellType !== 'code') {
+            $diagnostics[] = $this->diagnostic('unexpected-cell-execution-count', $index, $cellType, $cellId, [
+                'valueType' => $type,
+            ]);
+        }
+
+        return [
+            'present' => true,
+            'valid' => $valid,
+            'validInteger' => $validInteger,
+            'type' => $type,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     private function normalizeSource(mixed $source, string $label): string
@@ -618,9 +788,9 @@ final class IpynbReader
 
     /**
      * @param array<int, mixed> $outputs
-     * @return array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>}
+     * @return array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, executionCountRecords:list<array<string, mixed>>, executionCountRecordCount:int, executionCountMismatchCount:int, executionDiagnostics:list<array<string, mixed>>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>}
      */
-    private function outputSummary(array $outputs, int $cellIndex): array
+    private function outputSummary(array $outputs, ?int $cellExecutionCount, string $cellType, int $cellIndex, ?string $cellId): array
     {
         $types = [];
         $mimeTypes = [];
@@ -629,6 +799,9 @@ final class IpynbReader
         $mimeBundleCount = 0;
         $bytePresenceCount = 0;
         $executionCounts = [];
+        $executionCountRecords = [];
+        $executionDiagnostics = [];
+        $executionCountMismatchCount = 0;
         $errorNames = [];
         $streamNames = [];
         $diagnostics = [];
@@ -714,11 +887,59 @@ final class IpynbReader
                 $summary['errorValuePresent'] = $hasErrorValue;
                 $summary['tracebackLineCount'] = $this->outputTextLineCount($output['traceback'] ?? null);
             }
-            if (array_key_exists('execution_count', $output) && (is_int($output['execution_count']) || $output['execution_count'] === null)) {
-                $summary['executionCount'] = $output['execution_count'];
-                if (is_int($output['execution_count'])) {
-                    $executionCounts[] = $output['execution_count'];
+            if (array_key_exists('execution_count', $output)) {
+                $value = $output['execution_count'];
+                $record = [
+                    'outputIndex' => $index,
+                    'outputType' => $outputType === 'unknown' ? null : $outputType,
+                    'valueType' => $this->valueKind($value),
+                    'valid' => false,
+                    'matchesCell' => null,
+                ];
+
+                if (is_int($value) || $value === null) {
+                    $summary['executionCount'] = $value;
                 }
+                if (is_int($value)) {
+                    $record['executionCount'] = $value;
+                    if ($value < 0 || $value > self::MAX_EXECUTION_COUNT) {
+                        $executionDiagnostics[] = $this->diagnostic('output-execution-count-out-of-range', $cellIndex, $cellType, $cellId, [
+                            'outputIndex' => $index,
+                            'outputType' => $record['outputType'],
+                            'value' => $value,
+                            'min' => 0,
+                            'max' => self::MAX_EXECUTION_COUNT,
+                        ]);
+                    } else {
+                        $record['valid'] = true;
+                        $executionCounts[] = $value;
+                        if ($cellExecutionCount !== null) {
+                            $record['matchesCell'] = $value === $cellExecutionCount;
+                            if ($value !== $cellExecutionCount) {
+                                $executionCountMismatchCount++;
+                                $executionDiagnostics[] = $this->diagnostic('output-execution-count-mismatch', $cellIndex, $cellType, $cellId, [
+                                    'outputIndex' => $index,
+                                    'outputType' => $record['outputType'],
+                                    'cellExecutionCount' => $cellExecutionCount,
+                                    'outputExecutionCount' => $value,
+                                ]);
+                            }
+                        }
+                    }
+                } else {
+                    $executionDiagnostics[] = $this->diagnostic('output-execution-count-invalid-type', $cellIndex, $cellType, $cellId, [
+                        'outputIndex' => $index,
+                        'outputType' => $record['outputType'],
+                        'valueType' => $record['valueType'],
+                    ]);
+                }
+
+                $executionCountRecords[] = $record;
+            } elseif ($outputType === 'execute_result') {
+                $executionDiagnostics[] = $this->diagnostic('output-execution-count-missing', $cellIndex, $cellType, $cellId, [
+                    'outputIndex' => $index,
+                    'outputType' => $outputType,
+                ]);
             }
 
             if ($this->isRichOutputType($outputType) && $outputMimeTypes !== []) {
@@ -752,6 +973,10 @@ final class IpynbReader
             'mimeBundleCount' => $mimeBundleCount,
             'bytePresenceCount' => $bytePresenceCount,
             'executionCounts' => array_values(array_unique($executionCounts)),
+            'executionCountRecords' => $executionCountRecords,
+            'executionCountRecordCount' => count($executionCountRecords),
+            'executionCountMismatchCount' => $executionCountMismatchCount,
+            'executionDiagnostics' => $executionDiagnostics,
             'errorNames' => $this->uniqueSortedStrings($errorNames),
             'streamNames' => $this->uniqueSortedStrings($streamNames),
             'diagnostics' => array_values(array_unique($diagnostics)),
@@ -819,7 +1044,7 @@ final class IpynbReader
 
     /**
      * @param array{count:int, names:list<string>, mimeTypes:list<string>, media:list<array<string, mixed>>, diagnostics:list<string>} $attachmentSummary
-     * @param array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>} $outputSummary
+     * @param array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, diagnostics:list<string>} $outputSummary
      * @return list<string>
      */
     private function cellDiagnostics(array $attachmentSummary, array $outputSummary): array
@@ -1081,6 +1306,47 @@ final class IpynbReader
         }
 
         return $diagnostic;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function diagnostic(string $issue, int $cellIndex, string $cellType, ?string $cellId, array $extra = []): array
+    {
+        $diagnostic = [
+            'issue' => $issue,
+            'cellIndex' => $cellIndex,
+            'cellType' => $cellType,
+        ];
+        if ($cellId !== null) {
+            $diagnostic['cellId'] = $cellId;
+        }
+
+        return $diagnostic + $extra;
+    }
+
+    private function valueKind(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_int($value)) {
+            return 'integer';
+        }
+        if (is_float($value)) {
+            return 'number';
+        }
+        if (is_string($value)) {
+            return 'string';
+        }
+        if (is_bool($value)) {
+            return 'boolean';
+        }
+        if (is_array($value)) {
+            return 'array';
+        }
+
+        return get_debug_type($value);
     }
 
     private function jsonValueType(mixed $value): string

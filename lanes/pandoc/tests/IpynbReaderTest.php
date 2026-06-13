@@ -24,6 +24,13 @@ return [
         $t->same(1, $document->attr('notebookRawCellCount'));
         $t->same(1, $document->attr('notebookAttachmentCount'));
         $t->same(2, $document->attr('notebookOutputCount'));
+        $t->same(true, $document->attr('notebookCellIdsRequired'));
+        $t->same(1, $document->attr('notebookCellExecutionCountPresentCount'));
+        $t->same(1, $document->attr('notebookCellExecutionCountValidCount'));
+        $t->same(0, $document->attr('notebookOutputExecutionCountRecordCount'));
+        $t->same(0, $document->attr('notebookOutputExecutionCountMismatchCount'));
+        $t->same(0, $document->attr('notebookDiagnosticCount'));
+        $t->same([], $document->attr('notebookDiagnostics'));
         $t->same(['text/plain'], $document->attr('notebookOutputMimeTypes'));
         $t->same(2, $document->attr('notebookOutputBytePresenceCount'));
         $t->same(1, $document->attr('notebookOutputMimeBundleCount'));
@@ -32,6 +39,9 @@ return [
         $t->same(['kernelspec', 'language_info'], $document->attr('notebookMetadataKeys'));
         $t->same('python3', $document->attr('notebookKernelName'));
         $t->same('python', $document->attr('notebookLanguage'));
+        $t->same('compute', $document->attr('notebookCells')[1]['id']);
+        $t->same(7, $document->attr('notebookCells')[1]['executionCount']);
+        $t->same(0, $document->attr('notebookCells')[1]['diagnosticCount']);
         $t->same([
             'state' => 'metadata-only',
             'byteExposure' => 'blocked',
@@ -71,6 +81,11 @@ return [
         $t->same('code', $code->attr('ipynbCellType'));
         $t->same(2, $code->attr('ipynbOutputCount'));
         $t->same(['stream', 'display_data'], $code->attr('ipynbOutputTypes'));
+        $t->same([], $code->attr('ipynbDiagnostics'));
+        $t->same(true, $code->attr('ipynbExecutionCountPresent'));
+        $t->same(true, $code->attr('ipynbExecutionCountValid'));
+        $t->same(0, $code->attr('ipynbOutputExecutionCountRecordCount'));
+        $t->same(0, $code->attr('ipynbOutputExecutionCountMismatchCount'));
         $t->same(['text/plain'], $code->attr('ipynbOutputMimeTypes'));
         $t->same(1, $code->attr('ipynbOutputMimeBundleCount'));
         $t->same(2, $code->attr('ipynbOutputBytePresenceCount'));
@@ -107,6 +122,9 @@ return [
         $t->same(['review'], $cellSummaries[0]['tags']);
         $t->same(['text/plain'], $cellSummaries[1]['outputMimeTypes']);
         $t->same(2, $cellSummaries[1]['outputBytePresenceCount']);
+        $t->same('compute', $cellSummaries[1]['id']);
+        $t->same(7, $cellSummaries[1]['executionCount']);
+        $t->same(0, $cellSummaries[1]['diagnosticCount']);
         $t->same([
             'output-bytes-blocked',
             'output-stream-bytes-blocked',
@@ -136,6 +154,122 @@ return [
         $t->contains('print(&quot;ready&quot;)', $html);
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
         $t->same(false, str_contains($html, '<Figure size 640x480>'));
+    },
+    'reports bounded ipynb execution metadata diagnostics without executing notebooks' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'execution_count' => 1,
+                    'id' => 'intro',
+                    'source' => 'Intro',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => ['text/plain' => ['missing']],
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'missing_id_and_count()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => '4',
+                    'id' => 'string-count',
+                    'outputs' => [
+                        [
+                            'data' => ['text/plain' => ['4']],
+                            'execution_count' => 4,
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'string_count()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => -1,
+                    'id' => 'negative-count',
+                    'outputs' => [
+                        [
+                            'data' => ['text/plain' => ['negative']],
+                            'execution_count' => -1,
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'negative_count()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => 3,
+                    'id' => 'mismatch-count',
+                    'outputs' => [
+                        [
+                            'data' => ['text/plain' => ['4']],
+                            'execution_count' => 4,
+                            'output_type' => 'execute_result',
+                        ],
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['done'],
+                        ],
+                    ],
+                    'source' => 'mismatch_count()',
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $t->same(true, $document->attr('notebookCellIdsRequired'));
+        $t->same(5, $document->attr('notebookCellCount'));
+        $t->same(4, $document->attr('notebookCellExecutionCountPresentCount'));
+        $t->same(2, $document->attr('notebookCellExecutionCountValidCount'));
+        $t->same(3, $document->attr('notebookOutputExecutionCountRecordCount'));
+        $t->same(1, $document->attr('notebookOutputExecutionCountMismatchCount'));
+        $t->same(8, $document->attr('notebookDiagnosticCount'));
+        $t->same([
+            'unexpected-cell-execution-count',
+            'missing-cell-id',
+            'missing-cell-execution-count',
+            'output-execution-count-missing',
+            'cell-execution-count-invalid-type',
+            'cell-execution-count-out-of-range',
+            'output-execution-count-out-of-range',
+            'output-execution-count-mismatch',
+        ], array_column($document->attr('notebookDiagnostics'), 'issue'));
+        $t->same([1, 3, 1, 2, 1], array_column($document->attr('notebookCells'), 'diagnosticCount'));
+
+        $missing = $document->children[1];
+        $t->same(3, count($missing->attr('ipynbDiagnostics')));
+        $t->same('3', $missing->attr('attributes')['data-ipynb-diagnostic-count']);
+        $t->same(false, $missing->attr('ipynbExecutionCountPresent'));
+        $t->same(false, $missing->attr('ipynbExecutionCountValid'));
+        $t->same('missing', $missing->attr('ipynbExecutionCountType'));
+
+        $stringCount = $document->children[2];
+        $t->same('string', $stringCount->attr('ipynbExecutionCountType'));
+        $t->same(false, $stringCount->attr('ipynbExecutionCountValid'));
+        $t->same(1, $stringCount->attr('ipynbOutputExecutionCountRecordCount'));
+        $t->same(4, $stringCount->attr('ipynbOutputExecutionCountRecords')[0]['executionCount']);
+
+        $negative = $document->children[3];
+        $t->same(-1, $negative->attr('ipynbExecutionCount'));
+        $t->same(false, $negative->attr('ipynbExecutionCountValid'));
+        $t->same([
+            'cell-execution-count-out-of-range',
+            'output-execution-count-out-of-range',
+        ], array_column($negative->attr('ipynbDiagnostics'), 'issue'));
+
+        $mismatch = $document->children[4];
+        $t->same('1', $mismatch->attr('attributes')['data-ipynb-output-execution-count-mismatch-count']);
+        $t->same(1, $mismatch->attr('ipynbOutputExecutionCountMismatchCount'));
+        $t->same(false, $mismatch->attr('ipynbOutputExecutionCountRecords')[0]['matchesCell']);
+        $t->same(3, $mismatch->attr('ipynbDiagnostics')[0]['cellExecutionCount']);
+        $t->same(4, $mismatch->attr('ipynbDiagnostics')[0]['outputExecutionCount']);
     },
     'preserves ipynb metadata keys and unsupported resource diagnostics without exposing resource bytes' => static function (TestRunner $t): void {
         $json = json_encode([
