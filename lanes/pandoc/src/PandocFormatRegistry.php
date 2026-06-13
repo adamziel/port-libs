@@ -804,6 +804,58 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{token:string, normalizedToken:string, kind:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, verdict:string, reason:string, unsupported:bool, partial:bool, inputImplementation:string, directReaderParitySupported:bool}|null
+     */
+    public static function wikiInputTokenStatusGate(string $token): ?array
+    {
+        $trimmed = trim($token);
+        $normalized = strtolower($trimmed);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $inputSupport = self::wikiInputSupport();
+        $kind = 'input-token';
+        $format = array_key_exists($normalized, $inputSupport) ? $normalized : null;
+        $normalizedToken = $normalized;
+
+        if ($format === null) {
+            $extension = $normalized[0] === '.' ? $normalized : '.' . $normalized;
+            $candidateFormat = self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+            if ($candidateFormat === null || !array_key_exists($candidateFormat, $inputSupport)) {
+                return null;
+            }
+
+            $kind = 'extension-alias';
+            $format = $candidateFormat;
+            $normalizedToken = $extension;
+        }
+
+        $directions = self::wikiFormatDirections();
+        $direction = $directions[$format];
+        $support = $inputSupport[$format];
+        $verdict = $support['status'];
+
+        return [
+            'token' => $trimmed,
+            'normalizedToken' => $normalizedToken,
+            'kind' => $kind,
+            'format' => $format,
+            'input' => $direction['input'],
+            'output' => $direction['output'],
+            'direction' => $direction['direction'],
+            'inputStatus' => $direction['inputStatus'],
+            'outputStatus' => $direction['outputStatus'],
+            'verdict' => $verdict,
+            'reason' => $support['notes'],
+            'unsupported' => $verdict === 'unsupported',
+            'partial' => $verdict === 'partial',
+            'inputImplementation' => $support['implementation'],
+            'directReaderParitySupported' => $verdict === 'supported' && $support['implementation'] !== '',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function wikiFormatsWithExtensionInference(): array
