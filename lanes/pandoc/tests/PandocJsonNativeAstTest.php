@@ -5850,6 +5850,86 @@ return [
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'space', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
     },
+    'flushes mixed table caption and cell inline runs around nested blocks' => static function (TestRunner $t): void {
+        $sourceTable = new AstNode('table', [
+            'captionBlocks' => [
+                new AstNode('text', ['text' => 'Lead']),
+                new AstNode('space'),
+                new AstNode('strong', [], [
+                    new AstNode('text', ['text' => 'caption']),
+                ]),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', [], [
+                        new AstNode('text', ['text' => 'Nested']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'caption']),
+                    ]),
+                ]),
+                new AstNode('text', ['text' => 'Tail']),
+                new AstNode('space'),
+                new AstNode('emph', [], [
+                    new AstNode('text', ['text' => 'caption']),
+                ]),
+            ],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [], [
+                        new AstNode('text', ['text' => 'Cell']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'intro']),
+                        new AstNode('blockquote', [], [
+                            new AstNode('paragraph', [], [
+                                new AstNode('text', ['text' => 'Nested']),
+                                new AstNode('space'),
+                                new AstNode('text', ['text' => 'quote']),
+                            ]),
+                        ]),
+                        new AstNode('text', ['text' => 'Cell']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'outro']),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $document = new AstNode('document', [], [$sourceTable]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $writer => $packet) {
+            $captionBlocks = $packet['blocks'][0]['c'][1]['c'][1];
+            $tableBody = $packet['blocks'][0]['c'][4][0]['c'] ?? $packet['blocks'][0]['c'][4][0];
+            $tableRow = $tableBody[3][0]['c'] ?? $tableBody[3][0];
+            $tableCell = $tableRow[1][0]['c'] ?? $tableRow[1][0];
+            $cellBlocks = $tableCell[4];
+
+            $t->same(['Plain', 'BulletList', 'Plain'], array_map(static fn (array $block): string => $block['t'], $captionBlocks), "{$writer} caption block boundary constructors");
+            $t->same('Lead', $captionBlocks[0]['c'][0]['c'], "{$writer} caption leading inline run starts a Plain block");
+            $t->same('Strong', $captionBlocks[0]['c'][2]['t'], "{$writer} caption leading inline formatting is preserved");
+            $t->same('Tail', $captionBlocks[2]['c'][0]['c'], "{$writer} caption trailing inline run starts a Plain block");
+            $t->same('Emph', $captionBlocks[2]['c'][2]['t'], "{$writer} caption trailing inline formatting is preserved");
+            $t->same(['Plain', 'BlockQuote', 'Plain'], array_map(static fn (array $block): string => $block['t'], $cellBlocks), "{$writer} cell block boundary constructors");
+            $t->same('Cell', $cellBlocks[0]['c'][0]['c'], "{$writer} cell leading inline run starts a Plain block");
+            $t->same('Nested', $cellBlocks[1]['c'][0]['c'][0]['c'], "{$writer} cell nested block content is preserved");
+            $t->same('Cell', $cellBlocks[2]['c'][0]['c'], "{$writer} cell trailing inline run starts a Plain block");
+        }
+
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+
+        foreach (['json' => $jsonRoundTrip, 'native' => $nativeRoundTrip] as $source => $roundTrip) {
+            $table = $roundTrip->children[0];
+            $captionBlocks = $table->attr('captionBlocks');
+            $body = $table->children[0];
+            $cell = $body->children[0]->children[0];
+
+            $t->same(['plain', 'bullet_list', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $captionBlocks), "{$source} reader keeps mixed caption block boundaries");
+            $t->same(['plain', 'blockquote', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $cell->children), "{$source} reader keeps mixed cell block boundaries");
+            $t->same("Lead caption\nNested caption\nTail caption", $table->attr('caption'), "{$source} reader preserves mixed caption text");
+            $t->same("Cell intro\nNested quote\nCell outro", $cell->attr('text'), "{$source} reader preserves mixed cell text");
+        }
+    },
     'reads maybe wrapped pandoc json short caption constructors' => static function (TestRunner $t): void {
         $figureBlock = [
             't' => 'Figure',

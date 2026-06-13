@@ -650,7 +650,7 @@ final class NativeWriter
     {
         $captionBlocks = $node->attr('captionBlocks', []);
         if ($captionBlocks !== [] && is_array($captionBlocks) && $this->allAstNodes($captionBlocks)) {
-            return $this->blocks(array_values($captionBlocks));
+            return $this->mixedChildrenAsBlocks(array_values($captionBlocks));
         }
 
         $captionInlines = $node->attr('captionInlines', []);
@@ -824,13 +824,22 @@ final class NativeWriter
             return $text === '' ? [] : [['t' => 'Plain', 'c' => $this->textInlines($text)]];
         }
 
-        if ($this->allInlineNodes($node->children)) {
-            return [['t' => 'Plain', 'c' => $this->inlines($node->children)]];
+        return $this->mixedChildrenAsBlocks($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<array<string, mixed>>
+     */
+    private function mixedChildrenAsBlocks(array $children): array
+    {
+        if ($this->allInlineNodes($children)) {
+            return [['t' => 'Plain', 'c' => $this->inlines($children)]];
         }
 
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
@@ -855,26 +864,7 @@ final class NativeWriter
      */
     private function figureBlocks(AstNode $node): array
     {
-        $blocks = [];
-        $inlines = [];
-        foreach ($node->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlines[] = $child;
-                continue;
-            }
-
-            if ($inlines !== []) {
-                $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
-                $inlines = [];
-            }
-            $blocks[] = $this->blocks([$child])[0];
-        }
-
-        if ($inlines !== []) {
-            $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
-        }
-
-        return $blocks;
+        return $this->mixedChildrenAsBlocks($node->children);
     }
 
     /**
