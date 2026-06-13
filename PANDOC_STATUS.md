@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-13 UTC after LaTeX table body-head row preservation on base `f286538a3b`, following JSON/native nullary helper payload validation.
+Last reconciled: 2026-06-13 UTC after MediaBag package-local linked-resource MIME inference on base `17c91bad52`, following LaTeX table body-head row preservation.
 
 This file is the compact status companion to `progress.md`,
 `lanes/pandoc/lane-status.json`, and
@@ -11,22 +11,22 @@ This file is the compact status companion to `progress.md`,
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static Pandoc upstream inventory covers 2,276 test/data/benchmark artifacts from `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`. The input-format burn-down tracks 51 upstream input tokens, with IPYNB skipped for this phase and 50 tokens in scope. | Denominator accepted for native PHP progress accounting; this is not upstream runner parity. |
-| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,314 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,273 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,273 / 2,276 mapped upstream inventory rows = 143.8%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
+| Local passing numerator | `lanes/pandoc/lane-status.json` reports 3,315 PHP passes / 0 failures. `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` reports 3,274 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,274 / 2,276 mapped upstream inventory rows = 143.8%. Percentages above 100% mean local PHP slices are more granular than upstream inventory rows. | High coverage, not global ship-ready. |
 | Shippable input formats | ODF/ODT is marked ship-ready: 50 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 250.0%, with 0 critical ODF/ODT gaps. | ODF/ODT can ship under the current native PHP/no-external-validator policy. |
 | Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. | Pandoc as a whole is not ship-ready. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/LatexWriter.php lanes/pandoc/src/TableGeometry.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php lanes/pandoc/examples/wordpress-table-geometry-handoff.php`, syntax checks for the touched LaTeX/table files, focused `LatexWriterTest.php` and `TableGeometryTest.php`, focused `TableGeometryReaderHandoffTest.php`, the table geometry handoff self-test, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,336 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/MediaBag.php lanes/pandoc/tests/MediaBagTest.php lanes/pandoc/notes/pandoc-media-bag-mime-inference-20260613T0210Z.md`, syntax checks for the touched MediaBag files, focused `MediaBagTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,360 assertions, 0 failures. |
 | External validators | No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
 
 ## Closure Wave Snapshot
 
-Current `main` is reconciled through `f286538a3b`: 3,314 PHP passes / 0 failures and 3,273 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, JSON/native task-list checkbox sidecar, JSON/native nullary helper payload, and LaTeX table body-head row evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), the table geometry handoff self-test, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
+Current `main` is reconciled through `17c91bad52`: 3,315 PHP passes / 0 failures and 3,274 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag linked-resource and MIME inference, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, JSON/native task-list checkbox sidecar, JSON/native nullary helper payload, and LaTeX table body-head row evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `MediaBagTest.php` (`1` file, `168` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74360` assertions, `0` failures).
 
 | Surface | Landed evidence | Verdict |
 | --- | --- | --- |
 | CSV/TSV direct readers | `DelimitedTextReaderTest.php` plus format registry focused run: 2 files, 1,055 assertions, 0 failures. | CSV/TSV moved from unsupported to partial; broader reader parity remains. |
-| Media linked-resource handoff | `MediaBagTest.php`: 144 assertions, 0 failures. | Cross-format resource handoff covered; not an input-format ship gate. |
+| Media linked-resource handoff | `MediaBagTest.php`: 168 assertions, 0 failures. | Cross-format resource handoff and package-local MIME inference covered; not an input-format ship gate. |
 | Markdown block boundaries | Nested fenced Div and fixture nested-list round-trip slices landed with focused `MarkdownReaderTest.php` runs. | Markdown family remains partial after bounded block-structure coverage. |
 | Notes/references | Footnote label anchors and JSON/native `Note` label sidecars landed with focused Markdown/citation and JSON/native coverage. | Notes evidence improved; broader references parity remains. |
 | Table geometry | LaTeX `table_foot` rows now emit longtable footer sections and body-local `headRows` render in body position; focused LaTeX/table run passed 1,917 assertions. | Table-foot and body-head-row slices covered; multi-body semantics and rowspan output gaps remain. |

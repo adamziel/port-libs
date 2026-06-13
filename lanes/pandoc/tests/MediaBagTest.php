@@ -575,6 +575,93 @@ return [
         $t->same('Source attachment', $nativePacket['blocks'][0]['c'][0]['c'][2][1]);
     },
 
+    'infers linked resource mime types from package-local paths' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $cssBytes = "body { color: #334; }\n";
+        $audioBytes = "ID3 review audio bytes\n";
+        $fontBytes = "wOF2 review font bytes\n";
+        $jsonBytes = '{"ok":true}';
+        $cssSource = 'styles/site.CSS?rev=1#screen';
+        $audioSource = 'media/clip.MP3';
+        $fontSource = 'fonts/review.woff2';
+        $jsonSource = 'data:application/json,' . rawurlencode($jsonBytes);
+        $link = static fn (string $url, string $title, string $text): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $title,
+        ], [new AstNode('text', ['text' => $text])]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $link($cssSource, 'Stylesheet', 'stylesheet'),
+                new AstNode('space'),
+                $link($audioSource, 'Audio', 'audio'),
+                new AstNode('space'),
+                $link($fontSource, 'Font', 'font'),
+                new AstNode('space'),
+                $link($jsonSource, 'JSON metadata', 'metadata'),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'styles/site.CSS' => $cssBytes,
+            $audioSource => $audioBytes,
+            $fontSource => $fontBytes,
+        ]);
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+        $cssPath = sha1($cssBytes) . '.css';
+        $jsonPath = sha1($jsonBytes) . '.json';
+
+        $t->same([
+            'media-resource-link-loaded:' . $cssSource,
+            'media-resource-link-loaded:' . $audioSource,
+            'media-resource-link-loaded:' . $fontSource,
+            'media-resource-link-loaded:data-uri',
+        ], $filled['diagnostics']);
+        $t->same($cssPath, $directoryBySource[$cssSource]['path']);
+        $t->same('text/css', $directoryBySource[$cssSource]['mimeType']);
+        $t->same($audioSource, $directoryBySource[$audioSource]['path']);
+        $t->same('audio/mpeg', $directoryBySource[$audioSource]['mimeType']);
+        $t->same($fontSource, $directoryBySource[$fontSource]['path']);
+        $t->same('font/woff2', $directoryBySource[$fontSource]['mimeType']);
+        $t->same($jsonPath, $directoryBySource[$jsonSource]['path']);
+        $t->same('application/json', $directoryBySource[$jsonSource]['mimeType']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedParagraph = $extracted['document']->children[0];
+        $mappedCss = $mappedParagraph->children[0];
+        $mappedAudio = $mappedParagraph->children[2];
+        $mappedFont = $mappedParagraph->children[4];
+        $mappedJson = $mappedParagraph->children[6];
+
+        $t->same([
+            'media-resource-link-mapped:' . $cssSource,
+            'media-resource-link-mapped:' . $audioSource,
+            'media-resource-link-mapped:' . $fontSource,
+            'media-resource-link-mapped:data-uri',
+        ], $extracted['diagnostics']);
+        $t->same('media/' . $cssPath, $mappedCss->attr('url'));
+        $t->same('text/css', $mappedCss->attr('attributes')['data-pandoc-media-type']);
+        $t->same('media/' . $audioSource, $mappedAudio->attr('url'));
+        $t->same('audio/mpeg', $mappedAudio->attr('attributes')['data-pandoc-media-type']);
+        $t->same('media/' . $fontSource, $mappedFont->attr('url'));
+        $t->same('font/woff2', $mappedFont->attr('attributes')['data-pandoc-media-type']);
+        $t->same('media/' . $jsonPath, $mappedJson->attr('url'));
+        $t->same('application/json', $mappedJson->attr('attributes')['data-pandoc-media-type']);
+
+        $markdown = (new MarkdownWriter())->write($extracted['document']);
+        $t->contains('[stylesheet](media/' . $cssPath . ' "Stylesheet"){', $markdown);
+        $t->contains('data-pandoc-media-type="text/css"', $markdown);
+        $blocks = (new WordPressBlockWriter())->write($extracted['document']);
+        $t->contains('<a href="media/' . $fontSource . '" title="Font" data-pandoc-media-source="' . $fontSource . '"', $blocks);
+        $t->contains('data-pandoc-media-type="font/woff2"', $blocks);
+
+        $roundTrip = (new PandocJsonReader())->read((new PandocJsonWriter())->write($extracted['document']));
+        $t->same('font/woff2', $roundTrip->children[0]->children[4]->attr('attributes')['data-pandoc-media-type']);
+        $t->same('application/json', $roundTrip->children[0]->children[6]->attr('attributes')['data-pandoc-media-type']);
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';
