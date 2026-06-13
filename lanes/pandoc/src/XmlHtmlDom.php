@@ -1039,6 +1039,7 @@ final class XmlHtmlDom
         $referenceIds = $referenceBackMatter['referenceIds'];
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
+        $rootProvenance = self::xmlRootProvenance($root);
         $backMatterReferenceLists = $backMatter instanceof \DOMElement ? self::jatsReferenceListSummaries($backMatter) : [];
         $backMatterReferences = $backMatter instanceof \DOMElement ? self::jatsBackMatterReferenceSummaries($backMatter) : [];
         $backMatterReferenceIds = self::jatsFlattenUniqueStringField($backMatterReferences, 'id');
@@ -1073,6 +1074,7 @@ final class XmlHtmlDom
             : 0;
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
             $format,
+            $rootProvenance,
             $body instanceof \DOMElement,
             $directBodySectionCount,
             (int) $referenceBackMatter['referenceCount'],
@@ -1108,9 +1110,10 @@ final class XmlHtmlDom
             'directReaderDiagnostics' => $directReaderDiagnostics,
             'rootName' => $rootName,
             'rootAttributes' => self::xmlAttributeMap($root),
+            'rootProvenance' => $rootProvenance,
             'documentType' => self::jatsDocumentType($root),
             'dtdVersion' => self::attribute($root, 'dtd-version'),
-            'language' => self::attribute($root, 'lang', 'http://www.w3.org/XML/1998/namespace')
+            'language' => self::attribute($root, 'lang', self::XML_NAMESPACE)
                 ?? self::attribute($root, 'lang'),
             'metadataRoot' => $metadata instanceof \DOMElement ? $metadata->localName : null,
             'hasFrontMatter' => $metadata instanceof \DOMElement,
@@ -1247,10 +1250,12 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     * @param array<string, mixed> $rootProvenance
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, mixed>}>
      */
     private static function jatsDirectReaderDiagnostics(
         string $format,
+        array $rootProvenance,
         bool $hasBody,
         int $sectionCount,
         int $referenceCount,
@@ -1277,7 +1282,19 @@ final class XmlHtmlDom
                 $formatLabel . ' direct reader parity is not implemented; this packet exposes bounded XML diagnostics only.',
                 false,
                 true,
-                ['format' => $format]
+                [
+                    'format' => $format,
+                    'rootName' => $rootProvenance['name'],
+                    'rootQualifiedName' => $rootProvenance['qualifiedName'],
+                    'rootNamespaceUri' => $rootProvenance['namespaceUri'],
+                    'rootPrefix' => $rootProvenance['prefix'],
+                    'rootId' => $rootProvenance['id'],
+                    'rootXmlId' => $rootProvenance['xmlId'],
+                    'rootLanguage' => $rootProvenance['language'],
+                    'rootAttributeCount' => $rootProvenance['attributeCount'],
+                    'rootAttributeNames' => $rootProvenance['attributeNames'],
+                    'rootAttributes' => $rootProvenance['attributes'],
+                ]
             ),
         ];
 
@@ -1410,8 +1427,8 @@ final class XmlHtmlDom
     }
 
     /**
-     * @param array<string, int|string|bool> $details
-     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     * @param array<string, mixed> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, mixed>}
      */
     private static function jatsDirectReaderDiagnostic(
         string $code,
@@ -1428,6 +1445,39 @@ final class XmlHtmlDom
             'directReaderParity' => $directReaderParity,
             'coveredByPacket' => $coveredByPacket,
             'details' => $details,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     name:string,
+     *     qualifiedName:string,
+     *     namespaceUri:string|null,
+     *     prefix:string|null,
+     *     id:string|null,
+     *     xmlId:string|null,
+     *     language:string|null,
+     *     attributes:array<string, string>,
+     *     attributeNames:list<string>,
+     *     attributeCount:int
+     * }
+     */
+    private static function xmlRootProvenance(\DOMElement $root): array
+    {
+        $attributes = self::xmlAttributeMap($root);
+
+        return [
+            'name' => $root->localName,
+            'qualifiedName' => $root->tagName,
+            'namespaceUri' => $root->namespaceURI !== '' ? $root->namespaceURI : null,
+            'prefix' => $root->prefix !== '' ? $root->prefix : null,
+            'id' => $root->hasAttribute('id') ? $root->getAttribute('id') : null,
+            'xmlId' => self::attribute($root, 'id', self::XML_NAMESPACE),
+            'language' => self::attribute($root, 'lang', self::XML_NAMESPACE)
+                ?? self::attribute($root, 'lang'),
+            'attributes' => $attributes,
+            'attributeNames' => array_keys($attributes),
+            'attributeCount' => count($attributes),
         ];
     }
 
