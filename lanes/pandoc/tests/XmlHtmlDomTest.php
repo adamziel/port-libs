@@ -103,6 +103,18 @@ XML, 'package reader XML');
       <pub-date date-type="pub"><year>2026</year><month>06</month><day>12</day></pub-date>
       <abstract><p>Native PHP <bold>review</bold> packet.</p></abstract>
       <kwd-group><kwd>XML</kwd><kwd>JATS</kwd></kwd-group>
+      <funding-group id="fg1">
+        <award-group id="ag1">
+          <funding-source id="fs1" source-type="agency">National Science Foundation <institution-id institution-id-type="fundref">10.13039/100000001</institution-id></funding-source>
+          <award-id id="award-a" award-id-type="grant">R01-42</award-id>
+          <award-id id="award-a-copy" award-id-type="grant">R01-42</award-id>
+          <xref ref-type="bibr" rid="r1">funding ref</xref>
+        </award-group>
+        <award-group id="ag2">
+          <funding-source id="fs2">Missing Award Council</funding-source>
+          <xref ref-type="bibr" rid="missing-ref">missing ref</xref>
+        </award-group>
+      </funding-group>
     </article-meta>
   </front>
   <body>
@@ -110,7 +122,10 @@ XML, 'package reader XML');
     <fig id="f1"><caption><p>Figure</p></caption></fig>
     <table-wrap id="t1"><caption><p>Table</p></caption></table-wrap>
   </body>
-  <back><ref-list><ref id="r1"><label>1</label></ref></ref-list></back>
+  <back>
+    <ack id="ack1"><title>Acknowledgments</title><p>We thank reviewers <xref ref-type="bibr" rid="r1">[1]</xref> and <xref ref-type="bibr" rid="r-missing">[missing]</xref>.</p></ack>
+    <ref-list><ref id="r1"><label>1</label><mixed-citation>Blocked Citation Payload With Secret Grant Text</mixed-citation></ref></ref-list>
+  </back>
 </article>
 XML, 'JATS article XML', preserveWhiteSpace: false);
         $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
@@ -123,18 +138,23 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'direct-reader-unsupported',
             'body-sections-review-only',
             'references-review-only',
+            'funding-review-only',
+            'acknowledgments-review-only',
             'figures-review-only',
             'table-wraps-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(5, $packet['directReaderDiagnosticCount']);
+        $t->same(7, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][1]['details']['sectionCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referenceCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['tableWrapCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['fundingGroupCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][3]['details']['awardGroupCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][4]['details']['acknowledgmentCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['figureCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
         $t->same('1.3', $packet['dtdVersion']);
@@ -158,12 +178,53 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(['Scope'], $packet['sectionTitles']);
         $t->same('s1', $packet['sections'][0]['id'] ?? null);
         $t->same(1, $packet['sections'][0]['paragraphCount'] ?? null);
-        $t->same(['aff1', 'r1'], $packet['xrefTargets']);
+        $t->same(['aff1', 'r1', 'missing-ref', 'r-missing'], $packet['xrefTargets']);
         $t->same(['r1'], $packet['referenceIds']);
+        $t->same(1, $packet['referenceCount']);
+        $t->same('r1', $packet['references'][0]['id'] ?? null);
+        $t->same('1', $packet['references'][0]['label'] ?? null);
+        $t->same(['mixed-citation'], $packet['references'][0]['citationElementNames'] ?? null);
+        $t->same(true, $packet['references'][0]['citationPayloadTextBlocked'] ?? null);
+        $t->same(strlen('Blocked Citation Payload With Secret Grant Text'), $packet['references'][0]['citationPayloadTextLength'] ?? null);
+        $t->same(hash('sha256', 'Blocked Citation Payload With Secret Grant Text'), $packet['references'][0]['citationPayloadTextSha256'] ?? null);
+        $t->same(1, $packet['fundingGroupCount']);
+        $t->same('fg1', $packet['fundingGroups'][0]['id'] ?? null);
+        $t->same(['fs1', 'fs2'], $packet['fundingGroups'][0]['fundingSourceIds'] ?? null);
+        $t->same(['r1'], $packet['fundingGroups'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['missing-ref'], $packet['fundingGroups'][0]['missingReferenceIds'] ?? null);
+        $t->same(2, $packet['fundingSourceCount']);
+        $t->same('fs1', $packet['fundingSources'][0]['id'] ?? null);
+        $t->same('agency', $packet['fundingSources'][0]['sourceType'] ?? null);
+        $t->same(['10.13039/100000001'], $packet['fundingSources'][0]['identifierValues'] ?? null);
+        $t->same(2, $packet['awardGroupCount']);
+        $t->same('ag1', $packet['awardGroups'][0]['id'] ?? null);
+        $t->same(['R01-42', 'R01-42'], $packet['awardGroups'][0]['awardIds'] ?? null);
+        $t->same(['r1'], $packet['awardGroups'][0]['linkedReferenceIds'] ?? null);
+        $t->same('ag2', $packet['awardGroups'][1]['id'] ?? null);
+        $t->same(0, $packet['awardGroups'][1]['awardIdCount'] ?? null);
+        $t->same(['missing-ref'], $packet['awardGroups'][1]['missingReferenceIds'] ?? null);
+        $t->same(['R01-42', 'R01-42'], $packet['awardIds']);
+        $t->same(['R01-42'], $packet['duplicateAwardIds']);
+        $t->same([
+            'duplicate-award-id',
+            'missing-award-id',
+        ], $packet['fundingDiagnosticCodes']);
+        $t->same('award-group', $packet['fundingDiagnostics'][1]['container'] ?? null);
+        $t->same('ag2', $packet['fundingDiagnostics'][1]['id'] ?? null);
+        $t->same(1, $packet['acknowledgmentCount']);
+        $t->same(['ack1'], $packet['acknowledgmentIds']);
+        $t->same('Acknowledgments', $packet['acknowledgments'][0]['title'] ?? null);
+        $t->same(1, $packet['acknowledgments'][0]['paragraphCount'] ?? null);
+        $t->same(true, $packet['acknowledgments'][0]['textBlocked'] ?? null);
+        $t->same(['r1'], $packet['acknowledgments'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['r-missing'], $packet['acknowledgments'][0]['missingReferenceIds'] ?? null);
+        $t->same(['r1'], $packet['acknowledgmentLinkedReferenceIds']);
+        $t->same(['r-missing'], $packet['acknowledgmentMissingReferenceIds']);
         $t->same(['f1'], $packet['figureIds']);
         $t->same(['t1'], $packet['tableWrapIds']);
         $t->same(0, $packet['bookPartCount']);
-        json_encode($packet, JSON_THROW_ON_ERROR);
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked Citation Payload With Secret Grant Text'), 'Expected citation payload text to stay blocked from the bounded review packet');
 
         $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <book book-type="monograph" xml:lang="fr">
