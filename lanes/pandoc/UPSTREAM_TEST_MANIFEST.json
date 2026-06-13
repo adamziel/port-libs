@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3318,
-        "latestSlice": "pandoc-ipynb-attachment-media-diagnostics maps one IPYNB attachment media diagnostic case on base f70cdddd after JSON/native nested metadata payload preservation. IpynbReader now records metadata-only notebook and cell attachment media extraction plans, safe ipynb-media paths, unsafe path/query/backslash/traversal diagnostics, same-cell collision disambiguation, blocked byte exposure, and per-cell data-ipynb attachment media diagnostics without exposing attachment or output payload bytes. Mapped denominator moves 3317 -> 3318, mappedIpynbReaderRichPackageCases moves 2 -> 3, and ipynbReaderRichPackageAssertions moves 86 -> 110. Verification passed php -l for IpynbReader.php and IpynbReaderTest.php; focused IpynbReaderTest.php passed 1 file, 110 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75664 assertions, 0 failures after final rebase onto base f70cdddd. No Pandoc, Jupyter, Python notebook runner, Node, browser, online service, live provider, live-service provider, or external validator was invoked.",
+        "mapped": 3319,
+        "latestSlice": "pandoc-xml-html-jats-funding-reference-backlinks maps one XML/HTML5 DOM JATS/BITS funding metadata case on base bcf36593f4 after IPYNB attachment media diagnostics. XmlHtmlDom now exposes fundingReferenceBacklinks with found/missing ref-list entries, duplicate backlink diagnostics, award/source conflict markers, sanitized linked-reference summaries, and blocked citation/funding-statement text length plus SHA-256 only while preserving directReaderParity=false. Mapped denominator moves 3318 -> 3319, mappedXmlHtmlDomJatsFundingBacklinkCases is 1, and xmlHtmlDomJatsFundingBacklinkAssertions is 55. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; jq empty for lane-status and upstream manifest; git diff --check; focused XmlHtmlDomTest.php passed 1 file, 2025 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75719 assertions, 0 failures. No Pandoc binary, XML validator, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "IPYNB attachment media diagnostics are verified over base f70cdddd after JSON/native nested metadata payload preservation; broader notebook reader parity remains partial.",
-        "latestFocusedSource": "2026-06-13 IPYNB attachment media diagnostics slice inspected metadata-only attachment media extraction planning against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base f70cdddd following JSON/native nested metadata payload preservation; focused IpynbReaderTest.php passed 1 file, 110 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75664 assertions, 0 failures.",
+        "status": "XML/HTML5 DOM JATS/BITS funding reference backlink diagnostics are verified over base bcf36593f4; full JATS/BITS direct reader parity remains unsupported.",
+        "latestFocusedSource": "2026-06-13 JATS/BITS funding reference backlink diagnostics inspected funding-group xrefs to ref-list entries against the accepted static Pandoc XML/JATS/BITS inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto base bcf36593f4; focused XmlHtmlDomTest.php passed 1 file, 2025 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 75719 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -247,7 +247,9 @@
         "mappedJsonNativeMixedFigureHandoffCases": 1,
         "jsonNativeMixedFigureHandoffAssertions": 38,
         "mappedJsonNativeNestedMetaPayloadCases": 1,
-        "jsonNativeNestedMetaPayloadAssertions": 40
+        "jsonNativeNestedMetaPayloadAssertions": 40,
+        "mappedXmlHtmlDomJatsFundingBacklinkCases": 1,
+        "xmlHtmlDomJatsFundingBacklinkAssertions": 55
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
