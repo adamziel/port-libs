@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,316 pass / 0 fail | [3,275 / 2,276 (143.9%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue notes/reference parity after backlink metadata | wordpress-footnote-backlink-a9ce0ba74f |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,317 pass / 0 fail | [3,276 / 2,276 (143.9%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue DocBook XML reader parity after structural review diagnostics | pandoc-docbook-structure-review-76690ec857 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -33,7 +33,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Input family | In-scope input tokens | Current input status | Local passing | Upstream denominator | Remaining input work |
 | --- | --- | --- | ---: | ---: | --- |
 | Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 444 | 1,096 | Escaped fenced-Div attributes and nested-list fixture round-trip are covered; complete extension and variant parity. |
-| HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 275 | 29 | JATS/BITS front-matter review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS readers. |
+| HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 276 | 29 | JATS/BITS front-matter and DocBook structural review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS/DocBook readers. |
 | JSON/native AST | `json`, `native` | partial | 50 | 252 | Nullary helper payload validation, task-list checkbox sidecars, note label sidecars, and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
 | EPUB/EPUB3 | `epub` | partial | 59 | 9 | Finish EPUB package reader parity; latest slice preserves NCX docTitle/docAuthor audio provenance. |
@@ -41,7 +41,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 106 | 67 | Finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 77 | 8 | RIS now has bounded native CSL item parsing; EndNote XML, broader RIS coverage, and full reader-registry parity remain. |
 | LaTeX/TeX/math | `latex` | partial | 20 | 14 | Finish LaTeX reader and math conversion parity. |
-| DocBook/table geometry | `docbook` | partial | 16 | 16 | Finish DocBook XML reader parity. |
+| DocBook/table geometry | `docbook` | partial | 17 | 16 | DocBook 4/5 structural review packets now cover metadata, contributors, identifiers, sections, figures, tables, admonitions, bibliography, links, image references, and explicit unsupported direct-reader diagnostics; finish full body/inline/block/reference reader parity. |
 | RTF | `rtf` | partial | 4 | 3 | Finish RTF reader parity. |
 | Typst | `typst` | unsupported | 47 | 17 | Implement Typst reader; package dependency conflict policy is covered, but current evidence is boundary/provenance only. |
 | PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `a9ce0ba74f`: 3,316 PHP passes, 0 failures, and 3,275 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for the touched WordPress/DOCX/Markdown files, focused `MarkdownReaderTest.php` plus `DocxReaderTest.php` (`2` files, `11750` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74349` assertions, `0` failures).
+Current-main counters are reconciled through `76690ec857`: 3,317 PHP passes, 0 failures, and 3,276 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `XmlHtmlDomTest.php` (`1` file, `1884` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74405` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -70,6 +70,7 @@ Current-main counters are reconciled through `a9ce0ba74f`: 3,316 PHP passes, 0 f
 | Notes/references | Landed footnote label anchors, WordPress backlink metadata, and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/DOCX run 11,750 assertions; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, endnote grouping, anchor round-trips, and constructor parity. |
 | Table geometry | Landed LaTeX table-foot longtable and body-local head-row handoffs | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot and body-head-row slices | Multi-body semantics, rowspan output, and package-specific table internals. |
 | PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+| DocBook structural diagnostics | Landed review-only DocBook structure packets | 16 DocBook/table geometry rows | 17 DocBook cases; latest focused `XmlHtmlDomTest.php` run 1,884 assertions | Partial | Full DocBook body conversion, inline/block mapping, references, generated AST parity, and broader fixture hydration remain open. |
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 

@@ -177,6 +177,106 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook structure review packets without direct reader parity claims' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:lang="en">
+  <info>
+    <title>DocBook Review Article</title>
+    <subtitle>Structure packet</subtitle>
+    <author><personname><firstname>Ada</firstname><surname>Review</surname></personname></author>
+    <editor><orgname>Editorial Board</orgname></editor>
+    <biblioid class="doi">10.5555/docbook.42</biblioid>
+    <abstract><para>Native PHP review packet.</para></abstract>
+  </info>
+  <section xml:id="intro" role="scope">
+    <title>Scope</title>
+    <para>Body <xref linkend="fig1"/> text.</para>
+    <note xml:id="n1"><title>Review Note</title><para>Check this.</para></note>
+    <figure xml:id="fig1">
+      <title>Figure A</title>
+      <mediaobject><imageobject><imagedata fileref="images/a.png"/></imageobject></mediaobject>
+    </figure>
+    <informaltable xml:id="tbl1"><tgroup cols="1"><tbody><row><entry>Cell</entry></row></tbody></tgroup></informaltable>
+    <section xml:id="nested"><title>Nested</title><simpara>Nested text.</simpara></section>
+  </section>
+  <bibliography><biblioentry xml:id="ref1"><title>Reference</title></biblioentry></bibliography>
+  <para><link linkend="ref1">Reference</link><link xlink:href="https://example.invalid/review">Remote</link></para>
+</article>
+XML, 'DocBook 5 structure XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookStructure($docbook, 'docbook5');
+
+        $t->same('xml-html5-docbook-dom', $packet['formatFamily']);
+        $t->same('docbook5', $packet['format']);
+        $t->same('docbook-structure-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['docbook-direct-reader-incomplete', 'docbook-body-conversion-review-only'], $packet['unsupportedDiagnostics']);
+        $t->same('article', $packet['rootName']);
+        $t->same('5.2', $packet['docbookVersion']);
+        $t->same('http://docbook.org/ns/docbook', $packet['namespaceUri']);
+        $t->same('en', $packet['language']);
+        $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
+        $t->same('info', $packet['metadataRoot']);
+        $t->same('DocBook Review Article', $packet['title']);
+        $t->same('Structure packet', $packet['subtitle']);
+        $t->same('Native PHP review packet.', $packet['abstractText']);
+        $t->same([['element' => 'biblioid', 'type' => 'doi', 'value' => '10.5555/docbook.42']], $packet['identifiers']);
+        $t->same(1, $packet['identifierCount']);
+        $t->same(['Ada Review', 'Editorial Board'], $packet['contributorNames']);
+        $t->same(['author', 'editor'], $packet['contributorRoles']);
+        $t->same(2, $packet['sectionCount']);
+        $t->same(['Scope', 'Nested'], $packet['sectionTitles']);
+        $t->same('intro', $packet['sections'][0]['id'] ?? null);
+        $t->same('scope', $packet['sections'][0]['role'] ?? null);
+        $t->same(3, $packet['sections'][0]['paragraphCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['directParagraphCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['childSectionCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['figureCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['tableCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['admonitionCount'] ?? null);
+        $t->same(['fig1'], $packet['figureIds']);
+        $t->same(1, $packet['figureCount']);
+        $t->same('Figure A', $packet['figures'][0]['title'] ?? null);
+        $t->same(['tbl1'], $packet['tableIds']);
+        $t->same(1, $packet['tableCount']);
+        $t->same(['n1'], $packet['admonitionIds']);
+        $t->same('note', $packet['admonitions'][0]['type'] ?? null);
+        $t->same(['fig1', 'ref1'], $packet['xrefTargets']);
+        $t->same(['https://example.invalid/review'], $packet['externalTargets']);
+        $t->same(1, $packet['bibliographyCount']);
+        $t->same(1, $packet['bibliographyEntryCount']);
+        $t->same(1, $packet['mediaObjectCount']);
+        $t->same(1, $packet['imageObjectCount']);
+        $t->same(['images/a.png'], $packet['imageDataRefs']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+
+        $docbook4 = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book lang="de">
+  <bookinfo>
+    <title>Legacy Book</title>
+    <isbn>978-1-55555-042-0</isbn>
+    <editor><firstname>Eva</firstname><surname>Alt</surname></editor>
+  </bookinfo>
+  <chapter id="ch1"><title>Chapter One</title><para>Text.</para></chapter>
+</book>
+XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
+        $legacyPacket = XmlHtmlDom::summarizeDocBookStructure($docbook4, 'docbook4');
+
+        $t->same('docbook4', $legacyPacket['format']);
+        $t->same('book', $legacyPacket['rootName']);
+        $t->same(null, $legacyPacket['namespaceUri']);
+        $t->same('de', $legacyPacket['language']);
+        $t->same('bookinfo', $legacyPacket['metadataRoot']);
+        $t->same('Legacy Book', $legacyPacket['title']);
+        $t->same([['element' => 'isbn', 'type' => null, 'value' => '978-1-55555-042-0']], $legacyPacket['identifiers']);
+        $t->same(['Eva Alt'], $legacyPacket['contributorNames']);
+        $t->same(1, $legacyPacket['sectionCount']);
+        $t->same('chapter', $legacyPacket['sections'][0]['element'] ?? null);
+        $t->same('ch1', $legacyPacket['sections'][0]['id'] ?? null);
+        $t->same(1, $legacyPacket['sections'][0]['paragraphCount'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook, 'jats'));
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook = XmlHtmlDom::loadXmlDocument('<topic><title>Nope</title></topic>', 'non docbook XML')));
+        json_encode($legacyPacket, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
