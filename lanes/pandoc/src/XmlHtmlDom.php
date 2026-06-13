@@ -1073,6 +1073,19 @@ final class XmlHtmlDom
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'tableWraps' => $tableWraps,
+            'tableLabelCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['label'] ?? null) !== null
+            )),
+            'tableCaptionCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['captionText'] ?? null) !== null
+            )),
+            'tableCaptionTitleCount' => count(array_filter(
+                $tableWraps,
+                static fn (array $tableWrap): bool => ($tableWrap['captionTitle'] ?? null) !== null
+            )),
+            'tableCaptionDiagnostics' => self::jatsTableCaptionDiagnostics($tableWraps),
             'tableBodyCount' => $tableBodyCount,
             'tableBodyRowCount' => $tableBodyRowCount,
             'tableBodyCellCount' => $tableBodyCellCount,
@@ -2777,6 +2790,24 @@ final class XmlHtmlDom
         $ordinal = 1;
         foreach (self::descendantElements($root, 'table-wrap') as $tableWrap) {
             $id = self::attribute($tableWrap, 'id');
+            $label = self::firstChildElement($tableWrap, 'label');
+            $caption = self::firstChildElement($tableWrap, 'caption');
+            $captionTitle = $caption instanceof \DOMElement ? self::firstChildElement($caption, 'title') : null;
+            $captionParagraphs = $caption instanceof \DOMElement
+                ? self::jatsNonEmptyTexts(self::childElements($caption, 'p'))
+                : [];
+            $captionText = $caption instanceof \DOMElement ? self::jatsElementReviewText($caption) : null;
+            if ($captionText === '') {
+                $captionText = null;
+            }
+            $labelText = $label instanceof \DOMElement ? self::normalizedText($label) : null;
+            if ($labelText === '') {
+                $labelText = null;
+            }
+            $captionTitleText = $captionTitle instanceof \DOMElement ? self::normalizedText($captionTitle) : null;
+            if ($captionTitleText === '') {
+                $captionTitleText = null;
+            }
             $tableElements = self::descendantElements($tableWrap, 'table');
             $bodyRows = [];
             $bodyOrdinal = 1;
@@ -2813,8 +2844,12 @@ final class XmlHtmlDom
             $tables[] = [
                 'ordinal' => $ordinal++,
                 'id' => $id,
-                'label' => self::jatsFirstChildText($tableWrap, 'label'),
-                'caption' => self::jatsCaptionText($tableWrap),
+                'label' => $labelText,
+                'caption' => $captionText,
+                'captionText' => $captionText,
+                'captionTitle' => $captionTitleText,
+                'captionParagraphs' => $captionParagraphs,
+                'captionParagraphCount' => count($captionParagraphs),
                 'attributes' => self::xmlAttributeMap($tableWrap),
                 'tableCount' => count($tableElements),
                 'theadRowCount' => $theadRowCount,
@@ -2825,12 +2860,73 @@ final class XmlHtmlDom
                 'bodyHeaderCellCount' => $bodyHeaderCellCount,
                 'bodyDataCellCount' => $bodyDataCellCount,
                 'bodyRows' => $bodyRows,
+                'metadataDiagnostics' => self::jatsTableWrapMetadataDiagnostics($labelText, $captionText, $captionTitleText, $captionParagraphs),
                 'diagnostics' => $diagnostics,
                 'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
             ];
         }
 
         return $tables;
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @return list<string>
+     */
+    private static function jatsNonEmptyTexts(array $elements): array
+    {
+        $texts = [];
+        foreach ($elements as $element) {
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
+    }
+
+    private static function jatsElementReviewText(\DOMElement $element): string
+    {
+        $childTexts = self::jatsNonEmptyTexts(self::childElements($element));
+        if ($childTexts !== []) {
+            return implode(' ', $childTexts);
+        }
+
+        return self::normalizedText($element);
+    }
+
+    /**
+     * @param list<string> $captionParagraphs
+     * @return list<string>
+     */
+    private static function jatsTableWrapMetadataDiagnostics(
+        ?string $labelText,
+        ?string $captionText,
+        ?string $titleText,
+        array $captionParagraphs
+    ): array {
+        $diagnostics = [];
+        $diagnostics[] = $labelText === null
+            ? 'jats-bits-table-label-missing'
+            : 'jats-bits-table-label-review-only';
+
+        if ($captionText === null) {
+            $diagnostics[] = 'jats-bits-table-caption-missing';
+
+            return $diagnostics;
+        }
+
+        $diagnostics[] = 'jats-bits-table-caption-review-only';
+        $diagnostics[] = $titleText === null
+            ? 'jats-bits-table-caption-title-missing'
+            : 'jats-bits-table-caption-title-review-only';
+
+        if ($captionParagraphs !== []) {
+            $diagnostics[] = 'jats-bits-table-caption-paragraphs-review-only';
+        }
+
+        return $diagnostics;
     }
 
     /**
@@ -2924,6 +3020,22 @@ final class XmlHtmlDom
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tableWraps
+     * @return list<string>
+     */
+    private static function jatsTableCaptionDiagnostics(array $tableWraps): array
+    {
+        $diagnostics = [];
+        foreach ($tableWraps as $tableWrap) {
+            foreach ($tableWrap['metadataDiagnostics'] as $diagnostic) {
+                $diagnostics[] = (string) $diagnostic;
+            }
+        }
+
+        return array_values(array_unique($diagnostics));
     }
 
     /**

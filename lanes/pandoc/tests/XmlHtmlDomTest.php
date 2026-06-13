@@ -109,7 +109,7 @@ XML, 'package reader XML');
   <body>
     <sec id="s1" sec-type="intro"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1 r2 missing-ref">[1, 2]</xref> <xref ref-type="fig" rid="f1 missing-fig">Fig. 1</xref>.</p><sec id="s1-1" sec-type="methods"><title>Nested</title><p>Nested paragraph <xref ref-type="table" rid="t1">Table 1</xref>.</p></sec></sec>
     <fig id="f1"><label>Figure 1</label><caption><p>Figure caption</p></caption><graphic xlink:href="figures/f1.png"/></fig>
-    <table-wrap id="t1"><label>Table 1</label><caption><p>Table caption</p></caption><table>
+    <table-wrap id="t1"><label>Table 1</label><caption><title>Quarterly review</title><p>Table <italic>caption</italic> details.</p></caption><table>
       <thead><tr><th>Area</th><th>Status</th></tr></thead>
       <tbody>
         <tr id="row1"><th scope="row">Scope</th><td colspan="2">Ready</td></tr>
@@ -268,6 +268,15 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(1, $packet['figures'][0]['referenceCount'] ?? null);
         $t->same([], $packet['unreferencedFigureIds']);
         $t->same(['t1'], $packet['tableWrapIds']);
+        $t->same(1, $packet['tableLabelCount']);
+        $t->same(1, $packet['tableCaptionCount']);
+        $t->same(1, $packet['tableCaptionTitleCount']);
+        $t->same([
+            'jats-bits-table-label-review-only',
+            'jats-bits-table-caption-review-only',
+            'jats-bits-table-caption-title-review-only',
+            'jats-bits-table-caption-paragraphs-review-only',
+        ], $packet['tableCaptionDiagnostics']);
         $t->same(1, $packet['tableBodyCount']);
         $t->same(2, $packet['tableBodyRowCount']);
         $t->same(4, $packet['tableBodyCellCount']);
@@ -276,7 +285,17 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'jats-bits-table-cell-summary-review-only',
         ], $packet['tableBodyDiagnostics']);
         $t->same('Table 1', $packet['tableWraps'][0]['label'] ?? null);
-        $t->same('Table caption', $packet['tableWraps'][0]['caption'] ?? null);
+        $t->same('Quarterly review Table caption details.', $packet['tableWraps'][0]['caption'] ?? null);
+        $t->same('Quarterly review Table caption details.', $packet['tableWraps'][0]['captionText'] ?? null);
+        $t->same('Quarterly review', $packet['tableWraps'][0]['captionTitle'] ?? null);
+        $t->same(['Table caption details.'], $packet['tableWraps'][0]['captionParagraphs'] ?? null);
+        $t->same(1, $packet['tableWraps'][0]['captionParagraphCount'] ?? null);
+        $t->same([
+            'jats-bits-table-label-review-only',
+            'jats-bits-table-caption-review-only',
+            'jats-bits-table-caption-title-review-only',
+            'jats-bits-table-caption-paragraphs-review-only',
+        ], $packet['tableWraps'][0]['metadataDiagnostics'] ?? null);
         $t->same(3, $packet['tableWraps'][0]['rowCount'] ?? null);
         $t->same(1, $packet['tableWraps'][0]['tableCount'] ?? null);
         $t->same(1, $packet['tableWraps'][0]['tbodyCount'] ?? null);
@@ -302,7 +321,7 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
     <contrib-group><contrib contrib-type="editor"><string-name>Camille Editor</string-name></contrib></contrib-group>
     <pub-date pub-type="ppub"><year>2025</year></pub-date>
   </book-meta>
-  <book-body><book-part id="ch1" book-part-type="chapter"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta><body><sec id="ch1s1"><title>Inside</title><p>Chapter body cites <xref ref-type="bibr" rid="bref1">the guide</xref>.</p></sec></body></book-part><table-wrap id="bt1"><label>Table B1</label><caption><p>Book table</p></caption><table><tbody><tr><td>Book cell</td></tr></tbody></table></table-wrap></book-body>
+  <book-body><book-part id="ch1" book-part-type="chapter"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta><body><sec id="ch1s1"><title>Inside</title><p>Chapter body cites <xref ref-type="bibr" rid="bref1">the guide</xref>.</p></sec></body></book-part><table-wrap id="bt1"><label>Table B1</label><caption><title>Book totals</title><p>Book table</p></caption><table><tbody><tr><td>Book cell</td></tr></tbody></table></table-wrap></book-body>
   <book-back>
     <ref-list id="book-refs"><title>Book References</title>
       <ref id="bref1"><mixed-citation publication-type="book"><source>Bounded XML Guide</source><year>2024</year></mixed-citation></ref>
@@ -332,6 +351,11 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('body', $bitsPacket['bookParts'][0]['bodyRoot'] ?? null);
         $t->same(1, $bitsPacket['bookParts'][0]['sectionCount'] ?? null);
         $t->same(['bt1'], $bitsPacket['tableWrapIds']);
+        $t->same(1, $bitsPacket['tableLabelCount']);
+        $t->same(1, $bitsPacket['tableCaptionCount']);
+        $t->same(1, $bitsPacket['tableCaptionTitleCount']);
+        $t->same('Book totals', $bitsPacket['tableWraps'][0]['captionTitle'] ?? null);
+        $t->same(['Book table'], $bitsPacket['tableWraps'][0]['captionParagraphs'] ?? null);
         $t->same(1, $bitsPacket['tableBodyRowCount']);
         $t->same('Book cell', $bitsPacket['tableWraps'][0]['bodyRows'][0]['cells'][0]['text'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
