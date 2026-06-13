@@ -1075,6 +1075,1243 @@ final class XmlHtmlDom
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeDocBookBibliography(\DOMDocument $dom): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('DocBook bibliography review packet requires a document element');
+        }
+
+        $bibliographies = self::docbookBibliographySummaries($root);
+        $entries = self::docbookBibliographyEntrySummaries($root);
+        $entryMetadataDiagnostics = self::docbookEntryMetadataDiagnostics($entries);
+        $entryMetadataDiagnosticCodes = array_values(array_unique(array_map(
+            static fn (array $diagnostic): string => (string) $diagnostic['code'],
+            $entryMetadataDiagnostics
+        )));
+        $idOccurrences = self::docbookBibliographyIdOccurrences($root);
+        $duplicateIds = array_values(array_keys(array_filter(
+            $idOccurrences,
+            static fn (int $count): bool => $count > 1
+        )));
+        $entriesById = self::docbookBibliographyEntriesById($entries);
+        $documentIds = self::docbookDocumentIdSet($root);
+        $referenceLinks = self::docbookBibliographyReferenceLinks($root);
+        $referenceLinkTargets = array_values(array_unique(array_map(
+            static fn (array $link): string => (string) $link['target'],
+            $referenceLinks
+        )));
+        $missingReferenceTargets = array_values(array_filter(
+            $referenceLinkTargets,
+            static fn (string $target): bool => !isset($documentIds[$target])
+        ));
+        $referenceTargetSummaries = self::docbookReferenceTargetSummaries(
+            $referenceLinks,
+            $documentIds,
+            $duplicateIds,
+            $entriesById
+        );
+        $unsupportedChildren = self::docbookUnsupportedBibliographyChildSummaries($root);
+        $unsupportedChildRoles = self::docbookUnsupportedBibliographyChildRoles($unsupportedChildren);
+        $directReaderDiagnostics = self::docbookBibliographyDirectReaderDiagnostics(
+            count($bibliographies),
+            count($entries),
+            $duplicateIds,
+            $missingReferenceTargets,
+            count($unsupportedChildren),
+            $entryMetadataDiagnostics
+        );
+
+        return [
+            'formatFamily' => 'xml-html5-docbook-dom',
+            'format' => 'docbook',
+            'reviewPolicy' => 'docbook-bibliography-reference-review-only',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $directReaderDiagnostics
+            ),
+            'directReaderDiagnosticCount' => count($directReaderDiagnostics),
+            'directReaderDiagnostics' => $directReaderDiagnostics,
+            'rootName' => $root->localName,
+            'rootAttributes' => self::xmlAttributeMap($root),
+            'docbookVersion' => self::attribute($root, 'version'),
+            'language' => self::attribute($root, 'lang', 'http://www.w3.org/XML/1998/namespace')
+                ?? self::attribute($root, 'lang'),
+            'bibliographies' => $bibliographies,
+            'bibliographyCount' => count($bibliographies),
+            'bibliographyIds' => self::docbookIdsForLocalNames($root, ['bibliography']),
+            'bibliographyEntries' => $entries,
+            'bibliographyEntryCount' => count($entries),
+            'bibliographyEntryIds' => self::docbookIdsForLocalNames($root, ['biblioentry', 'bibliomixed']),
+            'biblioentryIds' => self::docbookIdsForLocalNames($root, ['biblioentry']),
+            'bibliomixedIds' => self::docbookIdsForLocalNames($root, ['bibliomixed']),
+            'bibliographyEntryMetadataDiagnostics' => $entryMetadataDiagnostics,
+            'bibliographyEntryMetadataDiagnosticCodes' => $entryMetadataDiagnosticCodes,
+            'bibliographyEntryMetadataDiagnosticCount' => count($entryMetadataDiagnostics),
+            'missingBibliographyEntryMetadataDiagnostics' => array_values(array_filter(
+                $entryMetadataDiagnostics,
+                static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-missing-')
+            )),
+            'duplicateBibliographyEntryMetadataDiagnostics' => array_values(array_filter(
+                $entryMetadataDiagnostics,
+                static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-duplicate-')
+                    || str_contains((string) $diagnostic['code'], '-conflicting-')
+            )),
+            'bibliographicIdOccurrences' => $idOccurrences,
+            'duplicateBibliographyIds' => $duplicateIds,
+            'referenceLinks' => $referenceLinks,
+            'referenceLinkTargets' => $referenceLinkTargets,
+            'referenceLinkTargetCount' => count($referenceLinkTargets),
+            'referenceTargetSummaries' => $referenceTargetSummaries,
+            'resolvedReferenceTargets' => self::docbookReferenceTargetsByStatus($referenceTargetSummaries, 'resolved'),
+            'duplicateReferenceTargets' => self::docbookReferenceTargetsByStatus($referenceTargetSummaries, 'duplicate-id'),
+            'linkendTargets' => self::docbookReferenceTargetsBySource($referenceLinks, ['linkend']),
+            'xrefTargets' => self::docbookReferenceTargetsByElement($referenceLinks, ['xref', 'biblioref', 'link']),
+            'roleTargets' => self::docbookReferenceTargetsBySource($referenceLinks, ['role']),
+            'citationTargets' => self::docbookReferenceTargetsByElement($referenceLinks, ['citation']),
+            'citationRoleTargets' => self::docbookReferenceTargetsByElementAndSource($referenceLinks, ['citation'], ['role']),
+            'citerefentryTargets' => self::docbookReferenceTargetsByElement($referenceLinks, ['citerefentry']),
+            'bibliographyEntryLinkageSummaries' => self::docbookBibliographyEntryLinkageSummaries($entries, $referenceTargetSummaries),
+            'missingReferenceTargets' => $missingReferenceTargets,
+            'missingReferenceTargetCount' => count($missingReferenceTargets),
+            'unsupportedBibliographyChildren' => $unsupportedChildren,
+            'unsupportedBibliographyChildCount' => count($unsupportedChildren),
+            'unsupportedBibliographyChildRoles' => $unsupportedChildRoles,
+            'unsupportedBibliographyChildRoleCount' => count($unsupportedChildRoles),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookBibliographySummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::docbookElementsWithLocalNames($root, ['bibliography']) as $bibliography) {
+            $entryIds = [];
+            foreach (self::docbookElementsWithLocalNames($bibliography, ['biblioentry', 'bibliomixed'], false) as $entry) {
+                $id = self::docbookBibliographyElementId($entry);
+                if ($id !== null) {
+                    $entryIds[] = $id;
+                }
+            }
+
+            $summaries[] = [
+                'element' => $bibliography->localName,
+                'id' => self::docbookBibliographyElementId($bibliography),
+                'title' => self::docbookFirstDescendantText($bibliography, ['title']),
+                'entryIds' => array_values(array_unique($entryIds)),
+                'entryCount' => count(self::docbookElementsWithLocalNames($bibliography, ['biblioentry', 'bibliomixed'], false)),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookBibliographyEntrySummaries(\DOMElement $root): array
+    {
+        $entries = [];
+        foreach (self::docbookElementsWithLocalNames($root, ['biblioentry', 'bibliomixed']) as $index => $entry) {
+            $idMetadata = self::docbookEntryIdMetadata($entry);
+            $titleMetadata = self::docbookTextRecords($entry, ['title', 'citetitle']);
+            $authors = self::docbookBibliographyContributorSummaries($entry, ['author']);
+            $editors = self::docbookBibliographyContributorSummaries($entry, ['editor']);
+            $contributors = [...$authors, ...$editors];
+            $publishers = self::docbookPublisherSummaries($entry);
+            $yearLikeMetadata = self::docbookYearLikeMetadata($entry);
+            $entries[] = [
+                'entryIndex' => $index,
+                'element' => $entry->localName,
+                'id' => $idMetadata['id'],
+                'xmlId' => $idMetadata['xmlId'],
+                'idAttribute' => $idMetadata['idAttribute'],
+                'idSource' => $idMetadata['idSource'],
+                'idConflict' => $idMetadata['idConflict'],
+                'title' => $titleMetadata[0]['value'] ?? null,
+                'titleMetadata' => $titleMetadata,
+                'titleCount' => count($titleMetadata),
+                'authors' => self::docbookBibliographyContributorNames($authors),
+                'authorMetadata' => $authors,
+                'authorCount' => count($authors),
+                'editors' => self::docbookBibliographyContributorNames($editors),
+                'editorMetadata' => $editors,
+                'editorCount' => count($editors),
+                'contributors' => $contributors,
+                'contributorNames' => self::docbookBibliographyContributorNames($contributors),
+                'contributorRoles' => array_values(array_unique(array_map(
+                    static fn (array $contributor): string => (string) $contributor['role'],
+                    $contributors
+                ))),
+                'publisher' => $publishers[0]['name'] ?? null,
+                'publishers' => $publishers,
+                'publisherNames' => array_values(array_unique(array_map(
+                    static fn (array $publisher): string => (string) $publisher['name'],
+                    $publishers
+                ))),
+                'publisherCount' => count($publishers),
+                'yearLikeMetadata' => $yearLikeMetadata,
+                'dateMetadata' => $yearLikeMetadata,
+                'yearLikeValues' => array_values(array_unique(array_map(
+                    static fn (array $metadata): string => (string) $metadata['value'],
+                    $yearLikeMetadata
+                ))),
+                'dateValues' => array_values(array_unique(array_map(
+                    static fn (array $metadata): string => (string) $metadata['value'],
+                    $yearLikeMetadata
+                ))),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function docbookBibliographyEntriesById(array $entries): array
+    {
+        $byId = [];
+        foreach ($entries as $entry) {
+            $id = is_string($entry['id'] ?? null) ? (string) $entry['id'] : null;
+            if ($id === null || $id === '') {
+                continue;
+            }
+
+            $byId[$id] ??= [];
+            $byId[$id][] = $entry;
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @return array{id:?string, xmlId:?string, idAttribute:?string, idSource:?string, idConflict:bool}
+     */
+    private static function docbookEntryIdMetadata(\DOMElement $entry): array
+    {
+        $xmlId = self::docbookNormalizedAttribute($entry, 'id', 'http://www.w3.org/XML/1998/namespace');
+        $id = self::docbookNormalizedAttribute($entry, 'id');
+        $source = null;
+        if ($xmlId !== null && $id !== null) {
+            $source = 'xml:id+id';
+        } elseif ($xmlId !== null) {
+            $source = 'xml:id';
+        } elseif ($id !== null) {
+            $source = 'id';
+        }
+
+        return [
+            'id' => $xmlId ?? $id,
+            'xmlId' => $xmlId,
+            'idAttribute' => $id,
+            'idSource' => $source,
+            'idConflict' => $xmlId !== null && $id !== null && $xmlId !== $id,
+        ];
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<string>
+     */
+    private static function docbookIdsForLocalNames(\DOMElement $root, array $localNames): array
+    {
+        $ids = [];
+        foreach (self::docbookElementsWithLocalNames($root, $localNames) as $element) {
+            $id = self::docbookBibliographyElementId($element);
+            if ($id !== null) {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function docbookBibliographyIdOccurrences(\DOMElement $root): array
+    {
+        $occurrences = [];
+        foreach (self::docbookElementsWithLocalNames($root, ['bibliography', 'bibliodiv', 'biblioentry', 'bibliomixed']) as $element) {
+            $id = self::docbookBibliographyElementId($element);
+            if ($id === null) {
+                continue;
+            }
+
+            $occurrences[$id] = ($occurrences[$id] ?? 0) + 1;
+        }
+
+        return $occurrences;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function docbookDocumentIdSet(\DOMElement $root): array
+    {
+        $ids = [];
+        foreach ([$root, ...self::descendantElements($root)] as $element) {
+            $id = self::docbookBibliographyElementId($element);
+            if ($id !== null) {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookBibliographyReferenceLinks(\DOMElement $root): array
+    {
+        $links = [];
+        foreach (self::docbookElementsWithLocalNames($root, ['xref', 'biblioref', 'link', 'citation', 'citerefentry']) as $element) {
+            $roleTargets = $element->localName === 'citation'
+                ? self::docbookRoleTokens($element)
+                : [];
+            $linkend = self::docbookNormalizedAttribute($element, 'linkend');
+            if ($linkend !== null) {
+                foreach (self::spaceSeparatedTokens($linkend) as $target) {
+                    $links[] = self::docbookReferenceLinkSummary($element, $target, 'linkend');
+                }
+            }
+
+            foreach ($roleTargets as $target) {
+                $links[] = self::docbookReferenceLinkSummary($element, $target, 'role');
+            }
+
+            if ($element->localName === 'citation') {
+                $target = self::docbookCitationTarget($element);
+                if ($target !== null) {
+                    $links[] = self::docbookReferenceLinkSummary($element, $target, 'citation-text');
+                }
+
+                continue;
+            }
+
+            if ($element->localName === 'citerefentry' && $linkend === null && $roleTargets === []) {
+                $target = self::docbookCiterefentryTarget($element);
+                if ($target !== null) {
+                    $links[] = self::docbookReferenceLinkSummary($element, $target, 'citerefentry-title');
+                }
+            }
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docbookReferenceLinkSummary(\DOMElement $element, string $target, string $targetSource): array
+    {
+        $summary = [
+            'element' => $element->localName,
+            'target' => $target,
+            'targetSource' => $targetSource,
+            'text' => self::normalizedText($element),
+            'role' => self::docbookNormalizedAttribute($element, 'role'),
+            'roleTokens' => self::docbookRoleTokens($element),
+        ];
+
+        if ($element->localName === 'citerefentry') {
+            $summary['refentryTitle'] = self::docbookFirstDescendantText($element, ['refentrytitle']);
+            $summary['manvolnum'] = self::docbookFirstDescendantText($element, ['manvolnum']);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @param list<string> $elementNames
+     * @return list<string>
+     */
+    private static function docbookReferenceTargetsByElement(array $links, array $elementNames): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            if (in_array($link['element'], $elementNames, true)) {
+                $targets[] = $link['target'];
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @param list<string> $targetSources
+     * @return list<string>
+     */
+    private static function docbookReferenceTargetsBySource(array $links, array $targetSources): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            if (in_array($link['targetSource'], $targetSources, true)) {
+                $targets[] = $link['target'];
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @param list<string> $elementNames
+     * @param list<string> $targetSources
+     * @return list<string>
+     */
+    private static function docbookReferenceTargetsByElementAndSource(array $links, array $elementNames, array $targetSources): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            if (in_array($link['element'], $elementNames, true) && in_array($link['targetSource'], $targetSources, true)) {
+                $targets[] = $link['target'];
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $summaries
+     * @return list<string>
+     */
+    private static function docbookReferenceTargetsByStatus(array $summaries, string $status): array
+    {
+        $targets = [];
+        foreach ($summaries as $summary) {
+            if (($summary['status'] ?? null) === $status) {
+                $targets[] = (string) $summary['target'];
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @param array<string, true> $documentIds
+     * @param list<string> $duplicateIds
+     * @param array<string, list<array<string, mixed>>> $entriesById
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookReferenceTargetSummaries(
+        array $links,
+        array $documentIds,
+        array $duplicateIds,
+        array $entriesById = []
+    ): array
+    {
+        $summaries = [];
+        foreach ($links as $link) {
+            $target = (string) $link['target'];
+            if (!isset($summaries[$target])) {
+                $duplicate = in_array($target, $duplicateIds, true);
+                $resolved = isset($documentIds[$target]);
+                $targetEntries = $entriesById[$target] ?? [];
+                $summaries[$target] = [
+                    'target' => $target,
+                    'resolved' => $resolved,
+                    'duplicateTargetId' => $duplicate,
+                    'missing' => !$resolved,
+                    'status' => $duplicate ? 'duplicate-id' : ($resolved ? 'resolved' : 'missing'),
+                    'referenceCount' => 0,
+                    'elements' => [],
+                    'targetSources' => [],
+                    'roles' => [],
+                    'texts' => [],
+                    'bibliographyEntryTarget' => $targetEntries !== [],
+                    'bibliographyEntryCount' => count($targetEntries),
+                    'bibliographyEntrySummaries' => array_values(array_map(
+                        static fn (array $entry): array => self::docbookEntryLinkageSummary($entry),
+                        $targetEntries
+                    )),
+                    'entryTitles' => self::docbookEntrySummaryValues($targetEntries, 'title'),
+                    'entryContributors' => self::docbookEntrySummaryListValues($targetEntries, 'contributorNames'),
+                    'entryContributorRoles' => self::docbookEntrySummaryListValues($targetEntries, 'contributorRoles'),
+                    'entryYears' => self::docbookEntrySummaryListValues($targetEntries, 'yearLikeValues'),
+                    'entryPublishers' => self::docbookEntrySummaryListValues($targetEntries, 'publisherNames'),
+                ];
+            }
+
+            ++$summaries[$target]['referenceCount'];
+            $summaries[$target]['elements'][] = (string) $link['element'];
+            $summaries[$target]['targetSources'][] = (string) $link['targetSource'];
+            foreach (is_array($link['roleTokens'] ?? null) ? $link['roleTokens'] : [] as $role) {
+                $summaries[$target]['roles'][] = (string) $role;
+            }
+            if ((string) $link['text'] !== '') {
+                $summaries[$target]['texts'][] = (string) $link['text'];
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            $summary['elements'] = array_values(array_unique($summary['elements']));
+            $summary['targetSources'] = array_values(array_unique($summary['targetSources']));
+            $summary['roles'] = array_values(array_unique($summary['roles']));
+            $summary['texts'] = array_values(array_unique($summary['texts']));
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<string>
+     */
+    private static function docbookEntrySummaryValues(array $entries, string $field): array
+    {
+        $values = [];
+        foreach ($entries as $entry) {
+            $value = $entry[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<string>
+     */
+    private static function docbookEntrySummaryListValues(array $entries, string $field): array
+    {
+        $values = [];
+        foreach ($entries as $entry) {
+            foreach (is_array($entry[$field] ?? null) ? $entry[$field] : [] as $value) {
+                if (is_string($value) && $value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $targetSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookBibliographyEntryLinkageSummaries(array $entries, array $targetSummaries): array
+    {
+        $targetsById = [];
+        foreach ($targetSummaries as $summary) {
+            $target = is_string($summary['target'] ?? null) ? (string) $summary['target'] : null;
+            if ($target !== null && $target !== '') {
+                $targetsById[$target] = $summary;
+            }
+        }
+
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $id = is_string($entry['id'] ?? null) ? (string) $entry['id'] : null;
+            $targetSummary = $id === null ? null : ($targetsById[$id] ?? null);
+            $summary = self::docbookEntryLinkageSummary($entry);
+            $summary['incomingReferenceCount'] = is_array($targetSummary) ? (int) ($targetSummary['referenceCount'] ?? 0) : 0;
+            $summary['incomingReferenceElements'] = is_array($targetSummary) ? ($targetSummary['elements'] ?? []) : [];
+            $summary['incomingReferenceTargetSources'] = is_array($targetSummary) ? ($targetSummary['targetSources'] ?? []) : [];
+            $summary['incomingReferenceRoles'] = is_array($targetSummary) ? ($targetSummary['roles'] ?? []) : [];
+            $summary['incomingReferenceTexts'] = is_array($targetSummary) ? ($targetSummary['texts'] ?? []) : [];
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docbookEntryLinkageSummary(array $entry): array
+    {
+        return [
+            'entryIndex' => (int) ($entry['entryIndex'] ?? 0),
+            'element' => is_string($entry['element'] ?? null) ? (string) $entry['element'] : null,
+            'id' => is_string($entry['id'] ?? null) ? (string) $entry['id'] : null,
+            'title' => is_string($entry['title'] ?? null) ? (string) $entry['title'] : null,
+            'contributorNames' => is_array($entry['contributorNames'] ?? null) ? $entry['contributorNames'] : [],
+            'contributorRoles' => is_array($entry['contributorRoles'] ?? null) ? $entry['contributorRoles'] : [],
+            'yearLikeValues' => is_array($entry['yearLikeValues'] ?? null) ? $entry['yearLikeValues'] : [],
+            'publisherNames' => is_array($entry['publisherNames'] ?? null) ? $entry['publisherNames'] : [],
+        ];
+    }
+
+    /**
+     * @return list<array{element:string, value:string}>
+     */
+    private static function docbookYearLikeMetadata(\DOMElement $entry): array
+    {
+        $metadata = [];
+        foreach (self::docbookElementsWithLocalNames($entry, ['year', 'date', 'pubdate', 'releaseinfo'], false) as $element) {
+            $value = self::normalizedText($element);
+            if ($value === '') {
+                continue;
+            }
+
+            $metadata[] = [
+                'element' => $element->localName,
+                'value' => $value,
+            ];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docbookAuthorNames(\DOMElement $entry): array
+    {
+        return self::docbookBibliographyContributorNames(self::docbookBibliographyContributorSummaries($entry, ['author']));
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<array{element:string, value:string}>
+     */
+    private static function docbookTextRecords(\DOMElement $root, array $localNames): array
+    {
+        $records = [];
+        foreach (self::docbookElementsWithLocalNames($root, $localNames, false) as $element) {
+            $value = self::normalizedText($element);
+            if ($value === '') {
+                continue;
+            }
+
+            $records[] = [
+                'element' => $element->localName,
+                'value' => $value,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<array{element:string, role:string, name:string}>
+     */
+    private static function docbookBibliographyContributorSummaries(\DOMElement $entry, array $localNames): array
+    {
+        $contributors = [];
+        foreach (self::docbookElementsWithLocalNames($entry, $localNames, false) as $contributor) {
+            $name = self::docbookBibliographyContributorName($contributor);
+            if ($name === '') {
+                continue;
+            }
+
+            $contributors[] = [
+                'element' => $contributor->localName,
+                'role' => $contributor->localName,
+                'name' => $name,
+            ];
+        }
+
+        return $contributors;
+    }
+
+    /**
+     * @param list<array{element:string, role:string, name:string}> $contributors
+     * @return list<string>
+     */
+    private static function docbookBibliographyContributorNames(array $contributors): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (array $contributor): string => (string) $contributor['name'],
+            $contributors
+        )));
+    }
+
+    private static function docbookAuthorName(\DOMElement $author): string
+    {
+        return self::docbookBibliographyContributorName($author);
+    }
+
+    private static function docbookBibliographyContributorName(\DOMElement $author): string
+    {
+        $personName = self::firstDescendantElement($author, 'personname');
+        if ($personName instanceof \DOMElement) {
+            $name = self::docbookStructuredPersonName($personName);
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        foreach (['orgname', 'corpname'] as $localName) {
+            $element = self::firstDescendantElement($author, $localName);
+            if ($element instanceof \DOMElement) {
+                $text = self::normalizedText($element);
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+        }
+
+        $parts = [];
+        foreach (['honorific', 'firstname', 'givenname', 'othername', 'surname', 'lineage'] as $localName) {
+            $text = self::docbookFirstDescendantText($author, [$localName]);
+            if ($text !== null) {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts)) ?: self::normalizedText($author);
+    }
+
+    private static function docbookStructuredPersonName(\DOMElement $personName): string
+    {
+        $parts = [];
+        foreach (['honorific', 'firstname', 'givenname', 'othername', 'surname', 'lineage'] as $localName) {
+            $text = self::docbookFirstDescendantText($personName, [$localName]);
+            if ($text !== null) {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $parts)) ?: self::normalizedText($personName);
+    }
+
+    /**
+     * @return list<array{element:string, name:string, text:string}>
+     */
+    private static function docbookPublisherSummaries(\DOMElement $entry): array
+    {
+        $publishers = [];
+        foreach (self::docbookElementsWithLocalNames($entry, ['publisher'], false) as $publisher) {
+            $name = self::docbookFirstDescendantText($publisher, ['publishername', 'orgname', 'corpname'])
+                ?? self::normalizedText($publisher);
+            if ($name === '') {
+                continue;
+            }
+
+            $publishers[] = [
+                'element' => $publisher->localName,
+                'name' => $name,
+                'text' => self::normalizedText($publisher),
+            ];
+        }
+
+        foreach (self::docbookElementsWithLocalNames($entry, ['publishername'], false) as $publisherName) {
+            $parent = $publisherName->parentNode;
+            if ($parent instanceof \DOMElement && $parent->localName === 'publisher') {
+                continue;
+            }
+
+            $name = self::normalizedText($publisherName);
+            if ($name === '') {
+                continue;
+            }
+
+            $publishers[] = [
+                'element' => $publisherName->localName,
+                'name' => $name,
+                'text' => $name,
+            ];
+        }
+
+        return $publishers;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookUnsupportedBibliographyChildSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::docbookElementsWithLocalNames($root, ['bibliography', 'bibliodiv', 'biblioentry', 'bibliomixed']) as $parent) {
+            $allowedChildren = self::docbookSupportedBibliographyChildren($parent->localName);
+            foreach (self::childElements($parent) as $child) {
+                if (isset($allowedChildren[$child->localName])) {
+                    continue;
+                }
+
+                $summaries[] = [
+                    'parentElement' => $parent->localName,
+                    'parentId' => self::docbookBibliographyElementId($parent),
+                    'childName' => $child->localName,
+                    'childRole' => self::docbookNormalizedAttribute($child, 'role'),
+                    'childRoleTokens' => self::docbookRoleTokens($child),
+                    'childAttributes' => self::xmlAttributeMap($child),
+                    'childText' => self::docbookTextSnippet($child),
+                ];
+            }
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return list<string>
+     */
+    private static function docbookUnsupportedBibliographyChildRoles(array $children): array
+    {
+        $roles = [];
+        foreach ($children as $child) {
+            foreach (is_array($child['childRoleTokens'] ?? null) ? $child['childRoleTokens'] : [] as $role) {
+                if (is_string($role) && $role !== '') {
+                    $roles[] = $role;
+                }
+            }
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function docbookSupportedBibliographyChildren(string $parentName): array
+    {
+        $containerChildren = [
+            'bibliodiv' => true,
+            'biblioentry' => true,
+            'bibliomixed' => true,
+            'blockinfo' => true,
+            'info' => true,
+            'subtitle' => true,
+            'title' => true,
+            'titleabbrev' => true,
+        ];
+        if ($parentName === 'bibliography' || $parentName === 'bibliodiv') {
+            return $containerChildren;
+        }
+
+        return [
+            'abbrev' => true,
+            'address' => true,
+            'affiliation' => true,
+            'artpagenums' => true,
+            'author' => true,
+            'authorgroup' => true,
+            'authorinitials' => true,
+            'bibliomisc' => true,
+            'biblioset' => true,
+            'bibliosource' => true,
+            'citetitle' => true,
+            'collab' => true,
+            'confgroup' => true,
+            'contractnum' => true,
+            'contractsponsor' => true,
+            'contrib' => true,
+            'copyright' => true,
+            'corpauthor' => true,
+            'corpcredit' => true,
+            'corpname' => true,
+            'date' => true,
+            'edition' => true,
+            'editor' => true,
+            'firstname' => true,
+            'holder' => true,
+            'honorific' => true,
+            'invpartnumber' => true,
+            'isbn' => true,
+            'issn' => true,
+            'issuenum' => true,
+            'jobtitle' => true,
+            'lineage' => true,
+            'link' => true,
+            'orgname' => true,
+            'othercredit' => true,
+            'othername' => true,
+            'pagenums' => true,
+            'personblurb' => true,
+            'personname' => true,
+            'printhistory' => true,
+            'productname' => true,
+            'productnumber' => true,
+            'pubdate' => true,
+            'publisher' => true,
+            'publishername' => true,
+            'pubsnumber' => true,
+            'releaseinfo' => true,
+            'revhistory' => true,
+            'seriesvolnums' => true,
+            'surname' => true,
+            'title' => true,
+            'titleabbrev' => true,
+            'ulink' => true,
+            'uri' => true,
+            'volumenum' => true,
+            'year' => true,
+        ];
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<\DOMElement>
+     */
+    private static function docbookElementsWithLocalNames(\DOMElement $root, array $localNames, bool $includeSelf = true): array
+    {
+        $nameSet = array_fill_keys($localNames, true);
+        $elements = [];
+        if ($includeSelf && isset($nameSet[$root->localName])) {
+            $elements[] = $root;
+        }
+
+        foreach (self::descendantElements($root) as $element) {
+            if (isset($nameSet[$element->localName])) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function docbookBibliographyElementId(\DOMElement $element): ?string
+    {
+        $id = self::attribute($element, 'id', 'http://www.w3.org/XML/1998/namespace')
+            ?? self::attribute($element, 'id');
+        if ($id === null || trim($id) === '') {
+            return null;
+        }
+
+        return trim($id);
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function docbookFirstDescendantText(\DOMElement $root, array $localNames): ?string
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstDescendantElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    private static function docbookCitationTarget(\DOMElement $citation): ?string
+    {
+        $target = self::normalizedText($citation);
+        if ($target === '') {
+            return null;
+        }
+
+        $target = preg_replace('/^\[(.*)\]$/u', '$1', $target) ?? $target;
+        $target = trim($target);
+
+        return $target === '' ? null : $target;
+    }
+
+    private static function docbookCiterefentryTarget(\DOMElement $citerefentry): ?string
+    {
+        $target = self::docbookFirstDescendantText($citerefentry, ['refentrytitle'])
+            ?? self::normalizedText($citerefentry);
+
+        return $target === '' ? null : $target;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docbookRoleTokens(\DOMElement $element): array
+    {
+        $role = self::docbookNormalizedAttribute($element, 'role');
+
+        return $role === null ? [] : self::spaceSeparatedTokens($role);
+    }
+
+    private static function docbookNormalizedAttribute(\DOMElement $element, string $localName, ?string $namespace = null): ?string
+    {
+        $value = self::attribute($element, $localName, $namespace);
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        return trim($value);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookEntryMetadataDiagnostics(array $entries): array
+    {
+        $diagnostics = [];
+        foreach ($entries as $entry) {
+            $entryIndex = (int) ($entry['entryIndex'] ?? 0);
+            $entryId = is_string($entry['id'] ?? null) ? (string) $entry['id'] : null;
+
+            if ($entryId === null || $entryId === '') {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-id', 'id');
+            }
+            if (($entry['idConflict'] ?? false) === true) {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-conflicting-id', 'id');
+            }
+
+            $titleValues = array_map(
+                static fn (array $record): string => (string) $record['value'],
+                is_array($entry['titleMetadata'] ?? null) ? $entry['titleMetadata'] : []
+            );
+            if ($titleValues === []) {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-title', 'title');
+            } else {
+                foreach (self::duplicateStringValues($titleValues) as $duplicate) {
+                    self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-duplicate-title', 'title', $duplicate);
+                }
+            }
+
+            $contributors = is_array($entry['contributors'] ?? null) ? $entry['contributors'] : [];
+            if ($contributors === []) {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-contributor', 'contributor');
+            } else {
+                $contributorKeys = array_map(
+                    static fn (array $contributor): string => (string) $contributor['role'] . ':' . (string) $contributor['name'],
+                    $contributors
+                );
+                foreach (self::duplicateStringValues($contributorKeys) as $duplicate) {
+                    self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-duplicate-contributor', 'contributor', $duplicate);
+                }
+            }
+
+            $dateValues = array_map(
+                static fn (array $record): string => (string) $record['value'],
+                is_array($entry['dateMetadata'] ?? null) ? $entry['dateMetadata'] : []
+            );
+            if ($dateValues === []) {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-date', 'date');
+            } else {
+                foreach (self::duplicateStringValues($dateValues) as $duplicate) {
+                    self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-duplicate-date', 'date', $duplicate);
+                }
+            }
+
+            $publisherRecords = is_array($entry['publishers'] ?? null) ? $entry['publishers'] : [];
+            $publisherNames = array_map(
+                static fn (array $publisher): string => (string) $publisher['name'],
+                $publisherRecords
+            );
+            if ($publisherNames === []) {
+                self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-publisher', 'publisher');
+            } else {
+                foreach (self::duplicateStringValues($publisherNames) as $duplicate) {
+                    self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-duplicate-publisher', 'publisher', $duplicate);
+                }
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function appendDocbookEntryMetadataDiagnostic(
+        array &$diagnostics,
+        int $entryIndex,
+        ?string $entryId,
+        string $code,
+        string $field,
+        ?string $value = null
+    ): void {
+        $diagnostic = [
+            'code' => $code,
+            'severity' => str_contains($code, '-missing-') ? 'warning' : 'review',
+            'entryIndex' => $entryIndex,
+            'entryId' => $entryId,
+            'field' => $field,
+        ];
+        if ($value !== null) {
+            $diagnostic['value'] = $value;
+        }
+
+        $diagnostics[] = $diagnostic;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function duplicateStringValues(array $values): array
+    {
+        $counts = [];
+        foreach ($values as $value) {
+            if ($value === '') {
+                continue;
+            }
+
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+
+        return array_values(array_map(
+            static fn (int|string $value): string => (string) $value,
+            array_keys(array_filter(
+            $counts,
+            static fn (int $count): bool => $count > 1
+            ))
+        ));
+    }
+
+    private static function docbookTextSnippet(\DOMElement $element): string
+    {
+        $text = self::normalizedText($element);
+        if (strlen($text) <= 160) {
+            return $text;
+        }
+
+        return substr($text, 0, 157) . '...';
+    }
+
+    /**
+     * @param list<string> $duplicateIds
+     * @param list<string> $missingReferenceTargets
+     * @param list<array<string, mixed>> $entryMetadataDiagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function docbookBibliographyDirectReaderDiagnostics(
+        int $bibliographyCount,
+        int $entryCount,
+        array $duplicateIds,
+        array $missingReferenceTargets,
+        int $unsupportedChildCount,
+        array $entryMetadataDiagnostics = []
+    ): array {
+        $diagnostics = [
+            self::docbookBibliographyDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                'DocBook direct reader parity is not implemented; this packet exposes bounded bibliography/reference diagnostics only.',
+                false,
+                true,
+                ['format' => 'docbook']
+            ),
+        ];
+
+        if ($bibliographyCount > 0 || $entryCount > 0) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-review-only',
+                'unsupported',
+                'DocBook bibliography entries are inventoried for reference review but are not mapped as full Pandoc citation output.',
+                false,
+                true,
+                ['bibliographyCount' => $bibliographyCount, 'entryCount' => $entryCount]
+            );
+        }
+
+        if ($duplicateIds !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-id-duplicates',
+                'warning',
+                'DocBook bibliography identifiers contain duplicate values that require reviewer resolution.',
+                false,
+                true,
+                ['duplicateIdCount' => count($duplicateIds), 'duplicateIds' => $duplicateIds]
+            );
+        }
+
+        if ($missingReferenceTargets !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'reference-targets-missing',
+                'warning',
+                'DocBook citation or xref targets were not found in the document id index.',
+                false,
+                true,
+                ['missingTargetCount' => count($missingReferenceTargets), 'missingTargets' => $missingReferenceTargets]
+            );
+        }
+
+        $missingMetadataDiagnostics = array_values(array_filter(
+            $entryMetadataDiagnostics,
+            static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-missing-')
+        ));
+        if ($missingMetadataDiagnostics !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-entry-metadata-missing',
+                'warning',
+                'DocBook bibliography entries are missing bounded review metadata fields.',
+                false,
+                true,
+                [
+                    'missingMetadataDiagnosticCount' => count($missingMetadataDiagnostics),
+                    'missingMetadataCodes' => array_values(array_unique(array_map(
+                        static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                        $missingMetadataDiagnostics
+                    ))),
+                ]
+            );
+        }
+
+        $duplicateMetadataDiagnostics = array_values(array_filter(
+            $entryMetadataDiagnostics,
+            static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-duplicate-')
+                || str_contains((string) $diagnostic['code'], '-conflicting-')
+        ));
+        if ($duplicateMetadataDiagnostics !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-entry-metadata-duplicates',
+                'warning',
+                'DocBook bibliography entries contain duplicate or conflicting bounded metadata fields.',
+                false,
+                true,
+                [
+                    'duplicateMetadataDiagnosticCount' => count($duplicateMetadataDiagnostics),
+                    'duplicateMetadataCodes' => array_values(array_unique(array_map(
+                        static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                        $duplicateMetadataDiagnostics
+                    ))),
+                ]
+            );
+        }
+
+        if ($unsupportedChildCount > 0) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'unsupported-bibliography-children',
+                'unsupported',
+                'DocBook bibliography children outside the bounded metadata set were summarized but not converted.',
+                false,
+                true,
+                ['unsupportedChildCount' => $unsupportedChildCount]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private static function docbookBibliographyDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        bool $directReaderParity,
+        bool $coveredByPacket,
+        array $details = []
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => $directReaderParity,
+            'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
+        ];
+    }
+
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement
     {
         $root = self::fragmentRoot($dom);
