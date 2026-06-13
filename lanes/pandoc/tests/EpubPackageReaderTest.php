@@ -204,6 +204,183 @@ return [
         $t->same(true, $tocReport['pageList']['items'][0]['inSpineReadingOrder']);
         $t->same([], $tocReport['pageList']['items'][0]['diagnostics']);
     },
+    'reports normalized epub nav target collisions without changing toc entries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-collisions-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-collision-review</dc:identifier>
+    <dc:title>Nav Collision Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="pages-review" epub:type="page-list">
+      <ol>
+        <li><a href="TEXT/chapter.xhtml">Print page one</a></li>
+        <li><a href="text/chapter.xhtml">Print page one copy</a></li>
+      </ol>
+    </nav>
+    <nav id="toc-review" epub:type="toc">
+      <ol>
+        <li><a href="Text/Chapter.xhtml">Case target</a></li>
+        <li><a href="text/%43hapter.xhtml">Encoded target</a></li>
+        <li><a href="./text/../text/chapter.xhtml">Dot segment target</a></li>
+        <li><a href="text/chapter.xhtml#Intro">Fragment target</a></li>
+        <li><a href="text/chapter.xhtml#%49ntro">Encoded fragment target</a></li>
+        <li><a href="text/chapter.xhtml#intro">Lower fragment target</a></li>
+        <li><a href="#Appendix">Fragment-only target</a></li>
+        <li><a href="nav.xhtml#appendix">Nav file fragment target</a></li>
+        <li><a href="https://example.invalid/chapter.xhtml#intro">Remote target</a></li>
+        <li><a href="../../outside.xhtml#bad">Escaping target</a></li>
+      </ol>
+    </nav>
+    <nav id="landmark-review" epub:type="landmarks">
+      <ol>
+        <li><a href="text/chapter.xhtml">Start</a></li>
+        <li><a href="./text/chapter.xhtml">Start dot copy</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $toc = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'toc'
+            ));
+            $landmarks = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'landmarks'
+            ));
+            $pageList = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'page-list'
+            ));
+            $report = $epub['navReport'];
+
+            $t->same(['label', 'href', 'path', 'fragment', 'type', 'children'], array_keys($toc[0]));
+            $t->same(10, count($toc));
+            $t->same(2, count($landmarks));
+            $t->same(2, count($pageList));
+            $t->same(['label', 'href', 'path', 'fragment', 'type', 'children'], array_keys($pageList[0]));
+            $t->same('', $toc[6]['path']);
+            $t->same('Appendix', $toc[6]['fragment']);
+            $t->same('', $toc[9]['path']);
+            $t->same('bad', $toc[9]['fragment']);
+
+            $t->same(3, $report['sectionCount']);
+            $t->same(14, $report['itemCount']);
+            $t->same(14, $report['targetedItemCount']);
+            $t->same(12, $report['localTargetCount']);
+            $t->same(1, $report['externalTargetCount']);
+            $t->same(5, $report['fragmentTargetCount']);
+            $t->same(1, $report['fragmentOnlyTargetCount']);
+            $t->same(1, $report['unsafeTargetCount']);
+            $t->same(1, $report['packageRootEscapeTargetCount']);
+            $t->same(5, $report['normalizedCollisionGroupCount']);
+            $t->same(12, $report['normalizedCollisionItemCount']);
+            $t->same(1, $report['crossSectionCollisionGroupCount']);
+            $t->same(7, $report['crossSectionCollisionItemCount']);
+            $t->same([
+                'normalized-nav-target-collision' => 5,
+                'fragment-nav-href-target' => 4,
+                'fragment-only-nav-href-target' => 1,
+                'external-nav-href-target' => 1,
+                'unsafe-nav-href-target' => 1,
+                'cross-section-normalized-nav-target-collision' => 1,
+            ], $report['diagnosticTypes']);
+            $t->same(13, $report['diagnosticCount']);
+
+            $t->same(['page-list', 'toc', 'landmarks'], array_column($report['sections'], 'type'));
+            $t->same(1, $report['sections'][0]['normalizedCollisionGroupCount']);
+            $t->same(2, $report['sections'][0]['normalizedCollisionItemCount']);
+            $t->same(3, $report['sections'][1]['normalizedCollisionGroupCount']);
+            $t->same(8, $report['sections'][1]['normalizedCollisionItemCount']);
+            $t->same(1, $report['sections'][1]['externalTargetCount']);
+            $t->same(1, $report['sections'][1]['packageRootEscapeTargetCount']);
+            $t->same(1, $report['sections'][2]['normalizedCollisionGroupCount']);
+            $t->same(2, $report['sections'][2]['normalizedCollisionItemCount']);
+            $t->same(['toc', 'toc', 'toc', 'landmarks', 'page-list'], array_column($report['normalizedCollisionDiagnostics'], 'sectionType'));
+
+            $pathCollision = $report['normalizedCollisionDiagnostics'][0];
+            $t->same(1, $pathCollision['sectionIndex']);
+            $t->same('epub/text/chapter.xhtml', $pathCollision['normalizedTarget']);
+            $t->same([0, 1, 2], $pathCollision['itemIndexes']);
+            $t->same(['Text/Chapter.xhtml', 'text/%43hapter.xhtml', './text/../text/chapter.xhtml'], $pathCollision['hrefs']);
+            $t->same(['percent-encoding', 'dot-segment', 'case'], $pathCollision['collisionKinds']);
+
+            $fragmentCollision = $report['normalizedCollisionDiagnostics'][1];
+            $t->same('epub/text/chapter.xhtml#intro', $fragmentCollision['normalizedTarget']);
+            $t->same([3, 4, 5], $fragmentCollision['itemIndexes']);
+            $t->same(['fragment', 'percent-encoding', 'case'], $fragmentCollision['collisionKinds']);
+
+            $fragmentOnlyCollision = $report['normalizedCollisionDiagnostics'][2];
+            $t->same('epub/nav.xhtml#appendix', $fragmentOnlyCollision['normalizedTarget']);
+            $t->same([6, 7], $fragmentOnlyCollision['itemIndexes']);
+            $t->same(['#Appendix', 'nav.xhtml#appendix'], $fragmentOnlyCollision['hrefs']);
+            $t->same(['fragment', 'case'], $fragmentOnlyCollision['collisionKinds']);
+
+            $landmarkCollision = $report['normalizedCollisionDiagnostics'][3];
+            $t->same('landmarks', $landmarkCollision['sectionType']);
+            $t->same('epub/text/chapter.xhtml', $landmarkCollision['normalizedTarget']);
+            $t->same(['dot-segment'], $landmarkCollision['collisionKinds']);
+
+            $pageListCollision = $report['normalizedCollisionDiagnostics'][4];
+            $t->same('page-list', $pageListCollision['sectionType']);
+            $t->same(0, $pageListCollision['sectionIndex']);
+            $t->same('epub/text/chapter.xhtml', $pageListCollision['normalizedTarget']);
+            $t->same(['case'], $pageListCollision['collisionKinds']);
+
+            $crossSectionCollision = $report['crossSectionCollisionDiagnostics'][0];
+            $t->same('cross-section-normalized-nav-target-collision', $crossSectionCollision['type']);
+            $t->same('epub/text/chapter.xhtml', $crossSectionCollision['normalizedTarget']);
+            $t->same(3, $crossSectionCollision['sectionCount']);
+            $t->same(['toc', 'landmarks', 'page-list'], $crossSectionCollision['sectionTypes']);
+            $t->same([1, 2, 0], $crossSectionCollision['sectionIndexes']);
+            $t->same(['toc-review', 'landmark-review', 'pages-review'], $crossSectionCollision['sectionIds']);
+            $t->same(7, $crossSectionCollision['itemCount']);
+            $t->same(6, $crossSectionCollision['rawHrefCount']);
+            $t->same(['toc', 'toc', 'toc', 'landmarks', 'landmarks', 'page-list', 'page-list'], array_column($crossSectionCollision['itemRefs'], 'sectionType'));
+            $t->same(['Text/Chapter.xhtml', 'text/%43hapter.xhtml', './text/../text/chapter.xhtml', 'text/chapter.xhtml', './text/chapter.xhtml', 'TEXT/chapter.xhtml'], $crossSectionCollision['hrefs']);
+            $t->same(['percent-encoding', 'dot-segment', 'case'], $crossSectionCollision['collisionKinds']);
+
+            $externalDiagnostics = array_values(array_filter(
+                $report['diagnostics'],
+                static fn (array $diagnostic): bool => ($diagnostic['href'] ?? '') === 'https://example.invalid/chapter.xhtml#intro'
+            ));
+            $unsafeDiagnostics = array_values(array_filter(
+                $report['diagnostics'],
+                static fn (array $diagnostic): bool => ($diagnostic['href'] ?? '') === '../../outside.xhtml#bad'
+            ));
+            $t->same(['external-nav-href-target'], array_column($externalDiagnostics, 'type'));
+            $t->same(['unsafe-nav-href-target'], array_column($unsafeDiagnostics, 'type'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub spine xhtml assets into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);
