@@ -172,6 +172,512 @@ return [
         $t->same(false, str_contains($html, '<svg><text>hidden</text></svg>'));
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
     },
+    'reports bounded ipynb stream output grouping without exposing output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => 11,
+                    'id' => 'stream-groups',
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['alpha stdout bytes'],
+                        ],
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['beta stdout bytes'],
+                        ],
+                        [
+                            'name' => 'stderr',
+                            'output_type' => 'stream',
+                            'text' => 'warning stderr bytes',
+                        ],
+                        [
+                            'data' => [
+                                'image/png' => 'hidden image bytes',
+                                'text/plain' => ['plain display bytes'],
+                            ],
+                            'metadata' => ['transient' => ['display_id' => 'fig-1']],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['gamma stdout bytes'],
+                        ],
+                        [
+                            'ename' => 'ValueError',
+                            'evalue' => 'bad value bytes',
+                            'output_type' => 'error',
+                            'traceback' => ['stack line bytes'],
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => ['ok' => true],
+                                'text/plain' => ['result bytes'],
+                            ],
+                            'metadata' => ['review' => 'kept'],
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'stream_groups()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $cell = $document->children[0];
+        $attrs = $cell->attr('attributes');
+        $html = (new WordPressBlockWriter())->write($document);
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+
+        $t->same(7, $document->attr('notebookOutputCount'));
+        $t->same(7, $document->attr('notebookOutputBytePresenceCount'));
+        $t->same(2, $document->attr('notebookOutputMimeBundleCount'));
+        $t->same(6, $document->attr('notebookOutputGroupCount'));
+        $t->same(3, $document->attr('notebookOutputStreamGroupCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedStreamNameCount'));
+        $t->same(3, $document->attr('notebookOutputAggregateDiagnosticCount'));
+        $t->same('metadata-only', $document->attr('notebookOutputBytePolicy')['state']);
+        $t->same('blocked', $document->attr('notebookOutputBytePolicy')['byteExposure']);
+
+        $t->same('0 1 2 3 4 5 6', $attrs['data-ipynb-output-indexes']);
+        $t->same('stream stream stream display_data stream error execute_result', $attrs['data-ipynb-output-display-order']);
+        $t->same('6', $attrs['data-ipynb-output-group-count']);
+        $t->same('3', $attrs['data-ipynb-output-stream-group-count']);
+        $t->same('stderr stdout', $attrs['data-ipynb-output-stream-names']);
+        $t->same('stdout', $attrs['data-ipynb-output-repeated-stream-names']);
+        $t->same('metadata-only', $attrs['data-ipynb-output-byte-policy']);
+        $t->same('7', $attrs['data-ipynb-output-byte-presence-count']);
+        $t->same('3', $attrs['data-ipynb-output-aggregate-diagnostic-count']);
+        $t->same('application/json image/png text/plain', $attrs['data-ipynb-output-mime-types']);
+        $t->same('text/plain', $attrs['data-ipynb-output-repeated-mime-keys']);
+
+        $t->same(['stream', 'display_data', 'error', 'execute_result'], $cell->attr('ipynbOutputTypes'));
+        $t->same([
+            'stream',
+            'stream',
+            'stream',
+            'display_data',
+            'stream',
+            'error',
+            'execute_result',
+        ], $cell->attr('ipynbOutputOrderTypes'));
+        $t->same([0, 1, 2, 3, 4, 5, 6], $cell->attr('ipynbOutputIndexes'));
+        $t->same(6, $cell->attr('ipynbOutputGroupCount'));
+        $t->same(3, $cell->attr('ipynbOutputStreamGroupCount'));
+        $t->same(['stderr', 'stdout'], $cell->attr('ipynbOutputStreamNames'));
+        $t->same(['stdout'], $cell->attr('ipynbOutputRepeatedStreamNames'));
+
+        $streamGroups = $cell->attr('ipynbOutputStreamGroups');
+        $t->same('stdout', $streamGroups[0]['streamName']);
+        $t->same([0, 1], $streamGroups[0]['outputIndexes']);
+        $t->same(2, $streamGroups[0]['count']);
+        $t->same('stderr', $streamGroups[1]['streamName']);
+        $t->same([2], $streamGroups[1]['outputIndexes']);
+        $t->same('stdout', $streamGroups[2]['streamName']);
+        $t->same([4], $streamGroups[2]['outputIndexes']);
+
+        $groups = $cell->attr('ipynbOutputGroups');
+        $t->same(['stream', 'stream', 'output', 'stream', 'output', 'output'], array_column($groups, 'kind'));
+        $t->same([0, 2, 3, 4, 5, 6], array_column($groups, 'startIndex'));
+        $t->same([1, 2, 3, 4, 5, 6], array_column($groups, 'endIndex'));
+
+        $diagnostics = $cell->attr('ipynbOutputAggregateDiagnostics');
+        $t->same([
+            'mixed-output-display-order',
+            'repeated-output-mime-bundle-key',
+            'repeated-output-stream-name',
+        ], array_column($diagnostics, 'issue'));
+        $t->same([0, 1, 4], $cell->attr('ipynbOutputRepeatedStreamNameRecords')[0]['outputIndexes']);
+        $t->same([0, 3], $cell->attr('ipynbOutputRepeatedStreamNameRecords')[0]['groupIndexes']);
+        $t->same([3, 6], $cell->attr('ipynbOutputRepeatedMimeBundleRecords')[0]['outputIndexes']);
+
+        $outputs = $cell->attr('ipynbOutputSummaries');
+        $t->same('stdout', $outputs[0]['streamName']);
+        $t->same(1, $outputs[0]['streamTextLineCount']);
+        $t->same('stderr', $outputs[2]['streamName']);
+        $t->same(['image/png', 'text/plain'], $outputs[3]['mimeTypes']);
+        $t->same(['transient'], $outputs[3]['metadataKeys']);
+        $t->same('ValueError', $outputs[5]['errorName']);
+        $t->same(true, $outputs[5]['errorValuePresent']);
+        $t->same(1, $outputs[5]['tracebackLineCount']);
+        $t->same(['application/json', 'text/plain'], $outputs[6]['mimeTypes']);
+
+        $cellSummary = $document->attr('notebookCells')[0];
+        $t->same(6, $cellSummary['outputGroupCount']);
+        $t->same(3, $cellSummary['outputStreamGroupCount']);
+        $t->same(['stdout'], $cellSummary['outputRepeatedStreamNames']);
+        $t->same(3, $cellSummary['outputAggregateDiagnosticCount']);
+
+        $t->contains('data-ipynb-output-display-order="stream stream stream display_data stream error execute_result"', $html);
+        $t->contains('data-ipynb-output-stream-group-count="3"', $html);
+        $t->same(false, str_contains($serialized, 'alpha stdout bytes'));
+        $t->same(false, str_contains($serialized, 'hidden image bytes'));
+        $t->same(false, str_contains($serialized, 'bad value bytes'));
+        $t->same(false, str_contains($serialized, 'stack line bytes'));
+        $t->same(false, str_contains($serialized, 'result bytes'));
+    },
+    'reports deterministic ipynb MIME bundle digest diagnostics without exposing output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => 42,
+                    'id' => 'mime-digests',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret label alpha',
+                                    'series' => [1, 2, 3],
+                                ],
+                                'text/plain' => ['secret plain alpha'],
+                            ],
+                            'metadata' => ['display_id' => 'plot-a'],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret label beta',
+                                    'series' => [4, 5, 6],
+                                ],
+                                'text/plain' => ['secret plain beta'],
+                            ],
+                            'execution_count' => 42,
+                            'metadata' => ['execution' => ['shell' => 1]],
+                            'output_type' => 'execute_result',
+                        ],
+                        [
+                            'data' => [
+                                'text/html' => '<div>secret html payload</div>',
+                            ],
+                            'metadata' => ['isolated' => true],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'ename' => 'ZeroDivisionError',
+                            'evalue' => 'division by secret zero',
+                            'output_type' => 'error',
+                            'traceback' => ['secret traceback line'],
+                        ],
+                    ],
+                    'source' => 'mime_digests()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $cell = $document->children[0];
+        $attrs = $cell->attr('attributes');
+        $html = (new WordPressBlockWriter())->write($document);
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+
+        $digests = $cell->attr('ipynbOutputMimeBundleDigests');
+        $t->same(3, $document->attr('notebookOutputMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestDuplicateCount'));
+        $t->same(3, $cell->attr('ipynbOutputMimeBundleCount'));
+        $t->same(3, count($digests));
+        $t->true(preg_match('/^sha256:[a-f0-9]{64}$/', $digests[0]) === 1, 'MIME bundle digest should be a sha256 fingerprint');
+        $t->same($digests[0], $digests[1]);
+        $t->true($digests[0] !== $digests[2], 'Distinct MIME bundle shapes should not share a digest');
+
+        $t->same($digests[0] . ' ' . $digests[1] . ' ' . $digests[2], $attrs['data-ipynb-output-mime-bundle-digests']);
+        $t->same($digests[0], $attrs['data-ipynb-output-repeated-mime-bundle-digests']);
+        $t->same('1', $attrs['data-ipynb-output-repeated-mime-bundle-digest-count']);
+        $t->same('1', $attrs['data-ipynb-output-repeated-mime-bundle-duplicate-count']);
+
+        $digestRecords = $cell->attr('ipynbOutputMimeBundleDigestRecords');
+        $t->same($digests[0], $digestRecords[0]['digest']);
+        $t->same(0, $digestRecords[0]['outputIndex']);
+        $t->same(0, $digestRecords[0]['groupIndex']);
+        $t->same('display_data', $digestRecords[0]['outputType']);
+        $t->same(['application/json', 'text/plain'], $digestRecords[0]['mimeTypes']);
+        $t->same('metadata-only', $digestRecords[0]['fingerprintSource']);
+        $t->same([
+            'kind' => 'object',
+            'keys' => ['label', 'series'],
+            'fieldKinds' => [
+                'label' => 'string',
+                'series' => 'list',
+            ],
+        ], $digestRecords[0]['payloadShapes']['application/json']);
+        $t->same([
+            'kind' => 'list',
+            'count' => 1,
+            'entryKinds' => ['string'],
+            'stringLineCount' => 1,
+        ], $digestRecords[0]['payloadShapes']['text/plain']);
+
+        $repeatedDigests = $cell->attr('ipynbOutputRepeatedMimeBundleDigestRecords');
+        $t->same($digests[0], $repeatedDigests[0]['digest']);
+        $t->same([0, 1], $repeatedDigests[0]['outputIndexes']);
+        $t->same([0, 1], $repeatedDigests[0]['groupIndexes']);
+        $t->same(['display_data', 'execute_result'], $repeatedDigests[0]['outputTypes']);
+        $t->same(2, $repeatedDigests[0]['count']);
+        $t->same(1, $repeatedDigests[0]['duplicateCount']);
+
+        $outputs = $cell->attr('ipynbOutputSummaries');
+        $t->same('display_data', $outputs[0]['richOutputKind']);
+        $t->same($digests[0], $outputs[0]['mimeBundleDigest']);
+        $t->same(0, $outputs[0]['groupIndex']);
+        $t->same('execute_result', $outputs[1]['richOutputKind']);
+        $t->same($digests[1], $outputs[1]['mimeBundleDigest']);
+        $t->same(42, $outputs[1]['executionCount']);
+        $t->same(1, $outputs[1]['groupIndex']);
+        $t->same('display_data', $outputs[2]['richOutputKind']);
+        $t->same(['text/html'], $outputs[2]['mimeTypes']);
+        $t->same('error', $outputs[3]['richOutputKind']);
+        $t->same('ZeroDivisionError', $outputs[3]['errorName']);
+        $t->same(true, $outputs[3]['errorValuePresent']);
+        $t->same(1, $outputs[3]['tracebackLineCount']);
+
+        $diagnostics = $cell->attr('ipynbOutputAggregateDiagnostics');
+        $t->same([
+            'mixed-output-display-order',
+            'repeated-output-mime-bundle-key',
+            'repeated-output-mime-bundle-key',
+            'repeated-output-mime-bundle-digest',
+        ], array_column($diagnostics, 'issue'));
+        $t->same(2, $cell->attr('ipynbOutputAggregateDiagnostics')[3]['occurrenceCount']);
+        $t->same(1, $cell->attr('ipynbOutputAggregateDiagnostics')[3]['duplicateCount']);
+
+        $cellSummary = $document->attr('notebookCells')[0];
+        $t->same($digests, $cellSummary['outputMimeBundleDigests']);
+        $t->same([$digests[0]], $cellSummary['outputRepeatedMimeBundleDigests']);
+        $t->same(1, $cellSummary['outputRepeatedMimeBundleDigestCount']);
+        $t->same(1, $cellSummary['outputRepeatedMimeBundleDigestDuplicateCount']);
+
+        $t->contains('data-ipynb-output-repeated-mime-bundle-digest-count="1"', $html);
+        $t->same(false, str_contains($serialized, 'secret label alpha'));
+        $t->same(false, str_contains($serialized, 'secret label beta'));
+        $t->same(false, str_contains($serialized, 'secret plain alpha'));
+        $t->same(false, str_contains($serialized, 'secret plain beta'));
+        $t->same(false, str_contains($serialized, 'secret html payload'));
+        $t->same(false, str_contains($serialized, 'division by secret zero'));
+        $t->same(false, str_contains($serialized, 'secret traceback line'));
+    },
+    'reports ipynb MIME bundle digest collision policy across cells without exposing output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell zero display label',
+                                    'series' => [1, 2],
+                                ],
+                                'text/plain' => ['secret cell zero display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-0'],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell zero execute label',
+                                    'series' => [3, 4],
+                                ],
+                                'text/plain' => ['secret cell zero execute text'],
+                            ],
+                            'execution_count' => 8,
+                            'metadata' => ['execution' => ['iopub' => 1]],
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'same_shape_zero()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell one display label',
+                                    'series' => [5, 6],
+                                ],
+                                'text/plain' => ['secret cell one display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-1'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => 'same_shape_one()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['secret stream line'],
+                        ],
+                        [
+                            'ename' => 'RuntimeError',
+                            'evalue' => 'secret error value',
+                            'output_type' => 'error',
+                            'traceback' => ['secret traceback value'],
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell two display label',
+                                    'series' => [7, 8],
+                                ],
+                                'text/plain' => ['secret cell two display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-2'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => 'same_shape_two()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+        $policy = $document->attr('notebookOutputMimeBundleDigestCollisionPolicy');
+        $counts = $policy['counts'];
+        $records = $document->attr('notebookOutputMimeBundleDigestCollisionRecords');
+        $duplicateCounts = $document->attr('notebookOutputDuplicatePolicyCounts');
+        $grouping = $document->attr('notebookOutputGroupingSummary');
+
+        $t->same(6, $document->attr('notebookOutputCount'));
+        $t->same(6, $document->attr('notebookOutputBytePresenceCount'));
+        $t->same(4, $document->attr('notebookOutputMimeBundleCount'));
+        $t->same(4, $document->attr('notebookOutputMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestDuplicateCount'));
+        $t->same(1, $document->attr('notebookOutputMimeBundleDigestCollisionCount'));
+        $t->same(3, $document->attr('notebookOutputMimeBundleDigestCollisionDuplicateCount'));
+
+        $t->same('metadata-only', $policy['state']);
+        $t->same('metadata-only', $policy['fingerprintSource']);
+        $t->same('shape-only', $policy['payloadPolicy']);
+        $t->same('blocked', $policy['byteExposure']);
+        $t->same('review', $policy['collisionPolicy']);
+        $t->same([
+            'ipynb-output-mime-bundle-digest-metadata-only',
+            'ipynb-output-mime-bundle-digest-collision-review',
+            'ipynb-output-mime-bundle-digest-cross-cell-review',
+            'ipynb-output-mime-bundle-digest-different-output-index-review',
+            'ipynb-output-mime-bundle-digest-different-group-index-review',
+            'ipynb-output-mime-bundle-digest-mixed-output-type-review',
+        ], $policy['diagnostics']);
+        $t->same([
+            'digestRecordCount' => 4,
+            'uniqueDigestCount' => 1,
+            'collisionCount' => 1,
+            'duplicateCount' => 3,
+            'crossCellCount' => 1,
+            'sameOutputIndexCount' => 0,
+            'differentOutputIndexCount' => 1,
+            'sameGroupIndexCount' => 0,
+            'differentGroupIndexCount' => 1,
+            'mixedOutputTypeCount' => 1,
+        ], $counts);
+
+        $t->same(1, count($records));
+        $record = $records[0];
+        $t->true(preg_match('/^sha256:[a-f0-9]{64}$/', $record['digest']) === 1, 'Collision record should retain the shape digest only');
+        $t->same(4, $record['occurrenceCount']);
+        $t->same(3, $record['duplicateCount']);
+        $t->same([0, 1, 2], $record['cellIndexes']);
+        $t->same([0, 1, 2], $record['outputIndexes']);
+        $t->same([0, 1, 2], $record['groupIndexes']);
+        $t->same(['display_data', 'execute_result'], $record['outputTypes']);
+        $t->same(['application/json', 'text/plain'], $record['mimeTypes']);
+        $t->same([
+            'cross-cell',
+            'different-output-index',
+            'different-group-index',
+            'mixed-output-type',
+        ], $record['collisionScopes']);
+        $t->same('metadata-only', $record['fingerprintSource']);
+        $t->same('blocked', $record['byteExposure']);
+        $t->same(0, $record['occurrences'][0]['cellIndex']);
+        $t->same(0, $record['occurrences'][0]['outputIndex']);
+        $t->same('display_data', $record['occurrences'][0]['outputType']);
+        $t->same(2, $record['occurrences'][3]['cellIndex']);
+        $t->same(2, $record['occurrences'][3]['outputIndex']);
+
+        $t->same([
+            'repeatedStreamNameCount' => 0,
+            'repeatedStreamNameGroupDuplicateCount' => 0,
+            'repeatedMimeBundleKeyCount' => 2,
+            'repeatedMimeBundleKeyDuplicateCount' => 2,
+            'repeatedMimeBundleDigestCount' => 1,
+            'repeatedMimeBundleDigestDuplicateCount' => 1,
+            'digestCollisionCount' => 1,
+            'digestCollisionDuplicateCount' => 3,
+            'digestCrossCellCollisionCount' => 1,
+            'digestSameOutputIndexCollisionCount' => 0,
+            'digestDifferentOutputIndexCollisionCount' => 1,
+            'digestSameGroupIndexCollisionCount' => 0,
+            'digestDifferentGroupIndexCollisionCount' => 1,
+            'digestMixedOutputTypeCollisionCount' => 1,
+        ], $duplicateCounts);
+
+        $t->same(6, $grouping['outputCount']);
+        $t->same(6, $grouping['groupCount']);
+        $t->same(1, $grouping['streamGroupCount']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+            'stream' => 1,
+        ], $grouping['outputTypeCounts']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+        ], $grouping['richOutputKindCounts']);
+        $t->same([
+            'output' => 5,
+            'stream' => 1,
+        ], $grouping['groupKindCounts']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+            'stream' => 1,
+        ], $grouping['groupTypeCounts']);
+        $t->same([
+            'output-bytes-blocked' => 6,
+            'output-error-metadata-only' => 1,
+            'output-error-traceback-bytes-blocked' => 1,
+            'output-mime-bundle-metadata-only' => 4,
+            'output-stream-bytes-blocked' => 1,
+        ], $document->attr('notebookOutputPolicyDiagnosticCounts'));
+
+        $t->same(false, str_contains($serialized, 'secret cell zero display label'));
+        $t->same(false, str_contains($serialized, 'secret cell zero execute text'));
+        $t->same(false, str_contains($serialized, 'secret cell one display label'));
+        $t->same(false, str_contains($serialized, 'secret cell two display text'));
+        $t->same(false, str_contains($serialized, 'secret stream line'));
+        $t->same(false, str_contains($serialized, 'secret error value'));
+        $t->same(false, str_contains($serialized, 'secret traceback value'));
+    },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
         $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
