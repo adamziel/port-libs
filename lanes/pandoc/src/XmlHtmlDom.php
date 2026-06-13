@@ -1718,7 +1718,11 @@ final class XmlHtmlDom
                 }
             }
 
-            $publisherNames = is_array($entry['publisherNames'] ?? null) ? $entry['publisherNames'] : [];
+            $publisherRecords = is_array($entry['publishers'] ?? null) ? $entry['publishers'] : [];
+            $publisherNames = array_map(
+                static fn (array $publisher): string => (string) $publisher['name'],
+                $publisherRecords
+            );
             if ($publisherNames === []) {
                 self::appendDocbookEntryMetadataDiagnostic($diagnostics, $entryIndex, $entryId, 'docbook-bibliography-entry-missing-publisher', 'publisher');
             } else {
@@ -1771,10 +1775,13 @@ final class XmlHtmlDom
             $counts[$value] = ($counts[$value] ?? 0) + 1;
         }
 
-        return array_values(array_keys(array_filter(
+        return array_values(array_map(
+            static fn (int|string $value): string => (string) $value,
+            array_keys(array_filter(
             $counts,
             static fn (int $count): bool => $count > 1
-        )));
+            ))
+        ));
     }
 
     private static function docbookTextSnippet(\DOMElement $element): string
@@ -1790,6 +1797,7 @@ final class XmlHtmlDom
     /**
      * @param list<string> $duplicateIds
      * @param list<string> $missingReferenceTargets
+     * @param list<array<string, mixed>> $entryMetadataDiagnostics
      * @return list<array<string, mixed>>
      */
     private static function docbookBibliographyDirectReaderDiagnostics(
@@ -1797,7 +1805,8 @@ final class XmlHtmlDom
         int $entryCount,
         array $duplicateIds,
         array $missingReferenceTargets,
-        int $unsupportedChildCount
+        int $unsupportedChildCount,
+        array $entryMetadataDiagnostics = []
     ): array {
         $diagnostics = [
             self::docbookBibliographyDirectReaderDiagnostic(
@@ -1840,6 +1849,49 @@ final class XmlHtmlDom
                 false,
                 true,
                 ['missingTargetCount' => count($missingReferenceTargets), 'missingTargets' => $missingReferenceTargets]
+            );
+        }
+
+        $missingMetadataDiagnostics = array_values(array_filter(
+            $entryMetadataDiagnostics,
+            static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-missing-')
+        ));
+        if ($missingMetadataDiagnostics !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-entry-metadata-missing',
+                'warning',
+                'DocBook bibliography entries are missing bounded review metadata fields.',
+                false,
+                true,
+                [
+                    'missingMetadataDiagnosticCount' => count($missingMetadataDiagnostics),
+                    'missingMetadataCodes' => array_values(array_unique(array_map(
+                        static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                        $missingMetadataDiagnostics
+                    ))),
+                ]
+            );
+        }
+
+        $duplicateMetadataDiagnostics = array_values(array_filter(
+            $entryMetadataDiagnostics,
+            static fn (array $diagnostic): bool => str_contains((string) $diagnostic['code'], '-duplicate-')
+                || str_contains((string) $diagnostic['code'], '-conflicting-')
+        ));
+        if ($duplicateMetadataDiagnostics !== []) {
+            $diagnostics[] = self::docbookBibliographyDirectReaderDiagnostic(
+                'bibliography-entry-metadata-duplicates',
+                'warning',
+                'DocBook bibliography entries contain duplicate or conflicting bounded metadata fields.',
+                false,
+                true,
+                [
+                    'duplicateMetadataDiagnosticCount' => count($duplicateMetadataDiagnostics),
+                    'duplicateMetadataCodes' => array_values(array_unique(array_map(
+                        static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                        $duplicateMetadataDiagnostics
+                    ))),
+                ]
             );
         }
 
