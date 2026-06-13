@@ -778,7 +778,7 @@ final class XmlHtmlDom
         }
 
         $metadata = self::jatsMetadataElement($root);
-        $body = self::firstDescendantElement($root, 'body') ?? self::firstDescendantElement($root, 'book-body');
+        $body = self::jatsBodyElement($root);
 
         $articleIds = $metadata instanceof \DOMElement
             ? self::jatsTypedTextRecords($metadata, ['article-id'], ['pub-id-type'])
@@ -789,15 +789,25 @@ final class XmlHtmlDom
         $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
         $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
-        $xrefTargets = self::jatsXrefTargets($root);
+        $bookParts = self::jatsBookPartSummaries($root);
+        $elementIdMap = self::jatsElementIdMap($root);
+        $xrefs = self::jatsXrefSummaries($root, $elementIdMap);
+        $bodyXrefs = $body instanceof \DOMElement ? self::jatsXrefSummaries($body, $elementIdMap) : [];
+        $xrefTargets = self::jatsXrefTargetsFromSummaries($xrefs);
         $referenceIds = self::jatsElementIds($root, 'ref');
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
-        $bookPartCount = count(self::descendantElements($root, 'book-part'));
+        $references = self::jatsReferenceSummaries($root, $xrefs);
+        $figures = self::jatsFigureSummaries($root, $xrefs);
+        $tableWraps = self::jatsTableWrapSummaries($root, $xrefs);
+        $bookPartCount = count($bookParts);
+        $directBodySectionCount = $body instanceof \DOMElement
+            ? count(self::childElements($body, 'sec'))
+            : 0;
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
             $format,
             $body instanceof \DOMElement,
-            count($sections),
+            $directBodySectionCount,
             count($referenceIds),
             count($figureIds),
             count($tableWrapIds),
@@ -807,7 +817,7 @@ final class XmlHtmlDom
         return [
             'formatFamily' => 'xml-html5-jats-dom',
             'format' => $format,
-            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'reviewPolicy' => 'jats-bits-front-matter-and-body-diagnostics-review-only',
             'directReaderParity' => false,
             'directReaderDiagnosticCodes' => array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
@@ -846,20 +856,43 @@ final class XmlHtmlDom
             ))),
             'publicationDates' => $dates,
             'publicationDateCount' => count($dates),
+            'bodyRoot' => $body instanceof \DOMElement ? $body->localName : null,
+            'hasBody' => $body instanceof \DOMElement,
+            'bodySummary' => self::jatsBodySummary(
+                $body,
+                $sections,
+                $bodyXrefs,
+                $figures,
+                $tableWraps,
+                $bookParts
+            ),
             'sectionCount' => count($sections),
             'sectionTitles' => array_values(array_filter(
                 array_map(static fn (array $section): ?string => $section['title'], $sections),
                 static fn (?string $title): bool => $title !== null && $title !== ''
             )),
             'sections' => $sections,
+            'xrefs' => $xrefs,
             'xrefTargets' => $xrefTargets,
             'xrefTargetCount' => count($xrefTargets),
+            'xrefCount' => count($xrefs),
+            'resolvedXrefTargets' => self::jatsResolvedXrefTargets($xrefs),
+            'unresolvedXrefTargets' => self::jatsUnresolvedXrefTargets($xrefs),
+            'unresolvedXrefCount' => count(self::jatsUnresolvedXrefTargets($xrefs)),
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
+            'references' => $references,
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
+            'figures' => $figures,
+            'figureReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['fig']),
+            'unreferencedFigureIds' => self::jatsUnreferencedElementIds($figureIds, $bodyXrefs),
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
+            'tableWraps' => $tableWraps,
+            'tableWrapReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['table-wrap', 'table']),
+            'unreferencedTableWrapIds' => self::jatsUnreferencedElementIds($tableWrapIds, $bodyXrefs),
+            'bookParts' => $bookParts,
             'bookPartCount' => $bookPartCount,
         ];
     }
@@ -1112,6 +1145,25 @@ final class XmlHtmlDom
             $metadata = self::firstDescendantElement($root, $name);
             if ($metadata instanceof \DOMElement) {
                 return $metadata;
+            }
+        }
+
+        return null;
+    }
+
+    private static function jatsBodyElement(\DOMElement $root): ?\DOMElement
+    {
+        foreach (['body', 'book-body'] as $name) {
+            $body = self::firstChildElement($root, $name);
+            if ($body instanceof \DOMElement) {
+                return $body;
+            }
+        }
+
+        foreach (['body', 'book-body'] as $name) {
+            $body = self::firstDescendantElement($root, $name);
+            if ($body instanceof \DOMElement) {
+                return $body;
             }
         }
 
@@ -1653,41 +1705,48 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<array{id:?string, title:?string, paragraphCount:int}>
+     * @return list<array<string, mixed>>
      */
     private static function jatsSectionSummaries(\DOMElement $body): array
     {
         $sections = [];
-        foreach (self::descendantElements($body, 'sec') as $section) {
-            $title = self::firstChildElement($section, 'title');
-            $sections[] = [
-                'id' => self::attribute($section, 'id'),
-                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
-                'paragraphCount' => count(self::descendantElements($section, 'p')),
-            ];
-        }
+        $ordinal = 1;
+        self::collectJatsSectionSummaries($body, 1, null, $ordinal, $sections);
 
         return $sections;
     }
 
     /**
-     * @return list<string>
+     * @param list<array<string, mixed>> $sections
      */
-    private static function jatsXrefTargets(\DOMElement $root): array
-    {
-        $targets = [];
-        foreach (self::descendantElements($root, 'xref') as $xref) {
-            $rid = self::attribute($xref, 'rid');
-            if ($rid === null || trim($rid) === '') {
+    private static function collectJatsSectionSummaries(
+        \DOMElement $container,
+        int $depth,
+        ?string $parentId,
+        int &$ordinal,
+        array &$sections
+    ): void {
+        foreach (self::childElements($container) as $child) {
+            if ($child->localName !== 'sec') {
+                self::collectJatsSectionSummaries($child, $depth, $parentId, $ordinal, $sections);
                 continue;
             }
 
-            foreach (self::spaceSeparatedTokens($rid) as $target) {
-                $targets[] = $target;
-            }
+            $title = self::firstChildElement($child, 'title');
+            $id = self::attribute($child, 'id');
+            $sections[] = [
+                'ordinal' => $ordinal++,
+                'id' => $id,
+                'parentId' => $parentId,
+                'depth' => $depth,
+                'type' => self::attribute($child, 'sec-type'),
+                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
+                'directParagraphCount' => count(self::childElements($child, 'p')),
+                'paragraphCount' => count(self::descendantElements($child, 'p')),
+                'childSectionCount' => count(self::childElements($child, 'sec')),
+            ];
+            self::collectJatsSectionSummaries($child, $depth + 1, $id, $ordinal, $sections);
         }
-
-        return array_values(array_unique($targets));
     }
 
     /**
@@ -1704,6 +1763,356 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function jatsElementIdMap(\DOMElement $root): array
+    {
+        $map = [];
+        foreach (array_merge([$root], self::descendantElements($root)) as $element) {
+            $id = self::attribute($element, 'id');
+            if ($id !== null && trim($id) !== '' && !isset($map[trim($id)])) {
+                $map[trim($id)] = $element->localName;
+            }
+        }
+
+        ksort($map);
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, string> $elementIdMap
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsXrefSummaries(\DOMElement $root, array $elementIdMap): array
+    {
+        $summaries = [];
+        $ordinal = 1;
+        foreach (self::descendantElements($root, 'xref') as $xref) {
+            $targets = [];
+            $rid = self::attribute($xref, 'rid');
+            if ($rid !== null) {
+                $targets = self::spaceSeparatedTokens($rid);
+            }
+
+            $resolvedTargets = [];
+            $missingTargets = [];
+            $targetElements = [];
+            foreach ($targets as $target) {
+                $element = $elementIdMap[$target] ?? null;
+                $targetElements[] = [
+                    'target' => $target,
+                    'element' => $element,
+                ];
+                if ($element === null) {
+                    $missingTargets[] = $target;
+                } else {
+                    $resolvedTargets[] = $target;
+                }
+            }
+
+            $summaries[] = [
+                'ordinal' => $ordinal++,
+                'refType' => self::attribute($xref, 'ref-type'),
+                'text' => self::normalizedText($xref),
+                'targets' => $targets,
+                'targetElements' => $targetElements,
+                'resolvedTargets' => $resolvedTargets,
+                'missingTargets' => $missingTargets,
+                'resolved' => $missingTargets === [],
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<string>
+     */
+    private static function jatsXrefTargetsFromSummaries(array $xrefs): array
+    {
+        $targets = [];
+        foreach ($xrefs as $xref) {
+            foreach ($xref['targets'] as $target) {
+                $targets[] = (string) $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<string>
+     */
+    private static function jatsResolvedXrefTargets(array $xrefs): array
+    {
+        $targets = [];
+        foreach ($xrefs as $xref) {
+            foreach ($xref['resolvedTargets'] as $target) {
+                $targets[] = (string) $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<string>
+     */
+    private static function jatsUnresolvedXrefTargets(array $xrefs): array
+    {
+        $targets = [];
+        foreach ($xrefs as $xref) {
+            foreach ($xref['missingTargets'] as $target) {
+                $targets[] = (string) $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return array<string, int>
+     */
+    private static function jatsXrefCountsByTarget(array $xrefs): array
+    {
+        $counts = [];
+        foreach ($xrefs as $xref) {
+            foreach ($xref['targets'] as $target) {
+                $target = (string) $target;
+                $counts[$target] = ($counts[$target] ?? 0) + 1;
+            }
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @param list<string> $elementNames
+     * @return list<string>
+     */
+    private static function jatsReferenceTargetsForElements(array $xrefs, array $elementNames): array
+    {
+        $wanted = array_fill_keys($elementNames, true);
+        $targets = [];
+        foreach ($xrefs as $xref) {
+            foreach ($xref['targetElements'] as $targetElement) {
+                $element = $targetElement['element'];
+                if ($element !== null && isset($wanted[$element])) {
+                    $targets[] = (string) $targetElement['target'];
+                }
+            }
+
+            if ($xref['refType'] !== null && isset($wanted[(string) $xref['refType']])) {
+                foreach ($xref['missingTargets'] as $target) {
+                    $targets[] = (string) $target;
+                }
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<string> $ids
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<string>
+     */
+    private static function jatsUnreferencedElementIds(array $ids, array $xrefs): array
+    {
+        $referenced = array_fill_keys(self::jatsXrefTargetsFromSummaries($xrefs), true);
+        $unreferenced = [];
+        foreach ($ids as $id) {
+            if (!isset($referenced[$id])) {
+                $unreferenced[] = $id;
+            }
+        }
+
+        return $unreferenced;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsReferenceSummaries(\DOMElement $root, array $xrefs): array
+    {
+        $counts = self::jatsXrefCountsByTarget($xrefs);
+        $references = [];
+        foreach (self::descendantElements($root, 'ref') as $reference) {
+            $id = self::attribute($reference, 'id');
+            $references[] = [
+                'id' => $id,
+                'label' => self::jatsFirstChildText($reference, 'label'),
+                'citationText' => self::normalizedText($reference),
+                'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureSummaries(\DOMElement $root, array $xrefs): array
+    {
+        $counts = self::jatsXrefCountsByTarget($xrefs);
+        $figures = [];
+        foreach (self::descendantElements($root, 'fig') as $figure) {
+            $id = self::attribute($figure, 'id');
+            $figures[] = [
+                'id' => $id,
+                'label' => self::jatsFirstChildText($figure, 'label'),
+                'caption' => self::jatsCaptionText($figure),
+                'graphicHrefs' => self::jatsGraphicHrefs($figure),
+                'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
+            ];
+        }
+
+        return $figures;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsTableWrapSummaries(\DOMElement $root, array $xrefs): array
+    {
+        $counts = self::jatsXrefCountsByTarget($xrefs);
+        $tables = [];
+        foreach (self::descendantElements($root, 'table-wrap') as $tableWrap) {
+            $id = self::attribute($tableWrap, 'id');
+            $tables[] = [
+                'id' => $id,
+                'label' => self::jatsFirstChildText($tableWrap, 'label'),
+                'caption' => self::jatsCaptionText($tableWrap),
+                'tableCount' => count(self::descendantElements($tableWrap, 'table')),
+                'rowCount' => count(self::descendantElements($tableWrap, 'tr')),
+                'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
+            ];
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsBookPartSummaries(\DOMElement $root): array
+    {
+        $bookParts = [];
+        foreach (self::descendantElements($root, 'book-part') as $bookPart) {
+            $body = self::jatsBodyElement($bookPart);
+            $bookParts[] = [
+                'id' => self::attribute($bookPart, 'id'),
+                'type' => self::attribute($bookPart, 'book-part-type'),
+                'title' => self::jatsFirstText($bookPart, ['title', 'book-title']),
+                'bodyRoot' => $body instanceof \DOMElement ? $body->localName : null,
+                'sectionCount' => $body instanceof \DOMElement ? count(self::jatsSectionSummaries($body)) : 0,
+                'figureCount' => count(self::descendantElements($bookPart, 'fig')),
+                'tableWrapCount' => count(self::descendantElements($bookPart, 'table-wrap')),
+            ];
+        }
+
+        return $bookParts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @param list<array<string, mixed>> $bodyXrefs
+     * @param list<array<string, mixed>> $figures
+     * @param list<array<string, mixed>> $tableWraps
+     * @param list<array<string, mixed>> $bookParts
+     * @return array<string, mixed>
+     */
+    private static function jatsBodySummary(
+        ?\DOMElement $body,
+        array $sections,
+        array $bodyXrefs,
+        array $figures,
+        array $tableWraps,
+        array $bookParts
+    ): array {
+        $sectionDepths = array_map(
+            static fn (array $section): int => (int) $section['depth'],
+            $sections
+        );
+        $sectionTypes = array_values(array_unique(array_filter(
+            array_map(static fn (array $section): ?string => $section['type'], $sections),
+            static fn (?string $type): bool => $type !== null && $type !== ''
+        )));
+
+        return [
+            'bodyRoot' => $body instanceof \DOMElement ? $body->localName : null,
+            'hasBody' => $body instanceof \DOMElement,
+            'paragraphCount' => $body instanceof \DOMElement ? count(self::descendantElements($body, 'p')) : 0,
+            'sectionCount' => count($sections),
+            'sectionDepthMax' => $sectionDepths === [] ? 0 : max($sectionDepths),
+            'sectionTypes' => $sectionTypes,
+            'xrefCount' => count($bodyXrefs),
+            'resolvedXrefCount' => count(self::jatsResolvedXrefTargets($bodyXrefs)),
+            'unresolvedXrefCount' => count(self::jatsUnresolvedXrefTargets($bodyXrefs)),
+            'unresolvedXrefTargets' => self::jatsUnresolvedXrefTargets($bodyXrefs),
+            'figureCount' => count($figures),
+            'figureReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['fig']),
+            'tableWrapCount' => count($tableWraps),
+            'tableWrapReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['table-wrap', 'table']),
+            'bookPartCount' => count($bookParts),
+        ];
+    }
+
+    private static function jatsFirstChildText(\DOMElement $root, string $localName): ?string
+    {
+        $child = self::firstChildElement($root, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($child);
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function jatsCaptionText(\DOMElement $root): ?string
+    {
+        $caption = self::firstDescendantElement($root, 'caption');
+        if (!$caption instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($caption);
+
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsGraphicHrefs(\DOMElement $root): array
+    {
+        $hrefs = [];
+        foreach (['graphic', 'inline-graphic'] as $localName) {
+            foreach (self::descendantElements($root, $localName) as $graphic) {
+                $href = self::attribute($graphic, 'href', 'http://www.w3.org/1999/xlink')
+                    ?? self::attribute($graphic, 'href');
+                if ($href !== null && trim($href) !== '') {
+                    $hrefs[] = trim($href);
+                }
+            }
+        }
+
+        return array_values(array_unique($hrefs));
     }
 
     /**
