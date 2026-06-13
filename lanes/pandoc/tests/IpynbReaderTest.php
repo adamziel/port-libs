@@ -1129,4 +1129,212 @@ return [
             'output-language-unknown-cell-language' => 1,
         ], $unknownConsistency['outputLanguageDiagnosticCounts']);
     },
+    'reports ipynb MIME bundle digest collision policy across cells without exposing output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell zero display label',
+                                    'series' => [1, 2],
+                                ],
+                                'text/plain' => ['secret cell zero display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-0'],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell zero execute label',
+                                    'series' => [3, 4],
+                                ],
+                                'text/plain' => ['secret cell zero execute text'],
+                            ],
+                            'execution_count' => 8,
+                            'metadata' => ['execution' => ['iopub' => 1]],
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'same_shape_zero()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell one display label',
+                                    'series' => [5, 6],
+                                ],
+                                'text/plain' => ['secret cell one display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-1'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => 'same_shape_one()',
+                ],
+                [
+                    'cell_type' => 'code',
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['secret stream line'],
+                        ],
+                        [
+                            'ename' => 'RuntimeError',
+                            'evalue' => 'secret error value',
+                            'output_type' => 'error',
+                            'traceback' => ['secret traceback value'],
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => [
+                                    'label' => 'secret cell two display label',
+                                    'series' => [7, 8],
+                                ],
+                                'text/plain' => ['secret cell two display text'],
+                            ],
+                            'metadata' => ['display_id' => 'same-shape-2'],
+                            'output_type' => 'display_data',
+                        ],
+                    ],
+                    'source' => 'same_shape_two()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+        $policy = $document->attr('notebookOutputMimeBundleDigestCollisionPolicy');
+        $counts = $policy['counts'];
+        $records = $document->attr('notebookOutputMimeBundleDigestCollisionRecords');
+        $duplicateCounts = $document->attr('notebookOutputDuplicatePolicyCounts');
+        $grouping = $document->attr('notebookOutputGroupingSummary');
+
+        $t->same(6, $document->attr('notebookOutputCount'));
+        $t->same(6, $document->attr('notebookOutputBytePresenceCount'));
+        $t->same(4, $document->attr('notebookOutputMimeBundleCount'));
+        $t->same(4, $document->attr('notebookOutputMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleDigestDuplicateCount'));
+        $t->same(1, $document->attr('notebookOutputMimeBundleDigestCollisionCount'));
+        $t->same(3, $document->attr('notebookOutputMimeBundleDigestCollisionDuplicateCount'));
+
+        $t->same('metadata-only', $policy['state']);
+        $t->same('metadata-only', $policy['fingerprintSource']);
+        $t->same('shape-only', $policy['payloadPolicy']);
+        $t->same('blocked', $policy['byteExposure']);
+        $t->same('review', $policy['collisionPolicy']);
+        $t->same([
+            'ipynb-output-mime-bundle-digest-metadata-only',
+            'ipynb-output-mime-bundle-digest-collision-review',
+            'ipynb-output-mime-bundle-digest-cross-cell-review',
+            'ipynb-output-mime-bundle-digest-different-output-index-review',
+            'ipynb-output-mime-bundle-digest-different-group-index-review',
+            'ipynb-output-mime-bundle-digest-mixed-output-type-review',
+        ], $policy['diagnostics']);
+        $t->same([
+            'digestRecordCount' => 4,
+            'uniqueDigestCount' => 1,
+            'collisionCount' => 1,
+            'duplicateCount' => 3,
+            'crossCellCount' => 1,
+            'sameOutputIndexCount' => 0,
+            'differentOutputIndexCount' => 1,
+            'sameGroupIndexCount' => 0,
+            'differentGroupIndexCount' => 1,
+            'mixedOutputTypeCount' => 1,
+        ], $counts);
+
+        $t->same(1, count($records));
+        $record = $records[0];
+        $t->true(preg_match('/^sha256:[a-f0-9]{64}$/', $record['digest']) === 1, 'Collision record should retain the shape digest only');
+        $t->same(4, $record['occurrenceCount']);
+        $t->same(3, $record['duplicateCount']);
+        $t->same([0, 1, 2], $record['cellIndexes']);
+        $t->same([0, 1, 2], $record['outputIndexes']);
+        $t->same([0, 1, 2], $record['groupIndexes']);
+        $t->same(['display_data', 'execute_result'], $record['outputTypes']);
+        $t->same(['application/json', 'text/plain'], $record['mimeTypes']);
+        $t->same([
+            'cross-cell',
+            'different-output-index',
+            'different-group-index',
+            'mixed-output-type',
+        ], $record['collisionScopes']);
+        $t->same('metadata-only', $record['fingerprintSource']);
+        $t->same('blocked', $record['byteExposure']);
+        $t->same(0, $record['occurrences'][0]['cellIndex']);
+        $t->same(0, $record['occurrences'][0]['outputIndex']);
+        $t->same('display_data', $record['occurrences'][0]['outputType']);
+        $t->same(2, $record['occurrences'][3]['cellIndex']);
+        $t->same(2, $record['occurrences'][3]['outputIndex']);
+
+        $t->same([
+            'repeatedStreamNameCount' => 0,
+            'repeatedStreamNameGroupDuplicateCount' => 0,
+            'repeatedMimeBundleKeyCount' => 2,
+            'repeatedMimeBundleKeyDuplicateCount' => 2,
+            'repeatedMimeBundleDigestCount' => 1,
+            'repeatedMimeBundleDigestDuplicateCount' => 1,
+            'digestCollisionCount' => 1,
+            'digestCollisionDuplicateCount' => 3,
+            'digestCrossCellCollisionCount' => 1,
+            'digestSameOutputIndexCollisionCount' => 0,
+            'digestDifferentOutputIndexCollisionCount' => 1,
+            'digestSameGroupIndexCollisionCount' => 0,
+            'digestDifferentGroupIndexCollisionCount' => 1,
+            'digestMixedOutputTypeCollisionCount' => 1,
+        ], $duplicateCounts);
+
+        $t->same(6, $grouping['outputCount']);
+        $t->same(6, $grouping['groupCount']);
+        $t->same(1, $grouping['streamGroupCount']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+            'stream' => 1,
+        ], $grouping['outputTypeCounts']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+        ], $grouping['richOutputKindCounts']);
+        $t->same([
+            'output' => 5,
+            'stream' => 1,
+        ], $grouping['groupKindCounts']);
+        $t->same([
+            'display_data' => 3,
+            'error' => 1,
+            'execute_result' => 1,
+            'stream' => 1,
+        ], $grouping['groupTypeCounts']);
+        $t->same([
+            'output-bytes-blocked' => 6,
+            'output-error-metadata-only' => 1,
+            'output-error-traceback-bytes-blocked' => 1,
+            'output-mime-bundle-metadata-only' => 4,
+            'output-stream-bytes-blocked' => 1,
+        ], $document->attr('notebookOutputPolicyDiagnosticCounts'));
+
+        $t->same(false, str_contains($serialized, 'secret cell zero display label'));
+        $t->same(false, str_contains($serialized, 'secret cell zero execute text'));
+        $t->same(false, str_contains($serialized, 'secret cell one display label'));
+        $t->same(false, str_contains($serialized, 'secret cell two display text'));
+        $t->same(false, str_contains($serialized, 'secret stream line'));
+        $t->same(false, str_contains($serialized, 'secret error value'));
+        $t->same(false, str_contains($serialized, 'secret traceback value'));
+    },
 ];

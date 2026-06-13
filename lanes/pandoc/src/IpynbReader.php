@@ -54,6 +54,15 @@ final class IpynbReader
         $outputMimeBundleDigestCount = 0;
         $outputRepeatedMimeBundleDigestCount = 0;
         $outputRepeatedMimeBundleDigestDuplicateCount = 0;
+        $outputRepeatedMimeBundleKeyCount = 0;
+        $outputRepeatedMimeBundleKeyDuplicateCount = 0;
+        $outputRepeatedStreamNameGroupDuplicateCount = 0;
+        $outputMimeBundleDigestRecords = [];
+        $outputTypeCounts = [];
+        $outputRichOutputKindCounts = [];
+        $outputGroupKindCounts = [];
+        $outputGroupTypeCounts = [];
+        $outputPolicyDiagnosticCounts = [];
         $outputAggregateDiagnostics = [];
         $metadataKeys = $this->metadataKeys($metadata);
         $sourceShapeCounts = [
@@ -146,6 +155,48 @@ final class IpynbReader
             $outputMimeBundleDigestCount += count($outputSummary['mimeBundleDigests']);
             $outputRepeatedMimeBundleDigestCount += count($outputSummary['repeatedMimeBundleDigests']);
             $outputRepeatedMimeBundleDigestDuplicateCount += $outputSummary['repeatedMimeBundleDigestDuplicateCount'];
+            $outputRepeatedMimeBundleKeyCount += count($outputSummary['repeatedMimeBundleKeys']);
+            foreach ($outputSummary['repeatedMimeBundleRecords'] as $record) {
+                $recordCount = $record['count'] ?? 0;
+                if (is_int($recordCount) && $recordCount > 1) {
+                    $outputRepeatedMimeBundleKeyDuplicateCount += $recordCount - 1;
+                }
+            }
+            foreach ($outputSummary['repeatedStreamNameRecords'] as $record) {
+                $recordGroupCount = $record['groupCount'] ?? 0;
+                if (is_int($recordGroupCount) && $recordGroupCount > 1) {
+                    $outputRepeatedStreamNameGroupDuplicateCount += $recordGroupCount - 1;
+                }
+            }
+            foreach ($outputSummary['orderTypes'] as $outputType) {
+                $this->incrementCount($outputTypeCounts, $outputType);
+            }
+            foreach ($outputSummary['outputs'] as $outputRow) {
+                $richOutputKind = $outputRow['richOutputKind'] ?? null;
+                if (is_string($richOutputKind) && $richOutputKind !== '') {
+                    $this->incrementCount($outputRichOutputKindCounts, $richOutputKind);
+                }
+                foreach (($outputRow['diagnostics'] ?? []) as $diagnostic) {
+                    if (is_string($diagnostic) && $diagnostic !== '') {
+                        $this->incrementCount($outputPolicyDiagnosticCounts, $diagnostic);
+                    }
+                }
+            }
+            foreach ($outputSummary['groups'] as $outputGroup) {
+                $groupKind = $outputGroup['kind'] ?? null;
+                $groupType = $outputGroup['type'] ?? null;
+                if (is_string($groupKind) && $groupKind !== '') {
+                    $this->incrementCount($outputGroupKindCounts, $groupKind);
+                }
+                if (is_string($groupType) && $groupType !== '') {
+                    $this->incrementCount($outputGroupTypeCounts, $groupType);
+                }
+            }
+            foreach ($outputSummary['mimeBundleDigestRecords'] as $digestRecord) {
+                $digestRecord['cellIndex'] = $index;
+                $digestRecord['cellType'] = $cellType;
+                $outputMimeBundleDigestRecords[] = $digestRecord;
+            }
             foreach ($outputSummary['aggregateDiagnostics'] as $diagnostic) {
                 $outputAggregateDiagnostics[] = $diagnostic;
             }
@@ -387,7 +438,9 @@ final class IpynbReader
                 'outputMimeTypes' => $outputSummary['mimeTypes'],
                 'outputMimeBundleCount' => $outputSummary['mimeBundleCount'],
                 'outputMimeBundleDigests' => $outputSummary['mimeBundleDigests'],
+                'outputMimeBundleDigestRecords' => $outputSummary['mimeBundleDigestRecords'],
                 'outputRepeatedMimeBundleDigests' => $outputSummary['repeatedMimeBundleDigests'],
+                'outputRepeatedMimeBundleDigestRecords' => $outputSummary['repeatedMimeBundleDigestRecords'],
                 'outputRepeatedMimeBundleDigestCount' => count($outputSummary['repeatedMimeBundleDigests']),
                 'outputRepeatedMimeBundleDigestDuplicateCount' => $outputSummary['repeatedMimeBundleDigestDuplicateCount'],
                 'outputBytePresenceCount' => $outputSummary['bytePresenceCount'],
@@ -449,6 +502,13 @@ final class IpynbReader
             ];
         }
 
+        $outputMimeBundleDigestCollisionRecords = $this->mimeBundleDigestCollisionRecords($outputMimeBundleDigestRecords);
+        $outputMimeBundleDigestCollisionPolicy = $this->mimeBundleDigestCollisionPolicy(
+            $outputMimeBundleDigestRecords,
+            $outputMimeBundleDigestCollisionRecords
+        );
+        $outputDigestCollisionCounts = $outputMimeBundleDigestCollisionPolicy['counts'];
+
         return new AstNode('document', [
             'sourceFormat' => 'ipynb',
             'notebookCellCount' => count($cells),
@@ -469,6 +529,36 @@ final class IpynbReader
             'notebookOutputMimeBundleDigestCount' => $outputMimeBundleDigestCount,
             'notebookOutputRepeatedMimeBundleDigestCount' => $outputRepeatedMimeBundleDigestCount,
             'notebookOutputRepeatedMimeBundleDigestDuplicateCount' => $outputRepeatedMimeBundleDigestDuplicateCount,
+            'notebookOutputMimeBundleDigestCollisionCount' => count($outputMimeBundleDigestCollisionRecords),
+            'notebookOutputMimeBundleDigestCollisionDuplicateCount' => $outputDigestCollisionCounts['duplicateCount'],
+            'notebookOutputMimeBundleDigestCollisionRecords' => $outputMimeBundleDigestCollisionRecords,
+            'notebookOutputMimeBundleDigestCollisionPolicy' => $outputMimeBundleDigestCollisionPolicy,
+            'notebookOutputDuplicatePolicyCounts' => [
+                'repeatedStreamNameCount' => $outputRepeatedStreamNameCount,
+                'repeatedStreamNameGroupDuplicateCount' => $outputRepeatedStreamNameGroupDuplicateCount,
+                'repeatedMimeBundleKeyCount' => $outputRepeatedMimeBundleKeyCount,
+                'repeatedMimeBundleKeyDuplicateCount' => $outputRepeatedMimeBundleKeyDuplicateCount,
+                'repeatedMimeBundleDigestCount' => $outputRepeatedMimeBundleDigestCount,
+                'repeatedMimeBundleDigestDuplicateCount' => $outputRepeatedMimeBundleDigestDuplicateCount,
+                'digestCollisionCount' => count($outputMimeBundleDigestCollisionRecords),
+                'digestCollisionDuplicateCount' => $outputDigestCollisionCounts['duplicateCount'],
+                'digestCrossCellCollisionCount' => $outputDigestCollisionCounts['crossCellCount'],
+                'digestSameOutputIndexCollisionCount' => $outputDigestCollisionCounts['sameOutputIndexCount'],
+                'digestDifferentOutputIndexCollisionCount' => $outputDigestCollisionCounts['differentOutputIndexCount'],
+                'digestSameGroupIndexCollisionCount' => $outputDigestCollisionCounts['sameGroupIndexCount'],
+                'digestDifferentGroupIndexCollisionCount' => $outputDigestCollisionCounts['differentGroupIndexCount'],
+                'digestMixedOutputTypeCollisionCount' => $outputDigestCollisionCounts['mixedOutputTypeCount'],
+            ],
+            'notebookOutputGroupingSummary' => [
+                'outputCount' => $outputCount,
+                'groupCount' => $outputGroupCount,
+                'streamGroupCount' => $outputStreamGroupCount,
+                'outputTypeCounts' => $this->sortedIntMap($outputTypeCounts),
+                'richOutputKindCounts' => $this->sortedIntMap($outputRichOutputKindCounts),
+                'groupKindCounts' => $this->sortedIntMap($outputGroupKindCounts),
+                'groupTypeCounts' => $this->sortedIntMap($outputGroupTypeCounts),
+            ],
+            'notebookOutputPolicyDiagnosticCounts' => $this->sortedIntMap($outputPolicyDiagnosticCounts),
             'notebookOutputAggregateDiagnosticCount' => count($outputAggregateDiagnostics),
             'notebookOutputAggregateDiagnostics' => $outputAggregateDiagnostics,
             'notebookOutputBytePolicy' => [
@@ -1363,6 +1453,36 @@ final class IpynbReader
     }
 
     /**
+     * @param list<int> $ints
+     * @return list<int>
+     */
+    private function sortedUniqueInts(array $ints): array
+    {
+        sort($ints, SORT_NUMERIC);
+
+        return array_values(array_unique($ints));
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return array<string, int>
+     */
+    private function sortedIntMap(array $counts): array
+    {
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private function incrementCount(array &$counts, string $key): void
+    {
+        $counts[$key] = ($counts[$key] ?? 0) + 1;
+    }
+
+    /**
      * @param array<string, list<int>> $mimeOccurrences
      * @return list<array{mimeType:string, outputIndexes:list<int>, count:int}>
      */
@@ -1426,6 +1546,212 @@ final class IpynbReader
         }
 
         return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $digestRecords
+     * @return list<array<string, mixed>>
+     */
+    private function mimeBundleDigestCollisionRecords(array $digestRecords): array
+    {
+        $recordsByDigest = [];
+        foreach ($digestRecords as $digestRecord) {
+            $digest = $digestRecord['digest'] ?? null;
+            $cellIndex = $digestRecord['cellIndex'] ?? null;
+            $outputIndex = $digestRecord['outputIndex'] ?? null;
+            $groupIndex = $digestRecord['groupIndex'] ?? null;
+            $outputType = $digestRecord['outputType'] ?? null;
+            if (
+                !is_string($digest)
+                || !is_int($cellIndex)
+                || !is_int($outputIndex)
+                || !is_int($groupIndex)
+                || !is_string($outputType)
+            ) {
+                continue;
+            }
+
+            $recordsByDigest[$digest] ??= [
+                'digest' => $digest,
+                'occurrences' => [],
+                'cellIndexes' => [],
+                'outputIndexes' => [],
+                'groupIndexes' => [],
+                'outputTypes' => [],
+                'mimeTypes' => [],
+                'count' => 0,
+            ];
+
+            $mimeTypes = $digestRecord['mimeTypes'] ?? [];
+            $mimeTypes = is_array($mimeTypes)
+                ? array_values(array_filter($mimeTypes, static fn (mixed $value): bool => is_string($value) && $value !== ''))
+                : [];
+
+            $recordsByDigest[$digest]['occurrences'][] = [
+                'cellIndex' => $cellIndex,
+                'cellType' => is_string($digestRecord['cellType'] ?? null) ? $digestRecord['cellType'] : 'unknown',
+                'outputIndex' => $outputIndex,
+                'groupIndex' => $groupIndex,
+                'outputType' => $outputType,
+                'mimeTypes' => $mimeTypes,
+                'fingerprintSource' => is_string($digestRecord['fingerprintSource'] ?? null) ? $digestRecord['fingerprintSource'] : 'metadata-only',
+            ];
+            $recordsByDigest[$digest]['cellIndexes'][] = $cellIndex;
+            $recordsByDigest[$digest]['outputIndexes'][] = $outputIndex;
+            $recordsByDigest[$digest]['groupIndexes'][] = $groupIndex;
+            $recordsByDigest[$digest]['outputTypes'][] = $outputType;
+            foreach ($mimeTypes as $mimeType) {
+                $recordsByDigest[$digest]['mimeTypes'][] = $mimeType;
+            }
+            $recordsByDigest[$digest]['count']++;
+        }
+        ksort($recordsByDigest);
+
+        $records = [];
+        foreach ($recordsByDigest as $record) {
+            if ($record['count'] < 2) {
+                continue;
+            }
+
+            $cellIndexes = $this->sortedUniqueInts($record['cellIndexes']);
+            $outputIndexes = $this->sortedUniqueInts($record['outputIndexes']);
+            $groupIndexes = $this->sortedUniqueInts($record['groupIndexes']);
+            $outputTypes = array_values(array_unique($record['outputTypes']));
+            $mimeTypes = $this->sortedUniqueStrings($record['mimeTypes']);
+
+            $collisionScopes = [];
+            $policyDiagnostics = ['ipynb-output-mime-bundle-digest-collision-review'];
+            if (count($cellIndexes) > 1) {
+                $collisionScopes[] = 'cross-cell';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-cross-cell-review';
+            }
+            if (count($outputIndexes) === 1) {
+                $collisionScopes[] = 'same-output-index';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-same-output-index-review';
+            } else {
+                $collisionScopes[] = 'different-output-index';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-different-output-index-review';
+            }
+            if (count($groupIndexes) === 1) {
+                $collisionScopes[] = 'same-group-index';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-same-group-index-review';
+            } else {
+                $collisionScopes[] = 'different-group-index';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-different-group-index-review';
+            }
+            if (count($outputTypes) > 1) {
+                $collisionScopes[] = 'mixed-output-type';
+                $policyDiagnostics[] = 'ipynb-output-mime-bundle-digest-mixed-output-type-review';
+            }
+
+            $records[] = [
+                'digest' => $record['digest'],
+                'occurrenceCount' => $record['count'],
+                'duplicateCount' => $record['count'] - 1,
+                'cellIndexes' => $cellIndexes,
+                'outputIndexes' => $outputIndexes,
+                'groupIndexes' => $groupIndexes,
+                'outputTypes' => $outputTypes,
+                'mimeTypes' => $mimeTypes,
+                'collisionScopes' => $collisionScopes,
+                'policyDiagnostics' => $policyDiagnostics,
+                'occurrences' => $record['occurrences'],
+                'fingerprintSource' => 'metadata-only',
+                'byteExposure' => 'blocked',
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $digestRecords
+     * @param list<array<string, mixed>> $collisionRecords
+     * @return array<string, mixed>
+     */
+    private function mimeBundleDigestCollisionPolicy(array $digestRecords, array $collisionRecords): array
+    {
+        $uniqueDigests = array_values(array_filter(
+            array_column($digestRecords, 'digest'),
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+        $counts = [
+            'digestRecordCount' => count($digestRecords),
+            'uniqueDigestCount' => count(array_unique($uniqueDigests)),
+            'collisionCount' => count($collisionRecords),
+            'duplicateCount' => 0,
+            'crossCellCount' => 0,
+            'sameOutputIndexCount' => 0,
+            'differentOutputIndexCount' => 0,
+            'sameGroupIndexCount' => 0,
+            'differentGroupIndexCount' => 0,
+            'mixedOutputTypeCount' => 0,
+        ];
+
+        foreach ($collisionRecords as $record) {
+            $duplicateCount = $record['duplicateCount'] ?? 0;
+            if (is_int($duplicateCount)) {
+                $counts['duplicateCount'] += $duplicateCount;
+            }
+            $scopes = $record['collisionScopes'] ?? [];
+            if (!is_array($scopes)) {
+                continue;
+            }
+            if (in_array('cross-cell', $scopes, true)) {
+                $counts['crossCellCount']++;
+            }
+            if (in_array('same-output-index', $scopes, true)) {
+                $counts['sameOutputIndexCount']++;
+            }
+            if (in_array('different-output-index', $scopes, true)) {
+                $counts['differentOutputIndexCount']++;
+            }
+            if (in_array('same-group-index', $scopes, true)) {
+                $counts['sameGroupIndexCount']++;
+            }
+            if (in_array('different-group-index', $scopes, true)) {
+                $counts['differentGroupIndexCount']++;
+            }
+            if (in_array('mixed-output-type', $scopes, true)) {
+                $counts['mixedOutputTypeCount']++;
+            }
+        }
+
+        $diagnostics = [];
+        if ($counts['digestRecordCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-metadata-only';
+        }
+        if ($counts['collisionCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-collision-review';
+        }
+        if ($counts['crossCellCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-cross-cell-review';
+        }
+        if ($counts['sameOutputIndexCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-same-output-index-review';
+        }
+        if ($counts['differentOutputIndexCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-different-output-index-review';
+        }
+        if ($counts['sameGroupIndexCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-same-group-index-review';
+        }
+        if ($counts['differentGroupIndexCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-different-group-index-review';
+        }
+        if ($counts['mixedOutputTypeCount'] > 0) {
+            $diagnostics[] = 'ipynb-output-mime-bundle-digest-mixed-output-type-review';
+        }
+
+        return [
+            'state' => $counts['digestRecordCount'] > 0 ? 'metadata-only' : 'none',
+            'fingerprintSource' => 'metadata-only',
+            'payloadPolicy' => 'shape-only',
+            'byteExposure' => 'blocked',
+            'collisionPolicy' => $counts['collisionCount'] > 0 ? 'review' : 'none',
+            'counts' => $counts,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
