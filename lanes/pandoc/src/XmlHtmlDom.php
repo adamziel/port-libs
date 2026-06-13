@@ -10,6 +10,29 @@ final class XmlHtmlDom
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
+    private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+
+    /** @var array<string, true> */
+    private const DOCBOOK_ROOT_ELEMENTS = [
+        'appendix' => true,
+        'article' => true,
+        'book' => true,
+        'chapter' => true,
+        'part' => true,
+        'preface' => true,
+        'section' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const DOCBOOK_SECTION_ELEMENTS = [
+        'section' => true,
+        'sect1' => true,
+        'sect2' => true,
+        'sect3' => true,
+        'sect4' => true,
+        'sect5' => true,
+        'simplesect' => true,
+    ];
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -805,6 +828,59 @@ final class XmlHtmlDom
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeDocBookSectionMetadata(\DOMDocument $dom): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('DocBook review packet requires a document element');
+        }
+
+        $rootName = strtolower($root->localName);
+        if (!isset(self::DOCBOOK_ROOT_ELEMENTS[$rootName])) {
+            throw new \InvalidArgumentException('DocBook review packet root must be article, book, chapter, appendix, part, preface, or section');
+        }
+
+        $sections = self::docBookSectionSummaries($root);
+        $diagnostics = self::docBookSectionDiagnostics($sections);
+
+        return [
+            'formatFamily' => 'xml-html5-jats-dom',
+            'format' => 'docbook',
+            'reviewPolicy' => 'docbook-section-title-metadata-review-only',
+            'directReaderParity' => false,
+            'rootName' => $rootName,
+            'rootAttributes' => self::xmlAttributeMap($root),
+            'documentVersion' => self::normalizedAttribute($root, 'version'),
+            'language' => self::normalizedAttribute($root, 'lang', self::XML_NAMESPACE)
+                ?? self::normalizedAttribute($root, 'lang'),
+            'title' => self::docBookTitleText($root),
+            'titleSource' => self::docBookTitleSource($root),
+            'subtitle' => self::docBookSubtitleText($root),
+            'sectionCount' => count($sections),
+            'sectionTitles' => array_values(array_filter(
+                array_map(static fn (array $section): ?string => $section['title'], $sections),
+                static fn (?string $title): bool => $title !== null && $title !== ''
+            )),
+            'sections' => $sections,
+            'diagnostics' => $diagnostics,
+            'diagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            ))),
+            'missingTitleCount' => count(array_filter(
+                $diagnostics,
+                static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'docbook-section-missing-title'
+            )),
+            'duplicateIdCount' => count(array_filter(
+                $diagnostics,
+                static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'docbook-section-duplicate-id'
+            )),
+        ];
+    }
+
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement
     {
         $root = self::fragmentRoot($dom);
@@ -1078,6 +1154,207 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookSectionSummaries(\DOMElement $root): array
+    {
+        $sections = [];
+        foreach (self::docBookSectionElements($root) as $section) {
+            $sections[] = [
+                'element' => strtolower($section->localName),
+                'id' => self::docBookElementId($section),
+                'xmlId' => self::normalizedAttribute($section, 'id', self::XML_NAMESPACE),
+                'label' => self::normalizedAttribute($section, 'label'),
+                'role' => self::normalizedAttribute($section, 'role'),
+                'language' => self::normalizedAttribute($section, 'lang', self::XML_NAMESPACE)
+                    ?? self::normalizedAttribute($section, 'lang'),
+                'title' => self::docBookTitleText($section),
+                'titleSource' => self::docBookTitleSource($section),
+                'subtitle' => self::docBookSubtitleText($section),
+                'level' => self::docBookSectionLevel($section),
+                'paragraphCount' => self::docBookDirectTextBlockCount($section),
+                'childSectionCount' => self::docBookDirectChildSectionCount($section),
+            ];
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function docBookSectionElements(\DOMElement $root): array
+    {
+        $sections = [];
+        if (self::isDocBookSectionElement($root)) {
+            $sections[] = $root;
+        }
+
+        foreach (self::descendantElements($root) as $element) {
+            if (self::isDocBookSectionElement($element)) {
+                $sections[] = $element;
+            }
+        }
+
+        return $sections;
+    }
+
+    private static function isDocBookSectionElement(\DOMElement $element): bool
+    {
+        return isset(self::DOCBOOK_SECTION_ELEMENTS[strtolower($element->localName)]);
+    }
+
+    private static function docBookTitleText(\DOMElement $element): ?string
+    {
+        return self::docBookTitleLikeText($element, 'title');
+    }
+
+    private static function docBookSubtitleText(\DOMElement $element): ?string
+    {
+        return self::docBookTitleLikeText($element, 'subtitle');
+    }
+
+    private static function docBookTitleLikeText(\DOMElement $element, string $name): ?string
+    {
+        $direct = self::firstChildElement($element, $name);
+        if ($direct instanceof \DOMElement) {
+            $text = self::normalizedText($direct);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        $info = self::firstChildElement($element, 'info');
+        $infoTitle = $info instanceof \DOMElement ? self::firstChildElement($info, $name) : null;
+        if ($infoTitle instanceof \DOMElement) {
+            $text = self::normalizedText($infoTitle);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    private static function docBookTitleSource(\DOMElement $element): ?string
+    {
+        $direct = self::firstChildElement($element, 'title');
+        if ($direct instanceof \DOMElement && self::normalizedText($direct) !== '') {
+            return 'direct-title';
+        }
+
+        $info = self::firstChildElement($element, 'info');
+        $infoTitle = $info instanceof \DOMElement ? self::firstChildElement($info, 'title') : null;
+        if ($infoTitle instanceof \DOMElement && self::normalizedText($infoTitle) !== '') {
+            return 'info-title';
+        }
+
+        return null;
+    }
+
+    private static function docBookElementId(\DOMElement $element): ?string
+    {
+        return self::normalizedAttribute($element, 'id', self::XML_NAMESPACE)
+            ?? self::normalizedAttribute($element, 'id');
+    }
+
+    private static function normalizedAttribute(\DOMElement $element, string $localName, ?string $namespace = null): ?string
+    {
+        $value = self::attribute($element, $localName, $namespace);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private static function docBookSectionLevel(\DOMElement $section): int
+    {
+        if (preg_match('/^sect([1-5])$/', strtolower($section->localName), $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        $level = 1;
+        $parent = $section->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::isDocBookSectionElement($parent)) {
+                $level++;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return $level;
+    }
+
+    private static function docBookDirectTextBlockCount(\DOMElement $section): int
+    {
+        $count = 0;
+        foreach (self::childElements($section) as $child) {
+            if (in_array(strtolower($child->localName), ['para', 'simpara'], true)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private static function docBookDirectChildSectionCount(\DOMElement $section): int
+    {
+        $count = 0;
+        foreach (self::childElements($section) as $child) {
+            if (self::isDocBookSectionElement($child)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookSectionDiagnostics(array $sections): array
+    {
+        $diagnostics = [];
+        $ids = [];
+
+        foreach ($sections as $index => $section) {
+            $id = $section['id'] ?? null;
+            $title = $section['title'] ?? null;
+            if ($title === null || $title === '') {
+                $diagnostics[] = [
+                    'code' => 'docbook-section-missing-title',
+                    'sectionIndex' => $index,
+                    'sectionId' => is_string($id) && $id !== '' ? $id : null,
+                    'element' => $section['element'] ?? null,
+                ];
+            }
+
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+
+            if (isset($ids[$id])) {
+                $diagnostics[] = [
+                    'code' => 'docbook-section-duplicate-id',
+                    'sectionIndex' => $index,
+                    'sectionId' => $id,
+                    'firstSectionIndex' => $ids[$id],
+                    'element' => $section['element'] ?? null,
+                ];
+                continue;
+            }
+
+            $ids[$id] = $index;
+        }
+
+        return $diagnostics;
     }
 
     /**
