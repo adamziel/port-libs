@@ -82,7 +82,7 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
-    'summarizes jats and bits front matter review packets without reader parity claims' => static function (TestRunner $t): void {
+    'summarizes jats and bits metadata and back matter review packets without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
   <front>
@@ -106,18 +106,40 @@ XML, 'package reader XML');
     </article-meta>
   </front>
   <body>
-    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1">[1]</xref>.</p></sec>
+    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1 r2 missing-ref">[1, 2]</xref>.</p></sec>
     <fig id="f1"><caption><p>Figure</p></caption></fig>
     <table-wrap id="t1"><caption><p>Table</p></caption></table-wrap>
   </body>
-  <back><ref-list><ref id="r1"><label>1</label></ref></ref-list></back>
+  <back>
+    <ref-list id="refs"><title>References</title>
+      <ref id="r1">
+        <label>1</label>
+        <mixed-citation publication-type="journal">
+          <person-group person-group-type="author"><name><surname>Rivera</surname><given-names>Sam</given-names></name></person-group>
+          <article-title>Reference Study</article-title>
+          <source>Journal of Review</source>
+          <year>2024</year>
+          <pub-id pub-id-type="doi">10.5555/ref.1</pub-id>
+        </mixed-citation>
+      </ref>
+      <ref id="r2">
+        <label>2</label>
+        <element-citation publication-type="book">
+          <person-group person-group-type="editor"><string-name>Editor Team</string-name></person-group>
+          <source>Review Handbook</source>
+          <year>2023</year>
+          <pub-id pub-id-type="isbn">978-1-55555-100-7</pub-id>
+        </element-citation>
+      </ref>
+    </ref-list>
+  </back>
 </article>
 XML, 'JATS article XML', preserveWhiteSpace: false);
         $packet = XmlHtmlDom::summarizeJatsFrontMatter($jats);
 
         $t->same('xml-html5-jats-dom', $packet['formatFamily']);
         $t->same('jats', $packet['format']);
-        $t->same('jats-bits-front-matter-review-only', $packet['reviewPolicy']);
+        $t->same('jats-bits-metadata-back-matter-review-only', $packet['reviewPolicy']);
         $t->same(false, $packet['directReaderParity']);
         $t->same('article', $packet['rootName']);
         $t->same('research-article', $packet['documentType']);
@@ -142,8 +164,42 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(['Scope'], $packet['sectionTitles']);
         $t->same('s1', $packet['sections'][0]['id'] ?? null);
         $t->same(1, $packet['sections'][0]['paragraphCount'] ?? null);
-        $t->same(['aff1', 'r1'], $packet['xrefTargets']);
-        $t->same(['r1'], $packet['referenceIds']);
+        $t->same(['aff1', 'r1', 'r2', 'missing-ref'], $packet['xrefTargets']);
+        $t->same(['r1', 'r2'], $packet['referenceIds']);
+        $t->same(true, $packet['hasBackMatter']);
+        $t->same('back', $packet['backMatterRoot']);
+        $t->same(1, $packet['backMatterReferenceListCount']);
+        $t->same('refs', $packet['backMatterReferenceLists'][0]['id'] ?? null);
+        $t->same('References', $packet['backMatterReferenceLists'][0]['title'] ?? null);
+        $t->same(['r1', 'r2'], $packet['backMatterReferenceLists'][0]['referenceIds'] ?? null);
+        $t->same(2, $packet['backMatterReferenceLists'][0]['referenceCount'] ?? null);
+        $t->same(['r1', 'r2'], $packet['backMatterReferenceIds']);
+        $t->same(2, $packet['backMatterReferenceCount']);
+        $t->same('1', $packet['backMatterReferences'][0]['label'] ?? null);
+        $t->same(['journal'], $packet['backMatterReferences'][0]['citationTypes'] ?? null);
+        $t->same(['author'], $packet['backMatterReferences'][0]['personGroupTypes'] ?? null);
+        $t->same('Reference Study', $packet['backMatterReferences'][0]['articleTitle'] ?? null);
+        $t->same('Journal of Review', $packet['backMatterReferences'][0]['source'] ?? null);
+        $t->same('2024', $packet['backMatterReferences'][0]['year'] ?? null);
+        $t->same([['element' => 'pub-id', 'type' => 'doi', 'value' => '10.5555/ref.1']], $packet['backMatterReferences'][0]['pubIds'] ?? null);
+        $t->same(1, $packet['backMatterReferences'][1]['elementCitationCount'] ?? null);
+        $t->same(['book'], $packet['backMatterReferences'][1]['citationTypes'] ?? null);
+        $t->same(['editor'], $packet['backMatterReferences'][1]['personGroupTypes'] ?? null);
+        $t->same('Review Handbook', $packet['backMatterReferences'][1]['source'] ?? null);
+        $t->same([['element' => 'pub-id', 'type' => 'isbn', 'value' => '978-1-55555-100-7']], $packet['backMatterReferences'][1]['pubIds'] ?? null);
+        $t->same(1, $packet['citationXrefCount']);
+        $t->same('bibr', $packet['citationXrefs'][0]['refType'] ?? null);
+        $t->same('r1 r2 missing-ref', $packet['citationXrefs'][0]['ridRaw'] ?? null);
+        $t->same(['r1', 'r2', 'missing-ref'], $packet['citationTargetIds']);
+        $t->same(['r1', 'r2'], $packet['resolvedCitationReferenceIds']);
+        $t->same(['missing-ref'], $packet['missingCitationReferenceIds']);
+        $t->same([
+            'jats-bits-direct-reader-parity-not-implemented',
+            'jats-bits-back-matter-review-only',
+            'jats-bits-reference-summary-review-only',
+            'jats-bits-citation-xref-summary-review-only',
+            'jats-bits-citation-target-missing',
+        ], $packet['diagnostics']);
         $t->same(['f1'], $packet['figureIds']);
         $t->same(['t1'], $packet['tableWrapIds']);
         $t->same(0, $packet['bookPartCount']);
@@ -157,7 +213,17 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
     <contrib-group><contrib contrib-type="editor"><string-name>Camille Editor</string-name></contrib></contrib-group>
     <pub-date pub-type="ppub"><year>2025</year></pub-date>
   </book-meta>
-  <book-body><book-part id="ch1"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta></book-part></book-body>
+  <book-body>
+    <book-part id="ch1">
+      <book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta>
+      <body><p>Chapter cites <xref ref-type="bibr" rid="bref1">the guide</xref>.</p></body>
+    </book-part>
+  </book-body>
+  <book-back>
+    <ref-list id="book-refs"><title>Book References</title>
+      <ref id="bref1"><mixed-citation publication-type="book"><source>Bounded XML Guide</source><year>2024</year></mixed-citation></ref>
+    </ref-list>
+  </book-back>
 </book>
 XML, 'BITS book XML', preserveWhiteSpace: false);
         $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
@@ -173,6 +239,11 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(['Camille Editor'], $bitsPacket['contributorNames']);
         $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
+        $t->same('book-back', $bitsPacket['backMatterRoot']);
+        $t->same(['bref1'], $bitsPacket['backMatterReferenceIds']);
+        $t->same('Bounded XML Guide', $bitsPacket['backMatterReferences'][0]['source'] ?? null);
+        $t->same(['bref1'], $bitsPacket['resolvedCitationReferenceIds']);
+        $t->same([], $bitsPacket['missingCitationReferenceIds']);
         $t->same(false, $bitsPacket['directReaderParity']);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
