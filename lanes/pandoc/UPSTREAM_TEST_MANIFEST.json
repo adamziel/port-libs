@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3286,
-        "latestSlice": "pandoc-json-native-block-container-mixed-content maps one JSON/native AST round-trip fixture slice for block containers with inline text around nested blocks after XML/JATS/BITS direct reader capability diagnostics. PandocJsonWriter and NativeWriter now flush mixed inline runs to Plain blocks inside BlockQuote, Div, Note, and shared child-block payloads while preserving nested CodeBlock and list payloads plus valid noteLabel sidecars. Mapped denominator moves 3285 -> 3286, mappedJsonNativeBlockContainerMixedContentCases is 1, and jsonNativeBlockContainerMixedContentAssertions is 30. Verification passed php -l for PandocJsonReader.php, NativeReader.php, PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 2133 assertions, 0 failures; and full lanes/pandoc/tests passed 45 files, 74728 assertions, 0 failures after final rebase onto current main 7b2c5f3a7c without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3287,
+        "latestSlice": "pandoc-markdown-math-attributes maps one Markdown reader/writer inline math attribute round-trip slice after JSON/native block-container mixed-content flushing. MarkdownReader now attaches immediate {#id .class key=\"value\"} tuples to inline and display math nodes, and MarkdownWriter emits those tuples for math nodes, preserving class/key-value attrs for Math alongside existing Code/Span attr output without invoking Pandoc, TeX engines, browser renderers, Node tooling, online services, live provider tests, or external validators. Mapped denominator moves 3286 -> 3287, mappedMarkdownMathAttributeCases is 1, and markdownMathAttributeAssertions is 19. Verification passed php -l for MarkdownReader.php, MarkdownWriter.php, and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6704 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74747 assertions, 0 failures after final rebase onto current main 49a3d442d6.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "JSON/native AST mixed block-container flushing is verified over current main 7b2c5f3a7c after XML/JATS/BITS direct reader capability diagnostics; JSON/native remains partial/not shippable.",
-        "latestFocusedSource": "2026-06-13 JSON/native block-container mixed-content slice inspected lanes/pandoc/fixtures/wordpress-import-markdown.md:blockquotes-divs-footnotes against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 7b2c5f3a7c; focused PandocJsonNativeAstTest.php passed 1 file, 2133 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74728 assertions, 0 failures.",
+        "status": "Markdown math attribute round-trip is verified over current main 49a3d442d6 after JSON/native block-container mixed-content flushing; broader inline writer parity remains partial.",
+        "latestFocusedSource": "2026-06-13 inline math attribute slice inspected Markdown reader/writer handoff against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 49a3d442d6; focused MarkdownReaderTest.php passed 1 file, 6704 assertions, 0 failures, and full lanes/pandoc/tests passed 45 files, 74747 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -193,7 +193,9 @@
         "mappedXmlHtmlDomDirectReaderCapabilityCases": 1,
         "xmlHtmlDomDirectReaderCapabilityAssertions": 73,
         "mappedJsonNativeBlockContainerMixedContentCases": 1,
-        "jsonNativeBlockContainerMixedContentAssertions": 30
+        "jsonNativeBlockContainerMixedContentAssertions": 30,
+        "mappedMarkdownMathAttributeCases": 1,
+        "markdownMathAttributeAssertions": 19
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
