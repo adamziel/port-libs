@@ -10,6 +10,14 @@ final class XmlHtmlDom
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
+    private const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+
+    /** @var array<string, true> */
+    private const JATS_FIGURE_MEDIA_ELEMENTS = [
+        'graphic' => true,
+        'inline-graphic' => true,
+        'media' => true,
+    ];
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -750,6 +758,9 @@ final class XmlHtmlDom
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
         $figureIds = self::jatsElementIds($root, 'fig');
+        $figurePermissionSummaries = self::jatsFigurePermissionSummaries($root);
+        $figurePermissionIssues = self::jatsFigurePermissionIssues($figurePermissionSummaries);
+        $figureMediaTargets = self::jatsFigureMediaTargets($figurePermissionSummaries);
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
@@ -766,6 +777,7 @@ final class XmlHtmlDom
             'formatFamily' => 'xml-html5-jats-dom',
             'format' => $format,
             'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'payloadBytesExposed' => false,
             'directReaderParity' => false,
             'directReaderDiagnosticCodes' => array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
@@ -816,6 +828,18 @@ final class XmlHtmlDom
             'referenceCount' => count($referenceIds),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
+            'figurePermissionReviewPolicy' => 'jats-bits-figure-permissions-metadata-only',
+            'figurePermissionPayloadBytesExposed' => false,
+            'figurePermissionSummaries' => $figurePermissionSummaries,
+            'figurePermissionSummaryCount' => count($figurePermissionSummaries),
+            'figureMediaTargets' => $figureMediaTargets,
+            'figureMediaTargetCount' => count($figureMediaTargets),
+            'figurePermissionIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $figurePermissionIssues
+            ))),
+            'figurePermissionIssueCount' => count($figurePermissionIssues),
+            'figurePermissionIssues' => $figurePermissionIssues,
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'bookPartCount' => $bookPartCount,
@@ -1207,6 +1231,356 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigurePermissionSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::descendantElements($root, 'fig') as $figure) {
+            $figureId = self::trimmedAttribute($figure, 'id');
+            $caption = self::firstChildElement($figure, 'caption');
+            $figurePermissions = self::jatsChildPermissionSummaries($figure);
+            $media = self::jatsFigureMediaSummaries($figure, $figureId);
+            $mediaTargets = self::jatsMediaTargets($media);
+            $issues = self::jatsPermissionLicenseIssues(
+                'figure',
+                $figureId,
+                null,
+                $mediaTargets,
+                $figurePermissions,
+                self::jatsPermissionsHaveLicense($figurePermissions) || self::jatsMediaHaveLicense($media)
+            );
+            foreach ($media as $mediaSummary) {
+                foreach ($mediaSummary['issues'] as $issue) {
+                    $issues[] = $issue;
+                }
+            }
+
+            $summaries[] = [
+                'figureId' => $figureId,
+                'label' => self::jatsFirstText($figure, ['label']),
+                'captionText' => $caption instanceof \DOMElement ? self::normalizedText($caption) : null,
+                'mediaTargets' => $mediaTargets,
+                'mediaTargetCount' => count($mediaTargets),
+                'media' => $media,
+                'mediaCount' => count($media),
+                'permissions' => $figurePermissions,
+                'permissionCount' => count($figurePermissions),
+                'licenseCount' => self::jatsPermissionRecordCount($figurePermissions, 'licenses'),
+                'licenseRefCount' => self::jatsPermissionRecordCount($figurePermissions, 'licenseRefs'),
+                'copyrightStatementCount' => self::jatsPermissionRecordCount($figurePermissions, 'copyrightStatements'),
+                'payloadBytesExposed' => false,
+                'issues' => $issues,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureMediaSummaries(\DOMElement $figure, ?string $figureId): array
+    {
+        $media = [];
+        foreach (self::descendantElements($figure) as $element) {
+            if (!isset(self::JATS_FIGURE_MEDIA_ELEMENTS[$element->localName])) {
+                continue;
+            }
+
+            $permissions = self::jatsChildPermissionSummaries($element);
+            $target = self::jatsLinkTarget($element);
+            $issues = self::jatsPermissionLicenseIssues(
+                'media',
+                $figureId,
+                $target,
+                $target === null ? [] : [$target],
+                $permissions,
+                self::jatsPermissionsHaveLicense($permissions)
+            );
+
+            $media[] = [
+                'element' => $element->localName,
+                'id' => self::trimmedAttribute($element, 'id'),
+                'figureId' => $figureId,
+                'target' => $target,
+                'mimeType' => self::trimmedAttribute($element, 'mimetype') ?? self::trimmedAttribute($element, 'content-type'),
+                'mimeSubtype' => self::trimmedAttribute($element, 'mime-subtype'),
+                'permissions' => $permissions,
+                'permissionCount' => count($permissions),
+                'licenseCount' => self::jatsPermissionRecordCount($permissions, 'licenses'),
+                'licenseRefCount' => self::jatsPermissionRecordCount($permissions, 'licenseRefs'),
+                'copyrightStatementCount' => self::jatsPermissionRecordCount($permissions, 'copyrightStatements'),
+                'payloadBytesExposed' => false,
+                'issues' => $issues,
+            ];
+        }
+
+        return $media;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsChildPermissionSummaries(\DOMElement $element): array
+    {
+        $summaries = [];
+        foreach (self::childElements($element, 'permissions') as $permissions) {
+            $licenses = self::jatsLicenseSummaries($permissions);
+            $licenseRefs = self::jatsLicenseRefSummaries($permissions);
+            $copyrightStatements = self::jatsTextList($permissions, 'copyright-statement');
+            $summaries[] = [
+                'id' => self::trimmedAttribute($permissions, 'id'),
+                'copyrightStatements' => $copyrightStatements,
+                'copyrightYears' => self::jatsTextList($permissions, 'copyright-year'),
+                'copyrightHolders' => self::jatsTextList($permissions, 'copyright-holder'),
+                'licenses' => $licenses,
+                'licenseRefs' => $licenseRefs,
+                'licenseCount' => count($licenses),
+                'licenseRefCount' => count($licenseRefs),
+                'copyrightStatementCount' => count($copyrightStatements),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array{id:?string, licenseType:?string, href:?string, text:string, licenseParagraphs:list<string>}>
+     */
+    private static function jatsLicenseSummaries(\DOMElement $permissions): array
+    {
+        $licenses = [];
+        foreach (self::descendantElements($permissions, 'license') as $license) {
+            $licenses[] = [
+                'id' => self::trimmedAttribute($license, 'id'),
+                'licenseType' => self::trimmedAttribute($license, 'license-type'),
+                'href' => self::jatsLinkTarget($license),
+                'text' => self::normalizedText($license),
+                'licenseParagraphs' => self::jatsTextList($license, 'license-p'),
+            ];
+        }
+
+        return $licenses;
+    }
+
+    /**
+     * @return list<array{id:?string, href:?string, text:string}>
+     */
+    private static function jatsLicenseRefSummaries(\DOMElement $permissions): array
+    {
+        $refs = [];
+        foreach (self::descendantElements($permissions, 'license-ref') as $ref) {
+            $refs[] = [
+                'id' => self::trimmedAttribute($ref, 'id'),
+                'href' => self::jatsLinkTarget($ref),
+                'text' => self::normalizedText($ref),
+            ];
+        }
+
+        return $refs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigurePermissionIssues(array $summaries): array
+    {
+        $issues = [];
+        foreach ($summaries as $summary) {
+            foreach ($summary['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $summaries
+     * @return list<string>
+     */
+    private static function jatsFigureMediaTargets(array $summaries): array
+    {
+        $targets = [];
+        foreach ($summaries as $summary) {
+            foreach ($summary['mediaTargets'] as $target) {
+                $targets[] = $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $media
+     * @return list<string>
+     */
+    private static function jatsMediaTargets(array $media): array
+    {
+        $targets = [];
+        foreach ($media as $item) {
+            $target = $item['target'] ?? null;
+            if (is_string($target) && $target !== '') {
+                $targets[] = $target;
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionLicenseIssues(
+        string $scope,
+        ?string $figureId,
+        ?string $mediaTarget,
+        array $mediaTargets,
+        array $permissions,
+        bool $hasAnyLicense
+    ): array {
+        $issues = [];
+        if (($permissions !== [] || $scope === 'figure' && $mediaTargets !== []) && !$hasAnyLicense) {
+            $issues[] = [
+                'code' => 'missing-license',
+                'scope' => $scope,
+                'figureId' => $figureId,
+                'mediaTarget' => $mediaTarget,
+                'mediaTargets' => $mediaTargets,
+            ];
+        }
+
+        foreach (self::jatsPermissionDuplicateLicenseIssues($scope, $figureId, $mediaTarget, $permissions) as $issue) {
+            $issues[] = $issue;
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionDuplicateLicenseIssues(
+        string $scope,
+        ?string $figureId,
+        ?string $mediaTarget,
+        array $permissions
+    ): array {
+        $counts = [];
+        foreach ($permissions as $permission) {
+            foreach ($permission['licenses'] as $license) {
+                $key = self::jatsLicenseIdentity($license);
+                $counts['license'][$key] = ($counts['license'][$key] ?? 0) + 1;
+            }
+            foreach ($permission['licenseRefs'] as $licenseRef) {
+                $key = self::jatsLicenseIdentity($licenseRef);
+                $counts['license-ref'][$key] = ($counts['license-ref'][$key] ?? 0) + 1;
+            }
+        }
+
+        $issues = [];
+        foreach ($counts as $kind => $kindCounts) {
+            foreach ($kindCounts as $key => $count) {
+                if ($count < 2) {
+                    continue;
+                }
+                $issues[] = [
+                    'code' => $kind === 'license' ? 'duplicate-license' : 'duplicate-license-ref',
+                    'scope' => $scope,
+                    'figureId' => $figureId,
+                    'mediaTarget' => $mediaTarget,
+                    'licenseKey' => $key,
+                    'count' => $count,
+                ];
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<string, mixed> $license
+     */
+    private static function jatsLicenseIdentity(array $license): string
+    {
+        foreach (['href', 'licenseType', 'text'] as $key) {
+            $value = $license[$key] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                return $key . ':' . trim($value);
+            }
+        }
+
+        return 'empty-license';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     */
+    private static function jatsPermissionsHaveLicense(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ((int) ($permission['licenseCount'] ?? 0) > 0 || (int) ($permission['licenseRefCount'] ?? 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $media
+     */
+    private static function jatsMediaHaveLicense(array $media): bool
+    {
+        foreach ($media as $item) {
+            if ((int) ($item['licenseCount'] ?? 0) > 0 || (int) ($item['licenseRefCount'] ?? 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     */
+    private static function jatsPermissionRecordCount(array $permissions, string $key): int
+    {
+        $count = 0;
+        foreach ($permissions as $permission) {
+            $records = $permission[$key] ?? [];
+            if (is_array($records)) {
+                $count += count($records);
+            }
+        }
+
+        return $count;
+    }
+
+    private static function jatsLinkTarget(\DOMElement $element): ?string
+    {
+        return self::trimmedAttribute($element, 'href', self::XLINK_NAMESPACE)
+            ?? self::trimmedAttribute($element, 'xlink:href')
+            ?? self::trimmedAttribute($element, 'href');
+    }
+
+    private static function trimmedAttribute(\DOMElement $element, string $localName, ?string $namespace = null): ?string
+    {
+        $value = self::attribute($element, $localName, $namespace);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**
