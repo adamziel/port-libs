@@ -343,6 +343,7 @@ final class CitationCslProcessor
         if ($item === null) {
             $attrs = [
                 ...$citation->attrs,
+                ...$this->citationAffixReviewAttrs($citation),
                 ...$this->citationLocatorReviewAttrs($citation, $locatorDiagnostics),
                 'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->sourceCitationText($citation),
@@ -362,6 +363,7 @@ final class CitationCslProcessor
             'citation',
             array_filter([
                 ...$citation->attrs,
+                ...$this->citationAffixReviewAttrs($citation),
                 ...$this->citationLocatorReviewAttrs($citation, $locatorDiagnostics),
                 'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->renderCitationCluster([$citation]),
@@ -409,6 +411,11 @@ final class CitationCslProcessor
         }
         if ($missing !== []) {
             $attrs['missingCslItems'] = $missing;
+        }
+        $citationAffixes = $this->citationAffixesForCitations($citations);
+        if ($citationAffixes !== []) {
+            $attrs['cslCitationAffixes'] = $citationAffixes;
+            $attrs['cslCitationAffixSummary'] = $this->citationAffixSummaryForRows($citationAffixes);
         }
         $locatorDiagnostics = $this->citationLocatorDiagnostics(new AstNode('citation_group', $group->attrs, $citations));
         if ($locatorDiagnostics !== []) {
@@ -6723,13 +6730,13 @@ final class CitationCslProcessor
         }
 
         $suffix = $this->citationSuffix($citation);
-        if ($suffix !== '' && !$this->hasLocatorRenderingElement($elements)) {
+        if ($suffix !== '' && !$this->hasLocatorRenderingElement($elements) && !$this->hasCitationSuffixRenderingElement($elements)) {
             $entry .= ', ' . $suffix;
         }
 
         $prefix = $this->citationPrefix($citation);
 
-        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+        return $prefix === '' || $this->hasCitationPrefixRenderingElement($elements) ? $entry : $prefix . ' ' . $entry;
     }
 
     /**
@@ -8421,6 +8428,66 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param list<array<string, mixed>> $elements
+     */
+    private function hasCitationPrefixRenderingElement(array $elements): bool
+    {
+        return $this->hasCitationAffixRenderingElement($elements, ['citation-prefix']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     */
+    private function hasCitationSuffixRenderingElement(array $elements): bool
+    {
+        return $this->hasCitationAffixRenderingElement($elements, ['citation-suffix']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param list<string> $variables
+     */
+    private function hasCitationAffixRenderingElement(array $elements, array $variables): bool
+    {
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $type = (string) ($element['type'] ?? '');
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+            if (($type === 'text' || $type === 'label') && in_array($variable, $variables, true)) {
+                return true;
+            }
+
+            if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
+                $macro = $this->style->macroRenderingElements($element['macro']);
+                if (is_array($macro) && $this->hasCitationAffixRenderingElement($macro, $variables)) {
+                    return true;
+                }
+            }
+
+            if ($type === 'group' && isset($element['children']) && is_array($element['children']) && $this->hasCitationAffixRenderingElement($element['children'], $variables)) {
+                return true;
+            }
+
+            if ($type === 'choose') {
+                foreach (($element['branches'] ?? []) as $branch) {
+                    if (is_array($branch) && isset($branch['children']) && is_array($branch['children']) && $this->hasCitationAffixRenderingElement($branch['children'], $variables)) {
+                        return true;
+                    }
+                }
+
+                if (isset($element['else']) && is_array($element['else']) && $this->hasCitationAffixRenderingElement($element['else'], $variables)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      * @param array<string, bool> $substitutedVariables
@@ -9537,6 +9604,9 @@ final class CitationCslProcessor
             'citation-locator-raw', 'locator-raw' => $this->citationLocatorRawValue($citation),
             'citation-locator-diagnostic-summary', 'citation-locator-diagnostics', 'locator-diagnostic-summary', 'locator-diagnostics' => $this->citationLocatorDiagnosticSummary($citation),
             'citation-locator-diagnostic-reasons', 'locator-diagnostic-reasons' => $this->citationLocatorDiagnosticReasons($citation),
+            'citation-prefix' => $this->citationPrefixValue($citation),
+            'citation-suffix' => $this->citationSuffixValue($citation),
+            'citation-affix-summary', 'citation-affixes' => $this->citationAffixSummaryForCitation($citation),
             'citation-number' => $this->citationNumberValue($item, $citation),
             'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation, $item),
             'id', 'citation-key' => (string) $item['id'],
@@ -10423,6 +10493,107 @@ final class CitationCslProcessor
         }
 
         return $this->inlineValue($citation->attr('suffix', ''));
+    }
+
+    private function citationPrefixValue(?AstNode $citation): string
+    {
+        return $citation instanceof AstNode ? $this->citationPrefix($citation) : '';
+    }
+
+    private function citationSuffixValue(?AstNode $citation): string
+    {
+        return $citation instanceof AstNode ? $this->citationSuffix($citation) : '';
+    }
+
+    /**
+     * @return array{cslCitationPrefix?:string, cslCitationSuffix?:string, cslCitationAffixSummary?:string}
+     */
+    private function citationAffixReviewAttrs(AstNode $citation): array
+    {
+        $attrs = [];
+        $prefix = $this->citationPrefix($citation);
+        if ($prefix !== '') {
+            $attrs['cslCitationPrefix'] = $prefix;
+        }
+
+        $suffix = $this->citationSuffix($citation);
+        if ($suffix !== '') {
+            $attrs['cslCitationSuffix'] = $suffix;
+        }
+
+        $summary = $this->citationAffixSummaryForCitation($citation);
+        if ($summary !== '') {
+            $attrs['cslCitationAffixSummary'] = $summary;
+        }
+
+        return $attrs;
+    }
+
+    private function citationAffixSummaryForCitation(?AstNode $citation): string
+    {
+        if (!$citation instanceof AstNode) {
+            return '';
+        }
+
+        $parts = [];
+        $prefix = $this->citationPrefix($citation);
+        if ($prefix !== '') {
+            $parts[] = 'prefix: ' . $prefix;
+        }
+
+        $suffix = $this->citationSuffix($citation);
+        if ($suffix !== '') {
+            $parts[] = 'suffix: ' . $suffix;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<array{id:string, source:string, prefix:string, suffix:string, summary:string}>
+     */
+    private function citationAffixesForCitations(array $citations): array
+    {
+        $rows = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                continue;
+            }
+
+            $summary = $this->citationAffixSummaryForCitation($citation);
+            if ($summary === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'id' => (string) $citation->attr('id', ''),
+                'source' => $this->sourceCitationText($citation),
+                'prefix' => $this->citationPrefix($citation),
+                'suffix' => $this->citationSuffix($citation),
+                'summary' => $summary,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{id:string, source:string, prefix:string, suffix:string, summary:string}> $rows
+     */
+    private function citationAffixSummaryForRows(array $rows): string
+    {
+        return implode('; ', array_values(array_filter(
+            array_map(
+                static function (array $row): string {
+                    $label = $row['id'] !== '' ? $row['id'] : $row['source'];
+
+                    return $label === '' ? $row['summary'] : $label . ' [' . $row['summary'] . ']';
+                },
+                $rows
+            ),
+            static fn (string $value): bool => $value !== ''
+        )));
     }
 
     /**
