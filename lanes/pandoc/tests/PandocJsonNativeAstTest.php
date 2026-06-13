@@ -5057,6 +5057,165 @@ return [
         $t->true($nativeNote instanceof AstNode, 'Native round trip keeps note inline');
         $t->same(['plain', 'code_block', 'plain'], array_map(static fn (AstNode $block): string => $block->type, $nativeNote instanceof AstNode ? $nativeNote->children : []));
     },
+    'flushes mixed link raw payload runs around nested block containers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('blockquote', [], [
+                new AstNode('text', ['text' => 'Quote']),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => 'https://example.test/quote-source',
+                    'title' => 'Quote source',
+                ], [
+                    new AstNode('text', ['text' => 'source']),
+                ]),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', ['html' => '<span data-review="quote-inline">raw</span>']),
+                new AstNode('raw_html', ['html' => '<aside data-review="quote-block">Block raw</aside>']),
+                new AstNode('div', ['classes' => ['quote-nested']], [
+                    new AstNode('text', ['text' => 'Nested']),
+                    new AstNode('space'),
+                    new AstNode('raw_html_inline', ['html' => '<em data-review="nested-inline">raw</em>']),
+                ]),
+                new AstNode('text', ['text' => 'Quote']),
+                new AstNode('space'),
+                new AstNode('link', ['url' => 'https://example.test/quote-tail'], [
+                    new AstNode('text', ['text' => 'tail']),
+                ]),
+            ]),
+            new AstNode('div', ['id' => 'json-native-raw-div'], [
+                new AstNode('text', ['text' => 'Div']),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => 'https://example.test/div-source',
+                    'title' => 'Div source',
+                ], [
+                    new AstNode('text', ['text' => 'source']),
+                ]),
+                new AstNode('raw_block', ['format' => 'opml', 'text' => '<outline text="payload"/>']),
+                new AstNode('blockquote', [], [
+                    new AstNode('text', ['text' => 'Nested']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'quote']),
+                    new AstNode('space'),
+                    new AstNode('raw_html_inline', ['html' => '<span data-review="nested-quote">inline</span>']),
+                ]),
+                new AstNode('raw_html_inline', ['html' => '<mark data-review="div-tail">tail</mark>']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Note']),
+                new AstNode('space'),
+                new AstNode('note', [], [
+                    new AstNode('text', ['text' => 'Note']),
+                    new AstNode('space'),
+                    new AstNode('link', ['url' => 'https://example.test/note-source'], [
+                        new AstNode('text', ['text' => 'source']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('raw_html_inline', ['html' => '<span data-review="note-inline">raw</span>']),
+                    new AstNode('raw_block', ['format' => 'opml', 'text' => '<outline text="note-payload"/>']),
+                    new AstNode('blockquote', [], [
+                        new AstNode('text', ['text' => 'Nested note quote']),
+                    ]),
+                    new AstNode('text', ['text' => 'Note']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'tail']),
+                    new AstNode('space'),
+                    new AstNode('raw_html_inline', ['html' => '<mark data-review="note-tail">tail</mark>']),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $constructors = static fn (array $blocks): array => array_map(static fn (array $block): string => $block['t'], $blocks);
+        $inlineConstructors = static fn (array $block): array => array_map(static fn (array $inline): string => $inline['t'], $block['c'] ?? []);
+        $findNote = static function (array $inlines): ?array {
+            foreach ($inlines as $inline) {
+                if (($inline['t'] ?? null) === 'Note') {
+                    return $inline;
+                }
+            }
+
+            return null;
+        };
+        $nodeTypes = static fn (array $nodes): array => array_map(static fn (AstNode $node): string => $node->type, $nodes);
+        $firstNodeOfType = static function (array $nodes, string $type): ?AstNode {
+            foreach ($nodes as $node) {
+                if ($node instanceof AstNode && $node->type === $type) {
+                    return $node;
+                }
+            }
+
+            return null;
+        };
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $source => $packet) {
+            $quoteBlocks = $packet['blocks'][0]['c'];
+            $quoteNestedDivBlocks = $quoteBlocks[2]['c'][1];
+            $divBlocks = $packet['blocks'][1]['c'][1];
+            $divNestedQuoteBlocks = $divBlocks[2]['c'];
+            $note = $findNote($packet['blocks'][2]['c']);
+            $t->true(is_array($note), "{$source} paragraph includes note inline");
+            $noteBlocks = is_array($note) && is_array($note['c'] ?? null) ? $note['c'] : [];
+
+            $t->same(['Plain', 'RawBlock', 'Div', 'Plain'], $constructors($quoteBlocks), "{$source} blockquote separates inline runs from raw and nested blocks");
+            $t->same(['Str', 'Space', 'Link', 'Space', 'RawInline'], $inlineConstructors($quoteBlocks[0]), "{$source} blockquote leading Plain keeps link and raw inline payloads");
+            $t->same(['html', '<aside data-review="quote-block">Block raw</aside>'], $quoteBlocks[1]['c'], "{$source} blockquote raw block payload stays a block");
+            $t->same(['Plain'], $constructors($quoteNestedDivBlocks), "{$source} nested div keeps a valid block list");
+            $t->same(['Str', 'Space', 'RawInline'], $inlineConstructors($quoteNestedDivBlocks[0]), "{$source} nested div Plain keeps raw inline payload");
+            $t->same('Link', $quoteBlocks[3]['c'][2]['t'], "{$source} blockquote trailing Plain keeps link payload");
+
+            $t->same(['Plain', 'RawBlock', 'BlockQuote', 'Plain'], $constructors($divBlocks), "{$source} div separates inline runs from raw and nested blocks");
+            $t->same(['Str', 'Space', 'Link'], $inlineConstructors($divBlocks[0]), "{$source} div leading Plain keeps link payload");
+            $t->same(['opml', '<outline text="payload"/>'], $divBlocks[1]['c'], "{$source} div generic raw block payload stays a block");
+            $t->same(['Plain'], $constructors($divNestedQuoteBlocks), "{$source} nested blockquote keeps a valid block list");
+            $t->same(['Str', 'Space', 'Str', 'Space', 'RawInline'], $inlineConstructors($divNestedQuoteBlocks[0]), "{$source} nested blockquote Plain keeps raw inline payload");
+            $t->same(['RawInline'], $inlineConstructors($divBlocks[3]), "{$source} div trailing Plain keeps raw inline payload");
+
+            $t->same(['Plain', 'RawBlock', 'BlockQuote', 'Plain'], $constructors($noteBlocks), "{$source} note separates inline runs from raw and nested blocks");
+            $t->same(['Str', 'Space', 'Link', 'Space', 'RawInline'], $inlineConstructors($noteBlocks[0]), "{$source} note leading Plain keeps link and raw inline payloads");
+            $t->same(['opml', '<outline text="note-payload"/>'], $noteBlocks[1]['c'], "{$source} note generic raw block payload stays a block");
+            $t->same(['Plain'], $constructors($noteBlocks[2]['c']), "{$source} note nested blockquote keeps a valid block list");
+            $t->same(['Str', 'Space', 'Str', 'Space', 'RawInline'], $inlineConstructors($noteBlocks[3]), "{$source} note trailing Plain keeps raw inline payload");
+        }
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $roundTrip) {
+            $quote = $roundTrip->children[0];
+            $div = $roundTrip->children[1];
+            $note = $firstNodeOfType($roundTrip->children[2]->children, 'note');
+            $quoteLeadingTypes = $nodeTypes($quote->children[0]->children);
+            $quoteNestedTypes = $nodeTypes($quote->children[2]->children[0]->children);
+            $quoteTrailingTypes = $nodeTypes($quote->children[3]->children);
+            $divNestedTypes = $nodeTypes($div->children[2]->children[0]->children);
+            $divTrailingTypes = $nodeTypes($div->children[3]->children);
+            $noteLeadingTypes = $note instanceof AstNode ? $nodeTypes($note->children[0]->children) : [];
+            $noteTrailingTypes = $note instanceof AstNode ? $nodeTypes($note->children[3]->children) : [];
+
+            $t->same(['plain', 'raw_html', 'div', 'plain'], $nodeTypes($quote->children), "{$source} reader round-trips blockquote with block-only children");
+            $t->same(true, in_array('link', $quoteLeadingTypes, true), "{$source} reader keeps leading blockquote link inside Plain");
+            $t->same(true, in_array('raw_html_inline', $quoteLeadingTypes, true), "{$source} reader keeps leading blockquote raw inline inside Plain");
+            $t->same('<aside data-review="quote-block">Block raw</aside>', $quote->children[1]->attr('html'), "{$source} reader keeps html raw block payload");
+            $t->same(true, in_array('raw_html_inline', $quoteNestedTypes, true), "{$source} reader keeps nested div raw inline inside Plain");
+            $t->same(true, in_array('link', $quoteTrailingTypes, true), "{$source} reader keeps trailing blockquote link inside Plain");
+
+            $t->same(['plain', 'raw_block', 'blockquote', 'plain'], $nodeTypes($div->children), "{$source} reader round-trips div with block-only children");
+            $t->same('opml', $div->children[1]->attr('format'), "{$source} reader keeps generic raw block format");
+            $t->same('<outline text="payload"/>', $div->children[1]->attr('text'), "{$source} reader keeps generic raw block text");
+            $t->same(true, in_array('raw_html_inline', $divNestedTypes, true), "{$source} reader keeps nested blockquote raw inline inside Plain");
+            $t->same(true, in_array('raw_html_inline', $divTrailingTypes, true), "{$source} reader keeps trailing div raw inline inside Plain");
+
+            $t->true($note instanceof AstNode, "{$source} reader keeps note inline");
+            $t->same(['plain', 'raw_block', 'blockquote', 'plain'], $nodeTypes($note instanceof AstNode ? $note->children : []), "{$source} reader round-trips note with block-only children");
+            $t->same('opml', $note instanceof AstNode ? $note->children[1]->attr('format') : null, "{$source} reader keeps note raw block format");
+            $t->same('<outline text="note-payload"/>', $note instanceof AstNode ? $note->children[1]->attr('text') : null, "{$source} reader keeps note raw block text");
+            $t->same(true, in_array('link', $noteLeadingTypes, true), "{$source} reader keeps leading note link inside Plain");
+            $t->same(true, in_array('raw_html_inline', $noteLeadingTypes, true), "{$source} reader keeps leading note raw inline inside Plain");
+            $t->same(true, in_array('raw_html_inline', $noteTrailingTypes, true), "{$source} reader keeps trailing note raw inline inside Plain");
+        }
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
