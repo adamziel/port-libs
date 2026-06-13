@@ -119,6 +119,89 @@ return [
         $t->same('A', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('20', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
     },
+    'records csv bom and leading whitespace prefix diagnostics without losing the header row' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF  \r\nsource_id,title\n42,Post\n", [
+            'extension' => '.csv',
+            'sourcePath' => 'exports/posts.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $prefix = $packet['inputPrefix'] ?? [];
+
+        $t->same('csv', $document->attr('sourceFormat'));
+        $t->same(['source_id', 'title'], $packet['columnNames'] ?? null);
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same('42', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Post', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('utf-8', $prefix['encoding'] ?? null);
+        $t->same('utf-8', $prefix['bom'] ?? null);
+        $t->same(3, $prefix['bomByteCount'] ?? null);
+        $t->same(4, $prefix['leadingWhitespaceByteCount'] ?? null);
+        $t->same(1, $prefix['leadingWhitespaceLineCount'] ?? null);
+        $t->same(7, $prefix['firstContentOffset'] ?? null);
+        $t->same(2, $prefix['firstContentLine'] ?? null);
+        $t->same('efbbbf20200d0a', substr((string) ($prefix['prefixPreviewHex'] ?? ''), 0, 14));
+        $t->same(0, $prefix['nullByteCount'] ?? null);
+        $t->same(0, $prefix['controlCharacterCount'] ?? null);
+        $t->same([
+            'requestedFormat' => 'csv',
+            'selectedFormat' => 'csv',
+            'sourcePath' => 'exports/posts.csv',
+            'sourcePathExtension' => 'csv',
+            'sourcePathFormat' => 'csv',
+            'extension' => '.csv',
+            'extensionFormat' => 'csv',
+            'formatMatchesContext' => true,
+        ], $prefix['formatContext'] ?? null);
+        $t->same([
+            'delimited-text-utf8-bom',
+            'delimited-text-leading-whitespace',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+    },
+    'records tsv null-byte and control-character prefix diagnostics with source path context' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readTsv("name\tqty\nA\x00\t10\nB\x1F\t20\n", [
+            'sourcePath' => 'exports/inventory.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $prefix = $packet['inputPrefix'] ?? [];
+
+        $t->same('tsv', $document->attr('sourceFormat'));
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(['name', 'qty'], $packet['columnNames'] ?? null);
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same("A\x00", $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("B\x1F", $table->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('none', $prefix['bom'] ?? null);
+        $t->same(0, $prefix['leadingWhitespaceByteCount'] ?? null);
+        $t->same(1, $prefix['nullByteCount'] ?? null);
+        $t->same([
+            [
+                'offset' => 10,
+                'hex' => '00',
+                'name' => 'NUL',
+            ],
+        ], $prefix['nullBytes'] ?? null);
+        $t->same(1, $prefix['controlCharacterCount'] ?? null);
+        $t->same([
+            [
+                'offset' => 16,
+                'hex' => '1F',
+                'name' => 'US',
+            ],
+        ], $prefix['controlCharacters'] ?? null);
+        $t->same('exports/inventory.tsv', $prefix['formatContext']['sourcePath'] ?? null);
+        $t->same('tsv', $prefix['formatContext']['sourcePathExtension'] ?? null);
+        $t->same('tsv', $prefix['formatContext']['sourcePathFormat'] ?? null);
+        $t->same(null, $prefix['formatContext']['extension'] ?? null);
+        $t->same(true, $prefix['formatContext']['formatMatchesContext'] ?? null);
+        $t->same([
+            'delimited-text-null-byte',
+            'delimited-text-control-character',
+        ], array_column($packet['diagnostics'] ?? [], 'code'));
+    },
     'rejects non-boolean delimited text header option' => static function (TestRunner $t): void {
         $message = '';
         try {

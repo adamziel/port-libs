@@ -6,6 +6,9 @@ namespace PortLibs\Pandoc;
 
 final class DelimitedTextReader
 {
+    private const INPUT_PREFIX_BYTE_LIMIT = 64;
+    private const INPUT_PREFIX_PREVIEW_BYTE_LIMIT = 32;
+
     /**
      * @param array{header?:bool, extension?:string, sourcePath?:string} $options
      */
@@ -35,17 +38,20 @@ final class DelimitedTextReader
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
-        $formatResolution = $this->formatResolution($format, $text, $options);
+        $inputPrefix = $this->inputPrefixReview($text);
+        $parseText = $this->inputTextAfterSupportedPrefix($text, $inputPrefix);
+        $formatResolution = $this->formatResolution($format, $parseText, $options);
         $format = $formatResolution['format'];
         $delimiter = $formatResolution['delimiter'];
         $formatInference = $formatResolution['formatInference'];
+        $inputPrefix['formatContext'] = $this->formatContext($formatResolution, $options);
         $hasHeader = $this->headerOption($options);
 
-        $rows = $this->parseRows($this->stripBom($text), $delimiter);
+        $rows = $this->parseRows($parseText, $delimiter);
         if ($rows === []) {
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $formatInference),
+                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $formatInference, $inputPrefix),
             ]);
         }
 
@@ -65,7 +71,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference),
+            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference, $inputPrefix),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -316,9 +322,10 @@ final class DelimitedTextReader
     /**
      * @param list<list<string>> $rows
      * @param list<int> $widths
+     * @param array<string, mixed> $inputPrefix
      * @return array<string, mixed>
      */
-    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader, array $formatInference): array
+    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader, array $formatInference, array $inputPrefix): array
     {
         $rowCount = count($rows);
         $columnCount = $widths === [] ? 0 : max($widths);
@@ -333,6 +340,7 @@ final class DelimitedTextReader
             'format' => $format,
             'delimiter' => $delimiter === "\t" ? 'tab' : $delimiter,
             'formatInference' => $formatInference,
+            'inputPrefix' => $inputPrefix,
             'headerRow' => $hasHeader && $rowCount > 0,
             'headerOption' => $hasHeader ? 'first-row' : 'none',
             'headerSource' => $hasHeader && $rowCount > 0 ? 'source-row-0' : 'generated',
@@ -347,7 +355,7 @@ final class DelimitedTextReader
             'maxFieldCount' => $columnCount,
             'raggedRowCount' => count($raggedRows),
             'raggedRows' => $raggedRows,
-            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference),
+            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference, $inputPrefix),
             'upstreamEvidence' => [
                 'denominator' => 2,
                 'fixtures' => [
@@ -361,9 +369,10 @@ final class DelimitedTextReader
 
     /**
      * @param array<string, mixed> $formatInference
-     * @return list<array{code:string, severity:string, message:string}>
+     * @param array<string, mixed> $inputPrefix
+     * @return list<array<string, mixed>>
      */
-    private function reviewDiagnostics(bool $hasHeader, array $formatInference): array
+    private function reviewDiagnostics(bool $hasHeader, array $formatInference, array $inputPrefix): array
     {
         $diagnostics = [];
         if (!$hasHeader) {
@@ -384,12 +393,256 @@ final class DelimitedTextReader
             ];
         }
 
+        if (($inputPrefix['bom'] ?? 'none') === 'utf-8') {
+            $diagnostics[] = [
+                'code' => 'delimited-text-utf8-bom',
+                'severity' => 'info',
+                'message' => 'UTF-8 byte-order mark was detected and skipped before parsing the first row.',
+                'byteCount' => $inputPrefix['bomByteCount'] ?? 0,
+            ];
+        }
+
+        if (($inputPrefix['leadingWhitespaceByteCount'] ?? 0) > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-leading-whitespace',
+                'severity' => 'info',
+                'message' => 'Leading whitespace-only lines were skipped before parsing the first row.',
+                'byteCount' => $inputPrefix['leadingWhitespaceByteCount'],
+                'lineCount' => $inputPrefix['leadingWhitespaceLineCount'] ?? 0,
+            ];
+        }
+
+        if (($inputPrefix['nullByteCount'] ?? 0) > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-null-byte',
+                'severity' => 'warning',
+                'message' => 'NUL bytes were detected in the bounded input-prefix inspection window.',
+                'count' => $inputPrefix['nullByteCount'],
+            ];
+        }
+
+        if (($inputPrefix['controlCharacterCount'] ?? 0) > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-control-character',
+                'severity' => 'warning',
+                'message' => 'Non-whitespace control characters were detected in the bounded input-prefix inspection window.',
+                'count' => $inputPrefix['controlCharacterCount'],
+            ];
+        }
+
         return $diagnostics;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inputPrefixReview(string $text): array
+    {
+        $bomByteCount = str_starts_with($text, "\xEF\xBB\xBF") ? 3 : 0;
+        $leadingWhitespaceByteCount = $this->leadingWhitespaceLinePrefixByteCount(substr($text, $bomByteCount));
+        $firstContentOffset = $bomByteCount + $leadingWhitespaceByteCount;
+        $inspectedByteCount = min(strlen($text), self::INPUT_PREFIX_BYTE_LIMIT);
+        $previewByteCount = min(strlen($text), self::INPUT_PREFIX_PREVIEW_BYTE_LIMIT);
+        $controlReview = $this->controlCharacterReview(substr($text, 0, $inspectedByteCount));
+
+        return [
+            'encoding' => 'utf-8',
+            'bom' => $bomByteCount > 0 ? 'utf-8' : 'none',
+            'bomByteCount' => $bomByteCount,
+            'leadingWhitespaceByteCount' => $leadingWhitespaceByteCount,
+            'leadingWhitespaceLineCount' => $this->lineBreakCount(substr($text, $bomByteCount, $leadingWhitespaceByteCount)),
+            'firstContentOffset' => $firstContentOffset,
+            'firstContentLine' => $this->lineBreakCount(substr($text, 0, $firstContentOffset)) + 1,
+            'inputByteCount' => strlen($text),
+            'inspectionByteLimit' => self::INPUT_PREFIX_BYTE_LIMIT,
+            'inspectedByteCount' => $inspectedByteCount,
+            'inspectionTruncated' => strlen($text) > self::INPUT_PREFIX_BYTE_LIMIT,
+            'prefixPreviewByteLimit' => self::INPUT_PREFIX_PREVIEW_BYTE_LIMIT,
+            'prefixPreviewByteCount' => $previewByteCount,
+            'prefixPreviewHex' => bin2hex(substr($text, 0, $previewByteCount)),
+            'nullByteCount' => $controlReview['nullByteCount'],
+            'nullBytes' => $controlReview['nullBytes'],
+            'controlCharacterCount' => $controlReview['controlCharacterCount'],
+            'controlCharacters' => $controlReview['controlCharacters'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $inputPrefix
+     */
+    private function inputTextAfterSupportedPrefix(string $text, array $inputPrefix): string
+    {
+        $firstContentOffset = (int) ($inputPrefix['firstContentOffset'] ?? 0);
+
+        return $firstContentOffset > 0 ? substr($text, $firstContentOffset) : $text;
+    }
+
+    private function leadingWhitespaceLinePrefixByteCount(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+
+        if (preg_match('/\A(?:[ \t]*(?:\r\n|\r|\n))+[ \t]*/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        return strlen($matches[0]);
+    }
+
+    private function lineBreakCount(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+
+        preg_match_all('/\r\n|\r|\n/', $text, $matches);
+
+        return count($matches[0]);
+    }
+
+    /**
+     * @return array{nullByteCount:int, nullBytes:list<array{offset:int, hex:string, name:string}>, controlCharacterCount:int, controlCharacters:list<array{offset:int, hex:string, name:string}>}
+     */
+    private function controlCharacterReview(string $text): array
+    {
+        $nullByteCount = 0;
+        $nullBytes = [];
+        $controlCharacterCount = 0;
+        $controlCharacters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($text[$offset]);
+            if ($byte === 0) {
+                $nullByteCount++;
+                if (count($nullBytes) < 8) {
+                    $nullBytes[] = [
+                        'offset' => $offset,
+                        'hex' => '00',
+                        'name' => 'NUL',
+                    ];
+                }
+                continue;
+            }
+
+            if (!$this->isNonWhitespaceControlByte($byte)) {
+                continue;
+            }
+
+            $controlCharacterCount++;
+            if (count($controlCharacters) < 8) {
+                $controlCharacters[] = [
+                    'offset' => $offset,
+                    'hex' => strtoupper(str_pad(dechex($byte), 2, '0', STR_PAD_LEFT)),
+                    'name' => $this->controlCharacterName($byte),
+                ];
+            }
+        }
+
+        return [
+            'nullByteCount' => $nullByteCount,
+            'nullBytes' => $nullBytes,
+            'controlCharacterCount' => $controlCharacterCount,
+            'controlCharacters' => $controlCharacters,
+        ];
+    }
+
+    private function isNonWhitespaceControlByte(int $byte): bool
+    {
+        return ($byte >= 1 && $byte <= 8)
+            || $byte === 11
+            || $byte === 12
+            || ($byte >= 14 && $byte <= 31)
+            || $byte === 127;
+    }
+
+    private function controlCharacterName(int $byte): string
+    {
+        $names = [
+            1 => 'SOH',
+            2 => 'STX',
+            3 => 'ETX',
+            4 => 'EOT',
+            5 => 'ENQ',
+            6 => 'ACK',
+            7 => 'BEL',
+            8 => 'BS',
+            11 => 'VT',
+            12 => 'FF',
+            14 => 'SO',
+            15 => 'SI',
+            16 => 'DLE',
+            17 => 'DC1',
+            18 => 'DC2',
+            19 => 'DC3',
+            20 => 'DC4',
+            21 => 'NAK',
+            22 => 'SYN',
+            23 => 'ETB',
+            24 => 'CAN',
+            25 => 'EM',
+            26 => 'SUB',
+            27 => 'ESC',
+            28 => 'FS',
+            29 => 'GS',
+            30 => 'RS',
+            31 => 'US',
+            127 => 'DEL',
+        ];
+
+        return $names[$byte] ?? 'U+' . strtoupper(str_pad(dechex($byte), 4, '0', STR_PAD_LEFT));
+    }
+
+    /**
+     * @param array{format:string, delimiter:string, formatInference:array<string, mixed>} $formatResolution
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @return array<string, mixed>
+     */
+    private function formatContext(array $formatResolution, array $options): array
+    {
+        $extension = $this->metadataStringOption($options, 'extension');
+        $sourcePath = $this->metadataStringOption($options, 'sourcePath');
+        $sourcePathExtension = $sourcePath === null ? null : pathinfo($sourcePath, PATHINFO_EXTENSION);
+        $extensionFormat = $extension === null ? null : PandocFormatRegistry::inferTabularDataFormatFromExtension($extension);
+        $sourcePathFormat = $sourcePathExtension === null || $sourcePathExtension === ''
+            ? null
+            : PandocFormatRegistry::inferTabularDataFormatFromExtension($sourcePathExtension);
+        $selectedFormat = $formatResolution['format'];
+        $knownFormats = array_values(array_filter([$extensionFormat, $sourcePathFormat], static fn (?string $format): bool => $format !== null));
+
+        return [
+            'requestedFormat' => (string) ($formatResolution['formatInference']['requestedFormat'] ?? $selectedFormat),
+            'selectedFormat' => $selectedFormat,
+            'sourcePath' => $sourcePath,
+            'sourcePathExtension' => $sourcePathExtension === '' ? null : $sourcePathExtension,
+            'sourcePathFormat' => $sourcePathFormat,
+            'extension' => $extension,
+            'extensionFormat' => $extensionFormat,
+            'formatMatchesContext' => $knownFormats === [] ? null : in_array($selectedFormat, $knownFormats, true),
+        ];
     }
 
     private function stripBom(string $text): string
     {
         return str_starts_with($text, "\xEF\xBB\xBF") ? substr($text, 3) : $text;
+    }
+
+    /**
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     */
+    private function metadataStringOption(array $options, string $key): ?string
+    {
+        if (!array_key_exists($key, $options)) {
+            return null;
+        }
+
+        if (!is_string($options[$key])) {
+            throw new \InvalidArgumentException("Delimited text {$key} option must be a string");
+        }
+
+        $value = trim($options[$key]);
+
+        return $value === '' ? null : $value;
     }
 
     /**
