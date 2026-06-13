@@ -695,6 +695,127 @@ XML);
         $t->same('EPUB/chapter2.xhtml', $pageList[1]['path']);
         $t->same('details', $pageList[1]['fragment']);
     },
+    'reports epub nav external and unsafe href policy by section' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-policy-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-policy-review</dc:identifier>
+    <dc:title>Navigation Policy Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml#safe">Safe chapter</a></li>
+        <li><a href="http://example.invalid/remote.xhtml#r">HTTP resource</a></li>
+        <li><a href="https://example.invalid/secure.xhtml?review=1">HTTPS resource</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="landmarks">
+      <ol>
+        <li><a href="mailto:desk@example.invalid">Mail contact</a></li>
+        <li><a href="data:text/html,&lt;p&gt;inline&lt;/p&gt;">Data payload</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="java&#x20;script:alert(1)">Script action</a></li>
+        <li><a epub:type="pagebreak" href="../../outside.xhtml#outside">Package escape</a></li>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#page-2">Page 2</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="safe">Safe chapter</h1><p id="page-2">Page two.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $policy = $epub['navReport']['hrefPolicy'];
+            $entriesByLabel = [];
+            $collect = static function (array $entries) use (&$collect, &$entriesByLabel): void {
+                foreach ($entries as $entry) {
+                    $entriesByLabel[$entry['label']] = $entry;
+                    $collect($entry['children']);
+                }
+            };
+            $collect($epub['toc']);
+
+            $t->same($epub['navReport'], $epub['navigationReport']);
+            $t->same(true, $policy['present']);
+            $t->same(3, $policy['sectionCount']);
+            $t->same(['toc' => 1, 'landmarks' => 1, 'page-list' => 1], $policy['sectionTypeCounts']);
+            $t->same(8, $policy['itemCount']);
+            $t->same(8, $policy['targetedItemCount']);
+            $t->same(2, $policy['localTargetCount']);
+            $t->same(2, $policy['safeLocalTargetCount']);
+            $t->same(6, $policy['externalTargetCount']);
+            $t->same(2, $policy['unsafeTargetCount']);
+            $t->same(8, $policy['diagnosticCount']);
+            $t->same(['toc', 'landmarks', 'page-list'], array_column($policy['sections'], 'type'));
+            $t->same([3, 2, 3], array_column($policy['sections'], 'itemCount'));
+            $t->same([2, 2, 2], array_column($policy['sections'], 'externalTargetCount'));
+            $t->same([0, 1, 1], array_column($policy['sections'], 'unsafeTargetCount'));
+
+            $safe = $entriesByLabel['Safe chapter'];
+            $t->same('EPUB/chapter.xhtml', $safe['path']);
+            $t->same('safe', $safe['fragment']);
+            $t->same('local', $safe['hrefKind']);
+            $t->same(false, $safe['external']);
+            $t->same(false, $safe['unsafe']);
+            $t->same([], $safe['hrefDiagnostics']);
+            $page = $entriesByLabel['Page 2'];
+            $t->same('EPUB/chapter.xhtml', $page['path']);
+            $t->same('page-2', $page['fragment']);
+            $t->same([], $page['hrefDiagnostics']);
+
+            $t->same('http', $entriesByLabel['HTTP resource']['hrefScheme']);
+            $t->same(true, $entriesByLabel['HTTP resource']['external']);
+            $t->same(false, $entriesByLabel['HTTP resource']['unsafe']);
+            $t->same(['external-nav-href-target'], array_column($entriesByLabel['HTTP resource']['hrefDiagnostics'], 'type'));
+            $t->same('https', $entriesByLabel['HTTPS resource']['hrefScheme']);
+            $t->same(['external-nav-href-target'], array_column($entriesByLabel['HTTPS resource']['hrefDiagnostics'], 'type'));
+            $t->same('mailto', $entriesByLabel['Mail contact']['hrefScheme']);
+            $t->same(true, $entriesByLabel['Mail contact']['external']);
+            $t->same(false, $entriesByLabel['Mail contact']['unsafe']);
+            $t->same('data', $entriesByLabel['Data payload']['hrefScheme']);
+            $t->same(true, $entriesByLabel['Data payload']['unsafe']);
+            $t->same(['external-nav-href-target', 'unsafe-nav-href-target'], array_column($entriesByLabel['Data payload']['hrefDiagnostics'], 'type'));
+            $t->same('javascript', $entriesByLabel['Script action']['hrefScheme']);
+            $t->same('unsafe-uri', $entriesByLabel['Script action']['hrefKind']);
+            $t->same(true, $entriesByLabel['Script action']['external']);
+            $t->same(true, $entriesByLabel['Script action']['unsafe']);
+            $t->same(['external-nav-href-target', 'unsafe-nav-href-target'], array_column($entriesByLabel['Script action']['hrefDiagnostics'], 'type'));
+            $t->same('package-relative-external', $entriesByLabel['Package escape']['hrefKind']);
+            $t->same('../../outside.xhtml', $entriesByLabel['Package escape']['path']);
+            $t->same('outside', $entriesByLabel['Package escape']['fragment']);
+            $t->same(true, $entriesByLabel['Package escape']['external']);
+            $t->same(false, $entriesByLabel['Package escape']['unsafe']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub page-list pagebreak href and label diagnostics' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-nav-pages-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
