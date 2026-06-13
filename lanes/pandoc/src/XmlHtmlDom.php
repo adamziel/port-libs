@@ -749,6 +749,8 @@ final class XmlHtmlDom
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
         $figureIds = self::jatsElementIds($root, 'fig');
+        $figures = self::jatsFigureSummaries($root);
+        $figureMetadataCounts = self::jatsFigureMetadataCounts($figures);
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
         $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
@@ -756,7 +758,13 @@ final class XmlHtmlDom
             $body instanceof \DOMElement,
             count($sections),
             count($referenceIds),
-            count($figureIds),
+            count($figures),
+            $figureMetadataCounts['withLabel'],
+            $figureMetadataCounts['withCaption'],
+            $figureMetadataCounts['withTitle'],
+            $figureMetadataCounts['missingLabel'],
+            $figureMetadataCounts['missingCaption'],
+            $figureMetadataCounts['missingTitle'],
             count($tableWrapIds),
             $bookPartCount
         );
@@ -814,7 +822,21 @@ final class XmlHtmlDom
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
             'figureIds' => $figureIds,
-            'figureCount' => count($figureIds),
+            'figureCount' => count($figures),
+            'figures' => $figures,
+            'figureMetadataCounts' => $figureMetadataCounts,
+            'figureLabels' => array_values(array_filter(
+                array_map(static fn (array $figure): ?string => $figure['label'], $figures),
+                static fn (?string $label): bool => $label !== null && $label !== ''
+            )),
+            'figureTitles' => array_values(array_filter(
+                array_map(static fn (array $figure): ?string => $figure['title'], $figures),
+                static fn (?string $title): bool => $title !== null && $title !== ''
+            )),
+            'figureCaptionTexts' => array_values(array_filter(
+                array_map(static fn (array $figure): ?string => $figure['captionText'], $figures),
+                static fn (?string $caption): bool => $caption !== null && $caption !== ''
+            )),
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'bookPartCount' => $bookPartCount,
@@ -830,6 +852,12 @@ final class XmlHtmlDom
         int $sectionCount,
         int $referenceCount,
         int $figureCount,
+        int $figureWithLabelCount,
+        int $figureWithCaptionCount,
+        int $figureWithTitleCount,
+        int $figureMissingLabelCount,
+        int $figureMissingCaptionCount,
+        int $figureMissingTitleCount,
         int $tableWrapCount,
         int $bookPartCount
     ): array {
@@ -882,8 +910,49 @@ final class XmlHtmlDom
                 'Figure elements are inventoried for review but are not mapped as full figure blocks.',
                 false,
                 false,
-                ['figureCount' => $figureCount]
+                [
+                    'figureCount' => $figureCount,
+                    'withLabelCount' => $figureWithLabelCount,
+                    'withCaptionCount' => $figureWithCaptionCount,
+                    'withTitleCount' => $figureWithTitleCount,
+                    'missingLabelCount' => $figureMissingLabelCount,
+                    'missingCaptionCount' => $figureMissingCaptionCount,
+                    'missingTitleCount' => $figureMissingTitleCount,
+                ]
             );
+
+            if ($figureMissingLabelCount > 0) {
+                $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                    'figure-label-metadata-missing',
+                    'warning',
+                    'One or more figure elements do not expose bounded label metadata.',
+                    false,
+                    true,
+                    ['missingLabelCount' => $figureMissingLabelCount]
+                );
+            }
+
+            if ($figureMissingCaptionCount > 0) {
+                $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                    'figure-caption-metadata-missing',
+                    'warning',
+                    'One or more figure elements do not expose bounded caption metadata.',
+                    false,
+                    true,
+                    ['missingCaptionCount' => $figureMissingCaptionCount]
+                );
+            }
+
+            if ($figureMissingTitleCount > 0) {
+                $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                    'figure-title-metadata-missing',
+                    'warning',
+                    'One or more figure elements do not expose bounded title metadata.',
+                    false,
+                    true,
+                    ['missingTitleCount' => $figureMissingTitleCount]
+                );
+            }
         }
 
         if ($tableWrapCount > 0) {
@@ -1170,6 +1239,142 @@ final class XmlHtmlDom
         }
 
         return $sections;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigureSummaries(\DOMElement $root): array
+    {
+        $figures = [];
+        foreach (self::descendantElements($root, 'fig') as $index => $figure) {
+            $label = self::jatsDirectChildText($figure, 'label');
+            $figureTitle = self::jatsDirectChildText($figure, 'title');
+            $caption = self::firstChildElement($figure, 'caption');
+            $captionTitle = $caption instanceof \DOMElement
+                ? self::jatsDirectChildText($caption, 'title')
+                : null;
+            $captionText = $caption instanceof \DOMElement ? self::jatsCaptionText($caption) : null;
+            $captionParagraphs = [];
+            if ($caption instanceof \DOMElement) {
+                foreach (self::childElements($caption, 'p') as $paragraph) {
+                    $text = self::normalizedText($paragraph);
+                    if ($text !== '') {
+                        $captionParagraphs[] = $text;
+                    }
+                }
+            }
+
+            $title = $figureTitle ?? $captionTitle;
+            $hasLabel = $label !== null && $label !== '';
+            $hasCaption = $captionText !== null && $captionText !== '';
+            $hasTitle = $title !== null && $title !== '';
+            $missing = [];
+            if (!$hasLabel) {
+                $missing[] = 'label';
+            }
+            if (!$hasCaption) {
+                $missing[] = 'caption';
+            }
+            if (!$hasTitle) {
+                $missing[] = 'title';
+            }
+
+            $figures[] = [
+                'index' => $index,
+                'id' => self::attribute($figure, 'id'),
+                'label' => $label,
+                'title' => $title,
+                'figureTitle' => $figureTitle,
+                'captionTitle' => $captionTitle,
+                'captionText' => $captionText,
+                'captionParagraphCount' => count($captionParagraphs),
+                'captionParagraphs' => $captionParagraphs,
+                'hasLabel' => $hasLabel,
+                'hasCaption' => $hasCaption,
+                'hasTitle' => $hasTitle,
+                'missingMetadata' => $missing,
+                'reviewPolicy' => 'metadata-only',
+            ];
+        }
+
+        return $figures;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $figures
+     * @return array{total:int, withLabel:int, withCaption:int, withTitle:int, missingLabel:int, missingCaption:int, missingTitle:int, incomplete:int}
+     */
+    private static function jatsFigureMetadataCounts(array $figures): array
+    {
+        $counts = [
+            'total' => count($figures),
+            'withLabel' => 0,
+            'withCaption' => 0,
+            'withTitle' => 0,
+            'missingLabel' => 0,
+            'missingCaption' => 0,
+            'missingTitle' => 0,
+            'incomplete' => 0,
+        ];
+
+        foreach ($figures as $figure) {
+            $missingAny = false;
+            foreach ([
+                'Label' => 'hasLabel',
+                'Caption' => 'hasCaption',
+                'Title' => 'hasTitle',
+            ] as $suffix => $key) {
+                if (($figure[$key] ?? false) === true) {
+                    ++$counts['with' . $suffix];
+                    continue;
+                }
+
+                ++$counts['missing' . $suffix];
+                $missingAny = true;
+            }
+
+            if ($missingAny) {
+                ++$counts['incomplete'];
+            }
+        }
+
+        return $counts;
+    }
+
+    private static function jatsDirectChildText(\DOMElement $root, string $localName): ?string
+    {
+        $element = self::firstChildElement($root, $localName);
+        if (!$element instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($element);
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function jatsCaptionText(\DOMElement $caption): ?string
+    {
+        $parts = [];
+        foreach ($caption->childNodes as $child) {
+            if (!$child instanceof \DOMText && !$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($child);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        if ($parts !== []) {
+            return implode(' ', $parts);
+        }
+
+        $text = self::normalizedText($caption);
+
+        return $text === '' ? null : $text;
     }
 
     /**
