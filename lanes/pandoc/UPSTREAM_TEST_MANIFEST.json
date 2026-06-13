@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3276,
-        "latestSlice": "pandoc-text-markup-reader-ship-gate maps one registry ship-gate slice for the 20 wiki/roff/man/text markup reader input tokens after WordPress footnote backlink metadata. PandocFormatRegistry now exposes textMarkupReaderFormats(), textMarkupReaderSupport(), unsupportedTextMarkupReaderFormats(), and textMarkupReaderShipGate(), with family buckets wiki=7, roff-manual=2, text-markup=11, upstream denominator 20, local passing numerator 0, unsupported count 20, and directReaderParity=false. phpPass moves 3316 -> 3317, phpFail remains 0, mappedPandocTextMarkupReaderShipGateCases is 1, and pandocTextMarkupReaderShipGateAssertions is 85. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1106 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74434 assertions, 0 failures. No Pandoc binary, wiki renderer, roff renderer, Cabal/Haskell runner, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked. The family remains explicitly unsupported until native reader implementations land.",
+        "mapped": 3277,
+        "latestSlice": "pandoc-epub-direct-manifest-spine-report maps one native direct EPUB package-reader case for OPF manifest query/fragment suffixes, external and missing manifest diagnostics, and spine readability/skipped-entry reports after the Pandoc text markup reader ship-gate slice on current main. Direct package ingestion keeps stripped local package paths for readable XHTML handoff while preserving review targets and skipping external or missing linear XHTML itemrefs instead of aborting. phpPass moves 3317 -> 3318, phpFail remains 0, mappedEpubDirectManifestSpineReportCases is 1, and epubDirectManifestSpineReportAssertions is 38. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 187 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74472 assertions, 0 failures after final rebase onto current main 2b00b60b67. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Pandoc text markup reader ship-gate accounting is covered over current main 76690ec857 for all 20 wiki/roff/man/text markup input tokens; direct reader parity remains false and the family is not shippable until native readers land.",
-        "latestFocusedSource": "2026-06-13 text markup reader ship-gate slice inspected the 20 wiki/roff/man/text markup input tokens against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 76690ec857; focused PandocFormatRegistryTest.php passed 1 file, 1106 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74434 assertions, 0 failures.",
+        "status": "EPUB direct manifest/spine diagnostics are verified over current main 2b00b60b67 after Pandoc text markup reader ship-gate accounting; broader EPUB3 package reader parity remains partial.",
+        "latestFocusedSource": "2026-06-13 EPUB direct manifest/spine report slice inspected direct EpubPackageReader package diagnostics against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 2b00b60b67; focused EpubPackageReaderTest.php passed 1 file, 187 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74472 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -173,7 +173,9 @@
         "mappedMarkdownWordpressFootnoteBacklinkCases": 1,
         "markdownWordpressFootnoteBacklinkAssertions": 4,
         "mappedPandocTextMarkupReaderShipGateCases": 1,
-        "pandocTextMarkupReaderShipGateAssertions": 85
+        "pandocTextMarkupReaderShipGateAssertions": 85,
+        "mappedEpubDirectManifestSpineReportCases": 1,
+        "epubDirectManifestSpineReportAssertions": 38
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",

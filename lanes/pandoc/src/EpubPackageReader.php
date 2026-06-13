@@ -23,7 +23,7 @@ final class EpubPackageReader
         $children = [];
 
         foreach ($package['spine'] as $spineItem) {
-            if (($spineItem['mediaType'] ?? '') !== 'application/xhtml+xml' || ($spineItem['linear'] ?? true) !== true) {
+            if (($spineItem['readable'] ?? false) !== true) {
                 continue;
             }
 
@@ -45,7 +45,9 @@ final class EpubPackageReader
                 'metadataLinks' => $package['metadataLinks'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
+                'manifestReport' => $package['manifestReport'],
                 'spine' => $package['spine'],
+                'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
                 'ncx' => $ncx,
@@ -167,15 +169,56 @@ final class EpubPackageReader
                 if ($id === '' || $href === '') {
                     continue;
                 }
+                $external = $this->isExternalHref($href);
+                $path = $this->resolvePackageHref($opfDir, $href);
+                $suffix = $this->hrefSuffix($href);
+                $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
+                $diagnostics = [];
+                if ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-manifest-href-target',
+                        'href' => $href,
+                        'target' => $href,
+                    ];
+                } elseif ($path !== '' && !$exists) {
+                    $diagnostics[] = [
+                        'type' => 'missing-manifest-href-target',
+                        'href' => $href,
+                        'path' => $path,
+                    ];
+                }
+                if ($suffix['hasQuery']) {
+                    $diagnostics[] = [
+                        'type' => 'manifest-href-query-component',
+                        'href' => $href,
+                        'query' => $suffix['query'],
+                    ];
+                }
+                if ($suffix['hasFragment']) {
+                    $diagnostics[] = [
+                        'type' => 'manifest-href-fragment-component',
+                        'href' => $href,
+                        'fragment' => $suffix['fragment'],
+                    ];
+                }
                 $manifest[$id] = [
                     'id' => $id,
                     'href' => $href,
-                    'path' => $this->resolvePackageHref($opfDir, $href),
+                    'target' => $external ? $href : $this->targetWithSuffix($path, $suffix),
+                    'path' => $path,
+                    'external' => $external,
+                    'exists' => $exists,
+                    'hrefHasQuery' => $suffix['hasQuery'],
+                    'hrefQuery' => $suffix['query'],
+                    'hrefHasFragment' => $suffix['hasFragment'],
+                    'hrefFragment' => $suffix['fragment'],
                     'mediaType' => trim($node->getAttribute('media-type')),
                     'properties' => $this->tokens($node->getAttribute('properties')),
+                    'diagnostics' => $diagnostics,
                 ];
             }
         }
+        $manifestReport = $this->manifestReport($manifest);
 
         $spine = [];
         $spineNodes = $xpath->query('./*[local-name()="spine"]/*[local-name()="itemref"]', $packageElement);
@@ -186,16 +229,46 @@ final class EpubPackageReader
                 }
                 $idref = trim($node->getAttribute('idref'));
                 $item = $manifest[$idref] ?? null;
+                $linear = strtolower(trim($node->getAttribute('linear'))) !== 'no';
+                $mediaType = is_array($item) ? $item['mediaType'] : '';
+                $external = is_array($item) && ($item['external'] ?? false) === true;
+                $exists = is_array($item) && ($item['exists'] ?? false) === true;
+                $readable = $linear && $mediaType === 'application/xhtml+xml' && !$external && $exists;
+                $diagnostics = [];
+                if (!is_array($item)) {
+                    $diagnostics[] = [
+                        'type' => 'missing-spine-manifest-item',
+                        'idref' => $idref,
+                    ];
+                } elseif ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-spine-item',
+                        'idref' => $idref,
+                        'target' => $item['target'],
+                    ];
+                } elseif (!$exists && ($item['path'] ?? '') !== '') {
+                    $diagnostics[] = [
+                        'type' => 'missing-spine-item-package-part',
+                        'idref' => $idref,
+                        'path' => $item['path'],
+                    ];
+                }
                 $spine[] = [
                     'idref' => $idref,
                     'href' => is_array($item) ? $item['href'] : '',
+                    'target' => is_array($item) ? $item['target'] : '',
                     'path' => is_array($item) ? $item['path'] : '',
-                    'mediaType' => is_array($item) ? $item['mediaType'] : '',
-                    'linear' => strtolower(trim($node->getAttribute('linear'))) !== 'no',
+                    'mediaType' => $mediaType,
+                    'linear' => $linear,
                     'properties' => $this->tokens($node->getAttribute('properties')),
+                    'external' => $external,
+                    'exists' => $exists,
+                    'readable' => $readable,
+                    'diagnostics' => $diagnostics,
                 ];
             }
         }
+        $spineReport = $this->spineReport($spine);
 
         $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
 
@@ -206,8 +279,117 @@ final class EpubPackageReader
             'metadataProperties' => $metadataProperties,
             'metadataLinks' => $metadataLinks,
             'manifest' => $manifest,
+            'manifestReport' => $manifestReport,
             'spine' => $spine,
+            'spineReport' => $spineReport,
             'guide' => $guide,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestReport(array $manifest): array
+    {
+        $externalItems = [];
+        $missingItems = [];
+        $hrefSuffixItems = [];
+        $diagnostics = [];
+        $index = 0;
+
+        foreach ($manifest as $item) {
+            if (($item['external'] ?? false) === true) {
+                $externalItems[] = $item;
+            }
+            if (($item['external'] ?? false) !== true && ($item['exists'] ?? true) !== true) {
+                $missingItems[] = $item;
+            }
+            if (($item['hrefHasQuery'] ?? false) === true || ($item['hrefHasFragment'] ?? false) === true) {
+                $hrefSuffixItems[] = [
+                    'id' => $item['id'],
+                    'href' => $item['href'],
+                    'target' => $item['target'],
+                    'path' => $item['path'],
+                    'query' => $item['hrefQuery'],
+                    'fragment' => $item['hrefFragment'],
+                ];
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = ['index' => $index, 'id' => $item['id']] + $diagnostic;
+            }
+            ++$index;
+        }
+
+        return [
+            'itemCount' => count($manifest),
+            'externalItemCount' => count($externalItems),
+            'externalItems' => $externalItems,
+            'missingItemCount' => count($missingItems),
+            'missingItems' => $missingItems,
+            'hrefSuffixCount' => count($hrefSuffixItems),
+            'hrefSuffixItems' => $hrefSuffixItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     * @return array<string, mixed>
+     */
+    private function spineReport(array $spine): array
+    {
+        $linearItemCount = 0;
+        $readableItemCount = 0;
+        $externalItems = [];
+        $missingPackagePartItems = [];
+        $missingManifestItems = [];
+        $diagnostics = [];
+
+        foreach ($spine as $index => $item) {
+            if (($item['linear'] ?? false) === true) {
+                ++$linearItemCount;
+            }
+            if (($item['readable'] ?? false) === true) {
+                ++$readableItemCount;
+            }
+            if (($item['external'] ?? false) === true) {
+                $externalItems[] = $item;
+            }
+            if (($item['idref'] ?? '') !== '' && ($item['href'] ?? '') === '') {
+                $missingManifestItems[] = $item;
+            }
+            if (($item['external'] ?? false) !== true && ($item['path'] ?? '') !== '' && ($item['exists'] ?? true) !== true) {
+                $missingPackagePartItems[] = $item;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+        }
+
+        return [
+            'itemCount' => count($spine),
+            'linearItemCount' => $linearItemCount,
+            'nonlinearItemCount' => count($spine) - $linearItemCount,
+            'readableItemCount' => $readableItemCount,
+            'skippedItemCount' => count($spine) - $readableItemCount,
+            'externalItemCount' => count($externalItems),
+            'externalItems' => $externalItems,
+            'missingManifestItemCount' => count($missingManifestItems),
+            'missingManifestItems' => $missingManifestItems,
+            'missingPackagePartItemCount' => count($missingPackagePartItems),
+            'missingPackagePartItems' => $missingPackagePartItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -832,6 +1014,52 @@ final class EpubPackageReader
         $tokens = preg_split('/\s+/', trim($value)) ?: [];
 
         return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+    }
+
+    private function isExternalHref(string $href): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', trim($href)) === 1;
+    }
+
+    /**
+     * @return array{hasQuery:bool, query:?string, hasFragment:bool, fragment:?string}
+     */
+    private function hrefSuffix(string $href): array
+    {
+        $fragment = null;
+        $beforeFragment = $href;
+        $hashPosition = strpos($href, '#');
+        if ($hashPosition !== false) {
+            $fragment = substr($href, $hashPosition + 1);
+            $beforeFragment = substr($href, 0, $hashPosition);
+        }
+
+        $query = null;
+        $queryPosition = strpos($beforeFragment, '?');
+        if ($queryPosition !== false) {
+            $query = substr($beforeFragment, $queryPosition + 1);
+        }
+
+        return [
+            'hasQuery' => $query !== null,
+            'query' => $query,
+            'hasFragment' => $fragment !== null,
+            'fragment' => $fragment,
+        ];
+    }
+
+    /**
+     * @param array{hasQuery:bool, query:?string, hasFragment:bool, fragment:?string} $suffix
+     */
+    private function targetWithSuffix(string $path, array $suffix): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        return $path
+            . (($suffix['hasQuery'] && $suffix['query'] !== null) ? '?' . $suffix['query'] : '')
+            . (($suffix['hasFragment'] && $suffix['fragment'] !== null) ? '#' . $suffix['fragment'] : '');
     }
 
     private function loadXmlFile(string $path): \DOMDocument
