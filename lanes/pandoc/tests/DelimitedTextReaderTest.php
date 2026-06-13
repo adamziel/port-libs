@@ -168,4 +168,117 @@ return [
         $t->same('delimited-text-format-inferred', $csvPacket['diagnostics'][0]['code'] ?? null);
         $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
     },
+    'records csv relaxed row repair provenance without changing padded table output' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF" . implode("\n", [
+            'id,title,published',
+            '42,"Legacy, ""quoted"" title",true',
+            "43,\"Two\nline title\",false,extra",
+            '44,Needs review',
+            '',
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $widthSummary = $packet['rowWidthSummary'] ?? [];
+        $repairSummary = $packet['rowRepairSummary'] ?? [];
+        $codes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['diagnostics'] ?? []);
+
+        $t->same('csv', $packet['format'] ?? null);
+        $t->same(['id', 'title', 'published', ''], $packet['columnNames'] ?? null);
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(4, $packet['columnCount'] ?? null);
+        $t->same(12, $packet['fieldCount'] ?? null);
+        $t->same(3, $packet['raggedRowCount'] ?? null);
+        $t->same([0, 1, 3], $packet['raggedRows'] ?? null);
+        $t->same([3, 3, 4, 2], $widthSummary['rowWidths'] ?? null);
+        $t->same([0, 1, 2, 3], $widthSummary['sourceRowIndexes'] ?? null);
+        $t->same([
+            ['width' => 2, 'count' => 1],
+            ['width' => 3, 'count' => 2],
+            ['width' => 4, 'count' => 1],
+        ], $widthSummary['widthCounts'] ?? null);
+        $t->same(false, $widthSummary['strict']['consistent'] ?? null);
+        $t->same(2, $widthSummary['strict']['mismatchCount'] ?? null);
+        $t->same('source-row-2', $widthSummary['strict']['mismatches'][0]['rowLabel'] ?? null);
+        $t->same(1, $widthSummary['strict']['mismatches'][0]['extraFields'] ?? null);
+        $t->same(1, $widthSummary['strict']['mismatches'][1]['missingFields'] ?? null);
+        $t->same(3, $widthSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same(2, $widthSummary['header']['mismatchCount'] ?? null);
+        $t->same('relaxed-pad-to-wide-row', $repairSummary['policy'] ?? null);
+        $t->same([3, 3, 4, 2], $repairSummary['originalColumnCounts'] ?? null);
+        $t->same(4, $repairSummary['repairedColumnCount'] ?? null);
+        $t->same(3, $repairSummary['changedRowCount'] ?? null);
+        $t->same(3, $repairSummary['paddedRowCount'] ?? null);
+        $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same('padded', $repairSummary['rows'][0]['repair'] ?? null);
+        $t->same(3, $repairSummary['rows'][0]['originalColumnCount'] ?? null);
+        $t->same(4, $repairSummary['rows'][0]['repairedColumnCount'] ?? null);
+        $t->same(1, $repairSummary['rows'][0]['missingFieldsAdded'] ?? null);
+        $t->same('unchanged', $repairSummary['rows'][2]['repair'] ?? null);
+        $t->same('padded', $repairSummary['rows'][3]['repair'] ?? null);
+        $t->same(2, $repairSummary['rows'][3]['missingFieldsAdded'] ?? null);
+        $t->same([
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], $codes);
+        $t->same('', $table->children[0]->children[0]->children[3]->attr('text'));
+        $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
+        $t->same('extra', $table->children[1]->children[1]->children[3]->attr('text'));
+        $t->same('', $table->children[1]->children[2]->children[2]->attr('text'));
+    },
+    'records tsv blank rows trailing empty fields and repair summaries' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readTsv(implode("\n", [
+            "key\tvalue\t",
+            '',
+            "alpha\t10\t",
+            "beta\t20",
+            "gamma\t30\t",
+            '',
+        ]));
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $widthSummary = $packet['rowWidthSummary'] ?? [];
+        $repairSummary = $packet['rowRepairSummary'] ?? [];
+        $codes = array_map(static fn (array $diagnostic): string => $diagnostic['code'], $packet['diagnostics'] ?? []);
+
+        $t->same('tsv', $packet['format'] ?? null);
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(4, $packet['rowCount'] ?? null);
+        $t->same(3, $packet['bodyRowCount'] ?? null);
+        $t->same(11, $packet['fieldCount'] ?? null);
+        $t->same(1, $packet['blankRowCount'] ?? null);
+        $t->same([1], $packet['blankRows'] ?? null);
+        $t->same([3, 3, 2, 3], $widthSummary['rowWidths'] ?? null);
+        $t->same([0, 2, 3, 4], $widthSummary['sourceRowIndexes'] ?? null);
+        $t->same([0, 2, 4], $widthSummary['trailingEmptyFieldRows'] ?? null);
+        $t->same(false, $widthSummary['strict']['consistent'] ?? null);
+        $t->same(1, $widthSummary['strict']['mismatchCount'] ?? null);
+        $t->same(3, $widthSummary['strict']['mismatches'][0]['sourceRow'] ?? null);
+        $t->same(1, $widthSummary['strict']['mismatches'][0]['missingFields'] ?? null);
+        $t->same(3, $widthSummary['relaxed']['columnCount'] ?? null);
+        $t->same(1, $widthSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same('source-row-3', $widthSummary['relaxed']['paddedRows'][0]['rowLabel'] ?? null);
+        $t->same(1, $widthSummary['header']['mismatchCount'] ?? null);
+        $t->same('relaxed-pad-to-wide-row', $repairSummary['policy'] ?? null);
+        $t->same([3, 3, 2, 3], $repairSummary['originalColumnCounts'] ?? null);
+        $t->same(3, $repairSummary['repairedColumnCount'] ?? null);
+        $t->same(1, $repairSummary['changedRowCount'] ?? null);
+        $t->same(1, $repairSummary['paddedRowCount'] ?? null);
+        $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same('padded', $repairSummary['paddedRows'][0]['repair'] ?? null);
+        $t->same(2, $repairSummary['paddedRows'][0]['originalColumnCount'] ?? null);
+        $t->same(3, $repairSummary['paddedRows'][0]['repairedColumnCount'] ?? null);
+        $t->same(1, $repairSummary['paddedRows'][0]['missingFieldsAdded'] ?? null);
+        $t->same([
+            'delimited-text-blank-rows-skipped',
+            'delimited-text-trailing-empty-fields-preserved',
+            'delimited-text-strict-row-width-mismatch',
+            'delimited-text-row-widths-uneven',
+            'delimited-text-header-width-mismatch',
+        ], $codes);
+        $t->same('', $table->children[0]->children[0]->children[2]->attr('text'));
+        $t->same('', $table->children[1]->children[0]->children[2]->attr('text'));
+        $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
+        $t->same(3, count($table->children[1]->children));
+    },
 ];

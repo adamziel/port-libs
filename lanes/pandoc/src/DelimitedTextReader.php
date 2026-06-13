@@ -41,11 +41,14 @@ final class DelimitedTextReader
         $formatInference = $formatResolution['formatInference'];
         $hasHeader = $this->headerOption($options);
 
-        $rows = $this->parseRows($this->stripBom($text), $delimiter);
+        $parsedRows = $this->parseRowsWithMetadata($this->stripBom($text), $delimiter);
+        $rows = $parsedRows['rows'];
+        $sourceRowIndexes = $parsedRows['sourceRowIndexes'];
+        $blankRows = $parsedRows['blankRows'];
         if ($rows === []) {
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $formatInference),
+                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], [], $blankRows, $hasHeader, $formatInference),
             ]);
         }
 
@@ -65,7 +68,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference),
+            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $formatInference),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -270,6 +273,14 @@ final class DelimitedTextReader
      */
     private function parseRows(string $text, string $delimiter): array
     {
+        return $this->parseRowsWithMetadata($text, $delimiter)['rows'];
+    }
+
+    /**
+     * @return array{rows:list<list<string>>, sourceRowIndexes:list<int>, blankRows:list<int>}
+     */
+    private function parseRowsWithMetadata(string $text, string $delimiter): array
+    {
         $stream = fopen('php://temp', 'r+');
         if ($stream === false) {
             throw new \RuntimeException('Unable to open in-memory CSV stream');
@@ -279,8 +290,13 @@ final class DelimitedTextReader
         rewind($stream);
 
         $rows = [];
+        $sourceRowIndexes = [];
+        $blankRows = [];
+        $sourceRowIndex = 0;
         while (($row = fgetcsv($stream, 0, $delimiter, '"', '')) !== false) {
             if ($row === [null] || $row === false) {
+                $blankRows[] = $sourceRowIndex;
+                $sourceRowIndex++;
                 continue;
             }
 
@@ -288,11 +304,17 @@ final class DelimitedTextReader
                 static fn (?string $value): string => $value ?? '',
                 $row
             );
+            $sourceRowIndexes[] = $sourceRowIndex;
+            $sourceRowIndex++;
         }
 
         fclose($stream);
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'sourceRowIndexes' => $sourceRowIndexes,
+            'blankRows' => $blankRows,
+        ];
     }
 
     /**
@@ -316,9 +338,11 @@ final class DelimitedTextReader
     /**
      * @param list<list<string>> $rows
      * @param list<int> $widths
+     * @param list<int> $sourceRowIndexes
+     * @param list<int> $blankRows
      * @return array<string, mixed>
      */
-    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader, array $formatInference): array
+    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader, array $formatInference): array
     {
         $rowCount = count($rows);
         $columnCount = $widths === [] ? 0 : max($widths);
@@ -347,7 +371,11 @@ final class DelimitedTextReader
             'maxFieldCount' => $columnCount,
             'raggedRowCount' => count($raggedRows),
             'raggedRows' => $raggedRows,
-            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference),
+            'blankRowCount' => count($blankRows),
+            'blankRows' => $blankRows,
+            'rowWidthSummary' => $this->rowWidthSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader),
+            'rowRepairSummary' => $this->rowRepairSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader),
+            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference, $rows, $widths, $sourceRowIndexes, $blankRows),
             'upstreamEvidence' => [
                 'denominator' => 2,
                 'fixtures' => [
@@ -363,7 +391,7 @@ final class DelimitedTextReader
      * @param array<string, mixed> $formatInference
      * @return list<array{code:string, severity:string, message:string}>
      */
-    private function reviewDiagnostics(bool $hasHeader, array $formatInference): array
+    private function reviewDiagnostics(bool $hasHeader, array $formatInference, array $rows, array $widths, array $sourceRowIndexes, array $blankRows): array
     {
         $diagnostics = [];
         if (!$hasHeader) {
@@ -384,7 +412,215 @@ final class DelimitedTextReader
             ];
         }
 
+        $widthSummary = $this->rowWidthSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader);
+        if ($widthSummary['blankRowCount'] > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-blank-rows-skipped',
+                'severity' => 'info',
+                'message' => 'Blank source rows were skipped before table construction and preserved in review metadata.',
+            ];
+        }
+
+        if ($widthSummary['trailingEmptyFieldRows'] !== []) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-trailing-empty-fields-preserved',
+                'severity' => 'info',
+                'message' => 'Rows with trailing empty fields were preserved before table padding.',
+            ];
+        }
+
+        if ($widthSummary['strict']['mismatchCount'] > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-strict-row-width-mismatch',
+                'severity' => 'warning',
+                'message' => 'Strict row-width policy would reject rows whose field counts differ from the first/header row.',
+            ];
+        }
+
+        if (!$widthSummary['relaxed']['consistent']) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-row-widths-uneven',
+                'severity' => 'warning',
+                'message' => 'Delimited text rows have uneven field counts; shorter rows were padded in the native table.',
+            ];
+        }
+
+        if ($widthSummary['header']['mismatchCount'] > 0) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-header-width-mismatch',
+                'severity' => 'warning',
+                'message' => 'Header and body row field counts differ; column names were normalized to the padded table width.',
+            ];
+        }
+
         return $diagnostics;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @param list<int> $widths
+     * @param list<int> $sourceRowIndexes
+     * @param list<int> $blankRows
+     * @return array<string, mixed>
+     */
+    private function rowWidthSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader): array
+    {
+        $rowCount = count($rows);
+        $columnCount = $widths === [] ? 0 : max($widths);
+        $expectedWidth = $widths[0] ?? 0;
+        $strictMismatches = [];
+        $headerMismatches = [];
+        $relaxedPaddedRows = [];
+        $trailingEmptyFieldRows = [];
+
+        foreach ($widths as $index => $width) {
+            $sourceRow = $sourceRowIndexes[$index] ?? $index;
+            $rowRole = $hasHeader && $index === 0 ? 'header' : 'body';
+            if ($index > 0 && $width !== $expectedWidth) {
+                $strictMismatches[] = $this->rowWidthMismatch($index, $sourceRow, $rowRole, $width, $expectedWidth);
+            }
+
+            if ($hasHeader && $index > 0 && $width !== $expectedWidth) {
+                $headerMismatches[] = $this->rowWidthMismatch($index, $sourceRow, 'body', $width, $expectedWidth);
+            }
+
+            if ($width < $columnCount) {
+                $relaxedPaddedRows[] = $this->rowWidthMismatch($index, $sourceRow, $rowRole, $width, $columnCount);
+            }
+
+            $row = $rows[$index] ?? [];
+            if ($row !== [] && $row[array_key_last($row)] === '') {
+                $trailingEmptyFieldRows[] = $sourceRow;
+            }
+        }
+
+        return [
+            'rowWidths' => $widths,
+            'sourceRowIndexes' => $sourceRowIndexes,
+            'blankRowCount' => count($blankRows),
+            'blankRows' => $blankRows,
+            'trailingEmptyFieldRows' => $trailingEmptyFieldRows,
+            'widthCounts' => $this->rowWidthCounts($widths),
+            'strict' => [
+                'policy' => $hasHeader && $rowCount > 0 ? 'header-row' : 'first-row',
+                'expectedColumnCount' => $expectedWidth,
+                'consistent' => $strictMismatches === [],
+                'mismatchCount' => count($strictMismatches),
+                'mismatches' => $strictMismatches,
+            ],
+            'relaxed' => [
+                'policy' => 'pad-to-wide-row',
+                'columnCount' => $columnCount,
+                'consistent' => $widths === [] || min($widths) === $columnCount,
+                'paddedRowCount' => count($relaxedPaddedRows),
+                'paddedRows' => $relaxedPaddedRows,
+            ],
+            'header' => [
+                'enabled' => $hasHeader,
+                'headerColumnCount' => $hasHeader && $widths !== [] ? $widths[0] : 0,
+                'dataColumnCounts' => $hasHeader ? array_slice($widths, 1) : $widths,
+                'consistentWithBody' => $headerMismatches === [],
+                'mismatchCount' => count($headerMismatches),
+                'mismatches' => $headerMismatches,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @param list<int> $widths
+     * @param list<int> $sourceRowIndexes
+     * @param list<int> $blankRows
+     * @return array<string, mixed>
+     */
+    private function rowRepairSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader): array
+    {
+        $columnCount = $widths === [] ? 0 : max($widths);
+        $rowsSummary = [];
+        $paddedRows = [];
+        $truncatedRows = [];
+
+        foreach ($widths as $index => $width) {
+            $sourceRow = $sourceRowIndexes[$index] ?? $index;
+            $rowRole = $hasHeader && $index === 0 ? 'header' : 'body';
+            $missingFields = max(0, $columnCount - $width);
+            $extraFields = max(0, $width - $columnCount);
+            $repair = $missingFields > 0 ? 'padded' : ($extraFields > 0 ? 'truncated' : 'unchanged');
+            $rowSummary = [
+                'row' => $index,
+                'sourceRow' => $sourceRow,
+                'rowLabel' => 'source-row-' . $sourceRow,
+                'rowRole' => $rowRole,
+                'repair' => $repair,
+                'originalColumnCount' => $width,
+                'repairedColumnCount' => $columnCount,
+                'missingFieldsAdded' => $missingFields,
+                'extraFieldsDropped' => $extraFields,
+            ];
+            $rowsSummary[] = $rowSummary;
+            if ($repair === 'padded') {
+                $paddedRows[] = $rowSummary;
+            }
+            if ($repair === 'truncated') {
+                $truncatedRows[] = $rowSummary;
+            }
+        }
+
+        return [
+            'policy' => 'relaxed-pad-to-wide-row',
+            'strictPolicy' => $hasHeader && $widths !== [] ? 'header-row' : 'first-row',
+            'originalColumnCounts' => $widths,
+            'repairedColumnCount' => $columnCount,
+            'sourceRowIndexes' => $sourceRowIndexes,
+            'blankRowCount' => count($blankRows),
+            'blankRows' => $blankRows,
+            'changedRowCount' => count($paddedRows) + count($truncatedRows),
+            'paddedRowCount' => count($paddedRows),
+            'truncatedRowCount' => count($truncatedRows),
+            'paddedRows' => $paddedRows,
+            'truncatedRows' => $truncatedRows,
+            'rows' => $rowsSummary,
+        ];
+    }
+
+    /**
+     * @return array{row:int, sourceRow:int, rowLabel:string, rowRole:string, actualFieldCount:int, expectedFieldCount:int, missingFields:int, extraFields:int}
+     */
+    private function rowWidthMismatch(int $row, int $sourceRow, string $rowRole, int $actual, int $expected): array
+    {
+        return [
+            'row' => $row,
+            'sourceRow' => $sourceRow,
+            'rowLabel' => 'source-row-' . $sourceRow,
+            'rowRole' => $rowRole,
+            'actualFieldCount' => $actual,
+            'expectedFieldCount' => $expected,
+            'missingFields' => max(0, $expected - $actual),
+            'extraFields' => max(0, $actual - $expected),
+        ];
+    }
+
+    /**
+     * @param list<int> $widths
+     * @return list<array{width:int, count:int}>
+     */
+    private function rowWidthCounts(array $widths): array
+    {
+        $counts = [];
+        foreach ($widths as $width) {
+            $counts[$width] = ($counts[$width] ?? 0) + 1;
+        }
+
+        ksort($counts);
+        $summary = [];
+        foreach ($counts as $width => $count) {
+            $summary[] = [
+                'width' => (int) $width,
+                'count' => $count,
+            ];
+        }
+
+        return $summary;
     }
 
     private function stripBom(string $text): string
