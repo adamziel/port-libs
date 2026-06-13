@@ -346,6 +346,128 @@ return [
         $t->same(false, $mismatch->attr('ipynbOutputExecutionCountRecords')[0]['matchesCell']);
         $t->same(3, $mismatch->attr('ipynbDiagnostics')[0]['cellExecutionCount']);
         $t->same(4, $mismatch->attr('ipynbDiagnostics')[0]['outputExecutionCount']);
+        $t->same(['mixed-output-display-order'], array_column($mismatch->attr('ipynbOutputAggregateDiagnostics'), 'issue'));
+    },
+    'reports ipynb output display order and repeated mime bundle diagnostics without output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => 10,
+                    'id' => 'display-order',
+                    'metadata' => ['tags' => ['review']],
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['streamed line from output'],
+                        ],
+                        [
+                            'data' => [
+                                'image/png' => 'image bytes should stay hidden',
+                                'text/plain' => ['plain display bytes'],
+                            ],
+                            'metadata' => ['transient' => ['display_id' => 'figure-1']],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => ['ok' => true],
+                                'text/plain' => ['result bytes'],
+                            ],
+                            'execution_count' => 9,
+                            'metadata' => ['review' => 'kept'],
+                            'output_type' => 'execute_result',
+                        ],
+                        [
+                            'ename' => 'ValueError',
+                            'evalue' => 'bad value bytes',
+                            'output_type' => 'error',
+                            'traceback' => ['traceback bytes'],
+                        ],
+                    ],
+                    'source' => 'mixed_outputs()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $cell = $document->children[0];
+        $html = (new WordPressBlockWriter())->write($document);
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+
+        $t->same(1, $document->attr('notebookCellCount'));
+        $t->same(4, $document->attr('notebookOutputCount'));
+        $t->same(4, $document->attr('notebookOutputBytePresenceCount'));
+        $t->same(2, $document->attr('notebookOutputMimeBundleCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedMimeBundleKeyCount'));
+        $t->same(2, $document->attr('notebookOutputAggregateDiagnosticCount'));
+        $t->same(1, $document->attr('notebookOutputExecutionCountRecordCount'));
+        $t->same(1, $document->attr('notebookOutputExecutionCountMismatchCount'));
+        $t->same(1, $document->attr('notebookDiagnosticCount'));
+        $t->same(['output-execution-count-mismatch'], array_column($document->attr('notebookDiagnostics'), 'issue'));
+
+        $t->same('0 1 2 3', $cell->attr('attributes')['data-ipynb-output-indexes']);
+        $t->same('stream display_data execute_result error', $cell->attr('attributes')['data-ipynb-output-display-order']);
+        $t->same('text/plain', $cell->attr('attributes')['data-ipynb-output-repeated-mime-keys']);
+        $t->same('2', $cell->attr('attributes')['data-ipynb-output-aggregate-diagnostic-count']);
+        $t->same('1', $cell->attr('attributes')['data-ipynb-output-execution-count-mismatch-count']);
+        $t->same('metadata-only', $cell->attr('attributes')['data-ipynb-output-byte-policy']);
+        $t->same('4', $cell->attr('attributes')['data-ipynb-output-byte-presence-count']);
+
+        $t->same(['stream', 'display_data', 'execute_result', 'error'], $cell->attr('ipynbOutputTypes'));
+        $t->same(['stream', 'display_data', 'execute_result', 'error'], $cell->attr('ipynbOutputOrderTypes'));
+        $t->same([0, 1, 2, 3], $cell->attr('ipynbOutputIndexes'));
+        $t->same(['application/json', 'image/png', 'text/plain'], $cell->attr('ipynbOutputMimeTypes'));
+        $t->same(['text/plain'], $cell->attr('ipynbOutputRepeatedMimeBundleKeys'));
+        $t->same([
+            'mimeType' => 'text/plain',
+            'outputIndexes' => [1, 2],
+            'count' => 2,
+        ], $cell->attr('ipynbOutputRepeatedMimeBundleRecords')[0]);
+        $t->same([
+            'mixed-output-display-order',
+            'repeated-output-mime-bundle-key',
+        ], array_column($cell->attr('ipynbOutputAggregateDiagnostics'), 'issue'));
+
+        $outputs = $cell->attr('ipynbOutputSummaries');
+        $t->same(0, $outputs[0]['index']);
+        $t->same('stream', $outputs[0]['type']);
+        $t->same('stdout', $outputs[0]['streamName']);
+        $t->same('blocked', $outputs[0]['byteExposure']);
+        $t->same(1, $outputs[1]['index']);
+        $t->same(['image/png', 'text/plain'], $outputs[1]['mimeTypes']);
+        $t->same(['transient'], $outputs[1]['metadataKeys']);
+        $t->same(2, $outputs[2]['index']);
+        $t->same(['application/json', 'text/plain'], $outputs[2]['mimeTypes']);
+        $t->same(9, $outputs[2]['executionCount']);
+        $t->same(false, $outputs[2]['executionCountRecord']['matchesCell']);
+        $t->same(3, $outputs[3]['index']);
+        $t->same('ValueError', $outputs[3]['errorName']);
+        $t->same(true, $outputs[3]['errorValuePresent']);
+        $t->same(1, $outputs[3]['tracebackLineCount']);
+
+        $t->same(['output-execution-count-mismatch'], array_column($cell->attr('ipynbDiagnostics'), 'issue'));
+        $t->same(10, $cell->attr('ipynbDiagnostics')[0]['cellExecutionCount']);
+        $t->same(9, $cell->attr('ipynbDiagnostics')[0]['outputExecutionCount']);
+        $t->same(['review'], $cell->attr('ipynbCellTags'));
+        $t->contains('mixed_outputs()', $html);
+
+        foreach ([
+            'streamed line from output',
+            'image bytes should stay hidden',
+            'plain display bytes',
+            'result bytes',
+            'bad value bytes',
+            'traceback bytes',
+        ] as $forbidden) {
+            $t->same(false, str_contains($serialized, $forbidden), "Serialized AST leaked {$forbidden}");
+            $t->same(false, str_contains($html, $forbidden), "WordPress HTML leaked {$forbidden}");
+        }
     },
     'preserves ipynb metadata keys and unsupported resource diagnostics without exposing resource bytes' => static function (TestRunner $t): void {
         $json = json_encode([

@@ -70,6 +70,7 @@ final class IpynbReader
         $notebookRichOutputUnsupportedCount = 0;
         $notebookOutputMimeTypes = [];
         $notebookOutputDiagnostics = [];
+        $notebookOutputAggregateDiagnostics = [];
         $notebookDiagnostics = [];
         $attachmentMedia = [];
         $attachmentMediaDiagnostics = [];
@@ -79,6 +80,7 @@ final class IpynbReader
         $cellExecutionCountValidCount = 0;
         $outputExecutionCountRecordCount = 0;
         $outputExecutionCountMismatchCount = 0;
+        $outputRepeatedMimeBundleKeyCount = 0;
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -125,9 +127,11 @@ final class IpynbReader
             $outputMimeBundleCount += $outputSummary['mimeBundleCount'];
             $outputExecutionCountRecordCount += $outputSummary['executionCountRecordCount'];
             $outputExecutionCountMismatchCount += $outputSummary['executionCountMismatchCount'];
+            $outputRepeatedMimeBundleKeyCount += count($outputSummary['repeatedMimeBundleKeys']);
             $notebookRichOutputUnsupportedCount += $outputSummary['richUnsupportedCount'];
             $notebookOutputMimeTypes = array_merge($notebookOutputMimeTypes, $outputSummary['mimeTypes']);
             $notebookOutputDiagnostics = array_merge($notebookOutputDiagnostics, $outputSummary['unsupportedVerdicts']);
+            $notebookOutputAggregateDiagnostics = array_merge($notebookOutputAggregateDiagnostics, $outputSummary['aggregateDiagnostics']);
             $notebookDiagnostics = array_merge($notebookDiagnostics, $cellExecutionDiagnostics);
             $attachmentMedia = array_merge($attachmentMedia, $attachmentSummary['media']);
             $attachmentMediaDiagnostics = array_merge($attachmentMediaDiagnostics, $attachmentSummary['diagnostics']);
@@ -152,9 +156,14 @@ final class IpynbReader
             }
             if ($outputSummary['count'] > 0) {
                 $attributes['data-ipynb-output-count'] = (string) $outputSummary['count'];
+                $attributes['data-ipynb-output-indexes'] = implode(' ', array_map(static fn (int $index): string => (string) $index, $outputSummary['indexes']));
+                $attributes['data-ipynb-output-display-order'] = implode(' ', $outputSummary['orderTypes']);
             }
             if ($outputSummary['mimeTypes'] !== []) {
                 $attributes['data-ipynb-output-mime-types'] = implode(' ', $outputSummary['mimeTypes']);
+            }
+            if ($outputSummary['repeatedMimeBundleKeys'] !== []) {
+                $attributes['data-ipynb-output-repeated-mime-keys'] = implode(' ', $outputSummary['repeatedMimeBundleKeys']);
             }
             if ($outputSummary['richUnsupportedCount'] > 0) {
                 $attributes['data-ipynb-rich-output-unsupported-count'] = (string) $outputSummary['richUnsupportedCount'];
@@ -174,6 +183,9 @@ final class IpynbReader
             }
             if ($outputSummary['streamNames'] !== []) {
                 $attributes['data-ipynb-output-stream-names'] = implode(' ', $outputSummary['streamNames']);
+            }
+            if ($outputSummary['aggregateDiagnostics'] !== []) {
+                $attributes['data-ipynb-output-aggregate-diagnostic-count'] = (string) count($outputSummary['aggregateDiagnostics']);
             }
             if ($executionSummary['validInteger'] !== null) {
                 $attributes['data-ipynb-execution-count'] = (string) $executionSummary['validInteger'];
@@ -222,10 +234,15 @@ final class IpynbReader
                 'ipynbAttachmentDiagnostics' => $attachmentSummary['manifestDiagnostics'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
+                'ipynbOutputOrderTypes' => $outputSummary['orderTypes'],
+                'ipynbOutputIndexes' => $outputSummary['indexes'],
                 'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
                 'ipynbOutputSummaries' => $outputSummary['outputs'],
                 'ipynbOutputMimeBundleCount' => $outputSummary['mimeBundleCount'],
                 'ipynbOutputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'ipynbOutputRepeatedMimeBundleKeys' => $outputSummary['repeatedMimeBundleKeys'],
+                'ipynbOutputRepeatedMimeBundleRecords' => $outputSummary['repeatedMimeBundleRecords'],
+                'ipynbOutputAggregateDiagnostics' => $outputSummary['aggregateDiagnostics'],
                 'ipynbOutputExecutionCounts' => $outputSummary['executionCounts'],
                 'ipynbOutputExecutionCountRecords' => $outputSummary['executionCountRecords'],
                 'ipynbOutputExecutionCountRecordCount' => $outputSummary['executionCountRecordCount'],
@@ -271,10 +288,15 @@ final class IpynbReader
                 'attachmentDiagnostics' => $attachmentSummary['manifestDiagnostics'],
                 'outputCount' => $outputSummary['count'],
                 'outputTypes' => $outputSummary['types'],
+                'outputOrderTypes' => $outputSummary['orderTypes'],
+                'outputIndexes' => $outputSummary['indexes'],
                 'outputMimeTypes' => $outputSummary['mimeTypes'],
                 'outputSummaries' => $outputSummary['outputs'],
                 'outputMimeBundleCount' => $outputSummary['mimeBundleCount'],
                 'outputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'outputRepeatedMimeBundleKeys' => $outputSummary['repeatedMimeBundleKeys'],
+                'outputAggregateDiagnosticCount' => count($outputSummary['aggregateDiagnostics']),
+                'outputAggregateDiagnostics' => $outputSummary['aggregateDiagnostics'],
                 'outputExecutionCounts' => $outputSummary['executionCounts'],
                 'outputExecutionCountRecords' => $outputSummary['executionCountRecords'],
                 'outputExecutionCountRecordCount' => $outputSummary['executionCountRecordCount'],
@@ -343,6 +365,9 @@ final class IpynbReader
             'notebookOutputMimeTypes' => $this->uniqueSortedStrings($notebookOutputMimeTypes),
             'notebookOutputBytePresenceCount' => $outputBytePresenceCount,
             'notebookOutputMimeBundleCount' => $outputMimeBundleCount,
+            'notebookOutputRepeatedMimeBundleKeyCount' => $outputRepeatedMimeBundleKeyCount,
+            'notebookOutputAggregateDiagnosticCount' => count($notebookOutputAggregateDiagnostics),
+            'notebookOutputAggregateDiagnostics' => $notebookOutputAggregateDiagnostics,
             'notebookCellIdsRequired' => $cellIdsRequired,
             'notebookCellExecutionCountPresentCount' => $cellExecutionCountPresentCount,
             'notebookCellExecutionCountValidCount' => $cellExecutionCountValidCount,
@@ -788,12 +813,15 @@ final class IpynbReader
 
     /**
      * @param array<int, mixed> $outputs
-     * @return array{count:int, types:list<string>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, executionCounts:list<int>, executionCountRecords:list<array<string, mixed>>, executionCountRecordCount:int, executionCountMismatchCount:int, executionDiagnostics:list<array<string, mixed>>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>}
+     * @return array{count:int, types:list<string>, orderTypes:list<string>, indexes:list<int>, mimeTypes:list<string>, outputs:list<array<string, mixed>>, unsupportedVerdicts:list<array<string, mixed>>, richUnsupportedCount:int, mimeBundleCount:int, bytePresenceCount:int, repeatedMimeBundleKeys:list<string>, repeatedMimeBundleRecords:list<array<string, mixed>>, aggregateDiagnostics:list<array<string, mixed>>, executionCounts:list<int>, executionCountRecords:list<array<string, mixed>>, executionCountRecordCount:int, executionCountMismatchCount:int, executionDiagnostics:list<array<string, mixed>>, errorNames:list<string>, streamNames:list<string>, diagnostics:list<string>}
      */
     private function outputSummary(array $outputs, ?int $cellExecutionCount, string $cellType, int $cellIndex, ?string $cellId): array
     {
         $types = [];
+        $orderTypes = [];
+        $indexes = [];
         $mimeTypes = [];
+        $mimeOccurrences = [];
         $summaries = [];
         $unsupportedVerdicts = [];
         $mimeBundleCount = 0;
@@ -805,10 +833,13 @@ final class IpynbReader
         $errorNames = [];
         $streamNames = [];
         $diagnostics = [];
+        $aggregateDiagnostics = [];
         foreach ($outputs as $index => $output) {
+            $outputIndex = is_int($index) ? $index : count($summaries);
+            $indexes[] = $outputIndex;
             if (!is_array($output)) {
                 $summaries[] = [
-                    'index' => $index,
+                    'index' => $outputIndex,
                     'type' => 'unknown',
                     'outputType' => 'unknown',
                     'diagnostics' => ['ipynb-output-not-object'],
@@ -817,12 +848,13 @@ final class IpynbReader
             }
             $type = $output['output_type'] ?? null;
             $outputType = is_string($type) && $type !== '' ? $type : 'unknown';
+            $orderTypes[] = $outputType;
             if ($outputType !== 'unknown') {
                 $types[] = $outputType;
             }
 
             $summary = [
-                'index' => $index,
+                'index' => $outputIndex,
                 'type' => $outputType,
                 'outputType' => $outputType,
             ];
@@ -862,6 +894,10 @@ final class IpynbReader
                 $summary['mimeTypes'] = $outputMimeTypes;
                 $summary['mimeCount'] = count($outputMimeTypes);
                 array_push($mimeTypes, ...$outputMimeTypes);
+                foreach ($outputMimeTypes as $mimeType) {
+                    $mimeOccurrences[$mimeType] ??= [];
+                    $mimeOccurrences[$mimeType][] = $outputIndex;
+                }
             }
 
             if (isset($output['metadata']) && is_array($output['metadata'])) {
@@ -890,7 +926,7 @@ final class IpynbReader
             if (array_key_exists('execution_count', $output)) {
                 $value = $output['execution_count'];
                 $record = [
-                    'outputIndex' => $index,
+                    'outputIndex' => $outputIndex,
                     'outputType' => $outputType === 'unknown' ? null : $outputType,
                     'valueType' => $this->valueKind($value),
                     'valid' => false,
@@ -904,7 +940,7 @@ final class IpynbReader
                     $record['executionCount'] = $value;
                     if ($value < 0 || $value > self::MAX_EXECUTION_COUNT) {
                         $executionDiagnostics[] = $this->diagnostic('output-execution-count-out-of-range', $cellIndex, $cellType, $cellId, [
-                            'outputIndex' => $index,
+                            'outputIndex' => $outputIndex,
                             'outputType' => $record['outputType'],
                             'value' => $value,
                             'min' => 0,
@@ -918,7 +954,7 @@ final class IpynbReader
                             if ($value !== $cellExecutionCount) {
                                 $executionCountMismatchCount++;
                                 $executionDiagnostics[] = $this->diagnostic('output-execution-count-mismatch', $cellIndex, $cellType, $cellId, [
-                                    'outputIndex' => $index,
+                                    'outputIndex' => $outputIndex,
                                     'outputType' => $record['outputType'],
                                     'cellExecutionCount' => $cellExecutionCount,
                                     'outputExecutionCount' => $value,
@@ -928,16 +964,17 @@ final class IpynbReader
                     }
                 } else {
                     $executionDiagnostics[] = $this->diagnostic('output-execution-count-invalid-type', $cellIndex, $cellType, $cellId, [
-                        'outputIndex' => $index,
+                        'outputIndex' => $outputIndex,
                         'outputType' => $record['outputType'],
                         'valueType' => $record['valueType'],
                     ]);
                 }
 
+                $summary['executionCountRecord'] = $record;
                 $executionCountRecords[] = $record;
             } elseif ($outputType === 'execute_result') {
                 $executionDiagnostics[] = $this->diagnostic('output-execution-count-missing', $cellIndex, $cellType, $cellId, [
-                    'outputIndex' => $index,
+                    'outputIndex' => $outputIndex,
                     'outputType' => $outputType,
                 ]);
             }
@@ -946,7 +983,7 @@ final class IpynbReader
                 $verdict = [
                     'code' => 'ipynb-rich-output-unsupported',
                     'cellIndex' => $cellIndex,
-                    'outputIndex' => $index,
+                    'outputIndex' => $outputIndex,
                     'outputType' => $outputType,
                     'mimeTypes' => $outputMimeTypes,
                     'mimeCount' => count($outputMimeTypes),
@@ -962,16 +999,37 @@ final class IpynbReader
         $types = array_values(array_unique($types));
         $mimeTypes = array_values(array_unique($mimeTypes));
         sort($mimeTypes);
+        $uniqueOrderTypes = array_values(array_unique($orderTypes));
+        if (count($orderTypes) > 1 && count($uniqueOrderTypes) > 1) {
+            $aggregateDiagnostics[] = $this->diagnostic('mixed-output-display-order', $cellIndex, $cellType, $cellId, [
+                'outputIndexes' => $indexes,
+                'outputTypes' => $orderTypes,
+                'uniqueOutputTypes' => $uniqueOrderTypes,
+            ]);
+        }
+        $repeatedMimeBundleRecords = $this->repeatedMimeBundleRecords($mimeOccurrences);
+        foreach ($repeatedMimeBundleRecords as $record) {
+            $aggregateDiagnostics[] = $this->diagnostic('repeated-output-mime-bundle-key', $cellIndex, $cellType, $cellId, [
+                'mimeType' => $record['mimeType'],
+                'outputIndexes' => $record['outputIndexes'],
+                'occurrenceCount' => $record['count'],
+            ]);
+        }
 
         return [
             'count' => count($outputs),
             'types' => $types,
+            'orderTypes' => $orderTypes,
+            'indexes' => $indexes,
             'mimeTypes' => $mimeTypes,
             'outputs' => $summaries,
             'unsupportedVerdicts' => $unsupportedVerdicts,
             'richUnsupportedCount' => count($unsupportedVerdicts),
             'mimeBundleCount' => $mimeBundleCount,
             'bytePresenceCount' => $bytePresenceCount,
+            'repeatedMimeBundleKeys' => array_column($repeatedMimeBundleRecords, 'mimeType'),
+            'repeatedMimeBundleRecords' => $repeatedMimeBundleRecords,
+            'aggregateDiagnostics' => $aggregateDiagnostics,
             'executionCounts' => array_values(array_unique($executionCounts)),
             'executionCountRecords' => $executionCountRecords,
             'executionCountRecordCount' => count($executionCountRecords),
@@ -981,6 +1039,28 @@ final class IpynbReader
             'streamNames' => $this->uniqueSortedStrings($streamNames),
             'diagnostics' => array_values(array_unique($diagnostics)),
         ];
+    }
+
+    /**
+     * @param array<string, list<int>> $mimeOccurrences
+     * @return list<array{mimeType:string, outputIndexes:list<int>, count:int}>
+     */
+    private function repeatedMimeBundleRecords(array $mimeOccurrences): array
+    {
+        ksort($mimeOccurrences);
+        $records = [];
+        foreach ($mimeOccurrences as $mimeType => $outputIndexes) {
+            if (count($outputIndexes) < 2) {
+                continue;
+            }
+            $records[] = [
+                'mimeType' => $mimeType,
+                'outputIndexes' => $outputIndexes,
+                'count' => count($outputIndexes),
+            ];
+        }
+
+        return $records;
     }
 
     /**
