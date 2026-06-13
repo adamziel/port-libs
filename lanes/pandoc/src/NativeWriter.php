@@ -1110,7 +1110,11 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || !$this->isReusableNativeInlinePayload($native)) {
+        if (
+            $this->hasLegacyTargetInlinePayloadSidecars($native)
+            || $this->hasNonReusableNativeInlinePayload($native)
+            || !$this->isReusableNativeInlinePayload($native)
+        ) {
             return false;
         }
 
@@ -1155,6 +1159,16 @@ final class NativeWriter
     {
         if (!is_array($value)) {
             return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeHelperConstructor($value['t'])
+            && array_key_exists('c', $value)
+            && $value['c'] !== []
+        ) {
+            return true;
         }
 
         if (
@@ -1271,6 +1285,35 @@ final class NativeWriter
             'Image',
             'Note',
             'Span',
+        ], true);
+    }
+
+    private function isNullaryNativeHelperConstructor(string $constructor): bool
+    {
+        return in_array($constructor, [
+            'SingleQuote',
+            'DoubleQuote',
+            'InlineMath',
+            'DisplayMath',
+            'NormalCitation',
+            'AuthorInText',
+            'SuppressAuthor',
+            'DefaultStyle',
+            'Decimal',
+            'Example',
+            'LowerRoman',
+            'UpperRoman',
+            'LowerAlpha',
+            'UpperAlpha',
+            'DefaultDelim',
+            'Period',
+            'OneParen',
+            'TwoParens',
+            'AlignLeft',
+            'AlignRight',
+            'AlignCenter',
+            'AlignDefault',
+            'ColWidthDefault',
         ], true);
     }
 
@@ -1829,6 +1872,10 @@ final class NativeWriter
     {
         if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
             return null;
+        }
+
+        if ($this->isNullaryNativeHelperConstructor($constructor) && array_key_exists('c', $native) && $native['c'] !== []) {
+            unset($native['c']);
         }
 
         return $native;

@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,300 pass / 0 fail | [3,260 / 2,276 (143.2%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Linked-resource handoff is covered after table-caption writers; continue format closures | media-bag-linked-resource-handoff-5cd9038b4c |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,301 pass / 0 fail | [3,261 / 2,276 (143.3%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue JSON/native fixture parity after nullary helper payload validation | json-native-nullary-helper-payload-6c77acbadb |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -34,7 +34,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | --- | --- | --- | ---: | ---: | --- |
 | Markdown/CommonMark/GFM | `commonmark`, `commonmark_x`, `gfm`, `markdown`, `markdown_github`, `markdown_mmd`, `markdown_phpextra`, `markdown_strict` | partial | 439 | 1,096 | Complete extension and variant parity. |
 | HTML/XML/JATS DOM | `html` partial; `xml`, `jats`, `bits` unsupported | mixed | 275 | 29 | JATS/BITS front-matter review packets are covered; finish HTML5 tree construction and implement full XML/JATS/BITS readers. |
-| JSON/native AST | `json`, `native` | partial | 46 | 252 | Table caption block writers are covered; complete broader JSON/native AST constructor coverage. |
+| JSON/native AST | `json`, `native` | partial | 47 | 252 | Nullary helper payload validation is covered; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 92 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata is covered. |
 | EPUB/EPUB3 | `epub` | partial | 59 | 9 | Finish EPUB package reader parity; latest slice preserves NCX docTitle/docAuthor audio provenance. |
 | ODF/ODT/OpenDocument | `odt` | ship-ready | 49 | 20 | 0 critical gaps for native PHP ODT import; continue only non-critical hardening slices as discovered. |
@@ -171,13 +171,15 @@ Verdict: not shippable yet. The focused denominator-backed text-format gate rema
 
 Implemented highest-impact gap: `PlainWriter` now renders native table captions and table head/body/foot rows as readable plain rows instead of falling through to unstructured child text. The renderer preserves inline-formatted cell text, multi-block cell text, and existing wrapping diagnostics. Verification passed `php -l` for `PlainWriter.php` and `PlainWriterTest.php`, focused `PlainWriterTest.php` (`1` file, `216` assertions, `0` failures), and full `lanes/pandoc/tests` (`44` files, `73995` assertions, `0` failures). No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser renderer, Node tooling, external validator, online service, live provider test, or live-service provider test was invoked.
 
-### JSON/Native AST Ship-Readiness Update (2026-06-12)
+### JSON/Native AST Ship-Readiness Update (2026-06-13)
 
-Verdict: not shippable yet. The native PHP lane now has 45 local passing JSON/native AST evidence cases against 252 upstream native expected artifacts (17.9% evidence ratio). Broader native/json fixture parity, unsupported constructor surfaces, and table/citation/metadata round-trip edges remain open.
+Verdict: not shippable yet. The native PHP lane now has 47 local passing JSON/native AST evidence cases against 252 upstream native expected artifacts (18.7% evidence ratio). Broader native/json fixture parity, unsupported constructor surfaces, and table/citation/metadata round-trip edges remain open.
 
 | Format focus | Upstream denominator | Local passing evidence | Evidence percent | Remaining critical gap |
 | --- | ---: | ---: | ---: | --- |
-| JSON/native AST constructors and round trips | 252 | 45 | 17.9% | Broader upstream native/json fixture parity plus unsupported constructor/table/citation/metadata surfaces beyond bounded sidecar reuse. |
+| JSON/native AST constructors and round trips | 252 | 47 | 18.7% | Broader upstream native/json fixture parity plus unsupported constructor/table/citation/metadata surfaces beyond bounded sidecar reuse. |
+
+Implemented highest-impact gap: `PandocJsonWriter` and `NativeWriter` now reject stale non-empty `c` payload reuse on nullary helper constructors for quotes, math types, citation modes, list styles/delimiters, table alignments, and `ColWidthDefault`. Regenerated JSON/native output drops stale helper payloads while preserving valid helper sidecars and existing empty-`c` compatibility. Verification passed `php -l` for `PandocJsonWriter.php`, `NativeWriter.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `2050` assertions, `0` failures); and full `lanes/pandoc/tests` (`44` files, `74116` assertions, `0` failures). No Pandoc binary, JSON filters, Cabal/Haskell runners, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.
 
 Implemented highest-impact gap: `PandocJsonReader` and `NativeReader` now preserve Link/Image target tuple sidecars while normalizing URL/title, and `PandocJsonWriter` plus `NativeWriter` reuse compatible target tuples unless URL/title edits require regenerating a bare tuple. Verification passed `php -l` for `PandocJsonReader.php`, `NativeReader.php`, `PandocJsonWriter.php`, `NativeWriter.php`, and `PandocJsonNativeAstTest.php`; focused `PandocJsonNativeAstTest.php` (`1` file, `1968` assertions, `0` failures); and full `lanes/pandoc/tests` (`44` files, `73988` assertions, `0` failures). No Pandoc binary, JSON filters, Cabal/Haskell runners, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.
 

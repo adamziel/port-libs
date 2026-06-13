@@ -991,6 +991,116 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'regenerates stale nullary helper constructor payloads through json and native writers' => static function (TestRunner $t): void {
+        $quoteType = ['t' => 'DoubleQuote', 'c' => ['stale'], 'reviewQueue' => 'quote-type-source'];
+        $mathType = ['t' => 'DisplayMath', 'c' => ['stale'], 'reviewQueue' => 'math-type-source'];
+        $citationMode = ['t' => 'SuppressAuthor', 'c' => ['stale'], 'reviewQueue' => 'citation-mode-source'];
+        $listStyle = ['t' => 'UpperRoman', 'c' => ['stale'], 'reviewQueue' => 'list-style-source'];
+        $listDelimiter = ['t' => 'TwoParens', 'c' => ['stale'], 'reviewQueue' => 'list-delimiter-source'];
+        $tableAlignment = ['t' => 'AlignRight', 'c' => ['stale'], 'reviewQueue' => 'table-alignment-source'];
+        $tableWidth = ['t' => 'ColWidthDefault', 'c' => ['stale'], 'reviewQueue' => 'table-width-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteType,
+                        [['t' => 'Str', 'c' => 'quoted']],
+                    ], 'reviewQueue' => 'quoted-wrapper-source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        $mathType,
+                        'E=mc^2',
+                    ], 'reviewQueue' => 'math-wrapper-source'],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'smith1899',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [],
+                            'citationMode' => $citationMode,
+                            'citationNoteNum' => 0,
+                            'citationHash' => 1899,
+                            'reviewQueue' => 'citation-record-source',
+                        ]],
+                        [['t' => 'Str', 'c' => '@smith1899']],
+                    ], 'reviewQueue' => 'cite-wrapper-source'],
+                ], 'reviewQueue' => 'paragraph-wrapper-source'],
+                ['t' => 'OrderedList', 'c' => [
+                    [2, $listStyle, $listDelimiter],
+                    [[
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'item'],
+                        ]],
+                    ]],
+                ], 'reviewQueue' => 'ordered-wrapper-source'],
+                ['t' => 'Table', 'c' => [
+                    ['', [], []],
+                    ['t' => 'Caption', 'c' => [
+                        ['t' => 'Nothing'],
+                        [],
+                    ]],
+                    [[$tableAlignment, $tableWidth]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ], 'reviewQueue' => 'table-wrapper-source'],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $quoted = $paragraph->children[0];
+            $math = $paragraph->children[2];
+            $cite = $paragraph->children[4];
+            $ordered = $document->children[1];
+            $table = $document->children[2];
+
+            $t->same($quoteType, $quoted->attr('quoteTypeNative'), "{$source} records source quote helper payload");
+            $t->same($mathType, $math->attr('mathTypeNative'), "{$source} records source math helper payload");
+            $t->same($citationMode, $cite->attr('citationModeNative'), "{$source} records source citation mode helper payload");
+            $t->same($listStyle, $ordered->attr('listStyleNative'), "{$source} records source list style helper payload");
+            $t->same($listDelimiter, $ordered->attr('listDelimiterNative'), "{$source} records source list delimiter helper payload");
+            $t->same([$tableAlignment], $table->attr('alignmentNatives'), "{$source} records source table alignment helper payload");
+            $t->same([$tableWidth], $table->attr('columnWidthNatives'), "{$source} records source table width helper payload");
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedPara = $encoded['blocks'][0];
+                $encodedQuoteType = $encodedPara['c'][0]['c'][0];
+                $encodedMathType = $encodedPara['c'][2]['c'][0];
+                $encodedCitationMode = $encodedPara['c'][4]['c'][0][0]['citationMode'];
+                $encodedOrdered = $encoded['blocks'][1];
+                $encodedTableColSpec = $encoded['blocks'][2]['c'][2][0];
+
+                $t->same(false, array_key_exists('reviewQueue', $encodedPara), "{$source} {$writer} regenerates stale paragraph wrapper");
+                $t->same('quote-type-source', $encodedQuoteType['reviewQueue'], "{$source} {$writer} preserves quote helper sidecar");
+                $t->same(false, array_key_exists('c', $encodedQuoteType), "{$source} {$writer} drops stale quote helper content");
+                $t->same('math-type-source', $encodedMathType['reviewQueue'], "{$source} {$writer} preserves math helper sidecar");
+                $t->same(false, array_key_exists('c', $encodedMathType), "{$source} {$writer} drops stale math helper content");
+                $t->same('citation-mode-source', $encodedCitationMode['reviewQueue'], "{$source} {$writer} preserves citation mode helper sidecar");
+                $t->same(false, array_key_exists('c', $encodedCitationMode), "{$source} {$writer} drops stale citation mode helper content");
+                $t->same(false, array_key_exists('reviewQueue', $encodedPara['c'][4]['c'][0][0]), "{$source} {$writer} regenerates stale citation record");
+                $t->same(false, array_key_exists('reviewQueue', $encodedOrdered), "{$source} {$writer} regenerates stale ordered-list wrapper");
+                $t->same('list-style-source', $encodedOrdered['c'][0][1]['reviewQueue'], "{$source} {$writer} preserves list style sidecar");
+                $t->same(false, array_key_exists('c', $encodedOrdered['c'][0][1]), "{$source} {$writer} drops stale list style content");
+                $t->same('list-delimiter-source', $encodedOrdered['c'][0][2]['reviewQueue'], "{$source} {$writer} preserves list delimiter sidecar");
+                $t->same(false, array_key_exists('c', $encodedOrdered['c'][0][2]), "{$source} {$writer} drops stale list delimiter content");
+                $t->same('table-alignment-source', $encodedTableColSpec[0]['reviewQueue'], "{$source} {$writer} preserves table alignment sidecar");
+                $t->same(false, array_key_exists('c', $encodedTableColSpec[0]), "{$source} {$writer} drops stale table alignment content");
+                $t->same('table-width-source', $encodedTableColSpec[1]['reviewQueue'], "{$source} {$writer} preserves table width sidecar");
+                $t->same(false, array_key_exists('c', $encodedTableColSpec[1]), "{$source} {$writer} drops stale table width content");
+            }
+        }
+    },
     'reads legacy table and target inline constructor shapes through json and native readers' => static function (TestRunner $t): void {
         $legacyTable = [
             't' => 'Table',
