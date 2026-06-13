@@ -1,6 +1,6 @@
 # Pandoc Status
 
-Last reconciled: 2026-06-13 UTC after LaTeX table body-head row preservation on base `f286538a3b`, following JSON/native nullary helper payload validation.
+Last reconciled: 2026-06-13 UTC on landed `main` `17c91bad52`, plus refinery queue snapshot at 02:20 UTC. The latest landed Pandoc code slice is LaTeX table body-head row preservation after JSON/native nullary helper payload validation.
 
 This file is the compact status companion to `progress.md`,
 `lanes/pandoc/lane-status.json`, and
@@ -16,12 +16,12 @@ This file is the compact status companion to `progress.md`,
 | Shippable input formats | ODF/ODT is marked ship-ready: 50 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, 250.0%, with 0 critical ODF/ODT gaps. | ODF/ODT can ship under the current native PHP/no-external-validator policy. |
 | Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. | Pandoc as a whole is not ship-ready. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`. Only `plib-qka5o` qualified and was closed as already landed. A follow-up check found 0 open/in-progress Pandoc orphans whose referenced commits are on `origin/main`. Branch-only orphan candidates were left open. | Dashboard queue state is reconciled to landed work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/LatexWriter.php lanes/pandoc/src/TableGeometry.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php lanes/pandoc/examples/wordpress-table-geometry-handoff.php`, syntax checks for the touched LaTeX/table files, focused `LatexWriterTest.php` and `TableGeometryTest.php`, focused `TableGeometryReaderHandoffTest.php`, the table geometry handoff self-test, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,336 assertions, 0 failures. |
+| Verification | Latest landed code-slice verification from `17c91bad52`: `jq empty`, `git diff --check`, syntax checks for the touched LaTeX/table files, focused `LatexWriterTest.php` and `TableGeometryTest.php`, focused `TableGeometryReaderHandoffTest.php`, the table geometry handoff self-test, and full `php tools/run-tests.php lanes/pandoc/tests` passed. This progress-only queue reconciliation checked `jq empty` and `git diff --check` on the status artifacts. | 45 test files, 74,336 assertions, 0 failures for the landed code slice; progress-only validation passed. |
 | External validators | No Pandoc binary, Cabal/Haskell runner, office suite, TeX/Typst engine, browser engine, Node tooling, online service, live provider test, or external validator was used for this reconciliation. | Policy satisfied. |
 
 ## Closure Wave Snapshot
 
-Current `main` is reconciled through `f286538a3b`: 3,314 PHP passes / 0 failures and 3,273 mapped upstream cases. The recent closure wave landed the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, JSON/native task-list checkbox sidecar, JSON/native nullary helper payload, and LaTeX table body-head row evidence. This refresh was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), the table geometry handoff self-test, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
+Current landed `main` is reconciled through `17c91bad52`: 3,314 PHP passes / 0 failures and 3,273 mapped upstream cases. Closed beads or ready MRs after `17c91bad52` are not counted below until the refinery lands them. The recent landed closure wave includes the formerly pending CSV/TSV, MediaBag, Markdown block-boundary, notes/references, LaTeX table-foot, JSON/native Div Plain, PDF/Typst package dependency conflict-policy, JSON/native task-list checkbox sidecar, JSON/native nullary helper payload, and LaTeX table body-head row evidence. The landed code slice was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), the table geometry handoff self-test, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
 
 | Surface | Landed evidence | Verdict |
 | --- | --- | --- |
@@ -34,6 +34,15 @@ Current `main` is reconciled through `f286538a3b`: 3,314 PHP passes / 0 failures
 | PDF/Typst dependency policy | Typst package dependency conflict policy records sidecar package input counts, metadata-only byte exposure, non-executed network policy, package coordinates, namespace counts, and multi-version conflicts; focused `PdfEngineHandoffTest.php` passed 2,225 assertions. | Bounded no-engine provenance covered; real PDF/Typst output parity remains unsupported without external engines. |
 | JSON/native task lists | `taskChecked` sidecars now preserve unchecked, checked, and nested task-list state through JSON/native readers and writers into Markdown, WordPress, and LaTeX handoff; focused `PandocJsonNativeAstTest.php` passed 2,015 assertions. | Bounded list-semantics sidecar slice covered; broader JSON/native constructor parity remains partial. |
 | JSON/native nullary helpers | Stale non-empty nullary helper constructor payloads now regenerate through JSON/native writers while preserving sidecars; focused `PandocJsonNativeAstTest.php` passed 2,097 assertions. | Bounded helper-constructor payload slice covered; broader JSON/native constructor parity remains partial. |
+
+## Landed vs Pending Matrix
+
+| Evidence class | Items | Accounting decision |
+| --- | --- | --- |
+| Landed on `main` | Current baseline `17c91bad52` / `plib-actvg`, plus prior `plib-dkre4` and closure-wave rows above. | Counted in 3,314 PHP passes / 0 failures and 3,273 mapped upstream cases. |
+| Ready refinery MRs, not landed | `plib-2bhzx`, `plib-ak0v4`, `plib-joe0x`, `plib-b8ozb`, `plib-gljei`, `plib-xc5vm`, `plib-yaih5`, `plib-ej919`, `plib-pb36i`, `plib-ail3e`, `plib-ot0qk`, `plib-x3ybs`, `plib-3qia0`, `plib-tdkjh`, `plib-mwy8i`, `plib-euvjd`, `plib-z3szk`, `plib-rezzc`, `plib-1awy4`, `plib-j5tip`, `plib-rs3xt`, `plib-15bdf`, `plib-mcyru`, `plib-t5oio`, `plib-kdqol`. | Treat as pending MR evidence only; do not upgrade format status or counters until the refinery merges each MR. |
+| Blocked MRs | `gt refinery blocked` reported none; `gt mq list port_libs --verify` reported all 25 pending branches as ready/OK. | No blocked recovery bead required from this reconciliation. |
+| High-risk recovery watch | Most pending MRs touch `progress.md`, `PANDOC_STATUS.md`, `lane-status.json`, and/or `UPSTREAM_TEST_MANIFEST.json`; `plib-gljei` is a progress reconciliation MR with no `pre_verified` flag. | Expect status-metadata rebase conflicts as the refinery drains. If rejected, recover by rebasing the source branch onto current `main` and replaying only landed-vs-pending status text. |
 
 ## Queue Snapshot
 

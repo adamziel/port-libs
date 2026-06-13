@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,314 pass / 0 fail | [3,273 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue table geometry after LaTeX body-head row preservation | latex-table-body-head-writer-f286538a3b |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,314 pass / 0 fail | [3,273 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue table geometry after LaTeX body-head row preservation; 25 ready refinery MRs remain pending and are not counted until landed | latex-table-body-head-writer-17c91bad52 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -59,7 +59,7 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `f286538a3b`: 3,314 PHP passes, 0 failures, and 3,273 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), `php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test`, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
+Current-main counters are reconciled through landed `main` `17c91bad52`: 3,314 PHP passes, 0 failures, and 3,273 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize landed closure-wave evidence only; closed beads or ready MRs after `17c91bad52` are pending refinery evidence until merged. This landed code slice was checked with `jq empty`, `git diff --check`, focused `LatexWriterTest.php` plus `TableGeometryTest.php` (`2` files, `1917` assertions, `0` failures), focused `TableGeometryReaderHandoffTest.php` (`1` file, `1493` assertions, `0` failures), `php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test`, and full `lanes/pandoc/tests` (`45` files, `74336` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
@@ -70,6 +70,21 @@ Current-main counters are reconciled through `f286538a3b`: 3,314 PHP passes, 0 f
 | Notes/references | Landed footnote label anchors and JSON/native note-label sidecars | 252 JSON/native artifacts plus notes/reference handoff slices | Focused Markdown/citation and JSON/native evidence; latest JSON/native run 1,978 assertions | Partial | Broader note/reference placement, backlinks, and constructor parity. |
 | Table geometry | Landed LaTeX table-foot longtable and body-local head-row handoffs | Table writer geometry slice | Focused LaTeX/table run 1,917 assertions | Covered bounded table-foot and body-head-row slices | Multi-body semantics, rowspan output, and package-specific table internals. |
 | PDF/Typst dependency policy | Landed package dependency conflict policy | 17 PDF/Typst boundary rows | 47 PDF/Typst boundary/provenance cases; latest focused run 2,225 assertions | Covered bounded no-engine provenance | Real PDF/Typst output parity remains unsupported without external engines. |
+
+### Refinery Landing Reconciliation (2026-06-13)
+
+Refinery snapshot at 02:20 UTC: `gt mq list port_libs --verify` reported 25 ready/OK pending MRs, and `gt refinery blocked` reported none. Their source beads are closed, but that is not landed evidence. Format counters and shippability calls stay pinned to `17c91bad52` until the refinery merges each MR.
+
+| Class | Evidence | Accounting decision |
+| --- | --- | --- |
+| Landed main baseline | `17c91bad52` / `plib-actvg`, after prior `plib-dkre4`; latest landed counters are 3,314 PHP passes / 0 failures and 3,273 mapped upstream cases. | Counted in dashboard and status totals. |
+| Pending table/plain table MRs | `plib-z3szk`. | Pending only; table-family gaps do not downgrade further, but no new plain table claim counts yet. |
+| Pending Markdown/block/list/escaping MRs | `plib-2bhzx`, `plib-yaih5`, `plib-pb36i`, `plib-tdkjh`, `plib-euvjd`, `plib-mcyru`. | Pending only; Markdown/list status remains partial on landed main. |
+| Pending notes/inline metadata MRs | `plib-ak0v4`, `plib-ot0qk`, `plib-xc5vm`, `plib-mwy8i`. | Pending only; notes and inline-attribute improvements are not counted until merge. |
+| Pending EPUB3/DOCX/XML/ODF/package MRs | `plib-b8ozb`, `plib-ej919`, `plib-rezzc`, `plib-ail3e`, `plib-t5oio`, `plib-3qia0`, `plib-1awy4`, `plib-kdqol`. | Pending only; EPUB3, DOCX/OpenXML, XML/JATS/BITS, ODF/ODT hardening, and shared ZIP/OPC remain partial or dependency surfaces as previously recorded. |
+| Pending text/CSV/PDF/Typst MRs | `plib-joe0x`, `plib-j5tip`, `plib-rs3xt`, `plib-15bdf`. | Pending only; CSV/TSV remains partial, text readers remain unsupported, and PDF/Typst remains no-engine boundary evidence only. |
+| Pending progress/status MR | `plib-gljei` / `plib-wisp-hd7`. | High-risk because it is status-only, has no `pre_verified` flag, and predates later landed status updates. If rejected, replay only landed-vs-pending text onto current `main`. |
+| Recovery risk across queue | All 25 pending commits touch `lane-status.json`, and most also touch `progress.md`, `PANDOC_STATUS.md`, or `UPSTREAM_TEST_MANIFEST.json`; all pending bases predate `17c91bad52`. | Expect status-metadata conflicts while the refinery drains. Rebase/recover rejected MRs rather than counting closed-bead notes as landed. |
 
 ### Markdown Fixture Round-Trip Update (2026-06-13)
 
@@ -292,7 +307,7 @@ status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-stat
 `php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php`
 (`2` files, `1917` assertions, `0` failures), `php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php`
 (`1` file, `1493` assertions, `0` failures), `php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test`, and `php tools/run-tests.php lanes/pandoc/tests`
-(`45` files, `74336` assertions, `0` failures on current main `f286538a3b`).
+(`45` files, `74336` assertions, `0` failures on current main `17c91bad52`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
