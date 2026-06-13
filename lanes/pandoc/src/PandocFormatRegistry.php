@@ -518,6 +518,7 @@ final class PandocFormatRegistry
             'boundedDiagnostics' => [
                 'safe XML loading with external entity and processing-instruction rejection',
                 'namespace-aware element and attribute queries for package-reader handoff',
+                'namespace declaration provenance with scoped prefix reuse and conflict diagnostics',
             ],
             'remainingReaderGaps' => [
                 'full Pandoc XML input mapping into the shared AST',

@@ -133,6 +133,7 @@ return [
         $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('namespace declaration provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('no full native PHP XML direct reader is registered yet', $packet['formats']['xml']['inputNotes']);
 

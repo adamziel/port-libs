@@ -82,6 +82,76 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
+    'summarizes XML namespace declaration provenance without reader parity claims' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<pkg:package xmlns="urn:packet" xmlns:pkg="urn:pkg" xmlns:rel="urn:relationship" rel:id="root">
+  <pkg:metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Namespace Review</dc:title>
+  </pkg:metadata>
+  <pkg:body xmlns:rel="urn:relationship-v2">
+    <pkg:item rel:id="local">Payload</pkg:item>
+  </pkg:body>
+</pkg:package>
+XML, 'namespace declaration review XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeXmlNamespaceDeclarations($dom);
+
+        $t->same('xml-html5-jats-dom', $packet['formatFamily']);
+        $t->same('xml', $packet['format']);
+        $t->same('xml-namespace-declaration-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'namespace-declarations-review-only',
+            'namespace-prefix-reuse-review-only',
+            'namespace-prefix-conflict-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(4, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
+        $t->same(5, $packet['directReaderDiagnostics'][1]['details']['namespaceDeclarationCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['namespacePrefixReuseCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][3]['details']['namespacePrefixConflictCount'] ?? null);
+
+        $t->same('package', $packet['rootName']);
+        $t->same('pkg:package', $packet['rootQualifiedName']);
+        $t->same('pkg', $packet['rootNamespacePrefix']);
+        $t->same('urn:pkg', $packet['rootNamespaceUri']);
+        $t->same(5, $packet['elementCount']);
+        $t->same(2, $packet['maxDepth']);
+        $t->same(5, $packet['namespacedElementCount']);
+        $t->same(2, $packet['namespacedAttributeCount']);
+        $t->same(5, $packet['namespaceDeclarationCount']);
+        $t->same(4, $packet['namespacePrefixCount']);
+        $t->same(5, $packet['namespaceUriCount']);
+        $t->same(['', 'dc', 'pkg', 'rel'], $packet['namespacePrefixes']);
+        $t->same([
+            'http://purl.org/dc/elements/1.1/',
+            'urn:packet',
+            'urn:pkg',
+            'urn:relationship',
+            'urn:relationship-v2',
+        ], $packet['namespaceUris']);
+
+        $t->same(['urn:packet'], $packet['namespaceDeclarationsByPrefix']['']['namespaceUris'] ?? null);
+        $t->same(['/pkg:package'], $packet['namespaceDeclarationsByPrefix']['pkg']['elementPaths'] ?? null);
+        $t->same(2, $packet['namespaceDeclarationsByPrefix']['rel']['declarationCount'] ?? null);
+        $t->same([
+            'urn:relationship',
+            'urn:relationship-v2',
+        ], $packet['namespaceDeclarationsByPrefix']['rel']['namespaceUris'] ?? null);
+        $t->same([
+            '/pkg:package',
+            '/pkg:package/pkg:body[1]',
+        ], $packet['namespaceDeclarationsByPrefix']['rel']['elementPaths'] ?? null);
+        $t->same(1, $packet['namespacePrefixReuseCount']);
+        $t->same('rel', $packet['namespacePrefixReuses'][0]['prefix'] ?? null);
+        $t->same(1, $packet['namespacePrefixConflictCount']);
+        $t->same(true, $packet['hasNamespacePrefixConflicts']);
+        $t->same('rel', $packet['namespacePrefixConflicts'][0]['prefix'] ?? null);
+        $t->same(false, $packet['namespacePrefixConflicts'][0]['defaultNamespace'] ?? null);
+        $t->same(2, $packet['namespacePrefixConflicts'][0]['declarationCount'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes jats and bits front matter review packets without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
