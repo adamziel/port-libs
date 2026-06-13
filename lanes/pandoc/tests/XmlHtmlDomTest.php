@@ -2755,6 +2755,60 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><p><img alt="Diagram" src="diagram.png" usemap="#figures"><img alt="Bad" src="bad.png" usemap="bad target"></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html image map association diagnostics for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>'
+                . '<img src="diagram.png" alt="Diagram" usemap="#figures">'
+                . '<img src="missing.png" alt="Missing" usemap="#missing">'
+                . '<img src="duplicate.png" alt="Duplicate" usemap="#dupe">'
+                . '<img src="invalid.png" alt="Invalid" usemap="bad target">'
+                . '</p>'
+                . '<map name="figures"><area href="diagram.png#one" alt="One"><area alt="Label only"></map>'
+                . '<map name="dupe"><area href="dupe-one.html" alt="Dup one"></map>'
+                . '<map name="dupe"><area href="dupe-two.html" alt="Dup two"></map>'
+                . '<map name="bad target"><area href="bad.html" alt="Bad"></map>'
+                . '<map name="unused"><area href="unused.html" alt="Unused"></map>',
+            'image map association review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $resolvedImage = $summary[0]['children'][0];
+        $missingImage = $summary[0]['children'][1];
+        $duplicateImage = $summary[0]['children'][2];
+        $invalidImage = $summary[0]['children'][3];
+        $resolvedMap = $summary[1];
+        $firstDuplicateMap = $summary[2];
+        $invalidMap = $summary[4];
+        $unusedMap = $summary[5];
+
+        $t->same('resolved', $resolvedImage['useMapAssociationState']);
+        $t->same(1, $resolvedImage['useMapTargetCount']);
+        $t->same(2, $resolvedImage['useMapAreaCount']);
+        $t->same(['diagram.png#one'], $resolvedImage['useMapAreaHrefs']);
+        $t->same(['One', 'Label only'], $resolvedImage['useMapAreaLabels']);
+        $t->same([], $resolvedImage['useMapIssues']);
+        $t->same('missing-map', $missingImage['useMapAssociationState']);
+        $t->same([['code' => 'missing-image-map', 'mapName' => 'missing']], $missingImage['useMapIssues']);
+        $t->same('duplicate-map-name', $duplicateImage['useMapAssociationState']);
+        $t->same(2, $duplicateImage['useMapTargetCount']);
+        $t->same(['dupe-one.html', 'dupe-two.html'], $duplicateImage['useMapAreaHrefs']);
+        $t->same('invalid-reference', $invalidImage['useMapAssociationState']);
+        $t->same([['code' => 'invalid-usemap-reference', 'useMapRaw' => 'bad target']], $invalidImage['useMapIssues']);
+
+        $t->same('referenced', $resolvedMap['imageMapAssociationState']);
+        $t->same(1, $resolvedMap['imageMapReferenceCount']);
+        $t->same(['diagram.png'], $resolvedMap['imageMapReferenceSources']);
+        $t->same([], $resolvedMap['imageMapIssues']);
+        $t->same('duplicate-map-name', $firstDuplicateMap['imageMapAssociationState']);
+        $t->same(2, $firstDuplicateMap['imageMapDuplicateNameCount']);
+        $t->same([['code' => 'duplicate-map-name', 'mapName' => 'dupe', 'count' => 2]], $firstDuplicateMap['imageMapIssues']);
+        $t->same('invalid-map-name', $invalidMap['imageMapAssociationState']);
+        $t->same([['code' => 'invalid-map-name', 'mapNameRaw' => 'bad target']], $invalidMap['imageMapIssues']);
+        $t->same('unreferenced', $unusedMap['imageMapAssociationState']);
+        $t->same([['code' => 'unreferenced-image-map', 'mapName' => 'unused']], $unusedMap['imageMapIssues']);
+        $t->contains('<map name="dupe"><area alt="Dup two" href="dupe-two.html"></map>', $html);
+    },
     'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<base href="https://example.test/docs/" target="_blank">'
