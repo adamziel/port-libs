@@ -701,6 +701,91 @@ XML, 'BITS figure metadata XML', preserveWhiteSpace: false);
         $t->same(0, $bitsPacket['figureMetadataCounts']['missingLabel'] ?? null);
         json_encode([$packet, $bitsPacket], JSON_THROW_ON_ERROR);
     },
+    'summarizes jats figure caption metadata diagnostics and xref links' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front><article-meta><title-group><article-title>Figure Review</article-title></title-group></article-meta></front>
+  <body>
+    <p>See <xref ref-type="fig" rid="fig-dup-a fig-dup-b">duplicate figures</xref> and <xref rid="fig-missing-caption">captionless panel</xref>.</p>
+    <fig id="fig-missing-caption">
+      <label>Fig. A</label>
+      <graphic xlink:href="figures/missing-caption.png" mimetype="image" mime-subtype="png"/>
+    </fig>
+    <fig id="fig-dup-a">
+      <label>Fig. D</label>
+      <caption><p>Caption without a title.</p></caption>
+      <alt-text>Duplicate panel A</alt-text>
+    </fig>
+    <fig id="fig-dup-b">
+      <label>Fig. D</label>
+      <caption><title>Resolved title</title><p>Caption with title.</p></caption>
+      <alt-text>Duplicate panel B</alt-text>
+    </fig>
+  </body>
+</article>
+XML, 'JATS figure metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'figures-review-only',
+            'figure-caption-metadata-missing',
+            'figure-title-metadata-missing',
+            'figure-label-duplicate',
+            'figure-media-references-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['missingCaptionCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][3]['details']['missingTitleCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][4]['details']['duplicateLabelFigureCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['mediaReferenceCount'] ?? null);
+        $t->same(false, $packet['directReaderDiagnostics'][5]['details']['payloadBytesExposed'] ?? null);
+        $t->same(['fig-missing-caption', 'fig-dup-a', 'fig-dup-b'], $packet['figureIds']);
+        $t->same([
+            'total' => 3,
+            'withLabel' => 3,
+            'withCaption' => 2,
+            'withTitle' => 1,
+            'missingLabel' => 0,
+            'missingCaption' => 1,
+            'missingTitle' => 2,
+            'incomplete' => 2,
+        ], $packet['figureMetadataCounts']);
+        $t->same(['missing-caption', 'missing-title', 'duplicate-label'], $packet['figureMetadataIssueCodes']);
+        $t->same(5, $packet['figureMetadataIssueCount']);
+        $t->same('fig-missing-caption', $packet['figureMetadataIssues'][0]['figureId'] ?? null);
+        $t->same('missing-caption', $packet['figureMetadataIssues'][0]['code'] ?? null);
+        $t->same('article/body/fig', $packet['figureMetadataIssues'][0]['sourcePosition']['path'] ?? null);
+        $t->same('missing-title', $packet['figureMetadataIssues'][1]['code'] ?? null);
+        $t->same('duplicate-label', $packet['figureMetadataIssues'][3]['code'] ?? null);
+        $t->same('fig/label', $packet['figureMetadataIssues'][3]['sourcePosition']['path'] ?? null);
+        $t->same([
+            ['label' => 'Fig. D', 'figureIds' => ['fig-dup-a', 'fig-dup-b'], 'figureCount' => 2],
+        ], $packet['duplicateFigureLabels']);
+        $t->same(1, $packet['duplicateFigureLabelCount']);
+        $t->same('Fig. A', $packet['figures'][0]['label'] ?? null);
+        $t->same(['missing-caption', 'missing-title'], $packet['figures'][0]['metadataIssueCodes'] ?? null);
+        $t->same(null, $packet['figures'][0]['metadataPositions']['caption'] ?? null);
+        $t->same('fig/label', $packet['figures'][0]['metadataPositions']['label']['path'] ?? null);
+        $t->same('missing-caption.png', $packet['figureMediaReferences'][0]['targetBasename'] ?? null);
+        $t->same('internal', $packet['figureMediaReferences'][0]['targetKind'] ?? null);
+        $t->same(false, $packet['figureMediaReferences'][0]['payloadBytesExposed'] ?? null);
+        $t->same('Duplicate panel A', $packet['figures'][1]['altText'] ?? null);
+        $t->same(['missing-title'], $packet['figures'][1]['metadataIssueCodes'] ?? null);
+        $t->same('fig/alt-text', $packet['figures'][1]['metadataPositions']['altText']['path'] ?? null);
+        $t->same('Resolved title', $packet['figures'][2]['title'] ?? null);
+        $t->same('fig/caption/title', $packet['figures'][2]['metadataPositions']['title']['path'] ?? null);
+        $t->same(2, $packet['figureXrefLinkCount']);
+        $t->same(['fig-dup-a', 'fig-dup-b'], $packet['figureXrefLinks'][0]['figureIds'] ?? null);
+        $t->same('fig', $packet['figureXrefLinks'][0]['refType'] ?? null);
+        $t->same('duplicate figures', $packet['figureXrefLinks'][0]['text'] ?? null);
+        $t->same('article/body/p/xref', $packet['figureXrefLinks'][0]['sourcePosition']['path'] ?? null);
+        $t->same(['fig-missing-caption'], $packet['figureXrefLinks'][1]['figureIds'] ?? null);
+        $t->same(['fig-dup-a', 'fig-dup-b', 'fig-missing-caption'], $packet['figureXrefTargetIds']);
+        $t->same(3, $packet['figureXrefTargetCount']);
+        $t->same(false, $packet['figureMediaPayloadBytesExposed']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes jats and bits inline xref citation diagnostics for reviewer handoff' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article">
