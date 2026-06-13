@@ -4502,6 +4502,9 @@ final class XmlHtmlDom
                 'headersRaw' => $headersRaw,
                 'headers' => $headersRaw === null ? [] : self::spaceSeparatedTokens($headersRaw),
             ];
+            if ($headersRaw !== null) {
+                $summary += self::tableHeaderReferenceSummary($element, $headersRaw);
+            }
 
             if ($name === 'th') {
                 $summary['scopeRaw'] = self::attributeOrNull($element, 'scope');
@@ -4513,6 +4516,178 @@ final class XmlHtmlDom
         }
 
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tableHeaderReferenceSummary(\DOMElement $cell, string $headersRaw): array
+    {
+        $tokens = self::spaceSeparatedTokens($headersRaw);
+        $validTokenCounts = [];
+        foreach ($tokens as $token) {
+            if (self::isHtmlIdReferenceToken($token)) {
+                $validTokenCounts[$token] = ($validTokenCounts[$token] ?? 0) + 1;
+            }
+        }
+
+        $ids = [];
+        $invalid = [];
+        $duplicateReferences = [];
+        $resolved = [];
+        $missing = [];
+        $nonHeader = [];
+        $duplicateTargets = [];
+        $references = [];
+        $issues = [];
+
+        foreach ($tokens as $token) {
+            if (!self::isHtmlIdReferenceToken($token)) {
+                $invalid[] = $token;
+                $issues[] = ['code' => 'invalid-header-reference-token', 'token' => $token];
+                continue;
+            }
+
+            if (in_array($token, $ids, true)) {
+                if (!in_array($token, $duplicateReferences, true)) {
+                    $duplicateReferences[] = $token;
+                    $issues[] = [
+                        'code' => 'duplicate-header-reference-token',
+                        'id' => $token,
+                        'count' => $validTokenCounts[$token],
+                    ];
+                }
+                continue;
+            }
+
+            $ids[] = $token;
+            $reference = self::tableHeaderReferenceTargetSummary($cell, $token);
+            $references[] = $reference;
+
+            $state = $reference['targetState'];
+            if ($state === 'resolved') {
+                $resolved[] = $token;
+                continue;
+            }
+
+            if ($state === 'missing') {
+                $missing[] = $token;
+                $issues[] = ['code' => 'missing-header-reference-target', 'id' => $token];
+                continue;
+            }
+
+            if (($reference['duplicateHeaderTargetCount'] ?? 0) > 1) {
+                $duplicateTargets[] = $token;
+                $issues[] = [
+                    'code' => 'duplicate-header-target-id',
+                    'id' => $token,
+                    'count' => $reference['duplicateHeaderTargetCount'],
+                ];
+            }
+
+            if (($reference['nonHeaderTargetCount'] ?? 0) > 0) {
+                $nonHeader[] = $token;
+                $issues[] = [
+                    'code' => 'non-header-reference-target',
+                    'id' => $token,
+                    'targetNames' => $reference['nonHeaderTargetNames'],
+                ];
+            }
+        }
+
+        return [
+            'headerReferenceReviewPolicy' => 'nearest-table-th-idref-review',
+            'headerReferenceIds' => $ids,
+            'invalidHeaderReferenceTokens' => $invalid,
+            'duplicateHeaderReferenceIds' => $duplicateReferences,
+            'resolvedHeaderReferenceIds' => $resolved,
+            'missingHeaderReferenceIds' => $missing,
+            'nonHeaderReferenceIds' => $nonHeader,
+            'duplicateHeaderTargetIds' => $duplicateTargets,
+            'headerReferences' => $references,
+            'headerReferenceIssues' => $issues,
+            'headerReferenceIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues,
+            ))),
+            'headerReferencesResolved' => $tokens !== []
+                && $invalid === []
+                && $duplicateReferences === []
+                && $missing === []
+                && $nonHeader === []
+                && $duplicateTargets === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tableHeaderReferenceTargetSummary(\DOMElement $cell, string $id): array
+    {
+        $targets = self::nearestTableElementsById($cell, $id);
+        if ($targets === []) {
+            return [
+                'id' => $id,
+                'targetState' => 'missing',
+                'targetCount' => 0,
+                'headerTargetCount' => 0,
+                'nonHeaderTargetCount' => 0,
+                'headerTargets' => [],
+                'nonHeaderTargets' => [],
+                'nonHeaderTargetNames' => [],
+            ];
+        }
+
+        $headerTargets = [];
+        $nonHeaderTargets = [];
+        foreach ($targets as $target) {
+            if (self::htmlElementName($target) === 'th') {
+                $headerTargets[] = self::tableHeaderReferenceHeaderTargetSummary($target);
+                continue;
+            }
+
+            $nonHeaderTargets[] = [
+                'name' => self::htmlElementName($target),
+                'text' => self::normalizedText($target),
+            ];
+        }
+
+        $headerCount = count($headerTargets);
+        $nonHeaderCount = count($nonHeaderTargets);
+
+        return [
+            'id' => $id,
+            'targetState' => $headerCount === 0
+                ? 'non-header-target'
+                : ($headerCount > 1 ? 'duplicate-header-target-id' : ($nonHeaderCount > 0 ? 'mixed-targets' : 'resolved')),
+            'targetCount' => count($targets),
+            'headerTargetCount' => $headerCount,
+            'duplicateHeaderTargetCount' => $headerCount > 1 ? $headerCount : 0,
+            'nonHeaderTargetCount' => $nonHeaderCount,
+            'headerTargets' => $headerTargets,
+            'nonHeaderTargets' => $nonHeaderTargets,
+            'nonHeaderTargetNames' => array_values(array_unique(array_map(
+                static fn (array $target): string => (string) ($target['name'] ?? ''),
+                $nonHeaderTargets,
+            ))),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tableHeaderReferenceHeaderTargetSummary(\DOMElement $header): array
+    {
+        return [
+            'text' => self::normalizedText($header),
+            'scopeRaw' => self::attributeOrNull($header, 'scope'),
+            'scope' => self::tableHeaderScope($header),
+            'abbr' => self::attributeOrNull($header, 'abbr'),
+            'colSpanRaw' => self::attributeOrNull($header, 'colspan'),
+            'colSpan' => self::positiveIntegerAttribute($header, 'colspan', 1, 1000),
+            'rowSpanRaw' => self::attributeOrNull($header, 'rowspan'),
+            'rowSpan' => self::nonNegativeIntegerAttribute($header, 'rowspan', 1, 65534),
+        ];
     }
 
     /**
@@ -7847,6 +8022,48 @@ final class XmlHtmlDom
         }
 
         return $descendants;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function nearestTableElementsById(\DOMElement $context, string $id): array
+    {
+        $table = self::nearestHtmlTable($context);
+        if (!$table instanceof \DOMElement) {
+            return [];
+        }
+
+        $elements = [];
+        if (self::attributeOrNull($table, 'id') === $id) {
+            $elements[] = $table;
+        }
+
+        foreach ($table->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || self::attributeOrNull($candidate, 'id') !== $id) {
+                continue;
+            }
+
+            $candidateTable = self::nearestHtmlTable($candidate);
+            if ($candidateTable instanceof \DOMElement && $candidateTable->isSameNode($table)) {
+                $elements[] = $candidate;
+            }
+        }
+
+        return $elements;
+    }
+
+    private static function nearestHtmlTable(\DOMElement $element): ?\DOMElement
+    {
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            if (self::htmlElementName($current) === 'table') {
+                return $current;
+            }
+            $current = $current->parentNode;
+        }
+
+        return null;
     }
 
     private static function isDescendantOrSame(\DOMElement $element, \DOMElement $ancestor): bool
