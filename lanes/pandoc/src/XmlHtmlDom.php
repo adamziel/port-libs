@@ -834,6 +834,9 @@ final class XmlHtmlDom
             'format' => $format,
             'reviewPolicy' => 'jats-bits-front-matter-and-body-diagnostics-review-only',
             'directReaderParity' => false,
+            'directReaderParityStatus' => 'unsupported',
+            'unsupportedDirectReaderReason' => 'bounded-review-packet-only',
+            'unsupportedDirectReaderDetail' => 'Bounded XML/JATS/BITS review diagnostics are available, but full Pandoc direct reader parity is not implemented.',
             'directReaderDiagnosticCodes' => array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
                 $directReaderDiagnostics

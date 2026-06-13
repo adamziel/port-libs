@@ -527,10 +527,10 @@ final class PandocFormatRegistry
         'jats' => [
             'diagnosticImplementation' => XmlHtmlDom::class,
             'reviewMethod' => 'summarizeJatsFrontMatter',
-            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'reviewPolicy' => 'jats-bits-front-matter-and-body-diagnostics-review-only',
             'boundedDiagnostics' => [
                 'article front-matter identifiers, titles, abstracts, keywords, contributors, dates, and cross-reference targets',
-                'bounded body, reference, figure, and table-wrap inventories',
+                'bounded body, back-matter reference, citation, figure, and table-wrap inventories',
             ],
             'remainingReaderGaps' => [
                 'full JATS body and back-matter mapping into the shared AST',
@@ -540,10 +540,10 @@ final class PandocFormatRegistry
         'bits' => [
             'diagnosticImplementation' => XmlHtmlDom::class,
             'reviewMethod' => 'summarizeJatsFrontMatter',
-            'reviewPolicy' => 'jats-bits-front-matter-review-only',
+            'reviewPolicy' => 'jats-bits-front-matter-and-body-diagnostics-review-only',
             'boundedDiagnostics' => [
                 'book and book-part metadata identifiers, titles, contributors, dates, and part counts',
-                'bounded body, reference, figure, and table-wrap inventories',
+                'bounded body, back-matter reference, citation, figure, and table-wrap inventories',
             ],
             'remainingReaderGaps' => [
                 'full BITS book body and book-part mapping into the shared AST',
@@ -636,9 +636,9 @@ final class PandocFormatRegistry
      */
     private const PHP_INPUT_SUPPORT = [
         'bits' => [
-            'status' => 'unsupported',
-            'implementation' => '',
-            'notes' => 'BITS front-matter review packets are available through XmlHtmlDom diagnostics, but no full native PHP BITS direct reader is registered yet.',
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'BITS XML review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc BITS reader parity remains open.',
         ],
         'commonmark' => [
             'status' => 'partial',
@@ -686,9 +686,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving metadata keys, cell tags, execution/output metadata, and metadata-only blocked resource diagnostics; full Jupyter notebook parity remains open.',
         ],
         'jats' => [
-            'status' => 'unsupported',
-            'implementation' => '',
-            'notes' => 'JATS front-matter review packets are available through XmlHtmlDom diagnostics, but no full native PHP JATS direct reader is registered yet.',
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'JATS XML review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc JATS reader parity remains open.',
         ],
         'json' => [
             'status' => 'partial',
@@ -756,9 +756,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded native PHP TSV reader maps tab-delimited text into the shared table AST with geometry review packets; full Pandoc TSV reader parity remains open.',
         ],
         'xml' => [
-            'status' => 'unsupported',
-            'implementation' => '',
-            'notes' => 'Safe XML DOM primitives exist for bounded review diagnostics, but no full native PHP XML direct reader is registered yet.',
+            'status' => 'partial',
+            'implementation' => XmlHtmlDom::class,
+            'notes' => 'Direct XML input is routed through XmlHtmlDom safe DOM loading and diagnostic serialization; full Pandoc XML reader parity remains open.',
         ],
     ];
 
@@ -2551,7 +2551,7 @@ final class PandocFormatRegistry
                 'diagnosticImplementation' => $diagnosticSurface['diagnosticImplementation'],
                 'reviewMethod' => $diagnosticSurface['reviewMethod'],
                 'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
-                'directReaderParity' => $support['status'] !== 'unsupported' && $support['implementation'] !== '',
+                'directReaderParity' => false,
                 'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
                 'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
                 'remainingReaderGaps' => $diagnosticSurface['remainingReaderGaps'],
@@ -2566,10 +2566,10 @@ final class PandocFormatRegistry
             'unsupportedInputFormats' => $unsupportedInputFormats,
             'unsupportedInputCount' => count($unsupportedInputFormats),
             'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
-            'directReaderParitySupported' => $unsupportedInputFormats === [],
+            'directReaderParitySupported' => false,
             'registeredDirectReaderImplementations' => $registeredDirectReaderImplementations,
             'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
-            'explicitUnsupportedVerdict' => $unsupportedInputFormats === self::XML_JATS_BITS_INPUT_FORMATS,
+            'explicitUnsupportedVerdict' => false,
             'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no full direct reader parity is registered.',
             'formats' => $formats,
         ];

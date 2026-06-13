@@ -148,6 +148,9 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('jats', $packet['format']);
         $t->same('jats-bits-front-matter-and-body-diagnostics-review-only', $packet['reviewPolicy']);
         $t->same(false, $packet['directReaderParity']);
+        $t->same('unsupported', $packet['directReaderParityStatus']);
+        $t->same('bounded-review-packet-only', $packet['unsupportedDirectReaderReason']);
+        $t->contains('full Pandoc direct reader parity is not implemented', $packet['unsupportedDirectReaderDetail']);
         $t->same([
             'direct-reader-unsupported',
             'body-sections-review-only',
@@ -328,6 +331,8 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same(['bref1'], $bitsPacket['resolvedCitationReferenceIds']);
         $t->same([], $bitsPacket['missingCitationReferenceIds']);
         $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same('unsupported', $bitsPacket['directReaderParityStatus']);
+        $t->same('bounded-review-packet-only', $bitsPacket['unsupportedDirectReaderReason']);
         $t->same([
             'direct-reader-unsupported',
             'references-review-only',
