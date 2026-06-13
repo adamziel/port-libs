@@ -1328,10 +1328,31 @@ final class NativeReader
             'Cite' => $this->citeInline($attrs, $inline['c'] ?? []),
             'Link' => $this->linkInline($attrs, $inline['c'] ?? []),
             'Image' => $this->imageInline($attrs, $inline['c'] ?? []),
-            'Note' => new AstNode('note', $attrs, $this->blockNodes($inline['c'] ?? [])),
+            'Note' => new AstNode('note', array_replace($attrs, $this->noteAttrs($inline)), $this->blockNodes($inline['c'] ?? [])),
             'Span' => $this->spanInline($attrs, $inline['c'] ?? []),
             default => new AstNode('native_inline', $attrs),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return array{label?: string}
+     */
+    private function noteAttrs(array $native): array
+    {
+        $label = $native['noteLabel'] ?? null;
+        if (!is_string($label) || !$this->isValidNoteLabel($label)) {
+            return [];
+        }
+
+        return ['label' => $label];
+    }
+
+    private function isValidNoteLabel(string $label): bool
+    {
+        return trim($label) === $label
+            && $label !== ''
+            && preg_match('/[\]\s]/u', $label) !== 1;
     }
 
     /**

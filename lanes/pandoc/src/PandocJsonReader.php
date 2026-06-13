@@ -1252,7 +1252,7 @@ final class PandocJsonReader
             'Cite' => $this->readCiteInline($content),
             'Link' => $this->readTargetInline('link', $content),
             'Image' => $this->readTargetInline('image', $content),
-            'Note' => new AstNode('note', [], $this->readBlocks($this->listContent($content, 'Note'))),
+            'Note' => new AstNode('note', $this->noteAttrs($value), $this->readBlocks($this->listContent($content, 'Note'))),
             'Span' => $this->readSpanInline($content),
             default => $this->nativeFallbackNode('native_inline', $tag, $value),
         };
@@ -1267,6 +1267,30 @@ final class PandocJsonReader
             array_replace(['constructor' => $constructor, 'native' => $native], $node->attrs),
             $node->children
         );
+    }
+
+    /**
+     * @return array{label?: string}
+     */
+    private function noteAttrs(mixed $native): array
+    {
+        if (!is_array($native) || array_is_list($native)) {
+            return [];
+        }
+
+        $label = $native['noteLabel'] ?? null;
+        if (!is_string($label) || !$this->isValidNoteLabel($label)) {
+            return [];
+        }
+
+        return ['label' => $label];
+    }
+
+    private function isValidNoteLabel(string $label): bool
+    {
+        return trim($label) === $label
+            && $label !== ''
+            && preg_match('/[\]\s]/u', $label) !== 1;
     }
 
     private function nativeFallbackNode(string $type, string $constructor, mixed $native): AstNode

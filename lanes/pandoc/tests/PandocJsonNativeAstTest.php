@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
+use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -4093,6 +4094,51 @@ return [
         $t->same('Emph', $editedEmph['t']);
         $t->same('edited emph', $editedEmph['c'][0]['c']);
         $t->same(false, array_key_exists('reviewQueue', $editedEmph), 'edited structural inline drops stale provenance');
+    },
+    'preserves markdown note labels through json and native note sidecars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Tagged note[^editor-note] and inline note.^[Inline audit note.]',
+            '',
+            '[^editor-note]: Labelled source note.',
+        ]));
+        $collectNotes = static function (AstNode $node) use (&$collectNotes): array {
+            $notes = $node->type === 'note' ? [$node] : [];
+            foreach ($node->children as $child) {
+                array_push($notes, ...$collectNotes($child));
+            }
+
+            return $notes;
+        };
+
+        $sourceNotes = $collectNotes($document);
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $jsonNotes = array_values(array_filter(
+            $jsonPacket['blocks'][0]['c'],
+            static fn (mixed $inline): bool => is_array($inline) && ($inline['t'] ?? null) === 'Note'
+        ));
+        $nativeNotes = array_values(array_filter(
+            $nativePacket['blocks'][0]['c'],
+            static fn (mixed $inline): bool => is_array($inline) && ($inline['t'] ?? null) === 'Note'
+        ));
+
+        $t->same('editor-note', $sourceNotes[0]->attr('label'));
+        $t->same(null, $sourceNotes[1]->attr('label'));
+        $t->same('editor-note', $jsonNotes[0]['noteLabel'] ?? null);
+        $t->same(false, array_key_exists('noteLabel', $jsonNotes[1]));
+        $t->same('editor-note', $nativeNotes[0]['noteLabel'] ?? null);
+        $t->same(false, array_key_exists('noteLabel', $nativeNotes[1]));
+
+        $roundTrips = [
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+        ];
+        foreach ($roundTrips as $source => $roundTrip) {
+            $roundTripNotes = $collectNotes($roundTrip);
+
+            $t->same('editor-note', $roundTripNotes[0]->attr('label'), "{$source} reader preserves note label sidecar");
+            $t->same(null, $roundTripNotes[1]->attr('label'), "{$source} reader keeps inline note unlabelled");
+        }
     },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];

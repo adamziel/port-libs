@@ -1053,10 +1053,7 @@ final class NativeWriter
                     $this->targetTuple($node),
                 ],
             ]],
-            'note' => [[
-                't' => 'Note',
-                'c' => $this->blocks($node->children),
-            ]],
+            'note' => [$this->noteInline($node)],
             'span' => [[
                 't' => 'Span',
                 'c' => [$this->attrTuple($node), $this->inlines($node->children)],
@@ -1078,6 +1075,33 @@ final class NativeWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function noteInline(AstNode $node): array
+    {
+        $note = [
+            't' => 'Note',
+            'c' => $this->blocks($node->children),
+        ];
+        $label = $this->sourceNoteLabel($node);
+        if ($label !== null) {
+            $note['noteLabel'] = $label;
+        }
+
+        return $note;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
     }
 
     /**
