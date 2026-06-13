@@ -2213,6 +2213,19 @@ return [
             'wiki' => 7,
         ], $gate['familyCounts']);
         $t->same(['unsupported' => 20], $gate['supportStatusCounts']);
+        $t->same([
+            'roff-manual-native-reader-not-implemented' => [
+                'family' => 'roff-manual',
+                'status' => 'unsupported',
+                'readerParityStatus' => 'not-implemented',
+                'reviewPolicy' => 'registry-diagnostics-only',
+                'externalToolFree' => true,
+                'message' => 'Pandoc roff/manual input is registered upstream, but no native PHP roff/manual reader parity is implemented.',
+                'formats' => ['man', 'mdoc'],
+                'formatCount' => 2,
+            ],
+        ], $gate['unsupportedReasonTaxonomy']);
+        $t->same(['roff-manual-native-reader-not-implemented' => 2], $gate['unsupportedReasonCounts']);
         $t->same(false, $gate['directReaderParitySupported']);
         $t->same(true, $gate['externalToolFree']);
         $t->same($expectedFormats, array_keys($gate['formats']));
@@ -2222,6 +2235,19 @@ return [
         $t->same('text-markup', $gate['formats']['org']['family']);
         $t->contains('upstream man reader source semantics', $gate['formats']['man']['inputNotes']);
         $t->contains('No native PHP reader or writer is registered', $gate['formats']['org']['inputNotes']);
+        $t->same(null, $gate['formats']['org']['unsupportedReason']);
+
+        foreach (['man', 'mdoc'] as $format) {
+            $reason = $gate['formats'][$format]['unsupportedReason'];
+            $t->same('roff-manual-native-reader-not-implemented', $reason['code'], "Roff/manual {$format} should share a stable unsupported reason code");
+            $t->same('roff-manual', $reason['family']);
+            $t->same('unsupported', $reason['status']);
+            $t->same('not-implemented', $reason['readerParityStatus']);
+            $t->same('registry-diagnostics-only', $reason['reviewPolicy']);
+            $t->same(false, $reason['directReaderParity']);
+            $t->same(true, $reason['externalToolFree']);
+            $t->contains($format . ': Pandoc roff/manual input is registered upstream', $reason['message']);
+        }
 
         foreach ($gate['formats'] as $format => $entry) {
             $t->same('unsupported', $entry['inputStatus'], "Text markup reader {$format} must keep explicit unsupported accounting");

@@ -495,6 +495,20 @@ final class PandocFormatRegistry
         'roff-manual' => 'Upstream roff/manual reader coverage is inventoried, but no native PHP roff/manual reader is registered for this format.',
     ];
 
+    /**
+     * @var array<string, array{family:string, status:string, readerParityStatus:string, reviewPolicy:string, externalToolFree:bool, message:string}>
+     */
+    private const TEXT_MARKUP_READER_UNSUPPORTED_REASON_TAXONOMY = [
+        'roff-manual-native-reader-not-implemented' => [
+            'family' => 'roff-manual',
+            'status' => 'unsupported',
+            'readerParityStatus' => 'not-implemented',
+            'reviewPolicy' => 'registry-diagnostics-only',
+            'externalToolFree' => true,
+            'message' => 'Pandoc roff/manual input is registered upstream, but no native PHP roff/manual reader parity is implemented.',
+        ],
+    ];
+
     /** @var list<string> */
     private const RICH_PACKAGE_INPUT_FORMATS = [
         'docx',
@@ -2742,9 +2756,11 @@ final class PandocFormatRegistry
      *     implementedFormats:list<string>,
      *     familyCounts:array<string, int>,
      *     supportStatusCounts:array<string, int>,
+     *     unsupportedReasonTaxonomy:array<string, array{family:string, status:string, readerParityStatus:string, reviewPolicy:string, externalToolFree:bool, message:string, formats:list<string>, formatCount:int}>,
+     *     unsupportedReasonCounts:array<string, int>,
      *     directReaderParitySupported:bool,
      *     externalToolFree:bool,
-     *     formats:array<string, array{family:string, inputStatus:string, inputImplementation:string, inputNotes:string, unsupported:bool}>
+     *     formats:array<string, array{family:string, inputStatus:string, inputImplementation:string, inputNotes:string, unsupported:bool, unsupportedReason:array{code:string, family:string, status:string, readerParityStatus:string, reviewPolicy:string, directReaderParity:bool, externalToolFree:bool, message:string}|null}>
      * }
      */
     public static function textMarkupReaderShipGate(): array
@@ -2755,6 +2771,8 @@ final class PandocFormatRegistry
         $implementedFormats = [];
         $formats = [];
         $familyCounts = [];
+        $unsupportedReasonTaxonomy = [];
+        $unsupportedReasonCounts = [];
 
         foreach (self::TEXT_MARKUP_READER_FORMATS as $format) {
             $entry = $support[$format];
@@ -2765,15 +2783,29 @@ final class PandocFormatRegistry
                 $implementedFormats[] = $format;
             }
 
+            $unsupportedReason = self::textMarkupReaderUnsupportedReason($format, $entry['status'], $family);
+            if ($unsupportedReason !== null) {
+                $code = $unsupportedReason['code'];
+                $unsupportedReasonCounts[$code] = ($unsupportedReasonCounts[$code] ?? 0) + 1;
+                $unsupportedReasonTaxonomy[$code] ??= self::textMarkupReaderUnsupportedReasonTaxonomyEntry($code);
+                $unsupportedReasonTaxonomy[$code]['formats'][] = $format;
+            }
+
             $formats[$format] = [
                 'family' => $family,
                 'inputStatus' => $entry['status'],
                 'inputImplementation' => $entry['implementation'],
                 'inputNotes' => $entry['notes'],
                 'unsupported' => $entry['status'] === 'unsupported',
+                'unsupportedReason' => $unsupportedReason,
             ];
         }
         ksort($familyCounts);
+        ksort($unsupportedReasonCounts);
+        ksort($unsupportedReasonTaxonomy);
+        foreach ($unsupportedReasonTaxonomy as $code => $entry) {
+            $unsupportedReasonTaxonomy[$code]['formatCount'] = count($entry['formats']);
+        }
 
         return [
             'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
@@ -2790,6 +2822,8 @@ final class PandocFormatRegistry
             'implementedFormats' => $implementedFormats,
             'familyCounts' => $familyCounts,
             'supportStatusCounts' => self::supportStatusCounts($support),
+            'unsupportedReasonTaxonomy' => $unsupportedReasonTaxonomy,
+            'unsupportedReasonCounts' => $unsupportedReasonCounts,
             'directReaderParitySupported' => $unsupportedFormats === [],
             'externalToolFree' => true,
             'formats' => $formats,
@@ -4235,6 +4269,49 @@ final class PandocFormatRegistry
         }
 
         return 'text-markup';
+    }
+
+    /**
+     * @return array{code:string, family:string, status:string, readerParityStatus:string, reviewPolicy:string, directReaderParity:bool, externalToolFree:bool, message:string}|null
+     */
+    private static function textMarkupReaderUnsupportedReason(string $format, string $status, string $family): ?array
+    {
+        if ($status !== 'unsupported' || $family !== 'roff-manual') {
+            return null;
+        }
+
+        $code = 'roff-manual-native-reader-not-implemented';
+        $entry = self::TEXT_MARKUP_READER_UNSUPPORTED_REASON_TAXONOMY[$code];
+
+        return [
+            'code' => $code,
+            'family' => $entry['family'],
+            'status' => $entry['status'],
+            'readerParityStatus' => $entry['readerParityStatus'],
+            'reviewPolicy' => $entry['reviewPolicy'],
+            'directReaderParity' => false,
+            'externalToolFree' => $entry['externalToolFree'],
+            'message' => $format . ': ' . $entry['message'],
+        ];
+    }
+
+    /**
+     * @return array{family:string, status:string, readerParityStatus:string, reviewPolicy:string, externalToolFree:bool, message:string, formats:list<string>, formatCount:int}
+     */
+    private static function textMarkupReaderUnsupportedReasonTaxonomyEntry(string $code): array
+    {
+        $entry = self::TEXT_MARKUP_READER_UNSUPPORTED_REASON_TAXONOMY[$code];
+
+        return [
+            'family' => $entry['family'],
+            'status' => $entry['status'],
+            'readerParityStatus' => $entry['readerParityStatus'],
+            'reviewPolicy' => $entry['reviewPolicy'],
+            'externalToolFree' => $entry['externalToolFree'],
+            'message' => $entry['message'],
+            'formats' => [],
+            'formatCount' => 0,
+        ];
     }
 
     /**
