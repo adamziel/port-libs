@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3274,
-        "latestSlice": "pandoc-markdown-fenced-div-escaped-attributes maps one Markdown fenced Div attribute preservation slice after LaTeX table body-head row preservation. MarkdownReader now tokenizes quoted key-value attributes with escaped delimiters so quote-bearing data attributes survive Markdown read/write, NativeWriter/NativeReader attr tuples, and WordPressBlockWriter HTML handoff without invoking Pandoc, Cabal/Haskell runners, Typst, TeX/PDF engines, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3314 -> 3315, phpFail remains 0, mappedMarkdownFencedDivEscapedAttributeCases is 1, and markdownFencedDivEscapedAttributeAssertions is 9. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
+        "mapped": 3275,
+        "latestSlice": "pandoc-xml-html-object-associations maps one XML/HTML5 DOM standalone object association slice for form-owner resolution, image-map usemap provenance, and typemustmatch boolean serialization after Markdown fenced Div escaped-attribute preservation. XmlHtmlDom now summarizes object formOwner metadata, valid and invalid usemap targets, and typemustmatch state while XmlHtmlDom and Html5DomFragment serialize typemustmatch as an HTML boolean attribute without invoking Pandoc, Cabal/Haskell runners, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3315 -> 3316, phpFail remains 0, mappedXmlHtmlDomObjectAssociationCases is 1, and xmlHtmlDomObjectAssociationAssertions is 31. Verification passed php -l for XmlHtmlDom.php, Html5DomFragment.php, and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 1859 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74376 assertions, 0 failures over current main a9ce0ba74f.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Markdown fenced Div escaped key-value attributes are verified over current main 17c91bad52 after LaTeX table body-head row preservation.",
-        "latestFocusedSource": "2026-06-13 Markdown fenced Div escaped-attribute slice inspected quote-bearing key-value attribute preservation against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 17c91bad52; focused MarkdownReaderTest.php passed 1 file, 6635 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74345 assertions, 0 failures.",
+        "status": "XML/HTML5 DOM object association provenance is verified over current main a9ce0ba74f; HTML/XML/JATS DOM remains partial/not shippable.",
+        "latestFocusedSource": "2026-06-13 XML/HTML5 DOM slice inspected standalone object form owner, image map, and typemustmatch provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main a9ce0ba74f; focused XmlHtmlDomTest.php passed 1 file, 1859 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74376 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -169,7 +169,9 @@
         "mappedJsonNativeNullaryHelperPayloadCases": 1,
         "jsonNativeNullaryHelperPayloadAssertions": 82,
         "mappedMarkdownFencedDivEscapedAttributeCases": 1,
-        "markdownFencedDivEscapedAttributeAssertions": 9
+        "markdownFencedDivEscapedAttributeAssertions": 9,
+        "mappedXmlHtmlDomObjectAssociationCases": 1,
+        "xmlHtmlDomObjectAssociationAssertions": 31
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1081,12 +1083,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "LaTeX longtable output now preserves Pandoc table body-local head rows in body position while Markdown and AsciiDoc continue to report their body-head-row writer handoff diagnostics, without invoking Pandoc, TeX, browser renderers, office suites, Node tooling, online services, live provider tests, or external validators.",
+    "wordpressScenario": "XML/HTML5 DOM handoff now preserves standalone object form-owner metadata, image-map usemap provenance, and typemustmatch boolean serialization so WordPress raw HTML review packets retain bounded object association state without invoking Pandoc, Cabal/Haskell runners, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "LaTeX table body-local head row preservation is verified over current main f286538a3b; remaining table geometry gaps are multiple body-group semantics in non-HTML writers and true LaTeX rowspan output beyond diagnostics.",
-    "mapping": "Adds one bounded native PHP LaTeX writer case for Pandoc table_body headRows rendered in body position, with the corresponding TableGeometry LaTeX diagnostic removed, while preserving prior JSON/native, PDF/Typst, Markdown, MediaBag, CSV/TSV, and table-foot counters.",
-    "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-latex-table-body-head-writer maps one LaTeX longtable writer slice for Pandoc table body-local head rows after JSON/native nullary helper payload validation. LatexWriter now keeps each table_body headRows group in body position instead of promoting those rows into the global table head, and TableGeometry no longer reports latex-body-head-rows-review-required for this covered writer path while Markdown and AsciiDoc diagnostics remain. phpPass moves 3313 -> 3314, phpFail remains 0, mappedLatexTableBodyHeadWriterCases is 1, and latexTableBodyHeadWriterAssertions is 1. Verification passed php -l for LatexWriter.php, TableGeometry.php, LatexWriterTest.php, TableGeometryTest.php, and wordpress-table-geometry-handoff.php; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; wordpress-table-geometry-handoff.php --self-test passed; and full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures. No external Pandoc, TeX, browser, Node, office, online service, live provider, or external validator was invoked.",
+    "status": "XML/HTML5 DOM object association provenance is verified over current main a9ce0ba74f; HTML/XML/JATS DOM remains partial/not shippable.",
+    "mapping": "Adds one bounded native PHP XML/HTML5 DOM standalone object association mapping on current main a9ce0ba74f while preserving prior Markdown escaped-attribute, LaTeX body-head writer, JSON/native helper, task-list, PDF/Typst conflict-policy, Div/Plain, note-label, table-caption, Markdown/raw HTML, media, CSV/TSV, and list-boundary counters.",
+    "audit": "updated 2026-06-13: XmlHtmlDom summarizes standalone object form-owner metadata, image-map usemap provenance, and typemustmatch state, while XmlHtmlDom and Html5DomFragment serialize typemustmatch as an HTML boolean attribute. Verified after rebase onto current main a9ce0ba74f with php -l lanes/pandoc/src/XmlHtmlDom.php, php -l lanes/pandoc/src/Html5DomFragment.php, php -l lanes/pandoc/tests/XmlHtmlDomTest.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/XmlHtmlDomTest.php (1 test file, 1859 assertions, 0 failures), and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74376 assertions, 0 failures).",
+    "latestSlice": "pandoc-xml-html-object-associations maps one XML/HTML5 DOM standalone object association slice for form-owner resolution, image-map usemap provenance, and typemustmatch boolean serialization after Markdown fenced Div escaped-attribute preservation. XmlHtmlDom now summarizes object formOwner metadata, valid and invalid usemap targets, and typemustmatch state while XmlHtmlDom and Html5DomFragment serialize typemustmatch as an HTML boolean attribute without invoking Pandoc, Cabal/Haskell runners, browser renderers, online sanitizers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3315 -> 3316, phpFail remains 0, mappedXmlHtmlDomObjectAssociationCases is 1, and xmlHtmlDomObjectAssociationAssertions is 31. Verification passed php -l for XmlHtmlDom.php, Html5DomFragment.php, and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 1859 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74376 assertions, 0 failures over current main a9ce0ba74f.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1228,7 +1230,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 LaTeX table body-head writer slice inspected Pandoc table_body headRows/rowGroups against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main f286538a3b; focused LatexWriterTest.php and TableGeometryTest.php passed 2 files, 1917 assertions, 0 failures; TableGeometryReaderHandoffTest.php passed 1 file, 1493 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74336 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 XML/HTML5 DOM slice inspected standalone object form owner, image map, and typemustmatch provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main a9ce0ba74f; focused XmlHtmlDomTest.php passed 1 file, 1859 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74376 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1444,5 +1446,7 @@
     "mappedJsonNativeNullaryHelperPayloadCases": 1,
     "jsonNativeNullaryHelperPayloadAssertions": 82,
     "mappedLatexTableBodyHeadWriterCases": 1,
-    "latexTableBodyHeadWriterAssertions": 1
+    "latexTableBodyHeadWriterAssertions": 1,
+    "mappedXmlHtmlDomObjectAssociationCases": 1,
+    "xmlHtmlDomObjectAssociationAssertions": 31
 }

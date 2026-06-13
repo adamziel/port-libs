@@ -2649,6 +2649,59 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/object-param-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html object form and image-map associations for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="review-form" action="/review" method="post"></form>'
+                . '<object id="packet-diagram" data="diagram.svg" type="image/svg+xml" name="diagram" form="review-form" usemap="#diagram-map" typemustmatch>Diagram fallback</object>'
+                . '<object id="missing-form-object" data="fallback.bin" form="missing-form" usemap="bad target"></object>'
+                . '<map name="diagram-map"><area alt="Detail" href="#detail" shape="rect" coords="0,0,10,10"></map>',
+            'object association review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/object-association-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $object = $summary[1];
+        $missingFormObject = $summary[2];
+        $map = $summary[3];
+
+        $t->same('object', $object['embeddedResource']);
+        $t->same('diagram.svg', $object['data']);
+        $t->same('image/svg+xml', $object['mimeType']);
+        $t->same(true, $object['typeMustMatch']);
+        $t->same('review-form', $object['formOwnerRaw']);
+        $t->same('review-form', $object['formOwnerTargetId']);
+        $t->same('review-form', $object['formOwnerId']);
+        $t->same('form-attribute', $object['formOwnerSource']);
+        $t->same(true, $object['formOwnerFound']);
+        $t->same('/review', $object['formOwnerAction']);
+        $t->same('post', $object['formOwnerMethod']);
+        $t->same('#diagram-map', $object['useMapRaw']);
+        $t->same('diagram-map', $object['useMapName']);
+        $t->same(true, $object['useMapValid']);
+        $t->same('Diagram fallback', $object['fallbackText']);
+
+        $t->same('object', $missingFormObject['embeddedResource']);
+        $t->same(false, $missingFormObject['typeMustMatch']);
+        $t->same('missing-form', $missingFormObject['formOwnerTargetId']);
+        $t->same('missing-form-attribute', $missingFormObject['formOwnerSource']);
+        $t->same(false, $missingFormObject['formOwnerFound']);
+        $t->same('bad target', $missingFormObject['useMapRaw']);
+        $t->same('bad target', $missingFormObject['useMapName']);
+        $t->same(false, $missingFormObject['useMapValid']);
+
+        $t->same('map', $map['imageMap']);
+        $t->same('diagram-map', $map['mapName']);
+        $t->same(true, $map['mapNameValid']);
+        $t->same(['#detail'], $map['areaHrefs']);
+        $t->same(['Detail'], $map['areaLabels']);
+        $t->same('<form action="/review" id="review-form" method="post"></form><object data="diagram.svg" form="review-form" id="packet-diagram" name="diagram" type="image/svg+xml" typemustmatch usemap="#diagram-map">Diagram fallback</object><object data="fallback.bin" form="missing-form" id="missing-form-object" usemap="bad target"></object><map name="diagram-map"><area alt="Detail" coords="0,0,10,10" href="#detail" shape="rect"></map>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/object-association-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes iframe srcdoc as inert parsed review provenance' => static function (TestRunner $t): void {
         $srcdoc = implode("\n", [
             '<article data-review="srcdoc">',
