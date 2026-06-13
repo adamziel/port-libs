@@ -9521,6 +9521,24 @@ XML;
         ], $mediaResources['mediaTypeBaseCounts']);
         $t->same(3, $mediaResources['roleConflictCount']);
         $t->same(2, $mediaResources['resourceRoleConflictCount']);
+        $t->same(3, $mediaResources['pathMediaTypeConflictCount']);
+        $t->same(['Pictures/sound.ogg', 'Media/poster.png', 'Thumbnails/poster.png'], array_column($mediaResources['pathMediaTypeConflictItems'], 'part'));
+        $t->same([
+            [
+                'pathMediaFamily' => 'image',
+                'declaredMediaFamily' => 'audio',
+                'count' => 1,
+                'parts' => ['Pictures/sound.ogg'],
+            ],
+            [
+                'pathMediaFamily' => 'image',
+                'declaredMediaFamily' => 'video',
+                'count' => 2,
+                'parts' => ['Media/poster.png', 'Thumbnails/poster.png'],
+            ],
+        ], $mediaResources['pathMediaTypeConflictPairs']);
+        $t->same(1, $mediaResources['missingMediaResourceItemCount']);
+        $t->same(['Media/missing.mp4'], array_column($mediaResources['missingMediaResourceItems'], 'part'));
         $t->same(2, $mediaResources['packageRolePrecedenceCount']);
         $t->same([
             'odf-media-resource-missing-package-part' => 1,
@@ -9536,10 +9554,13 @@ XML;
         $t->same('audio', $resourceItemsByPart['Pictures/sound.ogg']['declaredMediaFamily']);
         $t->same('image', $resourceItemsByPart['Pictures/sound.ogg']['packagePathMediaFamily']);
         $t->same(true, $resourceItemsByPart['Pictures/sound.ogg']['roleConflict']);
+        $t->same(true, $resourceItemsByPart['Pictures/sound.ogg']['pathMediaTypeConflict']);
+        $t->same('image:audio', $resourceItemsByPart['Pictures/sound.ogg']['pathMediaTypeConflictPair']);
         $t->same(['odf-media-resource-role-conflict'], $resourceItemsByPart['Pictures/sound.ogg']['issues']);
         $t->same('video', $resourceItemsByPart['Media/poster.png']['declaredMediaFamily']);
         $t->same('image', $resourceItemsByPart['Media/poster.png']['packagePathMediaFamily']);
         $t->same(true, $resourceItemsByPart['Media/poster.png']['roleConflict']);
+        $t->same('image:video', $resourceItemsByPart['Media/poster.png']['pathMediaTypeConflictPair']);
         $t->same(false, $resourceItemsByPart['Media/missing.mp4']['exists']);
         $t->same(['odf-media-resource-missing-package-part'], $resourceItemsByPart['Media/missing.mp4']['issues']);
 

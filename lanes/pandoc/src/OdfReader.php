@@ -12842,6 +12842,9 @@ final class OdfReader
     {
         $items = [];
         $roleConflictItems = [];
+        $pathMediaTypeConflictItems = [];
+        $pathMediaTypeConflictPairs = [];
+        $missingMediaResourceItems = [];
         $packageRolePrecedenceItems = [];
         $familyCounts = ['image' => 0, 'audio' => 0, 'video' => 0, 'other' => 0];
         $mediaTypeBaseCounts = [];
@@ -12885,7 +12888,9 @@ final class OdfReader
                 continue;
             }
 
-            $roleConflict = $declaredFamily !== null && $pathFamily !== null && $declaredFamily !== $pathFamily;
+            $pathMediaTypeConflict = $declaredFamily !== null && $pathFamily !== null && $declaredFamily !== $pathFamily;
+            $roleConflict = $pathMediaTypeConflict;
+            $pathMediaTypeConflictPair = $pathMediaTypeConflict ? $pathFamily . ':' . $declaredFamily : null;
             $effectiveFamily = $declaredFamily ?? $pathFamily ?? 'other';
             if (!isset($familyCounts[$effectiveFamily])) {
                 $effectiveFamily = 'other';
@@ -12920,6 +12925,8 @@ final class OdfReader
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'roleConflict' => $roleConflict,
+                'pathMediaTypeConflict' => $pathMediaTypeConflict,
+                'pathMediaTypeConflictPair' => $pathMediaTypeConflictPair,
                 'issues' => $issueCodes,
             ]);
 
@@ -12945,9 +12952,25 @@ final class OdfReader
             if ($roleConflict) {
                 ++$roleConflictCount;
                 $roleConflictItems[] = $resourceItem;
+                $pathMediaTypeConflictItems[] = $resourceItem;
+                if (is_string($pathMediaTypeConflictPair)) {
+                    if (!isset($pathMediaTypeConflictPairs[$pathMediaTypeConflictPair])) {
+                        $pathMediaTypeConflictPairs[$pathMediaTypeConflictPair] = [
+                            'pathMediaFamily' => $pathFamily,
+                            'declaredMediaFamily' => $declaredFamily,
+                            'count' => 0,
+                            'parts' => [],
+                        ];
+                    }
+                    ++$pathMediaTypeConflictPairs[$pathMediaTypeConflictPair]['count'];
+                    $pathMediaTypeConflictPairs[$pathMediaTypeConflictPair]['parts'][] = $part;
+                }
                 if ($mediaResource) {
                     ++$resourceRoleConflictCount;
                 }
+            }
+            if (!$exists && $mediaResource) {
+                $missingMediaResourceItems[] = $resourceItem;
             }
             if ($packageRolePrecedence !== []) {
                 $packageRolePrecedenceItems[] = $resourceItem;
@@ -12959,6 +12982,7 @@ final class OdfReader
 
         ksort($mediaTypeBaseCounts, SORT_STRING);
         ksort($issueCodeCounts, SORT_STRING);
+        ksort($pathMediaTypeConflictPairs, SORT_STRING);
 
         return [
             'manifestDeclaredCount' => count($items),
@@ -12973,6 +12997,11 @@ final class OdfReader
             'roleConflictCount' => $roleConflictCount,
             'resourceRoleConflictCount' => $resourceRoleConflictCount,
             'roleConflictItems' => $roleConflictItems,
+            'pathMediaTypeConflictCount' => count($pathMediaTypeConflictItems),
+            'pathMediaTypeConflictItems' => $pathMediaTypeConflictItems,
+            'pathMediaTypeConflictPairs' => array_values($pathMediaTypeConflictPairs),
+            'missingMediaResourceItemCount' => count($missingMediaResourceItems),
+            'missingMediaResourceItems' => $missingMediaResourceItems,
             'packageRolePrecedenceCount' => count($packageRolePrecedenceItems),
             'packageRolePrecedenceItems' => $packageRolePrecedenceItems,
             'issueCodeCounts' => $issueCodeCounts,
