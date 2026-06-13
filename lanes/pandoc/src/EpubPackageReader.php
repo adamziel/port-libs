@@ -18,7 +18,8 @@ final class EpubPackageReader
         $rootfile = $this->readContainerRootfile($root);
         $opfPath = $this->resolveExistingPackagePath($root, $rootfile);
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
-        $toc = $this->readNavigationDocument($root, $package);
+        $navigation = $this->readNavigationDocument($root, $package);
+        $toc = $navigation['entries'];
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -50,6 +51,7 @@ final class EpubPackageReader
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
+                'navReport' => $navigation['report'],
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -516,8 +518,8 @@ final class EpubPackageReader
     }
 
     /**
-     * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>} $package
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>}>
+     * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>, spine:list<array{idref:string}>} $package
+     * @return array{entries:list<array{label:string, href:string, path:string, fragment:string, type:string, children:list<array<string, mixed>>>}, report:array<string, mixed>}
      */
     private function readNavigationDocument(string $root, array $package): array
     {
@@ -529,12 +531,16 @@ final class EpubPackageReader
             }
         }
         if (!is_array($navItem)) {
-            return [];
+            return [
+                'entries' => [],
+                'report' => $this->navigationReport([], '', ''),
+            ];
         }
 
         $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navItem['path']));
         $navDir = $this->relativeDirname($navItem['path']);
         $entries = [];
+        $sections = [];
         foreach ($document->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
@@ -546,17 +552,579 @@ final class EpubPackageReader
             }
 
             $ol = $this->firstDirectChild($element, 'ol');
-            if (!$ol instanceof \DOMElement) {
-                continue;
-            }
+            $sectionEntries = $ol instanceof \DOMElement ? $this->readNavList($ol, $navDir, $type) : [];
+            $sections[] = [
+                'index' => count($sections),
+                'type' => $type,
+                'id' => trim($element->getAttribute('id')),
+                'entries' => $sectionEntries,
+            ];
 
-            foreach ($this->readNavList($ol, $navDir, $type) as $entry) {
+            foreach ($sectionEntries as $entry) {
                 $entries[] = $entry;
             }
         }
 
-        return $entries;
+        return [
+            'entries' => $entries,
+            'report' => $this->navigationReport($sections, $navItem['path'], $navDir),
+        ];
     }
+
+    /**
+     * @param list<array{index:int, type:string, id:string, entries:list<array<string, mixed>>}> $sections
+     * @return array<string, mixed>
+     */
+    private function navigationReport(array $sections, string $navPath, string $navDir): array
+    {
+        $reportSections = [];
+        $diagnostics = [];
+        $normalizedCollisionDiagnostics = [];
+        $crossSectionTargets = [];
+        $itemCount = 0;
+        $targetedItemCount = 0;
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $fragmentTargetCount = 0;
+        $fragmentOnlyTargetCount = 0;
+        $unsafeTargetCount = 0;
+        $packageRootEscapeTargetCount = 0;
+        $normalizedCollisionItemCount = 0;
+
+        foreach ($sections as $section) {
+            $flatItems = $this->flattenNavEntries(is_array($section['entries'] ?? null) ? $section['entries'] : []);
+            $sectionDiagnostics = [];
+            $targets = [];
+            $sectionTargetedItemCount = 0;
+            $sectionLocalTargetCount = 0;
+            $sectionExternalTargetCount = 0;
+            $sectionFragmentTargetCount = 0;
+            $sectionFragmentOnlyTargetCount = 0;
+            $sectionUnsafeTargetCount = 0;
+            $sectionPackageRootEscapeTargetCount = 0;
+
+            foreach ($flatItems as $flat) {
+                $entry = is_array($flat['entry'] ?? null) ? $flat['entry'] : [];
+                $itemIndex = (int) ($flat['index'] ?? 0);
+                $href = is_string($entry['href'] ?? null) ? trim($entry['href']) : '';
+                ++$itemCount;
+
+                if ($href === '') {
+                    continue;
+                }
+
+                ++$targetedItemCount;
+                ++$sectionTargetedItemCount;
+                $target = $this->navTargetReview($navDir, $navPath, $href);
+                $baseDiagnostic = [
+                    'sectionIndex' => (int) $section['index'],
+                    'sectionType' => (string) $section['type'],
+                    'sectionId' => (string) $section['id'],
+                    'itemIndex' => $itemIndex,
+                    'depth' => (int) ($flat['depth'] ?? 0),
+                    'label' => is_string($entry['label'] ?? null) ? $entry['label'] : '',
+                    'href' => $href,
+                ];
+
+                if ($target['external']) {
+                    ++$externalTargetCount;
+                    ++$sectionExternalTargetCount;
+                    $sectionDiagnostics[] = $baseDiagnostic + [
+                        'type' => 'external-nav-href-target',
+                        'target' => $target['target'],
+                        'message' => 'EPUB navigation target uses an external URI',
+                    ];
+                    continue;
+                }
+
+                if ($target['unsafe']) {
+                    ++$unsafeTargetCount;
+                    ++$packageRootEscapeTargetCount;
+                    ++$sectionUnsafeTargetCount;
+                    ++$sectionPackageRootEscapeTargetCount;
+                    $sectionDiagnostics[] = $baseDiagnostic + [
+                        'type' => 'unsafe-nav-href-target',
+                        'target' => $target['target'],
+                        'message' => 'EPUB navigation target escapes the package root after href normalization',
+                    ];
+                    continue;
+                }
+
+                ++$localTargetCount;
+                ++$sectionLocalTargetCount;
+                if ($target['hasFragment']) {
+                    ++$fragmentTargetCount;
+                    ++$sectionFragmentTargetCount;
+                    $sectionDiagnostics[] = $baseDiagnostic + [
+                        'type' => $target['fragmentOnly'] ? 'fragment-only-nav-href-target' : 'fragment-nav-href-target',
+                        'target' => $target['target'],
+                        'fragment' => $target['fragment'],
+                        'message' => $target['fragmentOnly']
+                            ? 'EPUB navigation target resolves to a fragment in the navigation document'
+                            : 'EPUB navigation target includes a fragment component',
+                    ];
+                }
+                if ($target['fragmentOnly']) {
+                    ++$fragmentOnlyTargetCount;
+                    ++$sectionFragmentOnlyTargetCount;
+                }
+
+                if ($target['normalizedTarget'] !== '') {
+                    $targetDiagnostic = $baseDiagnostic + [
+                        'target' => $target['target'],
+                        'normalizedTarget' => $target['normalizedTarget'],
+                        'path' => $target['path'],
+                        'fragment' => $target['fragment'],
+                        'fragmentOnly' => $target['fragmentOnly'],
+                    ];
+                    $targets[$target['normalizedTarget']][] = $targetDiagnostic;
+                    $crossSectionTargets[$target['normalizedTarget']][] = $targetDiagnostic;
+                }
+            }
+
+            $sectionCollisionDiagnostics = [];
+            foreach ($targets as $normalizedTarget => $matches) {
+                $rawHrefs = array_values(array_unique(array_map(
+                    static fn (array $match): string => (string) ($match['href'] ?? ''),
+                    $matches
+                )));
+                if (count($matches) <= 1 || count($rawHrefs) <= 1) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'type' => 'normalized-nav-target-collision',
+                    'sectionIndex' => (int) $section['index'],
+                    'sectionType' => (string) $section['type'],
+                    'sectionId' => (string) $section['id'],
+                    'normalizedTarget' => $normalizedTarget,
+                    'itemCount' => count($matches),
+                    'rawHrefCount' => count($rawHrefs),
+                    'itemIndexes' => array_column($matches, 'itemIndex'),
+                    'hrefs' => $rawHrefs,
+                    'targets' => array_values(array_unique(array_map(
+                        static fn (array $match): string => (string) ($match['target'] ?? ''),
+                        $matches
+                    ))),
+                    'labels' => array_values(array_filter(
+                        array_column($matches, 'label'),
+                        static fn (mixed $label): bool => is_string($label) && $label !== ''
+                    )),
+                    'collisionKinds' => $this->navCollisionKinds($matches),
+                    'message' => 'EPUB navigation section contains distinct hrefs that normalize to the same target',
+                ];
+                $sectionCollisionDiagnostics[] = $diagnostic;
+            }
+            $sectionCollisionDiagnostics = $this->sortNavCollisionDiagnostics($sectionCollisionDiagnostics);
+
+            foreach ($sectionCollisionDiagnostics as $diagnostic) {
+                $normalizedCollisionItemCount += (int) ($diagnostic['itemCount'] ?? 0);
+                $sectionDiagnostics[] = $diagnostic;
+                $normalizedCollisionDiagnostics[] = $diagnostic;
+            }
+            array_push($diagnostics, ...$sectionDiagnostics);
+
+            $reportSections[] = [
+                'index' => (int) $section['index'],
+                'type' => (string) $section['type'],
+                'id' => (string) $section['id'],
+                'itemCount' => count($flatItems),
+                'targetedItemCount' => $sectionTargetedItemCount,
+                'localTargetCount' => $sectionLocalTargetCount,
+                'externalTargetCount' => $sectionExternalTargetCount,
+                'fragmentTargetCount' => $sectionFragmentTargetCount,
+                'fragmentOnlyTargetCount' => $sectionFragmentOnlyTargetCount,
+                'unsafeTargetCount' => $sectionUnsafeTargetCount,
+                'packageRootEscapeTargetCount' => $sectionPackageRootEscapeTargetCount,
+                'normalizedCollisionGroupCount' => count($sectionCollisionDiagnostics),
+                'normalizedCollisionItemCount' => array_sum(array_map(
+                    static fn (array $diagnostic): int => (int) ($diagnostic['itemCount'] ?? 0),
+                    $sectionCollisionDiagnostics
+                )),
+                'diagnosticCount' => count($sectionDiagnostics),
+                'diagnostics' => $sectionDiagnostics,
+            ];
+        }
+
+        $normalizedCollisionDiagnostics = $this->sortNavCollisionDiagnostics($normalizedCollisionDiagnostics);
+        $crossSectionCollisionDiagnostics = $this->crossSectionNavCollisionDiagnostics($crossSectionTargets);
+        $crossSectionCollisionItemCount = array_sum(array_map(
+            static fn (array $diagnostic): int => (int) ($diagnostic['itemCount'] ?? 0),
+            $crossSectionCollisionDiagnostics
+        ));
+        $diagnostics = $this->sortNavDiagnostics(array_merge($diagnostics, $crossSectionCollisionDiagnostics));
+        $diagnosticTypes = [];
+        foreach ($diagnostics as $diagnostic) {
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+            $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+        }
+
+        return [
+            'present' => $sections !== [],
+            'navPath' => $navPath,
+            'sectionCount' => count($sections),
+            'itemCount' => $itemCount,
+            'targetedItemCount' => $targetedItemCount,
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'fragmentTargetCount' => $fragmentTargetCount,
+            'fragmentOnlyTargetCount' => $fragmentOnlyTargetCount,
+            'unsafeTargetCount' => $unsafeTargetCount,
+            'packageRootEscapeTargetCount' => $packageRootEscapeTargetCount,
+            'normalizedCollisionGroupCount' => count($normalizedCollisionDiagnostics),
+            'normalizedCollisionItemCount' => $normalizedCollisionItemCount,
+            'normalizedCollisionDiagnostics' => $normalizedCollisionDiagnostics,
+            'crossSectionCollisionGroupCount' => count($crossSectionCollisionDiagnostics),
+            'crossSectionCollisionItemCount' => $crossSectionCollisionItemCount,
+            'crossSectionCollisionDiagnostics' => $crossSectionCollisionDiagnostics,
+            'sections' => $reportSections,
+            'diagnosticTypes' => $diagnosticTypes,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array{index:int, depth:int, entry:array<string, mixed>}>
+     */
+    private function flattenNavEntries(array $entries): array
+    {
+        $flat = [];
+        $index = 0;
+        $this->flattenNavEntriesInto($entries, 0, $index, $flat);
+
+        return $flat;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array{index:int, depth:int, entry:array<string, mixed>}> $flat
+     */
+    private function flattenNavEntriesInto(array $entries, int $depth, int &$index, array &$flat): void
+    {
+        foreach ($entries as $entry) {
+            $currentIndex = $index++;
+            $flat[] = [
+                'index' => $currentIndex,
+                'depth' => $depth,
+                'entry' => $entry,
+            ];
+
+            $children = is_array($entry['children'] ?? null) ? $entry['children'] : [];
+            if ($children !== []) {
+                $this->flattenNavEntriesInto($children, $depth + 1, $index, $flat);
+            }
+        }
+    }
+
+    /**
+     * @return array{
+     *     path:string,
+     *     fragment:string,
+     *     target:string,
+     *     normalizedTarget:string,
+     *     hasFragment:bool,
+     *     fragmentOnly:bool,
+     *     external:bool,
+     *     unsafe:bool
+     * }
+     */
+    private function navTargetReview(string $navDir, string $navPath, string $href): array
+    {
+        $href = trim($href);
+        $suffix = $this->hrefSuffix($href);
+        $external = $this->isExternalHref($href);
+        $fragmentOnly = str_starts_with($href, '#');
+        $split = $this->safeSplitResolvedHref($navDir, $href);
+        $unsafe = (bool) $split['unsafe'];
+        $path = (string) $split['path'];
+        $fragment = (string) $split['fragment'];
+
+        if ($external) {
+            return [
+                'path' => $path,
+                'fragment' => $fragment,
+                'target' => $href,
+                'normalizedTarget' => '',
+                'hasFragment' => $suffix['hasFragment'],
+                'fragmentOnly' => false,
+                'external' => true,
+                'unsafe' => false,
+            ];
+        }
+
+        if ($unsafe) {
+            return [
+                'path' => $path,
+                'fragment' => $fragment,
+                'target' => $href,
+                'normalizedTarget' => '',
+                'hasFragment' => $suffix['hasFragment'],
+                'fragmentOnly' => $fragmentOnly,
+                'external' => false,
+                'unsafe' => true,
+            ];
+        }
+
+        $targetPath = $fragmentOnly ? $navPath : $path;
+        $target = $targetPath
+            . (($suffix['hasFragment'] && $fragment !== '') ? '#' . $fragment : ($suffix['hasFragment'] ? '#' : ''));
+
+        return [
+            'path' => $path,
+            'fragment' => $fragment,
+            'target' => $target,
+            'normalizedTarget' => $this->normalizedNavTarget($targetPath, $suffix['hasFragment'], $fragment),
+            'hasFragment' => $suffix['hasFragment'],
+            'fragmentOnly' => $fragmentOnly,
+            'external' => false,
+            'unsafe' => false,
+        ];
+    }
+
+    private function normalizedNavTarget(string $path, bool $hasFragment, string $fragment): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $target = strtolower($path);
+        if ($hasFragment) {
+            $target .= '#' . strtolower(rawurldecode($fragment));
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function navCollisionKinds(array $matches): array
+    {
+        $hrefs = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['href'] ?? ''),
+            $matches
+        )));
+        $targets = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['target'] ?? ''),
+            $matches
+        )));
+        $kinds = [];
+
+        foreach ($hrefs as $href) {
+            if (preg_match('/%[0-9A-Fa-f]{2}/', $href) === 1) {
+                $kinds['percent-encoding'] = 'percent-encoding';
+            }
+            if (preg_match('~(?:^|/)\.{1,2}(?:/|$)~', explode('#', explode('?', $href, 2)[0], 2)[0]) === 1) {
+                $kinds['dot-segment'] = 'dot-segment';
+            }
+            if (strpos($href, '#') !== false) {
+                $kinds['fragment'] = 'fragment';
+            }
+        }
+
+        if (count(array_unique(array_map('strtolower', $hrefs))) < count($hrefs)
+            || count(array_unique(array_map('strtolower', $targets))) < count($targets)
+        ) {
+            $kinds['case'] = 'case';
+        }
+
+        if ($kinds === []) {
+            $kinds['normalized-target'] = 'normalized-target';
+        }
+
+        return array_values($kinds);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private function crossSectionNavCollisionDiagnostics(array $targets): array
+    {
+        $diagnostics = [];
+        foreach ($targets as $normalizedTarget => $matches) {
+            $sectionKeys = [];
+            foreach ($matches as $match) {
+                $sectionKeys[((int) ($match['sectionIndex'] ?? 0)) . "\0" . ((string) ($match['sectionType'] ?? ''))] = true;
+            }
+            if (count($matches) <= 1 || count($sectionKeys) <= 1) {
+                continue;
+            }
+
+            $matches = $this->sortNavTargetMatches($matches);
+            $sectionTypes = [];
+            $sectionIndexes = [];
+            $sectionIds = [];
+            $itemRefs = [];
+            foreach ($matches as $match) {
+                $sectionType = (string) ($match['sectionType'] ?? '');
+                $sectionIndex = (int) ($match['sectionIndex'] ?? 0);
+                $sectionId = (string) ($match['sectionId'] ?? '');
+                $sectionTypes[$sectionType] = $sectionType;
+                $sectionIndexes[(string) $sectionIndex] = $sectionIndex;
+                if ($sectionId !== '') {
+                    $sectionIds[$sectionId] = $sectionId;
+                }
+                $itemRefs[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionType' => $sectionType,
+                    'sectionId' => $sectionId,
+                    'itemIndex' => (int) ($match['itemIndex'] ?? 0),
+                    'depth' => (int) ($match['depth'] ?? 0),
+                    'href' => (string) ($match['href'] ?? ''),
+                    'label' => (string) ($match['label'] ?? ''),
+                ];
+            }
+
+            $rawHrefs = $this->uniqueNavMatchValues($matches, 'href');
+            $diagnostics[] = [
+                'type' => 'cross-section-normalized-nav-target-collision',
+                'normalizedTarget' => $normalizedTarget,
+                'sectionCount' => count($sectionKeys),
+                'sectionTypes' => array_values($sectionTypes),
+                'sectionIndexes' => array_values($sectionIndexes),
+                'sectionIds' => array_values($sectionIds),
+                'itemCount' => count($matches),
+                'rawHrefCount' => count($rawHrefs),
+                'itemRefs' => $itemRefs,
+                'hrefs' => $rawHrefs,
+                'targets' => $this->uniqueNavMatchValues($matches, 'target'),
+                'labels' => array_values(array_filter(
+                    $this->uniqueNavMatchValues($matches, 'label'),
+                    static fn (string $label): bool => $label !== ''
+                )),
+                'collisionKinds' => $this->navCollisionKinds($matches),
+                'message' => 'EPUB navigation sections contain targets that normalize to the same package target',
+            ];
+        }
+
+        return $this->sortNavCrossSectionCollisionDiagnostics($diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavCollisionDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right);
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavCrossSectionCollisionDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            $leftRefs = is_array($left['itemRefs'] ?? null) ? $left['itemRefs'] : [];
+            $rightRefs = is_array($right['itemRefs'] ?? null) ? $right['itemRefs'] : [];
+            $leftFirst = is_array($leftRefs[0] ?? null) ? $leftRefs[0] : [];
+            $rightFirst = is_array($rightRefs[0] ?? null) ? $rightRefs[0] : [];
+
+            return $this->compareNavDiagnostics($leftFirst, $rightFirst)
+                ?: strcmp((string) ($left['normalizedTarget'] ?? ''), (string) ($right['normalizedTarget'] ?? ''));
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right)
+                ?: strcmp((string) ($left['type'] ?? ''), (string) ($right['type'] ?? ''))
+                ?: strcmp((string) ($left['normalizedTarget'] ?? ''), (string) ($right['normalizedTarget'] ?? ''));
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavTargetMatches(array $matches): array
+    {
+        usort($matches, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right)
+                ?: strcmp((string) ($left['href'] ?? ''), (string) ($right['href'] ?? ''));
+        });
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function uniqueNavMatchValues(array $matches, string $key): array
+    {
+        $values = [];
+        foreach ($matches as $match) {
+            $value = (string) ($match[$key] ?? '');
+            if (!in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     */
+    private function compareNavDiagnostics(array $left, array $right): int
+    {
+        $leftType = (string) ($left['sectionType'] ?? '');
+        $rightType = (string) ($right['sectionType'] ?? '');
+
+        return $this->navSectionTypeRank($leftType) <=> $this->navSectionTypeRank($rightType)
+            ?: ((int) ($left['sectionIndex'] ?? 0) <=> (int) ($right['sectionIndex'] ?? 0))
+            ?: ($this->navDiagnosticFirstItemIndex($left) <=> $this->navDiagnosticFirstItemIndex($right))
+            ?: ((int) ($left['depth'] ?? 0) <=> (int) ($right['depth'] ?? 0));
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     */
+    private function navDiagnosticFirstItemIndex(array $diagnostic): int
+    {
+        if (is_int($diagnostic['itemIndex'] ?? null)) {
+            return (int) $diagnostic['itemIndex'];
+        }
+        if (is_array($diagnostic['itemIndexes'] ?? null) && isset($diagnostic['itemIndexes'][0])) {
+            return (int) $diagnostic['itemIndexes'][0];
+        }
+
+        return PHP_INT_MAX;
+    }
+
+    private function navSectionTypeRank(string $type): int
+    {
+        return match ($type) {
+            'toc' => 0,
+            'landmarks' => 1,
+            'page-list' => 2,
+            default => 3,
+        };
+    }
+
 
     /**
      * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>, spine:list<array{idref:string}>} $package
@@ -990,7 +1558,9 @@ final class EpubPackageReader
             }
 
             $href = $link->localName === 'a' ? trim($link->getAttribute('href')) : '';
-            [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $target = $this->safeSplitResolvedHref($baseDir, $href);
+            $path = $target['path'];
+            $fragment = $target['fragment'];
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
@@ -1283,6 +1853,30 @@ final class EpubPackageReader
         $path = $parts[0] === '' ? '' : $this->resolvePackageHref($baseDir, $parts[0]);
 
         return [$path, $parts[1] ?? ''];
+    }
+
+    /**
+     * @return array{path:string, fragment:string, unsafe:bool}
+     */
+    private function safeSplitResolvedHref(string $baseDir, string $href): array
+    {
+        try {
+            [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+
+            return [
+                'path' => $path,
+                'fragment' => $fragment,
+                'unsafe' => false,
+            ];
+        } catch (\RuntimeException) {
+            $parts = explode('#', $href, 2);
+
+            return [
+                'path' => '',
+                'fragment' => $parts[1] ?? '',
+                'unsafe' => true,
+            ];
+        }
     }
 
     private function normalizeRelativePath(string $path): string
