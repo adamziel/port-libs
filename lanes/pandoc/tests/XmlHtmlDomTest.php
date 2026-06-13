@@ -701,6 +701,101 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes jats bits funding and acknowledgment review diagnostics without citation payload text' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group><article-title>Funding Review</article-title></title-group>
+      <funding-group id="fg1">
+        <award-group id="ag1">
+          <funding-source id="fs1" source-type="agency">National Science Foundation <institution-id institution-id-type="fundref">10.13039/100000001</institution-id></funding-source>
+          <award-id id="award-a" award-id-type="grant">R01-42</award-id>
+          <award-id id="award-a-copy" award-id-type="grant">R01-42</award-id>
+          <xref ref-type="bibr" rid="r1">funding ref</xref>
+        </award-group>
+        <award-group id="ag2">
+          <funding-source id="fs2">Missing Award Council</funding-source>
+          <xref ref-type="bibr" rid="missing-ref">missing ref</xref>
+        </award-group>
+      </funding-group>
+    </article-meta>
+  </front>
+  <body><sec id="s1"><title>Funding</title><p>Body cites <xref ref-type="bibr" rid="r1">[1]</xref>.</p></sec></body>
+  <back>
+    <ack id="ack1"><title>Acknowledgments</title><p>We thank reviewers <xref ref-type="bibr" rid="r1">[1]</xref> and <xref ref-type="bibr" rid="r-missing">[missing]</xref>.</p></ack>
+    <ref-list id="refs"><ref id="r1"><label>1</label><mixed-citation>Blocked Citation Payload With Secret Grant Text</mixed-citation></ref></ref-list>
+  </back>
+</article>
+XML, 'JATS funding acknowledgment XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'body-sections-review-only',
+            'references-review-only',
+            'reference-citation-text-policy',
+            'reference-identifier-policy',
+            'reference-identifiers-missing',
+            'bibliography-xrefs-unresolved',
+            'funding-review-only',
+            'acknowledgments-review-only',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(1, $packet['directReaderDiagnostics'][7]['details']['fundingGroupCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][7]['details']['awardGroupCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][8]['details']['acknowledgmentCount'] ?? null);
+        $t->same(['r1', 'missing-ref', 'r-missing'], $packet['xrefTargets']);
+        $t->same(['r1'], $packet['referenceIds']);
+        $t->same(1, $packet['referenceCount']);
+        $t->same(3, $packet['references'][0]['referenceCount'] ?? null);
+        $t->same(['mixed-citation'], $packet['references'][0]['citationElementNames'] ?? null);
+        $t->same(1, $packet['references'][0]['blockedCitationTextPayloadCount'] ?? null);
+        $t->same(['missing-ref', 'r-missing'], $packet['unresolvedReferenceIds']);
+        $t->same(3, $packet['resolvedBibrXrefCount']);
+        $t->same(2, $packet['unresolvedBibrXrefCount']);
+        $t->same(5, $packet['citationXrefCount']);
+        $t->same(['r1'], $packet['resolvedCitationReferenceIds']);
+        $t->same(['missing-ref', 'r-missing'], $packet['missingCitationReferenceIds']);
+        $t->same(1, $packet['fundingGroupCount']);
+        $t->same('fg1', $packet['fundingGroups'][0]['id'] ?? null);
+        $t->same(['fs1', 'fs2'], $packet['fundingGroups'][0]['fundingSourceIds'] ?? null);
+        $t->same(['ag1', 'ag2'], $packet['fundingGroups'][0]['awardGroupIds'] ?? null);
+        $t->same(['r1'], $packet['fundingGroups'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['missing-ref'], $packet['fundingGroups'][0]['missingReferenceIds'] ?? null);
+        $t->same(2, $packet['fundingSourceCount']);
+        $t->same('fs1', $packet['fundingSources'][0]['id'] ?? null);
+        $t->same('agency', $packet['fundingSources'][0]['sourceType'] ?? null);
+        $t->same(['10.13039/100000001'], $packet['fundingSources'][0]['identifierValues'] ?? null);
+        $t->same(2, $packet['awardGroupCount']);
+        $t->same('ag1', $packet['awardGroups'][0]['id'] ?? null);
+        $t->same('fg1', $packet['awardGroups'][0]['fundingGroupId'] ?? null);
+        $t->same(['R01-42', 'R01-42'], $packet['awardGroups'][0]['awardIds'] ?? null);
+        $t->same(['r1'], $packet['awardGroups'][0]['linkedReferenceIds'] ?? null);
+        $t->same('ag2', $packet['awardGroups'][1]['id'] ?? null);
+        $t->same(0, $packet['awardGroups'][1]['awardIdCount'] ?? null);
+        $t->same(['missing-ref'], $packet['awardGroups'][1]['missingReferenceIds'] ?? null);
+        $t->same(['R01-42', 'R01-42'], $packet['awardIds']);
+        $t->same(['R01-42'], $packet['duplicateAwardIds']);
+        $t->same(['duplicate-award-id', 'missing-award-id'], $packet['fundingDiagnosticCodes']);
+        $t->same(2, $packet['fundingDiagnostics'][0]['count'] ?? null);
+        $t->same(['award-a', 'award-a-copy'], $packet['fundingDiagnostics'][0]['recordIds'] ?? null);
+        $t->same('award-group', $packet['fundingDiagnostics'][1]['container'] ?? null);
+        $t->same('ag2', $packet['fundingDiagnostics'][1]['id'] ?? null);
+        $t->same('fg1', $packet['fundingDiagnostics'][1]['fundingGroupId'] ?? null);
+        $t->same(1, $packet['acknowledgmentCount']);
+        $t->same(['ack1'], $packet['acknowledgmentIds']);
+        $t->same('Acknowledgments', $packet['acknowledgments'][0]['title'] ?? null);
+        $t->same(1, $packet['acknowledgments'][0]['paragraphCount'] ?? null);
+        $t->same(true, $packet['acknowledgments'][0]['textBlocked'] ?? null);
+        $t->same(['r1'], $packet['acknowledgments'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['r-missing'], $packet['acknowledgments'][0]['missingReferenceIds'] ?? null);
+        $t->same(['r1'], $packet['acknowledgmentLinkedReferenceIds']);
+        $t->same(['r-missing'], $packet['acknowledgmentMissingReferenceIds']);
+
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked Citation Payload With Secret Grant Text'), 'Expected citation payload text to stay blocked from the bounded review packet');
+    },
     'summarizes jats bits figure label caption and title metadata diagnostics' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="review">
