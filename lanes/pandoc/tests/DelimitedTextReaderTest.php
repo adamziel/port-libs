@@ -71,4 +71,62 @@ return [
         $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
     },
+    'honors no-header option for csv and tsv table imports' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv(implode("\n", [
+            '42,"Legacy, ""quoted"" title",true',
+            '43,Needs review,false',
+            '',
+        ]), ['header' => false]);
+        $tsvDocument = $reader->readTsv(implode("\n", [
+            "A\t10",
+            "B\t20",
+            '',
+        ]), ['header' => false]);
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+        $csvMarkdown = (new MarkdownWriter())->write($csvDocument);
+        $csvWordpress = (new WordPressBlockWriter())->write($csvDocument);
+        $csvJson = (new PandocJsonWriter())->toArray($csvDocument);
+
+        $t->same('table_head', $csvTable->children[0]->type);
+        $t->same(0, count($csvTable->children[0]->children));
+        $t->same('table_body', $csvTable->children[1]->type);
+        $t->same(2, count($csvTable->children[1]->children));
+        $t->same(false, $csvPacket['headerRow'] ?? null);
+        $t->same('none', $csvPacket['headerOption'] ?? null);
+        $t->same('generated', $csvPacket['headerSource'] ?? null);
+        $t->same(2, $csvPacket['rowCount'] ?? null);
+        $t->same(2, $csvPacket['bodyRowCount'] ?? null);
+        $t->same(['column1', 'column2', 'column3'], $csvPacket['columnNames'] ?? null);
+        $t->same(['column1', 'column2', 'column3'], $csvTable->attr('columnNames'));
+        $t->same('delimited-text-header-disabled', $csvPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('42', $csvTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Legacy, "quoted" title', $csvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('43', $csvTable->children[1]->children[1]->children[0]->attr('text'));
+        $t->contains('| 42  | Legacy, \\"quoted\\" title | true  |', $csvMarkdown);
+        $t->contains('<tbody><tr><td>42</td><td>Legacy, &quot;quoted&quot; title</td><td>true</td></tr>', $csvWordpress);
+        $t->true(!str_contains($csvWordpress, '<thead>'));
+        $t->same([], $csvJson['blocks'][0]['c'][3][1] ?? null);
+
+        $t->same(false, $tsvPacket['headerRow'] ?? null);
+        $t->same('tab', $tsvPacket['delimiter'] ?? null);
+        $t->same(['column1', 'column2'], $tsvPacket['columnNames'] ?? null);
+        $t->same(2, $tsvPacket['rowCount'] ?? null);
+        $t->same(2, $tsvPacket['bodyRowCount'] ?? null);
+        $t->same('A', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('20', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
+    },
+    'rejects non-boolean delimited text header option' => static function (TestRunner $t): void {
+        $message = '';
+        try {
+            (new DelimitedTextReader())->readCsv("a,b\n", ['header' => 'false']);
+        } catch (InvalidArgumentException $exception) {
+            $message = $exception->getMessage();
+        }
+
+        $t->contains('header option must be a boolean', $message);
+    },
 ];

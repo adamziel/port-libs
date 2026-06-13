@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,311 pass / 0 fail | [3,271 / 2,276 (143.7%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue Typst reader parity after package dependency conflict policy | typst-package-dependency-conflict-policy-d099006810 |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,313 pass / 0 fail | [3,273 / 2,276 (143.8%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | CSV/TSV header option parity is covered; continue option and malformed-input parity | csv-tsv-header-options-3a4bf7596e |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -46,7 +46,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | Typst | `typst` | unsupported | 47 | 17 | Implement Typst reader; package dependency conflict policy is covered, but current evidence is boundary/provenance only. |
 | PPTX/XLSX | `pptx`, `xlsx` | unsupported | 0 | 2 | Implement native package readers after ZIP/OPC and XML package foundations. |
 | Wiki/roff/text markup readers | `asciidoc`, `creole`, `djot`, `dokuwiki`, `fb2`, `haddock`, `jira`, `man`, `mdoc`, `mediawiki`, `muse`, `opml`, `org`, `pod`, `rst`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki` | unsupported | 0 | 20 | Implement native text-format readers or explicitly defer them. |
-| Tabular/data readers | `csv`, `tsv` | partial | 2 | 2 | Finish full CSV/TSV reader parity beyond the bounded headed-table slice. |
+| Tabular/data readers | `csv`, `tsv` | partial | 4 | 2 | Continue broader CSV/TSV option variants, malformed input diagnostics, multiline-cell policy, captions, metadata, and writer parity. |
 | Unsupported input format surfaces | all unsupported input tokens above | unsupported | 0 | 31 | Close the remaining unsupported input registry rows. |
 
 Adjacent import targets outside the Pandoc input denominator:
@@ -59,11 +59,11 @@ Adjacent import targets outside the Pandoc input denominator:
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through `d099006810`: 3,311 PHP passes, 0 failures, and 3,271 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `PdfEngineHandoffTest.php` (`1` file, `2225` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74226` assertions, `0` failures).
+Current branch counters are reconciled on base `3a4bf7596e`: 3,313 PHP passes, 0 failures, and 3,273 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence plus the CSV/TSV header-option slice; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, focused `DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php` (`2` files, `1082` assertions, `0` failures), and full `lanes/pandoc/tests` (`45` files, `74253` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |
-| CSV/TSV direct readers | Landed | 2 CSV command fixtures | 2 focused reader/registry files, 1,055 assertions | Partial after bounded reader slice | Broader CSV/TSV option behavior, malformed input diagnostics, and table-reader edge cases. |
+| CSV/TSV direct readers | Landed | 2 CSV command fixtures | 4 local mapped CSV/TSV reader cases; latest focused reader/registry run has 1,082 assertions | Partial after headed and explicit no-header reader slices | Broader CSV/TSV option behavior, malformed input diagnostics, multiline-cell policy, and table-reader edge cases. |
 | JSON/native table and block handoff | Landed table-caption, note-label, and Div Plain slices | 252 JSON/native artifacts | 48 JSON/native cases; latest focused run 1,987 assertions | Partial | Broader native/json fixture parity, unsupported constructors, and table/citation/metadata round trips. |
 | Markdown block boundaries | Landed nested fenced Div and mixed-content nested-list slices | 1,096 Markdown-family rows | 443 Markdown-family cases; latest focused nested-list run 6,626 assertions | Partial | Markdown/CommonMark/GFM extension and variant parity. |
 | Media linked-resource handoff | Landed | 1 mapped cross-format resource slice | 1 focused `MediaBag` case, 144 assertions | Covered bounded handoff; not an input-format ship gate | Wider media/resource edge cases outside opt-in linked-resource handoff. |
@@ -86,6 +86,14 @@ Implemented gap: `DelimitedTextReader` parses bounded headed CSV and TSV input i
 Verification passed `php -l` for `DelimitedTextReader.php`, `DelimitedTextReaderTest.php`, `PandocFormatRegistry.php`, and `PandocFormatRegistryTest.php`; focused `DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php` passed (`2` files, `1055` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74205` assertions, `0` failures). No Pandoc binary, spreadsheet application, browser renderer, Node tooling, online validator, online service, live provider test, or external validator was invoked.
 
 Remaining critical gap: finish full Pandoc CSV/TSV reader parity, including broader upstream fixture hydration, option behavior, malformed input diagnostics, and table-reader edge cases.
+
+### CSV/TSV Header Option Update (2026-06-13)
+
+Verdict: partial, not ship-ready. The native PHP lane now has 4 local passing CSV/TSV reader cases against the 2 CSV command fixture rows recorded in the accepted static upstream inventory, with explicit no-header body-only imports covered.
+
+Implemented gap: `DelimitedTextReader` now accepts a `header` option for CSV and TSV imports. `header => false` preserves every source row as table body data, emits an empty table head for Pandoc JSON compatibility, generates review-only column labels, and records a `delimited-text-header-disabled` diagnostic; non-boolean `header` options are rejected.
+
+Verification passed `php -l` for `DelimitedTextReader.php`, `DelimitedTextReaderTest.php`, `PandocFormatRegistry.php`, and `PandocFormatRegistryTest.php`; focused `DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php` passed (`2` files, `1082` assertions, `0` failures); full `lanes/pandoc/tests` passed (`45` files, `74253` assertions, `0` failures). No Pandoc binary, spreadsheet application, browser renderer, Node tooling, online validator, online service, live provider test, or external validator was invoked.
 
 ### JSON/Native Note Label Sidecar Update (2026-06-13)
 
@@ -258,17 +266,17 @@ Remaining critical JSON/native gaps: broader upstream native/json fixture parity
 Dashboard reconciliation on 2026-06-13: `PANDOC_STATUS.md` is now present, the
 root dashboard, lane status, upstream manifest, ready/open beads, and landed
 commit history agree on the current shipping call after the DOCX section-property
-slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, JSON/native table caption block writer slice, MediaBag linked-resource handoff slice, Markdown adjacent-list separator slice, Markdown/WordPress footnote label anchor slice, Markdown nested fenced Div slice, ODT configuration package metadata slice, Markdown fixture nested-list round-trip slice, CSV/TSV direct text reader slice, JSON/native note label sidecar slice, LaTeX table-foot longtable writer slice, JSON/native Div Plain block-boundary slice, and PDF/Typst package dependency conflict policy slice.
+slice, EPUB3 NCX document metadata provenance slice, XML/HTML/JATS front-matter slice, RIS citation parser slice, JSON/native target tuple sidecar slice, plain writer table caption row slice, PDF/Typst package dependency policy slice, Markdown/WordPress raw HTML boundary slice, JSON/native table caption block writer slice, MediaBag linked-resource handoff slice, Markdown adjacent-list separator slice, Markdown/WordPress footnote label anchor slice, Markdown nested fenced Div slice, ODT configuration package metadata slice, Markdown fixture nested-list round-trip slice, CSV/TSV direct text reader slice, JSON/native note label sidecar slice, LaTeX table-foot longtable writer slice, JSON/native Div Plain block-boundary slice, PDF/Typst package dependency conflict policy slice, and CSV/TSV header option parity.
 
 | Check | Evidence | Verdict |
 | --- | --- | --- |
 | Upstream denominator | Static upstream inventory remains 2,276 Pandoc test/data/benchmark artifacts at `jgm/pandoc@0640c4c9859aa5a3ede082c190fcd5883c24ac83`; input-format scope is 50 tokens after skipping IPYNB for this phase. | Denominator accepted for native PHP progress accounting; not upstream runner parity. |
-| Local passing numerator | `lane-status.json` reports 3,311 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,271 mapped upstream cases. | PHP lane remains green. |
-| Percent | 3,271 / 2,276 = 143.7%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
+| Local passing numerator | `lane-status.json` reports 3,313 PHP passes / 0 failures, and `UPSTREAM_TEST_MANIFEST.json` reports 3,273 mapped upstream cases. | PHP lane remains green. |
+| Percent | 3,273 / 2,276 = 143.8%; percentages above 100% reflect local PHP slices being more granular than upstream inventory rows. | High coverage, but not global ship-ready. |
 | Shippable format gate | ODF/ODT is ship-ready with 50 local mapped cases / 20 upstream ODF/ODT cases, 250.0%, and 0 critical ODF/ODT gaps. | ODF/ODT can ship under the native PHP/no-external-validator policy. |
 | Remaining critical gaps | 18 input tokens remain partial and 31 remain unsupported across DOCX/OpenXML, EPUB3, shared ZIP/OPC dependencies, JSON/native AST, CSV/TSV, CSL/BibTeX/BibLaTeX/csljson, HTML/XML/JATS DOM, LaTeX/TeX/math, Typst, PPTX/XLSX, and wiki/roff/text readers. | Full Pandoc input lane remains active. |
 | Stale assigned-open cleanup | `bd orphans --label lane:pandoc` was filtered to commits that are ancestors of `origin/main`; only `plib-qka5o` qualified and was closed as landed. Follow-up main-ancestor orphan count is 0. Branch-only orphan candidates were left open. | Dashboard queue state now reflects landed work without closing live branch work. |
-| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PdfEngineHandoff.php lanes/pandoc/tests/PdfEngineHandoffTest.php lanes/pandoc/notes/pandoc-pdf-typst-package-dependency-policy-20260613T0017Z.md`, syntax checks for `PdfEngineHandoff.php` and `PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,226 assertions, 0 failures. |
+| Verification | `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/DelimitedTextReader.php lanes/pandoc/src/PandocFormatRegistry.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`, syntax checks for the CSV/TSV reader and registry files, focused `DelimitedTextReaderTest.php` plus `PandocFormatRegistryTest.php`, and `php tools/run-tests.php lanes/pandoc/tests` passed. | 45 test files, 74,253 assertions, 0 failures. |
 
 Methodology: upstream denominators come from `lanes/pandoc/notes/upstream-inventory.md`,
 `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, and the input-format registry in
@@ -279,12 +287,14 @@ merge `mapped*Cases` from `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and current
 `lanes/pandoc/lane-status.json`; `phpPass`/`phpFail` come from
 `lanes/pandoc/lane-status.json`. Commands used: `jq` over the manifest and lane
 status JSON to list case counters, PHP registry inspection for input support
-status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/PdfEngineHandoff.php lanes/pandoc/tests/PdfEngineHandoffTest.php lanes/pandoc/notes/pandoc-pdf-typst-package-dependency-policy-20260613T0017Z.md`,
-`php -l lanes/pandoc/src/PdfEngineHandoff.php`,
-`php -l lanes/pandoc/tests/PdfEngineHandoffTest.php`,
-`php tools/run-tests.php lanes/pandoc/tests/PdfEngineHandoffTest.php`
-(`1` file, `2225` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
-(`45` files, `74226` assertions, `0` failures on current main `d099006810`).
+status, `git diff --check -- progress.md PANDOC_STATUS.md lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/src/DelimitedTextReader.php lanes/pandoc/src/PandocFormatRegistry.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`,
+`php -l lanes/pandoc/src/DelimitedTextReader.php`,
+`php -l lanes/pandoc/tests/DelimitedTextReaderTest.php`,
+`php -l lanes/pandoc/src/PandocFormatRegistry.php`,
+`php -l lanes/pandoc/tests/PandocFormatRegistryTest.php`,
+`php tools/run-tests.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php`
+(`2` files, `1082` assertions, `0` failures), and `php tools/run-tests.php lanes/pandoc/tests`
+(`45` files, `74253` assertions, `0` failures on current main `3a4bf7596e`).
 `bd orphans --label lane:pandoc` was used for stale-open cleanup, but only
 main-ancestor referenced commits were closed. No Pandoc binary, office suite,
 TeX/Typst engine, browser engine, Node tooling, or external validator was invoked.
