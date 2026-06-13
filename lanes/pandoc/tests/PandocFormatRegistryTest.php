@@ -1370,6 +1370,109 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'records remaining wiki input extension alias statuses without parser claims' => static function (TestRunner $t): void {
+        $expectedAliases = [
+            '.creole' => 'creole',
+            '.jira' => 'jira',
+            '.mediawiki' => 'mediawiki',
+            '.tikiwiki' => 'tikiwiki',
+            '.twiki' => 'twiki',
+            '.vimwiki' => 'vimwiki',
+        ];
+        $reason = 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.';
+        $packet = PandocFormatRegistry::wikiInputExtensionAliasStatusPacket();
+        $mediawiki = PandocFormatRegistry::wikiInputExtensionAliasStatus('MEDIAWIKI');
+        $vimwiki = PandocFormatRegistry::wikiInputExtensionAliasStatus('.VimWiki');
+
+        $t->same($expectedAliases, PandocFormatRegistry::wikiInputExtensionStatusAliases());
+        $t->same(false, array_key_exists('.dokuwiki', $packet['extensionAliases']));
+        $t->same(false, array_key_exists('.wiki', $packet['extensionAliases']));
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $packet['upstreamExtensionInference']);
+        $t->same('wiki-input-extension-alias-status', $packet['family']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $packet['inputFormats']);
+        $t->same($expectedAliases, $packet['extensionAliases']);
+        $t->same('unsupported', $packet['unsupportedVerdict']);
+        $t->same(array_keys($expectedAliases), $packet['unsupportedExtensionAliases']);
+        $t->same(6, $packet['unsupportedAliasCount']);
+        $t->same(false, $packet['directReaderParitySupported']);
+        $t->same(true, $packet['externalToolFree']);
+        $t->same(0, $packet['registeredNativeImplementationCount']);
+        $t->same([], $packet['nativeImplementationRecords']);
+        $t->same(array_keys($expectedAliases), array_keys($packet['aliases']));
+
+        foreach ($expectedAliases as $alias => $format) {
+            $status = $packet['aliases'][$alias];
+            $t->same($alias, $status['extension']);
+            $t->same($format, $status['format']);
+            $t->same('wiki-input-extension-status-alias', $status['aliasKind']);
+            $t->same(false, $status['upstreamExtensionInferred'], "Wiki alias {$alias} must not change upstream extension inference");
+            $t->same('unsupported', $status['inputStatus']);
+            $t->same('unsupported', $status['verdict']);
+            $t->same('wiki-reader-not-ported', $status['reasonCode']);
+            $t->same($reason, $status['reason']);
+            $t->same('', $status['inputImplementation'], "Wiki alias {$alias} must not register a native reader");
+            $t->same('', $status['outputImplementation'], "Wiki alias {$alias} must not register a native writer");
+            $t->same([], $status['nativeImplementationRecords']);
+            $t->same(false, $status['directReaderParitySupported']);
+            $t->same(true, $status['externalToolFree']);
+        }
+
+        $t->same([
+            'extension' => '.mediawiki',
+            'format' => 'mediawiki',
+            'label' => 'MediaWiki',
+            'family' => 'wiki',
+            'aliasKind' => 'wiki-input-extension-status-alias',
+            'upstreamExtensionInferred' => false,
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'verdict' => 'unsupported',
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => $reason,
+            'unsupportedReason' => [
+                'family' => 'wiki',
+                'format' => 'mediawiki',
+                'alias' => '.mediawiki',
+                'direction' => 'input',
+                'status' => 'unsupported',
+                'reasonCode' => 'wiki-reader-not-ported',
+                'reason' => $reason,
+            ],
+            'serializedReason' => '{"family":"wiki","format":"mediawiki","alias":".mediawiki","direction":"input","status":"unsupported","reasonCode":"wiki-reader-not-ported","reason":"Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format."}',
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+            'nativeImplementationRecords' => [],
+            'directReaderParitySupported' => false,
+            'externalToolFree' => true,
+        ], $mediawiki);
+        $t->same([
+            'family' => 'wiki',
+            'format' => 'mediawiki',
+            'alias' => '.mediawiki',
+            'direction' => 'input',
+            'status' => 'unsupported',
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => $reason,
+        ], json_decode($mediawiki['serializedReason'], true, 512, JSON_THROW_ON_ERROR));
+
+        $t->same('vimwiki', $vimwiki['format']);
+        $t->same('input-only', $vimwiki['direction']);
+        $t->same(false, $vimwiki['output']);
+        $t->same('not-applicable', $vimwiki['outputStatus']);
+        $t->same(null, PandocFormatRegistry::wikiInputExtensionAliasStatus('.wiki'));
+        $t->same(null, PandocFormatRegistry::wikiInputExtensionAliasStatus('.dokuwiki'));
+        $t->same(null, PandocFormatRegistry::wikiInputExtensionAliasStatus('.xwiki'));
+
+        foreach (array_keys($expectedAliases) as $alias) {
+            $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension($alias), "Wiki status alias {$alias} must not become upstream file inference");
+        }
+    },
     'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::wikiFormatParitySummary();
 
