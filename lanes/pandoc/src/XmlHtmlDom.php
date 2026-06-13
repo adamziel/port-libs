@@ -13645,6 +13645,7 @@ final class XmlHtmlDom
                 ? self::attributeOrNull($element, 'alt')
                 : self::normalizedText($element),
         ];
+        $summary += self::hyperlinkNavigationReviewSummary($element, $name, $relRaw, $pingRaw);
 
         if ($name === 'area') {
             $summary['shape'] = self::attributeOrNull($element, 'shape');
@@ -13653,6 +13654,214 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkNavigationReviewSummary(
+        \DOMElement $element,
+        string $name,
+        ?string $relRaw,
+        ?string $pingRaw
+    ): array {
+        $href = self::attributeOrNull($element, 'href');
+        $hrefSummary = self::hyperlinkUrlReviewSummary($href);
+        $targetRaw = self::attributeOrNull($element, 'target');
+        $targetName = $targetRaw === null ? null : trim($targetRaw);
+        $targetLower = $targetName === null ? null : strtolower($targetName);
+        $rel = self::hyperlinkRelTokenReviewSummary($relRaw);
+        $hasNoopener = isset($rel['counts']['noopener']);
+        $hasNoreferrer = isset($rel['counts']['noreferrer']);
+        $hasOpener = isset($rel['counts']['opener']);
+        $targetBlank = $targetLower === '_blank';
+        $targetOpenerAllowed = $targetBlank && $hasOpener && !$hasNoopener && !$hasNoreferrer;
+        $downloadRaw = self::attributeOrNull($element, 'download');
+        $downloadRequested = $element->hasAttribute('download');
+        $referrerPolicyRaw = self::attributeOrNull($element, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $pingUrls = $pingRaw === null ? [] : self::spaceSeparatedTokens($pingRaw);
+        $pingRecords = [];
+        $unsafePingUrls = [];
+        $nonHttpPingUrls = [];
+        $issues = [];
+
+        if (($hrefSummary['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-href',
+                'href' => $href,
+                'scheme' => $hrefSummary['scheme'],
+            ];
+        }
+
+        if ($targetOpenerAllowed) {
+            $issues[] = ['code' => 'target-blank-explicit-opener'];
+        }
+
+        foreach ($rel['invalid'] as $token) {
+            $issues[] = ['code' => 'invalid-rel-token', 'relToken' => $token];
+        }
+        foreach ($rel['duplicates'] as $token) {
+            $issues[] = [
+                'code' => 'duplicate-rel-token',
+                'relToken' => $token,
+                'count' => $rel['counts'][$token],
+            ];
+        }
+
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $issues[] = ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => $referrerPolicyRaw];
+        }
+
+        foreach ($pingUrls as $url) {
+            $urlSummary = self::hyperlinkUrlReviewSummary($url);
+            $record = [
+                'url' => $url,
+                'kind' => $urlSummary['kind'],
+                'scheme' => $urlSummary['scheme'],
+                'unsafe' => $urlSummary['unsafe'],
+            ];
+            $pingRecords[] = $record;
+            if ($urlSummary['unsafe'] === true) {
+                $unsafePingUrls[] = $url;
+                $issues[] = [
+                    'code' => 'unsafe-ping-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+                continue;
+            }
+            if ($urlSummary['kind'] === 'absolute' && !in_array($urlSummary['scheme'], ['http', 'https'], true)) {
+                $nonHttpPingUrls[] = $url;
+                $issues[] = [
+                    'code' => 'non-http-ping-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+            }
+        }
+
+        return [
+            'hyperlinkNavigationReview' => $name,
+            'hrefRaw' => $href,
+            'hrefKind' => $hrefSummary['kind'],
+            'hrefScheme' => $hrefSummary['scheme'],
+            'hrefUnsafe' => $hrefSummary['unsafe'],
+            'targetRaw' => $targetRaw,
+            'targetName' => $targetName === '' ? null : $targetName,
+            'targetReserved' => in_array($targetLower, ['_blank', '_parent', '_self', '_top'], true),
+            'targetBlank' => $targetBlank,
+            'targetOpenerAllowed' => $targetOpenerAllowed,
+            'targetNoopener' => $targetBlank && ($hasNoopener || $hasNoreferrer || !$hasOpener),
+            'downloadRequested' => $downloadRequested,
+            'downloadRaw' => $downloadRaw,
+            'downloadSuggestedFilename' => !$downloadRequested || trim($downloadRaw ?? '') === '' ? null : trim($downloadRaw ?? ''),
+            'hyperlinkRelTokens' => $rel['tokens'],
+            'hyperlinkRelTokenCounts' => $rel['counts'],
+            'duplicateHyperlinkRelTokens' => $rel['duplicates'],
+            'invalidHyperlinkRelTokens' => $rel['invalid'],
+            'hyperlinkSecurityRelTokens' => array_values(array_filter(
+                ['noopener', 'noreferrer', 'opener'],
+                static fn (string $token): bool => isset($rel['counts'][$token])
+            )),
+            'referrerPolicyRaw' => $referrerPolicyRaw,
+            'referrerPolicy' => $referrerPolicy,
+            'referrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'pingSideEffect' => $pingUrls !== [],
+            'pingUrlCount' => count($pingUrls),
+            'pingUrlRecords' => $pingRecords,
+            'unsafePingUrls' => $unsafePingUrls,
+            'nonHttpPingUrls' => $nonHttpPingUrls,
+            'navigationIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{tokens:list<string>, counts:array<string, int>, duplicates:list<string>, invalid:list<string>}
+     */
+    private static function hyperlinkRelTokenReviewSummary(?string $relRaw): array
+    {
+        $tokens = [];
+        $counts = [];
+        $duplicates = [];
+        $invalid = [];
+        foreach ($relRaw === null ? [] : self::spaceSeparatedTokens($relRaw) as $token) {
+            if (!self::isSafeHtmlRelToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            $lower = strtolower($token);
+            if (!isset($counts[$lower])) {
+                $tokens[] = $lower;
+                $counts[$lower] = 0;
+            }
+            ++$counts[$lower];
+        }
+
+        foreach ($counts as $token => $count) {
+            if ($count > 1) {
+                $duplicates[] = $token;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'counts' => $counts,
+            'duplicates' => $duplicates,
+            'invalid' => $invalid,
+        ];
+    }
+
+    /**
+     * @return array{kind:string, scheme:?string, unsafe:bool}
+     */
+    private static function hyperlinkUrlReviewSummary(?string $url): array
+    {
+        if ($url === null) {
+            return ['kind' => 'missing', 'scheme' => null, 'unsafe' => false];
+        }
+
+        $url = trim($url);
+        if ($url === '') {
+            return ['kind' => 'empty', 'scheme' => null, 'unsafe' => false];
+        }
+        if (preg_match('/[\p{Cc}\p{Zl}\p{Zp}]/u', $url) === 1) {
+            return ['kind' => 'invalid', 'scheme' => null, 'unsafe' => true];
+        }
+        if (str_starts_with($url, '#')) {
+            return ['kind' => 'fragment', 'scheme' => null, 'unsafe' => false];
+        }
+        if (str_starts_with($url, '//')) {
+            return ['kind' => 'scheme-relative', 'scheme' => null, 'unsafe' => false];
+        }
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $url, $matches) === 1) {
+            $scheme = strtolower((string) $matches[1]);
+
+            return [
+                'kind' => 'absolute',
+                'scheme' => $scheme,
+                'unsafe' => in_array($scheme, ['data', 'file', 'javascript', 'vbscript'], true),
+            ];
+        }
+
+        return ['kind' => 'relative', 'scheme' => null, 'unsafe' => false];
+    }
+
+    private static function referrerPolicyState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, [
+            'no-referrer',
+            'no-referrer-when-downgrade',
+            'origin',
+            'origin-when-cross-origin',
+            'same-origin',
+            'strict-origin',
+            'strict-origin-when-cross-origin',
+            'unsafe-url',
+        ], true) ? $value : null;
     }
 
     private static function isValidDateParts(string $year, string $month, string $day): bool
