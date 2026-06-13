@@ -474,11 +474,7 @@ final class NativeReader
             'RawBlock' => $this->rawBlock($attrs, $block['c'] ?? []),
             'BlockQuote' => new AstNode('blockquote', $attrs, $this->blockNodes($block['c'] ?? [])),
             'OrderedList' => $this->orderedList($attrs, $block['c'] ?? []),
-            'BulletList' => new AstNode(
-                'bullet_list',
-                $attrs,
-                $this->listItems($block['c'] ?? [], 'Pandoc native JSON BulletList items')
-            ),
+            'BulletList' => $this->bulletList($attrs, $block['c'] ?? []),
             'DefinitionList' => $this->definitionList($attrs, $block['c'] ?? []),
             'LineBlock' => $this->lineBlock($attrs, $block['c'] ?? []),
             'HorizontalRule' => new AstNode('horizontal_rule', $attrs),
@@ -734,18 +730,68 @@ final class NativeReader
     }
 
     /**
+     * @param array<string, mixed> $attrs
+     */
+    private function bulletList(array $attrs, mixed $content): AstNode
+    {
+        $items = $this->listItems($content, 'Pandoc native JSON BulletList items');
+        if ($this->allListItemsAreTasks($items)) {
+            $attrs['taskList'] = true;
+        }
+
+        return new AstNode('bullet_list', $attrs, $items);
+    }
+
+    /**
      * @return list<AstNode>
      */
     private function listItems(mixed $items, string $context): array
     {
-        return array_map(
-            fn (mixed $item): AstNode => new AstNode(
+        return array_map(function (mixed $item): AstNode {
+            $attrs = ['listItemNative' => $item];
+            $taskChecked = $this->listItemTaskChecked($item);
+            if ($taskChecked !== null) {
+                $attrs['taskChecked'] = $taskChecked;
+            }
+
+            return new AstNode(
                 'list_item',
-                ['listItemNative' => $item],
+                $attrs,
                 $this->blockNodes($this->listContent($item, 'Pandoc native JSON list item'))
-            ),
-            $this->listContent($items, $context)
-        );
+            );
+        }, $this->listContent($items, $context));
+    }
+
+    private function listItemTaskChecked(mixed $item): ?bool
+    {
+        if (!is_array($item) || !array_is_list($item) || $item === []) {
+            return null;
+        }
+
+        $firstBlock = $item[0];
+        if (!is_array($firstBlock) || array_is_list($firstBlock) || !array_key_exists('taskChecked', $firstBlock)) {
+            return null;
+        }
+
+        return is_bool($firstBlock['taskChecked']) ? $firstBlock['taskChecked'] : null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function allListItemsAreTasks(array $children): bool
+    {
+        if ($children === []) {
+            return false;
+        }
+
+        foreach ($children as $child) {
+            if ($child->type !== 'list_item' || !is_bool($child->attr('taskChecked', null))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

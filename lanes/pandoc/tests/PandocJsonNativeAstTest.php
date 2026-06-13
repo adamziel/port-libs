@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
+use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -6089,6 +6091,65 @@ return [
                 $t->same('Edited', $editedItem[0]['c'][0]['c'], "{$source} {$writer} writer regenerates edited list item text");
                 $t->same(false, array_key_exists('reviewQueue', $editedItem[0]), "{$source} {$writer} writer drops stale edited list item payload");
             }
+        }
+    },
+    'preserves task list checkbox sidecars through json and native list items' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('bullet_list', ['taskList' => true], [
+                new AstNode('list_item', ['taskChecked' => false], [
+                    $paragraph('Prepare media queue'),
+                    new AstNode('bullet_list', ['taskList' => true], [
+                        new AstNode('list_item', ['taskChecked' => true], [
+                            $paragraph('Nested done'),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('list_item', ['taskChecked' => true], [
+                    $paragraph('Publish packet'),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $source => $packet) {
+            $outerItems = $packet['blocks'][0]['c'];
+            $nestedItems = $outerItems[0][1]['c'];
+
+            $t->same(false, $outerItems[0][0]['taskChecked'], "{$source} unchecked item sidecar");
+            $t->same(true, $outerItems[1][0]['taskChecked'], "{$source} checked item sidecar");
+            $t->same(true, $nestedItems[0][0]['taskChecked'], "{$source} nested checked item sidecar");
+        }
+
+        $roundTrips = [
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native' => (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($roundTrips as $source => $roundTrip) {
+            $list = $roundTrip->children[0];
+            $firstItem = $list->children[0];
+            $nestedList = $firstItem->children[1];
+
+            $t->same(true, $list->attr('taskList'), "{$source} bullet list task metadata");
+            $t->same(false, $firstItem->attr('taskChecked'), "{$source} unchecked item metadata");
+            $t->same(true, $list->children[1]->attr('taskChecked'), "{$source} checked item metadata");
+            $t->same(true, $nestedList->attr('taskList'), "{$source} nested list task metadata");
+            $t->same(true, $nestedList->children[0]->attr('taskChecked'), "{$source} nested checked item metadata");
+
+            $markdown = (new MarkdownWriter())->write($roundTrip);
+            $wordpress = (new WordPressBlockWriter())->write($roundTrip);
+            $latex = (new LatexWriter())->write($roundTrip);
+
+            $t->contains('- [ ] Prepare media queue', $markdown, "{$source} markdown unchecked marker");
+            $t->contains('  - [x] Nested done', $markdown, "{$source} markdown nested checked marker");
+            $t->contains('- [x] Publish packet', $markdown, "{$source} markdown checked marker");
+            $t->contains('<ul class="task-list"><li><label><input type="checkbox" />Prepare media queue</label><ul class="task-list"><li><label><input type="checkbox" checked="" />Nested done</label></li></ul></li><li><label><input type="checkbox" checked="" />Publish packet</label></li></ul>', $wordpress, "{$source} wordpress checkbox handoff");
+            $t->contains('\item[$\square$]', $latex, "{$source} latex unchecked task label");
+            $t->contains('\item[$\boxtimes$]', $latex, "{$source} latex checked task label");
         }
     },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
