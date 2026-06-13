@@ -171,6 +171,41 @@ return [
         $t->same(3, $ncx[1]['playOrder']);
         $t->same('details', $ncx[1]['fragment']);
     },
+    'preserves epub nav and ncx label provenance for package review' => static function (TestRunner $t) use ($fixture): void {
+        $document = (new EpubPackageReader())->readDirectory($fixture());
+        $epub = $document->attr('epub');
+        $toc = array_values(array_filter(
+            $epub['toc'],
+            static fn (array $entry): bool => $entry['type'] === 'toc'
+        ));
+        $ncx = $epub['ncx'];
+
+        $navLabel = $toc[0]['labelProvenance'];
+        $t->same('xhtml-nav', $navLabel['source']);
+        $t->same('a', $navLabel['element']);
+        $t->same('Opening Packet', $navLabel['text']);
+        $t->same('nav-opening-label', $navLabel['attributes']['id']);
+        $t->same('source-label', $navLabel['attributes']['class']);
+        $t->same('en', $navLabel['language']);
+        $t->same('ltr', $navLabel['direction']);
+        $t->same(['bodymatter'], $navLabel['epubTypes']);
+        $t->same(1, $navLabel['imageLabelCount']);
+        $t->same('images/cover.png', $navLabel['imageLabels'][0]['src']);
+        $t->same('EPUB/images/cover.png', $navLabel['imageLabels'][0]['path']);
+        $t->same('Cover label', $navLabel['imageLabels'][0]['alt']);
+        $t->same('Cover thumbnail', $navLabel['imageLabels'][0]['title']);
+
+        $ncxLabel = $ncx[0]['labelProvenance'];
+        $t->same('ncx-navLabel', $ncxLabel['source']);
+        $t->same('navLabel', $ncxLabel['element']);
+        $t->same('Opening Packet', $ncxLabel['text']);
+        $t->same('np-1-label', $ncxLabel['attributes']['id']);
+        $t->same('source-label', $ncxLabel['attributes']['class']);
+        $t->same('en', $ncxLabel['language']);
+        $t->same('ltr', $ncxLabel['direction']);
+        $t->same('np-1-text', $ncxLabel['textAttributes']['id']);
+        $t->same('source-text', $ncxLabel['textAttributes']['class']);
+    },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
