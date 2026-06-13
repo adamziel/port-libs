@@ -10,6 +10,10 @@ final class XmlHtmlDom
     private const IFRAME_SRCDOC_REVIEW_MAX_BYTES = 65536;
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
+    private const XML_NAMESPACE_URI = 'http://www.w3.org/XML/1998/namespace';
+    private const XMLNS_NAMESPACE_URI = 'http://www.w3.org/2000/xmlns/';
+    private const XML_NAMESPACE_USAGE_MAX_ELEMENTS = 4096;
+    private const XML_NAMESPACE_USAGE_MAX_ATTRIBUTES = 8192;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -760,6 +764,48 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeXmlNamespaceUsage(string $xml, string $label = 'XML document'): array
+    {
+        self::assertSafeSource($xml, $label);
+        self::assertNoDoctype($xml, $label);
+        self::assertNoXmlProcessingInstructions($xml, $label);
+
+        $scan = self::scanXmlNamespaceUsage($xml);
+        $diagnostics = self::xmlNamespaceDirectReaderDiagnostics($scan);
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'xml',
+            'reviewPolicy' => 'xml-namespace-usage-review-only',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            ),
+            'directReaderDiagnosticCount' => count($diagnostics),
+            'directReaderDiagnostics' => $diagnostics,
+            'rootName' => $scan['rootName'],
+            'rootPrefix' => $scan['rootPrefix'],
+            'elementCount' => $scan['elementCount'],
+            'attributeCount' => $scan['attributeCount'],
+            'namespaceDeclarationCount' => count($scan['namespaceDeclarations']),
+            'namespaceDeclarations' => $scan['namespaceDeclarations'],
+            'elementNamespaceUsage' => $scan['elementNamespaceUsage'],
+            'attributeNamespaceUsage' => $scan['attributeNamespaceUsage'],
+            'unboundPrefixes' => $scan['unboundPrefixes'],
+            'unboundPrefixCount' => count($scan['unboundPrefixes']),
+            'unusedNamespaceDeclarations' => $scan['unusedNamespaceDeclarations'],
+            'unusedNamespaceDeclarationCount' => count($scan['unusedNamespaceDeclarations']),
+            'reservedNamespaceUsage' => $scan['reservedNamespaceUsage'],
+            'reservedNamespaceDiagnostics' => $scan['reservedNamespaceDiagnostics'],
+            'reservedNamespaceDiagnosticCount' => count($scan['reservedNamespaceDiagnostics']),
+            'scanLimitExceeded' => $scan['scanLimitExceeded'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeJatsFrontMatter(\DOMDocument $dom, string $format = 'jats'): array
     {
         $root = $dom->documentElement;
@@ -1104,6 +1150,464 @@ final class XmlHtmlDom
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * @return array{
+     *     rootName:?string,
+     *     rootPrefix:?string,
+     *     elementCount:int,
+     *     attributeCount:int,
+     *     namespaceDeclarations:list<array{id:int, prefix:string, namespaceUri:string, elementName:string, depth:int, usedByElementCount:int, usedByAttributeCount:int}>,
+     *     elementNamespaceUsage:list<array{prefix:string, namespaceUri:?string, count:int, names:list<string>}>,
+     *     attributeNamespaceUsage:list<array{prefix:string, namespaceUri:?string, count:int, names:list<string>}>,
+     *     unboundPrefixes:list<array{prefix:string, usageCount:int, elementCount:int, attributeCount:int, examples:list<string>}>,
+     *     unusedNamespaceDeclarations:list<array{id:int, prefix:string, namespaceUri:string, elementName:string, depth:int, usedByElementCount:int, usedByAttributeCount:int}>,
+     *     reservedNamespaceUsage:array{xmlPrefixElementCount:int, xmlPrefixAttributeCount:int, xmlnsDeclarationCount:int, defaultNamespaceDeclarationCount:int, prefixedNamespaceDeclarationCount:int, misboundXmlDeclarationCount:int, xmlnsPrefixDeclarationCount:int, reservedXmlnsElementCount:int},
+     *     reservedNamespaceDiagnostics:list<array<string, int|string|bool>>,
+     *     scanLimitExceeded:bool
+     * }
+     */
+    private static function scanXmlNamespaceUsage(string $xml): array
+    {
+        $scopes = [
+            [
+                'xml' => [
+                    'uri' => self::XML_NAMESPACE_URI,
+                    'declarationId' => null,
+                ],
+            ],
+        ];
+        $namespaceDeclarations = [];
+        $elementUsage = [];
+        $attributeUsage = [];
+        $unboundPrefixes = [];
+        $reservedDiagnostics = [];
+        $reservedUsage = [
+            'xmlPrefixElementCount' => 0,
+            'xmlPrefixAttributeCount' => 0,
+            'xmlnsDeclarationCount' => 0,
+            'defaultNamespaceDeclarationCount' => 0,
+            'prefixedNamespaceDeclarationCount' => 0,
+            'misboundXmlDeclarationCount' => 0,
+            'xmlnsPrefixDeclarationCount' => 0,
+            'reservedXmlnsElementCount' => 0,
+        ];
+        $rootName = null;
+        $rootPrefix = null;
+        $elementCount = 0;
+        $attributeCount = 0;
+        $scanLimitExceeded = false;
+
+        preg_match_all('/<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?[^?]*\?>|<\/?[^<>]+>/s', $xml, $tokens);
+        foreach ($tokens[0] as $token) {
+            if (str_starts_with($token, '<!--') || str_starts_with($token, '<![CDATA[') || str_starts_with($token, '<?')) {
+                continue;
+            }
+
+            if (preg_match('/^<\s*\/\s*[A-Za-z_][A-Za-z0-9_.:-]*\s*>$/', $token) === 1) {
+                if (count($scopes) > 1) {
+                    array_pop($scopes);
+                }
+                continue;
+            }
+
+            if (preg_match('/^<\s*([A-Za-z_][A-Za-z0-9_.:-]*)(.*?)\s*(\/?)>$/s', $token, $match) !== 1) {
+                continue;
+            }
+
+            if ($elementCount >= self::XML_NAMESPACE_USAGE_MAX_ELEMENTS) {
+                $scanLimitExceeded = true;
+                break;
+            }
+
+            $qualifiedName = $match[1];
+            $attributes = self::xmlNamespaceAttributeRecords($match[2]);
+            $scope = $scopes[count($scopes) - 1];
+            $depth = count($scopes);
+
+            foreach ($attributes as $attribute) {
+                if (!self::isXmlNamespaceDeclarationName($attribute['name'])) {
+                    continue;
+                }
+
+                [$declarationPrefix] = self::xmlNamespaceDeclarationParts($attribute['name']);
+                $declarationId = count($namespaceDeclarations);
+                $namespaceDeclarations[] = [
+                    'id' => $declarationId,
+                    'prefix' => $declarationPrefix,
+                    'namespaceUri' => $attribute['value'],
+                    'elementName' => $qualifiedName,
+                    'depth' => $depth,
+                    'usedByElementCount' => 0,
+                    'usedByAttributeCount' => 0,
+                ];
+                $scope[$declarationPrefix] = [
+                    'uri' => $attribute['value'],
+                    'declarationId' => $declarationId,
+                ];
+                ++$reservedUsage['xmlnsDeclarationCount'];
+                if ($declarationPrefix === '') {
+                    ++$reservedUsage['defaultNamespaceDeclarationCount'];
+                } else {
+                    ++$reservedUsage['prefixedNamespaceDeclarationCount'];
+                }
+                if ($declarationPrefix === 'xml' && $attribute['value'] !== self::XML_NAMESPACE_URI) {
+                    ++$reservedUsage['misboundXmlDeclarationCount'];
+                    $reservedDiagnostics[] = [
+                        'code' => 'xml-prefix-misbound',
+                        'severity' => 'warning',
+                        'elementName' => $qualifiedName,
+                        'prefix' => 'xml',
+                        'namespaceUri' => $attribute['value'],
+                    ];
+                }
+                if ($declarationPrefix === 'xmlns') {
+                    ++$reservedUsage['xmlnsPrefixDeclarationCount'];
+                    $reservedDiagnostics[] = [
+                        'code' => 'xmlns-prefix-declared',
+                        'severity' => 'warning',
+                        'elementName' => $qualifiedName,
+                        'prefix' => 'xmlns',
+                        'namespaceUri' => $attribute['value'],
+                    ];
+                }
+            }
+
+            ++$elementCount;
+            [$elementPrefix] = self::splitXmlQualifiedName($qualifiedName);
+            if ($rootName === null) {
+                $rootName = $qualifiedName;
+                $rootPrefix = $elementPrefix === '' ? null : $elementPrefix;
+            }
+            if ($elementPrefix === 'xml') {
+                ++$reservedUsage['xmlPrefixElementCount'];
+            }
+            if ($elementPrefix === 'xmlns') {
+                ++$reservedUsage['reservedXmlnsElementCount'];
+                $reservedDiagnostics[] = [
+                    'code' => 'xmlns-prefix-element-name',
+                    'severity' => 'warning',
+                    'elementName' => $qualifiedName,
+                    'prefix' => 'xmlns',
+                    'namespaceUri' => self::XMLNS_NAMESPACE_URI,
+                ];
+            }
+
+            [$namespaceUri, $declarationId, $isUnbound] = self::resolveXmlNamespacePrefix($scope, $elementPrefix);
+            if ($isUnbound) {
+                self::recordXmlUnboundPrefix($unboundPrefixes, $elementPrefix, 'element', $qualifiedName);
+            } else {
+                self::recordXmlNamespaceUsage($elementUsage, $elementPrefix, $namespaceUri, $qualifiedName);
+                self::markXmlNamespaceDeclarationUsed($namespaceDeclarations, $declarationId, 'element');
+            }
+
+            foreach ($attributes as $attribute) {
+                if (self::isXmlNamespaceDeclarationName($attribute['name'])) {
+                    continue;
+                }
+
+                if ($attributeCount >= self::XML_NAMESPACE_USAGE_MAX_ATTRIBUTES) {
+                    $scanLimitExceeded = true;
+                    break 2;
+                }
+
+                ++$attributeCount;
+                [$attributePrefix] = self::splitXmlQualifiedName($attribute['name']);
+                if ($attributePrefix === 'xml') {
+                    ++$reservedUsage['xmlPrefixAttributeCount'];
+                }
+
+                [$attributeNamespaceUri, $attributeDeclarationId, $attributeUnbound] = self::resolveXmlNamespacePrefix($scope, $attributePrefix);
+                if ($attributeUnbound) {
+                    self::recordXmlUnboundPrefix($unboundPrefixes, $attributePrefix, 'attribute', $attribute['name']);
+                    continue;
+                }
+
+                self::recordXmlNamespaceUsage($attributeUsage, $attributePrefix, $attributeNamespaceUri, $attribute['name']);
+                self::markXmlNamespaceDeclarationUsed($namespaceDeclarations, $attributeDeclarationId, 'attribute');
+            }
+
+            if ($match[3] !== '/') {
+                $scopes[] = $scope;
+            }
+        }
+
+        $unusedDeclarations = array_values(array_filter(
+            $namespaceDeclarations,
+            static fn (array $declaration): bool => $declaration['usedByElementCount'] === 0
+                && $declaration['usedByAttributeCount'] === 0
+        ));
+
+        return [
+            'rootName' => $rootName,
+            'rootPrefix' => $rootPrefix,
+            'elementCount' => $elementCount,
+            'attributeCount' => $attributeCount,
+            'namespaceDeclarations' => $namespaceDeclarations,
+            'elementNamespaceUsage' => self::finalizeXmlNamespaceUsage($elementUsage),
+            'attributeNamespaceUsage' => self::finalizeXmlNamespaceUsage($attributeUsage),
+            'unboundPrefixes' => self::finalizeXmlUnboundPrefixes($unboundPrefixes),
+            'unusedNamespaceDeclarations' => $unusedDeclarations,
+            'reservedNamespaceUsage' => $reservedUsage,
+            'reservedNamespaceDiagnostics' => $reservedDiagnostics,
+            'scanLimitExceeded' => $scanLimitExceeded,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $scan
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function xmlNamespaceDirectReaderDiagnostics(array $scan): array
+    {
+        $diagnostics = [
+            self::xmlNamespaceDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                'XML direct reader parity is not implemented; this packet exposes bounded namespace usage diagnostics only.',
+                ['format' => 'xml']
+            ),
+        ];
+
+        if ($scan['unboundPrefixes'] !== []) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'unbound-prefixes',
+                'warning',
+                'One or more element or attribute prefixes are not bound in the in-scope XML namespace declarations.',
+                ['unboundPrefixCount' => count($scan['unboundPrefixes'])]
+            );
+        }
+
+        if ($scan['unusedNamespaceDeclarations'] !== []) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'unused-namespace-declarations',
+                'info',
+                'One or more namespace declarations were not used by descendant element or attribute names in the bounded scan.',
+                ['unusedNamespaceDeclarationCount' => count($scan['unusedNamespaceDeclarations'])]
+            );
+        }
+
+        if ($scan['reservedNamespaceDiagnostics'] !== []) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'reserved-namespace-usage',
+                'warning',
+                'Reserved xml/xmlns namespace usage needs reviewer attention.',
+                ['reservedNamespaceDiagnosticCount' => count($scan['reservedNamespaceDiagnostics'])]
+            );
+        }
+
+        if ($scan['scanLimitExceeded'] === true) {
+            $diagnostics[] = self::xmlNamespaceDirectReaderDiagnostic(
+                'namespace-scan-limit-exceeded',
+                'warning',
+                'Namespace usage scan stopped at the bounded XML review limit.',
+                ['elementLimit' => self::XML_NAMESPACE_USAGE_MAX_ELEMENTS, 'attributeLimit' => self::XML_NAMESPACE_USAGE_MAX_ATTRIBUTES]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, int|string|bool> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     */
+    private static function xmlNamespaceDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        array $details
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => false,
+            'coveredByPacket' => true,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, value:string}>
+     */
+    private static function xmlNamespaceAttributeRecords(string $source): array
+    {
+        preg_match_all(
+            '/\s+([A-Za-z_][A-Za-z0-9_.:-]*)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'))?/s',
+            $source,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $attributes = [];
+        foreach ($matches as $match) {
+            $attributes[] = [
+                'name' => $match[1],
+                'value' => $match[2] ?? $match[3] ?? '',
+            ];
+        }
+
+        return $attributes;
+    }
+
+    private static function isXmlNamespaceDeclarationName(string $name): bool
+    {
+        return $name === 'xmlns' || str_starts_with($name, 'xmlns:');
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function xmlNamespaceDeclarationParts(string $name): array
+    {
+        if ($name === 'xmlns') {
+            return ['', 'xmlns'];
+        }
+
+        return [substr($name, 6), 'xmlns'];
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function splitXmlQualifiedName(string $name): array
+    {
+        $parts = explode(':', $name, 2);
+        if (count($parts) === 1) {
+            return ['', $name];
+        }
+
+        return [$parts[0], $parts[1]];
+    }
+
+    /**
+     * @param array<string, array{uri:string, declarationId:int|null}> $scope
+     * @return array{0:?string, 1:int|null, 2:bool}
+     */
+    private static function resolveXmlNamespacePrefix(array $scope, string $prefix): array
+    {
+        if ($prefix === 'xml') {
+            return [self::XML_NAMESPACE_URI, null, false];
+        }
+        if ($prefix === 'xmlns') {
+            return [self::XMLNS_NAMESPACE_URI, null, false];
+        }
+        if ($prefix === '') {
+            if (!isset($scope[''])) {
+                return [null, null, false];
+            }
+
+            $uri = $scope['']['uri'];
+
+            return [$uri === '' ? null : $uri, $scope['']['declarationId'], false];
+        }
+        if (!isset($scope[$prefix]) || $scope[$prefix]['uri'] === '') {
+            return [null, null, true];
+        }
+
+        return [$scope[$prefix]['uri'], $scope[$prefix]['declarationId'], false];
+    }
+
+    /**
+     * @param array<int, array{id:int, prefix:string, namespaceUri:string, elementName:string, depth:int, usedByElementCount:int, usedByAttributeCount:int}> $declarations
+     */
+    private static function markXmlNamespaceDeclarationUsed(array &$declarations, ?int $declarationId, string $usageKind): void
+    {
+        if ($declarationId === null || !isset($declarations[$declarationId])) {
+            return;
+        }
+
+        if ($usageKind === 'attribute') {
+            ++$declarations[$declarationId]['usedByAttributeCount'];
+            return;
+        }
+
+        ++$declarations[$declarationId]['usedByElementCount'];
+    }
+
+    /**
+     * @param array<string, array{prefix:string, namespaceUri:?string, count:int, names:array<string, true>}> $usage
+     */
+    private static function recordXmlNamespaceUsage(array &$usage, string $prefix, ?string $namespaceUri, string $name): void
+    {
+        $key = $prefix . "\0" . ($namespaceUri ?? '');
+        if (!isset($usage[$key])) {
+            $usage[$key] = [
+                'prefix' => $prefix,
+                'namespaceUri' => $namespaceUri,
+                'count' => 0,
+                'names' => [],
+            ];
+        }
+
+        ++$usage[$key]['count'];
+        $usage[$key]['names'][$name] = true;
+    }
+
+    /**
+     * @param array<string, array{prefix:string, namespaceUri:?string, count:int, names:array<string, true>}> $usage
+     * @return list<array{prefix:string, namespaceUri:?string, count:int, names:list<string>}>
+     */
+    private static function finalizeXmlNamespaceUsage(array $usage): array
+    {
+        $records = [];
+        foreach ($usage as $record) {
+            $names = array_keys($record['names']);
+            sort($names, SORT_STRING);
+            $records[] = [
+                'prefix' => $record['prefix'],
+                'namespaceUri' => $record['namespaceUri'],
+                'count' => $record['count'],
+                'names' => $names,
+            ];
+        }
+        usort(
+            $records,
+            static fn (array $left, array $right): int => [$left['prefix'], $left['namespaceUri'] ?? '']
+                <=> [$right['prefix'], $right['namespaceUri'] ?? '']
+        );
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, array{prefix:string, usageCount:int, elementCount:int, attributeCount:int, examples:list<string>}> $unboundPrefixes
+     */
+    private static function recordXmlUnboundPrefix(array &$unboundPrefixes, string $prefix, string $usageKind, string $name): void
+    {
+        if (!isset($unboundPrefixes[$prefix])) {
+            $unboundPrefixes[$prefix] = [
+                'prefix' => $prefix,
+                'usageCount' => 0,
+                'elementCount' => 0,
+                'attributeCount' => 0,
+                'examples' => [],
+            ];
+        }
+
+        ++$unboundPrefixes[$prefix]['usageCount'];
+        if ($usageKind === 'attribute') {
+            ++$unboundPrefixes[$prefix]['attributeCount'];
+        } else {
+            ++$unboundPrefixes[$prefix]['elementCount'];
+        }
+        if (count($unboundPrefixes[$prefix]['examples']) < 5 && !in_array($name, $unboundPrefixes[$prefix]['examples'], true)) {
+            $unboundPrefixes[$prefix]['examples'][] = $name;
+        }
+    }
+
+    /**
+     * @param array<string, array{prefix:string, usageCount:int, elementCount:int, attributeCount:int, examples:list<string>}> $unboundPrefixes
+     * @return list<array{prefix:string, usageCount:int, elementCount:int, attributeCount:int, examples:list<string>}>
+     */
+    private static function finalizeXmlUnboundPrefixes(array $unboundPrefixes): array
+    {
+        $records = array_values($unboundPrefixes);
+        usort($records, static fn (array $left, array $right): int => $left['prefix'] <=> $right['prefix']);
+
+        return $records;
     }
 
     private static function jatsMetadataElement(\DOMElement $root): ?\DOMElement
@@ -6898,6 +7402,20 @@ final class XmlHtmlDom
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
         if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $source) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertNoXmlProcessingInstructions(string $source, string $label): void
+    {
+        preg_match_all('/<\?([A-Za-z_][A-Za-z0-9_.:-]*)\b.*?\?>/s', $source, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        foreach ($matches as $match) {
+            $target = strtolower($match[1][0]);
+            $offset = $match[0][1];
+            if ($target === 'xml' && trim(substr($source, 0, $offset)) === '') {
+                continue;
+            }
+
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }

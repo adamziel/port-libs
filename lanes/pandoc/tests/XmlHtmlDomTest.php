@@ -82,6 +82,91 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
+    'summarizes XML namespace usage without claiming direct reader parity' => static function (TestRunner $t): void {
+        $packet = XmlHtmlDom::summarizeXmlNamespaceUsage(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<root xmlns="urn:root" xmlns:used="urn:used" xmlns:unused="urn:unused" xmlns:badxml="urn:bad" xmlns:xml="urn:not-xml">
+  <used:item used:role="primary" xml:lang="en" missing:attr="x">
+    <child/>
+    <orphan:leaf xmlns:shadow="urn:shadow"/>
+    <xmlns:reserved/>
+  </used:item>
+</root>
+XML, 'namespace review XML');
+
+        $elementUsage = [];
+        foreach ($packet['elementNamespaceUsage'] as $usage) {
+            $elementUsage[$usage['prefix']] = $usage;
+        }
+        $attributeUsage = [];
+        foreach ($packet['attributeNamespaceUsage'] as $usage) {
+            $attributeUsage[$usage['prefix']] = $usage;
+        }
+        $unboundPrefixes = [];
+        foreach ($packet['unboundPrefixes'] as $record) {
+            $unboundPrefixes[$record['prefix']] = $record;
+        }
+        $unusedDeclarations = [];
+        foreach ($packet['unusedNamespaceDeclarations'] as $declaration) {
+            $unusedDeclarations[$declaration['prefix']] = $declaration;
+        }
+
+        $t->same('xml-html5-dom', $packet['formatFamily']);
+        $t->same('xml', $packet['format']);
+        $t->same('xml-namespace-usage-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same([
+            'direct-reader-unsupported',
+            'unbound-prefixes',
+            'unused-namespace-declarations',
+            'reserved-namespace-usage',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(4, $packet['directReaderDiagnosticCount']);
+        $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
+        $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
+        $t->same('xml', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][1]['details']['unboundPrefixCount'] ?? null);
+        $t->same(4, $packet['directReaderDiagnostics'][2]['details']['unusedNamespaceDeclarationCount'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][3]['details']['reservedNamespaceDiagnosticCount'] ?? null);
+        $t->same('root', $packet['rootName']);
+        $t->same(null, $packet['rootPrefix']);
+        $t->same(5, $packet['elementCount']);
+        $t->same(3, $packet['attributeCount']);
+        $t->same(6, $packet['namespaceDeclarationCount']);
+        $t->same(2, $elementUsage['']['count'] ?? null);
+        $t->same('urn:root', $elementUsage['']['namespaceUri'] ?? null);
+        $t->same(['child', 'root'], $elementUsage['']['names'] ?? null);
+        $t->same(1, $elementUsage['used']['count'] ?? null);
+        $t->same('urn:used', $elementUsage['used']['namespaceUri'] ?? null);
+        $t->same(1, $elementUsage['xmlns']['count'] ?? null);
+        $t->same('http://www.w3.org/2000/xmlns/', $elementUsage['xmlns']['namespaceUri'] ?? null);
+        $t->same(1, $attributeUsage['used']['count'] ?? null);
+        $t->same('urn:used', $attributeUsage['used']['namespaceUri'] ?? null);
+        $t->same(1, $attributeUsage['xml']['count'] ?? null);
+        $t->same('http://www.w3.org/XML/1998/namespace', $attributeUsage['xml']['namespaceUri'] ?? null);
+        $t->same(2, $packet['unboundPrefixCount']);
+        $t->same(1, $unboundPrefixes['missing']['attributeCount'] ?? null);
+        $t->same(['missing:attr'], $unboundPrefixes['missing']['examples'] ?? null);
+        $t->same(1, $unboundPrefixes['orphan']['elementCount'] ?? null);
+        $t->same(['orphan:leaf'], $unboundPrefixes['orphan']['examples'] ?? null);
+        $t->same(4, $packet['unusedNamespaceDeclarationCount']);
+        $t->same('urn:unused', $unusedDeclarations['unused']['namespaceUri'] ?? null);
+        $t->same('urn:bad', $unusedDeclarations['badxml']['namespaceUri'] ?? null);
+        $t->same('urn:not-xml', $unusedDeclarations['xml']['namespaceUri'] ?? null);
+        $t->same('urn:shadow', $unusedDeclarations['shadow']['namespaceUri'] ?? null);
+        $t->same(6, $packet['reservedNamespaceUsage']['xmlnsDeclarationCount']);
+        $t->same(1, $packet['reservedNamespaceUsage']['defaultNamespaceDeclarationCount']);
+        $t->same(5, $packet['reservedNamespaceUsage']['prefixedNamespaceDeclarationCount']);
+        $t->same(1, $packet['reservedNamespaceUsage']['xmlPrefixAttributeCount']);
+        $t->same(1, $packet['reservedNamespaceUsage']['misboundXmlDeclarationCount']);
+        $t->same(1, $packet['reservedNamespaceUsage']['reservedXmlnsElementCount']);
+        $t->same(2, $packet['reservedNamespaceDiagnosticCount']);
+        $t->same('xml-prefix-misbound', $packet['reservedNamespaceDiagnostics'][0]['code'] ?? null);
+        $t->same('xmlns-prefix-element-name', $packet['reservedNamespaceDiagnostics'][1]['code'] ?? null);
+        $t->same(false, $packet['scanLimitExceeded']);
+        $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeXmlNamespaceUsage('<?review href="file"?><root/>', 'unsafe namespace review XML'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes jats and bits front matter review packets without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" dtd-version="1.3" xml:lang="en" xmlns:xlink="http://www.w3.org/1999/xlink">
