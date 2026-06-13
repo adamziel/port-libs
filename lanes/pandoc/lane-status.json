@@ -619,6 +619,8 @@
   "xmlHtmlDomObjectAssociationAssertions": 31,
   "mappedIpynbReaderRichPackageCases": 2,
   "ipynbReaderRichPackageAssertions": 86,
+  "mappedIpynbSourceDigestDiagnosticCases": 1,
+  "ipynbSourceDigestDiagnosticAssertions": 56,
   "mappedXmlHtmlDomDocBookStructureReviewCases": 1,
   "xmlHtmlDomDocBookStructureReviewAssertions": 56,
   "mappedCsvTsvFormatInferenceCases": 2,

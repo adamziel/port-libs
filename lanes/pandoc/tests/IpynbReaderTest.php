@@ -187,4 +187,132 @@ return [
         $t->same('', $outputSupport['ipynb']['implementation']);
         $t->contains('No native PHP reader or writer is registered', $outputSupport['ipynb']['notes']);
     },
+    'summarizes ipynb cell source shapes digests and duplicate fingerprints without source text' => static function (TestRunner $t): void {
+        $repeatedSource = "alpha\r\nbeta\n";
+        $whitespaceSource = " \t\r";
+        $repeatedFingerprint = 'sha256:' . hash('sha256', $repeatedSource);
+        $emptyFingerprint = 'sha256:' . hash('sha256', '');
+        $whitespaceFingerprint = 'sha256:' . hash('sha256', $whitespaceSource);
+
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'source' => $repeatedSource,
+                ],
+                [
+                    'cell_type' => 'code',
+                    'source' => [
+                        "alpha\r\n",
+                        "beta\n",
+                    ],
+                ],
+                [
+                    'cell_type' => 'raw',
+                ],
+                [
+                    'cell_type' => 'markdown',
+                    'source' => null,
+                ],
+                [
+                    'cell_type' => 'raw',
+                    'source' => $whitespaceSource,
+                ],
+            ],
+            'metadata' => [
+                'language_info' => [
+                    'name' => 'php',
+                ],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $cells = $document->attr('notebookCells');
+        $summary = $document->attr('notebookSourceSummary');
+        $fingerprintCounts = $document->attr('notebookSourceFingerprintCounts');
+        $duplicates = $document->attr('notebookDuplicateSourceFingerprints');
+
+        $t->same('string', $cells[0]['sourceShape']);
+        $t->same(1, $cells[0]['sourcePartCount']);
+        $t->same(strlen($repeatedSource), $cells[0]['sourceBytes']);
+        $t->same(2, $cells[0]['sourceLineCount']);
+        $t->same(2, $cells[0]['sourceLineEndingCount']);
+        $t->same(['lf' => 1, 'crlf' => 1, 'cr' => 0], $cells[0]['sourceLineEndings']);
+        $t->same(true, $cells[0]['sourceHasTrailingLineEnding']);
+        $t->same(true, $cells[0]['sourceHasMixedLineEndings']);
+        $t->same('content', $cells[0]['sourceContentState']);
+        $t->same(['algorithm' => 'sha256', 'value' => hash('sha256', $repeatedSource)], $cells[0]['sourceDigest']);
+        $t->same($repeatedFingerprint, $cells[0]['sourceFingerprint']);
+        $t->same(2, $cells[0]['sourceFingerprintCount']);
+
+        $t->same('list', $cells[1]['sourceShape']);
+        $t->same(2, $cells[1]['sourcePartCount']);
+        $t->same($repeatedFingerprint, $cells[1]['sourceFingerprint']);
+        $t->same(2, $cells[1]['sourceFingerprintCount']);
+
+        $t->same('missing', $cells[2]['sourceShape']);
+        $t->same(0, $cells[2]['sourcePartCount']);
+        $t->same(0, $cells[2]['sourceBytes']);
+        $t->same(0, $cells[2]['sourceLineCount']);
+        $t->same('empty', $cells[2]['sourceContentState']);
+        $t->same($emptyFingerprint, $cells[2]['sourceFingerprint']);
+        $t->same(2, $cells[2]['sourceFingerprintCount']);
+
+        $t->same('null', $cells[3]['sourceShape']);
+        $t->same('empty', $cells[3]['sourceContentState']);
+        $t->same($emptyFingerprint, $cells[3]['sourceFingerprint']);
+        $t->same(2, $cells[3]['sourceFingerprintCount']);
+
+        $t->same('string', $cells[4]['sourceShape']);
+        $t->same(strlen($whitespaceSource), $cells[4]['sourceBytes']);
+        $t->same(1, $cells[4]['sourceLineCount']);
+        $t->same(1, $cells[4]['sourceLineEndingCount']);
+        $t->same(['lf' => 0, 'crlf' => 0, 'cr' => 1], $cells[4]['sourceLineEndings']);
+        $t->same(true, $cells[4]['sourceHasTrailingLineEnding']);
+        $t->same(false, $cells[4]['sourceHasMixedLineEndings']);
+        $t->same('whitespace-only', $cells[4]['sourceContentState']);
+        $t->same($whitespaceFingerprint, $cells[4]['sourceFingerprint']);
+        $t->same(1, $cells[4]['sourceFingerprintCount']);
+
+        $t->same(5, $summary['cellCount']);
+        $t->same((strlen($repeatedSource) * 2) + strlen($whitespaceSource), $summary['totalSourceBytes']);
+        $t->same(5, $summary['totalSourceLineCount']);
+        $t->same(['string' => 2, 'list' => 1, 'missing' => 1, 'null' => 1], $summary['sourceShapeCounts']);
+        $t->same(['lf' => 2, 'crlf' => 2, 'cr' => 1], $summary['sourceLineEndingCounts']);
+        $t->same(2, $summary['emptySourceCount']);
+        $t->same(1, $summary['whitespaceOnlySourceCount']);
+        $t->same(2, $summary['contentSourceCount']);
+        $t->same(2, $summary['mixedLineEndingSourceCount']);
+        $t->same(3, $summary['trailingLineEndingSourceCount']);
+        $t->same(3, $summary['uniqueSourceFingerprintCount']);
+        $t->same(2, $summary['duplicateSourceFingerprintCount']);
+        $t->same(4, $summary['duplicateSourceCellCount']);
+
+        $t->same(2, $fingerprintCounts[$repeatedFingerprint]);
+        $t->same(2, $fingerprintCounts[$emptyFingerprint]);
+        $t->same(1, $fingerprintCounts[$whitespaceFingerprint]);
+        $t->same([
+            [
+                'sourceFingerprint' => $repeatedFingerprint,
+                'count' => 2,
+                'cellIndexes' => [0, 1],
+            ],
+            [
+                'sourceFingerprint' => $emptyFingerprint,
+                'count' => 2,
+                'cellIndexes' => [2, 3],
+            ],
+        ], $duplicates);
+
+        $metadata = json_encode([
+            $cells,
+            $summary,
+            $fingerprintCounts,
+            $duplicates,
+        ], JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($metadata, 'alpha'));
+        $t->same(false, str_contains($metadata, 'beta'));
+    },
 ];
