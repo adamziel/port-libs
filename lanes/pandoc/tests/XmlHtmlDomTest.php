@@ -301,6 +301,118 @@ XML, 'DocBook 4 structure XML', preserveWhiteSpace: false);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookStructure($docbook = XmlHtmlDom::loadXmlDocument('<topic><title>Nope</title></topic>', 'non docbook XML')));
         json_encode($legacyPacket, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook media target manifests without direct reader parity claims' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2">
+  <info><title>DocBook Media Manifest</title></info>
+  <section xml:id="media-section">
+    <title>Media manifest</title>
+    <para><link linkend="media-block inline-logo inline-image">Media references</link></para>
+    <figure xml:id="fig-media">
+      <title>Screenshot</title>
+      <mediaobject xml:id="media-block">
+        <imageobject xml:id="fig-image"><imagedata xml:id="fig-target" fileref="images/logo.png" format="PNG"/></imageobject>
+        <textobject xml:id="fig-alt"><phrase>Main logo alt</phrase></textobject>
+      </mediaobject>
+    </figure>
+    <para>Inline
+      <inlinemediaobject xml:id="inline-logo">
+        <imageobject xml:id="inline-image"><imagedata xml:id="inline-target" fileref="icons/logo.svg" contenttype="image/svg+xml"/></imageobject>
+        <textobject><phrase>Inline logo alt</phrase></textobject>
+      </inlinemediaobject>
+      repeated
+      <inlinemediaobject xml:id="inline-logo-repeat">
+        <imageobject><imagedata fileref="icons/logo.svg"/></imageobject>
+      </inlinemediaobject>.
+    </para>
+    <mediaobject xml:id="same-base-different-path">
+      <imageobject><imagedata fileref="../assets/logo.svg?rev=2" format="SVG"/></imageobject>
+      <textobject><phrase>Alternate path logo</phrase></textobject>
+    </mediaobject>
+    <mediaobject xml:id="missing-target-media">
+      <imageobject xml:id="missing-target-image"><imagedata format="PDF"/></imageobject>
+      <textobject><phrase>Missing target alt</phrase></textobject>
+    </mediaobject>
+    <mediaobject xml:id="no-type-media">
+      <imageobject xml:id="no-type-image"><imagedata fileref="images/no-type"/></imageobject>
+      <textobject><phrase>No type alt</phrase></textobject>
+    </mediaobject>
+    <mediaobject xml:id="text-only-media"><textobject><phrase>Text fallback only</phrase></textobject></mediaobject>
+  </section>
+  <bibliography><biblioentry xml:id="ref-media"><title>Reference</title></biblioentry></bibliography>
+</article>
+XML, 'DocBook media manifest XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookStructure($docbook, 'docbook5');
+        $manifest = $packet['mediaTargetManifest'];
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(1, $packet['sectionCount']);
+        $t->same(1, $packet['bibliographyEntryCount']);
+        $t->same('docbook-media-target-manifest-review-only', $manifest['reviewPolicy']);
+        $t->same(false, $manifest['directReaderParity']);
+        $t->same(7, $manifest['mediaObjectCount']);
+        $t->same(6, $manifest['targetCount']);
+        $t->same(5, $manifest['resolvedTargetCount']);
+        $t->same(4, $manifest['uniqueTargetCount']);
+        $t->same(['images/logo.png', 'icons/logo.svg', '../assets/logo.svg?rev=2', 'images/no-type'], $manifest['targetRefs']);
+        $t->same(['images/logo.png', 'icons/logo.svg', '../assets/logo.svg?rev=2', 'images/no-type'], $packet['mediaTargetRefs']);
+        $t->same('images/logo.png', $manifest['targets'][0]['target'] ?? null);
+        $t->same('fileref', $manifest['targets'][0]['targetAttribute'] ?? null);
+        $t->same('logo.png', $manifest['targets'][0]['basename'] ?? null);
+        $t->same('image/png', $manifest['targets'][0]['contentType'] ?? null);
+        $t->same('format', $manifest['targets'][0]['contentTypeSource'] ?? null);
+        $t->same(['media-block'], $manifest['targets'][0]['referencedByLinkendIds'] ?? null);
+        $t->same([['index' => 0, 'id' => 'fig-alt', 'text' => 'Main logo alt']], $manifest['targets'][0]['textAlternatives'] ?? null);
+        $t->same('icons/logo.svg', $manifest['targets'][1]['target'] ?? null);
+        $t->same('image/svg+xml', $manifest['targets'][1]['contentType'] ?? null);
+        $t->same('contenttype', $manifest['targets'][1]['contentTypeSource'] ?? null);
+        $t->same(['inline-logo', 'inline-image'], $manifest['targets'][1]['referencedByLinkendIds'] ?? null);
+        $t->same(true, $manifest['targets'][1]['isInline'] ?? null);
+        $t->same([], $manifest['targets'][2]['textAlternatives'] ?? null);
+        $t->same('extension', $manifest['targets'][2]['contentTypeSource'] ?? null);
+        $t->same('../assets/logo.svg?rev=2', $manifest['targets'][3]['target'] ?? null);
+        $t->same('logo.svg', $manifest['targets'][3]['basename'] ?? null);
+        $t->same('format', $manifest['targets'][3]['contentTypeSource'] ?? null);
+        $t->same(null, $manifest['targets'][4]['target'] ?? null);
+        $t->same(null, $manifest['targets'][4]['targetAttribute'] ?? null);
+        $t->same('images/no-type', $manifest['targets'][5]['target'] ?? null);
+        $t->same(null, $manifest['targets'][5]['contentType'] ?? null);
+        $t->same([['target' => 'icons/logo.svg', 'count' => 2, 'targetIndexes' => [1, 2]]], $manifest['repeatedTargets']);
+        $t->same([
+            ['basename' => 'logo.png', 'count' => 1, 'targetIndexes' => [0], 'targets' => ['images/logo.png']],
+            ['basename' => 'logo.svg', 'count' => 3, 'targetIndexes' => [1, 2, 3], 'targets' => ['icons/logo.svg', '../assets/logo.svg?rev=2']],
+            ['basename' => 'no-type', 'count' => 1, 'targetIndexes' => [5], 'targets' => ['images/no-type']],
+        ], $manifest['basenameGroups']);
+        $t->same([
+            ['contentType' => 'image/png', 'count' => 1, 'targetIndexes' => [0], 'targets' => ['images/logo.png']],
+            ['contentType' => 'image/svg+xml', 'count' => 3, 'targetIndexes' => [1, 2, 3], 'targets' => ['icons/logo.svg', '../assets/logo.svg?rev=2']],
+        ], $manifest['contentTypeGroups']);
+        $t->same([
+            ['id' => 'inline-image', 'targetIndexes' => [1], 'targetCount' => 1],
+            ['id' => 'inline-logo', 'targetIndexes' => [1], 'targetCount' => 1],
+            ['id' => 'media-block', 'targetIndexes' => [0], 'targetCount' => 1],
+        ], $manifest['linkendMediaReferences']);
+        $t->same([
+            'docbook-inline-media-alt-missing',
+            'docbook-media-target-missing',
+            'docbook-media-target-content-type-missing',
+            'docbook-media-textobject-without-imageobject',
+            'docbook-media-target-repeated',
+        ], $manifest['diagnosticCodes']);
+        $t->same($manifest['diagnosticCodes'], $packet['mediaTargetDiagnosticCodes']);
+        $t->same(5, $manifest['diagnosticCount']);
+        $t->same('docbook-inline-media-alt-missing', $manifest['diagnostics'][0]['code'] ?? null);
+        $t->same('icons/logo.svg', $manifest['diagnostics'][0]['target'] ?? null);
+        $t->same('docbook-media-target-missing', $manifest['diagnostics'][1]['code'] ?? null);
+        $t->same('missing-target-image', $manifest['diagnostics'][1]['imageObjectId'] ?? null);
+        $t->same('docbook-media-target-content-type-missing', $manifest['diagnostics'][2]['code'] ?? null);
+        $t->same('images/no-type', $manifest['diagnostics'][2]['target'] ?? null);
+        $t->same('docbook-media-textobject-without-imageobject', $manifest['diagnostics'][3]['code'] ?? null);
+        $t->same('text-only-media', $manifest['diagnostics'][3]['mediaId'] ?? null);
+        $t->same('docbook-media-target-repeated', $manifest['diagnostics'][4]['code'] ?? null);
+        $t->same([1, 2], $manifest['diagnostics'][4]['targetIndexes'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',

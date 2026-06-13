@@ -1004,6 +1004,7 @@ final class XmlHtmlDom
         $contributors = $metadata instanceof \DOMElement ? self::docBookContributorSummaries($metadata) : [];
         $identifiers = $metadata instanceof \DOMElement ? self::docBookIdentifierSummaries($metadata) : [];
         [$xrefTargets, $externalTargets] = self::docBookLinkTargets($root);
+        $mediaTargetManifest = self::docBookMediaTargetManifest($root, $xrefTargets);
 
         return [
             'formatFamily' => 'xml-html5-docbook-dom',
@@ -1072,6 +1073,10 @@ final class XmlHtmlDom
                 + count(self::descendantElements($root, 'inlinemediaobject')),
             'imageObjectCount' => count(self::descendantElements($root, 'imageobject')),
             'imageDataRefs' => self::docBookImageDataRefs($root),
+            'mediaTargetManifest' => $mediaTargetManifest,
+            'mediaTargetCount' => $mediaTargetManifest['targetCount'],
+            'mediaTargetRefs' => $mediaTargetManifest['targetRefs'],
+            'mediaTargetDiagnosticCodes' => $mediaTargetManifest['diagnosticCodes'],
         ];
     }
 
@@ -1484,6 +1489,376 @@ final class XmlHtmlDom
         }
 
         return array_values(array_unique($refs));
+    }
+
+    /**
+     * @param list<string> $xrefTargets
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaTargetManifest(\DOMElement $root, array $xrefTargets): array
+    {
+        $targets = [];
+        $diagnostics = [];
+        $targetRefs = [];
+        $targetGroups = [];
+        $basenameGroups = [];
+        $contentTypeGroups = [];
+        $linkendReferences = [];
+        $xrefLookup = array_fill_keys($xrefTargets, true);
+        $mediaObjects = self::docBookMediaObjects($root);
+
+        foreach ($mediaObjects as $mediaIndex => $media) {
+            $mediaId = self::docBookElementId($media);
+            $textObjects = self::childElements($media, 'textobject');
+            $textAlternatives = self::docBookTextObjectSummaries($textObjects);
+            $imageObjects = self::childElements($media, 'imageobject');
+
+            if ($imageObjects === [] && $textObjects !== []) {
+                $diagnostics[] = [
+                    'code' => 'docbook-media-textobject-without-imageobject',
+                    'severity' => 'review',
+                    'mediaIndex' => $mediaIndex,
+                    'mediaElement' => $media->localName,
+                    'mediaId' => $mediaId,
+                    'textObjectCount' => count($textObjects),
+                ];
+            }
+
+            foreach ($imageObjects as $imageObjectIndex => $imageObject) {
+                $imageObjectId = self::docBookElementId($imageObject);
+                $imageDataElements = self::childElements($imageObject, 'imagedata');
+                if ($imageDataElements === []) {
+                    $diagnostics[] = [
+                        'code' => 'docbook-media-imageobject-without-imagedata',
+                        'severity' => 'warning',
+                        'mediaIndex' => $mediaIndex,
+                        'mediaElement' => $media->localName,
+                        'mediaId' => $mediaId,
+                        'imageObjectIndex' => $imageObjectIndex,
+                        'imageObjectId' => $imageObjectId,
+                    ];
+                    continue;
+                }
+
+                foreach ($imageDataElements as $imageDataIndex => $imageData) {
+                    $targetInfo = self::docBookImageDataTarget($imageData);
+                    $target = $targetInfo['target'];
+                    $contentType = $target === null
+                        ? ['contentType' => null, 'source' => null]
+                        : self::docBookMediaContentType($imageData, $target);
+                    $basename = $target === null ? null : self::docBookMediaTargetBasename($target);
+                    $elementIds = array_values(array_filter(
+                        [
+                            $mediaId,
+                            $imageObjectId,
+                            self::docBookElementId($imageData),
+                        ],
+                        static fn (?string $id): bool => $id !== null && $id !== ''
+                    ));
+                    $referencedIds = array_values(array_filter(
+                        $elementIds,
+                        static fn (string $id): bool => isset($xrefLookup[$id])
+                    ));
+                    $recordIndex = count($targets);
+                    $record = [
+                        'index' => $recordIndex,
+                        'mediaIndex' => $mediaIndex,
+                        'mediaElement' => $media->localName,
+                        'mediaId' => $mediaId,
+                        'isInline' => $media->localName === 'inlinemediaobject',
+                        'imageObjectIndex' => $imageObjectIndex,
+                        'imageObjectId' => $imageObjectId,
+                        'imageDataIndex' => $imageDataIndex,
+                        'imageDataId' => self::docBookElementId($imageData),
+                        'target' => $target,
+                        'targetAttribute' => $targetInfo['attribute'],
+                        'basename' => $basename,
+                        'contentType' => $contentType['contentType'],
+                        'contentTypeSource' => $contentType['source'],
+                        'textObjectCount' => count($textObjects),
+                        'textAlternatives' => $textAlternatives,
+                        'textAlternativeCount' => count($textAlternatives),
+                        'referencedByLinkendIds' => $referencedIds,
+                        'hasLinkendReference' => $referencedIds !== [],
+                    ];
+                    $targets[] = $record;
+
+                    foreach ($referencedIds as $referencedId) {
+                        $linkendReferences[$referencedId][] = $recordIndex;
+                    }
+
+                    if ($target === null) {
+                        $diagnostics[] = [
+                            'code' => 'docbook-media-target-missing',
+                            'severity' => 'warning',
+                            'mediaIndex' => $mediaIndex,
+                            'mediaElement' => $media->localName,
+                            'mediaId' => $mediaId,
+                            'imageObjectIndex' => $imageObjectIndex,
+                            'imageObjectId' => $imageObjectId,
+                            'imageDataIndex' => $imageDataIndex,
+                            'imageDataId' => self::docBookElementId($imageData),
+                        ];
+                    } else {
+                        $targetRefs[] = $target;
+                        $targetGroups[$target][] = $recordIndex;
+                    }
+
+                    if ($basename !== null) {
+                        $basenameGroups[$basename][] = $recordIndex;
+                    }
+
+                    if ($contentType['contentType'] !== null) {
+                        $contentTypeGroups[$contentType['contentType']][] = $recordIndex;
+                    } elseif ($target !== null) {
+                        $diagnostics[] = [
+                            'code' => 'docbook-media-target-content-type-missing',
+                            'severity' => 'review',
+                            'mediaIndex' => $mediaIndex,
+                            'mediaElement' => $media->localName,
+                            'mediaId' => $mediaId,
+                            'imageObjectIndex' => $imageObjectIndex,
+                            'imageObjectId' => $imageObjectId,
+                            'target' => $target,
+                        ];
+                    }
+
+                    if ($textAlternatives === []) {
+                        $diagnostics[] = [
+                            'code' => $media->localName === 'inlinemediaobject'
+                                ? 'docbook-inline-media-alt-missing'
+                                : 'docbook-media-textobject-missing',
+                            'severity' => 'review',
+                            'mediaIndex' => $mediaIndex,
+                            'mediaElement' => $media->localName,
+                            'mediaId' => $mediaId,
+                            'imageObjectIndex' => $imageObjectIndex,
+                            'imageObjectId' => $imageObjectId,
+                            'target' => $target,
+                        ];
+                    }
+                }
+            }
+        }
+
+        foreach ($targetGroups as $target => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'docbook-media-target-repeated',
+                'severity' => 'review',
+                'target' => $target,
+                'count' => count($indexes),
+                'targetIndexes' => $indexes,
+            ];
+        }
+        $repeatedTargetGroups = array_filter(
+            $targetGroups,
+            static fn (array $indexes): bool => count($indexes) > 1
+        );
+
+        return [
+            'reviewPolicy' => 'docbook-media-target-manifest-review-only',
+            'directReaderParity' => false,
+            'mediaObjectCount' => count($mediaObjects),
+            'targetCount' => count($targets),
+            'resolvedTargetCount' => count($targetRefs),
+            'uniqueTargetCount' => count(array_unique($targetRefs)),
+            'targetRefs' => array_values(array_unique($targetRefs)),
+            'repeatedTargets' => self::docBookMediaGroupSummaries($repeatedTargetGroups, 'target'),
+            'basenameGroups' => self::docBookMediaGroupSummaries($basenameGroups, 'basename', $targets),
+            'contentTypeGroups' => self::docBookMediaGroupSummaries($contentTypeGroups, 'contentType', $targets),
+            'linkendMediaReferences' => self::docBookLinkendMediaReferenceSummaries($linkendReferences),
+            'targets' => $targets,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            ))),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function docBookMediaObjects(\DOMElement $root): array
+    {
+        $mediaObjects = [];
+        foreach (self::descendantElements($root) as $element) {
+            if ($element->localName === 'mediaobject' || $element->localName === 'inlinemediaobject') {
+                $mediaObjects[] = $element;
+            }
+        }
+
+        return $mediaObjects;
+    }
+
+    /**
+     * @param list<\DOMElement> $textObjects
+     * @return list<array{index:int, id:?string, text:string}>
+     */
+    private static function docBookTextObjectSummaries(array $textObjects): array
+    {
+        $summaries = [];
+        foreach ($textObjects as $index => $textObject) {
+            $text = self::normalizedText($textObject);
+            if ($text === '') {
+                continue;
+            }
+
+            $summaries[] = [
+                'index' => $index,
+                'id' => self::docBookElementId($textObject),
+                'text' => $text,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return array{target:?string, attribute:?string}
+     */
+    private static function docBookImageDataTarget(\DOMElement $imageData): array
+    {
+        foreach ([
+            ['fileref', null, 'fileref'],
+            ['href', 'http://www.w3.org/1999/xlink', 'xlink:href'],
+            ['entityref', null, 'entityref'],
+        ] as [$localName, $namespace, $label]) {
+            $value = self::attribute($imageData, $localName, $namespace);
+            if ($value !== null && trim($value) !== '') {
+                return ['target' => trim($value), 'attribute' => $label];
+            }
+        }
+
+        return ['target' => null, 'attribute' => null];
+    }
+
+    /**
+     * @return array{contentType:?string, source:?string}
+     */
+    private static function docBookMediaContentType(\DOMElement $imageData, string $target): array
+    {
+        foreach (['contenttype', 'content-type'] as $attribute) {
+            $value = self::attribute($imageData, $attribute);
+            if ($value !== null && trim($value) !== '') {
+                return ['contentType' => strtolower(trim($value)), 'source' => $attribute];
+            }
+        }
+
+        $format = self::attribute($imageData, 'format');
+        if ($format !== null && trim($format) !== '') {
+            $format = strtolower(trim($format));
+            $contentType = str_contains($format, '/')
+                ? $format
+                : self::docBookMediaContentTypeForExtension($format);
+            if ($contentType !== null) {
+                return ['contentType' => $contentType, 'source' => 'format'];
+            }
+        }
+
+        $basename = self::docBookMediaTargetBasename($target);
+        if ($basename !== null && str_contains($basename, '.')) {
+            $extension = strtolower((string) pathinfo($basename, PATHINFO_EXTENSION));
+            $contentType = self::docBookMediaContentTypeForExtension($extension);
+            if ($contentType !== null) {
+                return ['contentType' => $contentType, 'source' => 'extension'];
+            }
+        }
+
+        return ['contentType' => null, 'source' => null];
+    }
+
+    private static function docBookMediaContentTypeForExtension(string $extension): ?string
+    {
+        return match (strtolower($extension)) {
+            'apng' => 'image/apng',
+            'avif' => 'image/avif',
+            'gif' => 'image/gif',
+            'jpg', 'jpeg', 'jpe' => 'image/jpeg',
+            'png' => 'image/png',
+            'svg', 'svgz' => 'image/svg+xml',
+            'tif', 'tiff' => 'image/tiff',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+            'eps', 'ps' => 'application/postscript',
+            'pdf' => 'application/pdf',
+            default => null,
+        };
+    }
+
+    private static function docBookMediaTargetBasename(string $target): ?string
+    {
+        $target = trim($target);
+        if ($target === '' || str_starts_with(strtolower($target), 'data:')) {
+            return null;
+        }
+
+        $pathLength = strcspn($target, '?#');
+        $path = substr($target, 0, $pathLength);
+        $path = str_replace('\\', '/', $path);
+        $basename = basename($path);
+
+        return $basename === '' || $basename === '.' ? null : $basename;
+    }
+
+    /**
+     * @param array<string, list<int>> $groups
+     * @param list<array<string, mixed>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaGroupSummaries(array $groups, string $label, array $targets = []): array
+    {
+        ksort($groups);
+        $summaries = [];
+        foreach ($groups as $value => $indexes) {
+            if ($indexes === []) {
+                continue;
+            }
+
+            $summary = [
+                $label => $value,
+                'count' => count($indexes),
+                'targetIndexes' => $indexes,
+            ];
+            if ($targets !== []) {
+                $summary['targets'] = array_values(array_unique(array_filter(
+                    array_map(
+                        static fn (int $index): ?string => is_string($targets[$index]['target'] ?? null)
+                            ? $targets[$index]['target']
+                            : null,
+                        $indexes
+                    ),
+                    static fn (?string $target): bool => $target !== null && $target !== ''
+                )));
+            }
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param array<string, list<int>> $linkendReferences
+     * @return list<array{id:string, targetIndexes:list<int>, targetCount:int}>
+     */
+    private static function docBookLinkendMediaReferenceSummaries(array $linkendReferences): array
+    {
+        ksort($linkendReferences);
+        $summaries = [];
+        foreach ($linkendReferences as $id => $targetIndexes) {
+            $summaries[] = [
+                'id' => $id,
+                'targetIndexes' => array_values(array_unique($targetIndexes)),
+                'targetCount' => count(array_unique($targetIndexes)),
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
