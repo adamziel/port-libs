@@ -10236,6 +10236,40 @@ MD;
         $t->contains(':::: {.outer}', (new MarkdownWriter())->write($document));
         $t->contains('<div class="outer"><p>Outer review starts.</p><div id="inner" class="callout" data-source="nested"><p>Inner <strong>review</strong> note.</p></div><p>Outer review ends.</p></div>', $blocks);
     },
+    'preserves escaped fenced div attributes across markdown native and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '::: {#quote-packet .review data-title="Reviewer \"quote\" packet" data-note="A &quot;fallback&quot; &amp; review"}',
+            'Quoted attribute packet.',
+            ':::',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $div = $document->children[0] ?? new AstNode('missing');
+        $nativeJson = (new NativeWriter())->write($document);
+        $nativePacket = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTrip = (new NativeReader())->read($nativeJson);
+        $nativeDiv = $nativeRoundTrip->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $div->type);
+        $t->same('quote-packet', $div->attr('id'));
+        $t->same(['review'], $div->attr('classes'));
+        $t->same([
+            'data-title' => 'Reviewer "quote" packet',
+            'data-note' => 'A "fallback" & review',
+        ], $div->attr('attributes'));
+        $t->same(['quote-packet', ['review'], [
+            ['data-title', 'Reviewer "quote" packet'],
+            ['data-note', 'A "fallback" & review'],
+        ]], $nativePacket['blocks'][0]['c'][0]);
+        $t->same($div->attr('attributes'), $nativeDiv->attr('attributes'));
+        $t->same(implode("\n", [
+            '::: {#quote-packet .review data-title="Reviewer \"quote\" packet" data-note="A \"fallback\" & review"}',
+            'Quoted attribute packet.',
+            ':::',
+        ]), (new MarkdownWriter())->write($document));
+        $t->contains('data-title="Reviewer &quot;quote&quot; packet"', $blocks);
+        $t->contains('data-note="A &quot;fallback&quot; &amp; review"', $blocks);
+    },
     'maps upstream markdown writer fenced code block attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
