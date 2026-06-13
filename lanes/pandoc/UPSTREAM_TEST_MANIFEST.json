@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3291,
-        "latestSlice": "pandoc-zip-selected-handoff-role-buckets maps one shared ZIP/OPC package coverage slice after EPUB XHTML table semantics. ZipPackage::entryHandoffPreflight roleSummaries now report handoffUniqueEntryCount, handoffCompressedBytes, handoffUncompressedBytes, handoffEntryNames, and per-role issueCounts so DOCX/EPUB/ODT package readers can review readable bytes, duplicate requests, oversized sidecars, and missing required package parts by semantic role before exposing selected payloads. Mapped denominator moves 3290 -> 3291, mappedZipSelectedHandoffRoleBucketCases is 1, and zipSelectedHandoffRoleBucketAssertions is 13. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures after final rebase onto current main 70d29eb6f8 without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+        "mapped": 3292,
+        "latestSlice": "pandoc-text-markup-unsupported-diagnostics maps one native format-registry diagnostic case over the 20 wiki/roff/manual/lightweight text reader tokens after shared ZIP/OPC selected-entry handoff role buckets. PandocFormatRegistry now reports reason codes, family buckets, reader/writer capability flags, unsupported directions, and 20/0 denominator evidence without registering parsers or invoking Pandoc, roff/wiki renderers, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3291 -> 3292, mappedTextMarkupUnsupportedDiagnosticsCases is 1, and textMarkupUnsupportedDiagnosticsAssertions is 100. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures after final rebase onto current main 9ab2f42c1e.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Shared ZIP/OPC selected-entry handoff role buckets are verified over current main 70d29eb6f8 after EPUB XHTML table semantics.",
-        "latestFocusedSource": "2026-06-13 shared ZIP/OPC slice inspected selected-entry handoff role bucket provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 70d29eb6f8; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures.",
+        "status": "Text markup unsupported diagnostics are verified over current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets.",
+        "latestFocusedSource": "2026-06-13 text markup unsupported diagnostics inspected the accepted 20-token wiki/roff/manual/lightweight text reader input set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -203,7 +203,9 @@
         "mappedEpubXhtmlTableSemanticsCases": 1,
         "epubXhtmlTableSemanticsAssertions": 52,
         "mappedZipSelectedHandoffRoleBucketCases": 1,
-        "zipSelectedHandoffRoleBucketAssertions": 13
+        "zipSelectedHandoffRoleBucketAssertions": 13,
+        "mappedTextMarkupUnsupportedDiagnosticsCases": 1,
+        "textMarkupUnsupportedDiagnosticsAssertions": 100
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1115,12 +1117,12 @@
         "mappedLatexTableBodyHeadWriterCases": 1,
         "latexTableBodyHeadWriterAssertions": 1
     },
-    "wordpressScenario": "Shared ZIP/OPC selected-entry package handoff now reports role-level unique readable entries, byte exposure totals, handoff entry names, and issue counts before DOCX/EPUB/ODT readers expose package bytes without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "wordpressScenario": "Text markup format review packets now give WordPress/import reviewers explicit unsupported diagnostics for 20 wiki/roff/manual/lightweight text input tokens, including reason codes and reader/writer capability flags, without invoking Pandoc, wiki renderers, roff tools, browser renderers, external validators, or online services.",
     "nextTask": "Continue table geometry with multiple body-group semantics in non-HTML writers or true LaTeX rowspan output beyond diagnostics while keeping phpFail at zero.",
-    "status": "Shared ZIP/OPC selected-entry handoff role buckets are verified over current main 70d29eb6f8 after EPUB XHTML table semantics.",
-    "mapping": "Adds one shared ZIP/OPC package case for selected-entry role bucket accounting across readable handoff bytes, duplicate selected entries, oversized blocked sidecars, and missing required sidecars while preserving prior EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
+    "status": "Text markup unsupported diagnostics are verified over current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets.",
+    "mapping": "Accounts for one bounded native PHP text markup unsupported diagnostic mapping while preserving prior shared ZIP/OPC selected-entry role buckets, EPUB XHTML table semantics, PlainWriter body-group, Markdown HTML list item, Markdown math attribute, JSON/native block-container, XML/JATS/BITS direct-reader, DOCX/OpenXML, EPUB definition-list, EPUB manifest/spine, PDF/Typst, LaTeX, JSON/native, MediaBag, CSV/TSV, and table-geometry counters.",
     "audit": "updated 2026-06-13: LatexWriter preserves table_body headRows in body position and TableGeometry no longer reports latex-body-head-rows-review-required for the covered LaTeX writer path. Verified after rebase onto current main f286538a3b with php -l lanes/pandoc/src/LatexWriter.php, php -l lanes/pandoc/src/TableGeometry.php, php -l lanes/pandoc/tests/LatexWriterTest.php, php -l lanes/pandoc/tests/TableGeometryTest.php, php -l lanes/pandoc/examples/wordpress-table-geometry-handoff.php, jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, git diff --check, php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php lanes/pandoc/tests/TableGeometryTest.php (2 test files, 1917 assertions, 0 failures), php tools/run-tests.php lanes/pandoc/tests/TableGeometryReaderHandoffTest.php (1 test file, 1493 assertions, 0 failures), php lanes/pandoc/examples/wordpress-table-geometry-handoff.php --self-test, and php tools/run-tests.php lanes/pandoc/tests (45 test files, 74336 assertions, 0 failures).",
-    "latestSlice": "pandoc-zip-selected-handoff-role-buckets maps one shared ZIP/OPC package coverage slice after EPUB XHTML table semantics. ZipPackage::entryHandoffPreflight roleSummaries now report handoffUniqueEntryCount, handoffCompressedBytes, handoffUncompressedBytes, handoffEntryNames, and per-role issueCounts so DOCX/EPUB/ODT package readers can review readable bytes, duplicate requests, oversized sidecars, and missing required package parts by semantic role before exposing selected payloads. Mapped denominator moves 3290 -> 3291, mappedZipSelectedHandoffRoleBucketCases is 1, and zipSelectedHandoffRoleBucketAssertions is 13. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures after final rebase onto current main 70d29eb6f8 without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "latestSlice": "pandoc-text-markup-unsupported-diagnostics maps one native format-registry diagnostic case over the 20 wiki/roff/manual/lightweight text reader tokens after shared ZIP/OPC selected-entry handoff role buckets. PandocFormatRegistry now reports reason codes, family buckets, reader/writer capability flags, unsupported directions, and 20/0 denominator evidence without registering parsers or invoking Pandoc, roff/wiki renderers, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3291 -> 3292, mappedTextMarkupUnsupportedDiagnosticsCases is 1, and textMarkupUnsupportedDiagnosticsAssertions is 100. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures after final rebase onto current main 9ab2f42c1e.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1262,7 +1264,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-13 shared ZIP/OPC slice inspected selected-entry handoff role bucket provenance against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 70d29eb6f8; focused ZipPackageTest.php passed 1 file, 4448 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74831 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-13 text markup unsupported diagnostics inspected the accepted 20-token wiki/roff/manual/lightweight text reader input set against the static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 9ab2f42c1e after shared ZIP/OPC selected-entry handoff role buckets; focused PandocFormatRegistryTest.php passed 1 file, 1349 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 75012 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1482,5 +1484,7 @@
     "mappedEpubXhtmlTableSemanticsCases": 1,
     "epubXhtmlTableSemanticsAssertions": 52,
     "mappedZipSelectedHandoffRoleBucketCases": 1,
-    "zipSelectedHandoffRoleBucketAssertions": 13
+    "zipSelectedHandoffRoleBucketAssertions": 13,
+    "mappedTextMarkupUnsupportedDiagnosticsCases": 1,
+    "textMarkupUnsupportedDiagnosticsAssertions": 100
 }
