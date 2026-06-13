@@ -148,6 +148,48 @@ final class XmlHtmlDom
         'quot' => true,
     ];
 
+    /** @var array<string, true> */
+    private const DOCBOOK_ROOT_ELEMENTS = [
+        'article' => true,
+        'appendix' => true,
+        'book' => true,
+        'chapter' => true,
+        'part' => true,
+        'preface' => true,
+        'refentry' => true,
+        'section' => true,
+        'sect1' => true,
+        'sect2' => true,
+        'sect3' => true,
+        'sect4' => true,
+        'sect5' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const DOCBOOK_SECTION_ELEMENTS = [
+        'appendix' => true,
+        'chapter' => true,
+        'part' => true,
+        'preface' => true,
+        'refentry' => true,
+        'section' => true,
+        'sect1' => true,
+        'sect2' => true,
+        'sect3' => true,
+        'sect4' => true,
+        'sect5' => true,
+        'simplesect' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const DOCBOOK_ADMONITION_ELEMENTS = [
+        'caution' => true,
+        'important' => true,
+        'note' => true,
+        'tip' => true,
+        'warning' => true,
+    ];
+
     /** @var array<string, array<string, true>> */
     private const HTML5_TABLE_ALLOWED_CHILDREN = [
         'table' => [
@@ -934,6 +976,105 @@ final class XmlHtmlDom
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeDocBookStructure(\DOMDocument $dom, string $format = 'docbook'): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('DocBook review packet requires a document element');
+        }
+
+        $format = strtolower(trim($format));
+        if (!in_array($format, ['docbook', 'docbook4', 'docbook5'], true)) {
+            throw new \InvalidArgumentException('DocBook review packet format must be docbook, docbook4, or docbook5');
+        }
+
+        $rootName = $root->localName;
+        if (!isset(self::DOCBOOK_ROOT_ELEMENTS[$rootName])) {
+            throw new \InvalidArgumentException('DocBook review packet root must be a DocBook structural element');
+        }
+
+        $metadata = self::docBookMetadataElement($root);
+        $sections = self::docBookSectionSummaries($root);
+        $figures = self::docBookElementSummaries($root, ['figure', 'informalfigure']);
+        $tables = self::docBookElementSummaries($root, ['table', 'informaltable']);
+        $admonitions = self::docBookAdmonitionSummaries($root);
+        $contributors = $metadata instanceof \DOMElement ? self::docBookContributorSummaries($metadata) : [];
+        $identifiers = $metadata instanceof \DOMElement ? self::docBookIdentifierSummaries($metadata) : [];
+        [$xrefTargets, $externalTargets] = self::docBookLinkTargets($root);
+
+        return [
+            'formatFamily' => 'xml-html5-docbook-dom',
+            'format' => $format,
+            'reviewPolicy' => 'docbook-structure-review-only',
+            'directReaderParity' => false,
+            'unsupportedDiagnostics' => [
+                'docbook-direct-reader-incomplete',
+                'docbook-body-conversion-review-only',
+            ],
+            'rootName' => $rootName,
+            'rootAttributes' => self::xmlAttributeMap($root),
+            'docbookVersion' => self::attribute($root, 'version'),
+            'namespaceUri' => $root->namespaceURI,
+            'language' => self::attribute($root, 'lang', 'http://www.w3.org/XML/1998/namespace')
+                ?? self::attribute($root, 'lang'),
+            'metadataRoot' => $metadata instanceof \DOMElement ? $metadata->localName : null,
+            'hasMetadata' => $metadata instanceof \DOMElement,
+            'title' => self::docBookTitleText($root, $metadata),
+            'subtitle' => self::docBookSubtitleText($root, $metadata),
+            'abstractText' => $metadata instanceof \DOMElement ? self::docBookFirstText($metadata, ['abstract']) : null,
+            'identifiers' => $identifiers,
+            'identifierCount' => count($identifiers),
+            'contributors' => $contributors,
+            'contributorCount' => count($contributors),
+            'contributorNames' => array_values(array_map(
+                static fn (array $contributor): string => (string) $contributor['name'],
+                $contributors
+            )),
+            'contributorRoles' => array_values(array_unique(array_filter(
+                array_map(static fn (array $contributor): ?string => $contributor['role'], $contributors),
+                static fn (?string $role): bool => $role !== null && $role !== ''
+            ))),
+            'sectionCount' => count($sections),
+            'sectionTitles' => array_values(array_filter(
+                array_map(static fn (array $section): ?string => $section['title'], $sections),
+                static fn (?string $title): bool => $title !== null && $title !== ''
+            )),
+            'sections' => $sections,
+            'figureIds' => array_values(array_filter(
+                array_map(static fn (array $figure): ?string => $figure['id'], $figures),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'figureCount' => count($figures),
+            'figures' => $figures,
+            'tableIds' => array_values(array_filter(
+                array_map(static fn (array $table): ?string => $table['id'], $tables),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'tableCount' => count($tables),
+            'tables' => $tables,
+            'admonitionIds' => array_values(array_filter(
+                array_map(static fn (array $admonition): ?string => $admonition['id'], $admonitions),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'admonitionCount' => count($admonitions),
+            'admonitions' => $admonitions,
+            'xrefTargets' => $xrefTargets,
+            'xrefTargetCount' => count($xrefTargets),
+            'externalTargets' => $externalTargets,
+            'externalTargetCount' => count($externalTargets),
+            'bibliographyCount' => count(self::descendantElements($root, 'bibliography')),
+            'bibliographyEntryCount' => count(self::descendantElements($root, 'biblioentry'))
+                + count(self::descendantElements($root, 'bibliomixed')),
+            'mediaObjectCount' => count(self::descendantElements($root, 'mediaobject'))
+                + count(self::descendantElements($root, 'inlinemediaobject')),
+            'imageObjectCount' => count(self::descendantElements($root, 'imageobject')),
+            'imageDataRefs' => self::docBookImageDataRefs($root),
+        ];
+    }
+
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement
     {
         $root = self::fragmentRoot($dom);
@@ -987,6 +1128,362 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    private static function docBookMetadataElement(\DOMElement $root): ?\DOMElement
+    {
+        $legacyName = $root->localName . 'info';
+        foreach (self::childElements($root) as $child) {
+            if ($child->localName === 'info' || $child->localName === $legacyName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private static function docBookTitleText(\DOMElement $root, ?\DOMElement $metadata): ?string
+    {
+        if ($metadata instanceof \DOMElement) {
+            $title = self::docBookFirstText($metadata, ['title']);
+            if ($title !== null) {
+                return $title;
+            }
+        }
+
+        $title = self::firstChildElement($root, 'title');
+
+        return $title instanceof \DOMElement ? self::normalizedText($title) : null;
+    }
+
+    private static function docBookSubtitleText(\DOMElement $root, ?\DOMElement $metadata): ?string
+    {
+        if ($metadata instanceof \DOMElement) {
+            $subtitle = self::docBookFirstText($metadata, ['subtitle']);
+            if ($subtitle !== null) {
+                return $subtitle;
+            }
+        }
+
+        $subtitle = self::firstChildElement($root, 'subtitle');
+
+        return $subtitle instanceof \DOMElement ? self::normalizedText($subtitle) : null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private static function docBookFirstText(\DOMElement $root, array $localNames): ?string
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstDescendantElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookSectionSummaries(\DOMElement $root): array
+    {
+        $sections = [];
+        foreach (self::descendantElements($root) as $section) {
+            if (!isset(self::DOCBOOK_SECTION_ELEMENTS[$section->localName])) {
+                continue;
+            }
+
+            $sections[] = [
+                'element' => $section->localName,
+                'id' => self::docBookElementId($section),
+                'role' => self::attribute($section, 'role'),
+                'title' => self::docBookChildTitleText($section),
+                'paragraphCount' => self::docBookParagraphCount($section),
+                'directParagraphCount' => self::docBookDirectParagraphCount($section),
+                'childSectionCount' => self::docBookChildSectionCount($section),
+                'figureCount' => count(self::docBookElementsByNames($section, ['figure', 'informalfigure'])),
+                'tableCount' => count(self::docBookElementsByNames($section, ['table', 'informaltable'])),
+                'admonitionCount' => count(self::docBookAdmonitionElements($section)),
+            ];
+        }
+
+        return $sections;
+    }
+
+    private static function docBookElementId(\DOMElement $element): ?string
+    {
+        $id = self::attribute($element, 'id')
+            ?? self::attribute($element, 'id', 'http://www.w3.org/XML/1998/namespace');
+
+        return $id === null || trim($id) === '' ? null : trim($id);
+    }
+
+    private static function docBookChildTitleText(\DOMElement $element): ?string
+    {
+        $title = self::firstChildElement($element, 'title');
+        if (!$title instanceof \DOMElement) {
+            $info = self::firstChildElement($element, 'info');
+            $title = $info instanceof \DOMElement ? self::firstChildElement($info, 'title') : null;
+        }
+
+        if (!$title instanceof \DOMElement) {
+            return null;
+        }
+
+        $text = self::normalizedText($title);
+
+        return $text === '' ? null : $text;
+    }
+
+    private static function docBookParagraphCount(\DOMElement $element): int
+    {
+        return count(self::descendantElements($element, 'para'))
+            + count(self::descendantElements($element, 'simpara'));
+    }
+
+    private static function docBookDirectParagraphCount(\DOMElement $element): int
+    {
+        $count = 0;
+        foreach (self::childElements($element) as $child) {
+            if ($child->localName === 'para' || $child->localName === 'simpara') {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private static function docBookChildSectionCount(\DOMElement $element): int
+    {
+        $count = 0;
+        foreach (self::childElements($element) as $child) {
+            if (isset(self::DOCBOOK_SECTION_ELEMENTS[$child->localName])) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<\DOMElement>
+     */
+    private static function docBookElementsByNames(\DOMElement $root, array $localNames): array
+    {
+        $nameMap = array_fill_keys($localNames, true);
+        $elements = [];
+        foreach (self::descendantElements($root) as $element) {
+            if (isset($nameMap[$element->localName])) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<array{element:string, id:?string, title:?string}>
+     */
+    private static function docBookElementSummaries(\DOMElement $root, array $localNames): array
+    {
+        $summaries = [];
+        foreach (self::docBookElementsByNames($root, $localNames) as $element) {
+            $summaries[] = [
+                'element' => $element->localName,
+                'id' => self::docBookElementId($element),
+                'title' => self::docBookChildTitleText($element),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function docBookAdmonitionElements(\DOMElement $root): array
+    {
+        $elements = [];
+        foreach (self::descendantElements($root) as $element) {
+            if (isset(self::DOCBOOK_ADMONITION_ELEMENTS[$element->localName])) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @return list<array{id:?string, type:string, title:?string, paragraphCount:int}>
+     */
+    private static function docBookAdmonitionSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::docBookAdmonitionElements($root) as $element) {
+            $summaries[] = [
+                'id' => self::docBookElementId($element),
+                'type' => $element->localName,
+                'title' => self::docBookChildTitleText($element),
+                'paragraphCount' => self::docBookParagraphCount($element),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array{element:string, type:?string, value:string}>
+     */
+    private static function docBookIdentifierSummaries(\DOMElement $metadata): array
+    {
+        $records = [];
+        foreach (['biblioid', 'isbn', 'issn', 'pubsnumber'] as $localName) {
+            foreach (self::descendantElements($metadata, $localName) as $element) {
+                $value = self::normalizedText($element);
+                if ($value === '') {
+                    continue;
+                }
+
+                $records[] = [
+                    'element' => $localName,
+                    'type' => self::attribute($element, 'class') ?? self::attribute($element, 'otherclass'),
+                    'value' => $value,
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{role:?string, name:string}>
+     */
+    private static function docBookContributorSummaries(\DOMElement $metadata): array
+    {
+        $contributors = [];
+        foreach (self::descendantElements($metadata) as $element) {
+            if (!in_array($element->localName, ['author', 'editor', 'othercredit', 'collab'], true)) {
+                continue;
+            }
+
+            $name = self::docBookContributorName($element);
+            if ($name === '') {
+                continue;
+            }
+
+            $contributors[] = [
+                'role' => $element->localName === 'othercredit'
+                    ? (self::attribute($element, 'class') ?? 'othercredit')
+                    : $element->localName,
+                'name' => $name,
+            ];
+        }
+
+        return $contributors;
+    }
+
+    private static function docBookContributorName(\DOMElement $contributor): string
+    {
+        $parts = [];
+        foreach (['firstname', 'othername', 'surname'] as $namePart) {
+            $part = self::firstDescendantElement($contributor, $namePart);
+            if ($part instanceof \DOMElement) {
+                $text = self::normalizedText($part);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+        }
+        if ($parts !== []) {
+            return implode(' ', $parts);
+        }
+
+        $personName = self::firstDescendantElement($contributor, 'personname');
+        if ($personName instanceof \DOMElement) {
+            $text = self::normalizedText($personName);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        foreach (['orgname', 'collabname'] as $localName) {
+            $element = self::firstDescendantElement($contributor, $localName);
+            if ($element instanceof \DOMElement) {
+                $text = self::normalizedText($element);
+                if ($text !== '') {
+                    return $text;
+                }
+            }
+        }
+
+        return self::normalizedText($contributor);
+    }
+
+    /**
+     * @return array{0:list<string>, 1:list<string>}
+     */
+    private static function docBookLinkTargets(\DOMElement $root): array
+    {
+        $xrefTargets = [];
+        $externalTargets = [];
+        $elements = [$root, ...self::descendantElements($root)];
+        foreach ($elements as $element) {
+            foreach (['linkend', 'endterm'] as $attribute) {
+                $target = self::attribute($element, $attribute);
+                if ($target === null) {
+                    continue;
+                }
+
+                foreach (self::spaceSeparatedTokens($target) as $token) {
+                    $xrefTargets[] = $token;
+                }
+            }
+
+            $href = self::attribute($element, 'href', 'http://www.w3.org/1999/xlink');
+            if ($href === null || trim($href) === '') {
+                continue;
+            }
+
+            $href = trim($href);
+            if (str_starts_with($href, '#')) {
+                $xrefTargets[] = substr($href, 1);
+                continue;
+            }
+
+            $externalTargets[] = $href;
+        }
+
+        return [
+            array_values(array_unique($xrefTargets)),
+            array_values(array_unique($externalTargets)),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookImageDataRefs(\DOMElement $root): array
+    {
+        $refs = [];
+        foreach (self::descendantElements($root, 'imagedata') as $imageData) {
+            $ref = self::attribute($imageData, 'fileref')
+                ?? self::attribute($imageData, 'href', 'http://www.w3.org/1999/xlink');
+            if ($ref !== null && trim($ref) !== '') {
+                $refs[] = trim($ref);
+            }
+        }
+
+        return array_values(array_unique($refs));
     }
 
     /**
