@@ -12,6 +12,14 @@ final class XmlHtmlDom
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
 
     /** @var array<string, true> */
+    private const JATS_AWARD_ID_ELEMENTS = [
+        'award-id' => true,
+        'award-number' => true,
+        'grant-id' => true,
+        'grant-number' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
         'area' => true,
         'base' => true,
@@ -791,6 +799,9 @@ final class XmlHtmlDom
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
+        $referenceSummaries = self::jatsReferenceSummaries($root);
+        $fundingReview = self::jatsFundingReviewSummary($root, $referenceIds, $referenceSummaries);
+        $acknowledgments = self::jatsAcknowledgmentSummaries($root, $referenceIds, $referenceSummaries);
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
         $bookPartCount = count(self::descendantElements($root, 'book-part'));
@@ -799,6 +810,9 @@ final class XmlHtmlDom
             $body instanceof \DOMElement,
             count($sections),
             count($referenceIds),
+            $fundingReview['fundingGroupCount'],
+            $fundingReview['awardGroupCount'],
+            count($acknowledgments),
             count($figureIds),
             count($tableWrapIds),
             $bookPartCount
@@ -856,6 +870,36 @@ final class XmlHtmlDom
             'xrefTargetCount' => count($xrefTargets),
             'referenceIds' => $referenceIds,
             'referenceCount' => count($referenceIds),
+            'references' => $referenceSummaries,
+            'fundingGroups' => $fundingReview['fundingGroups'],
+            'fundingGroupCount' => $fundingReview['fundingGroupCount'],
+            'fundingSources' => $fundingReview['fundingSources'],
+            'fundingSourceIds' => $fundingReview['fundingSourceIds'],
+            'fundingSourceCount' => $fundingReview['fundingSourceCount'],
+            'awardGroups' => $fundingReview['awardGroups'],
+            'awardGroupCount' => $fundingReview['awardGroupCount'],
+            'awardIds' => $fundingReview['awardIds'],
+            'awardIdRecords' => $fundingReview['awardIdRecords'],
+            'awardIdCount' => $fundingReview['awardIdCount'],
+            'awardIdElements' => $fundingReview['awardIdElements'],
+            'awardIdTypes' => $fundingReview['awardIdTypes'],
+            'awardSourcePairs' => $fundingReview['awardSourcePairs'],
+            'awardSourcePairCount' => $fundingReview['awardSourcePairCount'],
+            'duplicateAwardSourcePairs' => $fundingReview['duplicateAwardSourcePairs'],
+            'duplicateAwardIds' => $fundingReview['duplicateAwardIds'],
+            'fundingDiagnostics' => $fundingReview['fundingDiagnostics'],
+            'fundingDiagnosticCodes' => $fundingReview['fundingDiagnosticCodes'],
+            'fundingDiagnosticCount' => $fundingReview['fundingDiagnosticCount'],
+            'fundingLinkedReferenceIds' => $fundingReview['fundingLinkedReferenceIds'],
+            'fundingMissingReferenceIds' => $fundingReview['fundingMissingReferenceIds'],
+            'acknowledgments' => $acknowledgments,
+            'acknowledgmentIds' => array_values(array_filter(
+                array_map(static fn (array $acknowledgment): ?string => $acknowledgment['id'], $acknowledgments),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'acknowledgmentCount' => count($acknowledgments),
+            'acknowledgmentLinkedReferenceIds' => self::jatsUniqueMergedStrings($acknowledgments, 'linkedReferenceIds'),
+            'acknowledgmentMissingReferenceIds' => self::jatsUniqueMergedStrings($acknowledgments, 'missingReferenceIds'),
             'figureIds' => $figureIds,
             'figureCount' => count($figureIds),
             'tableWrapIds' => $tableWrapIds,
@@ -872,6 +916,9 @@ final class XmlHtmlDom
         bool $hasBody,
         int $sectionCount,
         int $referenceCount,
+        int $fundingGroupCount,
+        int $awardGroupCount,
+        int $acknowledgmentCount,
         int $figureCount,
         int $tableWrapCount,
         int $bookPartCount
@@ -915,6 +962,28 @@ final class XmlHtmlDom
                 false,
                 false,
                 ['referenceCount' => $referenceCount]
+            );
+        }
+
+        if ($fundingGroupCount > 0 || $awardGroupCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'funding-review-only',
+                'unsupported',
+                'Funding metadata is summarized for review but is not mapped as full JATS/BITS reader output.',
+                false,
+                true,
+                ['fundingGroupCount' => $fundingGroupCount, 'awardGroupCount' => $awardGroupCount]
+            );
+        }
+
+        if ($acknowledgmentCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'acknowledgments-review-only',
+                'unsupported',
+                'Acknowledgment sections are summarized for review but are not mapped as full JATS/BITS reader output.',
+                false,
+                true,
+                ['acknowledgmentCount' => $acknowledgmentCount]
             );
         }
 
@@ -1582,6 +1651,749 @@ final class XmlHtmlDom
         }
 
         return $contributors;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsReferenceSummaries(\DOMElement $root): array
+    {
+        $references = [];
+        foreach (self::descendantElements($root, 'ref') as $index => $reference) {
+            $citationTexts = [];
+            $citationElementNames = [];
+            foreach (self::descendantElements($reference) as $element) {
+                if (!in_array($element->localName, ['mixed-citation', 'element-citation', 'nlm-citation'], true)) {
+                    continue;
+                }
+
+                $citationElementNames[] = $element->localName;
+                $text = self::normalizedText($element);
+                if ($text !== '') {
+                    $citationTexts[] = $text;
+                }
+            }
+
+            $citationPayload = implode("\n", $citationTexts);
+            $references[] = [
+                'index' => $index,
+                'id' => self::attribute($reference, 'id'),
+                'label' => self::jatsFirstText($reference, ['label']),
+                'citationElementNames' => array_values(array_unique($citationElementNames)),
+                'citationElementCount' => count($citationElementNames),
+                'citationPayloadTextBlocked' => $citationPayload !== '',
+                'citationPayloadTextLength' => strlen($citationPayload),
+                'citationPayloadTextSha256' => $citationPayload === '' ? null : hash('sha256', $citationPayload),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return array<string, mixed>
+     */
+    private static function jatsFundingReviewSummary(\DOMElement $root, array $referenceIds, array $referenceSummaries): array
+    {
+        $fundingGroups = [];
+        foreach (self::descendantElements($root, 'funding-group') as $index => $fundingGroup) {
+            $fundingGroups[] = self::jatsFundingGroupSummary($fundingGroup, $index, $referenceIds, $referenceSummaries);
+        }
+
+        $fundingSources = [];
+        foreach (self::descendantElements($root, 'funding-source') as $index => $fundingSource) {
+            $fundingSources[] = self::jatsFundingSourceSummary($fundingSource, $index);
+        }
+
+        $awardGroups = [];
+        foreach (self::descendantElements($root, 'award-group') as $index => $awardGroup) {
+            $awardGroups[] = self::jatsAwardGroupSummary($awardGroup, $index, self::jatsFundingGroupIdFor($awardGroup), $referenceIds, $referenceSummaries);
+        }
+
+        $awardIdRecords = self::jatsAwardIdRecords($root);
+        $awardIds = array_values(array_map(
+            static fn (array $record): string => (string) $record['awardId'],
+            $awardIdRecords
+        ));
+        $duplicateAwardIds = self::jatsDuplicateStrings($awardIds);
+        $awardSourcePairs = self::jatsAwardSourcePairs($fundingGroups, $awardGroups);
+        $duplicateAwardSourcePairs = self::jatsDuplicateStrings(array_values(array_map(
+            static fn (array $pair): string => (string) $pair['pairKey'],
+            $awardSourcePairs
+        )));
+        $fundingDiagnostics = self::jatsFundingDiagnostics(
+            $fundingGroups,
+            $awardGroups,
+            $awardIdRecords,
+            $duplicateAwardIds,
+            $awardSourcePairs,
+            $duplicateAwardSourcePairs
+        );
+
+        return [
+            'fundingGroups' => $fundingGroups,
+            'fundingGroupCount' => count($fundingGroups),
+            'fundingSources' => $fundingSources,
+            'fundingSourceIds' => array_values(array_filter(
+                array_map(static fn (array $source): ?string => $source['id'], $fundingSources),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'fundingSourceCount' => count($fundingSources),
+            'awardGroups' => $awardGroups,
+            'awardGroupCount' => count($awardGroups),
+            'awardIds' => $awardIds,
+            'awardIdRecords' => $awardIdRecords,
+            'awardIdCount' => count($awardIdRecords),
+            'awardIdElements' => self::jatsUniqueScalarValues($awardIdRecords, 'element'),
+            'awardIdTypes' => self::jatsUniqueScalarValues($awardIdRecords, 'type'),
+            'awardSourcePairs' => $awardSourcePairs,
+            'awardSourcePairCount' => count($awardSourcePairs),
+            'duplicateAwardSourcePairs' => $duplicateAwardSourcePairs,
+            'duplicateAwardIds' => $duplicateAwardIds,
+            'fundingDiagnostics' => $fundingDiagnostics,
+            'fundingDiagnosticCodes' => array_values(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $fundingDiagnostics
+            )),
+            'fundingDiagnosticCount' => count($fundingDiagnostics),
+            'fundingLinkedReferenceIds' => array_values(array_unique(array_merge(
+                self::jatsUniqueMergedStrings($fundingGroups, 'linkedReferenceIds'),
+                self::jatsUniqueMergedStrings($awardGroups, 'linkedReferenceIds')
+            ))),
+            'fundingMissingReferenceIds' => array_values(array_unique(array_merge(
+                self::jatsUniqueMergedStrings($fundingGroups, 'missingReferenceIds'),
+                self::jatsUniqueMergedStrings($awardGroups, 'missingReferenceIds')
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return array<string, mixed>
+     */
+    private static function jatsFundingGroupSummary(
+        \DOMElement $fundingGroup,
+        int $index,
+        array $referenceIds,
+        array $referenceSummaries
+    ): array
+    {
+        $fundingSources = [];
+        foreach (self::descendantElements($fundingGroup, 'funding-source') as $sourceIndex => $fundingSource) {
+            $fundingSources[] = self::jatsFundingSourceSummary($fundingSource, $sourceIndex);
+        }
+
+        $awardGroups = [];
+        $fundingGroupId = self::attribute($fundingGroup, 'id');
+        foreach (self::descendantElements($fundingGroup, 'award-group') as $awardGroupIndex => $awardGroup) {
+            $awardGroups[] = self::jatsAwardGroupSummary($awardGroup, $awardGroupIndex, $fundingGroupId, $referenceIds, $referenceSummaries);
+        }
+
+        $awardIdRecords = self::jatsAwardIdRecords($fundingGroup, $fundingGroupId);
+
+        return [
+            'index' => $index,
+            'id' => $fundingGroupId,
+            'fundingSources' => $fundingSources,
+            'fundingSourceIds' => array_values(array_filter(
+                array_map(static fn (array $source): ?string => $source['id'], $fundingSources),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'fundingSourceCount' => count($fundingSources),
+            'awardGroups' => $awardGroups,
+            'awardGroupIds' => array_values(array_filter(
+                array_map(static fn (array $awardGroup): ?string => $awardGroup['id'], $awardGroups),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'awardGroupCount' => count($awardGroups),
+            'awardIds' => array_values(array_map(
+                static fn (array $record): string => (string) $record['awardId'],
+                $awardIdRecords
+            )),
+            'awardIdRecords' => $awardIdRecords,
+            'awardIdCount' => count($awardIdRecords),
+        ] + self::jatsReferenceLinkSummary($fundingGroup, $referenceIds, $referenceSummaries);
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return array<string, mixed>
+     */
+    private static function jatsAwardGroupSummary(
+        \DOMElement $awardGroup,
+        int $index,
+        ?string $fundingGroupId,
+        array $referenceIds,
+        array $referenceSummaries
+    ): array {
+        $fundingSources = [];
+        foreach (self::descendantElements($awardGroup, 'funding-source') as $sourceIndex => $fundingSource) {
+            $fundingSources[] = self::jatsFundingSourceSummary($fundingSource, $sourceIndex);
+        }
+
+        $awardIdRecords = self::jatsAwardIdRecords($awardGroup, $fundingGroupId, self::attribute($awardGroup, 'id'));
+
+        return [
+            'index' => $index,
+            'id' => self::attribute($awardGroup, 'id'),
+            'fundingGroupId' => $fundingGroupId,
+            'fundingSources' => $fundingSources,
+            'fundingSourceIds' => array_values(array_filter(
+                array_map(static fn (array $source): ?string => $source['id'], $fundingSources),
+                static fn (?string $id): bool => $id !== null && $id !== ''
+            )),
+            'fundingSourceCount' => count($fundingSources),
+            'awardIds' => array_values(array_map(
+                static fn (array $record): string => (string) $record['awardId'],
+                $awardIdRecords
+            )),
+            'awardIdRecords' => $awardIdRecords,
+            'awardIdCount' => count($awardIdRecords),
+        ] + self::jatsReferenceLinkSummary($awardGroup, $referenceIds, $referenceSummaries);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsFundingSourceSummary(\DOMElement $fundingSource, int $index): array
+    {
+        $text = self::normalizedText($fundingSource);
+        $identifiers = self::jatsTypedTextRecords(
+            $fundingSource,
+            ['institution-id', 'source-id'],
+            ['institution-id-type', 'source-id-type', 'pub-id-type']
+        );
+        $institutions = self::jatsFundingInstitutionSummaries($fundingSource);
+
+        return [
+            'index' => $index,
+            'id' => self::attribute($fundingSource, 'id'),
+            'sourceType' => self::attribute($fundingSource, 'source-type') ?? self::attribute($fundingSource, 'institution-type'),
+            'text' => $text,
+            'textLength' => strlen($text),
+            'textSha256' => hash('sha256', $text),
+            'identifiers' => $identifiers,
+            'identifierValues' => array_values(array_map(
+                static fn (array $identifier): string => (string) $identifier['value'],
+                $identifiers
+            )),
+            'identifierTypes' => self::jatsUniqueScalarValues($identifiers, 'type'),
+            'identifierCount' => count($identifiers),
+            'institutions' => $institutions,
+            'institutionNames' => self::jatsUniqueScalarValues($institutions, 'name'),
+            'institutionCount' => count($institutions),
+            'funderNames' => self::jatsFunderNames($fundingSource, $institutions),
+        ];
+    }
+
+    /**
+     * @return list<array{name:string, id:?string, type:?string, identifierValues:list<string>}>
+     */
+    private static function jatsFundingInstitutionSummaries(\DOMElement $fundingSource): array
+    {
+        $institutions = [];
+        foreach (self::descendantElements($fundingSource) as $element) {
+            if (!in_array($element->localName, ['institution', 'institution-name'], true)) {
+                continue;
+            }
+
+            $name = self::normalizedText($element);
+            if ($name === '') {
+                continue;
+            }
+
+            $identifiers = self::jatsTypedTextRecords(
+                $element->parentNode instanceof \DOMElement ? $element->parentNode : $element,
+                ['institution-id', 'source-id'],
+                ['institution-id-type', 'source-id-type', 'pub-id-type']
+            );
+
+            $institutions[] = [
+                'name' => $name,
+                'id' => self::attribute($element, 'id'),
+                'type' => self::attribute($element, 'institution-type')
+                    ?? self::attribute($element, 'content-type')
+                    ?? self::attribute($fundingSource, 'institution-type')
+                    ?? self::attribute($fundingSource, 'source-type'),
+                'identifierValues' => array_values(array_map(
+                    static fn (array $identifier): string => (string) $identifier['value'],
+                    $identifiers
+                )),
+            ];
+        }
+
+        return $institutions;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $institutions
+     * @return list<string>
+     */
+    private static function jatsFunderNames(\DOMElement $fundingSource, array $institutions): array
+    {
+        $names = array_values(array_map(
+            static fn (array $institution): string => (string) $institution['name'],
+            $institutions
+        ));
+
+        foreach (self::descendantElements($fundingSource, 'named-content') as $namedContent) {
+            $contentType = strtolower(trim(self::attribute($namedContent, 'content-type') ?? ''));
+            if (!in_array($contentType, ['funder', 'funder-name', 'funding-source', 'sponsor'], true)) {
+                continue;
+            }
+
+            $name = self::normalizedText($namedContent);
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        if ($names === []) {
+            $text = self::normalizedText($fundingSource);
+            if ($text !== '') {
+                $names[] = $text;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsAwardIdRecords(
+        \DOMElement $container,
+        ?string $fundingGroupId = null,
+        ?string $awardGroupId = null
+    ): array {
+        $records = [];
+        $index = 0;
+        foreach (self::descendantElements($container) as $awardId) {
+            if (!isset(self::JATS_AWARD_ID_ELEMENTS[$awardId->localName])) {
+                continue;
+            }
+
+            $value = self::normalizedText($awardId);
+            if ($value === '') {
+                continue;
+            }
+
+            $records[] = [
+                'index' => $index,
+                'element' => $awardId->localName,
+                'id' => self::attribute($awardId, 'id'),
+                'fundingGroupId' => $fundingGroupId,
+                'awardGroupId' => $awardGroupId,
+                'type' => self::jatsFirstAttribute($awardId, ['award-id-type', 'award-type', 'grant-id-type', 'pub-id-type', 'id-type']),
+                'awardId' => $value,
+            ];
+            $index++;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<string> $attributeNames
+     */
+    private static function jatsFirstAttribute(\DOMElement $element, array $attributeNames): ?string
+    {
+        foreach ($attributeNames as $attributeName) {
+            $value = self::attribute($element, $attributeName);
+            if ($value !== null && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return array{xrefTargets:list<string>, referenceXrefTargets:list<string>, linkedReferenceIds:list<string>, missingReferenceIds:list<string>, linkedReferences:list<array<string, mixed>>}
+     */
+    private static function jatsReferenceLinkSummary(\DOMElement $container, array $referenceIds, array $referenceSummaries = []): array
+    {
+        $referenceLookup = array_fill_keys($referenceIds, true);
+        $xrefTargets = [];
+        $referenceXrefTargets = [];
+        foreach (self::descendantElements($container, 'xref') as $xref) {
+            $rid = self::attribute($xref, 'rid');
+            if ($rid === null || trim($rid) === '') {
+                continue;
+            }
+
+            $refType = strtolower(trim(self::attribute($xref, 'ref-type') ?? ''));
+            foreach (self::spaceSeparatedTokens($rid) as $target) {
+                $xrefTargets[] = $target;
+                if ($refType === 'bibr' || $refType === 'ref' || $refType === 'citation' || isset($referenceLookup[$target])) {
+                    $referenceXrefTargets[] = $target;
+                }
+            }
+        }
+
+        $referenceXrefTargets = array_values(array_unique($referenceXrefTargets));
+        $linkedReferenceIds = array_values(array_filter(
+            $referenceXrefTargets,
+            static fn (string $target): bool => isset($referenceLookup[$target])
+        ));
+
+        return [
+            'xrefTargets' => array_values(array_unique($xrefTargets)),
+            'referenceXrefTargets' => $referenceXrefTargets,
+            'linkedReferenceIds' => $linkedReferenceIds,
+            'missingReferenceIds' => array_values(array_filter(
+                $referenceXrefTargets,
+                static fn (string $target): bool => !isset($referenceLookup[$target])
+            )),
+            'linkedReferences' => self::jatsLinkedReferenceSummaries($linkedReferenceIds, $referenceSummaries),
+        ];
+    }
+
+    /**
+     * @param list<string> $linkedReferenceIds
+     * @param list<array<string, mixed>> $referenceSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsLinkedReferenceSummaries(array $linkedReferenceIds, array $referenceSummaries): array
+    {
+        $lookup = [];
+        foreach ($referenceSummaries as $reference) {
+            $id = $reference['id'] ?? null;
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+
+            $lookup[$id] = [
+                'id' => $id,
+                'label' => $reference['label'] ?? null,
+                'citationPayloadTextBlocked' => $reference['citationPayloadTextBlocked'] ?? false,
+                'citationPayloadTextLength' => $reference['citationPayloadTextLength'] ?? 0,
+                'citationPayloadTextSha256' => $reference['citationPayloadTextSha256'] ?? null,
+            ];
+        }
+
+        $linked = [];
+        foreach ($linkedReferenceIds as $id) {
+            if (isset($lookup[$id])) {
+                $linked[] = $lookup[$id];
+            }
+        }
+
+        return $linked;
+    }
+
+    private static function jatsFundingGroupIdFor(\DOMElement $element): ?string
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if ($parent->localName === 'funding-group') {
+                return self::attribute($parent, 'id');
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fundingGroups
+     * @param list<array<string, mixed>> $awardGroups
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsAwardSourcePairs(array $fundingGroups, array $awardGroups): array
+    {
+        $pairs = [];
+
+        foreach ($awardGroups as $awardGroup) {
+            if (($awardGroup['awardIdRecords'] ?? []) === [] || ($awardGroup['fundingSources'] ?? []) === []) {
+                continue;
+            }
+
+            foreach ($awardGroup['awardIdRecords'] as $awardRecord) {
+                foreach ($awardGroup['fundingSources'] as $source) {
+                    $pairs[] = self::jatsAwardSourcePair(
+                        $awardRecord,
+                        $source,
+                        $awardGroup['fundingGroupId'] ?? null,
+                        $awardGroup['id'] ?? null
+                    );
+                }
+            }
+        }
+
+        foreach ($fundingGroups as $fundingGroup) {
+            if (($fundingGroup['awardGroupCount'] ?? 0) > 0) {
+                continue;
+            }
+
+            if (($fundingGroup['awardIdRecords'] ?? []) === [] || ($fundingGroup['fundingSources'] ?? []) === []) {
+                continue;
+            }
+
+            foreach ($fundingGroup['awardIdRecords'] as $awardRecord) {
+                foreach ($fundingGroup['fundingSources'] as $source) {
+                    $pairs[] = self::jatsAwardSourcePair(
+                        $awardRecord,
+                        $source,
+                        $fundingGroup['id'] ?? null,
+                        null
+                    );
+                }
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param array<string, mixed> $awardRecord
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function jatsAwardSourcePair(
+        array $awardRecord,
+        array $source,
+        ?string $fundingGroupId,
+        ?string $awardGroupId
+    ): array {
+        $awardId = (string) $awardRecord['awardId'];
+        $sourceKey = self::jatsFundingSourceKey($source);
+
+        return [
+            'pairKey' => $awardId . '|' . $sourceKey,
+            'awardId' => $awardId,
+            'awardRecordId' => $awardRecord['id'] ?? null,
+            'awardElement' => $awardRecord['element'] ?? null,
+            'awardType' => $awardRecord['type'] ?? null,
+            'fundingGroupId' => $fundingGroupId,
+            'awardGroupId' => $awardGroupId,
+            'fundingSourceId' => $source['id'] ?? null,
+            'fundingSourceKey' => $sourceKey,
+            'fundingSourceIdentifierValues' => $source['identifierValues'] ?? [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private static function jatsFundingSourceKey(array $source): string
+    {
+        $id = $source['id'] ?? null;
+        if (is_string($id) && $id !== '') {
+            return 'id:' . $id;
+        }
+
+        $identifierValues = $source['identifierValues'] ?? [];
+        if (is_array($identifierValues) && $identifierValues !== []) {
+            return 'identifier:' . implode('|', array_values(array_filter(
+                $identifierValues,
+                static fn (mixed $value): bool => is_string($value) && $value !== ''
+            )));
+        }
+
+        $textSha256 = $source['textSha256'] ?? null;
+        if (is_string($textSha256) && $textSha256 !== '') {
+            return 'text-sha256:' . $textSha256;
+        }
+
+        return 'source-unknown';
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function jatsDuplicateStrings(array $values): array
+    {
+        $counts = [];
+        foreach ($values as $value) {
+            if ($value === '') {
+                continue;
+            }
+
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+
+        return array_values(array_filter(
+            array_keys($counts),
+            static fn (string $value): bool => $counts[$value] > 1
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function jatsUniqueScalarValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            $value = $record[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fundingGroups
+     * @param list<array<string, mixed>> $awardGroups
+     * @param list<array<string, mixed>> $awardIdRecords
+     * @param list<string> $duplicateAwardIds
+     * @param list<array<string, mixed>> $awardSourcePairs
+     * @param list<string> $duplicateAwardSourcePairs
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFundingDiagnostics(
+        array $fundingGroups,
+        array $awardGroups,
+        array $awardIdRecords,
+        array $duplicateAwardIds,
+        array $awardSourcePairs,
+        array $duplicateAwardSourcePairs
+    ): array {
+        $diagnostics = [];
+        foreach ($duplicateAwardIds as $duplicateAwardId) {
+            $matchingRecords = array_values(array_filter(
+                $awardIdRecords,
+                static fn (array $record): bool => $record['awardId'] === $duplicateAwardId
+            ));
+            $diagnostics[] = [
+                'code' => 'duplicate-award-id',
+                'severity' => 'warning',
+                'awardId' => $duplicateAwardId,
+                'count' => count($matchingRecords),
+                'recordIds' => array_values(array_filter(
+                    array_map(static fn (array $record): ?string => $record['id'], $matchingRecords),
+                    static fn (?string $id): bool => $id !== null && $id !== ''
+                )),
+            ];
+        }
+
+        foreach ($duplicateAwardSourcePairs as $duplicatePairKey) {
+            $matchingPairs = array_values(array_filter(
+                $awardSourcePairs,
+                static fn (array $pair): bool => $pair['pairKey'] === $duplicatePairKey
+            ));
+            $diagnostics[] = [
+                'code' => 'duplicate-award-source-pair',
+                'severity' => 'warning',
+                'pairKey' => $duplicatePairKey,
+                'awardId' => $matchingPairs[0]['awardId'] ?? null,
+                'fundingSourceKey' => $matchingPairs[0]['fundingSourceKey'] ?? null,
+                'count' => count($matchingPairs),
+                'awardGroupIds' => array_values(array_filter(
+                    array_map(static fn (array $pair): ?string => $pair['awardGroupId'] ?? null, $matchingPairs),
+                    static fn (?string $id): bool => $id !== null && $id !== ''
+                )),
+            ];
+        }
+
+        foreach ($awardGroups as $awardGroup) {
+            if (($awardGroup['awardIdCount'] ?? 0) > 0) {
+                if (($awardGroup['fundingSourceCount'] ?? 0) === 0) {
+                    $diagnostics[] = [
+                        'code' => 'missing-funding-source',
+                        'severity' => 'warning',
+                        'container' => 'award-group',
+                        'id' => $awardGroup['id'] ?? null,
+                        'fundingGroupId' => $awardGroup['fundingGroupId'] ?? null,
+                        'awardIds' => $awardGroup['awardIds'] ?? [],
+                    ];
+                }
+
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'missing-award-id',
+                'severity' => 'warning',
+                'container' => 'award-group',
+                'id' => $awardGroup['id'] ?? null,
+                'fundingGroupId' => $awardGroup['fundingGroupId'] ?? null,
+                'fundingSourceIds' => $awardGroup['fundingSourceIds'] ?? [],
+            ];
+        }
+
+        foreach ($fundingGroups as $fundingGroup) {
+            if (($fundingGroup['awardGroupCount'] ?? 0) > 0 || ($fundingGroup['awardIdCount'] ?? 0) > 0) {
+                if (
+                    ($fundingGroup['awardGroupCount'] ?? 0) === 0
+                    && ($fundingGroup['awardIdCount'] ?? 0) > 0
+                    && ($fundingGroup['fundingSourceCount'] ?? 0) === 0
+                ) {
+                    $diagnostics[] = [
+                        'code' => 'missing-funding-source',
+                        'severity' => 'warning',
+                        'container' => 'funding-group',
+                        'id' => $fundingGroup['id'] ?? null,
+                        'awardIds' => $fundingGroup['awardIds'] ?? [],
+                    ];
+                }
+
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'missing-award-id',
+                'severity' => 'warning',
+                'container' => 'funding-group',
+                'id' => $fundingGroup['id'] ?? null,
+                'fundingSourceIds' => $fundingGroup['fundingSourceIds'] ?? [],
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<string> $referenceIds
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsAcknowledgmentSummaries(\DOMElement $root, array $referenceIds, array $referenceSummaries): array
+    {
+        $acknowledgments = [];
+        foreach (self::descendantElements($root, 'ack') as $index => $acknowledgment) {
+            $text = self::normalizedText($acknowledgment);
+            $acknowledgments[] = [
+                'index' => $index,
+                'id' => self::attribute($acknowledgment, 'id'),
+                'title' => self::jatsFirstText($acknowledgment, ['title']),
+                'paragraphCount' => count(self::descendantElements($acknowledgment, 'p')),
+                'textBlocked' => true,
+                'textLength' => strlen($text),
+                'textSha256' => hash('sha256', $text),
+            ] + self::jatsReferenceLinkSummary($acknowledgment, $referenceIds, $referenceSummaries);
+        }
+
+        return $acknowledgments;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function jatsUniqueMergedStrings(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!isset($record[$key]) || !is_array($record[$key])) {
+                continue;
+            }
+
+            foreach ($record[$key] as $value) {
+                if (is_string($value) && $value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     private static function jatsContributorName(\DOMElement $contrib): string
