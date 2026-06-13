@@ -1552,6 +1552,95 @@ return [
             $t->same('', $review['outputImplementation']);
         }
     },
+    'builds wiki reader writer unsupported taxonomy matrix without parser or writer claims' => static function (TestRunner $t): void {
+        $matrix = PandocFormatRegistry::wikiReaderWriterUnsupportedTaxonomyMatrix();
+        $reviewPacket = PandocFormatRegistry::wikiFormatReviewPacket();
+
+        $t->same('2026-06-03', $matrix['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $matrix['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $matrix['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $matrix['inputTokens']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $matrix['outputTokens']);
+        $t->same(PandocFormatRegistry::wikiExtensionInference(), $matrix['extensionAliases']);
+        $t->same($reviewPacket['extensionInference'], $matrix['extensionAliases']);
+        $t->same($reviewPacket['directionBuckets'], $matrix['directionBuckets']);
+        $t->same(['reader' => [], 'writer' => []], $matrix['nativeImplementationRecords']);
+        $t->same([], $matrix['readerCapableFormats']);
+        $t->same([], $matrix['writerCapableFormats']);
+        $t->same(false, $matrix['directReaderParitySupported']);
+        $t->same(false, $matrix['directWriterParitySupported']);
+        $t->same(true, $matrix['externalToolFree']);
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($matrix['formats']));
+
+        $t->same('wiki-reader-not-ported', $matrix['unsupportedReasonPayloads']['reader']['reasonCode']);
+        $t->same('wiki-writer-not-ported', $matrix['unsupportedReasonPayloads']['writer']['reasonCode']);
+        $t->contains('no native PHP wiki reader is registered', $matrix['unsupportedReasonPayloads']['reader']['reason']);
+        $t->contains('no native PHP wiki writer is registered', $matrix['unsupportedReasonPayloads']['writer']['reason']);
+
+        foreach ($matrix['formats'] as $format => $entry) {
+            $review = $reviewPacket['formats'][$format];
+            $expectedUnsupportedDirections = [];
+            if ($review['inputStatus'] === 'unsupported') {
+                $expectedUnsupportedDirections[] = 'input';
+            }
+            if ($review['outputStatus'] === 'unsupported') {
+                $expectedUnsupportedDirections[] = 'output';
+            }
+
+            $t->same($format, $entry['format']);
+            $t->same($review['input'], $entry['input'], "Wiki matrix {$format} input flag mismatch");
+            $t->same($review['output'], $entry['output'], "Wiki matrix {$format} output flag mismatch");
+            $t->same($review['direction'], $entry['direction'], "Wiki matrix {$format} direction mismatch");
+            $t->same($review['inputStatus'], $entry['inputStatus'], "Wiki matrix {$format} input status mismatch");
+            $t->same($review['outputStatus'], $entry['outputStatus'], "Wiki matrix {$format} output status mismatch");
+            $t->same($review['extensions'], $entry['extensionAliases'], "Wiki matrix {$format} extension aliases mismatch");
+            $t->same($expectedUnsupportedDirections, $entry['unsupportedDirections'], "Wiki matrix {$format} unsupported directions mismatch");
+            $t->same('', $entry['inputImplementation'], "Wiki matrix {$format} must not register a reader");
+            $t->same('', $entry['outputImplementation'], "Wiki matrix {$format} must not register a writer");
+            $t->same(['reader' => [], 'writer' => []], $entry['nativeImplementationRecords'], "Wiki matrix {$format} native records must stay empty");
+            $t->same(false, $entry['readerCapable'], "Wiki matrix {$format} must not claim reader capability");
+            $t->same(false, $entry['writerCapable'], "Wiki matrix {$format} must not claim writer capability");
+            $t->same(false, $entry['directReaderParity'], "Wiki matrix {$format} must not claim direct reader parity");
+            $t->same(false, $entry['directWriterParity'], "Wiki matrix {$format} must not claim direct writer parity");
+            $t->same(true, $entry['externalToolFree'], "Wiki matrix {$format} must stay external-tool free");
+
+            if ($entry['input']) {
+                $t->same('wiki-reader-not-ported', $entry['readerUnsupportedReason']['reasonCode']);
+                $t->contains('no native PHP wiki reader is registered', $entry['readerUnsupportedReason']['reason']);
+                $t->contains('No native PHP reader or writer is registered', $entry['readerUnsupportedReason']['notes']);
+            } else {
+                $t->same(null, $entry['readerUnsupportedReason']);
+            }
+
+            if ($entry['output']) {
+                $t->same('wiki-writer-not-ported', $entry['writerUnsupportedReason']['reasonCode']);
+                $t->contains('no native PHP wiki writer is registered', $entry['writerUnsupportedReason']['reason']);
+                $t->contains('No native PHP reader or writer is registered', $entry['writerUnsupportedReason']['notes']);
+            } else {
+                $t->same(null, $entry['writerUnsupportedReason']);
+            }
+        }
+
+        $t->same(['.dokuwiki'], $matrix['formats']['dokuwiki']['extensionAliases']);
+        $t->same(['input', 'output'], $matrix['formats']['dokuwiki']['unsupportedDirections']);
+        $t->same(['.wiki'], $matrix['formats']['mediawiki']['extensionAliases']);
+        $t->same('input-only', $matrix['formats']['creole']['direction']);
+        $t->same(['input'], $matrix['formats']['creole']['unsupportedDirections']);
+        $t->same(null, $matrix['formats']['creole']['writerUnsupportedReason']);
+        $t->same('output-only', $matrix['formats']['xwiki']['direction']);
+        $t->same(['output'], $matrix['formats']['xwiki']['unsupportedDirections']);
+        $t->same(null, $matrix['formats']['xwiki']['readerUnsupportedReason']);
+    },
     'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
         $formats = [
             'asciidoc',

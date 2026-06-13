@@ -183,6 +183,18 @@ final class PandocFormatRegistry
         '.wiki' => 'mediawiki',
     ];
 
+    /** @var array{reader:array{reasonCode:string, reason:string}, writer:array{reasonCode:string, reason:string}} */
+    private const WIKI_UNSUPPORTED_REASON_PAYLOADS = [
+        'reader' => [
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+        ],
+        'writer' => [
+            'reasonCode' => 'wiki-writer-not-ported',
+            'reason' => 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.',
+        ],
+    ];
+
     /** @var array<string, list<string>> */
     private const WIKI_READER_FIXTURE_SOURCES = [
         'creole' => [
@@ -1158,6 +1170,132 @@ final class PandocFormatRegistry
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
             'unsupportedFormatSummary' => self::wikiUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputTokens:list<string>,
+     *     outputTokens:list<string>,
+     *     extensionAliases:array<string, string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     unsupportedReasonPayloads:array{reader:array{reasonCode:string, reason:string}, writer:array{reasonCode:string, reason:string}},
+     *     nativeImplementationRecords:array{reader:list<string>, writer:list<string>},
+     *     readerCapableFormats:list<string>,
+     *     writerCapableFormats:list<string>,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     externalToolFree:bool,
+     *     formats:array<string, array{format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionAliases:list<string>, unsupportedDirections:list<string>, readerUnsupportedReason:array{reasonCode:string, reason:string, notes:string}|null, writerUnsupportedReason:array{reasonCode:string, reason:string, notes:string}|null, inputImplementation:string, outputImplementation:string, nativeImplementationRecords:array{reader:list<string>, writer:list<string>}, readerCapable:bool, writerCapable:bool, directReaderParity:bool, directWriterParity:bool, externalToolFree:bool}>
+     * }
+     */
+    public static function wikiReaderWriterUnsupportedTaxonomyMatrix(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $extensionsByFormat = [];
+        $readerCapableFormats = [];
+        $writerCapableFormats = [];
+        $readerImplementations = [];
+        $writerImplementations = [];
+
+        foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $formats = [];
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+            $input = $hasInput ? $inputSupport[$format] : null;
+            $output = $hasOutput ? $outputSupport[$format] : null;
+            $inputImplementation = $input['implementation'] ?? '';
+            $outputImplementation = $output['implementation'] ?? '';
+            $readerCapable = $inputImplementation !== '' && ($input['status'] ?? 'not-applicable') !== 'unsupported';
+            $writerCapable = $outputImplementation !== '' && ($output['status'] ?? 'not-applicable') !== 'unsupported';
+            $readerRecords = $inputImplementation === '' ? [] : [$inputImplementation];
+            $writerRecords = $outputImplementation === '' ? [] : [$outputImplementation];
+            $unsupportedDirections = [];
+
+            if ($direction['inputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'input';
+            }
+            if ($direction['outputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'output';
+            }
+            if ($readerCapable) {
+                $readerCapableFormats[] = $format;
+            }
+            if ($writerCapable) {
+                $writerCapableFormats[] = $format;
+            }
+            foreach ($readerRecords as $implementation) {
+                $readerImplementations[$implementation] = true;
+            }
+            foreach ($writerRecords as $implementation) {
+                $writerImplementations[$implementation] = true;
+            }
+
+            $formats[$format] = [
+                'format' => $format,
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionAliases' => $extensionsByFormat[$format] ?? [],
+                'unsupportedDirections' => $unsupportedDirections,
+                'readerUnsupportedReason' => $hasInput ? [
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['reader']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['reader']['reason'],
+                    'notes' => $input['notes'],
+                ] : null,
+                'writerUnsupportedReason' => $hasOutput ? [
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['writer']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['writer']['reason'],
+                    'notes' => $output['notes'],
+                ] : null,
+                'inputImplementation' => $inputImplementation,
+                'outputImplementation' => $outputImplementation,
+                'nativeImplementationRecords' => [
+                    'reader' => $readerRecords,
+                    'writer' => $writerRecords,
+                ],
+                'readerCapable' => $readerCapable,
+                'writerCapable' => $writerCapable,
+                'directReaderParity' => $readerCapable,
+                'directWriterParity' => $writerCapable,
+                'externalToolFree' => true,
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputTokens' => self::WIKI_INPUT_FORMATS,
+            'outputTokens' => self::WIKI_OUTPUT_FORMATS,
+            'extensionAliases' => self::WIKI_EXTENSION_INFERENCE,
+            'directionBuckets' => [
+                'inputOutput' => self::wikiBidirectionalFormats(),
+                'inputOnly' => self::wikiInputOnlyFormats(),
+                'outputOnly' => self::wikiOutputOnlyFormats(),
+            ],
+            'unsupportedReasonPayloads' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS,
+            'nativeImplementationRecords' => [
+                'reader' => array_keys($readerImplementations),
+                'writer' => array_keys($writerImplementations),
+            ],
+            'readerCapableFormats' => $readerCapableFormats,
+            'writerCapableFormats' => $writerCapableFormats,
+            'directReaderParitySupported' => self::unsupportedWikiInputFormats() === [],
+            'directWriterParitySupported' => self::unsupportedWikiOutputFormats() === [],
+            'externalToolFree' => true,
             'formats' => $formats,
         ];
     }
