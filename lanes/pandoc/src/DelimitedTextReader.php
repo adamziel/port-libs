@@ -38,16 +38,18 @@ final class DelimitedTextReader
         $formatResolution = $this->formatResolution($format, $text, $options);
         $format = $formatResolution['format'];
         $delimiter = $formatResolution['delimiter'];
+        $dialect = $this->dialectProfile($format);
         $formatInference = $formatResolution['formatInference'];
         $hasHeader = $this->headerOption($options);
 
         $sourceText = $this->stripBom($text);
-        $rows = $this->parseRows($sourceText, $delimiter);
+        $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect);
+        $rows = $parse['rows'];
         if ($rows === []) {
             $sourceAnalysis = $this->sourceAnalysis($sourceText, $delimiter, []);
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $formatInference, $sourceAnalysis),
+                'delimitedText' => $this->reviewPacket($format, $dialect, [], [], $hasHeader, $formatInference, $sourceAnalysis, $parse['diagnostics'], $parse['metrics']),
             ]);
         }
 
@@ -68,7 +70,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference, $sourceAnalysis),
+            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference, $sourceAnalysis, $parse['diagnostics'], $parse['metrics']),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -273,29 +275,299 @@ final class DelimitedTextReader
      */
     private function parseRows(string $text, string $delimiter): array
     {
-        $stream = fopen('php://temp', 'r+');
-        if ($stream === false) {
-            throw new \RuntimeException('Unable to open in-memory CSV stream');
-        }
+        return $this->parseRowsWithDiagnostics($text, $this->dialectProfileForDelimiter($delimiter))['rows'];
+    }
 
-        fwrite($stream, $text);
-        rewind($stream);
+    /**
+     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null}
+     */
+    private function dialectProfile(string $format): array
+    {
+        return match ($format) {
+            'csv' => [
+                'delimiter' => ',',
+                'delimiterName' => 'comma',
+                'quote' => '"',
+                'escape' => null,
+            ],
+            'tsv' => [
+                'delimiter' => "\t",
+                'delimiterName' => 'tab',
+                'quote' => null,
+                'escape' => null,
+            ],
+            default => throw new \InvalidArgumentException("Unsupported delimited text format: {$format}; supported formats: csv, tsv, auto"),
+        };
+    }
 
+    /**
+     * @return array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null}
+     */
+    private function dialectProfileForDelimiter(string $delimiter): array
+    {
+        return $delimiter === "\t" ? $this->dialectProfile('tsv') : $this->dialectProfile('csv');
+    }
+
+    /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null} $dialect
+     * @return array{
+     *     rows:list<list<string>>,
+     *     diagnostics:list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}>,
+     *     metrics:array{
+     *         quotedFieldCount:int,
+     *         doubledQuoteEscapeCount:int,
+     *         escapedQuoteSequenceCount:int,
+     *         quoteInUnquotedFieldCount:int,
+     *         textAfterClosingQuoteCount:int,
+     *         unclosedQuoteCount:int,
+     *         quotedLineBreakCount:int,
+     *         multilineFieldCount:int,
+     *         partialRecordCount:int
+     *     }
+     * }
+     */
+    private function parseRowsWithDiagnostics(string $text, array $dialect): array
+    {
+        $delimiter = $dialect['delimiter'];
+        $quote = $dialect['quote'];
+        $length = strlen($text);
         $rows = [];
-        while (($row = fgetcsv($stream, 0, $delimiter, '"', '')) !== false) {
-            if ($row === [null] || $row === false) {
+        $diagnostics = [];
+        $metrics = [
+            'quotedFieldCount' => 0,
+            'doubledQuoteEscapeCount' => 0,
+            'escapedQuoteSequenceCount' => 0,
+            'quoteInUnquotedFieldCount' => 0,
+            'textAfterClosingQuoteCount' => 0,
+            'unclosedQuoteCount' => 0,
+            'quotedLineBreakCount' => 0,
+            'multilineFieldCount' => 0,
+            'partialRecordCount' => 0,
+        ];
+        $row = [];
+        $field = '';
+        $rowIndex = 0;
+        $columnIndex = 0;
+        $fieldStarted = false;
+        $quotedField = false;
+        $inQuotedField = false;
+        $afterClosingQuote = false;
+        $fieldHadQuotedLineBreak = false;
+        $quotedFieldStartRow = 0;
+        $quotedFieldStartColumn = 0;
+        $quotedFieldStartOffset = 0;
+
+        $finishField = static function () use (
+            &$row,
+            &$field,
+            &$columnIndex,
+            &$fieldStarted,
+            &$quotedField,
+            &$afterClosingQuote,
+            &$fieldHadQuotedLineBreak,
+            &$metrics
+        ): void {
+            $row[] = $field;
+            if ($quotedField && $fieldHadQuotedLineBreak) {
+                $metrics['multilineFieldCount']++;
+            }
+
+            $field = '';
+            $columnIndex++;
+            $fieldStarted = false;
+            $quotedField = false;
+            $afterClosingQuote = false;
+            $fieldHadQuotedLineBreak = false;
+        };
+
+        $finishRow = static function () use (
+            &$rows,
+            &$row,
+            &$field,
+            &$rowIndex,
+            &$columnIndex,
+            &$fieldStarted,
+            &$quotedField,
+            &$afterClosingQuote,
+            $finishField
+        ): void {
+            $hasPendingField = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
+            if ($hasPendingField) {
+                $finishField();
+                if (!(count($row) === 1 && $row[0] === '')) {
+                    $rows[] = $row;
+                }
+            }
+
+            $row = [];
+            $rowIndex++;
+            $columnIndex = 0;
+        };
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $text[$offset];
+            $next = $offset + 1 < $length ? $text[$offset + 1] : '';
+
+            if ($inQuotedField) {
+                if ($this->isLineBreak($char)) {
+                    $field .= "\n";
+                    $metrics['quotedLineBreakCount']++;
+                    $fieldHadQuotedLineBreak = true;
+                    if ($char === "\r" && $next === "\n") {
+                        $offset++;
+                    }
+
+                    continue;
+                }
+
+                if ($quote !== null && $char === '\\' && $next === $quote) {
+                    $field .= '\\' . $quote;
+                    $metrics['escapedQuoteSequenceCount']++;
+                    $diagnostics[] = $this->diagnostic(
+                        'delimited-text-backslash-quote-preserved',
+                        'info',
+                        'Backslash before a quote was preserved; this dialect only recognizes doubled quote escapes.',
+                        $rowIndex,
+                        $columnIndex,
+                        $offset
+                    );
+                    $offset++;
+                    continue;
+                }
+
+                if ($quote !== null && $char === $quote) {
+                    if ($next === $quote) {
+                        $field .= $quote;
+                        $metrics['doubledQuoteEscapeCount']++;
+                        $offset++;
+                        continue;
+                    }
+
+                    $inQuotedField = false;
+                    $afterClosingQuote = true;
+                    continue;
+                }
+
+                $field .= $char;
                 continue;
             }
 
-            $rows[] = array_map(
-                static fn (?string $value): string => $value ?? '',
-                $row
+            if ($afterClosingQuote) {
+                if ($char === $delimiter) {
+                    $finishField();
+                    continue;
+                }
+
+                if ($this->isLineBreak($char)) {
+                    $finishRow();
+                    if ($char === "\r" && $next === "\n") {
+                        $offset++;
+                    }
+
+                    continue;
+                }
+
+                if ($char === ' ' || $char === "\t") {
+                    continue;
+                }
+
+                $field .= $char;
+                $fieldStarted = true;
+                $afterClosingQuote = false;
+                $metrics['textAfterClosingQuoteCount']++;
+                $diagnostics[] = $this->diagnostic(
+                    'delimited-text-text-after-closing-quote',
+                    'warning',
+                    'Text after a closing quote was retained in the field for review.',
+                    $rowIndex,
+                    $columnIndex,
+                    $offset
+                );
+                continue;
+            }
+
+            if ($char === $delimiter) {
+                $finishField();
+                continue;
+            }
+
+            if ($this->isLineBreak($char)) {
+                $finishRow();
+                if ($char === "\r" && $next === "\n") {
+                    $offset++;
+                }
+
+                continue;
+            }
+
+            if ($quote !== null && $char === $quote) {
+                if (!$fieldStarted && $field === '') {
+                    $fieldStarted = true;
+                    $quotedField = true;
+                    $inQuotedField = true;
+                    $quotedFieldStartRow = $rowIndex;
+                    $quotedFieldStartColumn = $columnIndex;
+                    $quotedFieldStartOffset = $offset;
+                    $metrics['quotedFieldCount']++;
+                    continue;
+                }
+
+                $field .= $char;
+                $fieldStarted = true;
+                $metrics['quoteInUnquotedFieldCount']++;
+                $diagnostics[] = $this->diagnostic(
+                    'delimited-text-quote-in-unquoted-field',
+                    'warning',
+                    'Quote character appeared inside an unquoted field and was retained literally.',
+                    $rowIndex,
+                    $columnIndex,
+                    $offset
+                );
+                continue;
+            }
+
+            $field .= $char;
+            $fieldStarted = true;
+        }
+
+        if ($inQuotedField) {
+            $metrics['unclosedQuoteCount']++;
+            $metrics['partialRecordCount']++;
+            $diagnostics[] = $this->diagnostic(
+                'delimited-text-unclosed-quoted-field',
+                'warning',
+                'A quoted field reached end of input before a closing quote; the partial record was preserved.',
+                $quotedFieldStartRow,
+                $quotedFieldStartColumn,
+                $quotedFieldStartOffset
             );
         }
 
-        fclose($stream);
+        $hasPendingRow = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
+        if ($hasPendingRow) {
+            $finishRow();
+        }
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'diagnostics' => $diagnostics,
+            'metrics' => $metrics,
+        ];
+    }
+
+    /**
+     * @return array{code:string, severity:string, message:string, row:int, column:int, offset:int}
+     */
+    private function diagnostic(string $code, string $severity, string $message, int $row, int $column, int $offset): array
+    {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'row' => $row,
+            'column' => $column,
+            'offset' => $offset,
+        ];
     }
 
     /**
@@ -317,6 +589,7 @@ final class DelimitedTextReader
     }
 
     /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null} $dialect
      * @param list<list<string>> $rows
      * @param list<int> $widths
      * @param array{
@@ -329,16 +602,30 @@ final class DelimitedTextReader
      *     partialFinalRecordRow:int|null,
      *     partialFinalRecordFieldCount:int|null
      * } $sourceAnalysis
+     * @param list<array{code:string, severity:string, message:string, row:int, column:int, offset:int}> $parseDiagnostics
+     * @param array{
+     *     quotedFieldCount:int,
+     *     doubledQuoteEscapeCount:int,
+     *     escapedQuoteSequenceCount:int,
+     *     quoteInUnquotedFieldCount:int,
+     *     textAfterClosingQuoteCount:int,
+     *     unclosedQuoteCount:int,
+     *     quotedLineBreakCount:int,
+     *     multilineFieldCount:int,
+     *     partialRecordCount:int
+     * } $parseMetrics
      * @return array<string, mixed>
      */
     private function reviewPacket(
         string $format,
-        string $delimiter,
+        array $dialect,
         array $rows,
         array $widths,
         bool $hasHeader,
         array $formatInference,
-        array $sourceAnalysis
+        array $sourceAnalysis,
+        array $parseDiagnostics,
+        array $parseMetrics
     ): array
     {
         $rowCount = count($rows);
@@ -349,10 +636,25 @@ final class DelimitedTextReader
                 $raggedRows[] = $index;
             }
         }
+        $diagnostics = $this->reviewDiagnostics($hasHeader, $formatInference, $sourceAnalysis);
+        foreach ($parseDiagnostics as $diagnostic) {
+            $diagnostics[] = $diagnostic;
+        }
 
         return [
             'format' => $format,
-            'delimiter' => $delimiter === "\t" ? 'tab' : $delimiter,
+            'delimiter' => $dialect['delimiter'] === "\t" ? 'tab' : $dialect['delimiter'],
+            'delimiterName' => $dialect['delimiterName'],
+            'quote' => $dialect['quote'],
+            'escape' => $dialect['escape'],
+            'dialect' => [
+                'delimiter' => $dialect['delimiter'] === "\t" ? 'tab' : $dialect['delimiter'],
+                'delimiterName' => $dialect['delimiterName'],
+                'quote' => $dialect['quote'],
+                'escape' => $dialect['escape'],
+                'quoteMode' => $dialect['quote'] === null ? 'literal' : 'quoted-fields',
+                'escapeMode' => $dialect['escape'] === null ? 'none' : 'escape-character',
+            ],
             'formatInference' => $formatInference,
             'headerRow' => $hasHeader && $rowCount > 0,
             'headerOption' => $hasHeader ? 'first-row' : 'none',
@@ -379,7 +681,17 @@ final class DelimitedTextReader
             'partialFinalRecord' => $sourceAnalysis['partialFinalRecordRow'] !== null,
             'partialFinalRecordRow' => $sourceAnalysis['partialFinalRecordRow'],
             'partialFinalRecordFieldCount' => $sourceAnalysis['partialFinalRecordFieldCount'],
-            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference, $sourceAnalysis),
+            'quotedFieldCount' => $parseMetrics['quotedFieldCount'],
+            'doubledQuoteEscapeCount' => $parseMetrics['doubledQuoteEscapeCount'],
+            'escapedQuoteSequenceCount' => $parseMetrics['escapedQuoteSequenceCount'],
+            'quoteInUnquotedFieldCount' => $parseMetrics['quoteInUnquotedFieldCount'],
+            'textAfterClosingQuoteCount' => $parseMetrics['textAfterClosingQuoteCount'],
+            'unclosedQuoteCount' => $parseMetrics['unclosedQuoteCount'],
+            'quotedLineBreakCount' => $parseMetrics['quotedLineBreakCount'],
+            'multilineFieldCount' => $parseMetrics['multilineFieldCount'],
+            'partialRecordCount' => $parseMetrics['partialRecordCount'],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
             'upstreamEvidence' => [
                 'denominator' => 2,
                 'fixtures' => [
