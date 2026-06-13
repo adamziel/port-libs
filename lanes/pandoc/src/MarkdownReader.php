@@ -259,6 +259,9 @@ final class MarkdownReader
                     continue;
                 }
             }
+            if ($paragraph === [] && $listStack === [] && $this->trySkipEmptyHtmlCommentSeparator($lines, $index, $blocks)) {
+                continue;
+            }
             $rawHtmlBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlBlock($lines, $index) : null;
             if ($rawHtmlBlock !== null) {
                 $blocks[] = $rawHtmlBlock;
@@ -13746,6 +13749,62 @@ final class MarkdownReader
         $index = min($cursor, $count - 1);
 
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function trySkipEmptyHtmlCommentSeparator(array $lines, int $index, array $blocks): bool
+    {
+        $line = trim($lines[$index] ?? '');
+        if (preg_match('/^<!--\s*-->$/', $line) !== 1) {
+            return false;
+        }
+
+        $previous = $blocks[array_key_last($blocks)] ?? null;
+        if (!$previous instanceof AstNode || !$this->isMarkdownListBlock($previous)) {
+            return false;
+        }
+
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        if ($cursor >= $count) {
+            return false;
+        }
+
+        $nextMarker = $this->matchListMarker($lines[$cursor], $cursor);
+
+        return ($nextMarker !== null && $nextMarker['indent'] <= 3)
+            || $this->isIndentedCodeLine($lines[$cursor])
+            || $this->canStartDefinitionListAt($lines, $cursor);
+    }
+
+    private function isMarkdownListBlock(AstNode $node): bool
+    {
+        return $node->type === 'bullet_list'
+            || $node->type === 'ordered_list'
+            || $node->type === 'definition_list';
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function canStartDefinitionListAt(array $lines, int $index): bool
+    {
+        if (!$this->canStartDefinitionTerm($lines[$index] ?? '')) {
+            return false;
+        }
+
+        $cursor = $index + 1;
+        if ($cursor < count($lines) && trim($lines[$cursor]) === '') {
+            $cursor++;
+        }
+
+        return $cursor < count($lines) && $this->isDefinitionMarker($lines[$cursor]);
     }
 
     /**
