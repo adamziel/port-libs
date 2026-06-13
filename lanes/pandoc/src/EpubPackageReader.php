@@ -20,6 +20,7 @@ final class EpubPackageReader
         $package = $this->readPackageDocument($root, $opfPath, $rootfile);
         $toc = $this->readNavigationDocument($root, $package);
         $ncx = $this->readNcxDocument($root, $package);
+        $navReport = $this->navReport($toc, $package);
         $ncxReport = $this->ncxReport($ncx);
         $children = [];
 
@@ -51,6 +52,8 @@ final class EpubPackageReader
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
+                'tocReport' => $navReport,
+                'navReport' => $navReport,
                 'ncx' => $ncx,
                 'ncxReport' => $ncxReport,
             ],
@@ -537,6 +540,7 @@ final class EpubPackageReader
         $document = $this->loadXmlFile($this->resolveExistingPackagePath($root, $navItem['path']));
         $navDir = $this->relativeDirname($navItem['path']);
         $entries = [];
+        $sectionIndex = 0;
         foreach ($document->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
@@ -552,9 +556,18 @@ final class EpubPackageReader
                 continue;
             }
 
-            foreach ($this->readNavList($ol, $navDir, $type) as $entry) {
+            foreach ($this->readNavList(
+                $ol,
+                $navDir,
+                $type,
+                $sectionIndex,
+                $this->nullableAttribute($element, 'id'),
+                $this->navSectionLabel($element),
+                $root
+            ) as $entry) {
                 $entries[] = $entry;
             }
+            ++$sectionIndex;
         }
 
         return $entries;
@@ -599,6 +612,7 @@ final class EpubPackageReader
         $diagnostics = [];
         $seenTargets = [];
         $previousPositivePlayOrder = null;
+        $playOrderCount = 0;
         $missingPlayOrderCount = 0;
         $nonIncreasingPlayOrderCount = 0;
         $duplicateTargetCount = 0;
@@ -607,20 +621,20 @@ final class EpubPackageReader
             $playOrder = (int) ($point['playOrder'] ?? 0);
             if ($playOrder <= 0) {
                 ++$missingPlayOrderCount;
-            } elseif ($previousPositivePlayOrder !== null && $playOrder <= $previousPositivePlayOrder) {
-                ++$nonIncreasingPlayOrderCount;
-                $diagnostics[] = [
-                    'type' => 'non-increasing-ncx-play-order',
-                    'index' => $index,
-                    'label' => (string) ($point['label'] ?? ''),
-                    'playOrder' => $playOrder,
-                    'previousPlayOrder' => $previousPositivePlayOrder,
-                    'path' => (string) ($point['path'] ?? ''),
-                    'fragment' => (string) ($point['fragment'] ?? ''),
-                ];
-            }
-
-            if ($playOrder > 0) {
+            } else {
+                ++$playOrderCount;
+                if ($previousPositivePlayOrder !== null && $playOrder <= $previousPositivePlayOrder) {
+                    ++$nonIncreasingPlayOrderCount;
+                    $diagnostics[] = [
+                        'type' => 'non-increasing-ncx-play-order',
+                        'index' => $index,
+                        'label' => (string) ($point['label'] ?? ''),
+                        'playOrder' => $playOrder,
+                        'previousPlayOrder' => $previousPositivePlayOrder,
+                        'path' => (string) ($point['path'] ?? ''),
+                        'fragment' => (string) ($point['fragment'] ?? ''),
+                    ];
+                }
                 $previousPositivePlayOrder = $playOrder;
             }
 
@@ -650,6 +664,12 @@ final class EpubPackageReader
         }
 
         return [
+            'present' => $flat !== [],
+            'itemCount' => count($flat),
+            'topLevelItemCount' => count($points),
+            'playOrderCount' => $playOrderCount,
+            'hierarchy' => $this->hierarchySummary($flat, count($points)),
+            'items' => $flat,
             'pointCount' => count($flat),
             'topLevelPointCount' => count($points),
             'maxDepth' => $this->maxNcxDepth($points),
@@ -659,6 +679,321 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param array<string, mixed> $package
+     * @return array<string, mixed>
+     */
+    private function navReport(array $entries, array $package): array
+    {
+        $flat = $this->flattenNavigationEntries($entries);
+        $sections = [];
+        $sectionKeys = [];
+        $typeCounts = [];
+
+        foreach ($flat as $item) {
+            $sectionIndex = is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : -1;
+            $sectionKey = (string) $sectionIndex;
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== '') {
+                $typeCounts[$sectionType] = ($typeCounts[$sectionType] ?? 0) + 1;
+            }
+
+            if (!isset($sectionKeys[$sectionKey])) {
+                $sectionKeys[$sectionKey] = count($sections);
+                $sections[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'sectionLabel' => is_string($item['sectionLabel'] ?? null) ? $item['sectionLabel'] : '',
+                    'type' => $sectionType,
+                    'itemCount' => 0,
+                ];
+            }
+            ++$sections[$sectionKeys[$sectionKey]]['itemCount'];
+        }
+
+        return [
+            'present' => $flat !== [],
+            'itemCount' => count($flat),
+            'topLevelItemCount' => count($entries),
+            'sectionCount' => count($sections),
+            'types' => array_keys($typeCounts),
+            'typeCounts' => $typeCounts,
+            'sections' => $sections,
+            'hierarchy' => $this->hierarchySummary($flat, count($entries)),
+            'landmarks' => $this->landmarkReport($flat, $package),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @param array<string, mixed> $package
+     * @return array<string, mixed>
+     */
+    private function landmarkReport(array $flat, array $package): array
+    {
+        $manifestByPath = [];
+        foreach (is_array($package['manifest'] ?? null) ? $package['manifest'] : [] as $manifestItem) {
+            if (!is_array($manifestItem)) {
+                continue;
+            }
+            $path = is_string($manifestItem['path'] ?? null) ? $manifestItem['path'] : '';
+            if ($path !== '' && !isset($manifestByPath[$path])) {
+                $manifestByPath[$path] = $manifestItem;
+            }
+        }
+
+        $spineByPath = [];
+        foreach (is_array($package['spine'] ?? null) ? $package['spine'] : [] as $index => $spineItem) {
+            if (!is_array($spineItem)) {
+                continue;
+            }
+            $path = is_string($spineItem['path'] ?? null) ? $spineItem['path'] : '';
+            if ($path !== '' && !isset($spineByPath[$path])) {
+                $spineByPath[$path] = ['index' => $index] + $spineItem;
+            }
+        }
+
+        $guideByPath = [];
+        $guide = is_array($package['guide'] ?? null) ? $package['guide'] : [];
+        foreach (is_array($guide['items'] ?? null) ? $guide['items'] : [] as $guideItem) {
+            if (!is_array($guideItem)) {
+                continue;
+            }
+            $path = is_string($guideItem['path'] ?? null) ? $guideItem['path'] : '';
+            if ($path !== '') {
+                $guideByPath[$path][] = $guideItem;
+            }
+        }
+
+        $items = [];
+        $diagnostics = [];
+        $typedItemCount = 0;
+        $missingTypeCount = 0;
+        $targetedItemCount = 0;
+        $externalTargetCount = 0;
+        $missingReferenceCount = 0;
+        $outsideSpineTargetCount = 0;
+        $manifestMappedCount = 0;
+        $spineMappedCount = 0;
+        $guideRelationCount = 0;
+
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'landmarks') {
+                continue;
+            }
+
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            $external = (bool) ($item['external'] ?? false);
+            $exists = (bool) ($item['exists'] ?? false);
+            $semanticTypes = is_array($item['semanticTypes'] ?? null) ? array_values($item['semanticTypes']) : [];
+            $manifestItem = $manifestByPath[$path] ?? null;
+            $spineItem = $spineByPath[$path] ?? null;
+            $guideItems = $guideByPath[$path] ?? [];
+            $itemDiagnostics = [];
+            $landmarkIndex = count($items);
+
+            if ($semanticTypes === []) {
+                ++$missingTypeCount;
+                $itemDiagnostics[] = [
+                    'type' => 'missing-landmark-nav-type',
+                    'message' => 'EPUB nav landmark item is missing an epub:type value for import classification',
+                ];
+            } else {
+                ++$typedItemCount;
+            }
+
+            if ($href === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-landmark-target',
+                    'message' => 'EPUB nav landmark item has no href target',
+                ];
+            } else {
+                ++$targetedItemCount;
+                if ($external) {
+                    ++$externalTargetCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'external-landmark-target',
+                        'target' => $target,
+                        'message' => 'EPUB nav landmark target points outside the package and was not fetched',
+                    ];
+                } elseif (!$exists) {
+                    ++$missingReferenceCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-landmark-reference',
+                        'path' => $path,
+                        'message' => 'EPUB nav landmark target is missing from the package',
+                    ];
+                } elseif (!is_array($spineItem)) {
+                    ++$outsideSpineTargetCount;
+                    $itemDiagnostics[] = [
+                        'type' => 'landmark-target-outside-spine',
+                        'path' => $path,
+                        'message' => 'EPUB nav landmark target exists but is not part of the resolved spine handoff',
+                    ];
+                }
+            }
+
+            if (is_array($manifestItem)) {
+                ++$manifestMappedCount;
+            }
+            if (is_array($spineItem)) {
+                ++$spineMappedCount;
+            }
+            if ($guideItems !== []) {
+                ++$guideRelationCount;
+            }
+
+            $reportedItem = [
+                'index' => $landmarkIndex,
+                'sourceIndex' => $sourceIndex,
+                'sectionIndex' => is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : null,
+                'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'labelProvenance' => is_array($item['labelProvenance'] ?? null) ? $item['labelProvenance'] : [],
+                'href' => $href,
+                'target' => $target,
+                'path' => $path,
+                'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : '',
+                'external' => $external,
+                'exists' => $exists,
+                'semanticType' => is_string($item['semanticType'] ?? null) ? $item['semanticType'] : null,
+                'semanticTypes' => $semanticTypes,
+                'itemTypes' => is_array($item['itemTypes'] ?? null) ? array_values($item['itemTypes']) : [],
+                'labelTypes' => is_array($item['labelTypes'] ?? null) ? array_values($item['labelTypes']) : [],
+                'typeSource' => is_string($item['typeSource'] ?? null) ? $item['typeSource'] : null,
+                'typeSources' => is_array($item['typeSources'] ?? null) ? array_values($item['typeSources']) : [],
+                'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
+                'mediaType' => is_array($manifestItem) && is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null,
+                'spineIndex' => is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null,
+                'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
+                'guideTypes' => array_values(array_filter(
+                    array_map(static fn (array $guideItem): string => is_string($guideItem['type'] ?? null) ? $guideItem['type'] : '', $guideItems),
+                    static fn (string $type): bool => $type !== ''
+                )),
+                'guideTitles' => array_values(array_filter(
+                    array_map(static fn (array $guideItem): string => is_string($guideItem['title'] ?? null) ? $guideItem['title'] : '', $guideItems),
+                    static fn (string $title): bool => $title !== ''
+                )),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $landmarkIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'sectionIndex' => $reportedItem['sectionIndex'],
+                    'sectionId' => $reportedItem['sectionId'],
+                    'label' => $reportedItem['label'],
+                    'href' => $href,
+                    'target' => $target,
+                ] + $diagnostic;
+            }
+
+            $items[] = $reportedItem;
+        }
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'typedItemCount' => $typedItemCount,
+            'missingTypeCount' => $missingTypeCount,
+            'targetedItemCount' => $targetedItemCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'outsideSpineTargetCount' => $outsideSpineTargetCount,
+            'manifestMappedCount' => $manifestMappedCount,
+            'spineMappedCount' => $spineMappedCount,
+            'guideRelationCount' => $guideRelationCount,
+            'diagnosticCount' => count($diagnostics),
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function flattenNavigationEntries(array $entries): array
+    {
+        $flat = [];
+        $this->appendFlatNavigationEntries($entries, $flat);
+
+        return $flat;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $flat
+     */
+    private function appendFlatNavigationEntries(array $entries, array &$flat): void
+    {
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $copy = $entry;
+            $children = is_array($copy['children'] ?? null) ? array_values($copy['children']) : [];
+            unset($copy['children']);
+            $copy['index'] = count($flat);
+            $copy['childCount'] = count($children);
+            $flat[] = $copy;
+            if ($children !== []) {
+                $this->appendFlatNavigationEntries($children, $flat);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array{topLevelItemCount:int, branchItemCount:int, leafItemCount:int, maxDepth:int}
+     */
+    private function hierarchySummary(array $flat, int $topLevelItemCount): array
+    {
+        $branchItemCount = 0;
+        $maxDepth = 0;
+
+        foreach ($flat as $item) {
+            $childCount = is_int($item['childCount'] ?? null) ? $item['childCount'] : 0;
+            if ($childCount > 0) {
+                ++$branchItemCount;
+            }
+            if (is_int($item['depth'] ?? null)) {
+                $maxDepth = max($maxDepth, $item['depth']);
+            }
+        }
+
+        return [
+            'topLevelItemCount' => $topLevelItemCount,
+            'branchItemCount' => $branchItemCount,
+            'leafItemCount' => count($flat) - $branchItemCount,
+            'maxDepth' => $maxDepth,
+        ];
+    }
+
+    private function navSectionLabel(\DOMElement $nav): string
+    {
+        foreach ($nav->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if (in_array($child->localName, ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true)) {
+                return $this->normalizedText($child->textContent);
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -1049,9 +1384,18 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, type:string, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>>
      */
-    private function readNavList(\DOMElement $ol, string $baseDir, string $type): array
+    private function readNavList(
+        \DOMElement $ol,
+        string $baseDir,
+        string $type,
+        int $sectionIndex,
+        ?string $sectionId,
+        string $sectionLabel,
+        string $root,
+        int $depth = 0
+    ): array
     {
         $entries = [];
         foreach ($ol->childNodes as $node) {
@@ -1065,22 +1409,63 @@ final class EpubPackageReader
             }
 
             $href = $link->localName === 'a' ? trim($link->getAttribute('href')) : '';
+            $external = $this->isExternalHref($href);
             [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $target = $external ? $href : $this->targetWithSuffix($path, $this->hrefSuffix($href));
+            $exists = !$external && $path !== '' && $this->packagePathExists($root, $path);
+            $typeReport = $this->navItemTypeReport($node, $link);
+            $label = $this->normalizedText($link->textContent);
             $children = [];
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMElement && $child->localName === 'ol') {
-                    $children = $this->readNavList($child, $baseDir, $type);
+                    $children = $this->readNavList(
+                        $child,
+                        $baseDir,
+                        $type,
+                        $sectionIndex,
+                        $sectionId,
+                        $sectionLabel,
+                        $root,
+                        $depth + 1
+                    );
                     break;
                 }
             }
 
+            $labelProvenance = $this->labelProvenance(
+                $link,
+                $type === 'landmarks' ? ($link->localName === 'a' ? 'anchor' : 'span') : 'xhtml-nav',
+                $baseDir
+            );
+            $labelProvenance['itemId'] = $this->nullableAttribute($node, 'id');
+            $labelProvenance['labelId'] = $this->nullableAttribute($link, 'id');
+
             $entries[] = [
-                'label' => $this->normalizedText($link->textContent),
+                'label' => $label,
                 'href' => $href,
+                'target' => $target,
                 'path' => $path,
                 'fragment' => $fragment,
                 'type' => $type,
-                'labelProvenance' => $this->labelProvenance($link, 'xhtml-nav', $baseDir),
+                'sectionType' => $type,
+                'sectionIndex' => $sectionIndex,
+                'sectionId' => $sectionId,
+                'sectionLabel' => $sectionLabel,
+                'id' => $this->nullableAttribute($link, 'id') ?? $this->nullableAttribute($node, 'id'),
+                'itemId' => $this->nullableAttribute($node, 'id'),
+                'labelId' => $this->nullableAttribute($link, 'id'),
+                'labelElement' => $link->localName,
+                'labelProvenance' => $labelProvenance,
+                'external' => $external,
+                'exists' => $exists,
+                'semanticType' => $typeReport['type'],
+                'semanticTypes' => $typeReport['types'],
+                'itemTypes' => $typeReport['itemTypes'],
+                'labelTypes' => $typeReport['labelTypes'],
+                'typeSource' => $typeReport['typeSource'],
+                'typeSources' => $typeReport['typeSources'],
+                'depth' => $depth,
+                'childCount' => count($children),
                 'children' => $children,
             ];
         }
@@ -1089,9 +1474,9 @@ final class EpubPackageReader
     }
 
     /**
-     * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, labelProvenance:array<string, mixed>, children:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>>
      */
-    private function readNcxPoints(\DOMElement $parent, string $baseDir): array
+    private function readNcxPoints(\DOMElement $parent, string $baseDir, int $depth = 0): array
     {
         $points = [];
         foreach ($parent->childNodes as $node) {
@@ -1106,14 +1491,21 @@ final class EpubPackageReader
             $content = $this->firstDirectChild($node, 'content');
             $href = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
             [$path, $fragment] = $this->splitResolvedHref($baseDir, $href);
+            $children = $this->readNcxPoints($node, $baseDir, $depth + 1);
+            $labelProvenance = $this->ncxLabelProvenance($labelContainer);
+            $labelProvenance['itemId'] = $this->nullableAttribute($node, 'id');
             $points[] = [
+                'id' => $this->nullableAttribute($node, 'id'),
                 'label' => $label,
                 'href' => $href,
+                'target' => $this->targetWithSuffix($path, $this->hrefSuffix($href)),
                 'path' => $path,
                 'fragment' => $fragment,
                 'playOrder' => is_numeric($node->getAttribute('playOrder')) ? (int) $node->getAttribute('playOrder') : 0,
-                'labelProvenance' => $this->ncxLabelProvenance($labelContainer),
-                'children' => $this->readNcxPoints($node, $baseDir),
+                'labelProvenance' => $labelProvenance,
+                'depth' => $depth,
+                'childCount' => count($children),
+                'children' => $children,
             ];
         }
 
@@ -1124,7 +1516,7 @@ final class EpubPackageReader
      * @param list<array<string, mixed>> $points
      * @param list<array<string, mixed>> $flat
      */
-    private function flattenNcxPoints(array $points, array &$flat, int $depth = 1): void
+    private function flattenNcxPoints(array $points, array &$flat, int $depth = 0): void
     {
         foreach ($points as $point) {
             $entry = $point;
@@ -1214,6 +1606,8 @@ final class EpubPackageReader
             'source' => 'ncx-navLabel',
             'element' => $labelContainer instanceof \DOMElement ? $labelContainer->localName : null,
             'text' => $textElement instanceof \DOMElement ? $this->normalizedText($textElement->textContent) : '',
+            'labelId' => $labelContainer instanceof \DOMElement ? $this->nullableAttribute($labelContainer, 'id') : null,
+            'textId' => $textElement instanceof \DOMElement ? $this->nullableAttribute($textElement, 'id') : null,
             'language' => $labelContainer instanceof \DOMElement ? $this->elementLanguage($labelContainer) : '',
             'direction' => $labelContainer instanceof \DOMElement ? trim($labelContainer->getAttribute('dir')) : '',
             'attributes' => $labelContainer instanceof \DOMElement ? $this->htmlAttributes($labelContainer) : [],
@@ -1274,6 +1668,13 @@ final class EpubPackageReader
         return null;
     }
 
+    private function nullableAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = trim($element->getAttribute($name));
+
+        return $value === '' ? null : $value;
+    }
+
     /**
      * @return array<string, string>
      */
@@ -1322,6 +1723,57 @@ final class EpubPackageReader
         }
 
         return '';
+    }
+
+    /**
+     * @return array{
+     *     type:?string,
+     *     types:list<string>,
+     *     itemTypes:list<string>,
+     *     labelTypes:list<string>,
+     *     typeSource:?string,
+     *     typeSources:list<array{type:string, source:string, element:string}>
+     * }
+     */
+    private function navItemTypeReport(\DOMElement $item, ?\DOMElement $label): array
+    {
+        $itemTypes = $this->epubTypes($item);
+        $labelTypes = $label instanceof \DOMElement ? $this->epubTypes($label) : [];
+        $types = [];
+        $typeSources = [];
+        $sourceByType = [];
+
+        $addTypes = static function (array $sourceTypes, string $source, string $element) use (&$types, &$typeSources, &$sourceByType): void {
+            foreach ($sourceTypes as $type) {
+                if (!is_string($type) || $type === '') {
+                    continue;
+                }
+
+                if (!in_array($type, $types, true)) {
+                    $types[] = $type;
+                    $sourceByType[$type] = $source;
+                }
+
+                $typeSources[] = [
+                    'type' => $type,
+                    'source' => $source,
+                    'element' => $element,
+                ];
+            }
+        };
+
+        $addTypes($labelTypes, 'label', $label instanceof \DOMElement ? $label->localName : '');
+        $addTypes($itemTypes, 'item', $item->localName);
+        $type = $types[0] ?? null;
+
+        return [
+            'type' => $type,
+            'types' => $types,
+            'itemTypes' => $itemTypes,
+            'labelTypes' => $labelTypes,
+            'typeSource' => $type === null ? null : ($sourceByType[$type] ?? null),
+            'typeSources' => $typeSources,
+        ];
     }
 
     /**

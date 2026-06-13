@@ -297,6 +297,145 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub nav landmarks relations and preserves label and ncx summaries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-landmarks-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-landmarks-review</dc:identifier>
+    <dc:title>Navigation Landmark Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+  <guide>
+    <reference type="text" title="Start reading" href="chapter.xhtml"/>
+    <reference type="appendix" title="Appendix review" href="appendix.xhtml#appendix"/>
+  </guide>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+    <nav id="landmark-source" epub:type="landmarks">
+      <h2>Landmark routes</h2>
+      <ol>
+        <li id="body-li"><a id="body-link" epub:type="bodymatter" href="chapter.xhtml">Start</a></li>
+        <li id="appendix-li"><a id="appendix-link" href="appendix.xhtml#appendix">Appendix without type</a></li>
+        <li id="missing-li" epub:type="glossary"><a id="missing-link" href="missing.xhtml">Missing glossary</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/toc.ncx', <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="np-1" playOrder="1">
+      <navLabel id="np-1-label"><text id="np-1-text">Chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+      <navPoint id="np-1-1" playOrder="2">
+        <navLabel><text>Chapter section</text></navLabel>
+        <content src="chapter.xhtml#section"/>
+      </navPoint>
+    </navPoint>
+    <navPoint id="np-2" playOrder="3">
+      <navLabel><text>Appendix</text></navLabel>
+      <content src="appendix.xhtml#appendix"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="section">Chapter</h1></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="appendix">Appendix</h1></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $landmarks = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'landmarks'
+            ));
+            $navReport = $epub['navReport'];
+            $landmarkReport = $navReport['landmarks'];
+            $ncxReport = $epub['ncxReport'];
+
+            $t->same($navReport, $epub['tocReport']);
+            $t->same(3, count($landmarks));
+            $t->same('anchor', $landmarks[0]['labelProvenance']['source']);
+            $t->same('body-link', $landmarks[0]['labelProvenance']['labelId']);
+            $t->same(['bodymatter'], $landmarks[0]['labelTypes']);
+            $t->same('label', $landmarks[0]['typeSource']);
+
+            $t->same(true, $landmarkReport['present']);
+            $t->same(3, $landmarkReport['itemCount']);
+            $t->same(2, $landmarkReport['typedItemCount']);
+            $t->same(1, $landmarkReport['missingTypeCount']);
+            $t->same(3, $landmarkReport['targetedItemCount']);
+            $t->same(1, $landmarkReport['spineMappedCount']);
+            $t->same(2, $landmarkReport['manifestMappedCount']);
+            $t->same(2, $landmarkReport['guideRelationCount']);
+            $t->same(1, $landmarkReport['outsideSpineTargetCount']);
+            $t->same(1, $landmarkReport['missingReferenceCount']);
+            $t->same(3, $landmarkReport['diagnosticCount']);
+            $t->same(['missing-landmark-nav-type', 'landmark-target-outside-spine', 'missing-landmark-reference'], array_column($landmarkReport['diagnostics'], 'type'));
+
+            $body = $landmarkReport['items'][0];
+            $t->same('Start', $body['label']);
+            $t->same('bodymatter', $body['semanticType']);
+            $t->same('chapter', $body['manifestId']);
+            $t->same(0, $body['spineIndex']);
+            $t->same('chapter', $body['spineIdref']);
+            $t->same(['text'], $body['guideTypes']);
+            $t->same([], $body['diagnostics']);
+
+            $appendix = $landmarkReport['items'][1];
+            $t->same([], $appendix['semanticTypes']);
+            $t->same('appendix', $appendix['manifestId']);
+            $t->same(null, $appendix['spineIndex']);
+            $t->same(['appendix'], $appendix['guideTypes']);
+            $t->same(['missing-landmark-nav-type', 'landmark-target-outside-spine'], array_column($appendix['diagnostics'], 'type'));
+
+            $missing = $landmarkReport['items'][2];
+            $t->same(['glossary'], $missing['itemTypes']);
+            $t->same('item', $missing['typeSource']);
+            $t->same(false, $missing['exists']);
+            $t->same('missing-landmark-reference', $missing['diagnostics'][0]['type']);
+
+            $t->same(true, $ncxReport['present']);
+            $t->same(3, $ncxReport['itemCount']);
+            $t->same(2, $ncxReport['topLevelItemCount']);
+            $t->same(3, $ncxReport['playOrderCount']);
+            $t->same(0, $ncxReport['diagnosticCount']);
+            $t->same(['topLevelItemCount' => 2, 'branchItemCount' => 1, 'leafItemCount' => 2, 'maxDepth' => 1], $ncxReport['hierarchy']);
+            $t->same('ncx-navLabel', $ncxReport['items'][0]['labelProvenance']['source']);
+            $t->same('np-1-label', $ncxReport['items'][0]['labelProvenance']['labelId']);
+            $t->same('np-1-text', $ncxReport['items'][0]['labelProvenance']['textId']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $epub = $document->attr('epub');
