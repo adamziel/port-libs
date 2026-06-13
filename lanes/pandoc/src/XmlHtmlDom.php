@@ -743,9 +743,19 @@ final class XmlHtmlDom
         $bookIds = $metadata instanceof \DOMElement
             ? self::jatsTypedTextRecords($metadata, ['book-id'], ['book-id-type', 'pub-id-type'])
             : [];
+        $titleMetadata = $metadata instanceof \DOMElement
+            ? self::jatsFirstTextRecord($metadata, ['article-title', 'book-title', 'title'])
+            : null;
+        $subtitleMetadata = $metadata instanceof \DOMElement
+            ? self::jatsFirstTextRecord($metadata, ['subtitle'])
+            : null;
         $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
         $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
+        $sectionTitlePaths = array_values(array_filter(
+            array_map(static fn (array $section): array => $section['titlePath'], $sections),
+            static fn (array $path): bool => $path !== []
+        ));
         $xrefTargets = self::jatsXrefTargets($root);
         $referenceIds = self::jatsElementIds($root, 'ref');
         $figureIds = self::jatsElementIds($root, 'fig');
@@ -764,10 +774,10 @@ final class XmlHtmlDom
                 ?? self::attribute($root, 'lang'),
             'metadataRoot' => $metadata instanceof \DOMElement ? $metadata->localName : null,
             'hasFrontMatter' => $metadata instanceof \DOMElement,
-            'title' => $metadata instanceof \DOMElement
-                ? self::jatsFirstText($metadata, ['article-title', 'book-title', 'title'])
-                : null,
-            'subtitle' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['subtitle']) : null,
+            'title' => $titleMetadata['text'] ?? null,
+            'titleMetadata' => $titleMetadata,
+            'subtitle' => $subtitleMetadata['text'] ?? null,
+            'subtitleMetadata' => $subtitleMetadata,
             'journalTitle' => self::jatsFirstText($root, ['journal-title']),
             'publisherName' => self::jatsFirstText($root, ['publisher-name']),
             'articleIds' => $articleIds,
@@ -792,6 +802,11 @@ final class XmlHtmlDom
                 array_map(static fn (array $section): ?string => $section['title'], $sections),
                 static fn (?string $title): bool => $title !== null && $title !== ''
             )),
+            'sectionTitlePaths' => $sectionTitlePaths,
+            'sectionTitlePathText' => array_map(
+                static fn (array $path): string => implode(' > ', $path),
+                $sectionTitlePaths
+            ),
             'sections' => $sections,
             'xrefTargets' => $xrefTargets,
             'xrefTargetCount' => count($xrefTargets),
@@ -854,6 +869,30 @@ final class XmlHtmlDom
             $value = self::attribute($root, $name);
             if ($value !== null && trim($value) !== '') {
                 return trim($value);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return array{element:string, text:string}|null
+     */
+    private static function jatsFirstTextRecord(\DOMElement $root, array $localNames): ?array
+    {
+        foreach ($localNames as $localName) {
+            $element = self::firstDescendantElement($root, $localName);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($element);
+            if ($text !== '') {
+                return [
+                    'element' => $localName,
+                    'text' => $text,
+                ];
             }
         }
 
@@ -1027,21 +1066,110 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<array{id:?string, title:?string, paragraphCount:int}>
+     * @return list<array{
+     *     id:?string,
+     *     parentId:?string,
+     *     depth:int,
+     *     title:?string,
+     *     titlePath:list<string>,
+     *     titlePathText:?string,
+     *     paragraphCount:int,
+     *     directParagraphCount:int,
+     *     childSectionCount:int
+     * }>
      */
     private static function jatsSectionSummaries(\DOMElement $body): array
     {
         $sections = [];
         foreach (self::descendantElements($body, 'sec') as $section) {
-            $title = self::firstChildElement($section, 'title');
-            $sections[] = [
-                'id' => self::attribute($section, 'id'),
-                'title' => $title instanceof \DOMElement ? self::normalizedText($title) : null,
-                'paragraphCount' => count(self::descendantElements($section, 'p')),
-            ];
+            if (self::jatsNearestAncestorSection($section) instanceof \DOMElement) {
+                continue;
+            }
+
+            self::appendJatsSectionSummary($section, null, 1, [], $sections);
         }
 
         return $sections;
+    }
+
+    /**
+     * @param list<string> $parentTitlePath
+     * @param list<array{
+     *     id:?string,
+     *     parentId:?string,
+     *     depth:int,
+     *     title:?string,
+     *     titlePath:list<string>,
+     *     titlePathText:?string,
+     *     paragraphCount:int,
+     *     directParagraphCount:int,
+     *     childSectionCount:int
+     * }> $sections
+     */
+    private static function appendJatsSectionSummary(
+        \DOMElement $section,
+        ?string $parentId,
+        int $depth,
+        array $parentTitlePath,
+        array &$sections
+    ): void {
+        $title = self::firstChildElement($section, 'title');
+        $titleText = $title instanceof \DOMElement ? self::normalizedText($title) : null;
+        if ($titleText === '') {
+            $titleText = null;
+        }
+
+        $titlePath = $parentTitlePath;
+        if ($titleText !== null) {
+            $titlePath[] = $titleText;
+        }
+
+        $children = self::jatsChildSections($section);
+        $id = self::attribute($section, 'id');
+        $sections[] = [
+            'id' => $id,
+            'parentId' => $parentId,
+            'depth' => $depth,
+            'title' => $titleText,
+            'titlePath' => $titlePath,
+            'titlePathText' => $titlePath === [] ? null : implode(' > ', $titlePath),
+            'paragraphCount' => count(self::descendantElements($section, 'p')),
+            'directParagraphCount' => count(self::childElements($section, 'p')),
+            'childSectionCount' => count($children),
+        ];
+
+        foreach ($children as $child) {
+            self::appendJatsSectionSummary($child, $id, $depth + 1, $titlePath, $sections);
+        }
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function jatsChildSections(\DOMElement $section): array
+    {
+        $children = [];
+        foreach (self::descendantElements($section, 'sec') as $candidate) {
+            if (self::jatsNearestAncestorSection($candidate) === $section) {
+                $children[] = $candidate;
+            }
+        }
+
+        return $children;
+    }
+
+    private static function jatsNearestAncestorSection(\DOMElement $element): ?\DOMElement
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->localName === 'sec') {
+                return $node;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return null;
     }
 
     /**

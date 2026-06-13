@@ -106,7 +106,8 @@ XML, 'package reader XML');
     </article-meta>
   </front>
   <body>
-    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1">[1]</xref>.</p></sec>
+    <sec id="s1"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1">[1]</xref>.</p><sec id="s1a"><title>Nested <italic>Evidence</italic></title><p>Nested body.</p></sec></sec>
+    <sec id="s2"><p>Untitled branch.</p><sec id="s2a"><title>Untitled Child</title><p>Child body.</p></sec></sec>
     <fig id="f1"><caption><p>Figure</p></caption></fig>
     <table-wrap id="t1"><caption><p>Table</p></caption></table-wrap>
   </body>
@@ -126,7 +127,9 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same('en', $packet['rootAttributes']['xml:lang'] ?? null);
         $t->same('article-meta', $packet['metadataRoot']);
         $t->same('Import Safety Study', $packet['title']);
+        $t->same(['element' => 'article-title', 'text' => 'Import Safety Study'], $packet['titleMetadata']);
         $t->same('Escaping & attributes', $packet['subtitle']);
+        $t->same(['element' => 'subtitle', 'text' => 'Escaping & attributes'], $packet['subtitleMetadata']);
         $t->same('Journal & Review', $packet['journalTitle']);
         $t->same('Port Libs Press', $packet['publisherName']);
         $t->same([['element' => 'article-id', 'type' => 'doi', 'value' => '10.5555/review.42']], $packet['articleIds']);
@@ -138,10 +141,34 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(['author', 'editor'], $packet['contributorRoles']);
         $t->same(['aff1'], $packet['contributors'][0]['xrefTargets'] ?? null);
         $t->same('2026-06-12', $packet['publicationDates'][0]['iso'] ?? null);
-        $t->same(1, $packet['sectionCount']);
-        $t->same(['Scope'], $packet['sectionTitles']);
+        $t->same(4, $packet['sectionCount']);
+        $t->same(['Scope', 'Nested Evidence', 'Untitled Child'], $packet['sectionTitles']);
+        $t->same([
+            ['Scope'],
+            ['Scope', 'Nested Evidence'],
+            ['Untitled Child'],
+        ], $packet['sectionTitlePaths']);
+        $t->same(['Scope', 'Scope > Nested Evidence', 'Untitled Child'], $packet['sectionTitlePathText']);
         $t->same('s1', $packet['sections'][0]['id'] ?? null);
-        $t->same(1, $packet['sections'][0]['paragraphCount'] ?? null);
+        $t->same(null, $packet['sections'][0]['parentId'] ?? null);
+        $t->same(1, $packet['sections'][0]['depth'] ?? null);
+        $t->same(['Scope'], $packet['sections'][0]['titlePath'] ?? null);
+        $t->same('Scope', $packet['sections'][0]['titlePathText'] ?? null);
+        $t->same(2, $packet['sections'][0]['paragraphCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['directParagraphCount'] ?? null);
+        $t->same(1, $packet['sections'][0]['childSectionCount'] ?? null);
+        $t->same('s1a', $packet['sections'][1]['id'] ?? null);
+        $t->same('s1', $packet['sections'][1]['parentId'] ?? null);
+        $t->same(2, $packet['sections'][1]['depth'] ?? null);
+        $t->same(['Scope', 'Nested Evidence'], $packet['sections'][1]['titlePath'] ?? null);
+        $t->same('Scope > Nested Evidence', $packet['sections'][1]['titlePathText'] ?? null);
+        $t->same('s2', $packet['sections'][2]['id'] ?? null);
+        $t->same(null, $packet['sections'][2]['title'] ?? null);
+        $t->same([], $packet['sections'][2]['titlePath'] ?? null);
+        $t->same(null, $packet['sections'][2]['titlePathText'] ?? null);
+        $t->same('s2a', $packet['sections'][3]['id'] ?? null);
+        $t->same('s2', $packet['sections'][3]['parentId'] ?? null);
+        $t->same(['Untitled Child'], $packet['sections'][3]['titlePath'] ?? null);
         $t->same(['aff1', 'r1'], $packet['xrefTargets']);
         $t->same(['r1'], $packet['referenceIds']);
         $t->same(['f1'], $packet['figureIds']);
@@ -168,7 +195,9 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('fr', $bitsPacket['language']);
         $t->same('book-meta', $bitsPacket['metadataRoot']);
         $t->same('Review Book', $bitsPacket['title']);
+        $t->same(['element' => 'book-title', 'text' => 'Review Book'], $bitsPacket['titleMetadata']);
         $t->same('Bounded XML metadata', $bitsPacket['subtitle']);
+        $t->same(['element' => 'subtitle', 'text' => 'Bounded XML metadata'], $bitsPacket['subtitleMetadata']);
         $t->same([['element' => 'book-id', 'type' => 'isbn', 'value' => '978-1-55555-042-0']], $bitsPacket['bookIds']);
         $t->same(['Camille Editor'], $bitsPacket['contributorNames']);
         $t->same('2025', $bitsPacket['publicationDates'][0]['iso'] ?? null);
