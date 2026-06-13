@@ -362,6 +362,8 @@ final class PandocJsonWriter
             || array_is_list($sourceNative)
             || !$this->isTaggedMetaValue($sourceNative)
             || $this->hasLegacyMetaMapWrapper($sourceNative)
+            || $this->hasNonCurrentNativeBlockPayload($sourceNative)
+            || $this->hasNonCurrentNativeInlinePayload($sourceNative)
         ) {
             return false;
         }
@@ -1224,7 +1226,11 @@ final class PandocJsonWriter
      */
     private function canReuseCurrentNativeInlinePayload(AstNode $node, array $native): bool
     {
-        if ($this->hasNonCurrentNativeInlinePayload($native) || !$this->isCurrentNativeInlinePayload($native)) {
+        if (
+            $this->hasNonCurrentNativeBlockPayload($native)
+            || $this->hasNonCurrentNativeInlinePayload($native)
+            || !$this->isCurrentNativeInlinePayload($native)
+        ) {
             return false;
         }
 
@@ -1297,7 +1303,7 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
-        if ($this->hasNonCurrentNativeInlinePayload($native)) {
+        if ($this->hasNonCurrentNativeBlockPayload($native) || $this->hasNonCurrentNativeInlinePayload($native)) {
             return false;
         }
 
@@ -1327,6 +1333,31 @@ final class PandocJsonWriter
             'Null',
             'Div',
         ], true);
+    }
+
+    private function hasNonCurrentNativeBlockPayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeBlockConstructor($value['t'])
+            && array_key_exists('c', $value)
+            && $value['c'] !== []
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonCurrentNativeBlockPayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasLegacyTargetInlinePayload(mixed $value): bool
@@ -1449,6 +1480,11 @@ final class PandocJsonWriter
             'Note',
             'Span',
         ], true);
+    }
+
+    private function isNullaryNativeBlockConstructor(string $constructor): bool
+    {
+        return in_array($constructor, ['HorizontalRule', 'Null'], true);
     }
 
     private function isNullaryNativeHelperConstructor(string $constructor): bool

@@ -116,6 +116,8 @@ final class NativeWriter
             || array_is_list($sourceNative)
             || !$this->isTaggedMetaValue($sourceNative)
             || $this->hasLegacyMetaMapWrapper($sourceNative)
+            || $this->hasNonReusableNativeBlockPayload($sourceNative)
+            || $this->hasNonReusableNativeInlinePayload($sourceNative)
         ) {
             return false;
         }
@@ -376,10 +378,6 @@ final class NativeWriter
      */
     private function compatibleMetaValue(array $value, mixed $sourceNative = null, array $provenance = [], array $path = []): array
     {
-        if ($sourceNative === null) {
-            return $value;
-        }
-
         $document = (new PandocJsonReader())->readPacket([
             'pandoc-api-version' => [1, 23, 1],
             'meta' => ['__value' => $value],
@@ -390,7 +388,13 @@ final class NativeWriter
             throw new \InvalidArgumentException('Unable to normalize tagged Pandoc native metadata value');
         }
 
-        return $this->metaValue($meta['__value'], $sourceNative, $provenance, $path);
+        if ($sourceNative !== null) {
+            return $this->metaValue($meta['__value'], $sourceNative, $provenance, $path);
+        }
+
+        return $this->canReuseMetaNativeValue($meta['__value'], $value)
+            ? $value
+            : $this->metaValue($meta['__value'], null, $provenance, $path);
     }
 
     /**
@@ -1207,7 +1211,11 @@ final class NativeWriter
      */
     private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
     {
-        if ($this->hasLegacyTargetInlinePayloadSidecars($native) || $this->hasNonReusableNativeInlinePayload($native)) {
+        if (
+            $this->hasLegacyTargetInlinePayloadSidecars($native)
+            || $this->hasNonReusableNativeBlockPayload($native)
+            || $this->hasNonReusableNativeInlinePayload($native)
+        ) {
             return false;
         }
 
@@ -1253,6 +1261,7 @@ final class NativeWriter
     {
         if (
             $this->hasLegacyTargetInlinePayloadSidecars($native)
+            || $this->hasNonReusableNativeBlockPayload($native)
             || $this->hasNonReusableNativeInlinePayload($native)
             || !$this->isReusableNativeInlinePayload($native)
         ) {
@@ -1294,6 +1303,31 @@ final class NativeWriter
         }
 
         return $nodes;
+    }
+
+    private function hasNonReusableNativeBlockPayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeBlockConstructor($value['t'])
+            && array_key_exists('c', $value)
+            && $value['c'] !== []
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonReusableNativeBlockPayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasNonReusableNativeInlinePayload(mixed $value): bool
@@ -1427,6 +1461,11 @@ final class NativeWriter
             'Note',
             'Span',
         ], true);
+    }
+
+    private function isNullaryNativeBlockConstructor(string $constructor): bool
+    {
+        return in_array($constructor, ['HorizontalRule', 'Null'], true);
     }
 
     private function isNullaryNativeHelperConstructor(string $constructor): bool

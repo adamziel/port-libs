@@ -1104,6 +1104,103 @@ return [
             }
         }
     },
+    'regenerates stale nullary block payloads inside metadata lists and nested containers' => static function (TestRunner $t): void {
+        $metaRule = ['t' => 'HorizontalRule', 'c' => ['stale-meta-rule'], 'reviewQueue' => 'meta-rule-source'];
+        $metaNull = ['t' => 'Null', 'c' => ['stale-meta-null'], 'reviewQueue' => 'meta-null-source'];
+        $listRule = ['t' => 'HorizontalRule', 'c' => ['stale-list-rule'], 'reviewQueue' => 'list-rule-source'];
+        $listNull = ['t' => 'Null', 'c' => ['stale-list-null'], 'reviewQueue' => 'list-null-source'];
+        $nestedRule = ['t' => 'HorizontalRule', 'c' => ['stale-nested-rule'], 'reviewQueue' => 'nested-rule-source'];
+        $noteNull = ['t' => 'Null', 'c' => ['stale-note-null'], 'reviewQueue' => 'note-null-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'body' => ['t' => 'MetaBlocks', 'c' => [
+                        $metaRule,
+                        ['t' => 'BulletList', 'c' => [
+                            [
+                                $metaNull,
+                                ['t' => 'Para', 'c' => [
+                                    ['t' => 'Str', 'c' => 'metadata'],
+                                ]],
+                            ],
+                        ], 'reviewQueue' => 'meta-list-source'],
+                        ['t' => 'Div', 'c' => [
+                            ['meta-container', [], []],
+                            [
+                                ['t' => 'BlockQuote', 'c' => [$nestedRule], 'reviewQueue' => 'meta-blockquote-source'],
+                            ],
+                        ], 'reviewQueue' => 'meta-div-source'],
+                    ], 'reviewQueue' => 'meta-blocks-source'],
+                    'items' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaBlocks', 'c' => [$metaNull], 'reviewQueue' => 'meta-list-blocks-source'],
+                    ]],
+                ]],
+            ],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => [
+                    [
+                        $listRule,
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'after'],
+                        ]],
+                    ],
+                    [
+                        $listNull,
+                    ],
+                ], 'reviewQueue' => 'list-wrapper-source'],
+                ['t' => 'Div', 'c' => [
+                    ['nested-container', [], []],
+                    [
+                        ['t' => 'BlockQuote', 'c' => [$nestedRule], 'reviewQueue' => 'block-wrapper-source'],
+                    ],
+                ], 'reviewQueue' => 'div-wrapper-source'],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Note', 'c' => [$noteNull], 'reviewQueue' => 'note-wrapper-source'],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $provenance = $document->attr('metaConstructorProvenance');
+            $list = $document->children[0];
+            $div = $document->children[1];
+            $note = $document->children[2]->children[0];
+
+            $t->same($packet['meta']['review']['c']['body'], $provenance['/review/body']['native'], "{$source} retains MetaBlocks source payload");
+            $t->same($metaRule, $provenance['/review/body']['native']['c'][0], "{$source} retains stale metadata rule provenance");
+            $t->same($listNull, $list->children[1]->children[0]->attr('native'), "{$source} retains stale list null provenance");
+            $t->same($nestedRule, $div->children[0]->children[0]->attr('native'), "{$source} retains stale nested rule provenance");
+            $t->same($noteNull, $note->children[0]->attr('native'), "{$source} retains stale note block provenance");
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedMetaBody = $encoded['meta']['review']['c']['body']['c'];
+                $encodedMetaListBlocks = $encoded['meta']['review']['c']['items']['c'][0]['c'];
+                $encodedList = $encoded['blocks'][0];
+                $encodedDiv = $encoded['blocks'][1];
+                $encodedNote = $encoded['blocks'][2]['c'][0];
+
+                $t->same(['t' => 'HorizontalRule'], $encodedMetaBody[0], "{$source} {$writer} regenerates MetaBlocks rule");
+                $t->same(['t' => 'Null'], $encodedMetaBody[1]['c'][0][0], "{$source} {$writer} regenerates MetaBlocks list null");
+                $t->same(['t' => 'HorizontalRule'], $encodedMetaBody[2]['c'][1][0]['c'][0], "{$source} {$writer} regenerates nested MetaBlocks rule");
+                $t->same(['t' => 'Null'], $encodedMetaListBlocks[0], "{$source} {$writer} regenerates MetaList block null");
+                $t->same(['t' => 'HorizontalRule'], $encodedList['c'][0][0], "{$source} {$writer} regenerates list rule payload");
+                $t->same(['t' => 'Null'], $encodedList['c'][1][0], "{$source} {$writer} regenerates list null payload");
+                $t->same(['t' => 'HorizontalRule'], $encodedDiv['c'][1][0]['c'][0], "{$source} {$writer} regenerates nested container rule");
+                $t->same(['t' => 'Null'], $encodedNote['c'][0], "{$source} {$writer} regenerates note block null");
+                $t->same(false, array_key_exists('reviewQueue', $encodedList), "{$source} {$writer} drops stale list wrapper sidecar");
+                $t->same(false, array_key_exists('reviewQueue', $encodedNote), "{$source} {$writer} drops stale note wrapper sidecar");
+            }
+        }
+    },
     'reads legacy table and target inline constructor shapes through json and native readers' => static function (TestRunner $t): void {
         $legacyTable = [
             't' => 'Table',
