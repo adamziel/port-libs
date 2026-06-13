@@ -12,7 +12,10 @@ final class XmlHtmlDom
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const DOCBOOK_REVIEW_PACKET_MAX_ITEMS = 25;
     private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+    private const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
     private const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+    private const XML_NAMESPACE_SCOPE_MAX_ELEMENTS = 64;
+    private const XML_NAMESPACE_DECLARATION_MAX_RECORDS = 128;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -1206,6 +1209,94 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeXmlNamespaceScopes(\DOMDocument $dom, ?string $xmlSource = null): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('XML namespace scope review requires a document element');
+        }
+
+        $source = $xmlSource ?? ($dom->saveXML($root) ?: '');
+        $declarations = self::xmlNamespaceDeclarationRecords($source);
+        $elements = self::xmlElementList($root);
+        $knownPrefixes = self::xmlNamespaceKnownPrefixes($elements, $declarations);
+        $scopes = [];
+        $defaultScopes = [];
+
+        foreach ($elements as $element) {
+            $scope = self::xmlNamespaceScopeForElement($element, $knownPrefixes);
+            if (count($scopes) < self::XML_NAMESPACE_SCOPE_MAX_ELEMENTS) {
+                $scopes[] = $scope;
+            }
+
+            if ($scope['defaultNamespaceUri'] !== null && count($defaultScopes) < self::XML_NAMESPACE_SCOPE_MAX_ELEMENTS) {
+                $defaultScopes[] = [
+                    'elementPath' => $scope['elementPath'],
+                    'elementName' => $scope['elementName'],
+                    'uri' => $scope['defaultNamespaceUri'],
+                ];
+            }
+        }
+
+        $collisionSummary = self::xmlNamespaceCollisionSummary($declarations);
+        $diagnostics = self::xmlNamespaceDiagnostics($collisionSummary, $declarations);
+        $namespaceUris = [];
+        foreach ($declarations as $declaration) {
+            if ($declaration['uri'] !== '') {
+                $namespaceUris[$declaration['uri']] = true;
+            }
+        }
+        ksort($namespaceUris);
+
+        $defaultDeclarations = array_values(array_filter(
+            $declarations,
+            static fn (array $declaration): bool => (bool) $declaration['default']
+        ));
+
+        return [
+            'namespaceReview' => 'xml-namespace-scope',
+            'directReaderParity' => false,
+            'sourceMode' => $xmlSource === null ? 'serialized-dom' : 'provided-source',
+            'rootName' => $root->tagName,
+            'rootNamespaceUri' => $root->namespaceURI !== '' ? $root->namespaceURI : null,
+            'namespacePrefixes' => $knownPrefixes,
+            'namespacePrefixCount' => count($knownPrefixes),
+            'namespaceUris' => array_keys($namespaceUris),
+            'namespaceUriCount' => count($namespaceUris),
+            'namespaceDeclarationCount' => count($declarations),
+            'namespaceDeclarationLimit' => self::XML_NAMESPACE_DECLARATION_MAX_RECORDS,
+            'namespaceDeclarationTruncated' => count($declarations) > self::XML_NAMESPACE_DECLARATION_MAX_RECORDS,
+            'namespaceDeclarations' => array_slice($declarations, 0, self::XML_NAMESPACE_DECLARATION_MAX_RECORDS),
+            'defaultNamespaceDeclarationCount' => count($defaultDeclarations),
+            'defaultNamespaceDeclarations' => array_slice($defaultDeclarations, 0, self::XML_NAMESPACE_DECLARATION_MAX_RECORDS),
+            'namespaceScopeElementCount' => count($elements),
+            'namespaceScopeLimit' => self::XML_NAMESPACE_SCOPE_MAX_ELEMENTS,
+            'namespaceScopeTruncated' => count($elements) > self::XML_NAMESPACE_SCOPE_MAX_ELEMENTS,
+            'namespaceScopes' => $scopes,
+            'defaultNamespaceScopeCount' => count($defaultScopes),
+            'defaultNamespaceScopes' => $defaultScopes,
+            'prefixRedefinitionCount' => $collisionSummary['prefixRedefinitionCount'],
+            'prefixRedefinitions' => $collisionSummary['prefixRedefinitions'],
+            'duplicatePrefixSummaryCount' => $collisionSummary['duplicatePrefixSummaryCount'],
+            'duplicatePrefixSummaries' => $collisionSummary['duplicatePrefixSummaries'],
+            'duplicateUriSummaryCount' => $collisionSummary['duplicateUriSummaryCount'],
+            'duplicateUriSummaries' => $collisionSummary['duplicateUriSummaries'],
+            'reservedNamespaceDiagnosticCount' => count(array_filter(
+                $diagnostics,
+                static fn (array $diagnostic): bool => str_starts_with((string) $diagnostic['code'], 'reserved-')
+            )),
+            'namespaceDiagnosticCount' => count($diagnostics),
+            'namespaceDiagnosticCodes' => array_values(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            )),
+            'namespaceDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeJatsFrontMatter(\DOMDocument $dom, string $format = 'jats'): array
     {
         $root = $dom->documentElement;
@@ -1335,6 +1426,7 @@ final class XmlHtmlDom
             (int) $referenceBackMatter['blockedCitationTextPayloadCount'],
             count($sectionMetadataDiagnostics)
         );
+        $namespaceSummary = self::summarizeXmlNamespaceScopes($dom);
 
         return [
             'formatFamily' => 'xml-html5-jats-dom',
@@ -1350,6 +1442,17 @@ final class XmlHtmlDom
             ),
             'directReaderDiagnosticCount' => count($directReaderDiagnostics),
             'directReaderDiagnostics' => $directReaderDiagnostics,
+            'namespaceReview' => 'xml-namespace-scope',
+            'namespaceDeclarationCount' => $namespaceSummary['namespaceDeclarationCount'],
+            'namespaceScopeElementCount' => $namespaceSummary['namespaceScopeElementCount'],
+            'defaultNamespaceScopeCount' => $namespaceSummary['defaultNamespaceScopeCount'],
+            'prefixRedefinitionCount' => $namespaceSummary['prefixRedefinitionCount'],
+            'duplicatePrefixSummaryCount' => $namespaceSummary['duplicatePrefixSummaryCount'],
+            'duplicateUriSummaryCount' => $namespaceSummary['duplicateUriSummaryCount'],
+            'reservedNamespaceDiagnosticCount' => $namespaceSummary['reservedNamespaceDiagnosticCount'],
+            'namespaceDiagnosticCodes' => $namespaceSummary['namespaceDiagnosticCodes'],
+            'namespaceDiagnosticCount' => $namespaceSummary['namespaceDiagnosticCount'],
+            'namespaceSummary' => $namespaceSummary,
             'rootName' => $rootName,
             'rootAttributes' => self::xmlAttributeMap($root),
             'rootProvenance' => $rootProvenance,
@@ -3430,6 +3533,385 @@ final class XmlHtmlDom
             'message' => $message,
             'directReaderParity' => $directReaderParity,
             'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function xmlElementList(\DOMElement $root): array
+    {
+        return [$root, ...self::descendantElements($root)];
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     * @param list<array<string, mixed>> $declarations
+     * @return list<string>
+     */
+    private static function xmlNamespaceKnownPrefixes(array $elements, array $declarations): array
+    {
+        $prefixes = ['xml' => true];
+
+        foreach ($declarations as $declaration) {
+            $prefix = $declaration['prefix'];
+            if (is_string($prefix) && $prefix !== '') {
+                $prefixes[$prefix] = true;
+            }
+        }
+
+        foreach ($elements as $element) {
+            $elementPrefix = (string) $element->prefix;
+            if ($elementPrefix !== '') {
+                $prefixes[$elementPrefix] = true;
+            }
+
+            foreach ($element->attributes ?? [] as $attribute) {
+                if (!$attribute instanceof \DOMAttr) {
+                    continue;
+                }
+
+                $attributePrefix = (string) $attribute->prefix;
+                if ($attributePrefix !== '' && $attributePrefix !== 'xmlns') {
+                    $prefixes[$attributePrefix] = true;
+                }
+            }
+        }
+
+        ksort($prefixes);
+
+        return array_keys($prefixes);
+    }
+
+    /**
+     * @param list<string> $knownPrefixes
+     * @return array<string, mixed>
+     */
+    private static function xmlNamespaceScopeForElement(\DOMElement $element, array $knownPrefixes): array
+    {
+        $prefixBindings = [];
+        foreach ($knownPrefixes as $prefix) {
+            $uri = $element->lookupNamespaceURI($prefix);
+            if (is_string($uri) && $uri !== '') {
+                $prefixBindings[$prefix] = $uri;
+            }
+        }
+        ksort($prefixBindings);
+
+        $defaultNamespaceUri = $element->lookupNamespaceURI(null);
+
+        return [
+            'elementPath' => self::xmlElementPath($element),
+            'elementName' => $element->tagName,
+            'elementNamespaceUri' => $element->namespaceURI !== '' ? $element->namespaceURI : null,
+            'defaultNamespaceUri' => is_string($defaultNamespaceUri) && $defaultNamespaceUri !== '' ? $defaultNamespaceUri : null,
+            'prefixBindingCount' => count($prefixBindings),
+            'prefixBindings' => $prefixBindings,
+        ];
+    }
+
+    private static function xmlElementPath(\DOMElement $element): string
+    {
+        $segments = [];
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            $index = 1;
+            $sibling = $current->previousSibling;
+            while ($sibling !== null) {
+                if ($sibling instanceof \DOMElement && $sibling->tagName === $current->tagName) {
+                    ++$index;
+                }
+                $sibling = $sibling->previousSibling;
+            }
+
+            array_unshift($segments, $current->tagName . '[' . $index . ']');
+            $parent = $current->parentNode;
+            $current = $parent instanceof \DOMElement ? $parent : null;
+        }
+
+        return implode('/', $segments);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function xmlNamespaceDeclarationRecords(string $xmlSource): array
+    {
+        $records = [];
+        $stack = [];
+        $rootCounts = [];
+        $elementIndex = 0;
+
+        preg_match_all(
+            '/<\s*(\/)?\s*([A-Za-z_][A-Za-z0-9_.:-]*)((?:[^>"\']+|"[^"]*"|\'[^\']*\')*?)(\/)?\s*>/s',
+            $xmlSource,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        foreach ($matches as $match) {
+            $closing = ($match[1] ?? '') === '/';
+            $elementName = $match[2];
+
+            if ($closing) {
+                array_pop($stack);
+                continue;
+            }
+
+            ++$elementIndex;
+            if ($stack === []) {
+                $rootCounts[$elementName] = ($rootCounts[$elementName] ?? 0) + 1;
+                $elementPath = $elementName . '[' . $rootCounts[$elementName] . ']';
+            } else {
+                $parentIndex = count($stack) - 1;
+                $childCounts = $stack[$parentIndex]['childCounts'];
+                $childCounts[$elementName] = ($childCounts[$elementName] ?? 0) + 1;
+                $stack[$parentIndex]['childCounts'] = $childCounts;
+                $elementPath = $stack[$parentIndex]['path'] . '/' . $elementName . '[' . $childCounts[$elementName] . ']';
+            }
+
+            $attributeSource = $match[3] ?? '';
+            preg_match_all(
+                '/\s(xmlns(?::([A-Za-z_][A-Za-z0-9_.:-]*))?)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/s',
+                $attributeSource,
+                $attributeMatches,
+                PREG_SET_ORDER
+            );
+
+            foreach ($attributeMatches as $attributeMatch) {
+                $prefix = isset($attributeMatch[2]) && $attributeMatch[2] !== '' ? $attributeMatch[2] : null;
+                $rawUri = $attributeMatch[3] !== '' ? $attributeMatch[3] : ($attributeMatch[4] ?? '');
+                $uri = html_entity_decode($rawUri, ENT_QUOTES | ENT_XML1, 'UTF-8');
+
+                $records[] = [
+                    'name' => $attributeMatch[1],
+                    'prefix' => $prefix,
+                    'prefixLabel' => $prefix ?? 'default',
+                    'uri' => $uri,
+                    'rawUri' => $rawUri,
+                    'default' => $prefix === null,
+                    'elementName' => $elementName,
+                    'elementPath' => $elementPath,
+                    'elementIndex' => $elementIndex,
+                ];
+            }
+
+            $selfClosing = ($match[4] ?? '') === '/';
+            if (!$selfClosing) {
+                $stack[] = [
+                    'name' => $elementName,
+                    'path' => $elementPath,
+                    'childCounts' => [],
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $declarations
+     * @return array<string, mixed>
+     */
+    private static function xmlNamespaceCollisionSummary(array $declarations): array
+    {
+        $byPrefix = [];
+        $byUri = [];
+
+        foreach ($declarations as $declaration) {
+            $prefixLabel = (string) $declaration['prefixLabel'];
+            $uri = (string) $declaration['uri'];
+
+            if (!isset($byPrefix[$prefixLabel])) {
+                $byPrefix[$prefixLabel] = [
+                    'prefix' => $prefixLabel,
+                    'declarationCount' => 0,
+                    'uris' => [],
+                    'declarations' => [],
+                ];
+            }
+            ++$byPrefix[$prefixLabel]['declarationCount'];
+            $byPrefix[$prefixLabel]['uris'][$uri] = true;
+            $byPrefix[$prefixLabel]['declarations'][] = [
+                'uri' => $uri,
+                'elementPath' => $declaration['elementPath'],
+                'elementName' => $declaration['elementName'],
+            ];
+
+            if (!isset($byUri[$uri])) {
+                $byUri[$uri] = [
+                    'uri' => $uri,
+                    'declarationCount' => 0,
+                    'prefixes' => [],
+                    'declarations' => [],
+                ];
+            }
+            ++$byUri[$uri]['declarationCount'];
+            $byUri[$uri]['prefixes'][$prefixLabel] = true;
+            $byUri[$uri]['declarations'][] = [
+                'prefix' => $prefixLabel,
+                'elementPath' => $declaration['elementPath'],
+                'elementName' => $declaration['elementName'],
+            ];
+        }
+
+        ksort($byPrefix);
+        ksort($byUri);
+
+        $duplicatePrefixSummaries = [];
+        $prefixRedefinitions = [];
+        foreach ($byPrefix as $prefixSummary) {
+            $uris = array_keys($prefixSummary['uris']);
+            sort($uris);
+            $summary = [
+                'prefix' => $prefixSummary['prefix'],
+                'declarationCount' => $prefixSummary['declarationCount'],
+                'uriCount' => count($uris),
+                'uris' => $uris,
+                'declarations' => $prefixSummary['declarations'],
+            ];
+
+            if ($summary['declarationCount'] > 1) {
+                $duplicatePrefixSummaries[] = $summary;
+            }
+            if ($summary['uriCount'] > 1) {
+                $prefixRedefinitions[] = $summary;
+            }
+        }
+
+        $duplicateUriSummaries = [];
+        foreach ($byUri as $uriSummary) {
+            $prefixes = array_keys($uriSummary['prefixes']);
+            sort($prefixes);
+            if (count($prefixes) <= 1) {
+                continue;
+            }
+
+            $duplicateUriSummaries[] = [
+                'uri' => $uriSummary['uri'],
+                'declarationCount' => $uriSummary['declarationCount'],
+                'prefixCount' => count($prefixes),
+                'prefixes' => $prefixes,
+                'declarations' => $uriSummary['declarations'],
+            ];
+        }
+
+        return [
+            'prefixRedefinitionCount' => count($prefixRedefinitions),
+            'prefixRedefinitions' => $prefixRedefinitions,
+            'duplicatePrefixSummaryCount' => count($duplicatePrefixSummaries),
+            'duplicatePrefixSummaries' => $duplicatePrefixSummaries,
+            'duplicateUriSummaryCount' => count($duplicateUriSummaries),
+            'duplicateUriSummaries' => $duplicateUriSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $collisionSummary
+     * @param list<array<string, mixed>> $declarations
+     * @return list<array<string, mixed>>
+     */
+    private static function xmlNamespaceDiagnostics(array $collisionSummary, array $declarations): array
+    {
+        $diagnostics = [];
+
+        if ($collisionSummary['prefixRedefinitionCount'] > 0) {
+            $diagnostics[] = self::xmlNamespaceDiagnostic(
+                'prefix-redefinition',
+                'warning',
+                'One or more namespace prefixes are rebound to multiple namespace URIs within the XML document.',
+                ['prefixRedefinitionCount' => $collisionSummary['prefixRedefinitionCount']]
+            );
+        }
+
+        if ($collisionSummary['duplicatePrefixSummaryCount'] > 0) {
+            $diagnostics[] = self::xmlNamespaceDiagnostic(
+                'duplicate-prefix-declarations',
+                'info',
+                'One or more namespace prefixes are declared multiple times within the XML document.',
+                ['duplicatePrefixSummaryCount' => $collisionSummary['duplicatePrefixSummaryCount']]
+            );
+        }
+
+        if ($collisionSummary['duplicateUriSummaryCount'] > 0) {
+            $diagnostics[] = self::xmlNamespaceDiagnostic(
+                'duplicate-uri-bindings',
+                'info',
+                'One or more namespace URIs are bound to multiple prefixes within the XML document.',
+                ['duplicateUriSummaryCount' => $collisionSummary['duplicateUriSummaryCount']]
+            );
+        }
+
+        foreach ($declarations as $declaration) {
+            $prefix = $declaration['prefix'];
+            $prefixLabel = (string) $declaration['prefixLabel'];
+            $uri = (string) $declaration['uri'];
+            $details = [
+                'prefix' => $prefixLabel,
+                'uri' => $uri,
+                'elementPath' => $declaration['elementPath'],
+                'elementName' => $declaration['elementName'],
+            ];
+
+            if ($prefix === 'xml' && $uri !== self::XML_NAMESPACE) {
+                $diagnostics[] = self::xmlNamespaceDiagnostic(
+                    'reserved-xml-prefix-rebound',
+                    'error',
+                    'The reserved xml prefix must remain bound to the XML namespace URI.',
+                    $details
+                );
+            }
+
+            if ($prefix === null && $uri === self::XML_NAMESPACE) {
+                $diagnostics[] = self::xmlNamespaceDiagnostic(
+                    'reserved-xml-uri-as-default',
+                    'error',
+                    'The XML namespace URI must not be used as the default namespace.',
+                    $details
+                );
+            } elseif ($prefix !== 'xml' && $uri === self::XML_NAMESPACE) {
+                $diagnostics[] = self::xmlNamespaceDiagnostic(
+                    'reserved-xml-uri-bound-to-non-xml-prefix',
+                    'error',
+                    'The XML namespace URI must not be bound to a non-xml prefix.',
+                    $details
+                );
+            }
+
+            if ($prefix === 'xmlns') {
+                $diagnostics[] = self::xmlNamespaceDiagnostic(
+                    'reserved-xmlns-prefix-declared',
+                    'error',
+                    'The reserved xmlns prefix must not be declared as an ordinary namespace prefix.',
+                    $details
+                );
+            }
+
+            if ($uri === self::XMLNS_NAMESPACE) {
+                $diagnostics[] = self::xmlNamespaceDiagnostic(
+                    'reserved-xmlns-uri-declared',
+                    'error',
+                    'The xmlns namespace URI must not be assigned by XML namespace declarations.',
+                    $details
+                );
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private static function xmlNamespaceDiagnostic(string $code, string $severity, string $message, array $details): array
+    {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => false,
             'details' => $details,
         ];
     }

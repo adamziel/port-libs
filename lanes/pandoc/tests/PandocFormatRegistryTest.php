@@ -177,6 +177,11 @@ return [
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('root, element, language, id, and attribute provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('namespace declaration provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('bounded namespace declaration scope', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->true(in_array('namespaceScopes', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('prefixRedefinitions', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('duplicateUriSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('namespaceDiagnosticCodes', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('full Pandoc XML reader parity remains open', $packet['formats']['xml']['inputNotes']);
 
@@ -185,6 +190,8 @@ return [
         $t->same(null, $packet['formats']['jats']['aliasedTo']);
         $t->contains('root element qualified name', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
         $t->contains('article front-matter identifiers', implode('; ', $packet['formats']['jats']['boundedDiagnostics']));
+        $t->true(in_array('namespaceSummary', $packet['formats']['jats']['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['formats']['jats']['reviewPacketFields'], true));
         $t->contains('full JATS body and back-matter mapping', implode('; ', $packet['formats']['jats']['remainingReaderGaps']));
 
         $t->same('summarizeJatsFrontMatter', $packet['formats']['bits']['reviewMethod']);
@@ -192,6 +199,8 @@ return [
         $t->same('jats', $packet['formats']['bits']['aliasedTo']);
         $t->contains('root element qualified name', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
         $t->contains('book and book-part metadata identifiers', implode('; ', $packet['formats']['bits']['boundedDiagnostics']));
+        $t->true(in_array('namespaceSummary', $packet['formats']['bits']['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['formats']['bits']['reviewPacketFields'], true));
         $t->contains('full BITS book body and book-part mapping', implode('; ', $packet['formats']['bits']['remainingReaderGaps']));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
