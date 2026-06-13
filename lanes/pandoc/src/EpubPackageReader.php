@@ -21,6 +21,7 @@ final class EpubPackageReader
         $navigation = $this->readNavigationDocument($root, $package);
         $toc = $navigation['entries'];
         $tocReport = $this->tocReport($toc, $package['manifest'], $package['spine']);
+        $navReport = $this->navReportWithPageListTargets($navigation['report'], $tocReport);
         $ncx = $this->readNcxDocument($root, $package);
         $children = [];
 
@@ -53,7 +54,7 @@ final class EpubPackageReader
                 'guide' => $package['guide'],
                 'toc' => $toc,
                 'tocReport' => $tocReport,
-                'navReport' => $navigation['report'],
+                'navReport' => $navReport,
                 'ncx' => $ncx,
             ],
         ], $children);
@@ -741,6 +742,227 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $navReport
+     * @param array<string, mixed> $tocReport
+     * @return array<string, mixed>
+     */
+    private function navReportWithPageListTargets(array $navReport, array $tocReport): array
+    {
+        $pageList = is_array($tocReport['pageList'] ?? null) ? $tocReport['pageList'] : [];
+        $pageListItems = is_array($pageList['items'] ?? null) ? $pageList['items'] : [];
+        $targetsByIndex = [];
+        foreach ($pageListItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $targetsByIndex[(int) ($item['index'] ?? count($targetsByIndex))] = $this->pageListTargetSummary($item);
+        }
+
+        if ($targetsByIndex === []) {
+            return $navReport;
+        }
+
+        foreach (['normalizedCollisionDiagnostics', 'crossSectionCollisionDiagnostics', 'diagnostics'] as $key) {
+            if (!is_array($navReport[$key] ?? null)) {
+                continue;
+            }
+
+            $navReport[$key] = $this->navDiagnosticsWithPageListTargets($navReport[$key], $targetsByIndex);
+        }
+
+        if (is_array($navReport['sections'] ?? null)) {
+            foreach ($navReport['sections'] as $sectionIndex => $section) {
+                if (!is_array($section) || !is_array($section['diagnostics'] ?? null)) {
+                    continue;
+                }
+
+                $navReport['sections'][$sectionIndex]['diagnostics'] = $this->navDiagnosticsWithPageListTargets(
+                    $section['diagnostics'],
+                    $targetsByIndex
+                );
+            }
+        }
+
+        return $navReport;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function pageListTargetSummary(array $item): array
+    {
+        $path = (string) ($item['path'] ?? '');
+        $fragment = (string) ($item['fragment'] ?? '');
+        $diagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
+
+        return [
+            'index' => (int) ($item['index'] ?? 0),
+            'tocIndex' => (int) ($item['tocIndex'] ?? 0),
+            'label' => (string) ($item['label'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => $path . ($fragment === '' ? '' : '#' . $fragment),
+            'path' => $path,
+            'fragment' => $fragment,
+            'manifestId' => (string) ($item['manifestId'] ?? ''),
+            'spineIndex' => $item['spineIndex'] ?? null,
+            'spineIndexes' => $this->integerList($item['spineIndexes'] ?? []),
+            'readingSpineIndexes' => $this->integerList($item['readingSpineIndexes'] ?? []),
+            'inSpineReadingOrder' => ($item['inSpineReadingOrder'] ?? false) === true,
+            'duplicatePageTarget' => ($item['duplicatePageTarget'] ?? false) === true,
+            'duplicatePageTargetCount' => (int) ($item['duplicatePageTargetCount'] ?? 0),
+            'duplicateSpineTarget' => ($item['duplicateSpineTarget'] ?? false) === true,
+            'duplicateSpineTargetCount' => (int) ($item['duplicateSpineTargetCount'] ?? 0),
+            'diagnosticTypes' => array_values(array_filter(
+                array_map(
+                    static fn (mixed $diagnostic): string => is_array($diagnostic) ? (string) ($diagnostic['type'] ?? '') : '',
+                    $diagnostics
+                ),
+                static fn (string $type): bool => $type !== ''
+            )),
+        ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<int>
+     */
+    private function integerList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $item): int => (int) $item, $value));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<int, array<string, mixed>> $targetsByIndex
+     * @return list<array<string, mixed>>
+     */
+    private function navDiagnosticsWithPageListTargets(array $diagnostics, array $targetsByIndex): array
+    {
+        $enriched = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $enriched[] = $this->navDiagnosticWithPageListTargets($diagnostic, $targetsByIndex);
+        }
+
+        return $enriched;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @param array<int, array<string, mixed>> $targetsByIndex
+     * @return array<string, mixed>
+     */
+    private function navDiagnosticWithPageListTargets(array $diagnostic, array $targetsByIndex): array
+    {
+        $pageListIndexes = [];
+        if (($diagnostic['sectionType'] ?? '') === 'page-list') {
+            foreach ($this->navDiagnosticItemIndexes($diagnostic) as $index) {
+                $pageListIndexes[] = $index;
+            }
+        }
+
+        if (is_array($diagnostic['itemRefs'] ?? null)) {
+            foreach ($diagnostic['itemRefs'] as $refIndex => $ref) {
+                if (!is_array($ref) || ($ref['sectionType'] ?? '') !== 'page-list') {
+                    continue;
+                }
+
+                $pageListIndex = (int) ($ref['itemIndex'] ?? -1);
+                $pageListIndexes[] = $pageListIndex;
+                if (isset($targetsByIndex[$pageListIndex])) {
+                    $diagnostic['itemRefs'][$refIndex]['pageListTarget'] = $targetsByIndex[$pageListIndex];
+                }
+            }
+        }
+
+        $pageListIndexes = $this->uniqueIntegers($pageListIndexes);
+        $pageListTargets = [];
+        foreach ($pageListIndexes as $index) {
+            if (isset($targetsByIndex[$index])) {
+                $pageListTargets[] = $targetsByIndex[$index];
+            }
+        }
+
+        if ($pageListTargets === []) {
+            return $diagnostic;
+        }
+
+        $diagnostic['pageListTargetCount'] = count($pageListTargets);
+        $diagnostic['pageListItemIndexes'] = array_column($pageListTargets, 'index');
+        $diagnostic['pageListSpineIndexes'] = $this->uniqueIntegers($this->flattenIntegerField($pageListTargets, 'spineIndexes'));
+        $diagnostic['pageListReadingSpineIndexes'] = $this->uniqueIntegers($this->flattenIntegerField($pageListTargets, 'readingSpineIndexes'));
+        $diagnostic['pageListDuplicatePageTargetCount'] = count(array_filter(
+            $pageListTargets,
+            static fn (array $target): bool => ($target['duplicatePageTarget'] ?? false) === true
+        ));
+        $diagnostic['pageListDuplicateSpineTargetCount'] = count(array_filter(
+            $pageListTargets,
+            static fn (array $target): bool => ($target['duplicateSpineTarget'] ?? false) === true
+        ));
+        $diagnostic['pageListTargets'] = $pageListTargets;
+
+        return $diagnostic;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @return list<int>
+     */
+    private function navDiagnosticItemIndexes(array $diagnostic): array
+    {
+        if (is_array($diagnostic['itemIndexes'] ?? null)) {
+            return $this->integerList($diagnostic['itemIndexes']);
+        }
+        if (isset($diagnostic['itemIndex'])) {
+            return [(int) $diagnostic['itemIndex']];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<int>
+     */
+    private function flattenIntegerField(array $items, string $key): array
+    {
+        $values = [];
+        foreach ($items as $item) {
+            foreach ($this->integerList($item[$key] ?? []) as $value) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<int> $values
+     * @return list<int>
+     */
+    private function uniqueIntegers(array $values): array
+    {
+        $unique = [];
+        foreach ($values as $value) {
+            $value = (int) $value;
+            if (!in_array($value, $unique, true)) {
+                $unique[] = $value;
+            }
+        }
+
+        return $unique;
     }
 
     /**
