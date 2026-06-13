@@ -662,6 +662,113 @@ return [
         $t->same('application/json', $roundTrip->children[0]->children[6]->attr('attributes')['data-pandoc-media-type']);
     },
 
+    'diagnoses media bag repair conflicts with stable provenance' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $upperLogoBytes = "upper-case logo bytes\n";
+        $lowerLogoBytes = "lower-case logo bytes\n";
+        $encodedSource = 'assets/review%20figure.png';
+        $encodedBytes = "encoded exact figure bytes\n";
+        $decodedBytes = "decoded repaired figure bytes\n";
+        $reportSource = 'downloads/report.pdf?raw=1';
+        $reportExactBytes = "%PDF exact linked report\n";
+        $reportRepairBytes = "%PDF repaired linked report\n";
+        $photoSource = 'media/photo.png';
+        $photoBytes = "jpeg bytes behind png path\n";
+        $link = static fn (string $url, string $title, string $text): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $title,
+        ], [new AstNode('text', ['text' => $text])]);
+
+        $bag->insertMedia('Assets/Logo.png', 'image/png', $upperLogoBytes);
+        $bag->insertMedia('assets/logo.png', 'image/png', $lowerLogoBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $encodedSource,
+                    'title' => 'Encoded review figure',
+                ], [new AstNode('text', ['text' => 'Encoded review figure'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                $link($reportSource, 'Review report', 'report'),
+                new AstNode('space'),
+                $link('Assets/Logo.png', 'Upper logo', 'upper logo'),
+                new AstNode('space'),
+                $link('assets/logo.png', 'Lower logo', 'lower logo'),
+                new AstNode('space'),
+                $link($photoSource, 'Photo', 'photo'),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            $encodedSource => [
+                'contents' => $encodedBytes,
+                'mimeType' => 'image/png',
+            ],
+            'assets/review figure.png' => [
+                'contents' => $decodedBytes,
+                'mimeType' => 'image/png',
+            ],
+            $reportSource => [
+                'contents' => $reportExactBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            'downloads/report.pdf' => [
+                'contents' => $reportRepairBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            $photoSource => [
+                'contents' => $photoBytes,
+                'mimeType' => 'image/jpeg',
+            ],
+        ]);
+        $expectedLowerLogoPath = 'assets/logo-' . substr(sha1('assets/logo.png' . "\0" . sha1($lowerLogoBytes)), 0, 12) . '.png';
+
+        $t->same([
+            'media-resource-repair-conflict:' . $encodedSource,
+            'media-resource-percent-decode-conflict:' . $encodedSource,
+            'media-resource-loaded:' . $encodedSource,
+            'media-resource-repair-conflict:' . $reportSource,
+            'media-resource-link-mime-group-conflict:' . $reportSource,
+            'media-resource-link-loaded:' . $reportSource,
+            'media-resource-content-type-conflict:' . $photoSource,
+            'media-resource-link-loaded:' . $photoSource,
+        ], $filled['diagnostics']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $diagnostics = implode(',', $extracted['diagnostics']);
+        $mappedImage = $extracted['document']->children[0]->children[0];
+        $mappedParagraph = $extracted['document']->children[1];
+        $mappedReport = $mappedParagraph->children[0];
+        $mappedUpperLogo = $mappedParagraph->children[2];
+        $mappedLowerLogo = $mappedParagraph->children[4];
+        $mappedPhoto = $mappedParagraph->children[6];
+        $lowerLogoAttributes = $mappedLowerLogo->attr('attributes');
+        $upperLogoAttributes = $mappedUpperLogo->attr('attributes');
+        $photoAttributes = $mappedPhoto->attr('attributes');
+
+        $t->contains('media-resource-path-casefold-conflict:assets/logo.png', $diagnostics);
+        $t->contains('media-resource-path-collision:assets/logo.png', $diagnostics);
+        $t->contains('media-resource-content-type-conflict:' . $photoSource, $diagnostics);
+        $t->contains('media-resource-mapped:' . $encodedSource, $diagnostics);
+        $t->contains('media-resource-link-mapped:' . $reportSource, $diagnostics);
+        $t->same('media/assets/review figure.png', $mappedImage->attr('url'));
+        $t->same('media/' . sha1($reportExactBytes) . '.pdf', $mappedReport->attr('url'));
+        $t->same('media/Assets/Logo.png', $mappedUpperLogo->attr('url'));
+        $t->same('media/' . $expectedLowerLogoPath, $mappedLowerLogo->attr('url'));
+        $t->same('media/media/photo.png', $mappedPhoto->attr('url'));
+
+        $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-source']);
+        $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-canonical-source']);
+        $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-original-path']);
+        $t->same($expectedLowerLogoPath, $lowerLogoAttributes['data-pandoc-media-path']);
+        $t->same('media/' . $expectedLowerLogoPath, $lowerLogoAttributes['data-pandoc-media-target']);
+        $t->same('true', $lowerLogoAttributes['data-pandoc-media-path-repaired']);
+        $t->same(sha1('assets/logo.png'), $lowerLogoAttributes['data-pandoc-media-source-sha1']);
+        $t->same('false', $upperLogoAttributes['data-pandoc-media-path-repaired']);
+        $t->same('image/jpeg', $photoAttributes['data-pandoc-media-type']);
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';

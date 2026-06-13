@@ -1016,6 +1016,7 @@ final class OdfReader
         $compressionMethods = $package->compressionMethodPreflight();
         $manifestByPart = [];
         $undeclaredByPart = [];
+        $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
         $packageDirectoryCount = 0;
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
@@ -1267,6 +1268,7 @@ final class OdfReader
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
+            'mediaResources' => $mediaResourceSummary,
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'corePackagePartCount' => $corePackagePartCount,
@@ -1630,14 +1632,14 @@ final class OdfReader
         if (is_array($manifestItem)) {
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
+            $mediaTypeBase = (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase']);
             $part = (string) ($manifestItem['part'] ?? '');
             if (!$entry->isDirectory()
                 && !str_ends_with($part, '/')
-                && !self::isConfigurationPackagePartName($part)
-                && !$this->isObjectReplacementPackagePartName($part)
+                && $this->mediaResourcePackagePrecedenceRoles($manifestItem) === []
                 && !$embeddedObjectPackagePart
                 && !$rdfMetadataPart
-                && (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/'))
+                && self::isManifestMediaResourceCandidate($part, $mediaTypeBase)
             ) {
                 $roles[] = 'media-resource';
             }
@@ -12830,6 +12832,227 @@ final class OdfReader
         }
 
         return $media;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestMediaResourceRoleSummary(array $manifest): array
+    {
+        $items = [];
+        $roleConflictItems = [];
+        $packageRolePrecedenceItems = [];
+        $familyCounts = ['image' => 0, 'audio' => 0, 'video' => 0, 'other' => 0];
+        $mediaTypeBaseCounts = [];
+        $issueCodeCounts = [];
+        $mediaResourceCount = 0;
+        $mediaResourceExistingCount = 0;
+        $mediaResourceMissingCount = 0;
+        $mediaResourceCanExposeCount = 0;
+        $existingCount = 0;
+        $missingCount = 0;
+        $roleConflictCount = 0;
+        $resourceRoleConflictCount = 0;
+
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || str_ends_with($part, '/')) {
+                continue;
+            }
+
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            if ($mediaType === '' || $this->isXmlMediaType($mediaType)) {
+                continue;
+            }
+
+            $mediaTypeBase = (string) ($item['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase']);
+            $declaredFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+            $pathFamily = self::mediaResourceFamilyFromPackagePart($part);
+            $roleSources = [];
+            if ($declaredFamily !== null) {
+                $roleSources[] = 'manifest-media-type';
+            }
+            if (str_starts_with($part, 'Pictures/')) {
+                $roleSources[] = 'pictures-path';
+            } elseif ($pathFamily !== null) {
+                $roleSources[] = 'package-extension';
+            }
+
+            $packageRolePrecedence = $this->mediaResourcePackagePrecedenceRoles($item);
+            $mediaResource = $packageRolePrecedence === [] && self::isManifestMediaResourceCandidate($part, $mediaTypeBase);
+            if (!$mediaResource && $roleSources === []) {
+                continue;
+            }
+
+            $roleConflict = $declaredFamily !== null && $pathFamily !== null && $declaredFamily !== $pathFamily;
+            $effectiveFamily = $declaredFamily ?? $pathFamily ?? 'other';
+            if (!isset($familyCounts[$effectiveFamily])) {
+                $effectiveFamily = 'other';
+            }
+            $exists = ($item['exists'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $issueCodes = [];
+            if ($roleConflict) {
+                $issueCodes[] = 'odf-media-resource-role-conflict';
+            }
+            if (!$exists) {
+                $issueCodes[] = 'odf-media-resource-missing-package-part';
+            }
+            if ($packageRolePrecedence !== []) {
+                $issueCodes[] = 'odf-media-resource-package-role-precedence';
+            }
+
+            $resourceItem = self::withoutEmpty([
+                'manifestIndex' => $item['manifestIndex'] ?? null,
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $part,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeBase,
+                'declaredMediaFamily' => $declaredFamily,
+                'packagePathMediaFamily' => $pathFamily,
+                'effectiveMediaFamily' => $effectiveFamily,
+                'roleSources' => $roleSources,
+                'mediaResource' => $mediaResource,
+                'packageRolePrecedence' => $packageRolePrecedence,
+                'exists' => $exists,
+                'missing' => !$exists,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                'roleConflict' => $roleConflict,
+                'issues' => $issueCodes,
+            ]);
+
+            $items[] = $resourceItem;
+            ++$familyCounts[$effectiveFamily];
+            $mediaTypeBaseCounts[$mediaTypeBase] = ($mediaTypeBaseCounts[$mediaTypeBase] ?? 0) + 1;
+            if ($mediaResource) {
+                ++$mediaResourceCount;
+                if ($exists) {
+                    ++$mediaResourceExistingCount;
+                } else {
+                    ++$mediaResourceMissingCount;
+                }
+                if ($canExposeBytes) {
+                    ++$mediaResourceCanExposeCount;
+                }
+            }
+            if ($exists) {
+                ++$existingCount;
+            } else {
+                ++$missingCount;
+            }
+            if ($roleConflict) {
+                ++$roleConflictCount;
+                $roleConflictItems[] = $resourceItem;
+                if ($mediaResource) {
+                    ++$resourceRoleConflictCount;
+                }
+            }
+            if ($packageRolePrecedence !== []) {
+                $packageRolePrecedenceItems[] = $resourceItem;
+            }
+            foreach ($issueCodes as $code) {
+                $issueCodeCounts[$code] = ($issueCodeCounts[$code] ?? 0) + 1;
+            }
+        }
+
+        ksort($mediaTypeBaseCounts, SORT_STRING);
+        ksort($issueCodeCounts, SORT_STRING);
+
+        return [
+            'manifestDeclaredCount' => count($items),
+            'mediaResourceCount' => $mediaResourceCount,
+            'mediaResourceExistingCount' => $mediaResourceExistingCount,
+            'mediaResourceMissingCount' => $mediaResourceMissingCount,
+            'mediaResourceCanExposeCount' => $mediaResourceCanExposeCount,
+            'existingCount' => $existingCount,
+            'missingCount' => $missingCount,
+            'familyCounts' => $familyCounts,
+            'mediaTypeBaseCounts' => $mediaTypeBaseCounts,
+            'roleConflictCount' => $roleConflictCount,
+            'resourceRoleConflictCount' => $resourceRoleConflictCount,
+            'roleConflictItems' => $roleConflictItems,
+            'packageRolePrecedenceCount' => count($packageRolePrecedenceItems),
+            'packageRolePrecedenceItems' => $packageRolePrecedenceItems,
+            'issueCodeCounts' => $issueCodeCounts,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     * @return list<string>
+     */
+    private function mediaResourcePackagePrecedenceRoles(array $manifestItem): array
+    {
+        $part = (string) ($manifestItem['part'] ?? '');
+        if ($part === '') {
+            return [];
+        }
+
+        $mediaType = (string) ($manifestItem['mediaType'] ?? '');
+        $roles = [];
+        if (($manifestItem['embeddedObjectPackagePart'] ?? false) === true) {
+            $roles[] = 'embedded-object-package';
+        }
+        if ($this->isScriptPackagePartName($part)) {
+            $roles[] = 'script-package';
+        }
+        if (self::isConfigurationPackagePartName($part)) {
+            $roles[] = 'configuration-package';
+        }
+        if ($this->isThumbnailPackagePartName($part)) {
+            $roles[] = 'package-thumbnail';
+        }
+        if ($this->isFontPackagePart($part, $mediaType)) {
+            $roles[] = 'font-package';
+        }
+        if (($manifestItem['rdfMetadataPart'] ?? false) === true || $this->isRdfPackagePart($part, $mediaType)) {
+            $roles[] = 'rdf-metadata';
+        }
+        if ($this->isObjectReplacementPackagePartName($part)) {
+            $roles[] = 'object-replacement';
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    private static function isManifestMediaResourceCandidate(string $part, string $mediaTypeBase): bool
+    {
+        return self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase) !== null
+            || str_starts_with($part, 'Pictures/');
+    }
+
+    private static function mediaResourceFamilyFromMediaTypeBase(string $mediaTypeBase): ?string
+    {
+        $base = strtolower(trim($mediaTypeBase));
+        if (str_starts_with($base, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($base, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($base, 'video/')) {
+            return 'video';
+        }
+
+        return null;
+    }
+
+    private static function mediaResourceFamilyFromPackagePart(string $part): ?string
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+        if (str_starts_with($normalized, 'pictures/')) {
+            return 'image';
+        }
+
+        return match (strtolower(pathinfo($normalized, PATHINFO_EXTENSION))) {
+            'apng', 'avif', 'bmp', 'gif', 'jpe', 'jpeg', 'jpg', 'png', 'svg', 'tif', 'tiff', 'webp' => 'image',
+            'aac', 'aif', 'aiff', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'weba' => 'audio',
+            'avi', 'm4v', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'webm' => 'video',
+            default => null,
+        };
     }
 
     /**

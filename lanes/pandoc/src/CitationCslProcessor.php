@@ -1316,6 +1316,7 @@ final class CitationCslProcessor
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
             'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
+            'translatedSubtitle' => self::firstStringField($item, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
             'reviewedTitle' => $reviewedTitle,
             'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
@@ -8267,6 +8268,7 @@ final class CitationCslProcessor
             ['reviewedGenre', 'Reviewed genre'],
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
+            ['translatedSubtitle', 'Translated subtitle'],
             ['categorySummary', 'Categories'],
             ['citationAliasSummary', 'Citation aliases'],
             ['sortShorthand', 'Sort shorthand'],
@@ -10434,6 +10436,9 @@ final class CitationCslProcessor
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
+            'translated-subtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitletranslation' => (string) ($item['translatedSubtitle'] ?? ''),
+            'translated-title-raw', 'translatedtitleraw', 'title-translation-raw', 'titletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
+            'translated-subtitle-raw', 'translatedsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
             'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
@@ -10971,6 +10976,54 @@ final class CitationCslProcessor
         }
 
         return $this->namesForRenderingVariable($item, $normalized) !== [];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $aliases
+     */
+    private function rawAliasedVariableValue(array $item, string $variable, array $aliases): string
+    {
+        $raw = $item['raw'] ?? [];
+        if (!is_array($raw)) {
+            return '';
+        }
+
+        $base = trim($variable);
+        $lowerBase = strtolower($base);
+        if (str_ends_with($base, '-raw') || str_ends_with($base, '_raw')) {
+            $base = substr($base, 0, -4);
+        } elseif (str_ends_with($base, 'Raw') || str_ends_with($lowerBase, 'raw')) {
+            $base = substr($base, 0, -3);
+        }
+
+        $candidates = array_values(array_unique([
+            $base,
+            str_replace('_', '-', $base),
+            str_replace('-', '', $base),
+            strtolower($base),
+            strtoupper($base),
+        ]));
+        foreach ($candidates as $key) {
+            $value = $raw[$key] ?? null;
+            if (is_scalar($value)) {
+                return trim((string) $value);
+            }
+        }
+
+        $normalizedBase = str_replace(['-', '_', ' '], '', strtolower($base));
+        foreach ($aliases as $alias) {
+            if ($normalizedBase !== str_replace(['-', '_', ' '], '', strtolower((string) $alias))) {
+                continue;
+            }
+
+            $value = $raw[$alias] ?? null;
+            if (is_scalar($value)) {
+                return trim((string) $value);
+            }
+        }
+
+        return '';
     }
 
     /**

@@ -5200,6 +5200,103 @@ XML, 'BITS section metadata XML', preserveWhiteSpace: false);
         $t->same(1, $overflowCell['rowSpan']);
         $t->same('<table id="review"><caption>Quarterly <strong>review</strong></caption><colgroup span="2"><col span="3"><col span="0"></colgroup><thead><tr><th abbr="Q1" id="h1" scope="col">Quarter</th><th colspan="2" id="h2" scope="bad">Status</th></tr></thead><tbody><tr><th id="r1" scope="row">Batch A</th><td colspan="3" headers="h1 r1" rowspan="0">Ready</td><td colspan="2000" rowspan="-1">Overflow</td></tr></tbody></table>', $html);
     },
+    'resolves html table header abbr and scope provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<table id="review-grid" summary="Legacy summary"><caption>Import matrix</caption><thead><tr>'
+                . '<th id="region" scope="col" abbr="Reg" colspan="2">Region</th>'
+                . '<th id="period" scope="col" abbr="Q2">Period</th>'
+                . '<th id="dup" scope="col" abbr="First">Duplicate One</th>'
+                . '<th id="dup" scope="colgroup" abbr="Second">Duplicate Two</th>'
+                . '<td id="note">Not a header</td>'
+                . '</tr></thead><tbody><tr><th id="row-a" scope="row" abbr="A" rowspan="2">Batch A</th>'
+                . '<td headers="region row-a dup dup missing note bad<tag period outer" colspan="2" rowspan="2">Ready</td>'
+                . '</tr></tbody></table>'
+                . '<table><tr><th id="outer" scope="col" abbr="Out">Outer table</th></tr></table>',
+            'table header abbr scope reference review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $table = $summary[0];
+        $headRow = $table['children'][1]['children'][0];
+        $regionHeader = $headRow['children'][0];
+        $duplicateHeader = $headRow['children'][2];
+        $duplicateHeaderSecond = $headRow['children'][3];
+        $bodyRow = $table['children'][2]['children'][0];
+        $rowHeader = $bodyRow['children'][0];
+        $readyCell = $bodyRow['children'][1];
+        $references = $readyCell['headerReferences'];
+
+        $t->same('table', $table['tablePart']);
+        $t->same(['id' => 'review-grid', 'summary' => 'Legacy summary'], $table['attributes']);
+        $t->same('Import matrix', $table['captionText']);
+        $t->same('Reg', $regionHeader['abbr']);
+        $t->same('col', $regionHeader['scope']);
+        $t->same('First', $duplicateHeader['abbr']);
+        $t->same('Second', $duplicateHeaderSecond['abbr']);
+        $t->same('A', $rowHeader['abbr']);
+        $t->same('row', $rowHeader['scope']);
+        $t->same('2', $readyCell['colSpanRaw']);
+        $t->same(2, $readyCell['colSpan']);
+        $t->same('2', $readyCell['rowSpanRaw']);
+        $t->same(2, $readyCell['rowSpan']);
+
+        $t->same('nearest-table-th-idref-review', $readyCell['headerReferenceReviewPolicy']);
+        $t->same(['region', 'row-a', 'dup', 'missing', 'note', 'period', 'outer'], $readyCell['headerReferenceIds']);
+        $t->same(['bad<tag'], $readyCell['invalidHeaderReferenceTokens']);
+        $t->same(['dup'], $readyCell['duplicateHeaderReferenceIds']);
+        $t->same(['region', 'row-a', 'period'], $readyCell['resolvedHeaderReferenceIds']);
+        $t->same(['missing', 'outer'], $readyCell['missingHeaderReferenceIds']);
+        $t->same(['note'], $readyCell['nonHeaderReferenceIds']);
+        $t->same(['dup'], $readyCell['duplicateHeaderTargetIds']);
+        $t->same([
+            ['code' => 'duplicate-header-target-id', 'id' => 'dup', 'count' => 2],
+            ['code' => 'duplicate-header-reference-token', 'id' => 'dup', 'count' => 2],
+            ['code' => 'missing-header-reference-target', 'id' => 'missing'],
+            ['code' => 'non-header-reference-target', 'id' => 'note', 'targetNames' => ['td']],
+            ['code' => 'invalid-header-reference-token', 'token' => 'bad<tag'],
+            ['code' => 'missing-header-reference-target', 'id' => 'outer'],
+        ], $readyCell['headerReferenceIssues']);
+        $t->same([
+            'duplicate-header-target-id',
+            'duplicate-header-reference-token',
+            'missing-header-reference-target',
+            'non-header-reference-target',
+            'invalid-header-reference-token',
+        ], $readyCell['headerReferenceIssueCodes']);
+        $t->same(false, $readyCell['headerReferencesResolved']);
+
+        $t->same('resolved', $references[0]['targetState']);
+        $t->same('Region', $references[0]['headerTargets'][0]['text']);
+        $t->same('col', $references[0]['headerTargets'][0]['scope']);
+        $t->same('Reg', $references[0]['headerTargets'][0]['abbr']);
+        $t->same('2', $references[0]['headerTargets'][0]['colSpanRaw']);
+        $t->same(2, $references[0]['headerTargets'][0]['colSpan']);
+        $t->same('resolved', $references[1]['targetState']);
+        $t->same('Batch A', $references[1]['headerTargets'][0]['text']);
+        $t->same('row', $references[1]['headerTargets'][0]['scope']);
+        $t->same('A', $references[1]['headerTargets'][0]['abbr']);
+        $t->same('2', $references[1]['headerTargets'][0]['rowSpanRaw']);
+        $t->same(2, $references[1]['headerTargets'][0]['rowSpan']);
+        $t->same('duplicate-header-target-id', $references[2]['targetState']);
+        $t->same(2, $references[2]['headerTargetCount']);
+        $t->same(['Duplicate One', 'Duplicate Two'], array_map(
+            static fn (array $target): string => $target['text'],
+            $references[2]['headerTargets']
+        ));
+        $t->same(['First', 'Second'], array_map(
+            static fn (array $target): string => $target['abbr'],
+            $references[2]['headerTargets']
+        ));
+        $t->same('missing', $references[3]['targetState']);
+        $t->same('non-header-target', $references[4]['targetState']);
+        $t->same([['name' => 'td', 'text' => 'Not a header']], $references[4]['nonHeaderTargets']);
+        $t->same('resolved', $references[5]['targetState']);
+        $t->same('Period', $references[5]['headerTargets'][0]['text']);
+        $t->same('Q2', $references[5]['headerTargets'][0]['abbr']);
+        $t->same('missing', $references[6]['targetState']);
+        $t->same('<table id="review-grid" summary="Legacy summary"><caption>Import matrix</caption><thead><tr><th abbr="Reg" colspan="2" id="region" scope="col">Region</th><th abbr="Q2" id="period" scope="col">Period</th><th abbr="First" id="dup" scope="col">Duplicate One</th><th abbr="Second" id="dup" scope="colgroup">Duplicate Two</th><td id="note">Not a header</td></tr></thead><tbody><tr><th abbr="A" id="row-a" rowspan="2" scope="row">Batch A</th><td colspan="2" headers="region row-a dup dup missing note bad&lt;tag period outer" rowspan="2">Ready</td></tr></tbody></table><table><tr><th abbr="Out" id="outer" scope="col">Outer table</th></tr></table>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

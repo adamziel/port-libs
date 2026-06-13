@@ -28798,6 +28798,121 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf</dd>', $blocks);
     },
+    'preserves bounded direct csl translated title raw provenance across alias collisions' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-translated-title-collision',
+                'type' => 'book',
+                'title' => 'Direct Translated Collision Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+                'translated-title' => 'Canonical Title Translation',
+                'translatedTitle' => 'Camel Title Translation',
+                'translatedtitle' => 'Flat Title Translation',
+                'title-translation' => 'Hyphen Title Translation',
+                'titleTranslation' => 'Camel Title-Translation',
+                'titletranslation' => 'Flat Title-Translation',
+                'translated-subtitle' => 'Canonical Subtitle Translation',
+                'translatedSubtitle' => 'Camel Subtitle Translation',
+                'translatedsubtitle' => 'Flat Subtitle Translation',
+                'subtitle-translation' => 'Hyphen Subtitle Translation',
+                'subtitleTranslation' => 'Camel Subtitle-Translation',
+                'subtitletranslation' => 'Flat Subtitle-Translation',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-translated-title-collision');
+        $t->same('Canonical Title Translation', $item['translatedTitle'] ?? null);
+        $t->same('Canonical Subtitle Translation', $item['translatedSubtitle'] ?? null);
+        foreach ([
+            'translated-title' => 'Canonical Title Translation',
+            'translatedTitle' => 'Camel Title Translation',
+            'translatedtitle' => 'Flat Title Translation',
+            'title-translation' => 'Hyphen Title Translation',
+            'titleTranslation' => 'Camel Title-Translation',
+            'titletranslation' => 'Flat Title-Translation',
+            'translated-subtitle' => 'Canonical Subtitle Translation',
+            'translatedSubtitle' => 'Camel Subtitle Translation',
+            'translatedsubtitle' => 'Flat Subtitle Translation',
+            'subtitle-translation' => 'Hyphen Subtitle Translation',
+            'subtitleTranslation' => 'Camel Subtitle-Translation',
+            'subtitletranslation' => 'Flat Subtitle-Translation',
+        ] as $key => $value) {
+            $t->same($value, $item['raw'][$key] ?? null);
+        }
+
+        $t->same(
+            'Ng, Nia. Direct Translated Collision Packet. Review Press, 2026. Translated title: Canonical Title Translation. Translated subtitle: Canonical Subtitle Translation.',
+            $processor->renderBibliographyEntry('direct-translated-title-collision')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Translated Title Raw Provenance Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-translated-title-raw-provenance-review</id>
+    <updated>2026-06-13T09:52:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="translated-title"/>
+        <text variable="translatedTitle"/>
+        <text variable="translatedtitle"/>
+        <text variable="title-translation"/>
+        <text variable="titleTranslation"/>
+        <text variable="titletranslation"/>
+        <text variable="translated-subtitle"/>
+        <text variable="translatedSubtitle"/>
+        <text variable="translatedsubtitle"/>
+        <text variable="subtitle-translation"/>
+        <text variable="subtitleTranslation"/>
+        <text variable="subtitletranslation"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="translated-title-raw"/>
+      <text variable="translatedTitleRaw"/>
+      <text variable="translatedtitleRaw"/>
+      <text variable="title-translation-raw"/>
+      <text variable="titleTranslationRaw"/>
+      <text variable="titletranslationRaw"/>
+      <text variable="translated-subtitle-raw"/>
+      <text variable="translatedSubtitleRaw"/>
+      <text variable="translatedsubtitleRaw"/>
+      <text variable="subtitle-translation-raw"/>
+      <text variable="subtitleTranslationRaw"/>
+      <text variable="subtitletranslationRaw"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Translated Title Raw Provenance Review', $summary['title'] ?? null);
+        $t->same('translatedTitleRaw', $summary['bibliographyRendering'][2]['variable'] ?? null);
+        $t->same(
+            '[Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation]',
+            $styled->renderCitationCluster([$citation('direct-translated-title-collision', '[@direct-translated-title-collision]')])
+        );
+        $t->same(
+            'Direct Translated Collision Packet :: Canonical Title Translation :: Camel Title Translation :: Flat Title Translation :: Hyphen Title Translation :: Camel Title-Translation :: Flat Title-Translation :: Canonical Subtitle Translation :: Camel Subtitle Translation :: Flat Subtitle Translation :: Hyphen Subtitle Translation :: Camel Subtitle-Translation :: Flat Subtitle-Translation',
+            $styled->renderBibliographyEntry('direct-translated-title-collision')
+        );
+
+        $document = (new MarkdownReader())->read('Translated collision [@direct-translated-title-collision] keeps raw alias provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Translated collision [Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Title Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation] keeps raw alias provenance visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Translated Collision Packet :: Canonical Title Translation :: Camel Title Translation :: Flat Title Translation :: Hyphen Title Translation :: Camel Title-Translation :: Flat Title-Translation :: Canonical Subtitle Translation :: Camel Subtitle Translation :: Flat Subtitle Translation :: Hyphen Subtitle Translation :: Camel Subtitle-Translation :: Flat Subtitle-Translation</dd>', $blocks);
+    },
     'normalizes bounded direct csl json langid aliases into language metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
