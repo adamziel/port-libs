@@ -12,7 +12,6 @@ Rule: a format is complete only when repo passing tests equals upstream tests.
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |
-| IPYNB / notebook | 0 | audit needed |
 | HTML / XML / JATS / BITS DOM | 297 | audit needed |
 | DOCX / OpenXML | 94 | audit needed |
 | EPUB / EPUB3 | 65 | audit needed |
