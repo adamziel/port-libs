@@ -6298,6 +6298,8 @@ final class CitationCslProcessor
             'extra-alpha', 'extraalpha' => $this->normalizeSortText((string) ($item['extraAlpha'] ?? '')),
             'shorthand' => $this->normalizeSortText((string) $item['shorthand']),
             'sort-shorthand', 'sortshorthand', 'list-shorthand', 'listshorthand', 'shorthand-list-sort-key' => $this->normalizeSortText((string) ($item['shorthandListSortKey'] ?? $item['sortShorthand'] ?? $item['shorthand'] ?? '')),
+            'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => $this->normalizeSortText((string) ($item['translatedTitle'] ?? '')),
+            'translated-subtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitletranslation' => $this->normalizeSortText((string) ($item['translatedSubtitle'] ?? '')),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext' => $this->normalizeSortText((string) $item['containerTitle']),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),

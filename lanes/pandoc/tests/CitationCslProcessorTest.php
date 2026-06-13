@@ -2389,6 +2389,118 @@ XML);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.</dd>', $blocks);
     },
+    'maps bounded biblatex translated subtitle aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{translated-subtitle-compact,
+  author              = {Ames, Ari},
+  title               = {Manual fuente},
+  titletranslation    = {Migration Manual},
+  subtitletranslation = {Archive Annex},
+  date                = {2026},
+  publisher           = {Review Press}
+}
+
+@article{translated-subtitle-hyphen,
+  author              = {Bell, Bea},
+  title               = {Revue source},
+  translated-title    = {Source Review},
+  translated-subtitle = {Issue Appendix},
+  journaltitle        = {Journal of Imports},
+  date                = {2025},
+  pages               = {7--9}
+}
+
+@incollection{translated-subtitle-title-field,
+  author                     = {Chen, Cy},
+  title                      = {Guia de campo},
+  title-translation          = {Field Guide},
+  title-translation-subtitle = {Checklist},
+  booktitle                  = {Review Handbook},
+  date                       = {2024}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('Migration Manual', $items[0]['translated-title'] ?? null);
+        $t->same('Archive Annex', $items[0]['translated-subtitle'] ?? null);
+        $t->same('Source Review', $items[1]['translated-title'] ?? null);
+        $t->same('Issue Appendix', $items[1]['translated-subtitle'] ?? null);
+        $t->same('Field Guide', $items[2]['translated-title'] ?? null);
+        $t->same('Checklist', $items[2]['translated-subtitle'] ?? null);
+        $t->same('Archive Annex', $items[0]['rawBibtex']['fields']['subtitletranslation'] ?? null);
+        $t->same('Issue Appendix', $items[1]['rawBibtex']['fields']['translated-subtitle'] ?? null);
+        $t->same('Checklist', $items[2]['rawBibtex']['fields']['title-translation-subtitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('translated-subtitle-compact');
+        $hyphen = $processor->item('translated-subtitle-hyphen');
+        $titleField = $processor->item('translated-subtitle-title-field');
+        $t->same('Migration Manual: Archive Annex', $compact['translatedTitle'] ?? null);
+        $t->same('Archive Annex', $compact['translatedSubtitle'] ?? null);
+        $t->same('Source Review: Issue Appendix', $hyphen['translatedTitle'] ?? null);
+        $t->same('Issue Appendix', $hyphen['translatedSubtitle'] ?? null);
+        $t->same('Field Guide: Checklist', $titleField['translatedTitle'] ?? null);
+        $t->same('Checklist', $titleField['translatedSubtitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Translated Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-translated-subtitle-alias-review</id>
+    <updated>2026-06-13T21:40:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="translated-subtitle"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="translated-title"/>
+        <text variable="translated-subtitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="translated-subtitle"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="titletranslation"/>
+      <text variable="subtitletranslation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Translated Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('translated-subtitle', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('translated-subtitle', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('translated-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('translated-subtitle', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ames | Migration Manual: Archive Annex | Archive Annex; Chen | Field Guide: Checklist | Checklist; Bell | Source Review: Issue Appendix | Issue Appendix]', $styled->renderCitationCluster([
+            $citation('translated-subtitle-hyphen', '[@translated-subtitle-hyphen]'),
+            $citation('translated-subtitle-title-field', '[@translated-subtitle-title-field]'),
+            $citation('translated-subtitle-compact', '[@translated-subtitle-compact]'),
+        ]));
+        $t->same('Manual fuente :: Migration Manual: Archive Annex :: Archive Annex', $styled->renderBibliographyEntry('translated-subtitle-compact'));
+        $t->same('Revue source :: Source Review: Issue Appendix :: Issue Appendix', $styled->renderBibliographyEntry('translated-subtitle-hyphen'));
+        $t->same('Guia de campo :: Field Guide: Checklist :: Checklist', $styled->renderBibliographyEntry('translated-subtitle-title-field'));
+
+        $document = (new MarkdownReader())->read('Translated subtitles [@translated-subtitle-hyphen; @translated-subtitle-title-field; @translated-subtitle-compact] stay sortable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Translated Subtitle Sources'));
+        $t->contains('<p>Translated subtitles [Ames | Migration Manual: Archive Annex | Archive Annex; Chen | Field Guide: Checklist | Checklist; Bell | Source Review: Issue Appendix | Issue Appendix] stay sortable.</p>', $blocks);
+        $compactPosition = strpos($blocks, '<dt>Ames 2026</dt><dd>Manual fuente :: Migration Manual: Archive Annex :: Archive Annex</dd>');
+        $titleFieldPosition = strpos($blocks, '<dt>Chen 2024</dt><dd>Guia de campo :: Field Guide: Checklist :: Checklist</dd>');
+        $hyphenPosition = strpos($blocks, '<dt>Bell 2025</dt><dd>Revue source :: Source Review: Issue Appendix :: Issue Appendix</dd>');
+        $t->true($compactPosition !== false && $titleFieldPosition !== false && $hyphenPosition !== false);
+        $t->true($compactPosition < $titleFieldPosition && $titleFieldPosition < $hyphenPosition, 'Translated-subtitle sort order is not reflected in WordPress bibliography output');
+    },
     'applies bounded csl text variable rendering for original dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
