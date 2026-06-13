@@ -255,12 +255,14 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
           <year>2026</year>
           <date-in-citation content-type="publication-date" iso-8601-date="2026-06-12"><year>2026</year><month>06</month><day>12</day></date-in-citation>
           <pub-id pub-id-type="doi">10.5555/native.1</pub-id>
+          <pub-id pub-id-type="pmid">12345678</pub-id>
+          <pub-id pub-id-type="pmcid">PMC123456</pub-id>
           <uri>https://example.invalid/ref-a</uri>
         </element-citation>
       </ref>
       <ref id="ref-b">
         <label>2</label>
-        <mixed-citation publication-type="book">Blocked raw book citation payload <collab>Review Group</collab><source>Back Matter Handbook</source><year>2025</year><ext-link ext-link-type="uri" xlink:href="https://example.invalid/book">Book</ext-link></mixed-citation>
+        <mixed-citation publication-type="book">Blocked raw book citation payload <collab>Review Group</collab><source>Back Matter Handbook</source><year>2025</year><pub-id pub-id-type="doi">https://doi.org/10.5555/native.1</pub-id><isbn>978-1-55555-999-9</isbn><ext-link ext-link-type="uri" xlink:href="https://example.invalid/book">Book</ext-link></mixed-citation>
       </ref>
       <ref><mixed-citation>Blocked unidentified citation payload</mixed-citation></ref>
     </ref-list>
@@ -276,6 +278,9 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
             'references-review-only',
             'reference-citation-text-policy',
             'reference-author-date-policy',
+            'reference-identifier-policy',
+            'reference-identifiers-duplicate',
+            'reference-identifiers-missing',
             'bibliography-xrefs-unresolved',
         ], $packet['directReaderDiagnosticCodes']);
         $t->same(1, $packet['referenceListCount']);
@@ -309,6 +314,11 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(2, $packet['directReaderDiagnostics'][2]['details']['safeReferenceAuthorCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][2]['details']['safeReferenceDateCount'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][2]['details']['safeReferenceYearCount'] ?? null);
+        $t->same(7, $packet['directReaderDiagnostics'][2]['details']['referenceIdentifierCount'] ?? null);
+        $t->same(6, $packet['directReaderDiagnostics'][2]['details']['referenceIdentifierSourceSummaryCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['resolvedBibrIdentifierTargetCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['duplicateReferenceIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][2]['details']['referencesMissingIdentifierCount'] ?? null);
         $t->same(3, $packet['directReaderDiagnostics'][2]['details']['blockedCitationTextPayloadCount'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][3]['details']['safeReferenceLabelCount'] ?? null);
         $t->same(3, $packet['directReaderDiagnostics'][3]['details']['blockedCitationTextPayloadCount'] ?? null);
@@ -316,7 +326,12 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(1, $packet['directReaderDiagnostics'][4]['details']['safeReferenceDateCount'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][4]['details']['safeReferenceYearCount'] ?? null);
         $t->same(3, $packet['directReaderDiagnostics'][4]['details']['blockedCitationTextPayloadCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['unresolvedBibrXrefCount'] ?? null);
+        $t->same(7, $packet['directReaderDiagnostics'][5]['details']['referenceIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['duplicateReferenceIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][5]['details']['referencesMissingIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['duplicateReferenceIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][7]['details']['referencesMissingIdentifierCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][8]['details']['unresolvedBibrXrefCount'] ?? null);
         $t->same('safe-reference-author-date-year-summaries-block-citation-text-payloads', $packet['referenceAuthorDateReviewPolicy']);
         $t->same([
             ['id' => 'ref-a', 'authorNames' => ['Lin Ng']],
@@ -342,6 +357,35 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
             ['id' => 'ref-b', 'years' => ['2025']],
         ], $packet['safeReferenceYears']);
         $t->same(2, $packet['safeReferenceYearCount']);
+        $t->same('safe-reference-identifier-provenance-only-block-citation-text-payloads', $packet['referenceIdentifierReviewPolicy']);
+        $t->same(7, $packet['referenceIdentifierCount']);
+        $t->same(['doi', 'pmid', 'pmcid', 'uri', 'isbn'], $packet['referenceIdentifierTypes']);
+        $t->same([
+            ['sourceElement' => 'ext-link', 'sourceAttribute' => 'xlink:href', 'sourceType' => 'uri', 'type' => 'uri', 'count' => 1],
+            ['sourceElement' => 'isbn', 'sourceAttribute' => null, 'sourceType' => null, 'type' => 'isbn', 'count' => 1],
+            ['sourceElement' => 'pub-id', 'sourceAttribute' => null, 'sourceType' => 'doi', 'type' => 'doi', 'count' => 2],
+            ['sourceElement' => 'pub-id', 'sourceAttribute' => null, 'sourceType' => 'pmcid', 'type' => 'pmcid', 'count' => 1],
+            ['sourceElement' => 'pub-id', 'sourceAttribute' => null, 'sourceType' => 'pmid', 'type' => 'pmid', 'count' => 1],
+            ['sourceElement' => 'uri', 'sourceAttribute' => null, 'sourceType' => null, 'type' => 'uri', 'count' => 1],
+        ], $packet['referenceIdentifierSourceSummaries']);
+        $t->same(6, $packet['referenceIdentifierSourceSummaryCount']);
+        $t->same([[
+            'type' => 'doi',
+            'value' => '10.5555/native.1',
+            'normalizedValue' => '10.5555/native.1',
+            'referenceIds' => ['ref-a', 'ref-b'],
+            'referenceCount' => 2,
+            'sourceCount' => 2,
+        ]], $packet['duplicateReferenceIdentifiers']);
+        $t->same(1, $packet['duplicateReferenceIdentifierCount']);
+        $t->same(1, $packet['referencesMissingIdentifierCount']);
+        $t->same(null, $packet['referencesMissingIdentifiers'][0]['id'] ?? null);
+        $t->same('missing-id', $packet['referencesMissingIdentifiers'][0]['status'] ?? null);
+        $t->same(['mixed-citation'], $packet['referencesMissingIdentifiers'][0]['citationElementNames'] ?? null);
+        $t->same(1, $packet['resolvedBibrIdentifierTargetCount']);
+        $t->same('ref-a', $packet['resolvedBibrIdentifierTargets'][0]['targetId'] ?? null);
+        $t->same(4, $packet['resolvedBibrIdentifierTargets'][0]['targetIdentifierCount'] ?? null);
+        $t->same(['doi', 'pmid', 'pmcid', 'uri'], $packet['resolvedBibrIdentifierTargets'][0]['targetIdentifierTypes'] ?? null);
 
         $resolved = $packet['references'][0];
         $t->same('ref-a', $resolved['id'] ?? null);
@@ -351,7 +395,36 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(['element-citation'], $resolved['citationElementNames'] ?? null);
         $t->same(1, $resolved['blockedCitationTextPayloadCount'] ?? null);
         $t->same(['journal'], $resolved['publicationTypes'] ?? null);
-        $t->same([['element' => 'pub-id', 'type' => 'doi', 'value' => '10.5555/native.1']], $resolved['publicationIds'] ?? null);
+        $t->same([
+            ['element' => 'pub-id', 'type' => 'doi', 'value' => '10.5555/native.1'],
+            ['element' => 'pub-id', 'type' => 'pmid', 'value' => '12345678'],
+            ['element' => 'pub-id', 'type' => 'pmcid', 'value' => 'PMC123456'],
+        ], $resolved['publicationIds'] ?? null);
+        $t->same(4, $resolved['identifierCount'] ?? null);
+        $t->same(['doi', 'pmid', 'pmcid', 'uri'], $resolved['identifierTypes'] ?? null);
+        $t->same([
+            'type' => 'doi',
+            'value' => '10.5555/native.1',
+            'normalizedValue' => '10.5555/native.1',
+            'sourceElement' => 'pub-id',
+            'sourceAttribute' => null,
+            'sourceType' => 'doi',
+            'sourceCitationElement' => 'element-citation',
+        ], $resolved['identifiers'][0] ?? null);
+        $t->same([
+            'type' => 'pmid',
+            'value' => '12345678',
+            'normalizedValue' => '12345678',
+            'sourceElement' => 'pub-id',
+            'sourceAttribute' => null,
+            'sourceType' => 'pmid',
+            'sourceCitationElement' => 'element-citation',
+        ], $resolved['identifiers'][1] ?? null);
+        $t->same('pmcid', $resolved['identifiers'][2]['type'] ?? null);
+        $t->same('PMC123456', $resolved['identifiers'][2]['normalizedValue'] ?? null);
+        $t->same('uri', $resolved['identifiers'][3]['type'] ?? null);
+        $t->same(4, $packet['bibliographyXrefs'][0]['targetIdentifierCount'] ?? null);
+        $t->same(['doi', 'pmid', 'pmcid', 'uri'], $packet['bibliographyXrefs'][0]['targetIdentifierTypes'] ?? null);
         $t->same('Bounded Citation Metadata', $resolved['articleTitle'] ?? null);
         $t->same('Journal of Native Ports', $resolved['sourceTitle'] ?? null);
         $t->same('2026', $resolved['year'] ?? null);
@@ -384,6 +457,11 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(1, $unreferenced['blockedCitationTextPayloadCount'] ?? null);
         $t->same(['Review Group'], $unreferenced['authorNames'] ?? null);
         $t->same(['2025'], $unreferenced['years'] ?? null);
+        $t->same(3, $unreferenced['identifierCount'] ?? null);
+        $t->same(['doi', 'isbn', 'uri'], $unreferenced['identifierTypes'] ?? null);
+        $t->same('10.5555/native.1', $unreferenced['identifiers'][0]['normalizedValue'] ?? null);
+        $t->same('9781555559999', $unreferenced['identifiers'][1]['normalizedValue'] ?? null);
+        $t->same('xlink:href', $unreferenced['identifiers'][2]['sourceAttribute'] ?? null);
         $t->same(1, $unreferenced['collabCount'] ?? null);
         $t->same(1, $unreferenced['extLinkCount'] ?? null);
         $t->same('missing-id', $packet['references'][2]['status'] ?? null);
@@ -398,7 +476,7 @@ XML, 'JATS bibliography diagnostics XML', preserveWhiteSpace: false);
   <book-body>
     <book-part id="bp1"><book-part-meta><title-group><title>Chapter</title></title-group></book-part-meta><body><p>See <xref ref-type="bibr" rid="book-ref lost-ref">bibliography</xref>.</p></body></book-part>
   </book-body>
-  <back><ref-list id="bibliography"><title>Bibliography</title><ref id="book-ref"><mixed-citation publication-type="book"><person-group person-group-type="author"><collab>BITS Editors</collab></person-group><source>Native BITS References</source><year>2024</year><date-in-citation content-type="publication-date"><year>2024</year><month>05</month></date-in-citation></mixed-citation></ref></ref-list></back>
+  <back><ref-list id="bibliography"><title>Bibliography</title><ref id="book-ref"><mixed-citation publication-type="book"><person-group person-group-type="author"><collab>BITS Editors</collab></person-group><source>Native BITS References</source><year>2024</year><date-in-citation content-type="publication-date"><year>2024</year><month>05</month></date-in-citation><isbn>978-1-55555-222-9</isbn><uri>https://example.invalid/bits-ref</uri></mixed-citation></ref></ref-list></back>
 </book>
 XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
@@ -409,6 +487,7 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
             'references-review-only',
             'reference-citation-text-policy',
             'reference-author-date-policy',
+            'reference-identifier-policy',
             'bibliography-xrefs-unresolved',
             'book-parts-review-only',
         ], $bitsPacket['directReaderDiagnosticCodes']);
@@ -422,11 +501,21 @@ XML, 'BITS bibliography diagnostics XML', preserveWhiteSpace: false);
         $t->same(1, $bitsPacket['safeReferenceDateCount']);
         $t->same([['id' => 'book-ref', 'years' => ['2024']]], $bitsPacket['safeReferenceYears']);
         $t->same(1, $bitsPacket['safeReferenceYearCount']);
+        $t->same(2, $bitsPacket['referenceIdentifierCount']);
+        $t->same(['isbn', 'uri'], $bitsPacket['referenceIdentifierTypes']);
+        $t->same(0, $bitsPacket['referencesMissingIdentifierCount']);
+        $t->same(0, $bitsPacket['duplicateReferenceIdentifierCount']);
+        $t->same(1, $bitsPacket['resolvedBibrIdentifierTargetCount']);
         $t->same(1, $bitsPacket['blockedCitationTextPayloadCount']);
         $t->same(['mixed-citation'], $bitsPacket['blockedCitationTextPayloadElementNames']);
         $t->same('resolved-by-bibr-xref', $bitsPacket['references'][0]['status'] ?? null);
         $t->same('Native BITS References', $bitsPacket['references'][0]['sourceTitle'] ?? null);
         $t->same(['BITS Editors'], $bitsPacket['references'][0]['authorNames'] ?? null);
+        $t->same(2, $bitsPacket['references'][0]['identifierCount'] ?? null);
+        $t->same('isbn', $bitsPacket['references'][0]['identifiers'][0]['type'] ?? null);
+        $t->same('9781555552229', $bitsPacket['references'][0]['identifiers'][0]['normalizedValue'] ?? null);
+        $t->same('uri', $bitsPacket['references'][0]['identifiers'][1]['type'] ?? null);
+        $t->same(2, $bitsPacket['bibliographyXrefs'][0]['targetIdentifierCount'] ?? null);
         $t->same([[
             'element' => 'date-in-citation',
             'type' => 'publication-date',
