@@ -172,6 +172,159 @@ return [
         $t->same(false, str_contains($html, '<svg><text>hidden</text></svg>'));
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
     },
+    'reports bounded ipynb stream output grouping without exposing output bytes' => static function (TestRunner $t): void {
+        $document = (new IpynbReader())->read(json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'code',
+                    'execution_count' => 11,
+                    'id' => 'stream-groups',
+                    'outputs' => [
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['alpha stdout bytes'],
+                        ],
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['beta stdout bytes'],
+                        ],
+                        [
+                            'name' => 'stderr',
+                            'output_type' => 'stream',
+                            'text' => 'warning stderr bytes',
+                        ],
+                        [
+                            'data' => [
+                                'image/png' => 'hidden image bytes',
+                                'text/plain' => ['plain display bytes'],
+                            ],
+                            'metadata' => ['transient' => ['display_id' => 'fig-1']],
+                            'output_type' => 'display_data',
+                        ],
+                        [
+                            'name' => 'stdout',
+                            'output_type' => 'stream',
+                            'text' => ['gamma stdout bytes'],
+                        ],
+                        [
+                            'ename' => 'ValueError',
+                            'evalue' => 'bad value bytes',
+                            'output_type' => 'error',
+                            'traceback' => ['stack line bytes'],
+                        ],
+                        [
+                            'data' => [
+                                'application/json' => ['ok' => true],
+                                'text/plain' => ['result bytes'],
+                            ],
+                            'metadata' => ['review' => 'kept'],
+                            'output_type' => 'execute_result',
+                        ],
+                    ],
+                    'source' => 'stream_groups()',
+                ],
+            ],
+            'metadata' => [
+                'language_info' => ['name' => 'python'],
+            ],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR));
+
+        $cell = $document->children[0];
+        $attrs = $cell->attr('attributes');
+        $html = (new WordPressBlockWriter())->write($document);
+        $serialized = json_encode($document, JSON_THROW_ON_ERROR);
+
+        $t->same(7, $document->attr('notebookOutputCount'));
+        $t->same(7, $document->attr('notebookOutputBytePresenceCount'));
+        $t->same(2, $document->attr('notebookOutputMimeBundleCount'));
+        $t->same(6, $document->attr('notebookOutputGroupCount'));
+        $t->same(3, $document->attr('notebookOutputStreamGroupCount'));
+        $t->same(1, $document->attr('notebookOutputRepeatedStreamNameCount'));
+        $t->same(3, $document->attr('notebookOutputAggregateDiagnosticCount'));
+        $t->same('metadata-only', $document->attr('notebookOutputBytePolicy')['state']);
+        $t->same('blocked', $document->attr('notebookOutputBytePolicy')['byteExposure']);
+
+        $t->same('0 1 2 3 4 5 6', $attrs['data-ipynb-output-indexes']);
+        $t->same('stream stream stream display_data stream error execute_result', $attrs['data-ipynb-output-display-order']);
+        $t->same('6', $attrs['data-ipynb-output-group-count']);
+        $t->same('3', $attrs['data-ipynb-output-stream-group-count']);
+        $t->same('stderr stdout', $attrs['data-ipynb-output-stream-names']);
+        $t->same('stdout', $attrs['data-ipynb-output-repeated-stream-names']);
+        $t->same('metadata-only', $attrs['data-ipynb-output-byte-policy']);
+        $t->same('7', $attrs['data-ipynb-output-byte-presence-count']);
+        $t->same('3', $attrs['data-ipynb-output-aggregate-diagnostic-count']);
+        $t->same('application/json image/png text/plain', $attrs['data-ipynb-output-mime-types']);
+        $t->same('text/plain', $attrs['data-ipynb-output-repeated-mime-keys']);
+
+        $t->same(['stream', 'display_data', 'error', 'execute_result'], $cell->attr('ipynbOutputTypes'));
+        $t->same([
+            'stream',
+            'stream',
+            'stream',
+            'display_data',
+            'stream',
+            'error',
+            'execute_result',
+        ], $cell->attr('ipynbOutputOrderTypes'));
+        $t->same([0, 1, 2, 3, 4, 5, 6], $cell->attr('ipynbOutputIndexes'));
+        $t->same(6, $cell->attr('ipynbOutputGroupCount'));
+        $t->same(3, $cell->attr('ipynbOutputStreamGroupCount'));
+        $t->same(['stderr', 'stdout'], $cell->attr('ipynbOutputStreamNames'));
+        $t->same(['stdout'], $cell->attr('ipynbOutputRepeatedStreamNames'));
+
+        $streamGroups = $cell->attr('ipynbOutputStreamGroups');
+        $t->same('stdout', $streamGroups[0]['streamName']);
+        $t->same([0, 1], $streamGroups[0]['outputIndexes']);
+        $t->same(2, $streamGroups[0]['count']);
+        $t->same('stderr', $streamGroups[1]['streamName']);
+        $t->same([2], $streamGroups[1]['outputIndexes']);
+        $t->same('stdout', $streamGroups[2]['streamName']);
+        $t->same([4], $streamGroups[2]['outputIndexes']);
+
+        $groups = $cell->attr('ipynbOutputGroups');
+        $t->same(['stream', 'stream', 'output', 'stream', 'output', 'output'], array_column($groups, 'kind'));
+        $t->same([0, 2, 3, 4, 5, 6], array_column($groups, 'startIndex'));
+        $t->same([1, 2, 3, 4, 5, 6], array_column($groups, 'endIndex'));
+
+        $diagnostics = $cell->attr('ipynbOutputAggregateDiagnostics');
+        $t->same([
+            'mixed-output-display-order',
+            'repeated-output-mime-bundle-key',
+            'repeated-output-stream-name',
+        ], array_column($diagnostics, 'issue'));
+        $t->same([0, 1, 4], $cell->attr('ipynbOutputRepeatedStreamNameRecords')[0]['outputIndexes']);
+        $t->same([0, 3], $cell->attr('ipynbOutputRepeatedStreamNameRecords')[0]['groupIndexes']);
+        $t->same([3, 6], $cell->attr('ipynbOutputRepeatedMimeBundleRecords')[0]['outputIndexes']);
+
+        $outputs = $cell->attr('ipynbOutputSummaries');
+        $t->same('stdout', $outputs[0]['streamName']);
+        $t->same(1, $outputs[0]['streamTextLineCount']);
+        $t->same('stderr', $outputs[2]['streamName']);
+        $t->same(['image/png', 'text/plain'], $outputs[3]['mimeTypes']);
+        $t->same(['transient'], $outputs[3]['metadataKeys']);
+        $t->same('ValueError', $outputs[5]['errorName']);
+        $t->same(true, $outputs[5]['errorValuePresent']);
+        $t->same(1, $outputs[5]['tracebackLineCount']);
+        $t->same(['application/json', 'text/plain'], $outputs[6]['mimeTypes']);
+
+        $cellSummary = $document->attr('notebookCells')[0];
+        $t->same(6, $cellSummary['outputGroupCount']);
+        $t->same(3, $cellSummary['outputStreamGroupCount']);
+        $t->same(['stdout'], $cellSummary['outputRepeatedStreamNames']);
+        $t->same(3, $cellSummary['outputAggregateDiagnosticCount']);
+
+        $t->contains('data-ipynb-output-display-order="stream stream stream display_data stream error execute_result"', $html);
+        $t->contains('data-ipynb-output-stream-group-count="3"', $html);
+        $t->same(false, str_contains($serialized, 'alpha stdout bytes'));
+        $t->same(false, str_contains($serialized, 'hidden image bytes'));
+        $t->same(false, str_contains($serialized, 'bad value bytes'));
+        $t->same(false, str_contains($serialized, 'stack line bytes'));
+        $t->same(false, str_contains($serialized, 'result bytes'));
+    },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
         $outputSupport = PandocFormatRegistry::richPackageOutputSupport();

@@ -44,6 +44,12 @@ final class IpynbReader
         $attachmentCount = 0;
         $outputCount = 0;
         $unsupportedResourceCount = 0;
+        $outputBytePresenceCount = 0;
+        $outputMimeBundleCount = 0;
+        $outputGroupCount = 0;
+        $outputStreamGroupCount = 0;
+        $outputRepeatedStreamNameCount = 0;
+        $outputAggregateDiagnostics = [];
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -69,6 +75,14 @@ final class IpynbReader
             $attachmentCount += $attachmentSummary['count'];
             $outputCount += $outputSummary['count'];
             $unsupportedResourceCount += $attachmentSummary['count'] + $outputSummary['count'];
+            $outputBytePresenceCount += $outputSummary['bytePresenceCount'];
+            $outputMimeBundleCount += $outputSummary['mimeBundleCount'];
+            $outputGroupCount += $outputSummary['groupCount'];
+            $outputStreamGroupCount += $outputSummary['streamGroupCount'];
+            $outputRepeatedStreamNameCount += count($outputSummary['repeatedStreamNames']);
+            foreach ($outputSummary['aggregateDiagnostics'] as $diagnostic) {
+                $outputAggregateDiagnostics[] = $diagnostic;
+            }
 
             $attributes = [
                 'data-ipynb-cell-index' => (string) $index,
@@ -79,6 +93,31 @@ final class IpynbReader
             }
             if ($outputSummary['count'] > 0) {
                 $attributes['data-ipynb-output-count'] = (string) $outputSummary['count'];
+                $attributes['data-ipynb-output-indexes'] = implode(' ', array_map(static fn (int $index): string => (string) $index, $outputSummary['indexes']));
+                $attributes['data-ipynb-output-display-order'] = implode(' ', $outputSummary['orderTypes']);
+                $attributes['data-ipynb-output-group-count'] = (string) $outputSummary['groupCount'];
+            }
+            if ($outputSummary['streamGroupCount'] > 0) {
+                $attributes['data-ipynb-output-stream-group-count'] = (string) $outputSummary['streamGroupCount'];
+            }
+            if ($outputSummary['mimeTypes'] !== []) {
+                $attributes['data-ipynb-output-mime-types'] = implode(' ', $outputSummary['mimeTypes']);
+            }
+            if ($outputSummary['repeatedMimeBundleKeys'] !== []) {
+                $attributes['data-ipynb-output-repeated-mime-keys'] = implode(' ', $outputSummary['repeatedMimeBundleKeys']);
+            }
+            if ($outputSummary['streamNames'] !== []) {
+                $attributes['data-ipynb-output-stream-names'] = implode(' ', $outputSummary['streamNames']);
+            }
+            if ($outputSummary['repeatedStreamNames'] !== []) {
+                $attributes['data-ipynb-output-repeated-stream-names'] = implode(' ', $outputSummary['repeatedStreamNames']);
+            }
+            if ($outputSummary['bytePresenceCount'] > 0) {
+                $attributes['data-ipynb-output-byte-policy'] = 'metadata-only';
+                $attributes['data-ipynb-output-byte-presence-count'] = (string) $outputSummary['bytePresenceCount'];
+            }
+            if ($outputSummary['aggregateDiagnostics'] !== []) {
+                $attributes['data-ipynb-output-aggregate-diagnostic-count'] = (string) count($outputSummary['aggregateDiagnostics']);
             }
             if (array_key_exists('execution_count', $cell) && is_int($cell['execution_count'])) {
                 $attributes['data-ipynb-execution-count'] = (string) $cell['execution_count'];
@@ -115,7 +154,22 @@ final class IpynbReader
                 'ipynbAttachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'ipynbOutputCount' => $outputSummary['count'],
                 'ipynbOutputTypes' => $outputSummary['types'],
+                'ipynbOutputOrderTypes' => $outputSummary['orderTypes'],
+                'ipynbOutputIndexes' => $outputSummary['indexes'],
+                'ipynbOutputSummaries' => $outputSummary['outputs'],
                 'ipynbOutputMimeTypes' => $outputSummary['mimeTypes'],
+                'ipynbOutputMimeBundleCount' => $outputSummary['mimeBundleCount'],
+                'ipynbOutputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'ipynbOutputGroups' => $outputSummary['groups'],
+                'ipynbOutputGroupCount' => $outputSummary['groupCount'],
+                'ipynbOutputStreamGroups' => $outputSummary['streamGroups'],
+                'ipynbOutputStreamGroupCount' => $outputSummary['streamGroupCount'],
+                'ipynbOutputStreamNames' => $outputSummary['streamNames'],
+                'ipynbOutputRepeatedStreamNames' => $outputSummary['repeatedStreamNames'],
+                'ipynbOutputRepeatedStreamNameRecords' => $outputSummary['repeatedStreamNameRecords'],
+                'ipynbOutputRepeatedMimeBundleKeys' => $outputSummary['repeatedMimeBundleKeys'],
+                'ipynbOutputRepeatedMimeBundleRecords' => $outputSummary['repeatedMimeBundleRecords'],
+                'ipynbOutputAggregateDiagnostics' => $outputSummary['aggregateDiagnostics'],
                 'ipynbUnsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['count'],
                 'ipynbUnsupportedResourceDiagnostics' => $cellDiagnostics,
                 'ipynbCellMetadataKeys' => $cellMetadataKeys,
@@ -137,7 +191,19 @@ final class IpynbReader
                 'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'outputCount' => $outputSummary['count'],
                 'outputTypes' => $outputSummary['types'],
+                'outputOrderTypes' => $outputSummary['orderTypes'],
+                'outputIndexes' => $outputSummary['indexes'],
+                'outputSummaries' => $outputSummary['outputs'],
                 'outputMimeTypes' => $outputSummary['mimeTypes'],
+                'outputMimeBundleCount' => $outputSummary['mimeBundleCount'],
+                'outputBytePresenceCount' => $outputSummary['bytePresenceCount'],
+                'outputGroupCount' => $outputSummary['groupCount'],
+                'outputStreamGroupCount' => $outputSummary['streamGroupCount'],
+                'outputGroups' => $outputSummary['groups'],
+                'outputStreamGroups' => $outputSummary['streamGroups'],
+                'outputRepeatedStreamNames' => $outputSummary['repeatedStreamNames'],
+                'outputAggregateDiagnosticCount' => count($outputSummary['aggregateDiagnostics']),
+                'outputAggregateDiagnostics' => $outputSummary['aggregateDiagnostics'],
                 'unsupportedResourceCount' => $attachmentSummary['count'] + $outputSummary['count'],
                 'diagnostics' => $cellDiagnostics,
                 'metadataKeys' => $cellMetadataKeys,
@@ -154,6 +220,18 @@ final class IpynbReader
             'notebookAttachmentCount' => $attachmentCount,
             'notebookOutputCount' => $outputCount,
             'notebookUnsupportedResourceCount' => $unsupportedResourceCount,
+            'notebookOutputBytePresenceCount' => $outputBytePresenceCount,
+            'notebookOutputMimeBundleCount' => $outputMimeBundleCount,
+            'notebookOutputGroupCount' => $outputGroupCount,
+            'notebookOutputStreamGroupCount' => $outputStreamGroupCount,
+            'notebookOutputRepeatedStreamNameCount' => $outputRepeatedStreamNameCount,
+            'notebookOutputAggregateDiagnosticCount' => count($outputAggregateDiagnostics),
+            'notebookOutputAggregateDiagnostics' => $outputAggregateDiagnostics,
+            'notebookOutputBytePolicy' => [
+                'state' => $outputBytePresenceCount > 0 ? 'metadata-only' : 'none',
+                'byteExposure' => 'blocked',
+                'diagnostics' => $outputBytePresenceCount > 0 ? ['ipynb-output-bytes-blocked'] : [],
+            ],
             'notebookNbformat' => $notebook['nbformat'] ?? null,
             'notebookNbformatMinor' => $notebook['nbformat_minor'] ?? null,
             'notebookMetadataKeys' => $metadataKeys,
@@ -293,42 +371,189 @@ final class IpynbReader
 
     /**
      * @param array<int, mixed> $outputs
-     * @return array{count:int, types:list<string>, mimeTypes:list<string>}
+     * @return array<string, mixed>
      */
     private function outputSummary(array $outputs): array
     {
         $types = [];
+        $orderTypes = [];
+        $indexes = [];
+        $outputRows = [];
         $mimeTypes = [];
+        $mimeOccurrences = [];
+        $mimeBundleCount = 0;
+        $bytePresenceCount = 0;
+        $groups = [];
+        $streamNames = [];
+        $streamNameOutputIndexes = [];
+        $policyDiagnostics = [];
+        $aggregateDiagnostics = [];
+
         foreach ($outputs as $output) {
             if (!is_array($output)) {
                 continue;
             }
+            $outputIndex = count($outputRows);
             $type = $output['output_type'] ?? null;
-            if (is_string($type) && $type !== '') {
-                $types[] = $type;
-            }
+            $type = is_string($type) && $type !== '' ? $type : 'unknown';
+            $types[] = $type;
+            $orderTypes[] = $type;
+            $indexes[] = $outputIndex;
+
+            $dataMimeTypes = [];
             $data = $output['data'] ?? null;
             if (is_array($data)) {
-                foreach ($data as $mimeType => $payload) {
-                    if (!is_string($mimeType) || $mimeType === '' || !(is_scalar($payload) || is_array($payload))) {
-                        continue;
-                    }
-                    $mimeTypes[] = $mimeType;
+                $dataMimeTypes = $this->mimeTypesFromBundle($data);
+            }
+            foreach ($dataMimeTypes as $mimeType) {
+                $mimeTypes[] = $mimeType;
+                $mimeOccurrences[$mimeType] ??= [];
+                $mimeOccurrences[$mimeType][] = $outputIndex;
+            }
+
+            $streamName = $type === 'stream' ? $this->nonEmptyString($output['name'] ?? null) : null;
+            if ($streamName !== null) {
+                $streamNames[] = $streamName;
+                $streamNameOutputIndexes[$streamName] ??= [];
+                $streamNameOutputIndexes[$streamName][] = $outputIndex;
+            }
+
+            $errorName = $this->nonEmptyString($output['ename'] ?? null);
+            $hasErrorValue = $this->nonEmptyString($output['evalue'] ?? null) !== null;
+            $tracebackLineCount = $this->stringListCount($output['traceback'] ?? null);
+            $hasMimeBundle = $dataMimeTypes !== [];
+            $hasStreamPayload = $type === 'stream' && $this->hasStringOrStringList($output['text'] ?? null);
+            $hasErrorPayload = $type === 'error' && ($errorName !== null || $hasErrorValue || $tracebackLineCount > 0);
+            $hasBytePresence = $hasMimeBundle || $hasStreamPayload || $hasErrorPayload;
+
+            $outputPolicyDiagnostics = [];
+            if ($hasBytePresence) {
+                $bytePresenceCount++;
+                $outputPolicyDiagnostics[] = 'output-bytes-blocked';
+            }
+            if ($hasMimeBundle) {
+                $mimeBundleCount++;
+                $outputPolicyDiagnostics[] = 'output-mime-bundle-metadata-only';
+            }
+            if ($hasStreamPayload) {
+                $outputPolicyDiagnostics[] = 'output-stream-bytes-blocked';
+            }
+            if ($type === 'error') {
+                $outputPolicyDiagnostics[] = 'output-error-metadata-only';
+                if ($tracebackLineCount > 0) {
+                    $outputPolicyDiagnostics[] = 'output-error-traceback-bytes-blocked';
                 }
             }
+            foreach ($outputPolicyDiagnostics as $diagnostic) {
+                $policyDiagnostics[] = $diagnostic;
+            }
+
+            $row = [
+                'index' => $outputIndex,
+                'type' => $type,
+                'mimeTypes' => $dataMimeTypes,
+                'metadataKeys' => isset($output['metadata']) && is_array($output['metadata'])
+                    ? $this->metadataKeys($output['metadata'])
+                    : [],
+                'bytePresence' => $hasBytePresence ? 'present' : 'none',
+                'byteExposure' => $hasBytePresence ? 'blocked' : 'none',
+                'diagnostics' => array_values(array_unique($outputPolicyDiagnostics)),
+            ];
+            if ($streamName !== null) {
+                $row['streamName'] = $streamName;
+                $row['streamTextLineCount'] = $this->stringListCount($output['text'] ?? null);
+            }
+            if ($type === 'error') {
+                if ($errorName !== null) {
+                    $row['errorName'] = $errorName;
+                }
+                $row['errorValuePresent'] = $hasErrorValue;
+                $row['tracebackLineCount'] = $tracebackLineCount;
+            }
+
+            $outputRows[] = $row;
+            $this->appendOutputGroup($groups, $type, $streamName, $outputIndex);
+        }
+
+        $streamGroups = [];
+        foreach ($groups as $group) {
+            if (($group['kind'] ?? '') !== 'stream') {
+                continue;
+            }
+            $streamGroups[] = [
+                'streamGroupIndex' => count($streamGroups),
+                'groupIndex' => $group['groupIndex'],
+                'streamName' => $group['streamName'],
+                'startIndex' => $group['startIndex'],
+                'endIndex' => $group['endIndex'],
+                'outputIndexes' => $group['outputIndexes'],
+                'count' => $group['count'],
+            ];
+        }
+
+        $uniqueOrderTypes = array_values(array_unique($orderTypes));
+        if (count($orderTypes) > 1 && count($uniqueOrderTypes) > 1) {
+            $aggregateDiagnostics[] = [
+                'issue' => 'mixed-output-display-order',
+                'severity' => 'review',
+                'outputIndexes' => $indexes,
+                'outputTypes' => $orderTypes,
+                'uniqueOutputTypes' => $uniqueOrderTypes,
+                'outputGroupCount' => count($groups),
+            ];
+        }
+
+        $repeatedMimeBundleRecords = $this->repeatedMimeBundleRecords($mimeOccurrences);
+        foreach ($repeatedMimeBundleRecords as $record) {
+            $aggregateDiagnostics[] = [
+                'issue' => 'repeated-output-mime-bundle-key',
+                'severity' => 'review',
+                'mimeType' => $record['mimeType'],
+                'outputIndexes' => $record['outputIndexes'],
+                'occurrenceCount' => $record['count'],
+            ];
+        }
+
+        $repeatedStreamNameRecords = $this->repeatedStreamNameRecords($streamGroups, $streamNameOutputIndexes);
+        foreach ($repeatedStreamNameRecords as $record) {
+            $aggregateDiagnostics[] = [
+                'issue' => 'repeated-output-stream-name',
+                'severity' => 'review',
+                'streamName' => $record['streamName'],
+                'outputIndexes' => $record['outputIndexes'],
+                'groupIndexes' => $record['groupIndexes'],
+                'occurrenceCount' => $record['count'],
+                'groupCount' => $record['groupCount'],
+            ];
         }
         sort($mimeTypes);
 
         return [
             'count' => count($outputs),
             'types' => array_values(array_unique($types)),
+            'orderTypes' => $orderTypes,
+            'indexes' => $indexes,
+            'outputs' => $outputRows,
             'mimeTypes' => array_values(array_unique($mimeTypes)),
+            'mimeBundleCount' => $mimeBundleCount,
+            'bytePresenceCount' => $bytePresenceCount,
+            'groups' => $groups,
+            'groupCount' => count($groups),
+            'streamGroups' => $streamGroups,
+            'streamGroupCount' => count($streamGroups),
+            'streamNames' => $this->sortedUniqueStrings($streamNames),
+            'repeatedStreamNames' => array_column($repeatedStreamNameRecords, 'streamName'),
+            'repeatedStreamNameRecords' => $repeatedStreamNameRecords,
+            'repeatedMimeBundleKeys' => array_column($repeatedMimeBundleRecords, 'mimeType'),
+            'repeatedMimeBundleRecords' => $repeatedMimeBundleRecords,
+            'aggregateDiagnostics' => $aggregateDiagnostics,
+            'policyDiagnostics' => array_values(array_unique($policyDiagnostics)),
         ];
     }
 
     /**
      * @param array{count:int, names:list<string>, mimeTypes:list<string>} $attachmentSummary
-     * @param array{count:int, types:list<string>, mimeTypes:list<string>} $outputSummary
+     * @param array<string, mixed> $outputSummary
      * @return list<string>
      */
     private function cellDiagnostics(array $attachmentSummary, array $outputSummary): array
@@ -345,6 +570,173 @@ final class IpynbReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $groups
+     */
+    private function appendOutputGroup(array &$groups, string $type, ?string $streamName, int $outputIndex): void
+    {
+        $kind = $type === 'stream' ? 'stream' : 'output';
+        $groupName = $kind === 'stream' ? ($streamName ?? 'unnamed') : $type;
+        $lastIndex = array_key_last($groups);
+        if (
+            $lastIndex !== null
+            && ($groups[$lastIndex]['kind'] ?? '') === $kind
+            && ($groups[$lastIndex]['name'] ?? '') === $groupName
+        ) {
+            $groups[$lastIndex]['endIndex'] = $outputIndex;
+            $groups[$lastIndex]['outputIndexes'][] = $outputIndex;
+            $groups[$lastIndex]['count']++;
+
+            return;
+        }
+
+        $group = [
+            'groupIndex' => count($groups),
+            'kind' => $kind,
+            'type' => $type,
+            'name' => $groupName,
+            'startIndex' => $outputIndex,
+            'endIndex' => $outputIndex,
+            'outputIndexes' => [$outputIndex],
+            'count' => 1,
+        ];
+        if ($kind === 'stream') {
+            $group['streamName'] = $groupName;
+        }
+        $groups[] = $group;
+    }
+
+    /**
+     * @param array<string, mixed> $bundle
+     * @return list<string>
+     */
+    private function mimeTypesFromBundle(array $bundle): array
+    {
+        $mimeTypes = [];
+        foreach ($bundle as $mimeType => $data) {
+            if (!is_string($mimeType) || $mimeType === '') {
+                continue;
+            }
+            if (!is_scalar($data) && !is_array($data) && $data !== null) {
+                continue;
+            }
+            $mimeTypes[] = $mimeType;
+        }
+        sort($mimeTypes);
+
+        return array_values(array_unique($mimeTypes));
+    }
+
+    private function nonEmptyString(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function hasStringOrStringList(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return $value !== '';
+        }
+        if (!is_array($value)) {
+            return false;
+        }
+        foreach ($value as $entry) {
+            if (is_string($entry) && $entry !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function stringListCount(mixed $value): int
+    {
+        if (is_string($value)) {
+            return $value === '' ? 0 : 1;
+        }
+        if (!is_array($value)) {
+            return 0;
+        }
+        $count = 0;
+        foreach ($value as $entry) {
+            if (is_string($entry)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $strings
+     * @return list<string>
+     */
+    private function sortedUniqueStrings(array $strings): array
+    {
+        sort($strings);
+
+        return array_values(array_unique($strings));
+    }
+
+    /**
+     * @param array<string, list<int>> $mimeOccurrences
+     * @return list<array{mimeType:string, outputIndexes:list<int>, count:int}>
+     */
+    private function repeatedMimeBundleRecords(array $mimeOccurrences): array
+    {
+        ksort($mimeOccurrences);
+        $records = [];
+        foreach ($mimeOccurrences as $mimeType => $outputIndexes) {
+            if (count($outputIndexes) < 2) {
+                continue;
+            }
+            $records[] = [
+                'mimeType' => $mimeType,
+                'outputIndexes' => $outputIndexes,
+                'count' => count($outputIndexes),
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $streamGroups
+     * @param array<string, list<int>> $streamNameOutputIndexes
+     * @return list<array{streamName:string, outputIndexes:list<int>, groupIndexes:list<int>, count:int, groupCount:int}>
+     */
+    private function repeatedStreamNameRecords(array $streamGroups, array $streamNameOutputIndexes): array
+    {
+        $groupIndexesByName = [];
+        foreach ($streamGroups as $streamGroup) {
+            $streamName = $streamGroup['streamName'] ?? null;
+            $groupIndex = $streamGroup['groupIndex'] ?? null;
+            if (!is_string($streamName) || !is_int($groupIndex)) {
+                continue;
+            }
+            $groupIndexesByName[$streamName] ??= [];
+            $groupIndexesByName[$streamName][] = $groupIndex;
+        }
+        ksort($groupIndexesByName);
+
+        $records = [];
+        foreach ($groupIndexesByName as $streamName => $groupIndexes) {
+            if (count($groupIndexes) < 2) {
+                continue;
+            }
+            $outputIndexes = $streamNameOutputIndexes[$streamName] ?? [];
+            $records[] = [
+                'streamName' => $streamName,
+                'outputIndexes' => $outputIndexes,
+                'groupIndexes' => $groupIndexes,
+                'count' => count($outputIndexes),
+                'groupCount' => count($groupIndexes),
+            ];
+        }
+
+        return $records;
     }
 
     /**
