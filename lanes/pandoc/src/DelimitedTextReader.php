@@ -7,7 +7,7 @@ namespace PortLibs\Pandoc;
 final class DelimitedTextReader
 {
     /**
-     * @param array{header?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -15,7 +15,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -23,23 +23,29 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     */
+    public function readAuto(string $text, array $options = []): AstNode
+    {
+        return $this->read($text, 'auto', $options);
+    }
+
+    /**
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
-        $format = strtolower(trim($format));
-        $delimiter = match ($format) {
-            'csv' => ',',
-            'tsv' => "\t",
-            default => throw new \InvalidArgumentException("Unsupported delimited text format: {$format}"),
-        };
+        $formatResolution = $this->formatResolution($format, $text, $options);
+        $format = $formatResolution['format'];
+        $delimiter = $formatResolution['delimiter'];
+        $formatInference = $formatResolution['formatInference'];
         $hasHeader = $this->headerOption($options);
 
         $rows = $this->parseRows($this->stripBom($text), $delimiter);
         if ($rows === []) {
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader),
+                'delimitedText' => $this->reviewPacket($format, $delimiter, [], [], $hasHeader, $formatInference),
             ]);
         }
 
@@ -59,7 +65,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader),
+            'delimitedText' => $this->reviewPacket($format, $delimiter, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $hasHeader, $formatInference),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -70,6 +76,177 @@ final class DelimitedTextReader
             'sourceFormat' => $format,
             'delimitedText' => $table->attr('delimitedText'),
         ], [$table]);
+    }
+
+    /**
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @return array{format:string, delimiter:string, formatInference:array<string, mixed>}
+     */
+    private function formatResolution(string $format, string $text, array $options): array
+    {
+        $requestedFormat = strtolower(trim($format));
+        if ($requestedFormat === '') {
+            throw new \InvalidArgumentException('Delimited text format must not be empty; supported formats: csv, tsv, auto');
+        }
+
+        if ($requestedFormat === 'csv' || $requestedFormat === 'tsv') {
+            return [
+                'format' => $requestedFormat,
+                'delimiter' => $this->delimiterForFormat($requestedFormat),
+                'formatInference' => [
+                    'requestedFormat' => $requestedFormat,
+                    'selectedFormat' => $requestedFormat,
+                    'source' => 'explicit',
+                    'sourceValue' => $requestedFormat,
+                    'confidence' => 'explicit',
+                    'candidateScores' => [],
+                ],
+            ];
+        }
+
+        if ($requestedFormat !== 'auto') {
+            throw new \InvalidArgumentException("Unsupported delimited text format: {$requestedFormat}; supported formats: csv, tsv, auto");
+        }
+
+        $extensionInference = $this->inferFormatFromOptions($options);
+        if ($extensionInference !== null) {
+            $inferredFormat = $extensionInference['format'];
+
+            return [
+                'format' => $inferredFormat,
+                'delimiter' => $this->delimiterForFormat($inferredFormat),
+                'formatInference' => [
+                    'requestedFormat' => 'auto',
+                    'selectedFormat' => $inferredFormat,
+                    'source' => $extensionInference['source'],
+                    'sourceValue' => $extensionInference['sourceValue'],
+                    'confidence' => 'extension',
+                    'candidateScores' => [],
+                ],
+            ];
+        }
+
+        $contentInference = $this->inferFormatFromContent($text);
+        $inferredFormat = $contentInference['format'] ?? 'csv';
+
+        return [
+            'format' => $inferredFormat,
+            'delimiter' => $this->delimiterForFormat($inferredFormat),
+            'formatInference' => [
+                'requestedFormat' => 'auto',
+                'selectedFormat' => $inferredFormat,
+                'source' => $contentInference['format'] === null ? 'default' : 'content',
+                'sourceValue' => null,
+                'confidence' => $contentInference['format'] === null ? 'low' : 'high',
+                'candidateScores' => $contentInference['candidateScores'],
+            ],
+        ];
+    }
+
+    private function delimiterForFormat(string $format): string
+    {
+        return match ($format) {
+            'csv' => ',',
+            'tsv' => "\t",
+            default => throw new \InvalidArgumentException("Unsupported delimited text format: {$format}; supported formats: csv, tsv, auto"),
+        };
+    }
+
+    /**
+     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
+     * @return array{format:string, source:string, sourceValue:string}|null
+     */
+    private function inferFormatFromOptions(array $options): ?array
+    {
+        if (array_key_exists('extension', $options)) {
+            if (!is_string($options['extension'])) {
+                throw new \InvalidArgumentException('Delimited text extension option must be a string');
+            }
+
+            $extension = trim($options['extension']);
+            if ($extension !== '') {
+                $format = PandocFormatRegistry::inferTabularDataFormatFromExtension($extension);
+                if ($format !== null) {
+                    return [
+                        'format' => $format,
+                        'source' => 'extension',
+                        'sourceValue' => $extension,
+                    ];
+                }
+            }
+        }
+
+        if (array_key_exists('sourcePath', $options)) {
+            if (!is_string($options['sourcePath'])) {
+                throw new \InvalidArgumentException('Delimited text sourcePath option must be a string');
+            }
+
+            $sourcePath = trim($options['sourcePath']);
+            $extension = $sourcePath === '' ? '' : pathinfo($sourcePath, PATHINFO_EXTENSION);
+            if ($extension !== '') {
+                $format = PandocFormatRegistry::inferTabularDataFormatFromExtension($extension);
+                if ($format !== null) {
+                    return [
+                        'format' => $format,
+                        'source' => 'source-path',
+                        'sourceValue' => $sourcePath,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{format:string|null, candidateScores:array<string, array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int}>}
+     */
+    private function inferFormatFromContent(string $text): array
+    {
+        $text = $this->stripBom($text);
+        $candidateScores = [
+            'csv' => $this->scoreDelimitedRows($text, ','),
+            'tsv' => $this->scoreDelimitedRows($text, "\t"),
+        ];
+
+        $csvScore = $this->formatScore($candidateScores['csv']);
+        $tsvScore = $this->formatScore($candidateScores['tsv']);
+        $format = null;
+        if ($csvScore > $tsvScore && $candidateScores['csv']['multicolumnRows'] > 0) {
+            $format = 'csv';
+        }
+        if ($tsvScore > $csvScore && $candidateScores['tsv']['multicolumnRows'] > 0) {
+            $format = 'tsv';
+        }
+
+        return [
+            'format' => $format,
+            'candidateScores' => $candidateScores,
+        ];
+    }
+
+    /**
+     * @return array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int}
+     */
+    private function scoreDelimitedRows(string $text, string $delimiter): array
+    {
+        $rows = $this->parseRows($text, $delimiter);
+        $widths = array_map('count', $rows);
+
+        return [
+            'rows' => count($rows),
+            'multicolumnRows' => count(array_filter($widths, static fn (int $width): bool => $width > 1)),
+            'columnCount' => $widths === [] ? 0 : max($widths),
+            'fieldCount' => array_sum($widths),
+        ];
+    }
+
+    /**
+     * @param array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int} $score
+     */
+    private function formatScore(array $score): int
+    {
+        return ($score['multicolumnRows'] * 1000) + ($score['columnCount'] * 100) + $score['fieldCount'];
     }
 
     /**
@@ -141,7 +318,7 @@ final class DelimitedTextReader
      * @param list<int> $widths
      * @return array<string, mixed>
      */
-    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader): array
+    private function reviewPacket(string $format, string $delimiter, array $rows, array $widths, bool $hasHeader, array $formatInference): array
     {
         $rowCount = count($rows);
         $columnCount = $widths === [] ? 0 : max($widths);
@@ -155,6 +332,7 @@ final class DelimitedTextReader
         return [
             'format' => $format,
             'delimiter' => $delimiter === "\t" ? 'tab' : $delimiter,
+            'formatInference' => $formatInference,
             'headerRow' => $hasHeader && $rowCount > 0,
             'headerOption' => $hasHeader ? 'first-row' : 'none',
             'headerSource' => $hasHeader && $rowCount > 0 ? 'source-row-0' : 'generated',
@@ -169,11 +347,7 @@ final class DelimitedTextReader
             'maxFieldCount' => $columnCount,
             'raggedRowCount' => count($raggedRows),
             'raggedRows' => $raggedRows,
-            'diagnostics' => $hasHeader ? [] : [[
-                'code' => 'delimited-text-header-disabled',
-                'severity' => 'info',
-                'message' => 'No source header row was consumed; generated column labels are review metadata only.',
-            ]],
+            'diagnostics' => $this->reviewDiagnostics($hasHeader, $formatInference),
             'upstreamEvidence' => [
                 'denominator' => 2,
                 'fixtures' => [
@@ -183,6 +357,34 @@ final class DelimitedTextReader
                 'source' => 'lanes/pandoc/src/UpstreamRunnerDependencyAudit.php static extra-source inventory',
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $formatInference
+     * @return list<array{code:string, severity:string, message:string}>
+     */
+    private function reviewDiagnostics(bool $hasHeader, array $formatInference): array
+    {
+        $diagnostics = [];
+        if (!$hasHeader) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-header-disabled',
+                'severity' => 'info',
+                'message' => 'No source header row was consumed; generated column labels are review metadata only.',
+            ];
+        }
+
+        $source = $formatInference['source'] ?? 'explicit';
+        if ($source !== 'explicit') {
+            $selectedFormat = (string) ($formatInference['selectedFormat'] ?? 'csv');
+            $diagnostics[] = [
+                'code' => $source === 'default' ? 'delimited-text-format-defaulted' : 'delimited-text-format-inferred',
+                'severity' => 'info',
+                'message' => "Delimited text format resolved to {$selectedFormat} from {$source} evidence.",
+            ];
+        }
+
+        return $diagnostics;
     }
 
     private function stripBom(string $text): string
