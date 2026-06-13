@@ -172,6 +172,112 @@ return [
         $t->same(false, str_contains($html, '<svg><text>hidden</text></svg>'));
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
     },
+    'plans metadata-only ipynb attachment media extraction diagnostics' => static function (TestRunner $t): void {
+        $unsafeName = '../private/plot.png?download=1';
+        $windowsName = 'C:\\Users\\Ada\\secret.svg';
+        $json = json_encode([
+            'cells' => [
+                [
+                    'cell_type' => 'markdown',
+                    'attachments' => [
+                        $unsafeName => [
+                            'image/png' => 'UNSAFE-PNG-BYTES',
+                        ],
+                        'plot a.png' => [
+                            'image/png' => ['COLLIDING', '-PNG-BYTES'],
+                        ],
+                        'plot-a.png' => [
+                            'image/png' => 'SAFE-PNG-BYTES',
+                        ],
+                    ],
+                    'source' => 'Attachment extraction review.',
+                ],
+                [
+                    'cell_type' => 'markdown',
+                    'attachments' => [
+                        $windowsName => [
+                            'image/svg+xml' => '<svg><text>secret</text></svg>',
+                        ],
+                    ],
+                    'source' => 'Unsafe Windows path review.',
+                ],
+            ],
+            'metadata' => [],
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new IpynbReader())->read($json);
+        $html = (new WordPressBlockWriter())->write($document);
+        $media = $document->attr('notebookAttachmentMedia');
+        $byName = [];
+        foreach ($media as $item) {
+            $byName[$item['name']] = $item;
+        }
+
+        $t->same(4, $document->attr('notebookAttachmentMediaCount'));
+        $t->same([
+            'attachment-absolute-path',
+            'attachment-backslash-path',
+            'attachment-bytes-blocked',
+            'attachment-media-path-collision',
+            'attachment-path-traversal',
+            'attachment-query-or-fragment',
+            'attachment-safe-path-remapped',
+        ], $document->attr('notebookAttachmentMediaDiagnostics'));
+
+        $t->same('ipynb-media/attachment-' . substr(sha1($unsafeName), 0, 12) . '.png', $byName[$unsafeName]['mediaPath']);
+        $t->same([
+            'attachment-bytes-blocked',
+            'attachment-path-traversal',
+            'attachment-query-or-fragment',
+            'attachment-safe-path-remapped',
+        ], $byName[$unsafeName]['diagnostics']);
+        $t->same('ipynb-media/plot-a.png', $byName['plot a.png']['mediaPath']);
+        $t->same(['attachment-bytes-blocked', 'attachment-safe-path-remapped'], $byName['plot a.png']['diagnostics']);
+        $t->same(
+            'ipynb-media/plot-a-' . substr(sha1("0\0plot-a.png\0image/png"), 0, 12) . '.png',
+            $byName['plot-a.png']['mediaPath']
+        );
+        $t->same(['attachment-bytes-blocked', 'attachment-media-path-collision'], $byName['plot-a.png']['diagnostics']);
+        $t->same('ipynb-media/attachment-' . substr(sha1($windowsName), 0, 12) . '.svg', $byName[$windowsName]['mediaPath']);
+        $t->same([
+            'attachment-absolute-path',
+            'attachment-backslash-path',
+            'attachment-bytes-blocked',
+            'attachment-safe-path-remapped',
+        ], $byName[$windowsName]['diagnostics']);
+        $t->same('blocked', $byName['plot-a.png']['byteExposure']);
+        $t->same('planned-metadata-only', $byName['plot-a.png']['extractionState']);
+        $t->same(['image/png'], $byName['plot a.png']['mimeTypes']);
+
+        $firstCell = $document->children[0];
+        $secondCell = $document->children[1];
+        $t->same('3', $firstCell->attr('attributes')['data-ipynb-attachment-media-count']);
+        $t->same('1', $secondCell->attr('attributes')['data-ipynb-attachment-media-count']);
+        $t->same([
+            'attachment-bytes-blocked',
+            'attachment-media-path-collision',
+            'attachment-path-traversal',
+            'attachment-query-or-fragment',
+            'attachment-safe-path-remapped',
+        ], $firstCell->attr('ipynbAttachmentMediaDiagnostics'));
+        $t->same([
+            'attachment-absolute-path',
+            'attachment-backslash-path',
+            'attachment-bytes-blocked',
+            'attachment-safe-path-remapped',
+        ], $secondCell->attr('ipynbAttachmentMediaDiagnostics'));
+
+        $t->contains('data-ipynb-attachment-media-count="3"', $html);
+        $t->contains('data-ipynb-attachment-diagnostics="attachment-bytes-blocked attachment-media-path-collision attachment-path-traversal attachment-query-or-fragment attachment-safe-path-remapped"', $html);
+        $encodedMedia = json_encode($media, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($encodedMedia, 'UNSAFE-PNG-BYTES'));
+        $t->same(false, str_contains($encodedMedia, 'SAFE-PNG-BYTES'));
+        $t->same(false, str_contains($encodedMedia, '<svg><text>secret</text></svg>'));
+        $t->same(false, str_contains($html, 'UNSAFE-PNG-BYTES'));
+        $t->same(false, str_contains($html, '<svg><text>secret</text></svg>'));
+    },
     'registers ipynb as partial rich package input while output parity stays unsupported' => static function (TestRunner $t): void {
         $inputSupport = PandocFormatRegistry::richPackageInputSupport();
         $outputSupport = PandocFormatRegistry::richPackageOutputSupport();
