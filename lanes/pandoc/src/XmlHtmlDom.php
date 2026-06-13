@@ -11,6 +11,7 @@ final class XmlHtmlDom
     private const NOSCRIPT_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const TEMPLATE_CONTENT_REVIEW_MAX_BYTES = 65536;
     private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
+    private const XML_NAMESPACE_REVIEW_MAX_ITEMS = 25;
 
     /** @var array<string, true> */
     private const HTML5_VOID_ELEMENTS = [
@@ -349,7 +350,7 @@ final class XmlHtmlDom
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (!$loaded || $errors !== []) {
             throw new \InvalidArgumentException(self::parseErrorMessage('Unable to parse ' . $label, $errors));
         }
 
@@ -521,6 +522,160 @@ final class XmlHtmlDom
         }
 
         return $element->hasAttribute($localName) ? $element->getAttribute($localName) : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeXmlNamespaceUsage(\DOMDocument $dom): array
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            throw new \InvalidArgumentException('XML namespace review packet requires a document element');
+        }
+
+        $elements = self::xmlElementsIncludingRoot($root);
+        $elementUses = [];
+        $attributeUses = [];
+        $prefixUses = [];
+        $uriUses = [];
+        $namespaceUris = [];
+        $defaultNamespaceUris = [];
+        $defaultNamespaceUseCount = 0;
+        $defaultNamespaceTransitions = [];
+        $attributeCount = 0;
+
+        foreach ($elements as $element) {
+            $namespaceUri = self::xmlNamespaceUri($element->namespaceURI);
+            if ($namespaceUri !== '') {
+                $namespaceUris[$namespaceUri] = true;
+            }
+            self::appendXmlNamespaceUse($elementUses, $element->localName, $namespaceUri, $element->tagName);
+            $prefix = self::xmlNamespacePrefix($element->prefix, true);
+            self::appendXmlNamespaceFrequencyUse($prefixUses, $prefix, $namespaceUri, $element->tagName, 'element');
+            self::appendXmlNamespaceFrequencyUse($uriUses, $namespaceUri, $prefix, $element->tagName, 'element');
+            if ($prefix === 'default' && $namespaceUri !== '') {
+                $defaultNamespaceUris[$namespaceUri] = true;
+                $defaultNamespaceUseCount++;
+            }
+
+            $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode : null;
+            $fromDefaultNamespace = $parent instanceof \DOMElement
+                ? self::xmlNullableNamespaceUri($parent->lookupNamespaceURI(null))
+                : null;
+            $toDefaultNamespace = self::xmlNullableNamespaceUri($element->lookupNamespaceURI(null));
+            if ($fromDefaultNamespace !== $toDefaultNamespace) {
+                $defaultNamespaceTransitions[] = [
+                    'path' => self::xmlElementPath($element),
+                    'element' => $element->tagName,
+                    'fromNamespaceUri' => $fromDefaultNamespace,
+                    'toNamespaceUri' => $toDefaultNamespace,
+                ];
+            }
+
+            foreach ($element->attributes ?? [] as $attribute) {
+                if (!$attribute instanceof \DOMAttr || self::isXmlNamespaceDeclarationAttribute($attribute)) {
+                    continue;
+                }
+
+                $attributeCount++;
+                $attributeNamespaceUri = self::xmlNamespaceUri($attribute->namespaceURI);
+                if ($attributeNamespaceUri !== '') {
+                    $namespaceUris[$attributeNamespaceUri] = true;
+                }
+                self::appendXmlNamespaceUse(
+                    $attributeUses,
+                    $attribute->localName,
+                    $attributeNamespaceUri,
+                    $attribute->nodeName
+                );
+                $attributePrefix = self::xmlNamespacePrefix($attribute->prefix, false);
+                self::appendXmlNamespaceFrequencyUse(
+                    $prefixUses,
+                    $attributePrefix,
+                    $attributeNamespaceUri,
+                    $attribute->nodeName,
+                    'attribute'
+                );
+                self::appendXmlNamespaceFrequencyUse(
+                    $uriUses,
+                    $attributeNamespaceUri,
+                    $attributePrefix,
+                    $attribute->nodeName,
+                    'attribute'
+                );
+            }
+        }
+
+        $namespaceUris = array_keys($namespaceUris);
+        sort($namespaceUris, SORT_STRING);
+        $defaultNamespaceUris = array_keys($defaultNamespaceUris);
+        sort($defaultNamespaceUris, SORT_STRING);
+        $prefixFrequencies = self::xmlNamespaceFrequencySummaries(
+            $prefixUses,
+            'prefix',
+            'namespaceUris',
+            'namespaceUriCount'
+        );
+        $uriFrequencies = self::xmlNamespaceFrequencySummaries(
+            $uriUses,
+            'namespaceUri',
+            'prefixes',
+            'prefixCount'
+        );
+        $sameUriMultiplePrefixes = self::xmlNamespaceUriAliasSummaries($uriFrequencies);
+        $samePrefixMultipleUris = self::xmlNamespacePrefixAliasSummaries($prefixFrequencies);
+        $elementNamespaceCollisions = self::xmlNamespaceCollisionSummaries($elementUses);
+        $attributeNamespaceCollisions = self::xmlNamespaceCollisionSummaries($attributeUses);
+        $defaultNamespaceTransitions = array_slice(
+            $defaultNamespaceTransitions,
+            0,
+            self::XML_NAMESPACE_REVIEW_MAX_ITEMS
+        );
+        $directReaderDiagnostics = self::xmlDirectReaderDiagnostics(
+            count($elementNamespaceCollisions),
+            count($attributeNamespaceCollisions),
+            count($defaultNamespaceTransitions),
+            $defaultNamespaceUseCount,
+            count($sameUriMultiplePrefixes),
+            count($samePrefixMultipleUris)
+        );
+
+        return [
+            'formatFamily' => 'xml-html5-generic-dom',
+            'reviewPolicy' => 'xml-namespace-usage-diagnostics-review-only',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $directReaderDiagnostics
+            ),
+            'directReaderDiagnosticCount' => count($directReaderDiagnostics),
+            'directReaderDiagnostics' => $directReaderDiagnostics,
+            'rootName' => $root->localName,
+            'rootQualifiedName' => $root->tagName,
+            'rootNamespaceUri' => self::xmlNullableNamespaceUri($root->namespaceURI),
+            'elementCount' => count($elements),
+            'attributeCount' => $attributeCount,
+            'namespaceUris' => $namespaceUris,
+            'namespaceUriCount' => count($namespaceUris),
+            'namespacePrefixFrequencyCount' => count($prefixFrequencies),
+            'namespacePrefixFrequencies' => $prefixFrequencies,
+            'namespaceUriFrequencyCount' => count($uriFrequencies),
+            'namespaceUriFrequencies' => $uriFrequencies,
+            'defaultNamespaceUseCount' => $defaultNamespaceUseCount,
+            'defaultNamespaceUris' => $defaultNamespaceUris,
+            'defaultNamespaceUriCount' => count($defaultNamespaceUris),
+            'sameUriMultiplePrefixCount' => count($sameUriMultiplePrefixes),
+            'sameUriMultiplePrefixes' => $sameUriMultiplePrefixes,
+            'samePrefixMultipleUriCount' => count($samePrefixMultipleUris),
+            'samePrefixMultipleUris' => $samePrefixMultipleUris,
+            'elementNamespaceCollisionCount' => count($elementNamespaceCollisions),
+            'elementNamespaceCollisions' => $elementNamespaceCollisions,
+            'attributeNamespaceCollisionCount' => count($attributeNamespaceCollisions),
+            'attributeNamespaceCollisions' => $attributeNamespaceCollisions,
+            'defaultNamespaceTransitionCount' => count($defaultNamespaceTransitions),
+            'defaultNamespaceTransitions' => $defaultNamespaceTransitions,
+        ];
     }
 
     public static function fragmentRoot(\DOMDocument $dom): ?\DOMElement
@@ -1230,6 +1385,336 @@ final class XmlHtmlDom
         ksort($attributes);
 
         return $attributes;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function xmlElementsIncludingRoot(\DOMElement $root): array
+    {
+        return array_merge([$root], self::descendantElements($root));
+    }
+
+    private static function xmlNamespaceUri(?string $namespaceUri): string
+    {
+        return $namespaceUri ?? '';
+    }
+
+    private static function xmlNullableNamespaceUri(?string $namespaceUri): ?string
+    {
+        return $namespaceUri === null || $namespaceUri === '' ? null : $namespaceUri;
+    }
+
+    private static function xmlNamespacePrefix(?string $prefix, bool $defaultForMissing): string
+    {
+        if ($prefix !== null && $prefix !== '') {
+            return $prefix;
+        }
+
+        return $defaultForMissing ? 'default' : 'none';
+    }
+
+    private static function isXmlNamespaceDeclarationAttribute(\DOMAttr $attribute): bool
+    {
+        return $attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/'
+            || $attribute->nodeName === 'xmlns'
+            || str_starts_with($attribute->nodeName, 'xmlns:');
+    }
+
+    /**
+     * @param array<string, array<string, array{namespaceUri:string, count:int, qualifiedNames:array<string, true>}>> $uses
+     */
+    private static function appendXmlNamespaceUse(
+        array &$uses,
+        string $localName,
+        string $namespaceUri,
+        string $qualifiedName
+    ): void {
+        if (!isset($uses[$localName][$namespaceUri])) {
+            $uses[$localName][$namespaceUri] = [
+                'namespaceUri' => $namespaceUri,
+                'count' => 0,
+                'qualifiedNames' => [],
+            ];
+        }
+
+        $uses[$localName][$namespaceUri]['count']++;
+        $uses[$localName][$namespaceUri]['qualifiedNames'][$qualifiedName] = true;
+    }
+
+    /**
+     * @param array<string, array{value:string, useCount:int, elementUseCount:int, attributeUseCount:int, related:array<string, true>, qualifiedNames:array<string, true>}> $uses
+     */
+    private static function appendXmlNamespaceFrequencyUse(
+        array &$uses,
+        string $value,
+        string $related,
+        string $qualifiedName,
+        string $kind
+    ): void {
+        if (!isset($uses[$value])) {
+            $uses[$value] = [
+                'value' => $value,
+                'useCount' => 0,
+                'elementUseCount' => 0,
+                'attributeUseCount' => 0,
+                'related' => [],
+                'qualifiedNames' => [],
+            ];
+        }
+
+        $uses[$value]['useCount']++;
+        if ($kind === 'element') {
+            $uses[$value]['elementUseCount']++;
+        } elseif ($kind === 'attribute') {
+            $uses[$value]['attributeUseCount']++;
+        }
+        $uses[$value]['related'][$related] = true;
+        $uses[$value]['qualifiedNames'][$qualifiedName] = true;
+    }
+
+    /**
+     * @param array<string, array{value:string, useCount:int, elementUseCount:int, attributeUseCount:int, related:array<string, true>, qualifiedNames:array<string, true>}> $uses
+     * @return list<array<string, mixed>>
+     */
+    private static function xmlNamespaceFrequencySummaries(
+        array $uses,
+        string $valueKey,
+        string $relatedKey,
+        string $relatedCountKey
+    ): array {
+        $summaries = [];
+        ksort($uses, SORT_STRING);
+
+        foreach ($uses as $use) {
+            $related = array_keys($use['related']);
+            $qualifiedNames = array_keys($use['qualifiedNames']);
+            sort($related, SORT_STRING);
+            sort($qualifiedNames, SORT_STRING);
+
+            $summaries[] = [
+                $valueKey => $use['value'],
+                $relatedKey => array_slice($related, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
+                $relatedCountKey => count($related),
+                'useCount' => $use['useCount'],
+                'elementUseCount' => $use['elementUseCount'],
+                'attributeUseCount' => $use['attributeUseCount'],
+                'qualifiedNames' => array_slice($qualifiedNames, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
+            ];
+        }
+
+        return array_slice($summaries, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $uriFrequencies
+     * @return list<array<string, mixed>>
+     */
+    private static function xmlNamespaceUriAliasSummaries(array $uriFrequencies): array
+    {
+        $aliases = [];
+        foreach ($uriFrequencies as $frequency) {
+            if (($frequency['namespaceUri'] ?? '') === '' || ($frequency['prefixCount'] ?? 0) < 2) {
+                continue;
+            }
+
+            $aliases[] = $frequency;
+        }
+
+        return array_slice($aliases, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $prefixFrequencies
+     * @return list<array<string, mixed>>
+     */
+    private static function xmlNamespacePrefixAliasSummaries(array $prefixFrequencies): array
+    {
+        $aliases = [];
+        foreach ($prefixFrequencies as $frequency) {
+            if (($frequency['namespaceUriCount'] ?? 0) < 2) {
+                continue;
+            }
+
+            $aliases[] = $frequency;
+        }
+
+        return array_slice($aliases, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);
+    }
+
+    /**
+     * @param array<string, array<string, array{namespaceUri:string, count:int, qualifiedNames:array<string, true>}>> $uses
+     * @return list<array{localName:string, namespaceUris:list<string>, namespaceCount:int, useCount:int, qualifiedNames:list<string>}>
+     */
+    private static function xmlNamespaceCollisionSummaries(array $uses): array
+    {
+        $summaries = [];
+        ksort($uses, SORT_STRING);
+
+        foreach ($uses as $localName => $namespaceUses) {
+            if (count($namespaceUses) < 2) {
+                continue;
+            }
+
+            ksort($namespaceUses, SORT_STRING);
+            $namespaceUris = [];
+            $qualifiedNames = [];
+            $useCount = 0;
+
+            foreach ($namespaceUses as $namespaceUse) {
+                $namespaceUris[] = $namespaceUse['namespaceUri'];
+                $useCount += $namespaceUse['count'];
+                array_push($qualifiedNames, ...array_keys($namespaceUse['qualifiedNames']));
+            }
+
+            $qualifiedNames = array_values(array_unique($qualifiedNames));
+            sort($qualifiedNames, SORT_STRING);
+
+            $summaries[] = [
+                'localName' => $localName,
+                'namespaceUris' => $namespaceUris,
+                'namespaceCount' => count($namespaceUris),
+                'useCount' => $useCount,
+                'qualifiedNames' => array_slice($qualifiedNames, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
+            ];
+        }
+
+        return array_slice($summaries, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);
+    }
+
+    private static function xmlElementPath(\DOMElement $element): string
+    {
+        $segments = [];
+        $node = $element;
+
+        while ($node instanceof \DOMElement) {
+            $index = 1;
+            $sibling = $node->previousSibling;
+            while ($sibling instanceof \DOMNode) {
+                if ($sibling instanceof \DOMElement && $sibling->tagName === $node->tagName) {
+                    $index++;
+                }
+                $sibling = $sibling->previousSibling;
+            }
+
+            $segments[] = $node->tagName . '[' . $index . ']';
+            $node = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+        }
+
+        return '/' . implode('/', array_reverse($segments));
+    }
+
+    /**
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function xmlDirectReaderDiagnostics(
+        int $elementNamespaceCollisionCount,
+        int $attributeNamespaceCollisionCount,
+        int $defaultNamespaceTransitionCount,
+        int $defaultNamespaceUseCount,
+        int $sameUriMultiplePrefixCount,
+        int $samePrefixMultipleUriCount
+    ): array {
+        $diagnostics = [
+            self::xmlDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                'XML direct reader parity is not implemented; this packet exposes bounded namespace diagnostics only.',
+                false,
+                true,
+                ['format' => 'xml']
+            ),
+        ];
+
+        if ($elementNamespaceCollisionCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'element-local-name-namespace-collisions',
+                'warning',
+                'Element local names are reused across namespace URIs and need explicit reader mapping.',
+                false,
+                true,
+                ['collisionCount' => $elementNamespaceCollisionCount]
+            );
+        }
+
+        if ($attributeNamespaceCollisionCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'attribute-local-name-namespace-collisions',
+                'warning',
+                'Attribute local names are reused across namespace URIs and need explicit reader mapping.',
+                false,
+                true,
+                ['collisionCount' => $attributeNamespaceCollisionCount]
+            );
+        }
+
+        if ($defaultNamespaceTransitionCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'default-namespace-transitions',
+                'info',
+                'Default namespace bindings change within the document and are preserved for review.',
+                false,
+                true,
+                ['transitionCount' => $defaultNamespaceTransitionCount]
+            );
+        }
+
+        if ($defaultNamespaceUseCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'default-namespace-usage',
+                'info',
+                'Unprefixed elements use one or more default namespace bindings and are preserved for review.',
+                false,
+                true,
+                ['useCount' => $defaultNamespaceUseCount]
+            );
+        }
+
+        if ($sameUriMultiplePrefixCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'namespace-uri-multiple-prefixes',
+                'warning',
+                'Namespace URIs are referenced through multiple prefixes and need prefix-independent reader mapping.',
+                false,
+                true,
+                ['aliasCount' => $sameUriMultiplePrefixCount]
+            );
+        }
+
+        if ($samePrefixMultipleUriCount > 0) {
+            $diagnostics[] = self::xmlDirectReaderDiagnostic(
+                'namespace-prefix-multiple-uris',
+                'warning',
+                'Namespace prefixes are rebound to multiple namespace URIs and need scope-aware reader mapping.',
+                false,
+                true,
+                ['aliasCount' => $samePrefixMultipleUriCount]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, int|string|bool> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     */
+    private static function xmlDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        bool $directReaderParity,
+        bool $coveredByPacket,
+        array $details = []
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => $directReaderParity,
+            'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
+        ];
     }
 
     private static function jatsMetadataElement(\DOMElement $root): ?\DOMElement

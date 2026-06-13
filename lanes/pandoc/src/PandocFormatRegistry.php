@@ -588,11 +588,14 @@ final class PandocFormatRegistry
     private const XML_JATS_BITS_DIAGNOSTIC_SURFACES = [
         'xml' => [
             'diagnosticImplementation' => XmlHtmlDom::class,
-            'reviewMethod' => 'loadXmlDocument',
-            'reviewPolicy' => 'safe-xml-dom-primitives-only',
+            'reviewMethod' => 'summarizeXmlNamespaceUsage',
+            'reviewPolicy' => 'xml-namespace-usage-diagnostics-review-only',
             'boundedDiagnostics' => [
                 'safe XML loading with external entity and processing-instruction rejection',
                 'namespace-aware element and attribute queries for package-reader handoff',
+                'bounded namespace collision summaries for shared element and attribute local names',
+                'bounded namespace prefix and URI frequency summaries for generic XML review packets',
+                'default namespace transition diagnostics for generic XML review packets',
             ],
             'remainingReaderGaps' => [
                 'full Pandoc XML input mapping into the shared AST',
