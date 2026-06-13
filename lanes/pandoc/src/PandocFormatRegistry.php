@@ -638,13 +638,17 @@ final class PandocFormatRegistry
     private const XML_JATS_BITS_DIAGNOSTIC_SURFACES = [
         'xml' => [
             'diagnosticImplementation' => XmlHtmlDom::class,
-            'reviewMethod' => 'loadXmlDocument',
-            'reviewPolicy' => 'safe-xml-dom-primitives-only',
+            'reviewMethod' => 'summarizeXmlNamespaceUsage',
+            'reviewPolicy' => 'xml-namespace-usage-diagnostics-review-only',
             'boundedDiagnostics' => [
                 'safe XML loading with external entity and processing-instruction rejection',
                 'namespace-aware root, element, language, id, and attribute provenance for package-reader handoff',
                 'namespace declaration provenance with scoped prefix reuse and conflict diagnostics',
                 'bounded namespace declaration scope, prefix redefinition, duplicate binding, and reserved-name diagnostics',
+                'namespace-aware element and attribute queries for package-reader handoff',
+                'bounded namespace collision summaries for shared element and attribute local names',
+                'bounded namespace prefix and URI frequency summaries for generic XML review packets',
+                'default namespace transition diagnostics for generic XML review packets',
             ],
             'reviewPacketFields' => [
                 'directReaderParity',
@@ -656,6 +660,13 @@ final class PandocFormatRegistry
                 'duplicatePrefixSummaries',
                 'duplicateUriSummaries',
                 'namespaceDiagnosticCodes',
+                'namespacePrefixFrequencies',
+                'namespacePrefixFrequencyRows',
+                'namespaceUriFrequencies',
+                'namespaceUriFrequencyRows',
+                'defaultNamespaceTransitions',
+                'sameUriMultiplePrefixes',
+                'samePrefixMultipleUris',
             ],
             'remainingReaderGaps' => [
                 'full Pandoc XML input mapping into the shared AST',
@@ -3706,10 +3717,13 @@ final class PandocFormatRegistry
      *     unsupportedDirectReaderCount:int,
      *     directReaderParitySupported:bool,
      *     registeredDirectReaderImplementations:int,
+     *     registeredDirectReaderRecords:int,
+     *     registeredDirectReaderRecordFormats:list<string>,
+     *     registeredDiagnosticImplementations:int,
      *     boundedDiagnosticSurfaceCount:int,
      *     explicitUnsupportedVerdict:bool,
      *     reviewNote:string,
-     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, unsupportedDirectReaderReason:array{code:string, message:string, status:string, directReaderParity:bool}, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, reviewPacketFields:list<string>, remainingReaderGaps:list<string>}>
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, inputNotes:string, unsupportedDirectReaderReason:array{code:string, message:string, status:string, directReaderParity:bool}, diagnosticImplementation:string, reviewMethod:string, reviewPolicy:string, directReaderParity:bool, registeredDirectReaderRecord:bool, aliasedTo:string|null, boundedDiagnostics:list<string>, reviewPacketFields:list<string>, remainingReaderGaps:list<string>}>
      * }
      */
     public static function xmlJatsBitsDirectReaderCapabilityPacket(): array
@@ -3720,16 +3734,15 @@ final class PandocFormatRegistry
         $unsupportedDirectReaderFormats = self::XML_JATS_BITS_INPUT_FORMATS;
         $formats = [];
         $registeredDirectReaderImplementations = 0;
+        $registeredDiagnosticImplementations = 0;
         $boundedDiagnosticSurfaceCount = 0;
 
         foreach ($directions as $format => $direction) {
             $support = $inputSupport[$format];
             $diagnosticSurface = self::XML_JATS_BITS_DIAGNOSTIC_SURFACES[$format];
 
-            if ($support['implementation'] !== '') {
-                ++$registeredDirectReaderImplementations;
-            }
             if ($diagnosticSurface['diagnosticImplementation'] !== '') {
+                ++$registeredDiagnosticImplementations;
                 ++$boundedDiagnosticSurfaceCount;
             }
 
@@ -3751,6 +3764,7 @@ final class PandocFormatRegistry
                 'reviewMethod' => $diagnosticSurface['reviewMethod'],
                 'reviewPolicy' => $diagnosticSurface['reviewPolicy'],
                 'directReaderParity' => false,
+                'registeredDirectReaderRecord' => false,
                 'aliasedTo' => self::INPUT_ALIASES[$format] ?? null,
                 'boundedDiagnostics' => $diagnosticSurface['boundedDiagnostics'],
                 'reviewPacketFields' => $diagnosticSurface['reviewPacketFields'],
@@ -3771,11 +3785,54 @@ final class PandocFormatRegistry
             'unsupportedDirectReaderCount' => count($unsupportedDirectReaderFormats),
             'directReaderParitySupported' => false,
             'registeredDirectReaderImplementations' => $registeredDirectReaderImplementations,
+            'registeredDirectReaderRecords' => 0,
+            'registeredDirectReaderRecordFormats' => [],
+            'registeredDiagnosticImplementations' => $registeredDiagnosticImplementations,
             'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
             'explicitUnsupportedVerdict' => true,
             'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no full direct reader parity is registered.',
             'formats' => $formats,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function xmlNamespaceUsageReviewPacket(\DOMDocument $dom): array
+    {
+        $namespacePacket = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
+        $capabilityPacket = self::xmlJatsBitsDirectReaderCapabilityPacket();
+        $xmlFormat = $capabilityPacket['formats']['xml'];
+        $unsupportedDirectReaderReason = $xmlFormat['unsupportedDirectReaderReason'];
+
+        return array_merge($namespacePacket, [
+            'format' => 'xml',
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormat' => 'xml',
+            'inputStatus' => $xmlFormat['inputStatus'],
+            'inputImplementation' => $xmlFormat['inputImplementation'],
+            'inputNotes' => $xmlFormat['inputNotes'],
+            'diagnosticImplementation' => $xmlFormat['diagnosticImplementation'],
+            'reviewMethod' => $xmlFormat['reviewMethod'],
+            'reviewPolicy' => $xmlFormat['reviewPolicy'],
+            'boundedDiagnostics' => $xmlFormat['boundedDiagnostics'],
+            'remainingReaderGaps' => $xmlFormat['remainingReaderGaps'],
+            'directReaderParity' => false,
+            'directReaderParityStatus' => 'unsupported',
+            'unsupportedDirectReaderReason' => $unsupportedDirectReaderReason['code'],
+            'unsupportedDirectReaderDetail' => $unsupportedDirectReaderReason['message'],
+            'unsupportedDirectReaderDiagnostic' => $unsupportedDirectReaderReason,
+            'registeredDirectReaderImplementations' => 0,
+            'registeredDirectReaderRecords' => 0,
+            'registeredDirectReaderRecordFormats' => [],
+            'registeredDiagnosticImplementations' => 1,
+            'namespacePrefixFrequencyRows' => $namespacePacket['namespacePrefixFrequencies'],
+            'namespacePrefixFrequencyRowCount' => $namespacePacket['namespacePrefixFrequencyCount'],
+            'namespaceUriFrequencyRows' => $namespacePacket['namespaceUriFrequencies'],
+            'namespaceUriFrequencyRowCount' => $namespacePacket['namespaceUriFrequencyCount'],
+        ]);
     }
 
     /**

@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3387,
-        "latestSlice": "pandoc-json-native-nullary-block-present-payloads maps one JSON/native nullary block constructor edge case on current main b463377996 after RIS citation metadata. PandocJsonWriter and NativeWriter now treat any present c member on HorizontalRule/Null native sidecars, including empty arrays, as non-current, regenerating sidecar-free constructors while preserving reader provenance. phpPass moves 3434 -> 3435, phpFail remains 0, mappedJsonNativeNullaryBlockPayloadCases moves 1 -> 2, and jsonNativeNullaryBlockPayloadAssertions moves 50 -> 64. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 3028 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79783 assertions, 0 failures. No Pandoc binary, JSON filters, Cabal/Haskell runners, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.",
+        "mapped": 3388,
+        "latestSlice": "pandoc-xml-namespace-registry-review maps one PandocFormatRegistry XML namespace review slice on current main 82576c03ec after JSON/native nullary nested table payload validation. PandocFormatRegistry::xmlNamespaceUsageReviewPacket now exposes XmlHtmlDom namespace prefix/URI frequency rows, default namespace counts and URIs, same-URI/multiple-prefix and same-prefix/multiple-URI diagnostics, preserved collision/default-transition metadata, stable unsupported direct-reader diagnostics, directReaderParity=false, and zero registered direct-reader records for xml/jats/bits. Mapped denominator moves 3387 -> 3388, mappedPandocXmlNamespaceRegistryReviewCases is 1, and pandocXmlNamespaceRegistryReviewAssertions is 51. Verification passed php -l for PandocFormatRegistry.php, XmlHtmlDom.php, PandocFormatRegistryTest.php, and XmlHtmlDomTest.php; focused PandocFormatRegistryTest.php plus XmlHtmlDomTest.php passed 2 files, 5238 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79950 assertions, 0 failures; jq empty, git diff --check, and conflict-marker/stale-base scan passed. No Pandoc binary, XML validators, browsers, Node tooling, online services, live providers, or external validators were invoked.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -42,8 +42,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "JSON/native nullary block present-payload validation is verified over current main b463377996 after RIS citation metadata; broader JSON/native constructor and fixture parity remain partial.",
-        "latestFocusedSource": "2026-06-13 JSON/native nullary block present-payload slice inspected HorizontalRule and Null constructor reuse for non-empty and empty present c payloads against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main b463377996 following RIS citation metadata; focused PandocJsonNativeAstTest.php passed 1 file, 3028 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79783 assertions, 0 failures.",
+        "status": "Pandoc XML namespace registry review packets are verified over current main 82576c03ec after JSON/native nullary nested table payload validation; XML/JATS/BITS direct-reader parity remains explicitly unsupported.",
+        "latestFocusedSource": "2026-06-13 Pandoc XML namespace registry review slice inspected PandocFormatRegistry::xmlNamespaceUsageReviewPacket on current main 82576c03ec after JSON/native nullary nested table payload validation; focused PandocFormatRegistryTest.php plus XmlHtmlDomTest.php passed 2 files, 5238 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79950 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -347,7 +347,9 @@
         "mappedJsonNativeMixedMetadataContainerCases": 1,
         "jsonNativeMixedMetadataContainerAssertions": 43,
         "mappedJsonNativeNullaryBlockPayloadCases": 2,
-        "jsonNativeNullaryBlockPayloadAssertions": 64
+        "jsonNativeNullaryBlockPayloadAssertions": 64,
+        "mappedPandocXmlNamespaceRegistryReviewCases": 1,
+        "pandocXmlNamespaceRegistryReviewAssertions": 51
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
@@ -1344,10 +1346,10 @@
     },
     "wordpressScenario": "RIS review metadata now reaches WordPress citation paragraphs and bibliography output with translated, original, reviewed-title, volume-count, and call-number metadata.",
     "nextTask": "Continue JSON/native AST constructor parity beyond nullary block sidecar validation while keeping phpFail at zero.",
-    "status": "JSON/native nullary block present-payload validation is verified over current main b463377996 after RIS citation metadata; broader JSON/native constructor and fixture parity remain partial.",
+    "status": "Pandoc XML namespace registry review packets are verified over current main 82576c03ec after JSON/native nullary nested table payload validation; XML/JATS/BITS direct-reader parity remains explicitly unsupported.",
     "mapping": "Adds one bounded native PHP JSON/native nullary block present-payload mapping while preserving current CSL, XML/HTML, JATS/BITS, EPUB, ODF, DOCX/OpenXML, Markdown, JSON/native, ZIP/OPC, LaTeX, Typst, CSV/TSV, and MediaBag counters.",
-    "audit": "updated 2026-06-13: PandocJsonWriter and NativeWriter regenerate HorizontalRule/Null native sidecars whenever the nullary block constructor carries a c member, including empty arrays. Verified after rebase onto current main b463377996 with php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php (1 test file, 3028 assertions, 0 failures); full lanes/pandoc/tests (46 test files, 79783 assertions, 0 failures); jq empty; git diff --check; conflict-marker scan.",
-    "latestSlice": "pandoc-json-native-nullary-block-present-payloads maps one JSON/native nullary block constructor edge case on current main b463377996 after RIS citation metadata. PandocJsonWriter and NativeWriter now treat any present c member on HorizontalRule/Null native sidecars, including empty arrays, as non-current, regenerating sidecar-free constructors while preserving reader provenance. phpPass moves 3434 -> 3435, phpFail remains 0, mappedJsonNativeNullaryBlockPayloadCases moves 1 -> 2, and jsonNativeNullaryBlockPayloadAssertions moves 50 -> 64. Verification passed php -l for PandocJsonWriter.php, NativeWriter.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 3028 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79783 assertions, 0 failures. No Pandoc binary, JSON filters, Cabal/Haskell runners, browser renderer, Node tooling, online service, live provider test, or external validator was invoked.",
+    "audit": "updated 2026-06-13: PandocFormatRegistry exposes XmlHtmlDom XML namespace usage review packets with prefix and URI frequency rows, default namespace counts/URIs, same-URI/multiple-prefix and same-prefix/multiple-URI diagnostics, preserved collision/default-transition metadata, and zero registered XML/JATS/BITS direct-reader records. Verified after rebase onto current main 82576c03ec with php -l for PandocFormatRegistry.php, XmlHtmlDom.php, PandocFormatRegistryTest.php, and XmlHtmlDomTest.php; focused PandocFormatRegistryTest.php plus XmlHtmlDomTest.php (2 test files, 5238 assertions, 0 failures); full lanes/pandoc/tests (46 test files, 79950 assertions, 0 failures); jq empty; git diff --check; and conflict-marker/stale-base scan.",
+    "latestSlice": "pandoc-xml-namespace-registry-review maps one PandocFormatRegistry XML namespace review slice on current main 82576c03ec after JSON/native nullary nested table payload validation. PandocFormatRegistry::xmlNamespaceUsageReviewPacket now exposes XmlHtmlDom namespace prefix/URI frequency rows, default namespace counts and URIs, same-URI/multiple-prefix and same-prefix/multiple-URI diagnostics, preserved collision/default-transition metadata, stable unsupported direct-reader diagnostics, directReaderParity=false, and zero registered direct-reader records for xml/jats/bits. phpPass moves 3437 -> 3438, phpFail remains 0, upstream mapped cases move 3387 -> 3388, mappedPandocXmlNamespaceRegistryReviewCases moves 0 -> 1, and pandocXmlNamespaceRegistryReviewAssertions is 51. Verification passed php -l for PandocFormatRegistry.php, XmlHtmlDom.php, PandocFormatRegistryTest.php, and XmlHtmlDomTest.php; focused PandocFormatRegistryTest.php plus XmlHtmlDomTest.php passed 2 files, 5238 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 79950 assertions, 0 failures; jq empty, git diff --check, and conflict-marker/stale-base scan passed. No Pandoc binary, XML validators, browsers, Node tooling, online services, live providers, or external validators were invoked.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1856,5 +1858,7 @@
     "mappedJsonNativeMixedMetadataContainerCases": 1,
     "jsonNativeMixedMetadataContainerAssertions": 43,
     "mappedJsonNativeNullaryBlockPayloadCases": 2,
-    "jsonNativeNullaryBlockPayloadAssertions": 64
+    "jsonNativeNullaryBlockPayloadAssertions": 64,
+    "mappedPandocXmlNamespaceRegistryReviewCases": 1,
+    "pandocXmlNamespaceRegistryReviewAssertions": 51
 }

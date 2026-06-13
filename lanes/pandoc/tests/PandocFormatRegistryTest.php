@@ -152,6 +152,7 @@ return [
             $t->same(XmlHtmlDom::class, $packet['formats'][$format]['diagnosticImplementation']);
             $t->same(XmlHtmlDom::class, $packet['formats'][$format]['inputImplementation']);
             $t->contains('full Pandoc', $packet['formats'][$format]['inputNotes']);
+            $t->same(false, $packet['formats'][$format]['registeredDirectReaderRecord']);
             $t->same('full-direct-reader-missing', $packet['formats'][$format]['unsupportedDirectReaderReason']['code']);
             $t->same('unsupported', $packet['formats'][$format]['unsupportedDirectReaderReason']['status']);
             $t->same(false, $packet['formats'][$format]['unsupportedDirectReaderReason']['directReaderParity']);
@@ -166,13 +167,16 @@ return [
         $t->same(0, $packet['unsupportedInputCount']);
         $t->same(['partial' => 3], $packet['inputSupportStatusCounts']);
         $t->same(false, $packet['directReaderParitySupported']);
-        $t->same(3, $packet['registeredDirectReaderImplementations']);
+        $t->same(0, $packet['registeredDirectReaderImplementations']);
+        $t->same(0, $packet['registeredDirectReaderRecords']);
+        $t->same([], $packet['registeredDirectReaderRecordFormats']);
+        $t->same(3, $packet['registeredDiagnosticImplementations']);
         $t->same(3, $packet['boundedDiagnosticSurfaceCount']);
         $t->same(true, $packet['explicitUnsupportedVerdict']);
         $t->contains('no full direct reader parity is registered', $packet['reviewNote']);
 
-        $t->same('loadXmlDocument', $packet['formats']['xml']['reviewMethod']);
-        $t->same('safe-xml-dom-primitives-only', $packet['formats']['xml']['reviewPolicy']);
+        $t->same('summarizeXmlNamespaceUsage', $packet['formats']['xml']['reviewMethod']);
+        $t->same('xml-namespace-usage-diagnostics-review-only', $packet['formats']['xml']['reviewPolicy']);
         $t->same(null, $packet['formats']['xml']['aliasedTo']);
         $t->contains('safe XML loading', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('root, element, language, id, and attribute provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
@@ -182,6 +186,9 @@ return [
         $t->true(in_array('prefixRedefinitions', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('duplicateUriSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('namespaceDiagnosticCodes', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->contains('namespace collision summaries', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('prefix and URI frequency summaries', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->contains('default namespace transition diagnostics', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['formats']['xml']['remainingReaderGaps']));
         $t->contains('full Pandoc XML reader parity remains open', $packet['formats']['xml']['inputNotes']);
 
@@ -202,6 +209,97 @@ return [
         $t->true(in_array('namespaceSummary', $packet['formats']['bits']['reviewPacketFields'], true));
         $t->true(in_array('directReaderDiagnostics', $packet['formats']['bits']['reviewPacketFields'], true));
         $t->contains('full BITS book body and book-part mapping', implode('; ', $packet['formats']['bits']['remainingReaderGaps']));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'builds xml namespace registry review packets without direct reader records' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<doc xmlns="urn:root" xmlns:a="urn:item-a" xmlns:b="urn:item-b" xmlns:rootAlias="urn:root" xmlns:attrA="urn:attr-a" xmlns:attrB="urn:attr-b" attrA:code="A0">
+  <item attrA:code="A1" code="plain-root">Root item</item>
+  <rootAlias:item>Root alias item</rootAlias:item>
+  <a:item attrB:code="B1">A item</a:item>
+  <group xmlns="urn:group" attrA:code="A2">
+    <item attrB:code="B2">Group item</item>
+    <item xmlns="" code="plain-reset">Reset item</item>
+    <alias-scope xmlns:a="urn:item-b"><a:item attrB:code="B4">Scoped prefix item</a:item></alias-scope>
+  </group>
+  <b:item attrA:code="A3" attrB:code="B3">B item</b:item>
+</doc>
+XML, 'registry XML namespace packet', preserveWhiteSpace: false);
+        $packet = PandocFormatRegistry::xmlNamespaceUsageReviewPacket($dom);
+        $prefixRows = [];
+        foreach ($packet['namespacePrefixFrequencyRows'] as $row) {
+            $prefixRows[$row['prefix']] = $row;
+        }
+        $uriRows = [];
+        foreach ($packet['namespaceUriFrequencyRows'] as $row) {
+            $uriRows[$row['namespaceUri']] = $row;
+        }
+        $sameUriAliases = [];
+        foreach ($packet['sameUriMultiplePrefixes'] as $alias) {
+            $sameUriAliases[$alias['namespaceUri']] = $alias;
+        }
+        $samePrefixAliases = [];
+        foreach ($packet['samePrefixMultipleUris'] as $alias) {
+            $samePrefixAliases[$alias['prefix']] = $alias;
+        }
+
+        $t->same('xml', $packet['format']);
+        $t->same('xml', $packet['inputFormat']);
+        $t->same('partial', $packet['inputStatus']);
+        $t->same(XmlHtmlDom::class, $packet['inputImplementation']);
+        $t->same(XmlHtmlDom::class, $packet['diagnosticImplementation']);
+        $t->same('summarizeXmlNamespaceUsage', $packet['reviewMethod']);
+        $t->same('xml-namespace-usage-diagnostics-review-only', $packet['reviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('unsupported', $packet['directReaderParityStatus']);
+        $t->same('full-direct-reader-missing', $packet['unsupportedDirectReaderReason']);
+        $t->same('full-direct-reader-missing', $packet['unsupportedDirectReaderDiagnostic']['code']);
+        $t->same(false, $packet['unsupportedDirectReaderDiagnostic']['directReaderParity']);
+        $t->same(0, $packet['registeredDirectReaderImplementations']);
+        $t->same(0, $packet['registeredDirectReaderRecords']);
+        $t->same([], $packet['registeredDirectReaderRecordFormats']);
+        $t->same(1, $packet['registeredDiagnosticImplementations']);
+        $t->contains('prefix and URI frequency summaries', implode('; ', $packet['boundedDiagnostics']));
+        $t->contains('full Pandoc XML input mapping', implode('; ', $packet['remainingReaderGaps']));
+
+        $t->same(7, $packet['namespacePrefixFrequencyRowCount']);
+        $t->same($packet['namespacePrefixFrequencies'], $packet['namespacePrefixFrequencyRows']);
+        $t->same(['urn:item-a', 'urn:item-b'], $prefixRows['a']['namespaceUris'] ?? null);
+        $t->same(2, $prefixRows['a']['useCount'] ?? null);
+        $t->same(['', 'urn:group', 'urn:root'], $prefixRows['default']['namespaceUris'] ?? null);
+        $t->same(6, $prefixRows['default']['useCount'] ?? null);
+        $t->same(['urn:attr-a'], $prefixRows['attrA']['namespaceUris'] ?? null);
+        $t->same(4, $prefixRows['attrA']['attributeUseCount'] ?? null);
+
+        $t->same(7, $packet['namespaceUriFrequencyRowCount']);
+        $t->same($packet['namespaceUriFrequencies'], $packet['namespaceUriFrequencyRows']);
+        $t->same(['default', 'rootAlias'], $uriRows['urn:root']['prefixes'] ?? null);
+        $t->same(3, $uriRows['urn:root']['useCount'] ?? null);
+        $t->same(['a', 'b'], $uriRows['urn:item-b']['prefixes'] ?? null);
+        $t->same(['default', 'none'], $uriRows['']['prefixes'] ?? null);
+
+        $t->same(5, $packet['defaultNamespaceUseCount']);
+        $t->same(['urn:group', 'urn:root'], $packet['defaultNamespaceUris']);
+        $t->same(2, $packet['defaultNamespaceUriCount']);
+        $t->same(2, $packet['sameUriMultiplePrefixCount']);
+        $t->same(['a', 'b'], $sameUriAliases['urn:item-b']['prefixes'] ?? null);
+        $t->same(['default', 'rootAlias'], $sameUriAliases['urn:root']['prefixes'] ?? null);
+        $t->same(2, $packet['samePrefixMultipleUriCount']);
+        $t->same(['urn:item-a', 'urn:item-b'], $samePrefixAliases['a']['namespaceUris'] ?? null);
+        $t->same(['', 'urn:group', 'urn:root'], $samePrefixAliases['default']['namespaceUris'] ?? null);
+
+        $t->same(1, $packet['elementNamespaceCollisionCount']);
+        $t->same(1, $packet['attributeNamespaceCollisionCount']);
+        $t->same(3, $packet['defaultNamespaceTransitionCount']);
+        $t->same([
+            'direct-reader-unsupported',
+            'element-local-name-namespace-collisions',
+            'attribute-local-name-namespace-collisions',
+            'default-namespace-transitions',
+            'default-namespace-usage',
+            'namespace-uri-multiple-prefixes',
+            'namespace-prefix-multiple-uris',
+        ], $packet['directReaderDiagnosticCodes']);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
