@@ -81,6 +81,11 @@ final class IpynbReader
         $outputExecutionCountRecordCount = 0;
         $outputExecutionCountMismatchCount = 0;
         $outputRepeatedMimeBundleKeyCount = 0;
+        $sourceShapeCounts = [];
+        $sourceLineEndingStyles = [];
+        $sourceLineEndingCounts = ['lf' => 0, 'crlf' => 0, 'cr' => 0];
+        $sourceTrailingNewlineCount = 0;
+        $emptySourceCount = 0;
         $metadataKeys = $this->metadataKeys($metadata);
 
         foreach ($cells as $index => $cell) {
@@ -98,13 +103,25 @@ final class IpynbReader
 
             $sourcePresent = array_key_exists('source', $cell);
             $sourceValue = $sourcePresent ? $cell['source'] : '';
-            $source = $this->normalizeSource($sourceValue, "IPYNB cell {$cellIndex} source");
-            if (strlen($source) > self::MAX_CELL_SOURCE_BYTES) {
+            $sourceReview = $this->sourceReview($sourceValue, "IPYNB cell {$cellIndex} source");
+            $source = $sourceReview['text'];
+            if ($sourceReview['bytes'] > self::MAX_CELL_SOURCE_BYTES) {
                 throw new \InvalidArgumentException("IPYNB cell {$cellIndex} exceeds the bounded native reader source limit");
             }
             $cellSourceDiagnostics = $this->rawMarkdownCellDiagnostics($cell, $cellType, $cellIndex, $sourcePresent, $sourceValue, $source);
             foreach ($cellSourceDiagnostics as $diagnostic) {
                 $rawMarkdownCellDiagnostics[] = $diagnostic;
+            }
+            $sourceShapeCounts[$sourceReview['shape']] = ($sourceShapeCounts[$sourceReview['shape']] ?? 0) + 1;
+            $sourceLineEndingStyles[$sourceReview['lineEnding']] = ($sourceLineEndingStyles[$sourceReview['lineEnding']] ?? 0) + 1;
+            foreach ($sourceReview['lineEndingCounts'] as $lineEnding => $count) {
+                $sourceLineEndingCounts[$lineEnding] += $count;
+            }
+            if ($sourceReview['trailingNewline']) {
+                $sourceTrailingNewlineCount++;
+            }
+            if ($sourceReview['bytes'] === 0) {
+                $emptySourceCount++;
             }
 
             $attachments = isset($cell['attachments']) && is_array($cell['attachments']) ? $cell['attachments'] : [];
@@ -226,6 +243,14 @@ final class IpynbReader
                 'attributes' => $attributes,
                 'ipynbCellType' => $cellType,
                 'ipynbCellIndex' => $cellIndex,
+                'ipynbSourceShape' => $sourceReview['shape'],
+                'ipynbSourcePartCount' => $sourceReview['partCount'],
+                'ipynbSourceBytes' => $sourceReview['bytes'],
+                'ipynbSourceLineCount' => $sourceReview['lineCount'],
+                'ipynbSourceLineEnding' => $sourceReview['lineEnding'],
+                'ipynbSourceLineEndingCounts' => $sourceReview['lineEndingCounts'],
+                'ipynbSourceTrailingNewline' => $sourceReview['trailingNewline'],
+                'ipynbSourceDiagnostics' => $sourceReview['diagnostics'],
                 'ipynbAttachmentCount' => $attachmentSummary['count'],
                 'ipynbAttachmentNames' => $attachmentSummary['names'],
                 'ipynbAttachmentMimeTypes' => $attachmentSummary['mimeTypes'],
@@ -280,7 +305,14 @@ final class IpynbReader
             $cellSummary = [
                 'index' => $cellIndex,
                 'type' => $cellType,
-                'sourceBytes' => strlen($source),
+                'sourceBytes' => $sourceReview['bytes'],
+                'sourceShape' => $sourceReview['shape'],
+                'sourcePartCount' => $sourceReview['partCount'],
+                'sourceLineCount' => $sourceReview['lineCount'],
+                'sourceLineEnding' => $sourceReview['lineEnding'],
+                'sourceLineEndingCounts' => $sourceReview['lineEndingCounts'],
+                'sourceTrailingNewline' => $sourceReview['trailingNewline'],
+                'sourceDiagnostics' => $sourceReview['diagnostics'],
                 'attachmentCount' => $attachmentSummary['count'],
                 'attachmentMimeTypes' => $attachmentSummary['mimeTypes'],
                 'attachmentMedia' => $attachmentSummary['media'],
@@ -326,11 +358,13 @@ final class IpynbReader
             }
             if ($cellSourceDiagnostics !== []) {
                 $cellSummary['sourceDiagnosticCount'] = count($cellSourceDiagnostics);
-                $cellSummary['sourceDiagnostics'] = $cellSourceDiagnostics;
+                $cellSummary['rawMarkdownSourceDiagnostics'] = $cellSourceDiagnostics;
             }
             $cellSummaries[] = $cellSummary;
         }
 
+        ksort($sourceShapeCounts);
+        ksort($sourceLineEndingStyles);
         $attachmentCollisionGroups = $this->attachmentCollisionGroups($attachmentManifestEntries);
         if ($attachmentCollisionGroups !== []) {
             $attachmentDiagnostics[] = 'ipynb-attachment-safe-name-collision';
@@ -354,6 +388,11 @@ final class IpynbReader
             'notebookMarkdownCellCount' => $markdownCellCount,
             'notebookCodeCellCount' => $codeCellCount,
             'notebookRawCellCount' => $rawCellCount,
+            'notebookSourceShapeCounts' => $sourceShapeCounts,
+            'notebookSourceLineEndingStyles' => $sourceLineEndingStyles,
+            'notebookSourceLineEndingCounts' => $sourceLineEndingCounts,
+            'notebookSourceTrailingNewlineCount' => $sourceTrailingNewlineCount,
+            'notebookEmptySourceCount' => $emptySourceCount,
             'notebookAttachmentCount' => $attachmentCount,
             'notebookAttachmentMediaCount' => count($attachmentMedia),
             'notebookAttachmentMedia' => $attachmentMedia,
@@ -593,13 +632,26 @@ final class IpynbReader
         ];
     }
 
-    private function normalizeSource(mixed $source, string $label): string
+    /**
+     * @return array{
+     *     text:string,
+     *     shape:string,
+     *     partCount:int,
+     *     bytes:int,
+     *     lineCount:int,
+     *     trailingNewline:bool,
+     *     lineEnding:string,
+     *     lineEndingCounts:array{lf:int, crlf:int, cr:int},
+     *     diagnostics:list<string>
+     * }
+     */
+    private function sourceReview(mixed $source, string $label): array
     {
         if (is_string($source)) {
-            return $source;
-        }
-
-        if (is_array($source)) {
+            $text = $source;
+            $shape = 'string';
+            $partCount = 1;
+        } elseif (is_array($source)) {
             $parts = [];
             foreach ($source as $index => $line) {
                 if (!is_string($line)) {
@@ -608,10 +660,88 @@ final class IpynbReader
                 $parts[] = $line;
             }
 
-            return implode('', $parts);
+            $text = implode('', $parts);
+            $shape = 'line-array';
+            $partCount = count($parts);
+        } else {
+            throw new \InvalidArgumentException("{$label} must be a string or string array");
         }
 
-        throw new \InvalidArgumentException("{$label} must be a string or string array");
+        $lineEndingCounts = $this->lineEndingCounts($text);
+        $lineEnding = $this->lineEndingStyle($lineEndingCounts);
+        $bytes = strlen($text);
+        $trailingNewline = $text !== '' && (str_ends_with($text, "\n") || str_ends_with($text, "\r"));
+        $lineCount = $bytes === 0
+            ? 0
+            : array_sum($lineEndingCounts) + ($trailingNewline ? 0 : 1);
+
+        $diagnostics = [
+            'source-shape:' . $shape,
+            'source-parts:' . $partCount,
+            'source-bytes:' . $bytes,
+            'source-lines:' . $lineCount,
+            'source-line-ending:' . $lineEnding,
+        ];
+        if ($trailingNewline) {
+            $diagnostics[] = 'source-trailing-newline';
+        }
+        if ($bytes === 0) {
+            $diagnostics[] = 'source-empty';
+        }
+
+        return [
+            'text' => $text,
+            'shape' => $shape,
+            'partCount' => $partCount,
+            'bytes' => $bytes,
+            'lineCount' => $lineCount,
+            'trailingNewline' => $trailingNewline,
+            'lineEnding' => $lineEnding,
+            'lineEndingCounts' => $lineEndingCounts,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{lf:int, crlf:int, cr:int}
+     */
+    private function lineEndingCounts(string $source): array
+    {
+        $counts = ['lf' => 0, 'crlf' => 0, 'cr' => 0];
+        $length = strlen($source);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = $source[$offset];
+            if ($byte === "\r") {
+                if ($offset + 1 < $length && $source[$offset + 1] === "\n") {
+                    $counts['crlf']++;
+                    $offset++;
+                } else {
+                    $counts['cr']++;
+                }
+                continue;
+            }
+
+            if ($byte === "\n") {
+                $counts['lf']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param array{lf:int, crlf:int, cr:int} $counts
+     */
+    private function lineEndingStyle(array $counts): string
+    {
+        $present = array_keys(array_filter($counts, static fn (int $count): bool => $count > 0));
+
+        return match (count($present)) {
+            0 => 'none',
+            1 => $present[0],
+            default => 'mixed',
+        };
     }
 
     /**
