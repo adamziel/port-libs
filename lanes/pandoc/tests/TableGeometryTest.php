@@ -2680,19 +2680,17 @@ return [
 
         $t->same(['asciidoc-body-head-rows-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
         $t->same('body-local-header-rows', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
-        $t->same(['latex-body-head-rows-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $latexDiagnostics));
-        $t->same('longtable-body-head-review', $latexDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same([], $latexDiagnostics);
 
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
         $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
         $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
-        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(2, $packet['summary']['writerDowngradeCount'] ?? null);
         $t->same([
             'markdown-body-head-rows-flattened',
             'asciidoc-body-head-rows-review-required',
-            'latex-body-head-rows-review-required',
         ], $packet['summary']['writerDowngradeCodes'] ?? null);
-        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same(true, $packet['summary']['hasBodyHeadRows'] ?? null);
         $t->same(1, $packet['summary']['bodyHeadRowCount'] ?? null);
 
