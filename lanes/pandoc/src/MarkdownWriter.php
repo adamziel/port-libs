@@ -991,11 +991,7 @@ final class MarkdownWriter
             'code_block' => $this->renderCodeBlock($node, $indent),
             'table' => $this->renderTable($node, $indent),
             'horizontal_rule' => [str_repeat(' ', $indent) . '* * *'],
-            'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
-            'raw_html' => array_map(
-                static fn (string $line): string => str_repeat(' ', $indent) . $line,
-                explode("\n", (string) $node->attr('html', ''))
-            ),
+            'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
             default => [],
         };
     }
@@ -1755,8 +1751,7 @@ final class MarkdownWriter
             'math' => $this->renderMath($node),
             'citation' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
             'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
-            'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
-            'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
+            'raw_tex', 'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
         };
@@ -2005,7 +2000,9 @@ final class MarkdownWriter
     private function renderRawBlock(AstNode $node, int $indent): array
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
+        if ($node->type === 'raw_html') {
+            $text = (string) $node->attr('text', $node->attr('html', ''));
+        } elseif ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('markdown', ''));
         } elseif ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
             $text = (string) $node->attr('text', $node->attr('tex', ''));
@@ -2022,11 +2019,15 @@ final class MarkdownWriter
     private function renderRawInline(AstNode $node): string
     {
         $format = strtolower((string) $node->attr('format', ''));
+        if ($node->type === 'raw_html_inline') {
+            return (string) $node->attr('text', $node->attr('html', ''));
+        }
+
         if ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             return (string) $node->attr('text', $node->attr('markdown', ''));
         }
 
-        if (in_array($format, ['tex', 'latex', 'context'], true)) {
+        if ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
             return (string) $node->attr('text', $node->attr('tex', ''));
         }
 
