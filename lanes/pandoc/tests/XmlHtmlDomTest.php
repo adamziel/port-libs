@@ -3472,6 +3472,47 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('tr', $summary[2]['children'][2]['name']);
         $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>', $html);
     },
+    'foster-parents nested table row-group phrasing before raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<table id="ledger"><caption>Ledger</caption><tbody><tr><td>A</td><em>row note</em><td>B</td></tr><span>group note</span><tr><td>C</td></tr></tbody></table><p>after</p>',
+            'nested table foster-parenting review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/table-foster-parenting-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $fosteredRowNote = $summary[0];
+        $fosteredGroupNote = $summary[1];
+        $table = $summary[2];
+        $tbody = $table['children'][1];
+        $rows = $tbody['children'];
+        $firstRowCells = $rows[0]['children'];
+        $secondRowCells = $rows[1]['children'];
+
+        $t->same('em', $fosteredRowNote['name']);
+        $t->same('row note', $fosteredRowNote['text']);
+        $t->same('stress-emphasis', $fosteredRowNote['textSemantic']);
+        $t->same('span', $fosteredGroupNote['name']);
+        $t->same('group note', $fosteredGroupNote['text']);
+        $t->same('table', $table['name']);
+        $t->same(['id' => 'ledger'], $table['attributes']);
+        $t->same('LedgerABC', $table['text']);
+        $t->same('caption', $table['children'][0]['name']);
+        $t->same('tbody', $tbody['name']);
+        $t->same('body-group', $tbody['tablePart']);
+        $t->same(['tr', 'tr'], array_map(static fn (array $row): string => $row['name'], $rows));
+        $t->same(['td', 'td'], array_map(static fn (array $cell): string => $cell['name'], $firstRowCells));
+        $t->same('A', $firstRowCells[0]['text']);
+        $t->same('B', $firstRowCells[1]['text']);
+        $t->same('C', $secondRowCells[0]['text']);
+        $t->same('<em>row note</em><span>group note</span><table id="ledger"><caption>Ledger</caption><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table><p>after</p>', $html);
+        $t->true(!str_contains($html, '<td>A</td><em>row note</em><td>B</td>'), 'Expected row-level phrasing content to move outside table structure');
+        $t->contains($html, $blocks);
+        $t->same('/migration/table-foster-parenting-review.html', $document->children[0]->attr('part'));
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',
