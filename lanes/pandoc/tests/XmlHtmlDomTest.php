@@ -109,7 +109,13 @@ XML, 'package reader XML');
   <body>
     <sec id="s1" sec-type="intro"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1">[1]</xref> <xref ref-type="fig" rid="f1 missing-fig">Fig. 1</xref>.</p><sec id="s1-1" sec-type="methods"><title>Nested</title><p>Nested paragraph <xref ref-type="table" rid="t1">Table 1</xref>.</p></sec></sec>
     <fig id="f1"><label>Figure 1</label><caption><p>Figure caption</p></caption><graphic xlink:href="figures/f1.png"/></fig>
-    <table-wrap id="t1"><label>Table 1</label><caption><p>Table caption</p></caption><table><tbody><tr><td>Cell</td></tr></tbody></table></table-wrap>
+    <table-wrap id="t1"><label>Table 1</label><caption><p>Table caption</p></caption><table>
+      <thead><tr><th>Area</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr id="row1"><th scope="row">Scope</th><td colspan="2">Ready</td></tr>
+        <tr id="row2"><td>Cells</td><td rowspan="2">Preserved</td></tr>
+      </tbody>
+    </table></table-wrap>
   </body>
   <back><ref-list><ref id="r1"><label>1</label></ref></ref-list></back>
 </article>
@@ -191,9 +197,27 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(1, $packet['figures'][0]['referenceCount'] ?? null);
         $t->same([], $packet['unreferencedFigureIds']);
         $t->same(['t1'], $packet['tableWrapIds']);
+        $t->same(1, $packet['tableBodyCount']);
+        $t->same(2, $packet['tableBodyRowCount']);
+        $t->same(4, $packet['tableBodyCellCount']);
+        $t->same([
+            'jats-bits-table-body-summary-review-only',
+            'jats-bits-table-cell-summary-review-only',
+        ], $packet['tableBodyDiagnostics']);
         $t->same('Table 1', $packet['tableWraps'][0]['label'] ?? null);
         $t->same('Table caption', $packet['tableWraps'][0]['caption'] ?? null);
-        $t->same(1, $packet['tableWraps'][0]['rowCount'] ?? null);
+        $t->same(3, $packet['tableWraps'][0]['rowCount'] ?? null);
+        $t->same(1, $packet['tableWraps'][0]['tableCount'] ?? null);
+        $t->same(1, $packet['tableWraps'][0]['tbodyCount'] ?? null);
+        $t->same(2, $packet['tableWraps'][0]['bodyRowCount'] ?? null);
+        $t->same(4, $packet['tableWraps'][0]['bodyCellCount'] ?? null);
+        $t->same('row1', $packet['tableWraps'][0]['bodyRows'][0]['id'] ?? null);
+        $t->same(['Scope', 'Ready'], $packet['tableWraps'][0]['bodyRows'][0]['texts'] ?? null);
+        $t->same('th', $packet['tableWraps'][0]['bodyRows'][0]['cells'][0]['name'] ?? null);
+        $t->same('row', $packet['tableWraps'][0]['bodyRows'][0]['cells'][0]['scope'] ?? null);
+        $t->same(2, $packet['tableWraps'][0]['bodyRows'][0]['cells'][1]['colspan'] ?? null);
+        $t->same(2, $packet['tableWraps'][0]['bodyRows'][1]['cells'][1]['rowspan'] ?? null);
+        $t->same(['jats-bits-table-body-summary-review-only'], $packet['tableWraps'][0]['diagnostics'] ?? null);
         $t->same(1, $packet['tableWraps'][0]['referenceCount'] ?? null);
         $t->same([], $packet['unreferencedTableWrapIds']);
         $t->same(0, $packet['bookPartCount']);
@@ -207,7 +231,7 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
     <contrib-group><contrib contrib-type="editor"><string-name>Camille Editor</string-name></contrib></contrib-group>
     <pub-date pub-type="ppub"><year>2025</year></pub-date>
   </book-meta>
-  <book-body><book-part id="ch1" book-part-type="chapter"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta><body><sec id="ch1s1"><title>Inside</title><p>Chapter body.</p></sec></body></book-part></book-body>
+  <book-body><book-part id="ch1" book-part-type="chapter"><book-part-meta><title-group><title>Chapter One</title></title-group></book-part-meta><body><sec id="ch1s1"><title>Inside</title><p>Chapter body.</p></sec></body></book-part><table-wrap id="bt1"><label>Table B1</label><caption><p>Book table</p></caption><table><tbody><tr><td>Book cell</td></tr></tbody></table></table-wrap></book-body>
 </book>
 XML, 'BITS book XML', preserveWhiteSpace: false);
         $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
@@ -229,16 +253,22 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
         $t->same('Chapter One', $bitsPacket['bookParts'][0]['title'] ?? null);
         $t->same('body', $bitsPacket['bookParts'][0]['bodyRoot'] ?? null);
         $t->same(1, $bitsPacket['bookParts'][0]['sectionCount'] ?? null);
+        $t->same(['bt1'], $bitsPacket['tableWrapIds']);
+        $t->same(1, $bitsPacket['tableBodyRowCount']);
+        $t->same('Book cell', $bitsPacket['tableWraps'][0]['bodyRows'][0]['cells'][0]['text'] ?? null);
         $t->same(1, $bitsPacket['bookPartCount']);
         $t->same(false, $bitsPacket['directReaderParity']);
         $t->same([
             'direct-reader-unsupported',
+            'table-wraps-review-only',
             'book-parts-review-only',
         ], $bitsPacket['directReaderDiagnosticCodes']);
-        $t->same(2, $bitsPacket['directReaderDiagnosticCount']);
+        $t->same(3, $bitsPacket['directReaderDiagnosticCount']);
         $t->same('bits', $bitsPacket['directReaderDiagnostics'][0]['details']['format'] ?? null);
         $t->same(false, $bitsPacket['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
-        $t->same(1, $bitsPacket['directReaderDiagnostics'][1]['details']['bookPartCount'] ?? null);
+        $t->same(1, $bitsPacket['directReaderDiagnostics'][1]['details']['tableWrapCount'] ?? null);
+        $t->same(false, $bitsPacket['directReaderDiagnostics'][2]['coveredByPacket'] ?? null);
+        $t->same(1, $bitsPacket['directReaderDiagnostics'][2]['details']['bookPartCount'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeJatsFrontMatter($jats, 'xml'));
         json_encode($bitsPacket, JSON_THROW_ON_ERROR);
     },

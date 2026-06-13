@@ -801,6 +801,9 @@ final class XmlHtmlDom
         $references = self::jatsReferenceSummaries($root, $xrefs);
         $figures = self::jatsFigureSummaries($root, $xrefs);
         $tableWraps = self::jatsTableWrapSummaries($root, $xrefs);
+        $tableBodyCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['tbodyCount'], $tableWraps));
+        $tableBodyRowCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyRowCount'], $tableWraps));
+        $tableBodyCellCount = array_sum(array_map(static fn (array $tableWrap): int => (int) $tableWrap['bodyCellCount'], $tableWraps));
         $bookPartCount = count($bookParts);
         $directBodySectionCount = $body instanceof \DOMElement
             ? count(self::childElements($body, 'sec'))
@@ -891,6 +894,10 @@ final class XmlHtmlDom
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
             'tableWraps' => $tableWraps,
+            'tableBodyCount' => $tableBodyCount,
+            'tableBodyRowCount' => $tableBodyRowCount,
+            'tableBodyCellCount' => $tableBodyCellCount,
+            'tableBodyDiagnostics' => self::jatsTableBodyDiagnostics($tableWraps),
             'tableWrapReferenceTargets' => self::jatsReferenceTargetsForElements($bodyXrefs, ['table-wrap', 'table']),
             'unreferencedTableWrapIds' => self::jatsUnreferencedElementIds($tableWrapIds, $bodyXrefs),
             'bookParts' => $bookParts,
@@ -2045,19 +2052,182 @@ final class XmlHtmlDom
     {
         $counts = self::jatsXrefCountsByTarget($xrefs);
         $tables = [];
+        $ordinal = 1;
         foreach (self::descendantElements($root, 'table-wrap') as $tableWrap) {
             $id = self::attribute($tableWrap, 'id');
+            $tableElements = self::descendantElements($tableWrap, 'table');
+            $bodyRows = [];
+            $bodyOrdinal = 1;
+            $tbodyCount = 0;
+            $theadRowCount = 0;
+
+            foreach ($tableElements as $table) {
+                foreach (self::descendantElements($table, 'thead') as $thead) {
+                    $theadRowCount += count(self::childElements($thead, 'tr'));
+                }
+
+                foreach (self::descendantElements($table, 'tbody') as $tbody) {
+                    ++$tbodyCount;
+                    foreach (self::childElements($tbody, 'tr') as $row) {
+                        $bodyRows[] = self::jatsTableBodyRowSummary($row, $bodyOrdinal++);
+                    }
+                }
+            }
+
+            $bodyCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['cellCount'], $bodyRows));
+            $bodyHeaderCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['headerCellCount'], $bodyRows));
+            $bodyDataCellCount = array_sum(array_map(static fn (array $row): int => (int) $row['dataCellCount'], $bodyRows));
+            $diagnostics = [];
+            if ($tbodyCount > 0) {
+                $diagnostics[] = 'jats-bits-table-body-summary-review-only';
+            }
+            if ($tableElements !== [] && $tbodyCount === 0) {
+                $diagnostics[] = 'jats-bits-table-wrap-missing-tbody';
+            }
+            if ($tbodyCount > 0 && $bodyRows === []) {
+                $diagnostics[] = 'jats-bits-table-body-empty';
+            }
+
             $tables[] = [
+                'ordinal' => $ordinal++,
                 'id' => $id,
                 'label' => self::jatsFirstChildText($tableWrap, 'label'),
                 'caption' => self::jatsCaptionText($tableWrap),
-                'tableCount' => count(self::descendantElements($tableWrap, 'table')),
+                'attributes' => self::xmlAttributeMap($tableWrap),
+                'tableCount' => count($tableElements),
+                'theadRowCount' => $theadRowCount,
+                'tbodyCount' => $tbodyCount,
                 'rowCount' => count(self::descendantElements($tableWrap, 'tr')),
+                'bodyRowCount' => count($bodyRows),
+                'bodyCellCount' => $bodyCellCount,
+                'bodyHeaderCellCount' => $bodyHeaderCellCount,
+                'bodyDataCellCount' => $bodyDataCellCount,
+                'bodyRows' => $bodyRows,
+                'diagnostics' => $diagnostics,
                 'referenceCount' => $id === null ? 0 : ($counts[$id] ?? 0),
             ];
         }
 
         return $tables;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsTableBodyRowSummary(\DOMElement $row, int $ordinal): array
+    {
+        $cells = [];
+        $cellOrdinal = 1;
+        foreach (self::childElements($row) as $cell) {
+            if (!in_array($cell->localName, ['td', 'th'], true)) {
+                continue;
+            }
+
+            $cells[] = self::jatsTableCellSummary($cell, $cellOrdinal++);
+        }
+
+        $diagnostics = [];
+        if ($cells === []) {
+            $diagnostics[] = 'jats-bits-table-body-row-without-cells';
+        }
+
+        return [
+            'ordinal' => $ordinal,
+            'id' => self::attribute($row, 'id'),
+            'attributes' => self::xmlAttributeMap($row),
+            'cellCount' => count($cells),
+            'headerCellCount' => count(array_filter(
+                $cells,
+                static fn (array $cell): bool => $cell['name'] === 'th'
+            )),
+            'dataCellCount' => count(array_filter(
+                $cells,
+                static fn (array $cell): bool => $cell['name'] === 'td'
+            )),
+            'texts' => array_values(array_map(
+                static fn (array $cell): string => (string) $cell['text'],
+                $cells
+            )),
+            'cells' => $cells,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsTableCellSummary(\DOMElement $cell, int $ordinal): array
+    {
+        $headers = self::attribute($cell, 'headers');
+
+        return [
+            'ordinal' => $ordinal,
+            'name' => $cell->localName,
+            'id' => self::attribute($cell, 'id'),
+            'attributes' => self::xmlAttributeMap($cell),
+            'text' => self::normalizedText($cell),
+            'rowspan' => self::jatsPositiveIntegerAttribute($cell, 'rowspan'),
+            'colspan' => self::jatsPositiveIntegerAttribute($cell, 'colspan'),
+            'align' => self::jatsTrimmedAttribute($cell, 'align'),
+            'valign' => self::jatsTrimmedAttribute($cell, 'valign'),
+            'scope' => self::jatsTrimmedAttribute($cell, 'scope'),
+            'headers' => $headers === null ? [] : self::spaceSeparatedTokens($headers),
+        ];
+    }
+
+    private static function jatsPositiveIntegerAttribute(\DOMElement $element, string $name): ?int
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $value;
+
+        return $integer > 0 ? $integer : null;
+    }
+
+    private static function jatsTrimmedAttribute(\DOMElement $element, string $name): ?string
+    {
+        $value = self::attribute($element, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $tableWraps
+     * @return list<string>
+     */
+    private static function jatsTableBodyDiagnostics(array $tableWraps): array
+    {
+        $diagnostics = [];
+        foreach ($tableWraps as $tableWrap) {
+            foreach ($tableWrap['diagnostics'] as $diagnostic) {
+                $diagnostics[] = (string) $diagnostic;
+            }
+
+            if ((int) $tableWrap['bodyCellCount'] > 0) {
+                $diagnostics[] = 'jats-bits-table-cell-summary-review-only';
+            }
+
+            foreach ($tableWrap['bodyRows'] as $row) {
+                foreach ($row['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = (string) $diagnostic;
+                }
+            }
+        }
+
+        return array_values(array_unique($diagnostics));
     }
 
     /**
