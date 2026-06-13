@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3284,
-        "latestSlice": "pandoc-markdown-header-section-divs maps one opt-in Markdown header-to-section grouping case after Markdown table-cell note placement on current main. MarkdownReader now accepts sectionDivs=true and groups parsed headings into nested div sections with section and levelN classes, moving heading identifiers, classes, and key-value attributes to the wrapper so Markdown and WordPress handoff keep stable section anchors without duplicate heading identifiers. phpPass moves 3324 -> 3325, phpFail remains 0, mappedMarkdownHeaderSectionDivCases is 1, and markdownHeaderSectionDivAssertions is 17. Verification passed php -l for MarkdownReader.php and MarkdownReaderTest.php; focused MarkdownReaderTest.php passed 1 file, 6685 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74621 assertions, 0 failures after final rebase onto current main 3f0dd072b4. No Pandoc binary, Cabal/Haskell runner, browser renderer, Node tooling, TeX/PDF engine, office suite, online service, live provider test, or external validator was invoked.",
+        "mapped": 3285,
+        "latestSlice": "pandoc-xml-jats-bits-direct-reader-capability maps one XML/HTML5/JATS DOM registry capability slice after Markdown header section Div mapping on current main. PandocFormatRegistry now exposes xml, jats, and bits as explicit unsupported direct-reader inputs with bounded XmlHtmlDom diagnostic surfaces, and XmlHtmlDom::summarizeJatsFrontMatter() emits directReaderDiagnostics for unsupported full-reader gaps while preserving directReaderParity=false. Mapped denominator moves 3284 -> 3285, mappedXmlHtmlDomDirectReaderCapabilityCases is 1, and xmlHtmlDomDirectReaderCapabilityAssertions is 73. Verification passed php -l for PandocFormatRegistry.php, XmlHtmlDom.php, PandocFormatRegistryTest.php, and XmlHtmlDomTest.php; focused PandocFormatRegistryTest.php (1 file, 1168 assertions, 0 failures); focused XmlHtmlDomTest.php (1 file, 1843 assertions, 0 failures); and full lanes/pandoc/tests (45 files, 74698 assertions, 0 failures) without invoking Pandoc, browser renderers, external XML validators, Node tooling, online services, live provider tests, or live-service provider tests.",
         "mappedPandocJsonNativeHelperConstructorCases": 1,
         "pandocJsonNativeHelperConstructorAssertions": 79,
         "mappedTypstInputVariableOverrideBoundaryProvenanceCases": 1,
@@ -22,8 +22,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "Markdown header section Div mapping is verified in focused and full native PHP Pandoc coverage over current main 3f0dd072b4; broader Markdown/CommonMark/GFM section parity remains partial.",
-        "latestFocusedSource": "2026-06-13 Markdown header section Div slice inspected opt-in sectionDivs heading grouping against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 3f0dd072b4; focused MarkdownReaderTest.php passed 1 file, 6685 assertions, 0 failures; full lanes/pandoc/tests passed 45 files, 74621 assertions, 0 failures.",
+        "status": "XML/JATS/BITS direct reader capability status and bounded diagnostics are verified in focused and full native PHP Pandoc coverage over current main 7bc8d59244; XML/JATS/BITS remain unsupported as full direct readers.",
+        "latestFocusedSource": "2026-06-13 XML/JATS/BITS slice inspected direct reader capability status against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 7bc8d59244; focused PandocFormatRegistryTest.php passed 1 file, 1168 assertions, 0 failures, focused XmlHtmlDomTest.php passed 1 file, 1843 assertions, 0 failures, and full lanes/pandoc/tests passed 45 files, 74698 assertions, 0 failures.",
         "mappedPandocJsonNativeAttrTupleProvenanceCases": 1,
         "pandocJsonNativeAttrTupleProvenanceAssertions": 42,
         "mappedEpubPackageLinkHrefSuffixCases": 1,
@@ -189,7 +189,9 @@
         "mappedMarkdownTableCellNotePlacementCases": 1,
         "markdownTableCellNotePlacementAssertions": 9,
         "mappedMarkdownHeaderSectionDivCases": 1,
-        "markdownHeaderSectionDivAssertions": 17
+        "markdownHeaderSectionDivAssertions": 17,
+        "mappedXmlHtmlDomDirectReaderCapabilityCases": 1,
+        "xmlHtmlDomDirectReaderCapabilityAssertions": 73
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",

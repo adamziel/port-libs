@@ -750,12 +750,28 @@ final class XmlHtmlDom
         $referenceIds = self::jatsElementIds($root, 'ref');
         $figureIds = self::jatsElementIds($root, 'fig');
         $tableWrapIds = self::jatsElementIds($root, 'table-wrap');
+        $bookPartCount = count(self::descendantElements($root, 'book-part'));
+        $directReaderDiagnostics = self::jatsDirectReaderDiagnostics(
+            $format,
+            $body instanceof \DOMElement,
+            count($sections),
+            count($referenceIds),
+            count($figureIds),
+            count($tableWrapIds),
+            $bookPartCount
+        );
 
         return [
             'formatFamily' => 'xml-html5-jats-dom',
             'format' => $format,
             'reviewPolicy' => 'jats-bits-front-matter-review-only',
             'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $directReaderDiagnostics
+            ),
+            'directReaderDiagnosticCount' => count($directReaderDiagnostics),
+            'directReaderDiagnostics' => $directReaderDiagnostics,
             'rootName' => $rootName,
             'rootAttributes' => self::xmlAttributeMap($root),
             'documentType' => self::jatsDocumentType($root),
@@ -801,7 +817,119 @@ final class XmlHtmlDom
             'figureCount' => count($figureIds),
             'tableWrapIds' => $tableWrapIds,
             'tableWrapCount' => count($tableWrapIds),
-            'bookPartCount' => count(self::descendantElements($root, 'book-part')),
+            'bookPartCount' => $bookPartCount,
+        ];
+    }
+
+    /**
+     * @return list<array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}>
+     */
+    private static function jatsDirectReaderDiagnostics(
+        string $format,
+        bool $hasBody,
+        int $sectionCount,
+        int $referenceCount,
+        int $figureCount,
+        int $tableWrapCount,
+        int $bookPartCount
+    ): array {
+        $formatLabel = strtoupper($format);
+        $diagnostics = [
+            self::jatsDirectReaderDiagnostic(
+                'direct-reader-unsupported',
+                'unsupported',
+                $formatLabel . ' direct reader parity is not implemented; this packet exposes bounded XML diagnostics only.',
+                false,
+                true,
+                ['format' => $format]
+            ),
+        ];
+
+        if (!$hasBody) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'body-missing',
+                'warning',
+                'No JATS/BITS body element was found for bounded body diagnostics.',
+                false,
+                true
+            );
+        } elseif ($sectionCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'body-sections-review-only',
+                'unsupported',
+                'Body sections are inventoried for review but are not mapped as a full Pandoc direct reader AST.',
+                false,
+                false,
+                ['sectionCount' => $sectionCount]
+            );
+        }
+
+        if ($referenceCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'references-review-only',
+                'unsupported',
+                'Reference elements are inventoried for review but are not mapped as full citation-reader output.',
+                false,
+                false,
+                ['referenceCount' => $referenceCount]
+            );
+        }
+
+        if ($figureCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'figures-review-only',
+                'unsupported',
+                'Figure elements are inventoried for review but are not mapped as full figure blocks.',
+                false,
+                false,
+                ['figureCount' => $figureCount]
+            );
+        }
+
+        if ($tableWrapCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'table-wraps-review-only',
+                'unsupported',
+                'Table-wrap elements are inventoried for review but are not mapped as full table blocks.',
+                false,
+                false,
+                ['tableWrapCount' => $tableWrapCount]
+            );
+        }
+
+        if ($bookPartCount > 0) {
+            $diagnostics[] = self::jatsDirectReaderDiagnostic(
+                'book-parts-review-only',
+                'unsupported',
+                'Book-part elements are counted for review but are not mapped as nested Pandoc documents.',
+                false,
+                false,
+                ['bookPartCount' => $bookPartCount]
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, int|string|bool> $details
+     * @return array{code:string, severity:string, message:string, directReaderParity:bool, coveredByPacket:bool, details:array<string, int|string|bool>}
+     */
+    private static function jatsDirectReaderDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        bool $directReaderParity,
+        bool $coveredByPacket,
+        array $details = []
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => $directReaderParity,
+            'coveredByPacket' => $coveredByPacket,
+            'details' => $details,
         ];
     }
 
