@@ -10353,6 +10353,62 @@ MD;
         $t->contains(':::: {.outer}', (new MarkdownWriter())->write($document));
         $t->contains('<div class="outer"><p>Outer review starts.</p><div id="inner" class="callout" data-source="nested"><p>Inner <strong>review</strong> note.</p></div><p>Outer review ends.</p></div>', $blocks);
     },
+    'keeps markdown fenced div section references inside nested boundaries' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [
+            'text' => implode('', array_map(
+                static fn (AstNode $node): string => $node->type === 'text' ? (string) $node->attr('text', '') : '',
+                $children
+            )),
+        ], $children);
+        $heading = static fn (int $level, string $text): AstNode => new AstNode('heading', [
+            'level' => $level,
+            'text' => $text,
+        ], [new AstNode('text', ['text' => $text])]);
+        $note = static fn (string $text): AstNode => new AstNode('note', [], [
+            $paragraph([new AstNode('text', ['text' => $text])]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('div', ['classes' => ['section', 'level1']], [
+                $heading(1, 'Imported Article Review'),
+                $heading(2, 'Source Notes'),
+                $paragraph([
+                    $text('Source URL needs verification'),
+                    $note('Open the original import packet before publishing.'),
+                    $text(' with '),
+                    new AstNode('link', ['url' => '/wp-admin/post.php?post=77&action=edit', 'title' => ''], [$text('source packet')]),
+                    $text('.'),
+                ]),
+                $heading(2, 'Publish Checklist'),
+                $paragraph([$text('Confirm media ownership.')]),
+            ]),
+        ]);
+
+        $markdown = (new MarkdownWriter([
+            'referenceLocation' => 'end_of_section',
+            'referenceLinks' => true,
+        ]))->write($document);
+
+        $t->same(implode("\n", [
+            '::: {.section .level1}',
+            '# Imported Article Review',
+            '',
+            '## Source Notes',
+            '',
+            'Source URL needs verification[^1] with [source packet].',
+            '',
+            '[^1]: Open the original import packet before publishing.',
+            '',
+            '  [source packet]: /wp-admin/post.php?post=77&action=edit',
+            '',
+            '## Publish Checklist',
+            '',
+            'Confirm media ownership.',
+            ':::',
+        ]), $markdown);
+        $t->true(strpos($markdown, '[^1]:') < strpos($markdown, '## Publish Checklist'), 'Nested section definitions should stay before the next section heading');
+    },
     'maps upstream markdown writer fenced code block attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
