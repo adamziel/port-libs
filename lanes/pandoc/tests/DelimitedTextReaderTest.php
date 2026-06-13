@@ -129,4 +129,43 @@ return [
 
         $t->contains('header option must be a boolean', $message);
     },
+    'infers delimited text format from extension and row profiles' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $tsvDocument = $reader->readAuto(implode("\n", [
+            "name\tqty",
+            "A\t10",
+            '',
+        ]), ['sourcePath' => 'inventory.TSV']);
+        $csvDocument = $reader->read(implode("\n", [
+            'sku,count',
+            'A-1,10',
+            '',
+        ]), 'auto');
+        $tsvPacket = $tsvDocument->children[0]->attr('delimitedText');
+        $csvPacket = $csvDocument->children[0]->attr('delimitedText');
+
+        $t->same('tsv', $tsvDocument->attr('sourceFormat'));
+        $t->same('tab', $tsvPacket['delimiter'] ?? null);
+        $t->same([
+            'requestedFormat' => 'auto',
+            'selectedFormat' => 'tsv',
+            'source' => 'source-path',
+            'sourceValue' => 'inventory.TSV',
+            'confidence' => 'extension',
+            'candidateScores' => [],
+        ], $tsvPacket['formatInference'] ?? null);
+        $t->same('delimited-text-format-inferred', $tsvPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('A', $tsvDocument->children[0]->children[1]->children[0]->children[0]->attr('text'));
+
+        $t->same('csv', $csvDocument->attr('sourceFormat'));
+        $t->same(',', $csvPacket['delimiter'] ?? null);
+        $t->same('auto', $csvPacket['formatInference']['requestedFormat'] ?? null);
+        $t->same('csv', $csvPacket['formatInference']['selectedFormat'] ?? null);
+        $t->same('content', $csvPacket['formatInference']['source'] ?? null);
+        $t->same('high', $csvPacket['formatInference']['confidence'] ?? null);
+        $t->same(2, $csvPacket['formatInference']['candidateScores']['csv']['multicolumnRows'] ?? null);
+        $t->same(0, $csvPacket['formatInference']['candidateScores']['tsv']['multicolumnRows'] ?? null);
+        $t->same('delimited-text-format-inferred', $csvPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
+    },
 ];
