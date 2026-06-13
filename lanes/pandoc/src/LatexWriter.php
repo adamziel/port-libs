@@ -327,18 +327,38 @@ final class LatexWriter
         }
 
         $rowGroups = $this->tableRowGroups($node);
+        $hasFooter = $rowGroups['foot'] !== [];
         if ($rowGroups['head'] !== []) {
-            $lines[] = '\hline';
-            array_push($lines, ...$this->renderTableRows($rowGroups['head'], $columnCount, $alignments));
-            $lines[] = '\hline';
+            $headLines = [
+                '\hline',
+                ...$this->renderTableRows($rowGroups['head'], $columnCount, $alignments),
+                '\hline',
+            ];
+
+            array_push($lines, ...$headLines);
+            if ($hasFooter) {
+                $lines[] = '\endfirsthead';
+                array_push($lines, ...$headLines);
+                $lines[] = '\endhead';
+            }
+        } elseif ($hasFooter) {
+            $lines[] = '\endfirsthead';
+            $lines[] = '\endhead';
+        }
+
+        if ($hasFooter) {
+            $footLines = [
+                '\hline',
+                ...$this->renderTableRows($rowGroups['foot'], $columnCount, $alignments),
+                '\hline',
+            ];
+            array_push($lines, ...$footLines);
+            $lines[] = '\endfoot';
+            array_push($lines, ...$footLines);
+            $lines[] = '\endlastfoot';
         }
 
         array_push($lines, ...$this->renderTableRows($rowGroups['body'], $columnCount, $alignments));
-
-        if ($rowGroups['foot'] !== []) {
-            $lines[] = '\hline';
-            array_push($lines, ...$this->renderTableRows($rowGroups['foot'], $columnCount, $alignments));
-        }
 
         $lines[] = '\end{longtable}';
 

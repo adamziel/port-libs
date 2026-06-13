@@ -4426,7 +4426,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (
         ($blockCaptionPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-caption-blocks-flattened']
-        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'plain-caption-text'
+        || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'inline-caption-markdown'
         || ($blockCaptionPacket['writerDowngrades']['markdown'][0]['blockTypes'] ?? null) !== ['paragraph', 'bullet_list']
     ) {
         throw new RuntimeException('Table geometry self-test missing block-level caption writer handoff diagnostics');
@@ -4518,16 +4518,12 @@ if (($argv[1] ?? '') === '--self-test') {
         'writers' => ['latex'],
     ]);
     if (
-        ($latexFooterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['latex-longtable-footer-required']
-        || ($latexFooterPacket['writerDowngrades']['latex'][0]['requiredFeature'] ?? null) !== 'longtable-footer'
-        || ($latexFooterPacket['writerDowngrades']['latex'][0]['footRowCount'] ?? null) !== 1
-        || ($latexFooterPacket['writerDowngrades']['latex'][0]['sections'] ?? null) !== [
-            ['section' => 'head', 'rowCount' => 1, 'rowRole' => 'head'],
-            ['section' => 'body', 'rowCount' => 1, 'rowRole' => 'body'],
-            ['section' => 'foot', 'rowCount' => 1, 'rowRole' => 'foot'],
-        ]
+        ($latexFooterPacket['summary']['writerDowngradeCodes'] ?? null) !== []
+        || ($latexFooterPacket['writerDowngrades']['latex'] ?? null) !== []
+        || ($latexFooterPacket['summary']['hasTableFoot'] ?? null) !== true
+        || ($latexFooterPacket['summary']['tableFootRowCount'] ?? null) !== 1
     ) {
-        throw new RuntimeException('Table geometry self-test missing LaTeX longtable footer writer requirement diagnostics');
+        throw new RuntimeException('Table geometry self-test did not treat LaTeX longtable footer handoff as supported');
     }
     if (!str_contains($blocks, '<tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">Ready</td></tr></tfoot></table><figcaption class="wp-element-caption">LaTeX footer audit</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing LaTeX footer review table output');
