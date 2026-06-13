@@ -178,7 +178,7 @@ XML, 'namespace declaration review XML', preserveWhiteSpace: false);
   </front>
   <body>
     <sec id="s1" sec-type="intro"><title>Scope</title><p>Body <xref ref-type="bibr" rid="r1 r2 missing-ref">[1, 2]</xref> <xref ref-type="fig" rid="f1 missing-fig">Fig. 1</xref>.</p><sec id="s1-1" sec-type="methods"><title>Nested</title><p>Nested paragraph <xref ref-type="table" rid="t1">Table 1</xref>.</p></sec></sec>
-    <fig id="f1"><label>Figure 1</label><caption><p>Figure caption</p></caption><graphic xlink:href="figures/f1.png"/></fig>
+    <fig id="f1"><label>Figure 1</label><caption><p>Figure caption</p></caption><graphic id="g-local" xlink:href="figures/f1.png" mimetype="image" mime-subtype="png" specific-use="print"/><media id="m-external" xlink:href="https://cdn.example.test/video.mp4" mimetype="video" mime-subtype="mp4"/><graphic id="g-missing" mimetype="image" mime-subtype="svg"/></fig>
     <table-wrap id="t1"><label>Table 1</label><caption><title>Quarterly review</title><p>Table <italic>caption</italic> details.</p></caption><table>
       <thead><tr><th>Area</th><th>Status</th></tr></thead>
       <tbody>
@@ -229,9 +229,12 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
             'bibliography-xrefs-unresolved',
             'figures-review-only',
             'figure-title-metadata-missing',
+            'figure-media-references-review-only',
+            'figure-media-target-missing',
+            'figure-media-external-reference-unsupported',
             'table-wraps-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(8, $packet['directReaderDiagnosticCount']);
+        $t->same(11, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('jats', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
@@ -261,7 +264,11 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(0, $packet['directReaderDiagnostics'][5]['details']['missingCaptionCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][5]['details']['missingTitleCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][6]['details']['missingTitleCount'] ?? null);
-        $t->same(1, $packet['directReaderDiagnostics'][7]['details']['tableWrapCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][7]['details']['mediaReferenceCount'] ?? null);
+        $t->same(false, $packet['directReaderDiagnostics'][7]['details']['payloadBytesExposed'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][8]['details']['missingTargetCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][9]['details']['externalReferenceCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][10]['details']['tableWrapCount'] ?? null);
         $t->same('article', $packet['rootName']);
         $t->same('jats:article', $packet['rootProvenance']['qualifiedName']);
         $t->same('http://jats.nlm.nih.gov', $packet['rootProvenance']['namespaceUri']);
@@ -414,8 +421,31 @@ XML, 'JATS article XML', preserveWhiteSpace: false);
         $t->same(['Figure caption'], $packet['figures'][0]['captionParagraphs'] ?? null);
         $t->same(['title'], $packet['figures'][0]['missingMetadata'] ?? null);
         $t->same(['figures/f1.png'], $packet['figures'][0]['graphicHrefs'] ?? null);
+        $t->same(3, $packet['figures'][0]['mediaReferenceCount'] ?? null);
+        $t->same(['missing-target', 'unsupported-external-reference'], $packet['figures'][0]['mediaIssueCodes'] ?? null);
         $t->same(1, $packet['figures'][0]['referenceCount'] ?? null);
         $t->same([], $packet['unreferencedFigureIds']);
+        $t->same(3, $packet['figureMediaReferenceCount']);
+        $t->same(['missing-target', 'unsupported-external-reference'], $packet['figureMediaIssueCodes']);
+        $t->same(2, $packet['figureMediaIssueCount']);
+        $t->same(false, $packet['figureMediaPayloadBytesExposed']);
+        $t->same('graphic', $packet['figureMediaReferences'][0]['element'] ?? null);
+        $t->same('g-local', $packet['figureMediaReferences'][0]['id'] ?? null);
+        $t->same('xlink:href', $packet['figureMediaReferences'][0]['hrefAttribute'] ?? null);
+        $t->same('figures/f1.png', $packet['figureMediaReferences'][0]['target'] ?? null);
+        $t->same('f1.png', $packet['figureMediaReferences'][0]['targetBasename'] ?? null);
+        $t->same('internal', $packet['figureMediaReferences'][0]['targetKind'] ?? null);
+        $t->same('image/png', $packet['figureMediaReferences'][0]['contentType'] ?? null);
+        $t->same(false, $packet['figureMediaReferences'][0]['payloadBytesExposed'] ?? null);
+        $t->same([], $packet['figureMediaReferences'][0]['issues'] ?? null);
+        $t->same('media', $packet['figureMediaReferences'][1]['element'] ?? null);
+        $t->same('external', $packet['figureMediaReferences'][1]['targetKind'] ?? null);
+        $t->same('video/mp4', $packet['figureMediaReferences'][1]['contentType'] ?? null);
+        $t->same(['unsupported-external-reference'], $packet['figureMediaReferences'][1]['issues'] ?? null);
+        $t->same('graphic', $packet['figureMediaReferences'][2]['element'] ?? null);
+        $t->same(null, $packet['figureMediaReferences'][2]['target'] ?? null);
+        $t->same('missing', $packet['figureMediaReferences'][2]['targetKind'] ?? null);
+        $t->same(['missing-target'], $packet['figureMediaReferences'][2]['issues'] ?? null);
         $t->same(['t1'], $packet['tableWrapIds']);
         $t->same(1, $packet['tableLabelCount']);
         $t->same(1, $packet['tableCaptionCount']);
