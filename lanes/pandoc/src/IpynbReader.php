@@ -9,6 +9,8 @@ final class IpynbReader
     private const MAX_CELLS = 200;
     private const MAX_CELL_SOURCE_BYTES = 1048576;
     private const MAX_EXECUTION_COUNT = 2147483647;
+    private const SUPPORTED_NBFORMAT_MAJOR = 4;
+    private const SUPPORTED_NBFORMAT_MINOR = 5;
     private const UNSAFE_CELL_METADATA_KEYS = [
         'collapsed',
         'deletable',
@@ -35,10 +37,8 @@ final class IpynbReader
             throw new \InvalidArgumentException('IPYNB source must decode to a JSON object');
         }
 
-        $cells = $notebook['cells'] ?? null;
-        if (!is_array($cells)) {
-            throw new \InvalidArgumentException('IPYNB notebook is missing a cells array');
-        }
+        $cellsValue = $notebook['cells'] ?? null;
+        $cells = is_array($cellsValue) ? $cellsValue : [];
         if (count($cells) > self::MAX_CELLS) {
             throw new \InvalidArgumentException('IPYNB notebook exceeds the bounded native reader cell limit');
         }
@@ -47,7 +47,7 @@ final class IpynbReader
         $nbformatMinor = $notebook['nbformat_minor'] ?? null;
         $cellIdsRequired = $this->cellIdsRequired($nbformat, $nbformatMinor);
 
-        $notebookSchemaDiagnostics = $this->notebookSchemaDiagnostics($notebook, $cells);
+        $notebookSchemaDiagnostics = $this->notebookSchemaDiagnostics($notebook, $cellsValue);
         $schemaDiagnostics = $notebookSchemaDiagnostics;
         $cellSchemaDiagnosticCount = 0;
         $rawMarkdownCellDiagnostics = [];
@@ -1162,10 +1162,9 @@ final class IpynbReader
 
     /**
      * @param array<string, mixed> $notebook
-     * @param array<int|string, mixed> $cells
      * @return list<array<string, mixed>>
      */
-    private function notebookSchemaDiagnostics(array $notebook, array $cells): array
+    private function notebookSchemaDiagnostics(array $notebook, mixed $cells): array
     {
         $diagnostics = [];
 
@@ -1173,7 +1172,7 @@ final class IpynbReader
             $diagnostics[] = $this->schemaDiagnostic('missing-nbformat', 'notebook', 'nbformat', 'integer 4', 'missing');
         } elseif (!is_int($notebook['nbformat'])) {
             $diagnostics[] = $this->schemaDiagnostic('invalid-nbformat', 'notebook', 'nbformat', 'integer 4', $this->jsonValueType($notebook['nbformat']));
-        } elseif ($notebook['nbformat'] !== 4) {
+        } elseif ($notebook['nbformat'] !== self::SUPPORTED_NBFORMAT_MAJOR) {
             $diagnostics[] = $this->schemaDiagnostic('unsupported-nbformat', 'notebook', 'nbformat', 'integer 4', 'integer');
         }
 
@@ -1181,13 +1180,19 @@ final class IpynbReader
             $diagnostics[] = $this->schemaDiagnostic('missing-nbformat-minor', 'notebook', 'nbformat_minor', 'non-negative integer', 'missing');
         } elseif (!is_int($notebook['nbformat_minor']) || $notebook['nbformat_minor'] < 0) {
             $diagnostics[] = $this->schemaDiagnostic('invalid-nbformat-minor', 'notebook', 'nbformat_minor', 'non-negative integer', $this->jsonValueType($notebook['nbformat_minor']));
+        } elseif (($notebook['nbformat'] ?? null) === self::SUPPORTED_NBFORMAT_MAJOR && $notebook['nbformat_minor'] > self::SUPPORTED_NBFORMAT_MINOR) {
+            $diagnostics[] = $this->schemaDiagnostic('future-nbformat-minor', 'notebook', 'nbformat_minor', 'minor version <= 5', 'integer');
         }
 
         if (array_key_exists('metadata', $notebook) && !is_array($notebook['metadata'])) {
             $diagnostics[] = $this->schemaDiagnostic('invalid-notebook-metadata', 'notebook', 'metadata', 'object', $this->jsonValueType($notebook['metadata']));
         }
 
-        if (!array_is_list($cells)) {
+        if (!array_key_exists('cells', $notebook)) {
+            $diagnostics[] = $this->schemaDiagnostic('missing-cells-array', 'notebook', 'cells', 'array', 'missing');
+        } elseif (!is_array($cells)) {
+            $diagnostics[] = $this->schemaDiagnostic('invalid-cells-array', 'notebook', 'cells', 'array', $this->jsonValueType($cells));
+        } elseif (!array_is_list($cells)) {
             $diagnostics[] = $this->schemaDiagnostic('invalid-cells-shape', 'notebook', 'cells', 'array', 'object');
         }
 

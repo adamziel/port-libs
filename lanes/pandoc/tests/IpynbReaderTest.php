@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -154,6 +155,81 @@ return [
         $t->contains('print(&quot;ready&quot;)', $html);
         $t->same(false, str_contains($html, 'iVBORw0KGgo='));
         $t->same(false, str_contains($html, '<Figure size 640x480>'));
+    },
+    'reports nbformat version and cells array diagnostics without notebook tooling' => static function (TestRunner $t): void {
+        $reader = new IpynbReader();
+        $read = static function (array $notebook) use ($reader): AstNode {
+            return $reader->read(json_encode($notebook, JSON_THROW_ON_ERROR));
+        };
+        $types = static function (AstNode $document): array {
+            return array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['type'] ?? ''),
+                $document->attr('notebookSchemaDiagnostics')
+            );
+        };
+
+        $missingCells = $read([
+            'metadata' => [
+                'kernelspec' => ['name' => 'python3'],
+                'language_info' => ['name' => 'python'],
+            ],
+        ]);
+        $t->same(0, $missingCells->attr('notebookCellCount'));
+        $t->same([
+            'missing-nbformat',
+            'missing-nbformat-minor',
+            'missing-cells-array',
+        ], $types($missingCells));
+        $t->same('metadata-only', $missingCells->attr('notebookSchemaByteExposurePolicy'));
+        $t->same(3, $missingCells->attr('notebookSchemaReview')['notebookDiagnosticCount']);
+        $t->same(0, $missingCells->attr('notebookSchemaReview')['checkedCellCount']);
+        $t->same('python3', $missingCells->attr('notebookKernelName'));
+        $t->same('python', $missingCells->attr('notebookLanguage'));
+
+        $nonNumeric = $read([
+            'nbformat' => 'four',
+            'nbformat_minor' => ['minor' => 5],
+            'cells' => [],
+        ]);
+        $t->same([
+            'invalid-nbformat',
+            'invalid-nbformat-minor',
+        ], $types($nonNumeric));
+        $t->same('four', $nonNumeric->attr('notebookNbformat'));
+        $t->same(['minor' => 5], $nonNumeric->attr('notebookNbformatMinor'));
+
+        $futureMajor = $read([
+            'nbformat' => 5,
+            'nbformat_minor' => 0,
+            'cells' => [],
+        ]);
+        $t->same(['unsupported-nbformat'], $types($futureMajor));
+        $t->same(5, $futureMajor->attr('notebookNbformat'));
+
+        $futureMinor = $read([
+            'nbformat' => 4,
+            'nbformat_minor' => 99,
+            'cells' => [],
+        ]);
+        $t->same(['future-nbformat-minor'], $types($futureMinor));
+        $t->same(99, $futureMinor->attr('notebookNbformatMinor'));
+
+        $invalidMinor = $read([
+            'nbformat' => 4,
+            'nbformat_minor' => -1,
+            'cells' => [],
+        ]);
+        $t->same(['invalid-nbformat-minor'], $types($invalidMinor));
+
+        $invalidCells = $read([
+            'nbformat' => 4,
+            'nbformat_minor' => 5,
+            'cells' => 'not-a-cell-array',
+        ]);
+        $t->same(['invalid-cells-array'], $types($invalidCells));
+        $t->same(0, $invalidCells->attr('notebookCellCount'));
+        $t->same(0, $invalidCells->attr('notebookSchemaReview')['checkedCellCount']);
+        $t->same('metadata-only', $invalidCells->attr('notebookSchemaReview')['byteExposurePolicy']);
     },
     'reports bounded ipynb execution metadata diagnostics without executing notebooks' => static function (TestRunner $t): void {
         $document = (new IpynbReader())->read(json_encode([
