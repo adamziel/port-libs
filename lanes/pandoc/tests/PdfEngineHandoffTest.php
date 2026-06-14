@@ -771,6 +771,156 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst certificate environment provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cert-env-boundary.pdf',
+            'source' => '= Typst Certificate Environment Boundary Packet',
+            'engineEnvironment' => [
+                'TYPST_CERT' => 'certs/env-ca.pem',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst certificate environment boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'environmentVariables' => ['TYPST_CERT'],
+            'certificates' => [
+                [
+                    'raw' => 'certs/env-ca.pem',
+                    'path' => 'certs/env-ca.pem',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                    'source' => 'environment',
+                    'environmentVariable' => 'TYPST_CERT',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cert-env-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cert-env-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(1, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['certificateCount']);
+        $t->same(0, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificates:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst certificate environment shadow provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cert-env-shadow.pdf',
+            'source' => '= Typst Certificate Environment Shadow Packet',
+            'engineOptions' => [
+                '--cert=certs/cli-ca.pem',
+            ],
+            'engineEnvironment' => [
+                'TYPST_CERT' => 'https://ca.example.invalid/root.pem',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst certificate environment shadow packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'certificate-external-boundary',
+                'certificate-environment-shadowed',
+            ],
+            'environmentVariables' => ['TYPST_CERT'],
+            'certificates' => [
+                ['raw' => 'certs/cli-ca.pem', 'path' => 'certs/cli-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'certificatePolicy' => [
+                'reviewStatus' => 'review',
+                'certificateCount' => 2,
+                'safeCertificateCount' => 1,
+                'unsafeCertificateCount' => 1,
+                'relativeCertificateCount' => 1,
+                'workspaceCertificateCount' => 0,
+                'absoluteCertificateCount' => 0,
+                'uriCertificateCount' => 1,
+                'invalidCertificateCount' => 0,
+                'issues' => [
+                    'certificate-external-boundary',
+                    'certificate-environment-shadowed',
+                ],
+            ],
+            'certificateEnvironment' => [
+                'raw' => 'https://ca.example.invalid/root.pem',
+                'path' => 'https://ca.example.invalid/root.pem',
+                'kind' => 'uri',
+                'safe' => false,
+                'issues' => [
+                    'certificate-external-boundary',
+                    'certificate-environment-shadowed',
+                ],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_CERT',
+                'shadowedBy' => 'engine-option',
+                'selected' => 'certs/cli-ca.pem',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cert-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cert-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(2, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['unsafePathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['certificateCount']);
+        $t->same(2, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-environment:https://ca.example.invalid/root.pem', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificate-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst system font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

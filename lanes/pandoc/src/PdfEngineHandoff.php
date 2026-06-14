@@ -304,6 +304,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
+            if (($typstBoundaryProvenance['certificateEnvironment'] ?? null) !== null) {
+                $certificateEnvironment = $typstBoundaryProvenance['certificateEnvironment'];
+                if (is_array($certificateEnvironment) && is_string($certificateEnvironment['path'] ?? null)) {
+                    $diagnostics[] = 'typst-certificate-environment:' . ($certificateEnvironment['path'] === '' ? 'invalid' : $certificateEnvironment['path']);
+                    if (in_array('certificate-environment-shadowed', $certificateEnvironment['issues'] ?? [], true)) {
+                        $diagnostics[] = 'typst-certificate-environment-shadowed';
+                    }
+                }
+            }
             if (($typstBoundaryProvenance['certificatePolicy'] ?? []) !== []) {
                 $certificatePolicy = $typstBoundaryProvenance['certificatePolicy'];
                 if (is_array($certificatePolicy) && is_string($certificatePolicy['reviewStatus'] ?? null)) {
@@ -6363,6 +6372,8 @@ final class PdfEngineHandoff
         $packagePathEnvironmentShadow = null;
         $packageCacheEnvironmentVariable = null;
         $packageCacheEnvironmentShadow = null;
+        $certificateEnvironmentVariable = null;
+        $certificateEnvironmentShadow = null;
         $creationTimestampEnvironmentVariable = null;
         $creationTimestampEnvironmentShadow = null;
         $featureGateEnvironmentVariable = null;
@@ -6441,6 +6452,20 @@ final class PdfEngineHandoff
             )));
             $environmentVariables[] = 'TYPST_PACKAGE_CACHE_PATH';
         }
+        if ($certificateValues === [] && array_key_exists('TYPST_CERT', $engineEnvironment)) {
+            $certificateValues = [$engineEnvironment['TYPST_CERT']];
+            $certificateEnvironmentVariable = 'TYPST_CERT';
+            $environmentVariables[] = 'TYPST_CERT';
+        } elseif ($certificateValues !== [] && array_key_exists('TYPST_CERT', $engineEnvironment)) {
+            $certificateEnvironmentShadow = $this->typstBoundaryPathEntryFromSource($engineEnvironment['TYPST_CERT'], 'certificate', 'TYPST_CERT');
+            $certificateEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $certificateEnvironmentShadow['selected'] = $certificateValues[count($certificateValues) - 1];
+            $certificateEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $certificateEnvironmentShadow['issues'],
+                ['certificate-environment-shadowed']
+            )));
+            $environmentVariables[] = 'TYPST_CERT';
+        }
         if ($creationTimestampValues === [] && array_key_exists('SOURCE_DATE_EPOCH', $engineEnvironment)) {
             $creationTimestampValues = [$engineEnvironment['SOURCE_DATE_EPOCH']];
             $creationTimestampEnvironmentVariable = 'SOURCE_DATE_EPOCH';
@@ -6479,7 +6504,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $certificateEnvironmentShadow === null && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6495,10 +6520,12 @@ final class PdfEngineHandoff
         );
         $fontPathPolicy = $this->typstFontPathPolicy($fontPaths);
         $certificates = array_map(
-            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
+            fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'certificate', $certificateEnvironmentVariable),
             $certificateValues
         );
-        $certificatePolicy = $this->typstCertificatePolicy($certificates);
+        $certificatePolicy = $this->typstCertificatePolicy(
+            array_values(array_filter(array_merge($certificates, [$certificateEnvironmentShadow])))
+        );
         $packagePathHistory = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntryFromSource($value, 'package-path', $packagePathEnvironmentVariable),
             $packagePathValues
@@ -6639,6 +6666,9 @@ final class PdfEngineHandoff
         foreach (($packageCacheEnvironmentShadow['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
+        foreach (($certificateEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6693,6 +6723,9 @@ final class PdfEngineHandoff
         }
         if ($packageCacheEnvironmentShadow !== null) {
             $provenance['packageCacheEnvironment'] = $packageCacheEnvironmentShadow;
+        }
+        if ($certificateEnvironmentShadow !== null) {
+            $provenance['certificateEnvironment'] = $certificateEnvironmentShadow;
         }
         if ($pdfStandard !== null) {
             $provenance['pdfStandard'] = $pdfStandard;
@@ -6963,6 +6996,7 @@ final class PdfEngineHandoff
                 $appendPathEntry($entry);
             }
         }
+        $appendPathEntry($provenance['certificateEnvironment'] ?? null);
         $appendPathEntry($provenance['packagePath'] ?? null);
         $appendPathEntry($provenance['packagePathEnvironment'] ?? null);
         $appendPathEntry($provenance['packageCache'] ?? null);
