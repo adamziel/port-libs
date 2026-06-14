@@ -467,7 +467,7 @@ final class OdfReader
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
             $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
-            $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
+            $declaredSize = self::manifestDeclaredSize(self::attr($entryElement, self::MANIFEST_NS, 'size'));
             $attributeProvenance = $this->manifestFileEntryAttributeProvenance($entryElement);
             $encryptionElements = self::childElements($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElements !== [];
@@ -507,7 +507,10 @@ final class OdfReader
                 'customManifestAttributeNames' => $attributeProvenance['customAttributeNames'],
                 'customManifestAttributes' => $attributeProvenance['customAttributes'],
                 'customManifestAttributeMap' => $attributeProvenance['customAttributeMap'],
-                'declaredSize' => $declaredSize,
+                'declaredSize' => $declaredSize['value'],
+                'declaredSizeRaw' => $declaredSize['raw'],
+                'declaredSizeValid' => $declaredSize['valid'],
+                'declaredSizeInvalid' => $declaredSize['invalid'],
                 'encrypted' => $encrypted,
                 'encryption' => $encrypted ? $this->encryptionRecords($encryptionElements) : null,
             ];
@@ -540,6 +543,9 @@ final class OdfReader
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
             $missingFileMediaType = $mediaType === '' && is_string($part) && $part !== '' && !$isDirectory;
             $diagnostics = $missingFileMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
+            if (($rawItem['declaredSizeInvalid'] ?? false) === true) {
+                $diagnostics[] = 'odf-manifest-invalid-declared-size';
+            }
             $encrypted = ($rawItem['encrypted'] ?? false) === true;
             $declaredSize = is_int($rawItem['declaredSize'] ?? null) ? $rawItem['declaredSize'] : null;
             $declaredSizeMismatch = !$encrypted
@@ -1054,6 +1060,10 @@ final class OdfReader
                 'mediaType' => $item['mediaType'] ?? null,
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'manifestAttributeCount' => $item['manifestAttributeCount'] ?? 0,
                 'manifestAttributeNames' => $item['manifestAttributeNames'] ?? [],
                 'customManifestAttributeCount' => $item['customManifestAttributeCount'] ?? 0,
@@ -1169,6 +1179,10 @@ final class OdfReader
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
                 'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
+                'manifestDeclaredSize' => is_array($manifestItem) ? ($manifestItem['declaredSize'] ?? null) : null,
+                'manifestDeclaredSizeRaw' => is_array($manifestItem) ? ($manifestItem['declaredSizeRaw'] ?? null) : null,
+                'manifestDeclaredSizeValid' => is_array($manifestItem) && ($manifestItem['declaredSizeValid'] ?? false) === true,
+                'manifestDeclaredSizeInvalid' => is_array($manifestItem) && ($manifestItem['declaredSizeInvalid'] ?? false) === true,
                 'manifestAttributeCount' => is_array($manifestItem) ? ($manifestItem['manifestAttributeCount'] ?? 0) : 0,
                 'manifestAttributeNames' => is_array($manifestItem) ? ($manifestItem['manifestAttributeNames'] ?? []) : [],
                 'customManifestAttributeCount' => is_array($manifestItem) ? ($manifestItem['customManifestAttributeCount'] ?? 0) : 0,
@@ -12822,6 +12836,9 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'encrypted' => $encrypted,
@@ -13943,6 +13960,7 @@ final class OdfReader
         $emptyMediaTypeParts = [];
         $emptyMediaTypeDirectoryParts = [];
         $emptyMediaTypeNonDirectoryItems = [];
+        $invalidDeclaredSizeItems = [];
         $diagnostics = [];
         $summary = [
             'manifestItemCount' => count($manifest),
@@ -13967,6 +13985,8 @@ final class OdfReader
             'preferredViewModes' => [],
             'preferredViewModeItems' => [],
             'declaredSizeMismatchCount' => 0,
+            'invalidDeclaredSizeCount' => 0,
+            'invalidDeclaredSizeItems' => [],
             'parameterizedItemCount' => 0,
             'mediaTypeParameterNames' => [],
             'storedByteLength' => 0,
@@ -13991,6 +14011,7 @@ final class OdfReader
             $isDirectory = ($item['isDirectory'] ?? false) === true;
             $encrypted = ($item['encrypted'] ?? false) === true;
             $declaredSizeMismatch = ($item['declaredSizeMismatch'] ?? false) === true;
+            $declaredSizeInvalid = ($item['declaredSizeInvalid'] ?? false) === true;
             $byteLength = $item['byteLength'] ?? null;
             $storedByteLength = $item['storedByteLength'] ?? null;
             $compressedByteLength = $item['compressedByteLength'] ?? null;
@@ -14011,6 +14032,19 @@ final class OdfReader
             }
             if ($declaredSizeMismatch) {
                 ++$summary['declaredSizeMismatchCount'];
+            }
+            if ($declaredSizeInvalid) {
+                ++$summary['invalidDeclaredSizeCount'];
+                $invalidDeclaredSizeItems[] = self::withoutEmpty([
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $item['part'] ?? null,
+                    'mediaType' => $mediaType,
+                    'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                    'diagnostics' => $itemDiagnostics,
+                ]);
             }
             if ($manifestVersion !== '') {
                 ++$summary['versionedItemCount'];
@@ -14117,6 +14151,7 @@ final class OdfReader
                     'preferredViewModeCount' => 0,
                     'preferredViewModes' => [],
                     'declaredSizeMismatchCount' => 0,
+                    'invalidDeclaredSizeCount' => 0,
                     'storedByteLength' => 0,
                     'compressedByteLength' => 0,
                     'exposableByteLength' => 0,
@@ -14179,6 +14214,9 @@ final class OdfReader
             if ($declaredSizeMismatch) {
                 ++$groups[$groupMediaType]['declaredSizeMismatchCount'];
             }
+            if ($declaredSizeInvalid) {
+                ++$groups[$groupMediaType]['invalidDeclaredSizeCount'];
+            }
             if (is_int($storedByteLength)) {
                 $groups[$groupMediaType]['storedByteLength'] += $storedByteLength;
             }
@@ -14215,6 +14253,7 @@ final class OdfReader
         $summary['emptyMediaTypeDirectoryParts'] = $emptyMediaTypeDirectoryParts;
         $summary['emptyMediaTypeNonDirectoryCount'] = count($emptyMediaTypeNonDirectoryItems);
         $summary['emptyMediaTypeNonDirectoryItems'] = $emptyMediaTypeNonDirectoryItems;
+        $summary['invalidDeclaredSizeItems'] = $invalidDeclaredSizeItems;
         $summary['diagnosticCount'] = count($diagnostics);
         $summary['diagnosticCodeCounts'] = $this->diagnosticCodeCounts($diagnostics);
         $summary['diagnostics'] = $diagnostics;
@@ -14960,6 +14999,50 @@ final class OdfReader
     private static function nullableInt(string $value): ?int
     {
         return ctype_digit($value) ? (int) $value : null;
+    }
+
+    /**
+     * @return array{raw:string|null,value:int|null,valid:bool,invalid:bool}
+     */
+    private static function manifestDeclaredSize(string $value): array
+    {
+        $raw = trim($value);
+        if ($raw === '') {
+            return [
+                'raw' => null,
+                'value' => null,
+                'valid' => false,
+                'invalid' => false,
+            ];
+        }
+
+        if (!ctype_digit($raw)) {
+            return [
+                'raw' => $raw,
+                'value' => null,
+                'valid' => false,
+                'invalid' => true,
+            ];
+        }
+
+        $normalized = ltrim($raw, '0');
+        $normalized = $normalized === '' ? '0' : $normalized;
+        $max = (string) PHP_INT_MAX;
+        if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
+            return [
+                'raw' => $raw,
+                'value' => null,
+                'valid' => false,
+                'invalid' => true,
+            ];
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => (int) $normalized,
+            'valid' => true,
+            'invalid' => false,
+        ];
     }
 
     private static function nullableBool(string $value): ?bool

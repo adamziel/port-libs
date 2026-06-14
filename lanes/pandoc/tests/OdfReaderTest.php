@@ -9810,6 +9810,70 @@ XML;
         $t->same(0, $result['importReport']['manifest']['encryptedCount']);
         $t->same(8, count($result['document']->children));
     },
+    'preserves ODT manifest invalid declared size provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $oversizedSize = '92233720368547758070';
+        $manifestWithInvalidSizes = str_replace(
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:size="not-a-number"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="' . $oversizedSize . '"/>',
+            ],
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithInvalidSizes));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $summaryByType = [];
+        foreach ($summary['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $order = $provenance['manifestFileEntryOrder'];
+        $heroMedia = $result['media'][0];
+
+        $t->same('not-a-number', $manifestByPath['content.xml']['declaredSizeRaw']);
+        $t->same(null, $manifestByPath['content.xml']['declaredSize']);
+        $t->same(false, $manifestByPath['content.xml']['declaredSizeValid']);
+        $t->same(true, $manifestByPath['content.xml']['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $manifestByPath['content.xml']['diagnostics']);
+
+        $t->same($oversizedSize, $manifestByPath['Pictures/hero.png']['declaredSizeRaw']);
+        $t->same(null, $manifestByPath['Pictures/hero.png']['declaredSize']);
+        $t->same(false, $manifestByPath['Pictures/hero.png']['declaredSizeValid']);
+        $t->same(true, $manifestByPath['Pictures/hero.png']['declaredSizeInvalid']);
+        $t->same(false, $manifestByPath['Pictures/hero.png']['declaredSizeMismatch']);
+        $t->same(true, $manifestByPath['Pictures/hero.png']['canExposeBytes']);
+
+        $t->same($oversizedSize, $heroMedia['declaredSizeRaw']);
+        $t->same(true, $heroMedia['declaredSizeInvalid']);
+        $t->same(false, $heroMedia['declaredSizeMismatch']);
+        $t->same(true, $heroMedia['canExposeBytes']);
+        $t->same(7, $heroMedia['byteLength']);
+
+        $t->same(2, $summary['invalidDeclaredSizeCount']);
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($summary['invalidDeclaredSizeItems'], 'part'));
+        $t->same([
+            'odf-manifest-invalid-declared-size' => 2,
+        ], $summary['diagnosticCodeCounts']);
+        $t->same(0, $summary['declaredSizeMismatchCount']);
+        $t->same(0, $summary['declaredSize']);
+        $t->same(1, $summaryByType['text/xml']['invalidDeclaredSizeCount']);
+        $t->same(1, $summaryByType['image/png']['invalidDeclaredSizeCount']);
+
+        $t->same('not-a-number', $order[1]['declaredSizeRaw']);
+        $t->same(true, $order[1]['declaredSizeInvalid']);
+        $t->same($oversizedSize, $order[4]['declaredSizeRaw']);
+        $t->same(true, $order[4]['declaredSizeInvalid']);
+        $t->same($oversizedSize, $provenance['parts']['Pictures/hero.png']['manifestDeclaredSizeRaw']);
+        $t->same(true, $provenance['parts']['Pictures/hero.png']['manifestDeclaredSizeInvalid']);
+    },
     'preserves ODT manifest key derivation size for encrypted package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $encryptedEntry = <<<'XML'
 <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
