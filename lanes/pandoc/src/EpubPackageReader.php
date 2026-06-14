@@ -793,6 +793,13 @@ final class EpubPackageReader
         $flat = $this->flattenNavigationEntries($entries);
         $documentReport = $this->navDocumentReport($package, $root);
         $pageListReport = $this->pageListReport($flat, $package);
+        $normalizedCollisionReport = $this->navReportWithPageListTargets(
+            $this->navNormalizedCollisionReport(
+                $flat,
+                is_string($documentReport['path'] ?? null) ? $documentReport['path'] : ''
+            ),
+            $pageListReport
+        );
         $hrefPolicyReport = $this->navHrefPolicyReport($flat);
         $hrefNormalizationReport = $this->navHrefNormalizationReport($flat);
         $sections = [];
@@ -861,6 +868,13 @@ final class EpubPackageReader
             'pageList' => $pageListReport,
             'pageListItemCount' => $pageListReport['itemCount'],
             'pageBreakItemCount' => $pageListReport['pageBreakItemCount'],
+            'normalizedCollisionGroupCount' => $normalizedCollisionReport['normalizedCollisionGroupCount'],
+            'normalizedCollisionItemCount' => $normalizedCollisionReport['normalizedCollisionItemCount'],
+            'normalizedCollisionDiagnostics' => $normalizedCollisionReport['normalizedCollisionDiagnostics'],
+            'crossSectionCollisionGroupCount' => $normalizedCollisionReport['crossSectionCollisionGroupCount'],
+            'crossSectionCollisionItemCount' => $normalizedCollisionReport['crossSectionCollisionItemCount'],
+            'crossSectionCollisionDiagnostics' => $normalizedCollisionReport['crossSectionCollisionDiagnostics'],
+            'diagnosticTypes' => $this->diagnosticTypeCounts($pageListReport['diagnostics']),
             'diagnosticCount' => $pageListReport['diagnosticCount'],
             'diagnostics' => $pageListReport['diagnostics'],
         ];
@@ -1450,11 +1464,9 @@ final class EpubPackageReader
                 continue;
             }
             $reportedSpineItem = ['index' => $index] + $spineItem;
-            if (!isset($spineByPath[$path])) {
-                $spineByPath[$path] = $reportedSpineItem;
-            }
-            if (($spineItem['linear'] ?? false) === true && !isset($readingSpineByPath[$path])) {
-                $readingSpineByPath[$path] = $reportedSpineItem;
+            $spineByPath[$path][] = $reportedSpineItem;
+            if (($spineItem['linear'] ?? false) === true) {
+                $readingSpineByPath[$path][] = $reportedSpineItem;
             }
         }
 
@@ -1484,11 +1496,66 @@ final class EpubPackageReader
             ];
         }
 
+        $targetItems = [];
+        $pageListIndex = 0;
+        foreach ($flat as $sourceIndex => $item) {
+            $type = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($type !== 'page-list') {
+                continue;
+            }
+
+            $href = is_string($item['href'] ?? null) ? $item['href'] : '';
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $external = (bool) ($item['external'] ?? false);
+            if ($href !== '' && $path !== '' && !$external) {
+                $target = $path . ($fragment === '' ? '' : '#' . $fragment);
+                $targetItems[$target][] = [
+                    'index' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                ];
+            }
+            ++$pageListIndex;
+        }
+
+        $duplicatePageTargets = [];
+        $duplicatePageTargetsByTarget = [];
+        $duplicatePageTargetItemCount = 0;
+        foreach ($targetItems as $target => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $group = [
+                'target' => $target,
+                'path' => (string) ($items[0]['path'] ?? ''),
+                'fragment' => (string) ($items[0]['fragment'] ?? ''),
+                'count' => count($items),
+                'indexes' => array_map(static fn (array $item): int => (int) ($item['index'] ?? 0), $items),
+                'sourceIndexes' => array_map(static fn (array $item): int => (int) ($item['sourceIndex'] ?? 0), $items),
+                'hrefs' => array_map(static fn (array $item): string => (string) ($item['href'] ?? ''), $items),
+                'labels' => array_map(static fn (array $item): string => (string) ($item['label'] ?? ''), $items),
+                'items' => array_values($items),
+            ];
+            $duplicatePageTargets[] = $group;
+            $duplicatePageTargetsByTarget[$target] = $group;
+            $duplicatePageTargetItemCount += count($items);
+        }
+
         $pageListItems = [];
         $pageBreakItemCount = 0;
         $diagnostics = [];
         $seenPageListHrefs = [];
         $seenPageListLabels = [];
+        $duplicateSpineTargetsByPath = [];
+        $duplicateSpineTargetItemCount = 0;
         $collisionTargets = [];
         $fragmentTargets = [];
         $readingOrder = [];
@@ -1533,10 +1600,16 @@ final class EpubPackageReader
             $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
             $external = (bool) ($item['external'] ?? false);
             $manifestItem = !$external && $path !== '' ? ($manifestByPath[$path] ?? null) : null;
-            $spineItem = !$external && $path !== '' ? ($spineByPath[$path] ?? null) : null;
-            $readingSpineItem = !$external && $path !== '' ? ($readingSpineByPath[$path] ?? null) : null;
-            $spineIndex = is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null;
-            $spineLinear = is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null;
+            $spineItems = !$external && $path !== '' ? ($spineByPath[$path] ?? []) : [];
+            $readingSpineItems = !$external && $path !== '' ? ($readingSpineByPath[$path] ?? []) : [];
+            $spineItems = is_array($spineItems) ? array_values(array_filter($spineItems, 'is_array')) : [];
+            $readingSpineItems = is_array($readingSpineItems) ? array_values(array_filter($readingSpineItems, 'is_array')) : [];
+            $firstSpineItem = $spineItems[0] ?? null;
+            $spineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $spineItems);
+            $readingSpineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $readingSpineItems);
+            $spineIndex = is_array($firstSpineItem) && is_int($firstSpineItem['index'] ?? null) ? $firstSpineItem['index'] : null;
+            $spineLinear = is_array($firstSpineItem) ? (($firstSpineItem['linear'] ?? false) === true) : null;
+            $duplicatePageTarget = $target !== '' ? ($duplicatePageTargetsByTarget[$target] ?? null) : null;
             $collisions = $target !== '' ? ($collisionsByTarget[$target] ?? []) : [];
             $itemDiagnostics = array_values(array_filter(
                 is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [],
@@ -1566,10 +1639,16 @@ final class EpubPackageReader
                 'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
                 'mediaType' => is_array($manifestItem) && is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null,
                 'spineIndex' => $spineIndex,
-                'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
+                'spineIndexes' => $spineIndexes,
+                'readingSpineIndexes' => $readingSpineIndexes,
+                'spineIdref' => is_array($firstSpineItem) && is_string($firstSpineItem['idref'] ?? null) ? $firstSpineItem['idref'] : null,
                 'spineLinear' => $spineLinear,
                 'linear' => $spineLinear,
-                'inSpineReadingOrder' => is_array($readingSpineItem),
+                'inSpineReadingOrder' => $readingSpineItems !== [],
+                'duplicatePageTarget' => is_array($duplicatePageTarget),
+                'duplicatePageTargetCount' => is_array($duplicatePageTarget) ? (int) ($duplicatePageTarget['count'] ?? 0) : 0,
+                'duplicateSpineTarget' => count($spineItems) > 1,
+                'duplicateSpineTargetCount' => count($spineItems),
                 'collisions' => $collisions,
                 'diagnostics' => $itemDiagnostics,
             ];
@@ -1599,7 +1678,59 @@ final class EpubPackageReader
                 ];
             }
 
-            if (is_array($spineItem)) {
+            if (is_array($duplicatePageTarget)) {
+                $diagnostic = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'pageListIndex' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'type' => 'duplicate-page-list-target',
+                    'navType' => $type,
+                    'href' => $href,
+                    'target' => (string) ($duplicatePageTarget['target'] ?? $target),
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'count' => (int) ($duplicatePageTarget['count'] ?? 0),
+                    'indexes' => is_array($duplicatePageTarget['indexes'] ?? null) ? $duplicatePageTarget['indexes'] : [],
+                    'sourceIndexes' => is_array($duplicatePageTarget['sourceIndexes'] ?? null) ? $duplicatePageTarget['sourceIndexes'] : [],
+                    'message' => 'EPUB page-list contains repeated entries for the same package target',
+                ];
+                $diagnostics[] = $diagnostic;
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+            }
+
+            if (is_array($manifestItem) && count($spineItems) > 1) {
+                ++$duplicateSpineTargetItemCount;
+                if (!isset($duplicateSpineTargetsByPath[$path])) {
+                    $duplicateSpineTargetsByPath[$path] = [
+                        'path' => $path,
+                        'count' => count($spineItems),
+                        'spineIndexes' => $spineIndexes,
+                        'idrefs' => array_map(static fn (array $spineItem): string => (string) ($spineItem['idref'] ?? ''), $spineItems),
+                    ];
+                }
+                $diagnostic = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'pageListIndex' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'type' => 'page-list-target-duplicate-spine-itemref',
+                    'navType' => $type,
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'manifestId' => is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
+                    'count' => count($spineItems),
+                    'spineIndexes' => $spineIndexes,
+                    'idrefs' => $duplicateSpineTargetsByPath[$path]['idrefs'],
+                    'message' => 'EPUB page-list target resolves to multiple spine itemrefs',
+                ];
+                $diagnostics[] = $diagnostic;
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+            }
+
+            if (is_array($firstSpineItem)) {
                 if ($spineLinear === true) {
                     ++$linearTargetCount;
                 } else {
@@ -1616,7 +1747,7 @@ final class EpubPackageReader
                         'path' => $path,
                         'fragment' => $fragment,
                         'spineIndex' => $spineIndex,
-                        'spineIdref' => is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : '',
+                        'spineIdref' => is_string($firstSpineItem['idref'] ?? null) ? $firstSpineItem['idref'] : '',
                         'message' => 'EPUB page-list target resolves to a non-linear spine itemref',
                     ];
                     $diagnostics[] = $diagnostic;
@@ -1665,7 +1796,9 @@ final class EpubPackageReader
                 'path' => $path,
                 'fragment' => $fragment,
                 'spineIndex' => $spineIndex,
-                'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
+                'spineIndexes' => $spineIndexes,
+                'readingSpineIndexes' => $readingSpineIndexes,
+                'spineIdref' => is_array($firstSpineItem) && is_string($firstSpineItem['idref'] ?? null) ? $firstSpineItem['idref'] : null,
                 'linear' => $spineLinear,
             ];
 
@@ -1768,13 +1901,13 @@ final class EpubPackageReader
             }
 
             ++$manifestTargetCount;
-            if (is_array($readingSpineItem)) {
+            if ($readingSpineItems !== []) {
                 ++$spineReadingOrderTargetCount;
                 continue;
             }
 
             ++$outsideSpineTargetCount;
-            $reason = is_array($spineItem) && ($spineItem['linear'] ?? false) !== true
+            $reason = is_array($firstSpineItem) && ($firstSpineItem['linear'] ?? false) !== true
                 ? 'nonlinear-spine-item'
                 : 'not-in-spine';
             $diagnostic = [
@@ -1788,8 +1921,10 @@ final class EpubPackageReader
                 'target' => $target,
                 'path' => $path,
                 'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
-                'spineIndex' => is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null,
-                'spineLinear' => is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null,
+                'spineIndex' => is_array($firstSpineItem) && is_int($firstSpineItem['index'] ?? null) ? $firstSpineItem['index'] : null,
+                'spineIndexes' => $spineIndexes,
+                'readingSpineIndexes' => $readingSpineIndexes,
+                'spineLinear' => is_array($firstSpineItem) ? (($firstSpineItem['linear'] ?? false) === true) : null,
                 'reason' => $reason,
                 'message' => 'EPUB page-list target is in the manifest but outside the linear spine reading order',
             ];
@@ -1850,6 +1985,12 @@ final class EpubPackageReader
             'unresolvedTargetCount' => $unresolvedTargetCount,
             'collisionTargetCount' => count($collisionTargets),
             'collisionTargets' => array_values($collisionTargets),
+            'duplicatePageTargetCount' => count($duplicatePageTargets),
+            'duplicatePageTargetItemCount' => $duplicatePageTargetItemCount,
+            'duplicatePageTargets' => $duplicatePageTargets,
+            'duplicateSpineTargetCount' => count($duplicateSpineTargetsByPath),
+            'duplicateSpineTargetItemCount' => $duplicateSpineTargetItemCount,
+            'duplicateSpineTargets' => array_values($duplicateSpineTargetsByPath),
             'repeatedFragmentTargetCount' => count($repeatedFragmentTargets),
             'repeatedFragmentTargets' => $repeatedFragmentTargets,
             'readingOrder' => $readingOrder,
@@ -1857,6 +1998,754 @@ final class EpubPackageReader
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $flat
+     * @return array<string, mixed>
+     */
+    private function navNormalizedCollisionReport(array $flat, string $navPath): array
+    {
+        $sections = [];
+        $sectionKeys = [];
+        $sectionItemIndexes = [];
+        $sectionTargets = [];
+        $crossSectionTargets = [];
+        $diagnostics = [];
+        $normalizedCollisionDiagnostics = [];
+        $itemCount = 0;
+        $targetedItemCount = 0;
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $fragmentTargetCount = 0;
+        $fragmentOnlyTargetCount = 0;
+        $unsafeTargetCount = 0;
+        $packageRootEscapeTargetCount = 0;
+        $normalizedCollisionItemCount = 0;
+
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'toc' && $sectionType !== 'landmarks' && $sectionType !== 'page-list') {
+                continue;
+            }
+
+            $sectionIndex = is_int($item['sectionIndex'] ?? null) ? $item['sectionIndex'] : -1;
+            $sectionKey = $sectionIndex . ':' . $sectionType;
+            if (!isset($sectionKeys[$sectionKey])) {
+                $sectionKeys[$sectionKey] = count($sections);
+                $sectionItemIndexes[$sectionKey] = 0;
+                $sections[] = [
+                    'index' => $sectionIndex,
+                    'sectionIndex' => $sectionIndex,
+                    'id' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                    'sectionLabel' => is_string($item['sectionLabel'] ?? null) ? $item['sectionLabel'] : '',
+                    'type' => $sectionType,
+                    'itemCount' => 0,
+                    'targetedItemCount' => 0,
+                    'localTargetCount' => 0,
+                    'externalTargetCount' => 0,
+                    'fragmentTargetCount' => 0,
+                    'fragmentOnlyTargetCount' => 0,
+                    'unsafeTargetCount' => 0,
+                    'packageRootEscapeTargetCount' => 0,
+                    'normalizedCollisionGroupCount' => 0,
+                    'normalizedCollisionItemCount' => 0,
+                    'diagnosticCount' => 0,
+                    'diagnostics' => [],
+                ];
+            }
+
+            $sectionOffset = $sectionKeys[$sectionKey];
+            $itemIndex = $sectionItemIndexes[$sectionKey]++;
+            ++$itemCount;
+            ++$sections[$sectionOffset]['itemCount'];
+
+            $href = is_string($item['href'] ?? null) ? trim($item['href']) : '';
+            if ($href === '') {
+                continue;
+            }
+
+            ++$targetedItemCount;
+            ++$sections[$sectionOffset]['targetedItemCount'];
+            $path = is_string($item['path'] ?? null) ? $item['path'] : '';
+            $fragment = is_string($item['fragment'] ?? null) ? $item['fragment'] : '';
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            $external = (bool) ($item['external'] ?? false);
+            $unsafe = (bool) ($item['unsafe'] ?? false);
+            $hrefKind = is_string($item['hrefKind'] ?? null) ? $item['hrefKind'] : '';
+            $normalization = is_array($item['normalization'] ?? null) ? $item['normalization'] : [];
+            $packageRootEscape = ($normalization['packageRootEscape'] ?? false) === true;
+            $suffix = $this->hrefSuffix($href);
+            $fragmentOnly = $hrefKind === 'same-document-fragment' || ($path === '' && str_starts_with($href, '#'));
+            $baseDiagnostic = [
+                'sectionIndex' => $sectionIndex,
+                'sectionType' => $sectionType,
+                'sectionId' => is_string($item['sectionId'] ?? null) ? $item['sectionId'] : null,
+                'itemIndex' => $itemIndex,
+                'sourceIndex' => $sourceIndex,
+                'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'href' => $href,
+            ];
+
+            if ($external) {
+                ++$externalTargetCount;
+                ++$sections[$sectionOffset]['externalTargetCount'];
+                if ($packageRootEscape) {
+                    ++$packageRootEscapeTargetCount;
+                    ++$sections[$sectionOffset]['packageRootEscapeTargetCount'];
+                }
+                $diagnostic = $baseDiagnostic + [
+                    'type' => 'external-nav-href-target',
+                    'target' => $target,
+                    'hrefKind' => $hrefKind,
+                    'message' => 'EPUB navigation target resolves outside the package',
+                ];
+                $diagnostics[] = $diagnostic;
+                $sections[$sectionOffset]['diagnostics'][] = $diagnostic;
+                ++$sections[$sectionOffset]['diagnosticCount'];
+                continue;
+            }
+
+            if ($unsafe) {
+                ++$unsafeTargetCount;
+                ++$sections[$sectionOffset]['unsafeTargetCount'];
+                $diagnostic = $baseDiagnostic + [
+                    'type' => 'unsafe-nav-href-target',
+                    'target' => $target,
+                    'hrefKind' => $hrefKind,
+                    'message' => 'EPUB navigation target uses an unsafe href scheme',
+                ];
+                $diagnostics[] = $diagnostic;
+                $sections[$sectionOffset]['diagnostics'][] = $diagnostic;
+                ++$sections[$sectionOffset]['diagnosticCount'];
+                continue;
+            }
+
+            $targetPath = $fragmentOnly ? $navPath : $path;
+            if ($targetPath !== '') {
+                ++$localTargetCount;
+                ++$sections[$sectionOffset]['localTargetCount'];
+            }
+
+            if ($suffix['hasFragment']) {
+                ++$fragmentTargetCount;
+                ++$sections[$sectionOffset]['fragmentTargetCount'];
+                $diagnostic = $baseDiagnostic + [
+                    'type' => $fragmentOnly ? 'fragment-only-nav-href-target' : 'fragment-nav-href-target',
+                    'target' => $fragmentOnly
+                        ? $navPath . '#' . $fragment
+                        : ($target !== '' ? $target : $targetPath . '#' . $fragment),
+                    'path' => $targetPath,
+                    'fragment' => $fragment,
+                    'message' => $fragmentOnly
+                        ? 'EPUB navigation target resolves to a fragment in the navigation document'
+                        : 'EPUB navigation target includes a fragment component',
+                ];
+                $diagnostics[] = $diagnostic;
+                $sections[$sectionOffset]['diagnostics'][] = $diagnostic;
+                ++$sections[$sectionOffset]['diagnosticCount'];
+            }
+
+            if ($fragmentOnly) {
+                ++$fragmentOnlyTargetCount;
+                ++$sections[$sectionOffset]['fragmentOnlyTargetCount'];
+            }
+
+            $normalizedTarget = $this->normalizedNavTarget($targetPath, $suffix['hasFragment'], $fragment);
+            if ($normalizedTarget === '') {
+                continue;
+            }
+
+            $targetDiagnostic = $baseDiagnostic + [
+                'target' => $fragmentOnly
+                    ? $navPath . ($suffix['hasFragment'] ? '#' . $fragment : '')
+                    : ($target !== '' ? $target : $targetPath . ($suffix['hasFragment'] ? '#' . $fragment : '')),
+                'normalizedTarget' => $normalizedTarget,
+                'path' => $targetPath,
+                'fragment' => $fragment,
+                'fragmentOnly' => $fragmentOnly,
+            ];
+            $sectionTargets[$sectionKey][$normalizedTarget][] = $targetDiagnostic;
+            $crossSectionTargets[$normalizedTarget][] = $targetDiagnostic;
+        }
+
+        foreach ($sectionTargets as $sectionKey => $targets) {
+            $sectionOffset = $sectionKeys[$sectionKey] ?? null;
+            if (!is_int($sectionOffset)) {
+                continue;
+            }
+
+            $sectionCollisionDiagnostics = [];
+            foreach ($targets as $normalizedTarget => $matches) {
+                $rawHrefs = array_values(array_unique(array_map(
+                    static fn (array $match): string => (string) ($match['href'] ?? ''),
+                    $matches
+                )));
+                if (count($matches) <= 1 || count($rawHrefs) <= 1) {
+                    continue;
+                }
+
+                $matches = $this->sortNavTargetMatches($matches);
+                $diagnostic = [
+                    'type' => 'normalized-nav-target-collision',
+                    'sectionIndex' => (int) ($matches[0]['sectionIndex'] ?? 0),
+                    'sectionType' => (string) ($matches[0]['sectionType'] ?? ''),
+                    'sectionId' => is_string($matches[0]['sectionId'] ?? null) ? $matches[0]['sectionId'] : null,
+                    'normalizedTarget' => $normalizedTarget,
+                    'itemCount' => count($matches),
+                    'rawHrefCount' => count($rawHrefs),
+                    'itemIndexes' => array_map(static fn (array $match): int => (int) ($match['itemIndex'] ?? 0), $matches),
+                    'sourceIndexes' => array_map(static fn (array $match): int => (int) ($match['sourceIndex'] ?? 0), $matches),
+                    'hrefs' => $rawHrefs,
+                    'targets' => $this->uniqueNavMatchValues($matches, 'target'),
+                    'labels' => array_values(array_filter(
+                        $this->uniqueNavMatchValues($matches, 'label'),
+                        static fn (string $label): bool => $label !== ''
+                    )),
+                    'collisionKinds' => $this->navCollisionKinds($matches),
+                    'message' => 'EPUB navigation section contains distinct hrefs that normalize to the same target',
+                ];
+                $sectionCollisionDiagnostics[] = $diagnostic;
+            }
+
+            $sectionCollisionDiagnostics = $this->sortNavCollisionDiagnostics($sectionCollisionDiagnostics);
+            foreach ($sectionCollisionDiagnostics as $diagnostic) {
+                $normalizedCollisionItemCount += (int) ($diagnostic['itemCount'] ?? 0);
+                $normalizedCollisionDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+                $sections[$sectionOffset]['diagnostics'][] = $diagnostic;
+                ++$sections[$sectionOffset]['diagnosticCount'];
+            }
+
+            $sections[$sectionOffset]['normalizedCollisionGroupCount'] = count($sectionCollisionDiagnostics);
+            $sections[$sectionOffset]['normalizedCollisionItemCount'] = array_sum(array_map(
+                static fn (array $diagnostic): int => (int) ($diagnostic['itemCount'] ?? 0),
+                $sectionCollisionDiagnostics
+            ));
+        }
+
+        $normalizedCollisionDiagnostics = $this->sortNavCollisionDiagnostics($normalizedCollisionDiagnostics);
+        $crossSectionCollisionDiagnostics = $this->crossSectionNavCollisionDiagnostics($crossSectionTargets);
+        $crossSectionCollisionItemCount = array_sum(array_map(
+            static fn (array $diagnostic): int => (int) ($diagnostic['itemCount'] ?? 0),
+            $crossSectionCollisionDiagnostics
+        ));
+        $diagnostics = $this->sortNavDiagnostics(array_merge($diagnostics, $crossSectionCollisionDiagnostics));
+
+        return [
+            'present' => $flat !== [],
+            'itemCount' => $itemCount,
+            'targetedItemCount' => $targetedItemCount,
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'fragmentTargetCount' => $fragmentTargetCount,
+            'fragmentOnlyTargetCount' => $fragmentOnlyTargetCount,
+            'unsafeTargetCount' => $unsafeTargetCount,
+            'packageRootEscapeTargetCount' => $packageRootEscapeTargetCount,
+            'normalizedCollisionGroupCount' => count($normalizedCollisionDiagnostics),
+            'normalizedCollisionItemCount' => $normalizedCollisionItemCount,
+            'normalizedCollisionDiagnostics' => $normalizedCollisionDiagnostics,
+            'crossSectionCollisionGroupCount' => count($crossSectionCollisionDiagnostics),
+            'crossSectionCollisionItemCount' => $crossSectionCollisionItemCount,
+            'crossSectionCollisionDiagnostics' => $crossSectionCollisionDiagnostics,
+            'sections' => $sections,
+            'diagnosticTypes' => $this->diagnosticTypeCounts($diagnostics),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function normalizedNavTarget(string $path, bool $hasFragment, string $fragment): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $target = strtolower($path);
+        if ($hasFragment) {
+            $target .= '#' . strtolower(rawurldecode($fragment));
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function navCollisionKinds(array $matches): array
+    {
+        $hrefs = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['href'] ?? ''),
+            $matches
+        )));
+        $targets = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['target'] ?? ''),
+            $matches
+        )));
+        $kinds = [];
+
+        foreach ($hrefs as $href) {
+            if (preg_match('/%[0-9A-Fa-f]{2}/', $href) === 1) {
+                $kinds['percent-encoding'] = 'percent-encoding';
+            }
+            if (preg_match('~(?:^|/)\.{1,2}(?:/|$)~', explode('#', explode('?', $href, 2)[0], 2)[0]) === 1) {
+                $kinds['dot-segment'] = 'dot-segment';
+            }
+            if (strpos($href, '#') !== false) {
+                $kinds['fragment'] = 'fragment';
+            }
+        }
+
+        if (count(array_unique(array_map('strtolower', $hrefs))) < count($hrefs)
+            || count(array_unique(array_map('strtolower', $targets))) < count($targets)
+        ) {
+            $kinds['case'] = 'case';
+        }
+
+        if ($kinds === []) {
+            $kinds['normalized-target'] = 'normalized-target';
+        }
+
+        return array_values($kinds);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private function crossSectionNavCollisionDiagnostics(array $targets): array
+    {
+        $diagnostics = [];
+        foreach ($targets as $normalizedTarget => $matches) {
+            $sectionKeys = [];
+            foreach ($matches as $match) {
+                $sectionKeys[((int) ($match['sectionIndex'] ?? 0)) . "\0" . ((string) ($match['sectionType'] ?? ''))] = true;
+            }
+            if (count($matches) <= 1 || count($sectionKeys) <= 1) {
+                continue;
+            }
+
+            $matches = $this->sortNavTargetMatches($matches);
+            $sectionTypes = [];
+            $sectionIndexes = [];
+            $sectionIds = [];
+            $itemRefs = [];
+            foreach ($matches as $match) {
+                $sectionType = (string) ($match['sectionType'] ?? '');
+                $sectionIndex = (int) ($match['sectionIndex'] ?? 0);
+                $sectionId = is_string($match['sectionId'] ?? null) ? $match['sectionId'] : null;
+                $sectionTypes[$sectionType] = $sectionType;
+                $sectionIndexes[(string) $sectionIndex] = $sectionIndex;
+                if ($sectionId !== null && $sectionId !== '') {
+                    $sectionIds[$sectionId] = $sectionId;
+                }
+                $itemRefs[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionType' => $sectionType,
+                    'sectionId' => $sectionId,
+                    'itemIndex' => (int) ($match['itemIndex'] ?? 0),
+                    'sourceIndex' => (int) ($match['sourceIndex'] ?? 0),
+                    'depth' => (int) ($match['depth'] ?? 0),
+                    'href' => (string) ($match['href'] ?? ''),
+                    'label' => (string) ($match['label'] ?? ''),
+                ];
+            }
+
+            $rawHrefs = $this->uniqueNavMatchValues($matches, 'href');
+            $diagnostics[] = [
+                'type' => 'cross-section-normalized-nav-target-collision',
+                'normalizedTarget' => $normalizedTarget,
+                'sectionCount' => count($sectionKeys),
+                'sectionTypes' => array_values($sectionTypes),
+                'sectionIndexes' => array_values($sectionIndexes),
+                'sectionIds' => array_values($sectionIds),
+                'itemCount' => count($matches),
+                'rawHrefCount' => count($rawHrefs),
+                'itemRefs' => $itemRefs,
+                'hrefs' => $rawHrefs,
+                'targets' => $this->uniqueNavMatchValues($matches, 'target'),
+                'labels' => array_values(array_filter(
+                    $this->uniqueNavMatchValues($matches, 'label'),
+                    static fn (string $label): bool => $label !== ''
+                )),
+                'collisionKinds' => $this->navCollisionKinds($matches),
+                'message' => 'EPUB navigation sections contain targets that normalize to the same package target',
+            ];
+        }
+
+        return $this->sortNavCrossSectionCollisionDiagnostics($diagnostics);
+    }
+
+    /**
+     * @param array<string, mixed> $navReport
+     * @param array<string, mixed> $pageListReport
+     * @return array<string, mixed>
+     */
+    private function navReportWithPageListTargets(array $navReport, array $pageListReport): array
+    {
+        $pageListItems = is_array($pageListReport['items'] ?? null) ? $pageListReport['items'] : [];
+        $targetsByIndex = [];
+        $targetsBySourceIndex = [];
+        foreach ($pageListItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $summary = $this->pageListTargetSummary($item);
+            $targetsByIndex[(int) ($item['index'] ?? count($targetsByIndex))] = $summary;
+            if (is_int($item['sourceIndex'] ?? null)) {
+                $targetsBySourceIndex[(int) $item['sourceIndex']] = $summary;
+            }
+        }
+
+        if ($targetsByIndex === [] && $targetsBySourceIndex === []) {
+            return $navReport;
+        }
+
+        foreach (['normalizedCollisionDiagnostics', 'crossSectionCollisionDiagnostics', 'diagnostics'] as $key) {
+            if (!is_array($navReport[$key] ?? null)) {
+                continue;
+            }
+
+            $navReport[$key] = $this->navDiagnosticsWithPageListTargets(
+                $navReport[$key],
+                $targetsByIndex,
+                $targetsBySourceIndex
+            );
+        }
+
+        if (is_array($navReport['sections'] ?? null)) {
+            foreach ($navReport['sections'] as $sectionIndex => $section) {
+                if (!is_array($section) || !is_array($section['diagnostics'] ?? null)) {
+                    continue;
+                }
+
+                $navReport['sections'][$sectionIndex]['diagnostics'] = $this->navDiagnosticsWithPageListTargets(
+                    $section['diagnostics'],
+                    $targetsByIndex,
+                    $targetsBySourceIndex
+                );
+            }
+        }
+
+        return $navReport;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function pageListTargetSummary(array $item): array
+    {
+        $path = (string) ($item['path'] ?? '');
+        $fragment = (string) ($item['fragment'] ?? '');
+        $diagnostics = is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [];
+
+        return [
+            'index' => (int) ($item['index'] ?? 0),
+            'sourceIndex' => (int) ($item['sourceIndex'] ?? 0),
+            'navIndex' => (int) ($item['navIndex'] ?? 0),
+            'label' => (string) ($item['label'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => $path . ($fragment === '' ? '' : '#' . $fragment),
+            'path' => $path,
+            'fragment' => $fragment,
+            'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : '',
+            'spineIndex' => $item['spineIndex'] ?? null,
+            'spineIndexes' => $this->integerList($item['spineIndexes'] ?? []),
+            'readingSpineIndexes' => $this->integerList($item['readingSpineIndexes'] ?? []),
+            'inSpineReadingOrder' => ($item['inSpineReadingOrder'] ?? false) === true,
+            'duplicatePageTarget' => ($item['duplicatePageTarget'] ?? false) === true,
+            'duplicatePageTargetCount' => (int) ($item['duplicatePageTargetCount'] ?? 0),
+            'duplicateSpineTarget' => ($item['duplicateSpineTarget'] ?? false) === true,
+            'duplicateSpineTargetCount' => (int) ($item['duplicateSpineTargetCount'] ?? 0),
+            'diagnosticTypes' => array_values(array_filter(
+                array_map(
+                    static fn (mixed $diagnostic): string => is_array($diagnostic) ? (string) ($diagnostic['type'] ?? '') : '',
+                    $diagnostics
+                ),
+                static fn (string $type): bool => $type !== ''
+            )),
+        ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<int>
+     */
+    private function integerList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $item): int => (int) $item, $value));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<int, array<string, mixed>> $targetsByIndex
+     * @param array<int, array<string, mixed>> $targetsBySourceIndex
+     * @return list<array<string, mixed>>
+     */
+    private function navDiagnosticsWithPageListTargets(array $diagnostics, array $targetsByIndex, array $targetsBySourceIndex): array
+    {
+        $enriched = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $enriched[] = $this->navDiagnosticWithPageListTargets($diagnostic, $targetsByIndex, $targetsBySourceIndex);
+        }
+
+        return $enriched;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @param array<int, array<string, mixed>> $targetsByIndex
+     * @param array<int, array<string, mixed>> $targetsBySourceIndex
+     * @return array<string, mixed>
+     */
+    private function navDiagnosticWithPageListTargets(array $diagnostic, array $targetsByIndex, array $targetsBySourceIndex): array
+    {
+        $pageListIndexes = [];
+        $pageListSourceIndexes = [];
+        if (($diagnostic['sectionType'] ?? '') === 'page-list') {
+            foreach ($this->navDiagnosticItemIndexes($diagnostic) as $index) {
+                $pageListIndexes[] = $index;
+            }
+            foreach ($this->integerList($diagnostic['sourceIndexes'] ?? []) as $sourceIndex) {
+                $pageListSourceIndexes[] = $sourceIndex;
+            }
+            if (is_int($diagnostic['sourceIndex'] ?? null)) {
+                $pageListSourceIndexes[] = (int) $diagnostic['sourceIndex'];
+            }
+        }
+
+        if (is_array($diagnostic['itemRefs'] ?? null)) {
+            foreach ($diagnostic['itemRefs'] as $refIndex => $ref) {
+                if (!is_array($ref) || ($ref['sectionType'] ?? '') !== 'page-list') {
+                    continue;
+                }
+
+                $pageListIndex = (int) ($ref['itemIndex'] ?? -1);
+                $pageListSourceIndex = (int) ($ref['sourceIndex'] ?? -1);
+                $pageListIndexes[] = $pageListIndex;
+                $pageListSourceIndexes[] = $pageListSourceIndex;
+                $target = $targetsBySourceIndex[$pageListSourceIndex] ?? ($targetsByIndex[$pageListIndex] ?? null);
+                if (is_array($target)) {
+                    $diagnostic['itemRefs'][$refIndex]['pageListTarget'] = $target;
+                }
+            }
+        }
+
+        $pageListIndexes = $this->uniqueIntegers($pageListIndexes);
+        $pageListSourceIndexes = $this->uniqueIntegers($pageListSourceIndexes);
+        $pageListTargets = [];
+        foreach ($pageListSourceIndexes as $sourceIndex) {
+            if (isset($targetsBySourceIndex[$sourceIndex])) {
+                $pageListTargets[] = $targetsBySourceIndex[$sourceIndex];
+            }
+        }
+        foreach ($pageListIndexes as $index) {
+            if (isset($targetsByIndex[$index]) && !in_array($targetsByIndex[$index], $pageListTargets, true)) {
+                $pageListTargets[] = $targetsByIndex[$index];
+            }
+        }
+
+        if ($pageListTargets === []) {
+            return $diagnostic;
+        }
+
+        $diagnostic['pageListTargetCount'] = count($pageListTargets);
+        $diagnostic['pageListItemIndexes'] = array_column($pageListTargets, 'index');
+        $diagnostic['pageListSpineIndexes'] = $this->uniqueIntegers($this->flattenIntegerField($pageListTargets, 'spineIndexes'));
+        $diagnostic['pageListReadingSpineIndexes'] = $this->uniqueIntegers($this->flattenIntegerField($pageListTargets, 'readingSpineIndexes'));
+        $diagnostic['pageListDuplicatePageTargetCount'] = count(array_filter(
+            $pageListTargets,
+            static fn (array $target): bool => ($target['duplicatePageTarget'] ?? false) === true
+        ));
+        $diagnostic['pageListDuplicateSpineTargetCount'] = count(array_filter(
+            $pageListTargets,
+            static fn (array $target): bool => ($target['duplicateSpineTarget'] ?? false) === true
+        ));
+        $diagnostic['pageListTargets'] = $pageListTargets;
+
+        return $diagnostic;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @return list<int>
+     */
+    private function navDiagnosticItemIndexes(array $diagnostic): array
+    {
+        if (is_array($diagnostic['itemIndexes'] ?? null)) {
+            return $this->integerList($diagnostic['itemIndexes']);
+        }
+        if (isset($diagnostic['itemIndex'])) {
+            return [(int) $diagnostic['itemIndex']];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<int>
+     */
+    private function flattenIntegerField(array $items, string $key): array
+    {
+        $values = [];
+        foreach ($items as $item) {
+            foreach ($this->integerList($item[$key] ?? []) as $value) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<int> $values
+     * @return list<int>
+     */
+    private function uniqueIntegers(array $values): array
+    {
+        $unique = [];
+        foreach ($values as $value) {
+            $value = (int) $value;
+            if (!in_array($value, $unique, true)) {
+                $unique[] = $value;
+            }
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavCollisionDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right);
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavCrossSectionCollisionDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            $leftRefs = is_array($left['itemRefs'] ?? null) ? $left['itemRefs'] : [];
+            $rightRefs = is_array($right['itemRefs'] ?? null) ? $right['itemRefs'] : [];
+            $leftFirst = is_array($leftRefs[0] ?? null) ? $leftRefs[0] : [];
+            $rightFirst = is_array($rightRefs[0] ?? null) ? $rightRefs[0] : [];
+
+            return $this->compareNavDiagnostics($leftFirst, $rightFirst)
+                ?: strcmp((string) ($left['normalizedTarget'] ?? ''), (string) ($right['normalizedTarget'] ?? ''));
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavDiagnostics(array $diagnostics): array
+    {
+        usort($diagnostics, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right)
+                ?: strcmp((string) ($left['type'] ?? ''), (string) ($right['type'] ?? ''))
+                ?: strcmp((string) ($left['normalizedTarget'] ?? ''), (string) ($right['normalizedTarget'] ?? ''));
+        });
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<array<string, mixed>>
+     */
+    private function sortNavTargetMatches(array $matches): array
+    {
+        usort($matches, function (array $left, array $right): int {
+            return $this->compareNavDiagnostics($left, $right)
+                ?: strcmp((string) ($left['href'] ?? ''), (string) ($right['href'] ?? ''));
+        });
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function uniqueNavMatchValues(array $matches, string $key): array
+    {
+        $values = [];
+        foreach ($matches as $match) {
+            $value = (string) ($match[$key] ?? '');
+            if (!in_array($value, $values, true)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     */
+    private function compareNavDiagnostics(array $left, array $right): int
+    {
+        $leftType = (string) ($left['sectionType'] ?? '');
+        $rightType = (string) ($right['sectionType'] ?? '');
+
+        return $this->navSectionTypeRank($leftType) <=> $this->navSectionTypeRank($rightType)
+            ?: ((int) ($left['sectionIndex'] ?? 0) <=> (int) ($right['sectionIndex'] ?? 0))
+            ?: ($this->navDiagnosticFirstItemIndex($left) <=> $this->navDiagnosticFirstItemIndex($right))
+            ?: ((int) ($left['depth'] ?? 0) <=> (int) ($right['depth'] ?? 0));
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     */
+    private function navDiagnosticFirstItemIndex(array $diagnostic): int
+    {
+        if (is_int($diagnostic['itemIndex'] ?? null)) {
+            return (int) $diagnostic['itemIndex'];
+        }
+        if (is_array($diagnostic['itemIndexes'] ?? null) && isset($diagnostic['itemIndexes'][0])) {
+            return (int) $diagnostic['itemIndexes'][0];
+        }
+
+        return PHP_INT_MAX;
+    }
+
+    private function navSectionTypeRank(string $type): int
+    {
+        return match ($type) {
+            'toc' => 0,
+            'landmarks' => 1,
+            'page-list' => 2,
+            default => 3,
+        };
     }
 
     /**
