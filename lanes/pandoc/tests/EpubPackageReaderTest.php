@@ -1472,6 +1472,126 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub page-list duplicate spine target issue ordering' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-page-list-duplicate-spine-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-page-list-duplicate-spine</dc:identifier>
+    <dc:title>Page List Duplicate Spine Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="appendix.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="appendix" linear="no"/>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml#p1">Chapter</a></li>
+      </ol>
+    </nav>
+    <nav epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#p1">1</a></li>
+        <li><a epub:type="pagebreak" href="appendix.xhtml#pa">A</a></li>
+        <li><a epub:type="pagebreak" href="chapter.xhtml#p1">1 again</a></li>
+        <li><a epub:type="pagebreak" href="missing.xhtml#pm">M</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="p1">Page one.</p></body></html>');
+            $writePackageFile($root, 'EPUB/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="pa">Appendix page.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $spineReport = $epub['spineReport'];
+            $pageListReport = $epub['tocReport']['pageList'];
+            $items = $pageListReport['items'];
+
+            $t->same($epub['navReport'], $epub['tocReport']);
+            $t->same([], array_values(array_diff(
+                ['label', 'href', 'path', 'fragment', 'type', 'children'],
+                array_keys($epub['toc'][0])
+            )));
+            $t->same(1, $spineReport['duplicateIdrefCount']);
+            $t->same(2, $spineReport['duplicateIdrefItemCount']);
+            $t->same(['chapter'], $spineReport['duplicateIdrefs']);
+            $t->same([0, 2], $spineReport['duplicateIdrefItems'][0]['indexes']);
+            $t->same(['duplicate-spine-idref', 'duplicate-spine-idref'], array_column($spineReport['duplicateIdrefDiagnostics'], 'type'));
+            $t->same(true, $pageListReport['present']);
+            $t->same(4, $pageListReport['itemCount']);
+            $t->same(4, $pageListReport['targetedItemCount']);
+            $t->same(3, $pageListReport['manifestTargetCount']);
+            $t->same(2, $pageListReport['spineReadingOrderTargetCount']);
+            $t->same(2, $pageListReport['linearTargetCount']);
+            $t->same(1, $pageListReport['nonlinearTargetCount']);
+            $t->same(1, $pageListReport['missingManifestTargetCount']);
+            $t->same(1, $pageListReport['outsideSpineTargetCount']);
+            $t->same(1, $pageListReport['collisionTargetCount']);
+            $t->same(1, $pageListReport['repeatedFragmentTargetCount']);
+            $t->same(8, $pageListReport['diagnosticCount']);
+            $t->same([
+                'page-list-target-nav-collision',
+                'page-list-target-nonlinear-spine-item',
+                'page-list-target-outside-spine-reading-order',
+                'page-list-target-nav-collision',
+                'page-list-reading-order-regression',
+                'duplicate-page-list-href',
+                'missing-page-list-manifest-item',
+                'repeated-page-list-fragment-target',
+            ], array_column($pageListReport['diagnostics'], 'type'));
+            $t->same([0, 1, 0, null], array_column($pageListReport['readingOrder'], 'spineIndex'));
+            $t->same([true, false, true, null], array_column($pageListReport['readingOrder'], 'linear'));
+            $t->same([
+                'EPUB/chapter.xhtml#p1',
+                'EPUB/appendix.xhtml#pa',
+                'EPUB/chapter.xhtml#p1',
+                'EPUB/missing.xhtml#pm',
+            ], array_column($pageListReport['readingOrder'], 'target'));
+            $t->same(['toc'], array_column($items[0]['collisions'], 'type'));
+            $t->same(['page-list-target-nav-collision', 'repeated-page-list-fragment-target'], array_column($items[0]['diagnostics'], 'type'));
+            $t->same([
+                'page-list-target-nonlinear-spine-item',
+                'page-list-target-outside-spine-reading-order',
+            ], array_column($items[1]['diagnostics'], 'type'));
+            $t->same('nonlinear-spine-item', $items[1]['diagnostics'][1]['reason']);
+            $t->same([
+                'page-list-target-nav-collision',
+                'page-list-reading-order-regression',
+                'duplicate-page-list-href',
+                'repeated-page-list-fragment-target',
+            ], array_column($items[2]['diagnostics'], 'type'));
+            $t->same(0, $items[2]['diagnostics'][1]['spineIndex']);
+            $t->same(0, $items[2]['diagnostics'][2]['firstPageListIndex']);
+            $t->same(null, $items[3]['manifestId']);
+            $t->same(['missing-page-list-manifest-item'], array_column($items[3]['diagnostics'], 'type'));
+            $t->same([0, 2], $pageListReport['repeatedFragmentTargets'][0]['indexes']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'maps epub spine xhtml assets into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);
