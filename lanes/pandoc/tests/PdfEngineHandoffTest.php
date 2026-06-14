@@ -4170,6 +4170,146 @@ return [
         $t->contains('typst-import-path-unsupported-reason:dynamic-include-path:1', implode(',', $plan['diagnostics']));
     },
 
+    'plans typst import path literal edge diagnostics without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Literal Edge Packet',
+            '// #import "../ignored/comment.typ": ignored',
+            '/* #include "ignored/block.typ" */',
+            '#let note = "#import \"/ignored/string.typ\": ignored"',
+            "#import '@preview/tablex:0.0.9': tablex",
+            '#import "@preview/tablex:0.0.9": tablexAgain',
+            '#import "themes/local.typ": theme',
+            "#include 'themes/local.typ'",
+            '#include "../escape/outside.typ"',
+            '#include "chapters\\/intro.typ"',
+            '#import "/var/lib/typst/secret.typ": secret',
+            '',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/literal-edges.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/literal-edges.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst literal edge packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/literal-edges.pdf: build/literal-edges.typ @preview/tablex:0.0.9',
+            '',
+        ]);
+        $expectedPackageDependencies = [
+            [
+                'input' => 'typst-package:@preview/tablex:0.0.9',
+                'reference' => '@preview/tablex:0.0.9',
+                'namespace' => 'preview',
+                'package' => 'tablex',
+                'version' => '0.0.9',
+                'subpath' => null,
+                'sourceClass' => 'preview-registry',
+            ],
+        ];
+        $expectedIssueCounts = [
+            'absolute-import-path' => 1,
+            'duplicate-import-path' => 2,
+            'parent-relative-include-path' => 1,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/literal-edges.d' => $depfile,
+                'build/literal-edges.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/literal-edges.d' => $depfile,
+                'build/literal-edges.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $policy = $plan['typstImportPathPolicy'];
+        $policyPaths = array_map(static fn (array $entry): string => (string) ($entry['path'] ?? ''), $policy['paths']);
+
+        $t->same('review', $policy['reviewStatus']);
+        $t->same(true, $policy['metadataOnly']);
+        $t->same('not-executed', $policy['networkAccessPolicy']);
+        $t->same(7, $policy['pathCount']);
+        $t->same(7, $policy['literalPathCount']);
+        $t->same(4, $policy['importCount']);
+        $t->same(3, $policy['includeCount']);
+        $t->same(2, $policy['packagePathCount']);
+        $t->same(4, $policy['localPathCount']);
+        $t->same(1, $policy['absolutePathCount']);
+        $t->same(2, $policy['unsafePathCount']);
+        $t->same(2, $policy['duplicatePathCount']);
+        $t->same(2, $policy['duplicateReferenceCount']);
+        $t->same(0, $policy['unsupportedCount']);
+        $t->same(['preview-registry' => 2], $policy['sourceClassCounts']);
+        $t->same(['@preview/tablex:0.0.9'], $policy['packageImportReferences']);
+        $t->same($expectedPackageDependencies, $policy['packageDependencies']);
+        $t->same(['../escape/outside.typ', 'chapters/intro.typ', 'themes/local.typ'], $policy['localImportHints']);
+        $t->same(['../escape/outside.typ', '/var/lib/typst/secret.typ'], $policy['unsafeImportPaths']);
+        $t->same([
+            [
+                'path' => '@preview/tablex:0.0.9',
+                'count' => 2,
+                'operations' => ['import' => 2],
+                'lines' => [5, 6],
+            ],
+            [
+                'path' => 'themes/local.typ',
+                'count' => 2,
+                'operations' => ['import' => 1, 'include' => 1],
+                'lines' => [7, 8],
+            ],
+        ], $policy['duplicates']);
+        $t->same($expectedIssueCounts, $policy['issueCounts']);
+        $t->same([
+            'package-import-paths:2',
+            'absolute-import-path:1',
+            'duplicate-import-path:2',
+            'parent-relative-include-path:1',
+        ], $policy['issues']);
+        $t->same(false, in_array('../ignored/comment.typ', $policyPaths, true));
+        $t->same(false, in_array('ignored/block.typ', $policyPaths, true));
+        $t->same(false, in_array('/ignored/string.typ', $policyPaths, true));
+        $resultPolicy = $policy;
+        $resultPolicy['sourceSidecarPackageComparison'] = [
+            'sourcePackageCount' => 1,
+            'sidecarPackageCount' => 1,
+            'sourceOnlyCount' => 0,
+            'sidecarOnlyCount' => 0,
+            'sourcePackageReferences' => ['@preview/tablex:0.0.9'],
+            'sidecarPackageReferences' => ['@preview/tablex:0.0.9'],
+            'sourceOnlyPackageImports' => [],
+            'sidecarOnlyPackageImports' => [],
+        ];
+        $resultPolicy['sourceSidecarPackageConflictCount'] = 0;
+        $resultPolicy['sourceSidecarPackageConflicts'] = [];
+        $resultPolicy['literalDynamicImportConflictCount'] = 0;
+        $resultPolicy['literalDynamicImportConflicts'] = [];
+        $resultPolicy['dynamicSidecarPackageConflictCount'] = 0;
+        $resultPolicy['dynamicSidecarPackageConflicts'] = [];
+        $t->same($resultPolicy, $result['typstImportPathPolicy']);
+        $t->same($resultPolicy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same($resultPolicy, $sequence['finalTypstImportPathPolicy']);
+        $t->same($expectedPackageDependencies, $result['engineTypstPackageDependencies']);
+        $t->same(1, $result['typstPackageDependencyPolicy']['packageDependencyCount']);
+        $t->same(['preview-registry' => 1], $result['typstPackageDependencyPolicy']['sourceClassCounts']);
+        $t->same($result['typstPackageDependencyPolicy'], $result['artifactProvenanceReview']['typstPackageDependencyPolicy']);
+        $t->contains('typst-import-path-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-paths:7', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-packages:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-local:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-absolute:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsafe:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-duplicates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-source:preview-registry:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:absolute-import-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:duplicate-import-path:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:parent-relative-include-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+    },
+
     'fake runner normalizes typst package cache paths into dependency provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Cache Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
