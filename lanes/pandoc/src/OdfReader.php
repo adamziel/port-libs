@@ -1028,6 +1028,10 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $manifestByteExposurePolicyCounts = [];
+        $manifestByteExposurePolicyItems = [];
+        $packagePartByteExposurePolicyCounts = [];
+        $packagePartByteExposurePolicyItems = [];
         $manifestCustomAttributeCount = 0;
         $manifestCustomAttributeNames = [];
         $manifestCustomAttributeItems = [];
@@ -1077,6 +1081,22 @@ final class OdfReader
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
+            $manifestByteExposurePolicy = $item['byteExposurePolicy'] ?? null;
+            if (is_string($manifestByteExposurePolicy) && $manifestByteExposurePolicy !== '') {
+                $manifestByteExposurePolicyCounts[$manifestByteExposurePolicy] = ($manifestByteExposurePolicyCounts[$manifestByteExposurePolicy] ?? 0) + 1;
+                $manifestByteExposurePolicyItems[] = self::withoutEmpty([
+                    'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestByteExposurePolicyItems),
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'mediaType' => $item['mediaType'] ?? null,
+                    'byteExposurePolicy' => $manifestByteExposurePolicy,
+                    'exists' => ($item['exists'] ?? false) === true,
+                    'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                    'encrypted' => ($item['encrypted'] ?? false) === true,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                    'diagnostics' => $item['diagnostics'] ?? [],
+                ]);
+            }
             $customManifestAttributes = is_array($item['customManifestAttributes'] ?? null)
                 ? $item['customManifestAttributes']
                 : [];
@@ -1139,7 +1159,8 @@ final class OdfReader
         $parts = [];
         foreach ($package->entries() as $centralDirectoryIndex => $entry) {
             $manifestItem = $manifestByPart[$entry->name] ?? null;
-            $isUndeclared = isset($undeclaredByPart[$entry->name]);
+            $undeclaredItem = $undeclaredByPart[$entry->name] ?? null;
+            $isUndeclared = is_array($undeclaredItem);
             if ($entry->isDirectory()) {
                 $packageDirectoryCount++;
             }
@@ -1147,6 +1168,9 @@ final class OdfReader
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
+            $byteExposurePolicy = is_array($manifestItem)
+                ? ($manifestItem['byteExposurePolicy'] ?? null)
+                : (is_array($undeclaredItem) ? ($undeclaredItem['byteExposurePolicy'] ?? null) : null);
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
@@ -1210,10 +1234,22 @@ final class OdfReader
                 'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
-                'byteExposurePolicy' => is_array($manifestItem) ? ($manifestItem['byteExposurePolicy'] ?? null) : null,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
             ] + $rawNameProvenance;
 
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                $packagePartByteExposurePolicyItems[] = self::withoutEmpty([
+                    'part' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'roles' => $roles,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'declaredInManifest' => is_array($manifestItem),
+                    'undeclared' => $isUndeclared,
+                    'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
+                ]);
+            }
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
                 if ($isUndeclared) {
@@ -1263,6 +1299,8 @@ final class OdfReader
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        ksort($manifestByteExposurePolicyCounts, SORT_STRING);
+        ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         sort($manifestCustomAttributeNames, SORT_STRING);
 
@@ -1272,6 +1310,9 @@ final class OdfReader
             'manifestDeclaredPartCount' => count($manifestByPart),
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
+            'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,
+            'manifestByteExposurePolicyItemCount' => count($manifestByteExposurePolicyItems),
+            'manifestByteExposurePolicyItems' => $manifestByteExposurePolicyItems,
             'manifestCustomAttributeEntryCount' => count($manifestCustomAttributeItems),
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
@@ -1285,6 +1326,9 @@ final class OdfReader
             'mediaResources' => $mediaResourceSummary,
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
+            'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
+            'packagePartByteExposurePolicyItemCount' => count($packagePartByteExposurePolicyItems),
+            'packagePartByteExposurePolicyItems' => $packagePartByteExposurePolicyItems,
             'corePackagePartCount' => $corePackagePartCount,
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,

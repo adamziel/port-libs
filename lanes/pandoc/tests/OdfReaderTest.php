@@ -10168,6 +10168,31 @@ XML;
         $heroEncryption = $manifestByPart['Pictures/hero.png']['encryption'];
         $undeclared = $result['importReport']['manifest']['undeclaredEntries'][0];
 
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'missing-media-type-bytes-blocked' => 1,
+            'missing-package-part' => 1,
+            'package-bytes-exposable' => 3,
+            'package-root-no-bytes' => 1,
+            'script-package-bytes-blocked' => 1,
+        ], $provenance['manifestByteExposurePolicyCounts']);
+        $t->same(8, $provenance['manifestByteExposurePolicyItemCount']);
+        $t->same(
+            ['/', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png', 'Pictures/missing.png', 'Pictures/nameless.bin', 'Basic/Standard/Module1.xml'],
+            array_column($provenance['manifestByteExposurePolicyItems'], 'fullPath')
+        );
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'missing-media-type-bytes-blocked' => 1,
+            'package-bytes-exposable' => 3,
+            'script-package-bytes-blocked' => 1,
+            'undeclared-package-entry-no-bytes' => 1,
+        ], $provenance['packagePartByteExposurePolicyCounts']);
+        $t->same(7, $provenance['packagePartByteExposurePolicyItemCount']);
+        $t->same(
+            ['content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png', 'Pictures/nameless.bin', 'Basic/Standard/Module1.xml', 'ObjectReplacements/object1.bin'],
+            array_column($provenance['packagePartByteExposurePolicyItems'], 'part')
+        );
         $t->same('package-root-no-bytes', $provenance['manifestFileEntryOrder'][0]['byteExposurePolicy']);
         $t->same('package-bytes-exposable', $manifestByPart['content.xml']['byteExposurePolicy']);
         $t->same('encrypted-resource-bytes-blocked', $manifestByPart['Pictures/hero.png']['byteExposurePolicy']);
@@ -10182,6 +10207,7 @@ XML;
         $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Module1.xml']['byteExposurePolicy']);
         $t->same('script-package-bytes-blocked', $parts['Basic/Standard/Module1.xml']['byteExposurePolicy']);
         $t->same('undeclared-package-entry-no-bytes', $undeclared['byteExposurePolicy']);
+        $t->same('undeclared-package-entry-no-bytes', $parts['ObjectReplacements/object1.bin']['byteExposurePolicy']);
         $t->same(['odf-manifest-undeclared-package-entry'], $undeclared['diagnostics']);
     },
     'preserves ODT sidecar blocked-byte provenance and package ordering' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $stylesXml, $metaXml): void {
