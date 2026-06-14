@@ -7203,6 +7203,287 @@ return [
         $t->same(3, $jsonRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
         $t->same(3, $nativeRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
     },
+    'maps json native constructor matrix cases through reader writer stacks' => static function (TestRunner $t): void {
+        $cases = [
+            'metadata constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [
+                        'review' => ['t' => 'MetaMap', 'c' => [
+                            'flags' => ['t' => 'MetaList', 'c' => [
+                                ['t' => 'MetaString', 'c' => 'json-native'],
+                                ['t' => 'MetaBool', 'c' => true],
+                            ]],
+                            'inline' => ['t' => 'MetaInlines', 'c' => [
+                                ['t' => 'Span', 'c' => [
+                                    ['matrix-inline', ['meta'], []],
+                                    [['t' => 'Str', 'c' => 'inline']],
+                                ]],
+                            ]],
+                            'body' => ['t' => 'MetaBlocks', 'c' => [
+                                ['t' => 'BlockQuote', 'c' => [
+                                    ['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'body']]],
+                                ]],
+                            ]],
+                        ]],
+                    ],
+                    'blocks' => [],
+                ],
+                'types' => [],
+                'tags' => [],
+            ],
+            'nullary block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'HorizontalRule'],
+                        ['t' => 'Null'],
+                    ],
+                ],
+                'types' => ['horizontal_rule', 'null_block'],
+                'tags' => ['HorizontalRule', 'Null'],
+            ],
+            'structural block constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'BlockQuote', 'c' => [
+                            ['t' => 'Para', 'c' => [
+                                ['t' => 'Str', 'c' => 'Quoted'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'matrix'],
+                            ]],
+                        ]],
+                        ['t' => 'Div', 'c' => [
+                            ['matrix-div', ['review'], [['data-source', 'matrix']]],
+                            [
+                                ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Wrapped']]],
+                            ],
+                        ]],
+                    ],
+                ],
+                'types' => ['blockquote', 'div'],
+                'tags' => ['BlockQuote', 'Div'],
+            ],
+            'list constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'OrderedList', 'c' => [
+                            [4, ['t' => 'UpperRoman'], ['t' => 'OneParen']],
+                            [[
+                                ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Ordered']]],
+                            ]],
+                        ]],
+                        ['t' => 'BulletList', 'c' => [[
+                            ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Bullet']]],
+                        ]]],
+                    ],
+                ],
+                'types' => ['ordered_list', 'bullet_list'],
+                'tags' => ['OrderedList', 'BulletList'],
+            ],
+            'definition and line constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'DefinitionList', 'c' => [[
+                            [
+                                ['t' => 'Str', 'c' => 'Term'],
+                            ],
+                            [[
+                                ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Definition']]],
+                            ]],
+                        ]]],
+                        ['t' => 'LineBlock', 'c' => [[
+                            ['t' => 'Str', 'c' => 'Line'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'one'],
+                        ]]],
+                    ],
+                ],
+                'types' => ['definition_list', 'line_block'],
+                'tags' => ['DefinitionList', 'LineBlock'],
+            ],
+            'raw format constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'RawBlock', 'c' => [
+                            ['t' => 'Format', 'c' => 'html'],
+                            '<section>raw</section>',
+                        ]],
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'RawInline', 'c' => [
+                                ['t' => 'Format', 'c' => 'latex'],
+                                '\\alpha',
+                            ]],
+                        ]],
+                    ],
+                ],
+                'types' => ['raw_html', 'paragraph'],
+                'tags' => ['RawBlock', 'Para'],
+            ],
+            'target and attr inline constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Code', 'c' => [
+                                ['matrix-code', ['php'], [['data-source', 'matrix']]],
+                                'echo 1;',
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Link', 'c' => [
+                                ['matrix-link', ['source'], [['data-kind', 'link']]],
+                                [['t' => 'Str', 'c' => 'link']],
+                                ['https://example.test/source', 'Source'],
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Image', 'c' => [
+                                ['matrix-image', ['asset'], [['data-kind', 'image']]],
+                                [['t' => 'Str', 'c' => 'alt']],
+                                ['media/image.png', 'Image'],
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Span', 'c' => [
+                                ['matrix-span', ['review'], [['data-kind', 'span']]],
+                                [['t' => 'Str', 'c' => 'span']],
+                            ]],
+                        ]],
+                    ],
+                ],
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
+            'citation constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Cite', 'c' => [
+                                [
+                                    [
+                                        'citationId' => 'doe2026',
+                                        'citationPrefix' => [['t' => 'Str', 'c' => 'see']],
+                                        'citationSuffix' => [],
+                                        'citationMode' => ['t' => 'NormalCitation'],
+                                        'citationNoteNum' => 1,
+                                        'citationHash' => 101,
+                                    ],
+                                    [
+                                        'citationId' => 'roe2026',
+                                        'citationPrefix' => [],
+                                        'citationSuffix' => [['t' => 'Str', 'c' => 'p. 2']],
+                                        'citationMode' => ['t' => 'AuthorInText'],
+                                        'citationNoteNum' => 2,
+                                        'citationHash' => 102,
+                                    ],
+                                    [
+                                        'citationId' => 'noauthor2026',
+                                        'citationPrefix' => [],
+                                        'citationSuffix' => [],
+                                        'citationMode' => ['t' => 'SuppressAuthor'],
+                                        'citationNoteNum' => 3,
+                                        'citationHash' => 103,
+                                    ],
+                                ],
+                                [
+                                    ['t' => 'Str', 'c' => '@doe2026'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => '@roe2026'],
+                                ],
+                            ]],
+                        ]],
+                    ],
+                ],
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
+            'table and figure caption constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Table', 'c' => [
+                            ['matrix-table', ['review'], []],
+                            ['t' => 'Caption', 'c' => [
+                                ['t' => 'Nothing'],
+                                [],
+                            ]],
+                            [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                            ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                            [['t' => 'TableBody', 'c' => [
+                                ['', [], []],
+                                ['t' => 'RowHeadColumns', 'c' => 0],
+                                [],
+                                [['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                                    ]]],
+                                ]]],
+                            ]]],
+                            ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                        ]],
+                        ['t' => 'Figure', 'c' => [
+                            ['matrix-figure', ['review'], []],
+                            ['t' => 'Caption', 'c' => [
+                                ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                                    ['t' => 'Str', 'c' => 'Short'],
+                                ]]]],
+                                [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Long']]]],
+                            ]],
+                            [
+                                ['t' => 'Para', 'c' => [
+                                    ['t' => 'Image', 'c' => [
+                                        ['', [], []],
+                                        [['t' => 'Str', 'c' => 'Alt']],
+                                        ['media/figure.png', 'Figure'],
+                                    ]],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ],
+                'types' => ['table', 'figure'],
+                'tags' => ['Table', 'Figure'],
+            ],
+        ];
+
+        foreach ($cases as $caseName => $case) {
+            $packet = $case['packet'];
+            $expectedMeta = $packet['meta'];
+            $expectedBlocks = $packet['blocks'];
+
+            foreach ([
+                'json' => (new PandocJsonReader())->readPacket($packet),
+                'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+            ] as $source => $document) {
+                $jsonPacket = (new PandocJsonWriter())->toArray($document);
+                $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+                $t->same($case['types'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$caseName} {$source} ast block types");
+                $t->same($case['tags'], array_map(static fn (array $block): string => (string) $block['t'], $jsonPacket['blocks']), "{$caseName} {$source} json block tags");
+                $t->same($case['tags'], array_map(static fn (array $block): string => (string) $block['t'], $nativePacket['blocks']), "{$caseName} {$source} native block tags");
+                $t->same($expectedMeta, $jsonPacket['meta'], "{$caseName} {$source} json metadata constructors");
+                $t->same($expectedMeta, $nativePacket['meta'], "{$caseName} {$source} native metadata constructors");
+                $t->same($expectedBlocks, $jsonPacket['blocks'], "{$caseName} {$source} json block constructors");
+                $t->same($expectedBlocks, $nativePacket['blocks'], "{$caseName} {$source} native block constructors");
+            }
+        }
+    },
     'flushes mixed inline children inside block containers for json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
