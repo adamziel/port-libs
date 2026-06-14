@@ -453,7 +453,7 @@ final class BibtexCslProcessor
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short'],
             'collection-number' => ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number'],
             'version' => ['version'],
-            'status' => ['status', 'pubstate'],
+            'status' => ['status', 'publication-status', 'publicationstatus', 'pubstate'],
             'medium' => ['howpublished', 'medium'],
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
@@ -537,12 +537,12 @@ final class BibtexCslProcessor
             $item['event-date'] = ['date-parts' => [$eventDate]];
         }
 
-        $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword']));
+        $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
         }
 
-        $categories = $this->keywordList($this->firstField($fields, ['categories', 'category']));
+        $categories = $this->keywordList($this->firstField($fields, ['categories', 'category', 'category-list', 'categorylist']));
         if ($categories !== []) {
             $item['categories'] = $categories;
         }

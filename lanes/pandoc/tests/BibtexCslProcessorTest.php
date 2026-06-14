@@ -326,6 +326,59 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-status-hyphen,
+  author             = {Ng, Nia},
+  title              = {Legacy Status Hyphen Packet},
+  journaltitle       = {Migration Review},
+  date               = {2026},
+  publication-status = {accepted},
+  keyword-list       = {source audit; release queue},
+  category-list      = {biblatex, taxonomy}
+}
+
+@report{legacy-status-camel,
+  author            = {Roe, Rae},
+  title             = {Legacy Status Camel Packet},
+  institution       = {Archive Desk},
+  date              = {2025},
+  publicationStatus = {in press},
+  keywordList       = {review queue, compact alias},
+  categoryList      = {handoff; csl}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $hyphen = $items['legacy-status-hyphen'];
+        $camel = $items['legacy-status-camel'];
+        $t->same('accepted', $hyphen['status']);
+        $t->same(['source audit', 'release queue'], $hyphen['keyword']);
+        $t->same(['biblatex', 'taxonomy'], $hyphen['categories']);
+        $t->same('accepted', $hyphen['rawBibtex']['fields']['publication-status']);
+        $t->same('source audit; release queue', $hyphen['rawBibtex']['fields']['keyword-list']);
+        $t->same('biblatex, taxonomy', $hyphen['rawBibtex']['fields']['category-list']);
+        $t->same('in press', $camel['status']);
+        $t->same(['review queue', 'compact alias'], $camel['keyword']);
+        $t->same(['handoff', 'csl'], $camel['categories']);
+        $t->same('in press', $camel['rawBibtex']['fields']['publicationstatus']);
+        $t->same('review queue, compact alias', $camel['rawBibtex']['fields']['keywordlist']);
+        $t->same('handoff; csl', $camel['rawBibtex']['fields']['categorylist']);
+
+        $document = (new MarkdownReader())->read('Legacy status source @legacy-status-hyphen and [@legacy-status-camel] keep alias metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-status-hyphen', 'legacy-status-camel'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('accepted', $handoff['items'][0]['status']);
+        $t->same(['source audit', 'release queue'], $handoff['items'][0]['keyword']);
+        $t->same('in press', $handoff['bibliography']->children[1]->attr('cslItem')['status'] ?? null);
+        $t->contains('<dt>legacy-status-hyphen</dt>', $blocks);
+        $t->contains('Legacy Status Camel Packet', $blocks);
+    },
     'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @dataset{rights-dataset,

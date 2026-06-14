@@ -310,6 +310,110 @@ BIB;
         $t->contains('Smith 1899' . "\n" . ':   Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.', $markdown);
         $t->contains('WordPress Migration Team 2024' . "\n" . ':   WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.', $markdown);
     },
+    'normalizes biblatex status and taxonomy aliases into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{biblatex-status-hyphen,
+  author             = {Ng, Nia},
+  title              = {BibLaTeX Status Hyphen Packet},
+  journaltitle       = {Migration Review},
+  date               = {2026},
+  publication-status = {accepted},
+  keyword-list       = {source audit; release queue},
+  category-list      = {biblatex, taxonomy}
+}
+
+@report{biblatex-status-camel,
+  author            = {Roe, Rae},
+  title             = {BibLaTeX Status Camel Packet},
+  institution       = {Archive Desk},
+  date              = {2025},
+  publicationStatus = {in press},
+  keywordList       = {review queue, compact alias},
+  categoryList      = {handoff; csl}
+}
+
+@misc{biblatex-status-pubstate,
+  author     = {Kim, Kai},
+  title      = {BibLaTeX Status Pubstate Packet},
+  date       = {2024},
+  pubstate   = {preprint},
+  keywords   = {conference, source packet},
+  categories = {legacy; review}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('biblatex-status-hyphen');
+        $camel = $processor->item('biblatex-status-camel');
+        $pubstate = $processor->item('biblatex-status-pubstate');
+        $t->same('accepted', $hyphen['status'] ?? null);
+        $t->same(['source audit', 'release queue'], $hyphen['keywords'] ?? null);
+        $t->same('source audit; release queue', $hyphen['keywordSummary'] ?? null);
+        $t->same(['biblatex', 'taxonomy'], $hyphen['categories'] ?? null);
+        $t->same('biblatex; taxonomy', $hyphen['categorySummary'] ?? null);
+        $t->same('in press', $camel['status'] ?? null);
+        $t->same(['review queue', 'compact alias'], $camel['keywords'] ?? null);
+        $t->same(['handoff', 'csl'], $camel['categories'] ?? null);
+        $t->same('preprint', $pubstate['status'] ?? null);
+        $t->same(['conference', 'source packet'], $pubstate['keywords'] ?? null);
+        $t->same(['legacy', 'review'], $pubstate['categories'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Status Taxonomy Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-status-taxonomy-alias-review</id>
+    <updated>2026-06-14T05:27:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="status keyword-summary category-summary" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="status"/>
+            <text variable="keyword-summary"/>
+            <text variable="category-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-status-taxonomy"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="status"/>
+      <text variable="keywords"/>
+      <text variable="category-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded BibLaTeX Status Taxonomy Alias Review', $summary['title'] ?? null);
+        $t->same(['status', 'keyword-summary', 'category-summary'], $branch['variables'] ?? null);
+        $t->same('[Ng | accepted | source audit; release queue | biblatex; taxonomy; Roe | in press | review queue; compact alias | handoff; csl; Kim | preprint | conference; source packet | legacy; review]', $styled->renderCitationCluster([
+            $citation('biblatex-status-hyphen', '[@biblatex-status-hyphen]'),
+            $citation('biblatex-status-camel', '[@biblatex-status-camel]'),
+            $citation('biblatex-status-pubstate', '[@biblatex-status-pubstate]'),
+        ]));
+        $t->same('BibLaTeX Status Hyphen Packet :: accepted :: source audit, release queue :: biblatex; taxonomy', $styled->renderBibliographyEntry('biblatex-status-hyphen'));
+        $t->same('BibLaTeX Status Camel Packet :: in press :: review queue, compact alias :: handoff; csl', $styled->renderBibliographyEntry('biblatex-status-camel'));
+        $t->same('BibLaTeX Status Pubstate Packet :: preprint :: conference, source packet :: legacy; review', $styled->renderBibliographyEntry('biblatex-status-pubstate'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX status aliases [@biblatex-status-hyphen; @biblatex-status-camel; @biblatex-status-pubstate] keep taxonomy metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX status aliases [Ng | accepted | source audit; release queue | biblatex; taxonomy; Roe | in press | review queue; compact alias | handoff; csl; Kim | preprint | conference; source packet | legacy; review] keep taxonomy metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>BibLaTeX Status Hyphen Packet :: accepted :: source audit, release queue :: biblatex; taxonomy</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>BibLaTeX Status Camel Packet :: in press :: review queue, compact alias :: handoff; csl</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>BibLaTeX Status Pubstate Packet :: preprint :: conference, source packet :: legacy; review</dd>', $blocks);
+    },
     'maps bibtex strings particles suffixes and literal dates into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @string{packet = "Packet"}
