@@ -2158,15 +2158,20 @@ final class ZipPackage
     }
 
     /**
-     * @return array{present:bool, offset:?int, signatureData:?string, signatureLength:int, cryptographicVerification:string}
+     * @return array{present:bool, offset:?int, signatureData:?string, signatureLength:int, signatureSha256:?string, cryptographicVerification:string}
      */
     public function centralDirectorySignaturePreflight(): array
     {
+        $signatureSha256 = $this->centralDirectorySignatureData === null
+            ? null
+            : hash('sha256', $this->centralDirectorySignatureData);
+
         return [
             'present' => $this->hasCentralDirectorySignature(),
             'offset' => $this->centralDirectorySignatureOffset,
             'signatureData' => $this->centralDirectorySignatureData,
             'signatureLength' => $this->centralDirectorySignatureData === null ? 0 : strlen($this->centralDirectorySignatureData),
+            'signatureSha256' => $signatureSha256,
             'cryptographicVerification' => $this->centralDirectorySignatureData === null
                 ? 'not-present'
                 : 'not-performed-native-bounded-reader',
@@ -2191,6 +2196,7 @@ final class ZipPackage
      *     signatureData:?string,
      *     signatureLength:int,
      *     signaturePreviewHex:string,
+     *     signatureSha256:?string,
      *     cryptographicVerification:string,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>
@@ -2204,6 +2210,7 @@ final class ZipPackage
         $signatureLength = 0;
         $dataOffset = null;
         $signaturePreviewHex = '';
+        $signatureSha256 = null;
         $issues = [];
 
         if ($signature !== null) {
@@ -2212,6 +2219,7 @@ final class ZipPackage
             self::assertRange($bytes, $dataOffset, $signatureLength, 'central-directory digital signature data');
             $signatureData = substr($bytes, $dataOffset, $signatureLength);
             $signaturePreviewHex = bin2hex(substr($signatureData, 0, min(16, $signatureLength)));
+            $signatureSha256 = hash('sha256', $signatureData);
             $issues[] = 'central-directory-signature-unverified';
         }
 
@@ -2228,6 +2236,7 @@ final class ZipPackage
             'signatureData' => $signatureData,
             'signatureLength' => $signatureLength,
             'signaturePreviewHex' => $signaturePreviewHex,
+            'signatureSha256' => $signatureSha256,
             'cryptographicVerification' => $signature === null
                 ? 'not-present'
                 : 'not-performed-native-bounded-reader',

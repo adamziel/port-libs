@@ -4689,12 +4689,14 @@ return [
         $t->same($package->centralDirectoryOffset() + 46 + strlen('word/document.xml'), $signature['offset']);
         $t->same('central-signature', $signature['signatureData']);
         $t->same(strlen('central-signature'), $signature['signatureLength']);
+        $t->same(hash('sha256', 'central-signature'), $signature['signatureSha256']);
         $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
         $t->same('<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>', $package->read('/word/document.xml'));
 
         $includedSizePackage = ZipPackage::fromString($buildCentralDirectorySignaturePackage(true));
         $t->true($includedSizePackage->hasCentralDirectorySignature());
         $t->same('central-signature', $includedSizePackage->centralDirectorySignaturePreflight()['signatureData']);
+        $t->same(hash('sha256', 'central-signature'), $includedSizePackage->centralDirectorySignaturePreflight()['signatureSha256']);
         $t->same(
             '<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>',
             $includedSizePackage->read('/word/document.xml')
@@ -4743,11 +4745,35 @@ return [
         $t->same('central-signature', $signature['signatureData']);
         $t->same(strlen('central-signature'), $signature['signatureLength']);
         $t->same(bin2hex(substr('central-signature', 0, 16)), $signature['signaturePreviewHex']);
+        $t->same(hash('sha256', 'central-signature'), $signature['signatureSha256']);
         $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
         $t->same(false, $signature['isSupportedByBoundedReader']);
         $t->same(['central-directory-signature-unverified'], $signature['issues']);
         $t->same('word/document.xml', $raw['localHeaderNames']['mismatchedEntries'][0]['centralName']);
         $t->same($spoofedLocalName, $raw['localHeaderNames']['mismatchedEntries'][0]['localName']);
+    },
+
+    'preflights central directory digital signature sha256 provenance before package handoff' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $signedZip = $buildCentralDirectorySignaturePackage();
+        $expectedHash = hash('sha256', 'central-signature');
+        $package = ZipPackage::fromString($signedZip);
+        $instanceSignature = $package->centralDirectorySignaturePreflight();
+        $rawSignature = ZipPackage::centralDirectorySignaturePolicyPreflight($signedZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($signedZip, 2048, 100.0, 2048);
+        $unsignedPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unsigned central directory</w:p></w:document>',
+            ],
+        ]);
+
+        $t->same($expectedHash, $instanceSignature['signatureSha256']);
+        $t->same($expectedHash, $rawSignature['signatureSha256']);
+        $t->same($expectedHash, $rawStrict['centralDirectorySignature']['signatureSha256']);
+        $t->same(strlen('central-signature'), $rawSignature['signatureLength']);
+        $t->same('not-performed-native-bounded-reader', $rawSignature['cryptographicVerification']);
+        $t->same(null, $unsignedPackage->centralDirectorySignaturePreflight()['signatureSha256']);
+        $t->same(null, ZipPackage::centralDirectorySignaturePolicyPreflight($unsignedPackage->bytes())['signatureSha256']);
     },
 
     'rejects malformed zip central directory digital signature records' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
