@@ -775,6 +775,7 @@ final class PdfEngineHandoff
      *     pdfViewerPreferencePolicy: array<string, mixed>,
      *     pdfNeedsRendering: bool|null,
      *     pdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
+     *     pdfCatalogRequirementPolicy: array<string, mixed>,
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
@@ -1436,6 +1437,7 @@ final class PdfEngineHandoff
         $pdfViewerPreferencePolicy = [];
         $pdfNeedsRendering = null;
         $pdfCatalogRequirements = [];
+        $pdfCatalogRequirementPolicy = [];
         $pdfLegalAttestationMetadata = [];
         $pdfTaggingMetadata = [];
         $pdfStructureNamespaces = [];
@@ -1579,6 +1581,7 @@ final class PdfEngineHandoff
                 $pdfViewerPreferencePolicy = $pdfInspection['viewerPreferencePolicy'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
                 $pdfCatalogRequirements = $pdfInspection['catalogRequirements'];
+                $pdfCatalogRequirementPolicy = $pdfInspection['catalogRequirementPolicy'];
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureNamespaces = $pdfInspection['structureNamespaces'];
@@ -2895,6 +2898,37 @@ final class PdfEngineHandoff
                     }
                     if ($requirementHandlers > 0) {
                         $diagnostics[] = 'pdf-byte-catalog-requirement-handlers:' . $requirementHandlers;
+                    }
+                }
+                if ($pdfCatalogRequirementPolicy !== []) {
+                    $reviewStatus = is_string($pdfCatalogRequirementPolicy['reviewStatus'] ?? null) && $pdfCatalogRequirementPolicy['reviewStatus'] !== ''
+                        ? $pdfCatalogRequirementPolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-catalog-requirement-policy:' . $reviewStatus;
+                    if (is_int($pdfCatalogRequirementPolicy['rendererDependentSubtypeCount'] ?? null) && $pdfCatalogRequirementPolicy['rendererDependentSubtypeCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-catalog-requirement-policy-renderer-dependent:' . $pdfCatalogRequirementPolicy['rendererDependentSubtypeCount'];
+                    }
+                    if (isset($pdfCatalogRequirementPolicy['subtypeCounts']) && is_array($pdfCatalogRequirementPolicy['subtypeCounts'])) {
+                        $subtypeCounts = $pdfCatalogRequirementPolicy['subtypeCounts'];
+                        ksort($subtypeCounts);
+                        foreach ($subtypeCounts as $subtype => $count) {
+                            if (is_string($subtype) && $subtype !== '' && is_int($count) && $count > 0) {
+                                $diagnostics[] = 'pdf-byte-catalog-requirement-policy-subtype:' . $subtype . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfCatalogRequirementPolicy['issues']) && is_array($pdfCatalogRequirementPolicy['issues']) && $pdfCatalogRequirementPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-catalog-requirement-policy-issues:' . count($pdfCatalogRequirementPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfCatalogRequirementPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-catalog-requirement-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfLegalAttestationMetadata !== []) {
@@ -4812,6 +4846,7 @@ final class PdfEngineHandoff
             'pdfViewerPreferencePolicy' => $pdfViewerPreferencePolicy,
             'pdfNeedsRendering' => $pdfNeedsRendering,
             'pdfCatalogRequirements' => $pdfCatalogRequirements,
+            'pdfCatalogRequirementPolicy' => $pdfCatalogRequirementPolicy,
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureNamespaces' => $pdfStructureNamespaces,
@@ -4976,6 +5011,7 @@ final class PdfEngineHandoff
      *     finalPdfViewerPreferencePolicy: array<string, mixed>,
      *     finalPdfNeedsRendering: bool|null,
      *     finalPdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
+     *     finalPdfCatalogRequirementPolicy: array<string, mixed>,
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureNamespaces: list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
@@ -5296,6 +5332,7 @@ final class PdfEngineHandoff
             'finalPdfViewerPreferencePolicy' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferencePolicy'] ?? null) ? $finalRun['pdfViewerPreferencePolicy'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
             'finalPdfCatalogRequirements' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirements'] ?? null) ? $finalRun['pdfCatalogRequirements'] : [],
+            'finalPdfCatalogRequirementPolicy' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirementPolicy'] ?? null) ? $finalRun['pdfCatalogRequirementPolicy'] : [],
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureNamespaces' => is_array($finalRun) && is_array($finalRun['pdfStructureNamespaces'] ?? null) ? $finalRun['pdfStructureNamespaces'] : [],
@@ -10480,6 +10517,9 @@ final class PdfEngineHandoff
      *     destinationOptions:list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     viewerPreferences:array<string, bool|int|string|list<int>|list<string>>,
      *     viewerPreferencePolicy:array<string, mixed>,
+     *     needsRendering:bool|null,
+     *     catalogRequirements:list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
+     *     catalogRequirementPolicy:array<string, mixed>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureNamespaces:list<array{object:string|null, type:string|null, namespace:string|null, schemaObject:string|null, schemaType:string|null, roleMap:array<string, string>, keys:list<string>}>,
      *     structureParentTree:list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
@@ -10604,6 +10644,8 @@ final class PdfEngineHandoff
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
         $viewerPreferences = $this->extractPdfViewerPreferences($pdfBytes, $catalog);
+        $needsRendering = $this->extractPdfNeedsRendering($catalog);
+        $catalogRequirements = $this->extractPdfCatalogRequirements($pdfBytes, $catalog);
         $taggingMetadata = $this->extractPdfTaggingMetadata($pdfBytes, $catalog);
         $structureNamespaces = $this->extractPdfStructureNamespaces($pdfBytes, $catalog);
         $structureParentTree = $this->extractPdfStructureParentTree($pdfBytes, $catalog);
@@ -10702,8 +10744,9 @@ final class PdfEngineHandoff
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $viewerPreferences,
             'viewerPreferencePolicy' => $this->summarizePdfViewerPreferencePolicy($viewerPreferences),
-            'needsRendering' => $this->extractPdfNeedsRendering($catalog),
-            'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
+            'needsRendering' => $needsRendering,
+            'catalogRequirements' => $catalogRequirements,
+            'catalogRequirementPolicy' => $this->summarizePdfCatalogRequirementPolicy($needsRendering, $catalogRequirements),
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
             'taggingMetadata' => $taggingMetadata,
             'structureNamespaces' => $structureNamespaces,
@@ -17380,6 +17423,69 @@ final class PdfEngineHandoff
         }
 
         return $requirements;
+    }
+
+    /**
+     * @param list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}> $requirements
+     * @return array{reviewStatus:string, needsRendering:bool|null, requirementCount:int, handlerCount:int, subtypeCounts:array<string, int>, rendererDependentSubtypeCount:int, rendererDependentSubtypes:list<string>, issues:list<string>}|array{}
+     */
+    private function summarizePdfCatalogRequirementPolicy(?bool $needsRendering, array $requirements): array
+    {
+        if ($needsRendering === null && $requirements === []) {
+            return [];
+        }
+
+        $rendererDependentRequirementSubtypes = [
+            '3D' => true,
+            'EnableJavaScripts' => true,
+            'Flash' => true,
+            'JavaScript' => true,
+            'Movie' => true,
+            'RichMedia' => true,
+            'Sound' => true,
+        ];
+        $subtypeCounts = [];
+        $rendererDependentSubtypes = [];
+        $handlerCount = 0;
+        foreach ($requirements as $requirement) {
+            $subtype = is_string($requirement['subtype'] ?? null) && $requirement['subtype'] !== ''
+                ? $requirement['subtype']
+                : 'unknown';
+            $subtypeCounts[$subtype] = ($subtypeCounts[$subtype] ?? 0) + 1;
+            if (isset($rendererDependentRequirementSubtypes[$subtype])) {
+                $rendererDependentSubtypes[$subtype] = true;
+            }
+
+            foreach (['handlerObject', 'handlerType', 'handlerName', 'handlerCode', 'handlerVersion'] as $handlerKey) {
+                if (is_string($requirement[$handlerKey] ?? null) && $requirement[$handlerKey] !== '') {
+                    $handlerCount++;
+                    break;
+                }
+            }
+        }
+        ksort($subtypeCounts);
+        $rendererDependentSubtypes = array_keys($rendererDependentSubtypes);
+        sort($rendererDependentSubtypes, SORT_STRING);
+
+        $issues = [];
+        if ($needsRendering === true) {
+            $issues[] = 'catalog-needs-rendering';
+        }
+        if ($rendererDependentSubtypes !== []) {
+            $issues[] = 'renderer-dependent-catalog-requirements';
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'needsRendering' => $needsRendering,
+            'requirementCount' => count($requirements),
+            'handlerCount' => $handlerCount,
+            'subtypeCounts' => $subtypeCounts,
+            'rendererDependentSubtypeCount' => count($rendererDependentSubtypes),
+            'rendererDependentSubtypes' => $rendererDependentSubtypes,
+            'issues' => $issues,
+        ];
     }
 
     /**

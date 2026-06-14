@@ -10315,19 +10315,44 @@ MARKDOWN);
                 'keys' => ['RH', 'S', 'Type'],
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'needsRendering' => true,
+            'requirementCount' => 2,
+            'handlerCount' => 2,
+            'subtypeCounts' => [
+                '3D' => 1,
+                'EnableJavaScripts' => 1,
+            ],
+            'rendererDependentSubtypeCount' => 2,
+            'rendererDependentSubtypes' => ['3D', 'EnableJavaScripts'],
+            'issues' => [
+                'catalog-needs-rendering',
+                'renderer-dependent-catalog-requirements',
+            ],
+        ];
 
         $t->same(true, $result['ok']);
         $t->same(true, $result['pdfNeedsRendering'] ?? null);
         $t->same($expected, $result['pdfCatalogRequirements'] ?? null);
+        $t->same($expectedPolicy, $result['pdfCatalogRequirementPolicy'] ?? null);
         $diagnostics = implode(',', $result['diagnostics']);
         $t->contains('pdf-byte-needs-rendering:true', $diagnostics);
         $t->contains('pdf-byte-catalog-requirements:2', $diagnostics);
         $t->contains('pdf-byte-catalog-requirement:3D:1', $diagnostics);
         $t->contains('pdf-byte-catalog-requirement:EnableJavaScripts:1', $diagnostics);
         $t->contains('pdf-byte-catalog-requirement-handlers:2', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy:review', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-renderer-dependent:2', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-subtype:3D:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-subtype:EnableJavaScripts:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-issues:2', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-issue:catalog-needs-rendering:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-requirement-policy-issue:renderer-dependent-catalog-requirements:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same(true, $sequence['finalPdfNeedsRendering'] ?? null);
         $t->same($expected, $sequence['finalPdfCatalogRequirements'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfCatalogRequirementPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf catalog uri base from produced bytes' => static function (TestRunner $t) use ($document): void {
