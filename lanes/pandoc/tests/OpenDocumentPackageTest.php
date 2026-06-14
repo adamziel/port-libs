@@ -104,8 +104,10 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
 
     foreach ($parts as $part) {
         $name = $part['name'];
+        $rawName = $part['rawName'] ?? $name;
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $flags = $part['generalPurposeFlags'] ?? 0x0800;
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
@@ -114,38 +116,38 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             'VvvvvvVVVvv',
             0x04034b50,
             20,
-            0x0800,
+            $flags,
             $method,
             0,
             0,
             $crc,
             strlen($compressed),
             strlen($data),
-            strlen($name),
+            strlen($rawName),
             0
         );
-        $body .= $name . $compressed;
+        $body .= $rawName . $compressed;
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
             20,
-            0x0800,
+            $flags,
             $method,
             0,
             0,
             $crc,
             strlen($compressed),
             strlen($data),
-            strlen($name),
+            strlen($rawName),
             0,
             0,
             0,
             0,
             str_ends_with($name, '/') ? 0x10 : 0,
             $offset
-        ) . $name;
+        ) . $rawName;
     }
 
     $central = '';
@@ -920,6 +922,66 @@ XML;
         $t->same('Pictures/source%20hero.png', $inventoryPart['manifestPath']);
         $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
         $t->same('image/png', $inventoryPart['manifestMediaType']);
+    },
+    'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $decodedName = "Pictures/caf\xc3\xa9.png";
+        $rawName = "Pictures/caf\x82.png";
+        $legacyBytes = 'CAFEPNG';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/caf%C3%A9.png" manifest:size="' . strlen($legacyBytes) . '"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            [
+                'name' => $decodedName,
+                'rawName' => $rawName,
+                'generalPurposeFlags' => 0,
+                'data' => $legacyBytes,
+                'compressionMethod' => 0,
+            ],
+        ];
+
+        $summary = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'))
+        )->summarize();
+        $inventory = $summary['packageInventory'];
+        $legacy = $inventory['parts'][$decodedName];
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+
+        $t->same(1, $inventory['rawNameProvenanceEntryCount']);
+        $t->same(1, $inventory['legacyEncodedNameEntryCount']);
+        $t->same(0, $inventory['unicodePathExtraEntryCount']);
+        $t->same(1, $inventory['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($decodedName, $inventory['rawNameProvenanceEntries'][0]['path']);
+        $t->same(bin2hex($rawName), $inventory['rawNameProvenanceEntries'][0]['rawNameHex']);
+        $t->same('cp437', $inventory['rawNameProvenanceEntries'][0]['nameEncoding']);
+        $t->same(false, $inventory['rawNameProvenanceEntries'][0]['rawNameMatchesDecodedName']);
+
+        $t->same('Pictures/caf%C3%A9.png', $legacy['manifestPath']);
+        $t->same($decodedName, $legacy['manifestPackagePath']);
+        $t->same(bin2hex($rawName), $legacy['rawNameHex']);
+        $t->same('cp437', $legacy['nameEncoding']);
+        $t->same(false, $legacy['rawNameMatchesDecodedName']);
+        $t->same(true, $legacy['usesLegacyNameEncoding']);
+        $t->same(false, $legacy['usesUnicodePathExtraField']);
+        $t->same(true, $legacy['hasRawNameProvenance']);
+        $t->same(true, $legacy['declaredInManifest']);
+        $t->same(['manifest-declared', 'media-resource'], $legacy['roles']);
+        $t->same(strlen($legacyBytes), $legacy['byteLength']);
+        $t->same(strlen($legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteLength']);
+        $t->same($decodedName, $mediaByPath['Pictures/caf%C3%A9.png']['packagePath']);
+        $t->same(hash('sha256', $legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteSha256']);
     },
     'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SOURCEPNG';

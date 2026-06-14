@@ -429,11 +429,17 @@ final class OpenDocumentPackage
         $blockedCompressedByteLength = 0;
         $unsupportedCompressionByteLength = 0;
         $unsupportedCompressionCompressedByteLength = 0;
+        $rawNameProvenanceEntryCount = 0;
+        $legacyEncodedNameEntryCount = 0;
+        $unicodePathExtraEntryCount = 0;
+        $decodedNameDiffersFromRawNameEntryCount = 0;
+        $rawNameProvenanceEntries = [];
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
+            $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
@@ -508,7 +514,7 @@ final class OpenDocumentPackage
                     ? ($manifestEntry['byteExposurePolicy'] ?? null)
                     : (is_array($embeddedObjectPackage) ? 'embedded-object-package-bytes-blocked' : null),
                 'undeclared' => $isUndeclared,
-            ];
+            ] + $rawNameProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -568,6 +574,22 @@ final class OpenDocumentPackage
             if (in_array('rdf-metadata', $roles, true)) {
                 ++$rdfMetadataPartCount;
             }
+            if ($rawNameProvenance['hasRawNameProvenance']) {
+                ++$rawNameProvenanceEntryCount;
+                $rawNameProvenanceEntries[] = [
+                    'path' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                ] + $rawNameProvenance;
+            }
+            if ($rawNameProvenance['usesLegacyNameEncoding']) {
+                ++$legacyEncodedNameEntryCount;
+            }
+            if ($rawNameProvenance['usesUnicodePathExtraField']) {
+                ++$unicodePathExtraEntryCount;
+            }
+            if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
+                ++$decodedNameDiffersFromRawNameEntryCount;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -609,6 +631,11 @@ final class OpenDocumentPackage
             'blockedCompressedByteLength' => $blockedCompressedByteLength,
             'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
             'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
+            'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'byteExposurePolicy' => 'odf-package-inventory-metadata-only',
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
@@ -619,6 +646,27 @@ final class OpenDocumentPackage
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
             'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @return array{rawNameHex:string,nameEncoding:string,rawNameMatchesDecodedName:bool,usesLegacyNameEncoding:bool,usesUnicodePathExtraField:bool,hasRawNameProvenance:bool}
+     */
+    private static function zipEntryRawNameProvenance(ZipPackageEntry $entry): array
+    {
+        $rawNameMatchesDecodedName = $entry->rawName === $entry->name;
+        $usesLegacyNameEncoding = $entry->nameEncoding === 'cp437';
+        $usesUnicodePathExtraField = $entry->nameEncoding === 'info-zip-unicode-path';
+
+        return [
+            'rawNameHex' => bin2hex($entry->rawName),
+            'nameEncoding' => $entry->nameEncoding,
+            'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+            'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+            'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+            'hasRawNameProvenance' => !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField,
         ];
     }
 
