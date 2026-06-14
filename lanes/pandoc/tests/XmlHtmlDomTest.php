@@ -4392,6 +4392,65 @@ XML, 'DocBook media caption cross-reference XML', preserveWhiteSpace: false);
         ], $summary[0]['selectOptions']);
         $t->same('<select multiple name="review-status"><option value="draft">Draft</option><option selected value="review">Review</option><optgroup disabled label="Archive"><option value="a1">Archive One</option><option selected>Archive Two</option></optgroup></select><p>after</p>', $html);
     },
+    'summarizes html option and optgroup nodes for direct fragment review' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<select id="status" name="status"><option value="draft" label="Draft status">Draft<option selected disabled>Review<optgroup label="Archive" disabled><option value="old">Old<option selected value="cold">Cold</optgroup></select><p>after</p>',
+            'option optgroup review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/option-optgroup-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $select = $summary[0];
+        $draft = $select['children'][0];
+        $review = $select['children'][1];
+        $archive = $select['children'][2];
+        $old = $archive['children'][0];
+        $cold = $archive['children'][1];
+
+        $t->same('select', $select['formControl']);
+        $t->same(['Review', 'cold'], $select['selectedValues']);
+        $t->same('option', $draft['option']);
+        $t->same('draft', $draft['optionValue']);
+        $t->same('Draft status', $draft['optionLabel']);
+        $t->same('Draft', $draft['optionText']);
+        $t->same(false, $draft['selected']);
+        $t->same(false, $draft['disabled']);
+        $t->same(false, $draft['effectiveDisabled']);
+        $t->same(null, $draft['optionGroupLabel']);
+
+        $t->same('option', $review['option']);
+        $t->same('Review', $review['optionValue']);
+        $t->same('Review', $review['optionLabel']);
+        $t->same(true, $review['selected']);
+        $t->same(true, $review['disabled']);
+        $t->same(true, $review['optionDisabled']);
+        $t->same(true, $review['effectiveDisabled']);
+
+        $t->same('optgroup', $archive['optionGroup']);
+        $t->same('Archive', $archive['optionGroupLabel']);
+        $t->same(true, $archive['disabled']);
+        $t->same(2, $archive['optionCount']);
+        $t->same(1, $archive['selectedOptionCount']);
+        $t->same(['old', 'cold'], $archive['optionValues']);
+        $t->same(['cold'], $archive['selectedValues']);
+        $t->same([
+            ['value' => 'old', 'label' => 'Old', 'text' => 'Old', 'selected' => false, 'disabled' => true],
+            ['value' => 'cold', 'label' => 'Cold', 'text' => 'Cold', 'selected' => true, 'disabled' => true],
+        ], $archive['options']);
+
+        $t->same('Archive', $old['optionGroupLabel']);
+        $t->same(true, $old['optionGroupDisabled']);
+        $t->same(true, $old['effectiveDisabled']);
+        $t->same('cold', $cold['optionValue']);
+        $t->same(true, $cold['selected']);
+        $t->contains($html, $blocks);
+        $t->same('/migration/option-optgroup-review.html', $document->children[0]->attr('part'));
+        $t->same('<select id="status" name="status"><option label="Draft status" value="draft">Draft</option><option disabled selected>Review</option><optgroup disabled label="Archive"><option value="old">Old</option><option selected value="cold">Cold</option></optgroup></select><p>after</p>', $html);
+    },
     'summarizes html input textarea and button state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="review-form"><input name="title" value="Draft &amp; Source"><input type="checkbox" name="publish" checked disabled><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button type="reset" disabled>Clear</button></form>',

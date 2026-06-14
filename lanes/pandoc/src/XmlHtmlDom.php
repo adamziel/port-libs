@@ -12640,6 +12640,12 @@ final class XmlHtmlDom
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
+        if ($name === 'optgroup') {
+            $summary += self::optgroupSummary($node);
+        }
+        if ($name === 'option') {
+            $summary += self::optionSummary($node);
+        }
         if ($name === 'fieldset') {
             $summary += self::fieldsetSummary($node);
         }
@@ -18976,6 +18982,85 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function optgroupSummary(\DOMElement $optgroup): array
+    {
+        $label = $optgroup->hasAttribute('label') ? $optgroup->getAttribute('label') : null;
+        $options = [];
+        foreach (self::childHtmlElements($optgroup, 'option') as $option) {
+            $optionSummary = self::optionRecord($option);
+            unset($optionSummary['group'], $optionSummary['groupDisabled']);
+            $options[] = $optionSummary;
+        }
+
+        return [
+            'optionGroup' => 'optgroup',
+            'optionGroupLabel' => $label,
+            'disabled' => $optgroup->hasAttribute('disabled'),
+            'optionCount' => count($options),
+            'selectedOptionCount' => count(array_filter(
+                $options,
+                static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+            )),
+            'optionValues' => array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                $options
+            )),
+            'selectedValues' => array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
+            )),
+            'options' => $options,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function optionSummary(\DOMElement $option): array
+    {
+        $record = self::optionRecord($option);
+
+        return [
+            'option' => 'option',
+            'optionValue' => $record['value'],
+            'optionLabel' => $record['label'],
+            'optionText' => $record['text'],
+            'selected' => $record['selected'],
+            'optionDisabled' => $option->hasAttribute('disabled'),
+            'disabled' => $record['disabled'],
+            'effectiveDisabled' => $record['disabled'],
+            'optionGroupLabel' => $record['group'] ?? null,
+            'optionGroupDisabled' => $record['groupDisabled'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}
+     */
+    private static function optionRecord(\DOMElement $option): array
+    {
+        $text = self::normalizedText($option);
+        $record = [
+            'value' => $option->hasAttribute('value') ? $option->getAttribute('value') : $text,
+            'label' => $option->hasAttribute('label') ? $option->getAttribute('label') : $text,
+            'text' => $text,
+            'selected' => $option->hasAttribute('selected'),
+            'disabled' => $option->hasAttribute('disabled'),
+        ];
+
+        $parent = $option->parentNode;
+        if ($parent instanceof \DOMElement && self::htmlElementName($parent) === 'optgroup') {
+            $record['group'] = $parent->hasAttribute('label') ? $parent->getAttribute('label') : '';
+            $record['groupDisabled'] = $parent->hasAttribute('disabled');
+            $record['disabled'] = $record['disabled'] || $record['groupDisabled'];
+        }
+
+        return $record;
+    }
+
+    /**
      * @param list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}> $options
      */
     private static function collectSelectOptionSummaries(\DOMNode $node, ?string $group, bool $groupDisabled, array &$options): void
@@ -18996,17 +19081,11 @@ final class XmlHtmlDom
         }
 
         if ($name === 'option') {
-            $text = self::normalizedText($node);
-            $option = [
-                'value' => $node->hasAttribute('value') ? $node->getAttribute('value') : $text,
-                'label' => $node->hasAttribute('label') ? $node->getAttribute('label') : $text,
-                'text' => $text,
-                'selected' => $node->hasAttribute('selected'),
-                'disabled' => $groupDisabled || $node->hasAttribute('disabled'),
-            ];
+            $option = self::optionRecord($node);
             if ($group !== null) {
                 $option['group'] = $group;
                 $option['groupDisabled'] = $groupDisabled;
+                $option['disabled'] = $option['disabled'] || $groupDisabled;
             }
             $options[] = $option;
 
