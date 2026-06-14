@@ -201,6 +201,46 @@ return [
         $t->same('default', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeSource']);
         $t->same('png', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeDefaultExtension']);
     },
+    'reports OPC content type URI reference suffix provenance before package graph construction' => static function (TestRunner $t) use ($contentTypesXml): void {
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+
+        $override = $types->contentTypeResolutionForPart('/word/document.xml?review=ready#source');
+        $t->same('/word/document.xml?review=ready#source', $override['uriReference']);
+        $t->same('/word/document.xml', $override['partName']);
+        $t->same('?review=ready#source', $override['uriReferenceSuffix']);
+        $t->same('review=ready', $override['uriReferenceQuery']);
+        $t->same('source', $override['uriReferenceFragment']);
+        $t->same(true, $override['hasUriReferenceSuffix']);
+        $t->same('override', $override['contentTypeSource']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $override['contentType']);
+        $t->same('/word/document.xml', $override['overridePartName']);
+
+        $default = $types->contentTypeResolutionForPart('word/media/review-image.PNG#crop');
+        $t->same('/word/media/review-image.PNG', $default['partName']);
+        $t->same('#crop', $default['uriReferenceSuffix']);
+        $t->same(null, $default['uriReferenceQuery']);
+        $t->same('crop', $default['uriReferenceFragment']);
+        $t->same(true, $default['hasUriReferenceSuffix']);
+        $t->same('default', $default['contentTypeSource']);
+        $t->same('png', $default['defaultExtension']);
+        $t->same('image/png', $default['contentType']);
+
+        $missing = $types->contentTypeResolutionForPart('/word/media/source?download=1');
+        $t->same('/word/media/source', $missing['partName']);
+        $t->same('?download=1', $missing['uriReferenceSuffix']);
+        $t->same('download=1', $missing['uriReferenceQuery']);
+        $t->same(null, $missing['uriReferenceFragment']);
+        $t->same(true, $missing['hasUriReferenceSuffix']);
+        $t->same('missing', $missing['contentTypeSource']);
+        $t->same(null, $missing['contentType']);
+        $t->same(null, $missing['defaultExtension']);
+
+        $plain = $types->contentTypeResolutionForPart('/docProps/core.xml');
+        $t->same('', $plain['uriReferenceSuffix']);
+        $t->same(null, $plain['uriReferenceQuery']);
+        $t->same(null, $plain['uriReferenceFragment']);
+        $t->same(false, $plain['hasUriReferenceSuffix']);
+    },
     'preflights OPC ZIP entry manifest before XML package handoff' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => '<Types/>'],

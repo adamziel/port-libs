@@ -140,13 +140,17 @@ final class OpcContentTypes
     }
 
     /**
-     * @return array{partName:string, contentType:?string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:?string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
      */
     public function contentTypeResolutionForPart(string $partName): array
     {
+        $uriReference = $partName;
+        $suffix = self::uriReferenceSuffix($partName);
         $partName = OpcPackagePath::canonicalPartNameFromUri(OpcPackagePath::stripQueryAndFragment($partName));
+        $base = self::resolutionBase($uriReference, $partName, $suffix);
         if (isset($this->overrides[$partName])) {
             return [
+                ...$base,
                 'partName' => $partName,
                 'contentType' => $this->overrides[$partName],
                 'contentTypeSource' => 'override',
@@ -160,6 +164,7 @@ final class OpcContentTypes
         $overridePartName = $this->overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] ?? null;
         if ($overridePartName !== null) {
             return [
+                ...$base,
                 'partName' => $partName,
                 'contentType' => $this->overrides[$overridePartName],
                 'contentTypeSource' => 'override',
@@ -173,13 +178,14 @@ final class OpcContentTypes
         $basename = basename($partName);
         $dot = strrpos($basename, '.');
         if ($dot === false || $dot === strlen($basename) - 1) {
-            return self::missingResolution($partName);
+            return self::missingResolution($partName, $uriReference, $suffix);
         }
 
         $extension = strtolower(substr($basename, $dot + 1));
         $default = $this->defaults[$extension] ?? null;
         if ($default !== null) {
             return [
+                ...$base,
                 'partName' => $partName,
                 'contentType' => $default['contentType'],
                 'contentTypeSource' => 'default',
@@ -190,7 +196,7 @@ final class OpcContentTypes
             ];
         }
 
-        return self::missingResolution($partName);
+        return self::missingResolution($partName, $uriReference, $suffix);
     }
 
     /**
@@ -328,11 +334,13 @@ final class OpcContentTypes
     }
 
     /**
-     * @return array{partName:string, contentType:null, contentTypeSource:string, defaultExtension:null, overridePartName:null, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     * @param array{suffix:string, query:?string, fragment:?string} $suffix
+     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:null, contentTypeSource:string, defaultExtension:null, overridePartName:null, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
      */
-    private static function missingResolution(string $partName): array
+    private static function missingResolution(string $partName, string $uriReference, array $suffix): array
     {
         return [
+            ...self::resolutionBase($uriReference, $partName, $suffix),
             'partName' => $partName,
             'contentType' => null,
             'contentTypeSource' => 'missing',
@@ -341,6 +349,50 @@ final class OpcContentTypes
             'overridePartNameExactMatch' => false,
             'overridePartNameEquivalentMatch' => false,
         ];
+    }
+
+    /**
+     * @param array{suffix:string, query:?string, fragment:?string} $suffix
+     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool}
+     */
+    private static function resolutionBase(string $uriReference, string $partName, array $suffix): array
+    {
+        return [
+            'uriReference' => $uriReference,
+            'partName' => $partName,
+            'uriReferenceSuffix' => $suffix['suffix'],
+            'uriReferenceQuery' => $suffix['query'],
+            'uriReferenceFragment' => $suffix['fragment'],
+            'hasUriReferenceSuffix' => $suffix['suffix'] !== '',
+        ];
+    }
+
+    /**
+     * @return array{suffix:string, query:?string, fragment:?string}
+     */
+    private static function uriReferenceSuffix(string $uriReference): array
+    {
+        $suffixOffset = strcspn($uriReference, '?#');
+        $suffix = substr($uriReference, $suffixOffset);
+        if ($suffix === '') {
+            return ['suffix' => '', 'query' => null, 'fragment' => null];
+        }
+
+        $query = null;
+        $fragment = null;
+        if ($suffix[0] === '?') {
+            $fragmentOffset = strpos($suffix, '#');
+            if ($fragmentOffset === false) {
+                $query = substr($suffix, 1);
+            } else {
+                $query = substr($suffix, 1, $fragmentOffset - 1);
+                $fragment = substr($suffix, $fragmentOffset + 1);
+            }
+        } elseif ($suffix[0] === '#') {
+            $fragment = substr($suffix, 1);
+        }
+
+        return ['suffix' => $suffix, 'query' => $query, 'fragment' => $fragment];
     }
 
     public static function isValidContentType(string $contentType): bool
