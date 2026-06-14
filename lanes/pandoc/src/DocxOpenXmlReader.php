@@ -32,6 +32,8 @@ final class DocxOpenXmlReader
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+    private const MAIL_MERGE_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
+    private const MAIL_MERGE_HEADER_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const FONT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
@@ -170,9 +172,16 @@ final class DocxOpenXmlReader
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
-        $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
         $settingsRelationshipsPart = $this->relationshipsPartFor($settingsPart['partName']);
         $settingsRelationships = $this->readRelationshipsPart($parts, $settingsRelationshipsPart);
+        $settings = $this->readSettings(
+            $settingsPart['xml'],
+            $settingsPart['partName'],
+            $parts,
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
         $attachedTemplates = $this->readAttachedTemplates(
             $parts,
             $settingsPart['xml'],
@@ -474,6 +483,12 @@ final class DocxOpenXmlReader
         if (is_array($webSettingsOutputPolicy)) {
             $packageProvenance['summary']['webSettingsOutputPolicyFlagCount'] = (int) ($webSettingsOutputPolicy['flagCount'] ?? 0);
             $packageProvenance['summary']['webSettingsOutputPolicyFlags'] = $webSettingsOutputPolicy['flags'] ?? [];
+        }
+        $mailMerge = $settings['mailMerge'] ?? null;
+        if (is_array($mailMerge)) {
+            $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeIssueCount'] = (int) ($mailMerge['issueCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeIssueCodes'] = $mailMerge['issueCodes'] ?? [];
         }
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
@@ -7924,6 +7939,8 @@ final class DocxOpenXmlReader
             self::COMMENTS_REL => 'comments',
             self::COMMENTS_EXTENDED_REL => 'comments-extended',
             self::SETTINGS_REL => 'settings',
+            self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
+            self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
             self::HEADER_REL => 'header-part',
@@ -8543,7 +8560,14 @@ final class DocxOpenXmlReader
     /**
      * @return array<string, mixed>
      */
-    private function readSettings(string $xml, string $partName): array
+    private function readSettings(
+        string $xml,
+        string $partName,
+        array $parts,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array
     {
         if ($xml === '') {
             return [];
@@ -8734,7 +8758,312 @@ final class DocxOpenXmlReader
             $settings['documentVariables'] = $documentVariables;
         }
 
+        $mailMerge = $this->readMailMergeSettings(
+            $dom,
+            $parts,
+            $partName,
+            $relationshipsPart,
+            $relationships,
+            $contentTypes,
+        );
+        if ($mailMerge !== []) {
+            $settings['mailMerge'] = $mailMerge;
+        }
+
         return $settings;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readMailMergeSettings(
+        \DOMDocument $dom,
+        array $parts,
+        string $settingsPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $xpath = $this->xpath($dom);
+        $mailMerge = $this->firstElement($xpath, '/w:settings/w:mailMerge', $dom);
+        if (!$mailMerge instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ([
+            'mainDocumentType' => 'mainDocumentType',
+            'destination' => 'destination',
+            'dataType' => 'dataType',
+            'query' => 'query',
+            'mailSubject' => 'mailSubject',
+        ] as $source => $target) {
+            $value = $this->settingsStringChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $connectString = $this->settingsStringChildValue($mailMerge, 'connectString');
+        if ($connectString !== null) {
+            $metadata['connectStringPresent'] = true;
+            $metadata['connectStringLength'] = strlen($connectString);
+            $metadata['connectStringSha256'] = hash('sha256', $connectString);
+        }
+
+        foreach ([
+            'viewMergedData' => 'viewMergedData',
+            'linkToQuery' => 'linkToQuery',
+            'doNotSuppressBlankLines' => 'doNotSuppressBlankLines',
+        ] as $source => $target) {
+            $value = $this->settingsOnOffChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'activeRecord' => 'activeRecord',
+            'checkErrors' => 'checkErrors',
+        ] as $source => $target) {
+            $value = $this->settingsIntChildValue($mailMerge, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $relationshipCount = 0;
+        $issueCount = 0;
+        $issueCodes = [];
+        foreach ([
+            'dataSource' => [self::MAIL_MERGE_SOURCE_REL, 'mail-merge-source'],
+            'headerSource' => [self::MAIL_MERGE_HEADER_SOURCE_REL, 'mail-merge-header-source'],
+        ] as $localName => [$expectedRelationshipType, $reviewPolicy]) {
+            $summary = $this->mailMergeRelationshipChildSummary(
+                $mailMerge,
+                $localName,
+                $parts,
+                $settingsPart,
+                $relationshipsPart,
+                $relationships,
+                $contentTypes,
+                $expectedRelationshipType,
+                $reviewPolicy,
+            );
+            if ($summary === null) {
+                continue;
+            }
+
+            $metadata[$localName] = $summary;
+            ++$relationshipCount;
+            if ($summary['issues'] !== []) {
+                ++$issueCount;
+                foreach ($summary['issues'] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        $metadata['relationshipCount'] = $relationshipCount;
+        $metadata['issueCount'] = $issueCount;
+        $metadata['issueCodes'] = array_keys($issueCodes);
+
+        return $metadata;
+    }
+
+    private function settingsStringChildValue(\DOMElement $parent, string $localName): ?string
+    {
+        $child = $this->childElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($child->getAttributeNS(self::NS_W, 'val'));
+
+        return $value === '' ? null : $value;
+    }
+
+    private function settingsOnOffChildValue(\DOMElement $parent, string $localName): ?bool
+    {
+        $child = $this->childElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->wordBoolean($child);
+    }
+
+    private function settingsIntChildValue(\DOMElement $parent, string $localName): ?int
+    {
+        $child = $this->childElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($child->getAttributeNS(self::NS_W, 'val'));
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>|null
+     */
+    private function mailMergeRelationshipChildSummary(
+        \DOMElement $mailMerge,
+        string $localName,
+        array $parts,
+        string $settingsPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        string $expectedRelationshipType,
+        string $reviewPolicy
+    ): ?array {
+        $child = $this->childElement($mailMerge, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $relationshipId = $child->getAttributeNS(self::NS_R, 'id');
+        $item = [
+            'id' => $relationshipId,
+            'sourcePart' => $settingsPart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'external' => null,
+            'exists' => null,
+            'byteLength' => null,
+            'crc32' => null,
+            'sha256' => null,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'byteExposurePolicy' => $reviewPolicy . '-bytes-blocked',
+            'reviewPolicy' => $reviewPolicy . '-metadata-only',
+            'relationship' => null,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+
+            return $item;
+        }
+
+        if (!isset($parts[$relationshipsPart])) {
+            $item['issues'][] = 'missing-relationships';
+
+            return $item;
+        }
+
+        $relationship = $relationships[$relationshipId] ?? null;
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $settingsPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['external'] = $external;
+        $item['exists'] = (bool) ($summary['exists'] ?? false);
+        $item['byteLength'] = $targetPart !== null && $item['exists'] === true ? strlen($parts[$targetPart]) : null;
+        $item['crc32'] = $targetPart !== null && $item['exists'] === true ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $targetPart !== null && $item['exists'] === true ? hash('sha256', $parts[$targetPart]) : null;
+        $item['relationship'] = $summary;
+
+        if ($relationship['type'] !== $expectedRelationshipType) {
+            $item['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if ($external) {
+            $externalPolicy = $this->externalRelationshipTargetPolicy($relationship['target']);
+            $item['externalTargetKind'] = $externalPolicy['kind'];
+            $item['externalTargetScheme'] = $externalPolicy['scheme'];
+            $item['externalTargetAllowed'] = $externalPolicy['allowed'];
+            $item['issues'] = array_values(array_unique(array_merge($item['issues'], $externalPolicy['issues'])));
+        } else {
+            if ($item['exists'] !== true) {
+                $item['issues'][] = 'missing-in-package';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $item['issues'][] = 'missing-content-type';
+            }
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+        sort($item['issues'], SORT_STRING);
+
+        return $item;
+    }
+
+    /**
+     * @return array{kind:string, scheme:?string, allowed:bool, issues:list<string>}
+     */
+    private function externalRelationshipTargetPolicy(string $target): array
+    {
+        $scheme = null;
+        $kind = 'relative-reference';
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $target, $match) === 1) {
+            $scheme = strtolower($match[1]);
+            $kind = 'absolute-uri';
+        } elseif (str_starts_with($target, '//')) {
+            $kind = 'network-path-reference';
+        }
+
+        $allowed = $scheme === null || in_array($scheme, ['http', 'https', 'mailto', 'urn'], true);
+        $issues = $allowed ? [] : ['external-target-unsafe-scheme'];
+
+        return [
+            'kind' => $kind,
+            'scheme' => $scheme,
+            'allowed' => $allowed,
+            'issues' => $issues,
+        ];
     }
 
     /**

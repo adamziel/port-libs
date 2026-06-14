@@ -3517,6 +3517,115 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'reports docx mail merge settings package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/mailmerge/header-source.xml" ContentType="application/xml; profile=mail-merge-header"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMergeSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="file:///C:/legacy/review-source.xlsx" TargetMode="External"/>
+  <Relationship Id="rMergeHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="../mailmerge/header-source.xml?source=header#fields"/>
+</Relationships>
+XML;
+        $connectString = 'Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\legacy\review-source.xlsx;Mode=Read';
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:mailMerge>
+    <w:mainDocumentType w:val="email"/>
+    <w:destination w:val="email"/>
+    <w:dataType w:val="native"/>
+    <w:connectString w:val="Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\legacy\review-source.xlsx;Mode=Read"/>
+    <w:query w:val="SELECT * FROM [SourcePackets$] WHERE [NeedsReview] = 1"/>
+    <w:dataSource r:id="rMergeSource"/>
+    <w:headerSource r:id="rMergeHeader"/>
+    <w:viewMergedData/>
+    <w:linkToQuery/>
+    <w:doNotSuppressBlankLines w:val="0"/>
+    <w:activeRecord w:val="2"/>
+    <w:checkErrors w:val="1"/>
+    <w:mailSubject w:val="Review import packet"/>
+  </w:mailMerge>
+</w:settings>
+XML;
+        $parts['mailmerge/header-source.xml'] = '<headers><field name="ReviewerEmail"/><field name="SourcePacket"/></headers>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $mailMerge = $docx['settings']['mailMerge'];
+        $summary = $docx['packageProvenance']['summary'];
+        $inventory = $docx['packageProvenance']['parts'];
+        $headerSourceBytes = $parts['mailmerge/header-source.xml'];
+
+        $t->same('email', $mailMerge['mainDocumentType']);
+        $t->same('email', $mailMerge['destination']);
+        $t->same('native', $mailMerge['dataType']);
+        $t->same('SELECT * FROM [SourcePackets$] WHERE [NeedsReview] = 1', $mailMerge['query']);
+        $t->same('Review import packet', $mailMerge['mailSubject']);
+        $t->same(true, $mailMerge['connectStringPresent']);
+        $t->same(strlen($connectString), $mailMerge['connectStringLength']);
+        $t->same(hash('sha256', $connectString), $mailMerge['connectStringSha256']);
+        $t->true(!isset($mailMerge['connectString']), 'DOCX mail merge metadata must not expose raw connection strings');
+        $t->same(true, $mailMerge['viewMergedData']);
+        $t->same(true, $mailMerge['linkToQuery']);
+        $t->same(false, $mailMerge['doNotSuppressBlankLines']);
+        $t->same(2, $mailMerge['activeRecord']);
+        $t->same(1, $mailMerge['checkErrors']);
+        $t->same(2, $mailMerge['relationshipCount']);
+        $t->same(1, $mailMerge['issueCount']);
+        $t->same(['external-target-unsafe-scheme'], $mailMerge['issueCodes']);
+
+        $dataSource = $mailMerge['dataSource'];
+        $t->same('rMergeSource', $dataSource['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource', $dataSource['relationshipType']);
+        $t->same('file:///C:/legacy/review-source.xlsx', $dataSource['target']);
+        $t->same('External', $dataSource['targetMode']);
+        $t->same(true, $dataSource['external']);
+        $t->same(null, $dataSource['targetPart']);
+        $t->same(false, $dataSource['exists']);
+        $t->same('absolute-uri', $dataSource['externalTargetKind']);
+        $t->same('file', $dataSource['externalTargetScheme']);
+        $t->same(false, $dataSource['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $dataSource['issues']);
+
+        $headerSource = $mailMerge['headerSource'];
+        $t->same('rMergeHeader', $headerSource['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource', $headerSource['relationshipType']);
+        $t->same('../mailmerge/header-source.xml?source=header#fields', $headerSource['target']);
+        $t->same('mailmerge/header-source.xml?source=header#fields', $headerSource['resolvedTarget']);
+        $t->same('mailmerge/header-source.xml', $headerSource['targetPart']);
+        $t->same('source=header', $headerSource['targetQuery']);
+        $t->same('fields', $headerSource['targetFragment']);
+        $t->same('?source=header#fields', $headerSource['targetReferenceSuffix']);
+        $t->same(false, $headerSource['external']);
+        $t->same(true, $headerSource['exists']);
+        $t->same(strlen($headerSourceBytes), $headerSource['byteLength']);
+        $t->same(sprintf('%08x', crc32($headerSourceBytes)), $headerSource['crc32']);
+        $t->same(hash('sha256', $headerSourceBytes), $headerSource['sha256']);
+        $t->same('application/xml; profile=mail-merge-header', $headerSource['contentType']);
+        $t->same('application/xml', $headerSource['contentTypeBase']);
+        $t->same(['profile' => 'mail-merge-header'], $headerSource['contentTypeParameterMap']);
+        $t->same('override', $headerSource['contentTypeSource']);
+        $t->same('mail-merge-header-source-metadata-only', $headerSource['reviewPolicy']);
+        $t->same([], $headerSource['issues']);
+
+        $t->same(2, $summary['mailMergeRelationshipCount']);
+        $t->same(1, $summary['mailMergeIssueCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['mailMergeIssueCodes']);
+        $t->true(in_array('mail-merge-header-source', $inventory['mailmerge/header-source.xml']['roles'], true), 'mail merge header-source inventory role missing');
+        $t->true(!isset($docx['media']['mailmerge/header-source.xml']), 'Mail merge header source must remain metadata-only');
+    },
     'preserves docx settings review protection hyphenation and save policy metadata' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
