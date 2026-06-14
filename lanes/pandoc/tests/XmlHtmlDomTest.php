@@ -1033,6 +1033,22 @@ XML, 'BITS book XML', preserveWhiteSpace: false);
           <license xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license>
         </permissions>
       </graphic>
+      <graphic id="g-unsafe" xlink:href="figures/unsafe.png">
+        <permissions id="media-unsafe">
+          <license-ref xlink:href="javascript:alert(1)">Unsafe script license</license-ref>
+        </permissions>
+      </graphic>
+    </fig>
+    <fig id="f-targets">
+      <label>Fig. 2</label>
+      <caption><p>License target diagnostics</p></caption>
+      <permissions id="perm-targets">
+        <copyright-year>2025</copyright-year>
+        <copyright-holder>Target Holder</copyright-holder>
+        <license><license-p>Terms <ext-link ext-link-type="uri" xlink:href="https://licenses.example.test/terms">external terms</ext-link></license-p></license>
+        <license-ref>Missing target reference</license-ref>
+      </permissions>
+      <graphic id="g-targets" xlink:href="figures/targets.png"/>
     </fig>
     <fig id="f-missing"><caption><p>No license</p></caption><graphic xlink:href="figures/missing.png"/></fig>
   </body>
@@ -1042,38 +1058,64 @@ XML, 'JATS figure permissions XML', preserveWhiteSpace: false);
 
         $t->same(false, $packet['payloadBytesExposed']);
         $t->same(false, $packet['directReaderParity']);
-        $t->same(['f1', 'f-missing'], $packet['figureIds']);
+        $t->same(['f1', 'f-targets', 'f-missing'], $packet['figureIds']);
         $t->same('jats-bits-figure-permissions-metadata-only', $packet['figurePermissionReviewPolicy']);
         $t->same(false, $packet['figurePermissionPayloadBytesExposed']);
-        $t->same(2, $packet['figurePermissionSummaryCount']);
+        $t->same(3, $packet['figurePermissionSummaryCount']);
         $t->same([
             'figures/chart.tif',
             'figures/duplicate.tif',
+            'figures/unsafe.png',
+            'figures/targets.png',
             'figures/missing.png',
         ], $packet['figureMediaTargets']);
-        $t->same(3, $packet['figureMediaTargetCount']);
-        $t->same(['duplicate-license', 'missing-license'], $packet['figurePermissionIssueCodes']);
-        $t->same(2, $packet['figurePermissionIssueCount']);
+        $t->same(5, $packet['figureMediaTargetCount']);
+        $t->same([
+            'duplicate-license',
+            'duplicate-license-target',
+            'missing-license',
+            'missing-license-target',
+            'unsafe-license-target',
+        ], $packet['figurePermissionIssueCodes']);
+        $t->same(6, $packet['figurePermissionIssueCount']);
+        $t->same(8, $packet['figurePermissionLicenseTargetCount']);
+        $t->same([
+            'duplicate-license-target',
+            'missing-license-target',
+            'unsafe-license-target',
+        ], $packet['figurePermissionLicenseTargetIssueCodes']);
+        $t->same(4, $packet['figurePermissionLicenseTargetIssueCount']);
+        $t->same('figure', $packet['figurePermissionLicenseTargets'][0]['scope'] ?? null);
+        $t->same('f1', $packet['figurePermissionLicenseTargets'][0]['figureId'] ?? null);
+        $t->same('media', $packet['figurePermissionLicenseTargets'][2]['scope'] ?? null);
+        $t->same('figures/duplicate.tif', $packet['figurePermissionLicenseTargets'][2]['mediaTarget'] ?? null);
+        $t->same('unsafe', $packet['figurePermissionLicenseTargets'][4]['targetKind'] ?? null);
+        $t->same('f-targets', $packet['figurePermissionLicenseTargets'][5]['figureId'] ?? null);
         $t->same(false, $packet['figureMediaPayloadBytesExposed']);
         $t->same([], $packet['figureMediaReferences'][0]['issues']);
-        $t->same(['duplicate-license'], $packet['figureMediaReferences'][1]['permissionIssueCodes']);
+        $t->same(['duplicate-license', 'duplicate-license-target'], $packet['figureMediaReferences'][1]['permissionIssueCodes']);
+        $t->same(['unsafe-license-target'], $packet['figureMediaReferences'][2]['permissionIssueCodes']);
 
         $licensedFigure = $packet['figurePermissionSummaries'][0];
-        $missingFigure = $packet['figurePermissionSummaries'][1];
+        $targetFigure = $packet['figurePermissionSummaries'][1];
+        $missingFigure = $packet['figurePermissionSummaries'][2];
         $t->same('f1', $licensedFigure['figureId']);
         $t->same('Fig. 1', $licensedFigure['label']);
         $t->same('Figure', $licensedFigure['captionText']);
         $t->same([
             'figures/chart.tif',
             'figures/duplicate.tif',
+            'figures/unsafe.png',
         ], $licensedFigure['mediaTargets']);
-        $t->same(2, $licensedFigure['mediaTargetCount']);
-        $t->same(2, $licensedFigure['mediaCount']);
+        $t->same(3, $licensedFigure['mediaTargetCount']);
+        $t->same(3, $licensedFigure['mediaCount']);
         $t->same(1, $licensedFigure['permissionCount']);
         $t->same(1, $licensedFigure['licenseCount']);
         $t->same(1, $licensedFigure['licenseRefCount']);
         $t->same(1, $licensedFigure['copyrightStatementCount']);
         $t->same(false, $licensedFigure['payloadBytesExposed']);
+        $t->same(2, $licensedFigure['licenseTargetCount']);
+        $t->same(['duplicate-license-target'], $licensedFigure['licenseTargetIssueCodes']);
         $t->same('Copyright 2026 Port Libs', $licensedFigure['permissions'][0]['copyrightStatements'][0] ?? null);
         $t->same(['2026'], $licensedFigure['permissions'][0]['copyrightYears'] ?? null);
         $t->same(['Port Libs'], $licensedFigure['permissions'][0]['copyrightHolders'] ?? null);
@@ -1093,6 +1135,19 @@ XML, 'JATS figure permissions XML', preserveWhiteSpace: false);
         $t->same('f1', $licensedFigure['media'][1]['issues'][0]['figureId'] ?? null);
         $t->same('figures/duplicate.tif', $licensedFigure['media'][1]['issues'][0]['mediaTarget'] ?? null);
         $t->same(2, $licensedFigure['media'][1]['issues'][0]['count'] ?? null);
+        $t->same('media-unsafe', $licensedFigure['media'][2]['permissions'][0]['id'] ?? null);
+        $t->same('unsafe', $licensedFigure['media'][2]['licenseTargets'][0]['targetKind'] ?? null);
+        $t->same('javascript', $licensedFigure['media'][2]['licenseTargets'][0]['targetScheme'] ?? null);
+        $t->same('unsafe-license-target', $licensedFigure['media'][2]['issues'][0]['code'] ?? null);
+        $t->same('f-targets', $targetFigure['figureId']);
+        $t->same(['2025'], $targetFigure['permissions'][0]['copyrightYears'] ?? null);
+        $t->same(['Target Holder'], $targetFigure['permissions'][0]['copyrightHolders'] ?? null);
+        $t->same(['missing', 'external'], $targetFigure['permissions'][0]['licenseTargetKinds'] ?? null);
+        $t->same('ext-link', $targetFigure['licenseTargets'][1]['element'] ?? null);
+        $t->same('external', $targetFigure['licenseTargets'][1]['targetKind'] ?? null);
+        $t->same('license-ref', $targetFigure['licenseTargets'][2]['element'] ?? null);
+        $t->same('missing', $targetFigure['licenseTargets'][2]['targetKind'] ?? null);
+        $t->same(['missing-license-target'], $targetFigure['licenseTargetIssueCodes']);
         $t->same('f-missing', $missingFigure['figureId']);
         $t->same(['figures/missing.png'], $missingFigure['mediaTargets']);
         $t->same(0, $missingFigure['licenseCount']);

@@ -27,6 +27,22 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const JATS_LICENSE_TARGET_ELEMENTS = [
+        'ext-link' => true,
+        'license' => true,
+        'license-ref' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const JATS_SAFE_LICENSE_TARGET_SCHEMES = [
+        'doi' => true,
+        'http' => true,
+        'https' => true,
+        'mailto' => true,
+        'urn' => true,
+    ];
+
+    /** @var array<string, true> */
     private const JATS_AWARD_ID_ELEMENTS = [
         'award-id' => true,
         'award-number' => true,
@@ -1681,6 +1697,8 @@ final class XmlHtmlDom
         $figures = self::jatsFigureSummaries($root, $xrefs);
         $figurePermissionSummaries = self::jatsFigurePermissionSummaries($figures);
         $figurePermissionIssues = self::jatsFigurePermissionIssues($figurePermissionSummaries);
+        $figurePermissionLicenseTargets = self::jatsFigurePermissionLicenseTargets($figurePermissionSummaries);
+        $figurePermissionLicenseTargetIssues = self::jatsFigurePermissionLicenseTargetIssues($figurePermissionIssues);
         $figureMediaTargets = self::jatsFigureMediaTargets($figurePermissionSummaries);
         $figureMetadataCounts = self::jatsFigureMetadataCounts($figures);
         $duplicateFigureLabels = self::jatsDuplicateFigureLabels($figures);
@@ -2020,6 +2038,11 @@ final class XmlHtmlDom
             'figurePermissionIssueCodes' => self::jatsFigurePermissionIssueCodes($figurePermissionIssues),
             'figurePermissionIssueCount' => count($figurePermissionIssues),
             'figurePermissionIssues' => $figurePermissionIssues,
+            'figurePermissionLicenseTargets' => $figurePermissionLicenseTargets,
+            'figurePermissionLicenseTargetCount' => count($figurePermissionLicenseTargets),
+            'figurePermissionLicenseTargetIssueCodes' => self::jatsFigurePermissionIssueCodes($figurePermissionLicenseTargetIssues),
+            'figurePermissionLicenseTargetIssueCount' => count($figurePermissionLicenseTargetIssues),
+            'figurePermissionLicenseTargetIssues' => $figurePermissionLicenseTargetIssues,
             'figureXrefLinks' => $figureXrefLinks,
             'figureXrefLinkCount' => count($figureXrefLinks),
             'figureXrefTargetIds' => $figureXrefTargetIds,
@@ -12120,6 +12143,7 @@ final class XmlHtmlDom
             $mediaReferences = self::jatsFigureMediaReferences($figure);
             $figurePermissions = self::jatsChildPermissionSummaries($figure);
             $mediaTargets = self::jatsMediaTargets($mediaReferences);
+            $licenseTargets = self::jatsPermissionLicenseTargetsForContext($figurePermissions, 'figure', $id, null);
             $permissionIssues = self::jatsPermissionLicenseIssues(
                 'figure',
                 $id,
@@ -12128,6 +12152,7 @@ final class XmlHtmlDom
                 $figurePermissions,
                 self::jatsPermissionsHaveLicense($figurePermissions) || self::jatsMediaReferencesHaveLicense($mediaReferences)
             );
+            $licenseTargetIssues = self::jatsFigurePermissionLicenseTargetIssues($permissionIssues);
             foreach ($mediaReferences as $reference) {
                 foreach (is_array($reference['permissionIssues'] ?? null) ? $reference['permissionIssues'] : [] as $issue) {
                     if (is_array($issue)) {
@@ -12171,6 +12196,10 @@ final class XmlHtmlDom
                 'licenseCount' => self::jatsPermissionRecordCount($figurePermissions, 'licenses'),
                 'licenseRefCount' => self::jatsPermissionRecordCount($figurePermissions, 'licenseRefs'),
                 'copyrightStatementCount' => self::jatsPermissionRecordCount($figurePermissions, 'copyrightStatements'),
+                'licenseTargets' => $licenseTargets,
+                'licenseTargetCount' => count($licenseTargets),
+                'licenseTargetIssueCodes' => self::jatsFigurePermissionIssueCodes($licenseTargetIssues),
+                'licenseTargetIssueCount' => count($licenseTargetIssues),
                 'permissionIssues' => $permissionIssues,
                 'permissionIssueCodes' => self::jatsFigurePermissionIssueCodes($permissionIssues),
                 'permissionIssueCount' => count($permissionIssues),
@@ -12504,6 +12533,10 @@ final class XmlHtmlDom
                 'licenseCount' => (int) ($figure['licenseCount'] ?? 0),
                 'licenseRefCount' => (int) ($figure['licenseRefCount'] ?? 0),
                 'copyrightStatementCount' => (int) ($figure['copyrightStatementCount'] ?? 0),
+                'licenseTargets' => is_array($figure['licenseTargets'] ?? null) ? array_values($figure['licenseTargets']) : [],
+                'licenseTargetCount' => (int) ($figure['licenseTargetCount'] ?? 0),
+                'licenseTargetIssueCodes' => is_array($figure['licenseTargetIssueCodes'] ?? null) ? array_values($figure['licenseTargetIssueCodes']) : [],
+                'licenseTargetIssueCount' => (int) ($figure['licenseTargetIssueCount'] ?? 0),
                 'payloadBytesExposed' => false,
                 'issues' => is_array($figure['permissionIssues'] ?? null) ? array_values($figure['permissionIssues']) : [],
             ];
@@ -12532,6 +12565,10 @@ final class XmlHtmlDom
                 'licenseCount' => (int) ($reference['licenseCount'] ?? 0),
                 'licenseRefCount' => (int) ($reference['licenseRefCount'] ?? 0),
                 'copyrightStatementCount' => (int) ($reference['copyrightStatementCount'] ?? 0),
+                'licenseTargets' => is_array($reference['licenseTargets'] ?? null) ? array_values($reference['licenseTargets']) : [],
+                'licenseTargetCount' => (int) ($reference['licenseTargetCount'] ?? 0),
+                'licenseTargetIssueCodes' => is_array($reference['licenseTargetIssueCodes'] ?? null) ? array_values($reference['licenseTargetIssueCodes']) : [],
+                'licenseTargetIssueCount' => (int) ($reference['licenseTargetIssueCount'] ?? 0),
                 'payloadBytesExposed' => false,
                 'issues' => is_array($reference['permissionIssues'] ?? null) ? array_values($reference['permissionIssues']) : [],
             ];
@@ -12559,6 +12596,62 @@ final class XmlHtmlDom
     }
 
     /**
+     * @param list<array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigurePermissionLicenseTargets(array $summaries): array
+    {
+        $targets = [];
+        foreach ($summaries as $summary) {
+            foreach (is_array($summary['licenseTargets'] ?? null) ? $summary['licenseTargets'] : [] as $target) {
+                if (is_array($target)) {
+                    $targets[] = $target;
+                }
+            }
+
+            foreach (is_array($summary['media'] ?? null) ? $summary['media'] : [] as $media) {
+                if (!is_array($media)) {
+                    continue;
+                }
+
+                foreach (is_array($media['licenseTargets'] ?? null) ? $media['licenseTargets'] : [] as $target) {
+                    if (is_array($target)) {
+                        $targets[] = $target;
+                    }
+                }
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFigurePermissionLicenseTargetIssues(array $issues): array
+    {
+        $targetIssues = [];
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (is_string($code) && self::jatsIsLicenseTargetIssueCode($code)) {
+                $targetIssues[] = $issue;
+            }
+        }
+
+        return $targetIssues;
+    }
+
+    private static function jatsIsLicenseTargetIssueCode(string $code): bool
+    {
+        return in_array($code, [
+            'duplicate-license-target',
+            'missing-license-target',
+            'unsafe-license-target',
+        ], true);
+    }
+
+    /**
      * @param list<array<string, mixed>> $issues
      * @return list<string>
      */
@@ -12575,7 +12668,10 @@ final class XmlHtmlDom
         return self::jatsOrderedIssueCodes($codes, [
             'duplicate-license' => 0,
             'duplicate-license-ref' => 1,
-            'missing-license' => 2,
+            'duplicate-license-target' => 2,
+            'missing-license' => 3,
+            'missing-license-target' => 4,
+            'unsafe-license-target' => 5,
         ]);
     }
 
@@ -12623,6 +12719,8 @@ final class XmlHtmlDom
         foreach (self::childElements($element, 'permissions') as $permissions) {
             $licenses = self::jatsLicenseSummaries($permissions);
             $licenseRefs = self::jatsLicenseRefSummaries($permissions);
+            $licenseTargets = self::jatsPermissionLicenseTargetSummaries($permissions);
+            $licenseTargetIssues = self::jatsPermissionLicenseTargetIssuesForTargets($licenseTargets);
             $copyrightStatements = self::jatsTextList($permissions, 'copyright-statement');
             $summaries[] = [
                 'id' => self::normalizedAttribute($permissions, 'id'),
@@ -12633,11 +12731,339 @@ final class XmlHtmlDom
                 'licenseRefs' => $licenseRefs,
                 'licenseCount' => count($licenses),
                 'licenseRefCount' => count($licenseRefs),
+                'licenseTargets' => $licenseTargets,
+                'licenseTargetCount' => count($licenseTargets),
+                'licenseTargetKinds' => self::jatsLicenseTargetKinds($licenseTargets),
+                'licenseTargetIssueCodes' => self::jatsFigurePermissionIssueCodes($licenseTargetIssues),
+                'licenseTargetIssueCount' => count($licenseTargetIssues),
+                'payloadBytesExposed' => false,
                 'copyrightStatementCount' => count($copyrightStatements),
             ];
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionLicenseTargetSummaries(\DOMElement $permissions): array
+    {
+        $targets = [];
+        foreach (self::descendantElements($permissions) as $element) {
+            if (!isset(self::JATS_LICENSE_TARGET_ELEMENTS[$element->localName])) {
+                continue;
+            }
+
+            $target = self::jatsLinkTarget($element);
+            $targetKind = self::jatsLicenseTargetKind($target);
+            $targets[] = [
+                'element' => $element->localName,
+                'id' => self::normalizedAttribute($element, 'id'),
+                'type' => self::jatsLicenseTargetType($element),
+                'hrefAttribute' => self::jatsLinkTargetAttribute($element),
+                'target' => $target,
+                'targetKind' => $targetKind,
+                'targetScheme' => self::jatsLicenseTargetScheme($target),
+                'text' => self::normalizedText($element),
+                'sourcePosition' => self::jatsElementSourcePosition($element, $permissions),
+                'payloadBytesExposed' => false,
+                'issues' => self::jatsLicenseTargetLocalIssues($element, $target, $targetKind),
+            ];
+        }
+
+        $duplicateTargetKeys = self::jatsDuplicateLicenseTargetKeys($targets);
+        foreach ($targets as &$target) {
+            $key = self::jatsLicenseTargetIdentity($target['target'] ?? null);
+            if ($key !== null && isset($duplicateTargetKeys[$key])) {
+                $issues = is_array($target['issues'] ?? null) ? $target['issues'] : [];
+                if (!in_array('duplicate-license-target', $issues, true)) {
+                    $issues[] = 'duplicate-license-target';
+                }
+                $target['issues'] = $issues;
+            }
+        }
+        unset($target);
+
+        return $targets;
+    }
+
+    private static function jatsLicenseTargetType(\DOMElement $element): ?string
+    {
+        foreach (['license-type', 'ext-link-type', 'content-type', 'specific-use'] as $attribute) {
+            $type = self::normalizedAttribute($element, $attribute);
+            if ($type !== null) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jatsLicenseTargetLocalIssues(\DOMElement $element, ?string $target, string $targetKind): array
+    {
+        if ($target === null) {
+            if ($element->localName !== 'license' || !self::jatsLicenseElementHasNestedTarget($element)) {
+                return ['missing-license-target'];
+            }
+
+            return [];
+        }
+
+        return $targetKind === 'unsafe' ? ['unsafe-license-target'] : [];
+    }
+
+    private static function jatsLicenseElementHasNestedTarget(\DOMElement $license): bool
+    {
+        foreach (self::descendantElements($license) as $element) {
+            if (isset(self::JATS_LICENSE_TARGET_ELEMENTS[$element->localName]) && self::jatsLinkTarget($element) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function jatsLicenseTargetKind(?string $target): string
+    {
+        if ($target === null || trim($target) === '') {
+            return 'missing';
+        }
+
+        $target = trim($target);
+        if (str_starts_with($target, '#')) {
+            return 'fragment';
+        }
+
+        if (str_starts_with($target, '//')) {
+            return 'external';
+        }
+
+        $scheme = self::jatsLicenseTargetScheme($target);
+        if ($scheme !== null) {
+            return isset(self::JATS_SAFE_LICENSE_TARGET_SCHEMES[$scheme]) ? 'external' : 'unsafe';
+        }
+
+        return 'internal';
+    }
+
+    private static function jatsLicenseTargetScheme(?string $target): ?string
+    {
+        if (!is_string($target) || trim($target) === '') {
+            return null;
+        }
+
+        return preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', trim($target), $matches) === 1
+            ? strtolower($matches[1])
+            : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return array<string, true>
+     */
+    private static function jatsDuplicateLicenseTargetKeys(array $targets): array
+    {
+        $counts = [];
+        foreach ($targets as $target) {
+            $key = self::jatsLicenseTargetIdentity($target['target'] ?? null);
+            if ($key === null) {
+                continue;
+            }
+
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        $duplicates = [];
+        foreach ($counts as $key => $count) {
+            if ($count > 1) {
+                $duplicates[$key] = true;
+            }
+        }
+
+        return $duplicates;
+    }
+
+    private static function jatsLicenseTargetIdentity(mixed $target): ?string
+    {
+        return is_string($target) && trim($target) !== '' ? trim($target) : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionLicenseTargetIssuesForTargets(array $targets): array
+    {
+        $issues = [];
+        foreach ($targets as $target) {
+            foreach (is_array($target['issues'] ?? null) ? $target['issues'] : [] as $code) {
+                if (!is_string($code) || $code === '') {
+                    continue;
+                }
+
+                $issues[] = [
+                    'code' => $code,
+                    'element' => $target['element'] ?? null,
+                    'target' => $target['target'] ?? null,
+                    'targetKind' => $target['targetKind'] ?? null,
+                    'targetScheme' => $target['targetScheme'] ?? null,
+                    'hrefAttribute' => $target['hrefAttribute'] ?? null,
+                    'sourcePosition' => $target['sourcePosition'] ?? null,
+                    'payloadBytesExposed' => false,
+                ];
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<string>
+     */
+    private static function jatsLicenseTargetKinds(array $targets): array
+    {
+        $kinds = [];
+        foreach ($targets as $target) {
+            $kind = $target['targetKind'] ?? null;
+            if (is_string($kind) && $kind !== '') {
+                $kinds[] = $kind;
+            }
+        }
+
+        return array_values(array_unique($kinds));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionLicenseTargetsForContext(
+        array $permissions,
+        string $scope,
+        ?string $figureId,
+        ?string $mediaTarget
+    ): array {
+        $targets = [];
+        foreach ($permissions as $permission) {
+            foreach (is_array($permission['licenseTargets'] ?? null) ? $permission['licenseTargets'] : [] as $target) {
+                if (!is_array($target)) {
+                    continue;
+                }
+
+                $targets[] = [
+                    'scope' => $scope,
+                    'figureId' => $figureId,
+                    'mediaTarget' => $mediaTarget,
+                    'permissionId' => is_string($permission['id'] ?? null) ? $permission['id'] : null,
+                ] + $target;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $permissions
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPermissionLicenseTargetIssues(
+        string $scope,
+        ?string $figureId,
+        ?string $mediaTarget,
+        array $permissions
+    ): array {
+        $targets = self::jatsPermissionLicenseTargetsForContext($permissions, $scope, $figureId, $mediaTarget);
+        $issues = [];
+        foreach ($targets as $target) {
+            foreach (is_array($target['issues'] ?? null) ? $target['issues'] : [] as $code) {
+                if (!is_string($code) || $code === '' || $code === 'duplicate-license-target') {
+                    continue;
+                }
+
+                $issues[] = self::jatsLicenseTargetIssue($code, $target);
+            }
+        }
+
+        foreach (self::jatsDuplicateLicenseTargetIssueGroups($targets) as $issue) {
+            $issues[] = $issue;
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @return array<string, mixed>
+     */
+    private static function jatsLicenseTargetIssue(string $code, array $target): array
+    {
+        return [
+            'code' => $code,
+            'scope' => $target['scope'] ?? null,
+            'figureId' => $target['figureId'] ?? null,
+            'mediaTarget' => $target['mediaTarget'] ?? null,
+            'permissionId' => $target['permissionId'] ?? null,
+            'element' => $target['element'] ?? null,
+            'target' => $target['target'] ?? null,
+            'targetKind' => $target['targetKind'] ?? null,
+            'targetScheme' => $target['targetScheme'] ?? null,
+            'hrefAttribute' => $target['hrefAttribute'] ?? null,
+            'sourcePosition' => $target['sourcePosition'] ?? null,
+            'payloadBytesExposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsDuplicateLicenseTargetIssueGroups(array $targets): array
+    {
+        $groups = [];
+        foreach ($targets as $target) {
+            $key = self::jatsLicenseTargetIdentity($target['target'] ?? null);
+            if ($key === null) {
+                continue;
+            }
+
+            $groups[$key]['target'] ??= $key;
+            $groups[$key]['targetKind'] ??= $target['targetKind'] ?? null;
+            $groups[$key]['targetScheme'] ??= $target['targetScheme'] ?? null;
+            $groups[$key]['scope'] ??= $target['scope'] ?? null;
+            $groups[$key]['figureId'] ??= $target['figureId'] ?? null;
+            $groups[$key]['mediaTarget'] ??= $target['mediaTarget'] ?? null;
+            $groups[$key]['elements'][] = $target['element'] ?? null;
+            $groups[$key]['permissionIds'][] = $target['permissionId'] ?? null;
+            $groups[$key]['count'] = ($groups[$key]['count'] ?? 0) + 1;
+        }
+
+        $issues = [];
+        foreach ($groups as $group) {
+            if ((int) ($group['count'] ?? 0) < 2) {
+                continue;
+            }
+
+            $issues[] = [
+                'code' => 'duplicate-license-target',
+                'scope' => $group['scope'],
+                'figureId' => $group['figureId'],
+                'mediaTarget' => $group['mediaTarget'],
+                'target' => $group['target'],
+                'targetKind' => $group['targetKind'],
+                'targetScheme' => $group['targetScheme'],
+                'elements' => self::jatsUniqueNonEmptyStrings($group['elements'] ?? []),
+                'permissionIds' => self::jatsUniqueNonEmptyStrings($group['permissionIds'] ?? []),
+                'count' => (int) $group['count'],
+                'payloadBytesExposed' => false,
+            ];
+        }
+
+        return $issues;
     }
 
     /**
@@ -12701,6 +13127,10 @@ final class XmlHtmlDom
         }
 
         foreach (self::jatsPermissionDuplicateLicenseIssues($scope, $figureId, $mediaTarget, $permissions) as $issue) {
+            $issues[] = $issue;
+        }
+
+        foreach (self::jatsPermissionLicenseTargetIssues($scope, $figureId, $mediaTarget, $permissions) as $issue) {
             $issues[] = $issue;
         }
 
@@ -12880,6 +13310,7 @@ final class XmlHtmlDom
             $target = $href['target'];
             $issues = self::jatsFigureMediaIssues($target);
             $permissions = self::jatsChildPermissionSummaries($element);
+            $licenseTargets = self::jatsPermissionLicenseTargetsForContext($permissions, 'media', $figureId, $target);
             $permissionIssues = self::jatsPermissionLicenseIssues(
                 'media',
                 $figureId,
@@ -12888,6 +13319,7 @@ final class XmlHtmlDom
                 $permissions,
                 self::jatsPermissionsHaveLicense($permissions)
             );
+            $licenseTargetIssues = self::jatsFigurePermissionLicenseTargetIssues($permissionIssues);
 
             $references[] = [
                 'figureId' => $figureId,
@@ -12911,6 +13343,10 @@ final class XmlHtmlDom
                 'licenseCount' => self::jatsPermissionRecordCount($permissions, 'licenses'),
                 'licenseRefCount' => self::jatsPermissionRecordCount($permissions, 'licenseRefs'),
                 'copyrightStatementCount' => self::jatsPermissionRecordCount($permissions, 'copyrightStatements'),
+                'licenseTargets' => $licenseTargets,
+                'licenseTargetCount' => count($licenseTargets),
+                'licenseTargetIssueCodes' => self::jatsFigurePermissionIssueCodes($licenseTargetIssues),
+                'licenseTargetIssueCount' => count($licenseTargetIssues),
                 'permissionPayloadBytesExposed' => false,
                 'permissionIssues' => $permissionIssues,
                 'permissionIssueCodes' => self::jatsFigurePermissionIssueCodes($permissionIssues),
