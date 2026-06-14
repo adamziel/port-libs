@@ -1911,7 +1911,16 @@ final class PandocJsonReader
         $text = '';
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
-                'text', 'code', 'math' => (string) $node->attr('text', ''),
+                'text',
+                'code',
+                'math',
+                'code_block',
+                'raw_block',
+                'raw_html',
+                'raw_html_inline',
+                'raw_markdown',
+                'raw_inline',
+                'raw_tex' => (string) $node->attr('text', ''),
                 'space', 'softbreak', 'linebreak' => ' ',
                 default => $this->plainText($node->children),
             };
@@ -1927,7 +1936,7 @@ final class PandocJsonReader
     {
         $parts = [];
         foreach ($blocks as $block) {
-            $text = trim($this->plainText($block->children));
+            $text = trim($this->plainText([$block]));
             if ($text !== '') {
                 $parts[] = $text;
             }

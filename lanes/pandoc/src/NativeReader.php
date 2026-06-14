@@ -1964,8 +1964,24 @@ final class NativeReader
     {
         $text = '';
         foreach ($nodes as $node) {
-            if ($node->type === 'text' || $node->type === 'code') {
+            if (in_array($node->type, [
+                'text',
+                'code',
+                'math',
+                'code_block',
+                'raw_block',
+                'raw_html',
+                'raw_html_inline',
+                'raw_markdown',
+                'raw_inline',
+                'raw_tex',
+            ], true)) {
                 $text .= (string) $node->attr('text', '');
+                continue;
+            }
+
+            if ($node->type === 'space') {
+                $text .= ' ';
                 continue;
             }
 
@@ -1992,7 +2008,7 @@ final class NativeReader
     {
         $parts = [];
         foreach ($blocks as $block) {
-            $text = trim($this->plainTextFromInlines($block->children));
+            $text = trim($this->plainTextFromInlines([$block]));
             if ($text !== '') {
                 $parts[] = $text;
             }

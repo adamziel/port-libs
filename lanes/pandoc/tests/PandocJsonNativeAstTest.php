@@ -9406,6 +9406,77 @@ return [
             $t->same(['span', 'citation_group'], $compactInlineTypes($noteNestedPara->children), "{$source} round-trip note nested metadata inline payload");
         }
     },
+    'summarizes native leaf block constructors inside captions and cells' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['leaf-block-table', ['json-native'], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'CodeBlock', 'c' => [['', ['bash'], []], 'wp option get siteurl']],
+                        ['t' => 'RawBlock', 'c' => [['t' => 'Format', 'c' => 'html'], '<p>caption raw</p>']],
+                    ],
+                ]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'CodeBlock', 'c' => [['', [], []], 'cell code']],
+                                            ['t' => 'RawBlock', 'c' => [['t' => 'Format', 'c' => 'html'], '<span>cell raw</span>']],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $cell = $body->children[0]->children[0];
+            $captionBlocks = $table->attr('captionBlocks');
+
+            $t->same('wp option get siteurl' . "\n" . '<p>caption raw</p>', $table->attr('caption'), "{$source} caption includes leaf block text");
+            $t->same(true, is_array($captionBlocks), "{$source} caption blocks recorded");
+            $t->same(['code_block', 'raw_html'], array_map(static fn (AstNode $node): string => $node->type, $captionBlocks), "{$source} caption leaf block nodes");
+            $t->same('cell code' . "\n" . '<span>cell raw</span>', $cell->attr('text'), "{$source} cell text includes leaf block constructors");
+
+            foreach ([
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($document),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($tableBlock, $encoded['blocks'][0], "{$writer} preserves unchanged table payload");
+            }
+        }
+    },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();
