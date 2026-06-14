@@ -1497,6 +1497,104 @@ XML, 'JATS funding conflict metadata XML', preserveWhiteSpace: false);
         $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedPacket, 'Blocked Conflict Citation Secret'), 'Expected citation payload text to stay blocked from funding conflict diagnostics');
     },
+    'orders bits funding backlink collisions with duplicate provenance and bounded payloads' => static function (TestRunner $t): void {
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="edited-book" dtd-version="2.1" xml:lang="en">
+  <book-meta>
+    <book-title-group><book-title>Funding Collision Review</book-title></book-title-group>
+    <funding-group id="fg-collision">
+      <award-group id="ag-alpha">
+        <funding-source id="fs-alpha"><institution>Alpha Foundation</institution></funding-source>
+        <award-id id="award-alpha">COLLIDE-1</award-id>
+        <funding-statement>Alpha funding secret-one payload <xref id="xref-alpha" ref-type="bibr" rid="z-missing r-shared">shared funding citation</xref> remains hidden.</funding-statement>
+      </award-group>
+      <award-group id="ag-beta">
+        <funding-source id="fs-beta"><institution>Beta Foundation</institution></funding-source>
+        <award-id id="award-beta">COLLIDE-1</award-id>
+        <funding-statement>Beta funding secret-two payload <xref id="xref-beta" ref-type="bibr" rid="r-shared">second shared citation</xref> remains hidden.</funding-statement>
+      </award-group>
+      <award-group id="ag-gamma">
+        <funding-source id="fs-gamma"><institution>Gamma Foundation</institution></funding-source>
+        <award-id id="award-gamma">OTHER-2</award-id>
+        <funding-statement>Gamma funding secret-three payload <xref id="xref-gamma" ref-type="bibr" rid="a-found">single citation</xref> remains hidden.</funding-statement>
+      </award-group>
+    </funding-group>
+  </book-meta>
+  <book-body><book-part><body><sec><title>Body</title><p>Review body.</p></sec></body></book-part></book-body>
+  <back>
+    <ref-list>
+      <ref id="a-found"><label>A</label><mixed-citation>Single Found Citation Payload must stay hidden</mixed-citation></ref>
+      <ref id="r-shared"><label>S</label><mixed-citation>Shared Citation Payload must stay hidden</mixed-citation></ref>
+    </ref-list>
+  </back>
+</book>
+XML, 'BITS funding backlink collision XML', preserveWhiteSpace: false);
+
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $backlinks = $packet['fundingReferenceBacklinks'];
+
+        $statementOneText = 'Alpha funding secret-one payload shared funding citation remains hidden.';
+        $statementTwoText = 'Beta funding secret-two payload second shared citation remains hidden.';
+        $statementThreeText = 'Gamma funding secret-three payload single citation remains hidden.';
+        $sharedCitationText = 'SShared Citation Payload must stay hidden';
+
+        $t->same('bits', $packet['format']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(3, $packet['awardGroupCount']);
+        $t->same(3, $packet['fundingReferenceBacklinkCount']);
+        $t->same(1, $packet['missingFundingReferenceBacklinkCount']);
+        $t->same(1, $packet['duplicateFundingReferenceBacklinkCount']);
+        $t->same(['z-missing', 'r-shared', 'a-found'], array_column($backlinks, 'referenceId'));
+        $t->same(false, $backlinks[0]['found'] ?? null);
+        $t->same(false, $backlinks[0]['duplicate'] ?? null);
+        $t->same(['fg-collision'], $backlinks[0]['fundingGroupIds'] ?? null);
+        $t->same(['ag-alpha'], $backlinks[0]['awardGroupIds'] ?? null);
+        $t->same(['COLLIDE-1'], $backlinks[0]['awardIds'] ?? null);
+        $t->same(['fs-alpha'], $backlinks[0]['fundingSourceIds'] ?? null);
+        $t->same(hash('sha256', 'shared funding citation'), $backlinks[0]['links'][0]['linkTextSha256'] ?? null);
+        $t->same(null, $backlinks[0]['textSha256'] ?? null);
+        $t->same(true, $backlinks[1]['found'] ?? null);
+        $t->same(true, $backlinks[1]['duplicate'] ?? null);
+        $t->same(2, $backlinks[1]['linkCount'] ?? null);
+        $t->same(['fg-collision'], $backlinks[1]['fundingGroupIds'] ?? null);
+        $t->same(['ag-alpha', 'ag-beta'], $backlinks[1]['awardGroupIds'] ?? null);
+        $t->same(['COLLIDE-1'], $backlinks[1]['awardIds'] ?? null);
+        $t->same(['fs-alpha', 'fs-beta'], $backlinks[1]['fundingSourceIds'] ?? null);
+        $t->same(['COLLIDE-1'], $backlinks[1]['conflictingAwardIds'] ?? null);
+        $t->same(1, $backlinks[1]['awardSourceConflictCount'] ?? null);
+        $t->same(2, count($backlinks[1]['duplicateLinkProvenance'] ?? []));
+        $t->same('xref-alpha', $backlinks[1]['duplicateLinkProvenance'][0]['id'] ?? null);
+        $t->same(['fs-alpha'], $backlinks[1]['duplicateLinkProvenance'][0]['fundingSourceIds'] ?? null);
+        $t->same('xref-beta', $backlinks[1]['duplicateLinkProvenance'][1]['id'] ?? null);
+        $t->same(['fs-beta'], $backlinks[1]['duplicateLinkProvenance'][1]['fundingSourceIds'] ?? null);
+        $t->same(hash('sha256', 'second shared citation'), $backlinks[1]['duplicateLinkProvenance'][1]['linkTextSha256'] ?? null);
+        $t->same(strlen($sharedCitationText), $backlinks[1]['textLength'] ?? null);
+        $t->same(hash('sha256', $sharedCitationText), $backlinks[1]['textSha256'] ?? null);
+        $t->same(true, $backlinks[1]['citationTextBlocked'] ?? null);
+        $t->same('a-found', $backlinks[2]['referenceId'] ?? null);
+        $t->same(true, $backlinks[2]['found'] ?? null);
+        $t->same(false, $backlinks[2]['duplicate'] ?? null);
+        $t->same([], $backlinks[2]['duplicateLinkProvenance'] ?? null);
+        $t->same(true, $packet['awardGroups'][0]['fundingStatementTextBlocked'] ?? null);
+        $t->same(strlen($statementOneText), $packet['awardGroups'][0]['fundingStatementTextLength'] ?? null);
+        $t->same(hash('sha256', $statementOneText), $packet['awardGroups'][0]['fundingStatementTextSha256'] ?? null);
+        $t->same(strlen($statementTwoText), $packet['awardGroups'][1]['fundingStatementTextLength'] ?? null);
+        $t->same(hash('sha256', $statementTwoText), $packet['awardGroups'][1]['fundingStatementTextSha256'] ?? null);
+        $t->same(strlen($statementThreeText), $packet['awardGroups'][2]['fundingStatementTextLength'] ?? null);
+        $t->same(hash('sha256', $statementThreeText), $packet['awardGroups'][2]['fundingStatementTextSha256'] ?? null);
+        $t->same([
+            'duplicate-award-id',
+            'conflicting-award-source-pair',
+            'missing-funding-reference-backlink',
+            'duplicate-funding-reference-backlink',
+        ], $packet['fundingDiagnosticCodes']);
+        $t->same('z-missing', $packet['fundingDiagnostics'][2]['referenceId'] ?? null);
+        $t->same('r-shared', $packet['fundingDiagnostics'][3]['referenceId'] ?? null);
+        $t->same(2, count($packet['fundingDiagnostics'][3]['duplicateLinkProvenance'] ?? []));
+        $t->true(!str_contains($encodedPacket, 'secret-one payload'), 'Expected funding statement text to stay blocked from BITS packet JSON');
+        $t->true(!str_contains($encodedPacket, 'Shared Citation Payload'), 'Expected citation text to stay blocked from BITS packet JSON');
+    },
     'summarizes jats bits publication metadata links history permissions and serial identifiers' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="research-article" xmlns:xlink="http://www.w3.org/1999/xlink">

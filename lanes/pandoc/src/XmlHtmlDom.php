@@ -8846,6 +8846,7 @@ final class XmlHtmlDom
         array $referenceIds
     ): array {
         $awardGroupId = self::jatsTrimmedAttribute($awardGroup, 'id');
+        $fundingStatementText = self::jatsFundingStatementText($awardGroup);
         $fundingSources = [];
         foreach (self::descendantElements($awardGroup, 'funding-source') as $sourceIndex => $fundingSource) {
             $fundingSources[] = self::jatsFundingSourceSummary($fundingSource, $sourceIndex, $fundingGroupId, $awardGroupId);
@@ -8869,7 +8870,23 @@ final class XmlHtmlDom
             )),
             'awardIdRecords' => $awardIdRecords,
             'awardIdCount' => count($awardIdRecords),
+            'fundingStatementTextBlocked' => true,
+            'fundingStatementTextLength' => strlen($fundingStatementText),
+            'fundingStatementTextSha256' => hash('sha256', $fundingStatementText),
         ] + self::jatsReferenceLinkSummary($awardGroup, $referenceIds);
+    }
+
+    private static function jatsFundingStatementText(\DOMElement $root): string
+    {
+        $texts = [];
+        foreach (self::descendantElements($root, 'funding-statement') as $statement) {
+            $text = self::normalizedText($statement);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return implode(' ', $texts);
     }
 
     /**
@@ -9735,6 +9752,7 @@ final class XmlHtmlDom
                         'fundingSourceIds' => [],
                         'fundingSourceKeys' => [],
                         'links' => [],
+                        'duplicateLinkProvenance' => [],
                     ];
                 }
 
@@ -9791,9 +9809,33 @@ final class XmlHtmlDom
             $backlinks[$target]['awardSourceConflictCount'] = count($conflictingAwardIds);
             $backlinks[$target]['fundingSourceIds'] = self::jatsUniqueNonEmptyStrings($backlink['fundingSourceIds']);
             $backlinks[$target]['fundingSourceKeys'] = self::jatsUniqueNonEmptyStrings($backlink['fundingSourceKeys']);
+            $backlinks[$target]['duplicateLinkProvenance'] = count($backlink['links']) > 1
+                ? $backlink['links']
+                : [];
         }
 
-        return array_values($backlinks);
+        $orderedBacklinks = array_values($backlinks);
+        usort(
+            $orderedBacklinks,
+            static function (array $left, array $right): int {
+                $priority = static function (array $backlink): int {
+                    if (($backlink['found'] ?? null) === false) {
+                        return 0;
+                    }
+
+                    return ($backlink['duplicate'] ?? null) === true ? 1 : 2;
+                };
+
+                $priorityComparison = $priority($left) <=> $priority($right);
+                if ($priorityComparison !== 0) {
+                    return $priorityComparison;
+                }
+
+                return strcmp((string) ($left['referenceId'] ?? ''), (string) ($right['referenceId'] ?? ''));
+            }
+        );
+
+        return $orderedBacklinks;
     }
 
     /**
@@ -10053,6 +10095,7 @@ final class XmlHtmlDom
                 'awardIds' => $backlink['awardIds'] ?? [],
                 'fundingSourceIds' => $backlink['fundingSourceIds'] ?? [],
                 'conflictingAwardIds' => $backlink['conflictingAwardIds'] ?? [],
+                'duplicateLinkProvenance' => $backlink['duplicateLinkProvenance'] ?? [],
             ];
         }
 
@@ -10072,6 +10115,7 @@ final class XmlHtmlDom
                 'awardIds' => $backlink['awardIds'] ?? [],
                 'fundingSourceIds' => $backlink['fundingSourceIds'] ?? [],
                 'conflictingAwardIds' => $backlink['conflictingAwardIds'] ?? [],
+                'duplicateLinkProvenance' => $backlink['duplicateLinkProvenance'] ?? [],
             ];
         }
 
