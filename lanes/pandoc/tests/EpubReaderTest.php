@@ -7639,6 +7639,94 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML ruby annotation provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $rubyXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Ruby annotations</title></head>
+  <body>
+    <p><ruby id="kanji-ruby" class="phonetic" xml:lang="ja">漢字<rp>(</rp><rt id="kanji-reading" xml:lang="ja-Kana">かんじ</rt><rp>)</rp><rtc><rt id="kanji-gloss" xml:lang="en">Chinese characters</rt></rtc></ruby></p>
+    <p><ruby id="tokyo-ruby" dir="ltr"><rb id="tokyo-base">Tokyo</rb><rt class="kana">とうきょう</rt></ruby></p>
+    <p><ruby id="bad-ruby"><span class="source">Missing annotation</span><rp>(</rp></ruby></p>
+  </body>
+</html>
+XML;
+        $opfWithRubyContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="ruby-content" href="text/ruby.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithRubyContent = str_replace(
+            '</spine>',
+            '<itemref idref="ruby-content"/></spine>',
+            $opfWithRubyContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithRubyContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/ruby.xhtml', 'data' => $rubyXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/ruby.xhtml'];
+        $rubyBlock = $result['document']->children[2];
+
+        $t->same(1, $report['rubyAssetCount']);
+        $t->same(3, $report['rubyCount']);
+        $t->same(3, $report['rubyAnnotationCount']);
+        $t->same(2, $report['validRubyCount']);
+        $t->same(1, $report['invalidRubyCount']);
+        $t->same(2, count($report['rubyDiagnostics']));
+        $t->same(['missing-xhtml-ruby-annotation', 'odd-xhtml-ruby-parenthesis-count'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $report['rubyDiagnostics']));
+
+        $t->same(['ruby'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['ruby']);
+        $t->same(3, $asset['rubyCount']);
+        $t->same(3, $asset['rubyAnnotationCount']);
+        $t->same(2, $asset['validRubyCount']);
+        $t->same(1, $asset['invalidRubyCount']);
+        $t->same(2, $asset['rubyDiagnosticCount']);
+
+        $kanji = $asset['rubies'][0];
+        $t->same('kanji-ruby', $kanji['id']);
+        $t->same(['phonetic'], $kanji['classes']);
+        $t->same('漢字', $kanji['baseText']);
+        $t->same(1, $kanji['baseNodeCount']);
+        $t->same(['かんじ', 'Chinese characters'], $kanji['annotationTexts']);
+        $t->same(2, $kanji['annotationCount']);
+        $t->same(1, $kanji['rtcCount']);
+        $t->same(2, $kanji['parenthesisCount']);
+        $t->same('ja', $kanji['language']);
+        $t->same(true, $kanji['valid']);
+        $t->same('kanji-reading', $kanji['annotations'][0]['id']);
+        $t->same('ja-Kana', $kanji['annotations'][0]['language']);
+        $t->same(0, $kanji['annotations'][1]['rtcIndex']);
+        $t->same('kanji-gloss', $kanji['annotations'][1]['id']);
+
+        $tokyo = $asset['rubies'][1];
+        $t->same('tokyo-ruby', $tokyo['id']);
+        $t->same('Tokyo', $tokyo['baseText']);
+        $t->same('rb', $tokyo['baseNodes'][0]['kind']);
+        $t->same('tokyo-base', $tokyo['baseNodes'][0]['id']);
+        $t->same(['とうきょう'], $tokyo['annotationTexts']);
+        $t->same('ltr', $tokyo['direction']);
+
+        $bad = $asset['rubies'][2];
+        $t->same('bad-ruby', $bad['id']);
+        $t->same('Missing annotation', $bad['baseText']);
+        $t->same(0, $bad['annotationCount']);
+        $t->same(1, $bad['parenthesisCount']);
+        $t->same(false, $bad['valid']);
+        $t->same(['missing-xhtml-ruby-annotation', 'odd-xhtml-ruby-parenthesis-count'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $bad['diagnostics']));
+
+        $t->same($asset['rubies'], $rubyBlock->attr('contentRubies'));
+        $t->same($asset['rubyDiagnostics'], $rubyBlock->attr('contentRubyDiagnostics'));
+        $t->same($asset['reviewFlags'], $rubyBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $declaredRemoteXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

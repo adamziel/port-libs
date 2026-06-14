@@ -14740,6 +14740,8 @@ final class EpubReader
                 'contentSemanticDiagnostics' => $contentReport['semanticDiagnostics'],
                 'contentTables' => $contentReport['tables'],
                 'contentTableDiagnostics' => $contentReport['tableDiagnostics'],
+                'contentRubies' => $contentReport['rubies'],
+                'contentRubyDiagnostics' => $contentReport['rubyDiagnostics'],
                 'contentDiagnostics' => $contentReport['diagnostics'],
             ];
         }
@@ -17156,6 +17158,13 @@ final class EpubReader
         $tableFootSectionCount = 0;
         $tableItems = [];
         $tableDiagnostics = [];
+        $rubyAssetCount = 0;
+        $rubyCount = 0;
+        $rubyAnnotationCount = 0;
+        $validRubyCount = 0;
+        $invalidRubyCount = 0;
+        $rubyItems = [];
+        $rubyDiagnostics = [];
         $semanticAssetCount = 0;
         $semanticItemCount = 0;
         $semanticItems = [];
@@ -17444,6 +17453,22 @@ final class EpubReader
                 )),
                 'tableDiagnosticCount' => count(is_array($report['tableDiagnostics'] ?? null) ? $report['tableDiagnostics'] : []),
                 'tableDiagnostics' => is_array($report['tableDiagnostics'] ?? null) ? array_values($report['tableDiagnostics']) : [],
+                'rubyCount' => count(is_array($report['rubies'] ?? null) ? $report['rubies'] : []),
+                'rubies' => is_array($report['rubies'] ?? null) ? array_values($report['rubies']) : [],
+                'rubyAnnotationCount' => array_sum(array_map(
+                    static fn (array $ruby): int => is_int($ruby['annotationCount'] ?? null) ? $ruby['annotationCount'] : 0,
+                    is_array($report['rubies'] ?? null) ? $report['rubies'] : [],
+                )),
+                'validRubyCount' => count(array_filter(
+                    is_array($report['rubies'] ?? null) ? $report['rubies'] : [],
+                    static fn (array $ruby): bool => ($ruby['valid'] ?? false) === true,
+                )),
+                'invalidRubyCount' => count(array_filter(
+                    is_array($report['rubies'] ?? null) ? $report['rubies'] : [],
+                    static fn (array $ruby): bool => ($ruby['valid'] ?? true) !== true,
+                )),
+                'rubyDiagnosticCount' => count(is_array($report['rubyDiagnostics'] ?? null) ? $report['rubyDiagnostics'] : []),
+                'rubyDiagnostics' => is_array($report['rubyDiagnostics'] ?? null) ? array_values($report['rubyDiagnostics']) : [],
                 'semanticCount' => count(is_array($report['semantics'] ?? null) ? $report['semantics'] : []),
                 'semantics' => is_array($report['semantics'] ?? null) ? array_values($report['semantics']) : [],
                 'semanticTypes' => is_array($report['semanticTypes'] ?? null) ? array_values($report['semanticTypes']) : [],
@@ -17519,9 +17544,17 @@ final class EpubReader
             $tableHeadSectionCount += $item['tableHeadSectionCount'];
             $tableBodySectionCount += $item['tableBodySectionCount'];
             $tableFootSectionCount += $item['tableFootSectionCount'];
+            $rubyCount += $item['rubyCount'];
+            $rubyAnnotationCount += $item['rubyAnnotationCount'];
+            $validRubyCount += $item['validRubyCount'];
+            $invalidRubyCount += $item['invalidRubyCount'];
             if ($item['tableCount'] > 0) {
                 ++$tableAssetCount;
                 array_push($tableItems, ...$item['tables']);
+            }
+            if ($item['rubyCount'] > 0) {
+                ++$rubyAssetCount;
+                array_push($rubyItems, ...$item['rubies']);
             }
             $semanticItemCount += $item['semanticCount'];
             $viewportCount += $item['viewportCount'];
@@ -17549,6 +17582,9 @@ final class EpubReader
             }
             if (($item['flags']['trigger'] ?? false) === true) {
                 ++$triggerAssetCount;
+            }
+            if (($item['flags']['ruby'] ?? false) === true && $item['rubyCount'] === 0) {
+                ++$rubyAssetCount;
             }
             if (($item['flags']['sideEffects'] ?? false) === true && $item['sideEffectCount'] === 0) {
                 ++$sideEffectAssetCount;
@@ -17592,6 +17628,11 @@ final class EpubReader
             }
             foreach ($item['tableDiagnostics'] as $diagnostic) {
                 $tableDiagnostics[] = [
+                    'part' => $part,
+                ] + $diagnostic;
+            }
+            foreach ($item['rubyDiagnostics'] as $diagnostic) {
+                $rubyDiagnostics[] = [
                     'part' => $part,
                 ] + $diagnostic;
             }
@@ -17712,6 +17753,13 @@ final class EpubReader
             'tableFootSectionCount' => $tableFootSectionCount,
             'tableItems' => $tableItems,
             'tableDiagnostics' => $tableDiagnostics,
+            'rubyAssetCount' => $rubyAssetCount,
+            'rubyCount' => $rubyCount,
+            'rubyAnnotationCount' => $rubyAnnotationCount,
+            'validRubyCount' => $validRubyCount,
+            'invalidRubyCount' => $invalidRubyCount,
+            'rubyItems' => $rubyItems,
+            'rubyDiagnostics' => $rubyDiagnostics,
             'semanticAssetCount' => $semanticAssetCount,
             'semanticItemCount' => $semanticItemCount,
             'semanticTypes' => self::xhtmlSemanticTypes($semanticItems),
@@ -17760,6 +17808,7 @@ final class EpubReader
         $triggers = [];
         $semantics = [];
         $tables = [];
+        $rubies = [];
         $elementIds = [];
         $diagnostics = [];
 
@@ -17789,6 +17838,8 @@ final class EpubReader
                 'switches' => [],
                 'tables' => [],
                 'tableDiagnostics' => [],
+                'rubies' => [],
+                'rubyDiagnostics' => [],
                 'switchCaseCount' => 0,
                 'switchDefaultCount' => 0,
                 'validSwitchCount' => 0,
@@ -17829,6 +17880,7 @@ final class EpubReader
                 $triggers,
                 $semantics,
                 $tables,
+                $rubies,
                 $elementIds
             );
         }
@@ -17942,6 +17994,15 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        $rubyDiagnostics = [];
+        foreach ($rubies as $ruby) {
+            foreach ($ruby['diagnostics'] as $diagnostic) {
+                $rubyDiagnostics[] = [
+                    'rubyIndex' => $ruby['index'],
+                    'rubyId' => $ruby['id'],
+                ] + $diagnostic;
+            }
+        }
         $semanticDiagnostics = [];
         foreach ($semantics as $semantic) {
             foreach ($semantic['diagnostics'] as $diagnostic) {
@@ -17982,6 +18043,8 @@ final class EpubReader
             'switches' => $switches,
             'tables' => $tables,
             'tableDiagnostics' => $tableDiagnostics,
+            'rubies' => $rubies,
+            'rubyDiagnostics' => $rubyDiagnostics,
             'switchCaseCount' => array_sum(array_map(
                 static fn (array $switch): int => is_int($switch['caseCount'] ?? null) ? $switch['caseCount'] : 0,
                 $switches,
@@ -18311,6 +18374,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $triggers
      * @param list<array<string, mixed>> $semantics
      * @param list<array<string, mixed>> $tables
+     * @param list<array<string, mixed>> $rubies
      * @param array<string, array<string, mixed>> $elementIds
      */
     private function scanXhtmlContentElement(
@@ -18331,6 +18395,7 @@ final class EpubReader
         array &$triggers,
         array &$semantics,
         array &$tables,
+        array &$rubies,
         array &$elementIds
     ): void {
         $namespace = (string) $element->namespaceURI;
@@ -18484,6 +18549,10 @@ final class EpubReader
             $flags['tables'] = true;
             $tables[] = self::xhtmlTableReport($part, $element, count($tables));
         }
+        if ($namespace === self::XHTML_NS && $localName === 'ruby') {
+            $flags['ruby'] = true;
+            $rubies[] = self::xhtmlRubyReport($part, $element, count($rubies));
+        }
         $epubTypes = self::epubTypes($element);
         if ($epubTypes !== []) {
             $semantics[] = $this->xhtmlSemanticReport(
@@ -18625,6 +18694,7 @@ final class EpubReader
                 $triggers,
                 $semantics,
                 $tables,
+                $rubies,
                 $elementIds
             );
         }
@@ -20159,6 +20229,190 @@ final class EpubReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlRubyReport(string $part, \DOMElement $ruby, int $index): array
+    {
+        $baseNodes = [];
+        $annotations = [];
+        $parentheses = [];
+        $rtcCount = 0;
+        $emptyRtcCount = 0;
+        $diagnostics = [];
+
+        foreach ($ruby->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $text = self::normalizeWhitespace($child->textContent);
+                if ($text !== '') {
+                    $baseNodes[] = [
+                        'index' => count($baseNodes),
+                        'kind' => 'text',
+                        'element' => null,
+                        'id' => null,
+                        'text' => $text,
+                        'attributes' => [],
+                    ];
+                }
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->namespaceURI !== self::XHTML_NS) {
+                if (self::normalizedText($child) !== '') {
+                    $baseNodes[] = self::xhtmlRubyBaseNodeReport($child, count($baseNodes), 'foreign');
+                }
+                continue;
+            }
+
+            $localName = strtolower($child->localName);
+            if ($localName === 'rt') {
+                $annotations[] = self::xhtmlRubyAnnotationReport($child, count($annotations), null);
+                continue;
+            }
+            if ($localName === 'rtc') {
+                $rtcIndex = $rtcCount;
+                ++$rtcCount;
+                $rtcAnnotations = 0;
+                foreach (self::childElements($child, 'rt', self::XHTML_NS) as $rt) {
+                    $annotations[] = self::xhtmlRubyAnnotationReport($rt, count($annotations), $rtcIndex);
+                    ++$rtcAnnotations;
+                }
+                if ($rtcAnnotations === 0) {
+                    ++$emptyRtcCount;
+                    $diagnostics[] = [
+                        'type' => 'empty-xhtml-ruby-annotation-container',
+                        'rtcIndex' => $rtcIndex,
+                        'message' => 'EPUB XHTML ruby annotation container does not contain any rt annotations',
+                    ];
+                }
+                continue;
+            }
+            if ($localName === 'rp') {
+                $parentheses[] = [
+                    'index' => count($parentheses),
+                    'id' => self::nullableAttribute($child, 'id'),
+                    'text' => self::normalizedText($child),
+                    'attributes' => self::elementAttributes($child),
+                ];
+                continue;
+            }
+
+            if (self::normalizedText($child) !== '') {
+                $baseNodes[] = self::xhtmlRubyBaseNodeReport(
+                    $child,
+                    count($baseNodes),
+                    in_array($localName, ['rb', 'rbc'], true) ? $localName : 'element'
+                );
+            }
+        }
+
+        $baseText = self::normalizeWhitespace(implode('', array_map(
+            static fn (array $node): string => (string) ($node['text'] ?? ''),
+            $baseNodes
+        )));
+        $annotationTexts = array_map(
+            static fn (array $annotation): string => (string) ($annotation['text'] ?? ''),
+            $annotations
+        );
+        $emptyAnnotations = array_values(array_filter(
+            $annotations,
+            static fn (array $annotation): bool => (string) ($annotation['text'] ?? '') === '',
+        ));
+
+        if ($baseText === '') {
+            $diagnostics[] = [
+                'type' => 'missing-xhtml-ruby-base',
+                'message' => 'EPUB XHTML ruby element does not expose base text for annotation review',
+            ];
+        }
+        if ($annotations === []) {
+            $diagnostics[] = [
+                'type' => 'missing-xhtml-ruby-annotation',
+                'message' => 'EPUB XHTML ruby element does not contain an rt annotation',
+            ];
+        }
+        if ($emptyAnnotations !== []) {
+            $diagnostics[] = [
+                'type' => 'empty-xhtml-ruby-annotation',
+                'annotationIndexes' => array_map(
+                    static fn (array $annotation): int => (int) ($annotation['index'] ?? 0),
+                    $emptyAnnotations
+                ),
+                'message' => 'EPUB XHTML ruby annotation text is empty',
+            ];
+        }
+        if (count($parentheses) % 2 === 1) {
+            $diagnostics[] = [
+                'type' => 'odd-xhtml-ruby-parenthesis-count',
+                'parenthesisCount' => count($parentheses),
+                'message' => 'EPUB XHTML ruby fallback parentheses are unbalanced',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'sourcePart' => $part,
+            'element' => 'ruby',
+            'namespace' => $ruby->namespaceURI,
+            'id' => self::nullableAttribute($ruby, 'id'),
+            'class' => self::nullableAttribute($ruby, 'class'),
+            'classes' => self::spaceDelimited($ruby->getAttribute('class')),
+            'text' => self::normalizedText($ruby),
+            'baseText' => $baseText,
+            'baseNodeCount' => count($baseNodes),
+            'baseNodes' => $baseNodes,
+            'annotationCount' => count($annotations),
+            'annotationTexts' => $annotationTexts,
+            'annotations' => $annotations,
+            'rtcCount' => $rtcCount,
+            'emptyRtcCount' => $emptyRtcCount,
+            'parenthesisCount' => count($parentheses),
+            'parentheses' => $parentheses,
+            'language' => self::xmlLang($ruby),
+            'direction' => self::direction($ruby),
+            'attributes' => self::elementAttributes($ruby),
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlRubyBaseNodeReport(\DOMElement $element, int $index, string $kind): array
+    {
+        return [
+            'index' => $index,
+            'kind' => $kind,
+            'element' => $element->localName,
+            'id' => self::nullableAttribute($element, 'id'),
+            'text' => self::normalizedText($element),
+            'attributes' => self::elementAttributes($element),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlRubyAnnotationReport(\DOMElement $element, int $index, ?int $rtcIndex): array
+    {
+        return [
+            'index' => $index,
+            'rtcIndex' => $rtcIndex,
+            'id' => self::nullableAttribute($element, 'id'),
+            'class' => self::nullableAttribute($element, 'class'),
+            'classes' => self::spaceDelimited($element->getAttribute('class')),
+            'text' => self::normalizedText($element),
+            'language' => self::xmlLang($element),
+            'direction' => self::direction($element),
+            'attributes' => self::elementAttributes($element),
+        ];
+    }
+
+    /**
      * @param list<string> $types
      * @param array<string, array<string, mixed>> $manifestByPart
      *
@@ -20358,7 +20612,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, inlineStyles:bool, switch:bool, trigger:bool, tables:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, linkedResources:bool, inlineStyles:bool, switch:bool, trigger:bool, tables:bool, ruby:bool, sideEffects:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -20371,6 +20625,7 @@ final class EpubReader
             'switch' => false,
             'trigger' => false,
             'tables' => false,
+            'ruby' => false,
             'sideEffects' => false,
             'remoteResources' => false,
             'missingReferences' => false,
@@ -20395,6 +20650,7 @@ final class EpubReader
             'switch' => 'switch',
             'trigger' => 'trigger',
             'tables' => 'tables',
+            'ruby' => 'ruby',
             'sideEffects' => 'side-effects',
             'remoteResources' => 'remote-resources',
             'missingReferences' => 'missing-references',
@@ -21503,6 +21759,8 @@ final class EpubReader
                 'contentSemanticDiagnostics' => $asset['contentSemanticDiagnostics'] ?? [],
                 'contentTables' => $asset['contentTables'] ?? [],
                 'contentTableDiagnostics' => $asset['contentTableDiagnostics'] ?? [],
+                'contentRubies' => $asset['contentRubies'] ?? [],
+                'contentRubyDiagnostics' => $asset['contentRubyDiagnostics'] ?? [],
                 'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
@@ -21874,7 +22132,12 @@ final class EpubReader
 
     private static function normalizedText(\DOMElement $element): string
     {
-        $text = preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent;
+        return self::normalizeWhitespace($element->textContent);
+    }
+
+    private static function normalizeWhitespace(string $text): string
+    {
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
         return trim($text);
     }
