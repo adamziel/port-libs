@@ -1442,12 +1442,21 @@ XML, 'BITS relationship XML', preserveWhiteSpace: false);
     <tip id="legacy-tip"><para>Legacy id target.</para></tip>
     <figure xml:id="fig-cover">
       <title>Cover</title>
-      <mediaobject xml:id="media-cover">
-        <imageobject><imagedata fileref="images/cover.png" format="PNG" width="640px" depth="480px" contentwidth="320px" align="center"/></imageobject>
+      <mediaobject xml:id="media-cover" role="thumbnail">
+        <title>Cover media title</title>
+        <caption><para>Cover image import</para></caption>
+        <imageobject role="thumbnail"><imagedata fileref="images/cover.png" format="PNG" width="640px" depth="480px" contentwidth="320px" align="center"/></imageobject>
+        <textobject role="alt"><phrase>Cover image alt text</phrase></textobject>
         <videoobject><videodata fileref="movie.mp4"/></videoobject>
       </mediaobject>
     </figure>
-    <inlinemediaobject><imageobject><imagedata entityref="logo-entity" format="SVG"/></imageobject></inlinemediaobject>
+    <inlinemediaobject xml:id="inline-cover" role="thumbnail">
+      <imageobject role="thumbnail"><imagedata fileref="images/cover.png" format="PNG"/></imageobject>
+      <textobject role="alt"><phrase>Inline cover alt text</phrase></textobject>
+    </inlinemediaobject>
+    <mediaobject xml:id="poster-media" role="detail">
+      <imageobject role="detail"><imagedata fileref="images/poster.png" format="PNG"/></imageobject>
+    </mediaobject>
     <calloutlist><callout arearefs="co1"><para>Unsupported callout list.</para></callout></calloutlist>
   </section>
 </article>
@@ -1474,8 +1483,8 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][2]['details']['admonitionCount'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
-        $t->same(2, $packet['directReaderDiagnostics'][4]['details']['mediaObjectCount'] ?? null);
-        $t->same(2, $packet['directReaderDiagnostics'][5]['details']['imageDataRefCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][4]['details']['mediaObjectCount'] ?? null);
+        $t->same(3, $packet['directReaderDiagnostics'][5]['details']['imageDataRefCount'] ?? null);
         $t->same(2, $packet['directReaderDiagnostics'][6]['details']['linkendReferenceCount'] ?? null);
         $t->true(($packet['directReaderDiagnostics'][7]['details']['unsupportedChildDiagnosticCount'] ?? 0) >= 3);
         $t->same('article', $packet['rootName']);
@@ -1500,22 +1509,73 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->same(['fig-cover'], $packet['figureXmlIds']);
         $t->same('Cover', $packet['figures'][0]['title'] ?? null);
         $t->same(1, $packet['figures'][0]['mediaObjectCount'] ?? null);
-        $t->same(2, $packet['mediaObjectCount']);
+        $t->same(3, $packet['mediaObjectCount']);
+        $t->same(['thumbnail', 'alt', 'detail'], $packet['mediaObjectRoles']);
+        $t->same(['Cover image import'], $packet['mediaCaptionTexts']);
+        $t->same(['Cover image alt text', 'Inline cover alt text'], $packet['mediaTextAlternativeTexts']);
         $t->same('mediaobject', $packet['mediaObjects'][0]['type'] ?? null);
         $t->same('fig-cover', $packet['mediaObjects'][0]['parentFigureXmlId'] ?? null);
+        $t->same('thumbnail', $packet['mediaObjects'][0]['role'] ?? null);
+        $t->same(['thumbnail', 'alt'], $packet['mediaObjects'][0]['roles'] ?? null);
+        $t->same('Cover media title', $packet['mediaObjects'][0]['title'] ?? null);
+        $t->same('Cover image import', $packet['mediaObjects'][0]['caption'] ?? null);
+        $t->same('Cover image import', $packet['mediaObjects'][0]['captionText'] ?? null);
+        $t->same('caption', $packet['mediaObjects'][0]['captionSource'] ?? null);
+        $t->same(true, $packet['mediaObjects'][0]['hasCaption'] ?? null);
+        $t->same(true, $packet['mediaObjects'][0]['hasTextAlternative'] ?? null);
+        $t->same(['Cover image alt text'], $packet['mediaObjects'][0]['textAlternativeTexts'] ?? null);
+        $t->same(['images/cover.png', 'movie.mp4'], $packet['mediaObjects'][0]['targetRefs'] ?? null);
+        $t->same([['role' => 'thumbnail', 'target' => 'images/cover.png'], ['role' => 'thumbnail', 'target' => 'movie.mp4']], $packet['mediaObjects'][0]['roleTargetPairs'] ?? null);
         $t->same('inlinemediaobject', $packet['mediaObjects'][1]['type'] ?? null);
-        $t->same(2, $packet['imageDataRefCount']);
+        $t->same('inline-cover', $packet['mediaObjects'][1]['xmlId'] ?? null);
+        $t->same(false, $packet['mediaObjects'][1]['hasCaption'] ?? null);
+        $t->same(true, $packet['mediaObjects'][1]['hasTextAlternative'] ?? null);
+        $t->same(['Inline cover alt text'], $packet['mediaObjects'][1]['textAlternativeTexts'] ?? null);
+        $t->same(['images/cover.png'], $packet['mediaObjects'][1]['targetRefs'] ?? null);
+        $t->same('poster-media', $packet['mediaObjects'][2]['xmlId'] ?? null);
+        $t->same(false, $packet['mediaObjects'][2]['hasCaption'] ?? null);
+        $t->same(false, $packet['mediaObjects'][2]['hasTextAlternative'] ?? null);
+        $t->same(['images/poster.png'], $packet['mediaObjects'][2]['targetRefs'] ?? null);
+        $t->same(3, $packet['mediaTargetManifestCount']);
+        $t->same('images/cover.png', $packet['mediaTargetManifest'][0]['target'] ?? null);
+        $t->same(['thumbnail'], $packet['mediaTargetManifest'][0]['roles'] ?? null);
+        $t->same(['media-cover', 'inline-cover'], $packet['mediaTargetManifest'][0]['mediaObjectXmlIds'] ?? null);
+        $t->same(['mediaobject', 'inlinemediaobject'], $packet['mediaTargetManifest'][0]['mediaElements'] ?? null);
+        $t->same(['Cover media title'], $packet['mediaTargetManifest'][0]['titleTexts'] ?? null);
+        $t->same(['Cover image import'], $packet['mediaTargetManifest'][0]['captionTexts'] ?? null);
+        $t->same(['Cover image alt text', 'Inline cover alt text'], $packet['mediaTargetManifest'][0]['textAlternatives'] ?? null);
+        $t->same(2, $packet['mediaTargetManifest'][0]['occurrenceCount'] ?? null);
+        $t->same('movie.mp4', $packet['mediaTargetManifest'][1]['target'] ?? null);
+        $t->same(1, $packet['mediaTargetManifest'][1]['occurrenceCount'] ?? null);
+        $t->same('images/poster.png', $packet['mediaTargetManifest'][2]['target'] ?? null);
+        $t->same(1, $packet['repeatedMediaRoleTargetPairCount']);
+        $t->same('thumbnail', $packet['repeatedMediaRoleTargetPairs'][0]['role'] ?? null);
+        $t->same('images/cover.png', $packet['repeatedMediaRoleTargetPairs'][0]['target'] ?? null);
+        $t->same(['media-cover', 'inline-cover'], $packet['repeatedMediaRoleTargetPairs'][0]['mediaObjectXmlIds'] ?? null);
+        $t->same([
+            'docbook-media-missing-caption',
+            'docbook-media-missing-caption',
+            'docbook-media-missing-alt-text',
+            'docbook-media-repeated-role-target',
+        ], $packet['mediaDiagnosticCodes']);
+        $t->same(4, $packet['mediaDiagnosticCount']);
+        $t->same('inline-cover', $packet['mediaDiagnostics'][0]['details']['xmlId'] ?? null);
+        $t->same('poster-media', $packet['mediaDiagnostics'][1]['details']['xmlId'] ?? null);
+        $t->same(['images/poster.png'], $packet['mediaDiagnostics'][2]['details']['targetRefs'] ?? null);
+        $t->same('images/cover.png', $packet['mediaDiagnostics'][3]['details']['target'] ?? null);
+        $t->same(3, $packet['imageDataRefCount']);
         $t->same('images/cover.png', $packet['imageDataRefs'][0]['fileref'] ?? null);
         $t->same('PNG', $packet['imageDataRefs'][0]['format'] ?? null);
         $t->same('640px', $packet['imageDataRefs'][0]['width'] ?? null);
         $t->same('480px', $packet['imageDataRefs'][0]['depth'] ?? null);
         $t->same('320px', $packet['imageDataRefs'][0]['contentwidth'] ?? null);
         $t->same('center', $packet['imageDataRefs'][0]['align'] ?? null);
-        $t->same('logo-entity', $packet['imageDataRefs'][1]['entityref'] ?? null);
-        $t->same('SVG', $packet['imageDataRefs'][1]['format'] ?? null);
-        $t->same(['book-root', 'intro', 'warn-media', 'fig-cover', 'media-cover'], $packet['xmlIdTargets']);
+        $t->same('images/cover.png', $packet['imageDataRefs'][1]['fileref'] ?? null);
+        $t->same('PNG', $packet['imageDataRefs'][1]['format'] ?? null);
+        $t->same('images/poster.png', $packet['imageDataRefs'][2]['fileref'] ?? null);
+        $t->same(['book-root', 'intro', 'warn-media', 'fig-cover', 'media-cover', 'inline-cover', 'poster-media'], $packet['xmlIdTargets']);
         $t->same(['legacy-tip'], $packet['idTargets']);
-        $t->same(6, $packet['targetSummaryCount']);
+        $t->same(8, $packet['targetSummaryCount']);
         $t->same(2, $packet['linkendReferenceCount']);
         $t->same(['warn-media', 'missing-target'], $packet['linkendReferences'][0]['targets'] ?? null);
         $t->same(['warn-media'], $packet['linkendReferences'][0]['resolvedTargets'] ?? null);
@@ -1530,6 +1590,73 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->same(false, $packet['unsupportedChildDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(false, $packet['unsupportedChildDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookReviewPacket($docbook, 'xml'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'summarizes docbook media role caption and target diagnostics' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2">
+  <title>Media Roles</title>
+  <section xml:id="media-roles">
+    <title>Media roles</title>
+    <mediaobject xml:id="hero-media" role="screenshot">
+      <title>Hero media title</title>
+      <caption><para>Hero screenshot import</para></caption>
+      <imageobject role="screenshot"><imagedata fileref="images/hero.png" format="PNG"/></imageobject>
+      <textobject role="alt"><phrase>Hero screenshot alt text</phrase></textobject>
+    </mediaobject>
+    <inlinemediaobject xml:id="hero-inline" role="screenshot">
+      <imageobject role="screenshot"><imagedata fileref="images/hero.png" format="PNG"/></imageobject>
+      <textobject role="alt"><phrase>Inline hero alt text</phrase></textobject>
+    </inlinemediaobject>
+    <mediaobject xml:id="poster-media" role="poster">
+      <imageobject role="poster"><imagedata fileref="images/poster.png" format="PNG"/></imageobject>
+    </mediaobject>
+  </section>
+</article>
+XML, 'DocBook media role caption XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookReviewPacket($docbook, 'docbook5');
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('docbook-structural-media-review-only', $packet['reviewPolicy']);
+        $t->same(3, $packet['mediaObjectCount']);
+        $t->same(['screenshot', 'alt', 'poster'], $packet['mediaObjectRoles']);
+        $t->same(['Hero screenshot import'], $packet['mediaCaptionTexts']);
+        $t->same(['Hero screenshot alt text', 'Inline hero alt text'], $packet['mediaTextAlternativeTexts']);
+        $t->same('mediaobject', $packet['mediaObjects'][0]['type'] ?? null);
+        $t->same('hero-media', $packet['mediaObjects'][0]['xmlId'] ?? null);
+        $t->same('screenshot', $packet['mediaObjects'][0]['role'] ?? null);
+        $t->same(['screenshot', 'alt'], $packet['mediaObjects'][0]['roles'] ?? null);
+        $t->same('Hero media title', $packet['mediaObjects'][0]['title'] ?? null);
+        $t->same('Hero screenshot import', $packet['mediaObjects'][0]['captionText'] ?? null);
+        $t->same(['Hero screenshot alt text'], $packet['mediaObjects'][0]['textAlternativeTexts'] ?? null);
+        $t->same(['images/hero.png'], $packet['mediaObjects'][0]['targetRefs'] ?? null);
+        $t->same('inlinemediaobject', $packet['mediaObjects'][1]['type'] ?? null);
+        $t->same(false, $packet['mediaObjects'][1]['hasCaption'] ?? null);
+        $t->same(true, $packet['mediaObjects'][1]['hasTextAlternative'] ?? null);
+        $t->same(false, $packet['mediaObjects'][2]['hasCaption'] ?? null);
+        $t->same(false, $packet['mediaObjects'][2]['hasTextAlternative'] ?? null);
+        $t->same(2, $packet['mediaTargetManifestCount']);
+        $t->same('images/hero.png', $packet['mediaTargetManifest'][0]['target'] ?? null);
+        $t->same(['hero-media', 'hero-inline'], $packet['mediaTargetManifest'][0]['mediaObjectXmlIds'] ?? null);
+        $t->same(['mediaobject', 'inlinemediaobject'], $packet['mediaTargetManifest'][0]['mediaElements'] ?? null);
+        $t->same(['Hero media title'], $packet['mediaTargetManifest'][0]['titleTexts'] ?? null);
+        $t->same(['Hero screenshot import'], $packet['mediaTargetManifest'][0]['captionTexts'] ?? null);
+        $t->same(['Hero screenshot alt text', 'Inline hero alt text'], $packet['mediaTargetManifest'][0]['textAlternatives'] ?? null);
+        $t->same(2, $packet['mediaTargetManifest'][0]['occurrenceCount'] ?? null);
+        $t->same('images/poster.png', $packet['mediaTargetManifest'][1]['target'] ?? null);
+        $t->same(1, $packet['repeatedMediaRoleTargetPairCount']);
+        $t->same('screenshot', $packet['repeatedMediaRoleTargetPairs'][0]['role'] ?? null);
+        $t->same('images/hero.png', $packet['repeatedMediaRoleTargetPairs'][0]['target'] ?? null);
+        $t->same(['hero-media', 'hero-inline'], $packet['repeatedMediaRoleTargetPairs'][0]['mediaObjectXmlIds'] ?? null);
+        $t->same([
+            'docbook-media-missing-caption',
+            'docbook-media-missing-caption',
+            'docbook-media-missing-alt-text',
+            'docbook-media-repeated-role-target',
+        ], $packet['mediaDiagnosticCodes']);
+        $t->same('hero-inline', $packet['mediaDiagnostics'][0]['details']['xmlId'] ?? null);
+        $t->same('poster-media', $packet['mediaDiagnostics'][2]['details']['xmlId'] ?? null);
+        $t->same('images/hero.png', $packet['mediaDiagnostics'][3]['details']['target'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes docbook bibliography reference diagnostics without reader parity claims' => static function (TestRunner $t): void {
