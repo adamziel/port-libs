@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3404,
-        "latestSlice": "pandoc-docx-note-comment-relationship-collisions maps one DOCX/OpenXML note/comment relationship diagnostics slice on current main 2344c76498. DocxOpenXmlReaderTest covers footnote, endnote, and comment .rels same-mode internal/external target collisions, duplicate relationship ID provenance, repeated target suffix preservation, missing content-type issue ordering from the existing diagnostics path, and per-item referenced relationship maps without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, browser renderers, Node tooling, external validators, online services, live provider tests, or live-service provider tests. Mapped upstream cases move 3403 -> 3404, mappedDocxOpenXmlNoteRelationshipDiagnosticsCases moves 1 -> 2, and docxOpenXmlNoteRelationshipDiagnosticsAssertions moves 31 -> 65. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2617 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80817 assertions, 0 failures after rebase onto current main 2344c76498.",
+        "mapped": 3405,
+        "latestSlice": "pandoc-media-bag-link-duplicate-mime-summary maps one native MediaBag repair-diagnostic case on current main ceb56c6d0f. MediaBag emits a bounded media-resource-link-duplicate-mime-summary diagnostic for linked-resource repair conflicts while preserving package-local MIME inference, percent-decoded safe path normalization, case-folded extraction collision repair, content-type/path disagreement diagnostics, and stable data-pandoc-media provenance fields. Mapped denominator moves 3404 -> 3405, mappedMediaBagRepairDiagnosticCases is 1, and mediaBagRepairDiagnosticAssertions is 30. Verification passed php -l for MediaBag.php and MediaBagTest.php; focused MediaBagTest.php passed 1 file, 198 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80917 assertions, 0 failures; jq empty; and git diff --check.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -46,8 +46,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "DOCX note/comment relationship collision diagnostics are verified over current main 2344c76498; DOCX/OpenXML reader parity remains partial while remaining package surfaces are mapped.",
-        "latestFocusedSource": "2026-06-14 DOCX note/comment relationship collision diagnostics inspected footnote, endnote, and comment .rels same-mode target collisions and per-item referenced relationship maps against the accepted static Pandoc inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 2344c76498; focused DocxOpenXmlReaderTest.php passed 1 file, 2617 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80817 assertions, 0 failures.",
+        "status": "MediaBag linked-resource repair diagnostics are verified over current main ceb56c6d0f; broader media/resource edge coverage remains partial.",
+        "latestFocusedSource": "2026-06-14 MediaBag linked-resource duplicate MIME summary slice inspected bounded native resource-map fixtures against the accepted static Pandoc media/resource inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main ceb56c6d0f; focused MediaBagTest.php passed 1 file, 198 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80917 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -367,7 +367,9 @@
         "mappedEpubPageListDuplicateSpineOrderingCases": 1,
         "epubPageListDuplicateSpineOrderingAssertions": 33,
         "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
-        "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61
+        "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61,
+        "mappedMediaBagRepairDiagnosticCases": 1,
+        "mediaBagRepairDiagnosticAssertions": 30
     },
     "benchmarkDenominator": {
         "status": "EPUB page-list collision reading-order evidence recovery is verified over current main.",

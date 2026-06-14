@@ -729,6 +729,7 @@ return [
             'media-resource-percent-decode-conflict:' . $encodedSource,
             'media-resource-loaded:' . $encodedSource,
             'media-resource-repair-conflict:' . $reportSource,
+            'media-resource-link-duplicate-mime-summary:' . $reportSource . ':application/pdf=2',
             'media-resource-link-mime-group-conflict:' . $reportSource,
             'media-resource-link-loaded:' . $reportSource,
             'media-resource-content-type-conflict:' . $photoSource,
@@ -743,6 +744,8 @@ return [
         $mappedUpperLogo = $mappedParagraph->children[2];
         $mappedLowerLogo = $mappedParagraph->children[4];
         $mappedPhoto = $mappedParagraph->children[6];
+        $imageAttributes = $mappedImage->attr('attributes');
+        $reportAttributes = $mappedReport->attr('attributes');
         $lowerLogoAttributes = $mappedLowerLogo->attr('attributes');
         $upperLogoAttributes = $mappedUpperLogo->attr('attributes');
         $photoAttributes = $mappedPhoto->attr('attributes');
@@ -758,6 +761,16 @@ return [
         $t->same('media/' . $expectedLowerLogoPath, $mappedLowerLogo->attr('url'));
         $t->same('media/media/photo.png', $mappedPhoto->attr('url'));
 
+        $t->same($encodedSource, $imageAttributes['data-pandoc-media-source']);
+        $t->same($encodedSource, $imageAttributes['data-pandoc-media-canonical-source']);
+        $t->same('assets/review figure.png', $imageAttributes['data-pandoc-media-original-path']);
+        $t->same('assets/review figure.png', $imageAttributes['data-pandoc-media-path']);
+        $t->same('false', $imageAttributes['data-pandoc-media-path-repaired']);
+        $t->same($reportSource, $reportAttributes['data-pandoc-media-source']);
+        $t->same($reportSource, $reportAttributes['data-pandoc-media-canonical-source']);
+        $t->same(sha1($reportExactBytes) . '.pdf', $reportAttributes['data-pandoc-media-original-path']);
+        $t->same('media/' . sha1($reportExactBytes) . '.pdf', $reportAttributes['data-pandoc-media-target']);
+        $t->same('application/pdf', $reportAttributes['data-pandoc-media-type']);
         $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-source']);
         $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-canonical-source']);
         $t->same('assets/logo.png', $lowerLogoAttributes['data-pandoc-media-original-path']);

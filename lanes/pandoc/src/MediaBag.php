@@ -804,11 +804,39 @@ final class MediaBag
         if ($hasPercentDecodedCandidate) {
             $diagnostics[] = 'media-resource-percent-decode-conflict:' . self::diagnosticSource($source);
         }
+        if ($linkedResource) {
+            $diagnostics[] = 'media-resource-link-duplicate-mime-summary:'
+                . self::diagnosticSource($source)
+                . ':'
+                . self::linkedResourceMimeSummary($matches);
+        }
         if ($linkedResource && self::hasMimeGroupConflict($mimeGroupFingerprints)) {
             $diagnostics[] = 'media-resource-link-mime-group-conflict:' . self::diagnosticSource($source);
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array{sourceKey:string, repair:string, resource:string|array{contents?:string, data?:string, mimeType?:string|null}}> $matches
+     */
+    private static function linkedResourceMimeSummary(array $matches): string
+    {
+        $fingerprintsByMimeType = [];
+        foreach ($matches as $match) {
+            $parts = self::resourceParts($match['sourceKey'], $match['resource']);
+            $fingerprint = $parts['sha1'] . "\0" . $parts['mimeType'];
+            $fingerprintsByMimeType[$parts['mimeType']][$fingerprint] = true;
+        }
+
+        ksort($fingerprintsByMimeType, SORT_STRING);
+
+        $summary = [];
+        foreach ($fingerprintsByMimeType as $mimeType => $fingerprints) {
+            $summary[] = $mimeType . '=' . count($fingerprints);
+        }
+
+        return implode(',', $summary);
     }
 
     /**
