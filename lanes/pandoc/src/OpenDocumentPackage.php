@@ -1612,6 +1612,7 @@ final class OpenDocumentPackage
                 'mediaTypeParameterCount' => 0,
                 'mediaTypeParameters' => [],
                 'mediaTypeParameterMap' => [],
+                'fontFormatSourceHint' => 'package-extension',
                 'exists' => true,
                 'encrypted' => false,
                 'declared' => false,
@@ -1624,17 +1625,27 @@ final class OpenDocumentPackage
 
         $items = [];
         $issueCodes = [];
+        $fontFormatCounts = [];
+        $fontFormatSourceCounts = [];
+        $fontFormatFamilyCounts = [];
+        $fontFileExtensionCounts = [];
         foreach ($candidatesByPath as $packagePath => $entry) {
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $mediaType = $rawMediaType;
             if ($mediaType === '') {
                 $mediaType = self::fontMediaTypeFromPart($packagePath) ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $mediaTypeValid = $mediaType === '' || self::isFontMediaType($mediaType);
+            $fontFormat = self::fontFormatProvenance(
+                $packagePath,
+                $mediaTypeReport['mediaTypeBase'],
+                $rawMediaType !== '' && ($entry['fontFormatSourceHint'] ?? '') !== 'package-extension'
+            );
             $issues = [];
             if (!$zipEntry instanceof ZipPackageEntry) {
                 $issues[] = 'odf-font-missing-package-part';
@@ -1651,6 +1662,11 @@ final class OpenDocumentPackage
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $fontFormatCounts[$fontFormat['fontFormat']] = ($fontFormatCounts[$fontFormat['fontFormat']] ?? 0) + 1;
+            $fontFormatSourceCounts[$fontFormat['fontFormatSource']] = ($fontFormatSourceCounts[$fontFormat['fontFormatSource']] ?? 0) + 1;
+            $fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] = ($fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] ?? 0) + 1;
+            $extensionKey = $fontFormat['fontFileExtension'] ?? 'none';
+            $fontFileExtensionCounts[$extensionKey] = ($fontFileExtensionCounts[$extensionKey] ?? 0) + 1;
 
             $items[] = [
                 'fullPath' => $entry['path'] ?? $packagePath,
@@ -1667,6 +1683,11 @@ final class OpenDocumentPackage
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'fontFileExtension' => $fontFormat['fontFileExtension'],
+                'fontFormat' => $fontFormat['fontFormat'],
+                'fontFormatSource' => $fontFormat['fontFormatSource'],
+                'fontFormatFamily' => $fontFormat['fontFormatFamily'],
+                'recognizedFontFormat' => $fontFormat['recognizedFontFormat'],
                 'expectedMediaTypeRole' => 'font',
                 'exists' => $zipEntry instanceof ZipPackageEntry,
                 'declared' => $declared,
@@ -1689,6 +1710,10 @@ final class OpenDocumentPackage
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($fontFormatCounts, SORT_STRING);
+        ksort($fontFormatSourceCounts, SORT_STRING);
+        ksort($fontFormatFamilyCounts, SORT_STRING);
+        ksort($fontFileExtensionCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -1707,6 +1732,12 @@ final class OpenDocumentPackage
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'fontFormatCounts' => $fontFormatCounts,
+            'fontFormatSourceCounts' => $fontFormatSourceCounts,
+            'fontFormatFamilyCounts' => $fontFormatFamilyCounts,
+            'fontFileExtensionCounts' => $fontFileExtensionCounts,
+            'recognizedFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] === true)),
+            'unknownFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] !== true)),
             'items' => $items,
         ];
     }
@@ -1724,6 +1755,81 @@ final class OpenDocumentPackage
             'woff' => 'font/woff',
             'woff2' => 'font/woff2',
             default => null,
+        };
+    }
+
+    /**
+     * @return array{fontFileExtension:string|null, fontFormat:string, fontFormatSource:string, fontFormatFamily:string, recognizedFontFormat:bool}
+     */
+    private static function fontFormatProvenance(string $path, string $mediaTypeBase, bool $hasManifestMediaType): array
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $extension = $extension === '' ? null : $extension;
+        $format = $hasManifestMediaType ? self::fontFormatFromMediaTypeBase($mediaTypeBase) : null;
+        $source = $format === null ? null : 'media-type';
+
+        if ($format === null) {
+            $format = $extension === null ? null : self::fontFormatFromExtension($extension);
+            $source = $format === null ? null : 'package-extension';
+        }
+
+        $format ??= 'unknown';
+
+        return [
+            'fontFileExtension' => $extension,
+            'fontFormat' => $format,
+            'fontFormatSource' => $source ?? 'unknown',
+            'fontFormatFamily' => self::fontFormatFamily($format),
+            'recognizedFontFormat' => $format !== 'unknown',
+        ];
+    }
+
+    private static function fontFormatFromMediaTypeBase(string $mediaTypeBase): ?string
+    {
+        return match (strtolower($mediaTypeBase)) {
+            'application/font-woff',
+            'application/x-font-woff',
+            'font/woff' => 'woff',
+            'application/font-woff2',
+            'application/x-font-woff2',
+            'font/woff2' => 'woff2',
+            'application/vnd.ms-fontobject' => 'embedded-opentype',
+            'application/vnd.ms-opentype',
+            'application/x-font-opentype',
+            'application/x-font-otf',
+            'application/x-opentype',
+            'font/otf' => 'opentype',
+            'application/x-font-ttf',
+            'application/x-truetype-font',
+            'font/ttf' => 'truetype',
+            'font/collection' => 'truetype-collection',
+            'application/x-font-type1' => 'type1',
+            default => null,
+        };
+    }
+
+    private static function fontFormatFromExtension(string $extension): ?string
+    {
+        return match (strtolower($extension)) {
+            'eot' => 'embedded-opentype',
+            'otf' => 'opentype',
+            'pfa', 'pfb' => 'type1',
+            'ttc' => 'truetype-collection',
+            'ttf' => 'truetype',
+            'woff' => 'woff',
+            'woff2' => 'woff2',
+            default => null,
+        };
+    }
+
+    private static function fontFormatFamily(string $format): string
+    {
+        return match ($format) {
+            'embedded-opentype' => 'legacy-webfont',
+            'opentype', 'truetype', 'truetype-collection' => 'sfnt',
+            'type1' => 'type1',
+            'woff', 'woff2' => 'webfont',
+            default => 'unknown',
         };
     }
 

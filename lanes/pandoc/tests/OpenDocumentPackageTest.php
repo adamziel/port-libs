@@ -2128,6 +2128,32 @@ XML;
             'odf-font-missing-package-part',
             'odf-font-undeclared-package-part',
         ], $fonts['issueCodes']);
+        $t->same([
+            'opentype' => 1,
+            'truetype' => 2,
+            'unknown' => 1,
+            'woff' => 1,
+            'woff2' => 1,
+        ], $fonts['fontFormatCounts']);
+        $t->same([
+            'media-type' => 4,
+            'package-extension' => 1,
+            'unknown' => 1,
+        ], $fonts['fontFormatSourceCounts']);
+        $t->same([
+            'sfnt' => 3,
+            'unknown' => 1,
+            'webfont' => 2,
+        ], $fonts['fontFormatFamilyCounts']);
+        $t->same([
+            'bin' => 1,
+            'otf' => 1,
+            'ttf' => 2,
+            'woff' => 1,
+            'woff2' => 1,
+        ], $fonts['fontFileExtensionCounts']);
+        $t->same(5, $fonts['recognizedFontFormatCount']);
+        $t->same(1, $fonts['unknownFontFormatCount']);
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
         $t->same(5, $summary['manifestReview']['fontPackagePartCount']);
         $t->same(5, $inventory['fontPackagePartCount']);
@@ -2138,6 +2164,11 @@ XML;
         $manifestDeclared = $odt->manifestEntry('Fonts/ReviewSans.woff2');
         $t->same('font/woff2', $declared['mediaType']);
         $t->same('font/woff2', $declared['mediaTypeBase']);
+        $t->same('woff2', $declared['fontFileExtension']);
+        $t->same('woff2', $declared['fontFormat']);
+        $t->same('media-type', $declared['fontFormatSource']);
+        $t->same('webfont', $declared['fontFormatFamily']);
+        $t->same(true, $declared['recognizedFontFormat']);
         $t->same(true, $declared['declared']);
         $t->same(true, $declared['valid']);
         $t->same(strlen($reviewSansBytes), $declared['byteLength']);
@@ -2157,20 +2188,34 @@ XML;
         $t->same('font/woff; technology=variations', $asset['mediaType']);
         $t->same('font/woff', $asset['mediaTypeBase']);
         $t->same(['technology' => 'variations'], $asset['mediaTypeParameterMap']);
+        $t->same('woff', $asset['fontFileExtension']);
+        $t->same('woff', $asset['fontFormat']);
+        $t->same('media-type', $asset['fontFormatSource']);
+        $t->same('webfont', $asset['fontFormatFamily']);
         $t->same(['font-package', 'manifest-declared'], $inventory['parts']['Assets/source.woff']['roles']);
 
         $missing = $fontByPath['Fonts/Missing.otf'];
+        $t->same('opentype', $missing['fontFormat']);
+        $t->same('media-type', $missing['fontFormatSource']);
+        $t->same('sfnt', $missing['fontFormatFamily']);
         $t->same(false, $missing['exists']);
         $t->same(null, $missing['byteLength']);
         $t->same(['odf-font-missing-package-part'], $missing['issues']);
 
         $invalid = $fontByPath['Fonts/not-font.bin'];
         $t->same('application/octet-stream', $invalid['mediaType']);
+        $t->same('bin', $invalid['fontFileExtension']);
+        $t->same('unknown', $invalid['fontFormat']);
+        $t->same('unknown', $invalid['fontFormatSource']);
+        $t->same('unknown', $invalid['fontFormatFamily']);
+        $t->same(false, $invalid['recognizedFontFormat']);
         $t->same(false, $invalid['valid']);
         $t->same(strlen($invalidBytes), $invalid['byteLength']);
         $t->same(['odf-font-invalid-media-type'], $invalid['issues']);
 
         $encrypted = $fontByPath['Fonts/encrypted.ttf'];
+        $t->same('truetype', $encrypted['fontFormat']);
+        $t->same('media-type', $encrypted['fontFormatSource']);
         $t->same(true, $encrypted['exists']);
         $t->same(true, $encrypted['encrypted']);
         $t->same(null, $encrypted['byteLength']);
@@ -2179,6 +2224,9 @@ XML;
         $t->same(['odf-font-encrypted-package-part'], $encrypted['issues']);
 
         $orphan = $fontByPath['Fonts/orphan.ttf'];
+        $t->same('truetype', $orphan['fontFormat']);
+        $t->same('package-extension', $orphan['fontFormatSource']);
+        $t->same('sfnt', $orphan['fontFormatFamily']);
         $t->same(false, $orphan['declared']);
         $t->same(true, $orphan['undeclared']);
         $t->same('font/ttf', $orphan['mediaType']);

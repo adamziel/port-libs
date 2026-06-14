@@ -9232,9 +9232,40 @@ XML;
             'odf-font-missing-package-part',
             'odf-font-undeclared-package-part',
         ], $report['issueCodes']);
+        $t->same([
+            'opentype' => 2,
+            'truetype' => 1,
+            'unknown' => 1,
+            'woff' => 1,
+            'woff2' => 1,
+        ], $report['fontFormatCounts']);
+        $t->same([
+            'media-type' => 4,
+            'package-extension' => 1,
+            'unknown' => 1,
+        ], $report['fontFormatSourceCounts']);
+        $t->same([
+            'sfnt' => 3,
+            'unknown' => 1,
+            'webfont' => 2,
+        ], $report['fontFormatFamilyCounts']);
+        $t->same([
+            'bin' => 1,
+            'otf' => 2,
+            'ttf' => 1,
+            'woff' => 1,
+            'woff2' => 1,
+        ], $report['fontFileExtensionCounts']);
+        $t->same(5, $report['recognizedFontFormatCount']);
+        $t->same(1, $report['unknownFontFormatCount']);
 
         $declared = $itemsByPart['Fonts/ReviewSans.woff2'];
         $t->same('font/woff2', $declared['mediaType']);
+        $t->same('woff2', $declared['fontFileExtension']);
+        $t->same('woff2', $declared['fontFormat']);
+        $t->same('media-type', $declared['fontFormatSource']);
+        $t->same('webfont', $declared['fontFormatFamily']);
+        $t->same(true, $declared['recognizedFontFormat']);
         $t->same(true, $declared['declared']);
         $t->same(true, $declared['exists']);
         $t->same(true, $declared['valid']);
@@ -9248,18 +9279,32 @@ XML;
         $t->same('font/woff; technology="variations"', $source['mediaType']);
         $t->same('font/woff', $source['mediaTypeBase']);
         $t->same(['technology' => 'variations'], $source['mediaTypeParameterMap']);
+        $t->same('woff', $source['fontFileExtension']);
+        $t->same('woff', $source['fontFormat']);
+        $t->same('media-type', $source['fontFormatSource']);
+        $t->same('webfont', $source['fontFormatFamily']);
         $t->same([], $source['issues']);
 
         $missing = $itemsByPart['Fonts/Missing.otf'];
+        $t->same('opentype', $missing['fontFormat']);
+        $t->same('media-type', $missing['fontFormatSource']);
+        $t->same('sfnt', $missing['fontFormatFamily']);
         $t->same(false, $missing['exists']);
         $t->same(['odf-font-missing-package-part'], $missing['issues']);
         $t->same(null, $missing['byteLength']);
 
         $invalid = $itemsByPart['Fonts/not-font.bin'];
+        $t->same('bin', $invalid['fontFileExtension']);
+        $t->same('unknown', $invalid['fontFormat']);
+        $t->same('unknown', $invalid['fontFormatSource']);
+        $t->same('unknown', $invalid['fontFormatFamily']);
+        $t->same(false, $invalid['recognizedFontFormat']);
         $t->same(false, $invalid['valid']);
         $t->same(['odf-font-invalid-media-type'], $invalid['issues']);
 
         $encrypted = $itemsByPart['Fonts/encrypted.ttf'];
+        $t->same('truetype', $encrypted['fontFormat']);
+        $t->same('media-type', $encrypted['fontFormatSource']);
         $t->same(true, $encrypted['encrypted']);
         $t->same(null, $encrypted['byteLength']);
         $t->same(strlen($encryptedBytes), $encrypted['storedByteLength']);
@@ -9267,6 +9312,9 @@ XML;
         $t->same(['odf-font-encrypted-package-part'], $encrypted['issues']);
 
         $orphan = $itemsByPart['Fonts/orphan.otf'];
+        $t->same('opentype', $orphan['fontFormat']);
+        $t->same('package-extension', $orphan['fontFormatSource']);
+        $t->same('sfnt', $orphan['fontFormatFamily']);
         $t->same(false, $orphan['declared']);
         $t->same(true, $orphan['undeclared']);
         $t->same(['odf-font-undeclared-package-part'], $orphan['issues']);
