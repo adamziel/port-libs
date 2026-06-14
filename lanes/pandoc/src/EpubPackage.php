@@ -551,6 +551,20 @@ final class EpubPackage
             $ocfSidecars,
             $this->encryption,
         );
+        $compactPackageReport = self::compactPackageReport(
+            $this->metadata,
+            $this->packageLinks,
+            $this->guideReferences,
+            $guideReport,
+            $this->collections,
+            $this->mediaOverlays,
+            $manifestFallbacks,
+            $this->encryption,
+            $ocfSidecars,
+            $this->navigation,
+            $this->navigationSections,
+            $validationReport,
+        );
 
         return [
             'opfPart' => $this->opfPartName,
@@ -598,9 +612,14 @@ final class EpubPackage
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'validation' => $validationReport,
+            'compactPackageReport' => $compactPackageReport,
             'wordpressImport' => [
                 'mimetypeEntry' => $this->mimetypeEntry,
                 'packageInventory' => $packageInventory,
+                'compactPackageReport' => $compactPackageReport,
+                'compactPackageReportCases' => $compactPackageReport['cases'],
+                'compactPackageReportPresentCaseIds' => $compactPackageReport['presentCaseIds'],
+                'compactPackageReportDiagnostics' => $compactPackageReport['diagnostics'],
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
                 'language' => $this->metadata['language'],
@@ -761,6 +780,313 @@ final class EpubPackage
                 'imageParts' => $assetSummary['imageParts'],
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $guideReferences
+     * @param array<string, mixed> $guideReport
+     * @param list<array<string, mixed>> $collections
+     * @param array<string, mixed> $mediaOverlays
+     * @param array<string, mixed> $manifestFallbacks
+     * @param array<string, mixed> $encryption
+     * @param array<string, mixed> $ocfSidecars
+     * @param array<string, mixed>|null $navigation
+     * @param list<array<string, mixed>> $navigationSections
+     * @param array<string, mixed> $validationReport
+     *
+     * @return array<string, mixed>
+     */
+    private static function compactPackageReport(
+        array $metadata,
+        array $packageLinks,
+        array $guideReferences,
+        array $guideReport,
+        array $collections,
+        array $mediaOverlays,
+        array $manifestFallbacks,
+        array $encryption,
+        array $ocfSidecars,
+        ?array $navigation,
+        array $navigationSections,
+        array $validationReport
+    ): array {
+        $cases = [];
+        $allDiagnostics = [];
+        $appendCase = static function (
+            string $id,
+            string $domain,
+            string $label,
+            int $itemCount,
+            array $diagnostics,
+            array $extra = []
+        ) use (&$cases, &$allDiagnostics): void {
+            $caseDiagnostics = [];
+            foreach ($diagnostics as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+                $caseDiagnostics[] = [
+                    'caseId' => $id,
+                    'domain' => $domain,
+                ] + $diagnostic;
+            }
+
+            array_push($allDiagnostics, ...$caseDiagnostics);
+            $cases[] = array_merge([
+                'id' => $id,
+                'domain' => $domain,
+                'label' => $label,
+                'present' => $itemCount > 0,
+                'itemCount' => $itemCount,
+                'diagnosticCount' => count($caseDiagnostics),
+                'diagnosticTypes' => self::compactDiagnosticTypes($caseDiagnostics),
+                'reviewRequired' => $caseDiagnostics !== [],
+                'diagnostics' => $caseDiagnostics,
+            ], $extra);
+        };
+
+        $refinementsById = is_array($metadata['refinementsById'] ?? null)
+            ? $metadata['refinementsById']
+            : [];
+        $refinementTargets = is_array($metadata['refinementTargets'] ?? null)
+            ? $metadata['refinementTargets']
+            : [];
+        $refinementCount = 0;
+        foreach ($refinementsById as $entries) {
+            if (is_array($entries)) {
+                $refinementCount += count($entries);
+            }
+        }
+        $appendCase(
+            'metadata-refinements',
+            'metadata',
+            'OPF metadata refinements',
+            $refinementCount,
+            self::compactDiagnosticList($refinementTargets['diagnostics'] ?? []),
+            [
+                'targetCount' => count($refinementsById),
+                'targetIds' => array_keys($refinementsById),
+                'packageLinkCount' => count($packageLinks),
+            ],
+        );
+
+        $navigationValidation = is_array($validationReport['navigation'] ?? null)
+            ? $validationReport['navigation']
+            : [];
+        $navigationTypeCounts = [];
+        foreach ($navigationSections as $section) {
+            $type = is_string($section['type'] ?? null) && $section['type'] !== ''
+                ? $section['type']
+                : 'unknown';
+            $navigationTypeCounts[$type] = ($navigationTypeCounts[$type] ?? 0) + 1;
+        }
+        $appendCase(
+            'navigation-sections',
+            'navigation',
+            'EPUB navigation sections',
+            count($navigationSections),
+            self::compactDiagnosticList($navigationValidation['diagnostics'] ?? []),
+            [
+                'navigationType' => is_array($navigation) && is_string($navigation['type'] ?? null) ? $navigation['type'] : null,
+                'entryCount' => is_array($navigation) && is_array($navigation['entries'] ?? null) ? count($navigation['entries']) : 0,
+                'sectionTypes' => array_keys($navigationTypeCounts),
+                'sectionTypeCounts' => $navigationTypeCounts,
+            ],
+        );
+
+        $appendCase(
+            'guide-references',
+            'guide',
+            'OPF guide references',
+            count($guideReferences),
+            self::compactDiagnosticList($guideReport['diagnostics'] ?? []),
+            [
+                'targets' => is_array($guideReport['targets'] ?? null) ? array_values($guideReport['targets']) : [],
+            ],
+        );
+
+        $appendCase(
+            'collections',
+            'collections',
+            'OPF collections',
+            self::compactCollectionCount($collections),
+            self::collectionDiagnostics($collections),
+            [
+                'titles' => self::collectionTitles($collections),
+                'linkTargets' => self::collectionLinkTargets($collections),
+            ],
+        );
+
+        $appendCase(
+            'media-overlays',
+            'media-overlays',
+            'EPUB media overlays',
+            (int) ($mediaOverlays['overlayCount'] ?? 0),
+            self::compactDiagnosticList($mediaOverlays['diagnostics'] ?? []),
+            [
+                'textTargets' => is_array($mediaOverlays['textTargets'] ?? null) ? array_values($mediaOverlays['textTargets']) : [],
+                'audioTargets' => is_array($mediaOverlays['audioTargets'] ?? null) ? array_values($mediaOverlays['audioTargets']) : [],
+            ],
+        );
+
+        $appendCase(
+            'manifest-fallbacks',
+            'manifest',
+            'OPF manifest fallback chains',
+            (int) ($manifestFallbacks['itemCount'] ?? 0),
+            self::compactDiagnosticList($manifestFallbacks['diagnostics'] ?? []),
+            [
+                'fallbackCount' => (int) ($manifestFallbacks['fallbackCount'] ?? 0),
+                'fallbackStyleCount' => (int) ($manifestFallbacks['fallbackStyleCount'] ?? 0),
+            ],
+        );
+
+        $encryptionExposure = is_array($encryption['exposure'] ?? null) ? $encryption['exposure'] : [];
+        $encryptionDiagnostics = array_merge(
+            self::compactDiagnosticList($encryption['diagnostics'] ?? []),
+            self::compactDiagnosticList($encryptionExposure['diagnostics'] ?? []),
+        );
+        $appendCase(
+            'encrypted-resources',
+            'encryption',
+            'OCF encrypted resources',
+            (int) ($encryptionExposure['itemCount'] ?? 0),
+            $encryptionDiagnostics,
+            [
+                'encryptedParts' => is_array($encryption['encryptedParts'] ?? null) ? array_values($encryption['encryptedParts']) : [],
+                'blockedByteExposureCount' => (int) ($encryptionExposure['blockedByteExposureCount'] ?? 0),
+                'obfuscatedFontCount' => (int) ($encryptionExposure['obfuscatedFontCount'] ?? 0),
+            ],
+        );
+
+        $appendCase(
+            'ocf-sidecars',
+            'ocf',
+            'OCF sidecar documents',
+            (int) ($ocfSidecars['sidecarCount'] ?? 0),
+            self::compactDiagnosticList($ocfSidecars['diagnostics'] ?? []),
+            [
+                'kinds' => is_array($ocfSidecars['kinds'] ?? null) ? array_values($ocfSidecars['kinds']) : [],
+                'referenceCount' => (int) ($ocfSidecars['referenceCount'] ?? 0),
+            ],
+        );
+
+        $presentCaseIds = [];
+        $diagnosticCaseIds = [];
+        $reviewRequiredCaseIds = [];
+        $caseCounts = [];
+        $domainCounts = [];
+        foreach ($cases as $case) {
+            $id = (string) $case['id'];
+            $domain = (string) $case['domain'];
+            $caseCounts[$id] = (int) $case['itemCount'];
+            $domainCounts[$domain] = ($domainCounts[$domain] ?? 0) + (int) $case['itemCount'];
+            if (($case['present'] ?? false) === true) {
+                $presentCaseIds[] = $id;
+            }
+            if ((int) ($case['diagnosticCount'] ?? 0) > 0) {
+                $diagnosticCaseIds[] = $id;
+            }
+            if (($case['reviewRequired'] ?? false) === true) {
+                $reviewRequiredCaseIds[] = $id;
+            }
+        }
+
+        return [
+            'present' => $presentCaseIds !== [],
+            'caseCount' => count($cases),
+            'presentCaseCount' => count($presentCaseIds),
+            'diagnosticCaseCount' => count($diagnosticCaseIds),
+            'reviewRequiredCaseCount' => count($reviewRequiredCaseIds),
+            'caseIds' => array_column($cases, 'id'),
+            'presentCaseIds' => $presentCaseIds,
+            'diagnosticCaseIds' => $diagnosticCaseIds,
+            'reviewRequiredCaseIds' => $reviewRequiredCaseIds,
+            'caseCounts' => $caseCounts,
+            'domainCounts' => $domainCounts,
+            'diagnosticCount' => count($allDiagnostics),
+            'diagnosticTypes' => self::compactDiagnosticTypes($allDiagnostics),
+            'diagnosticTypeCounts' => self::compactDiagnosticTypeCounts($allDiagnostics),
+            'diagnostics' => $allDiagnostics,
+            'cases' => $cases,
+            'casesById' => self::compactCasesById($cases),
+        ];
+    }
+
+    /**
+     * @param mixed $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function compactDiagnosticList(mixed $diagnostics): array
+    {
+        if (!is_array($diagnostics)) {
+            return [];
+        }
+
+        return array_values(array_filter($diagnostics, static fn (mixed $diagnostic): bool => is_array($diagnostic)));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<string>
+     */
+    private static function compactDiagnosticTypes(array $diagnostics): array
+    {
+        return array_keys(self::compactDiagnosticTypeCounts($diagnostics));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private static function compactDiagnosticTypeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic) || !is_string($diagnostic['type'] ?? null) || $diagnostic['type'] === '') {
+                continue;
+            }
+            $counts[$diagnostic['type']] = ($counts[$diagnostic['type']] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     */
+    private static function compactCollectionCount(array $collections): int
+    {
+        $count = 0;
+        foreach ($collections as $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+            ++$count;
+            $children = is_array($collection['children'] ?? null) ? $collection['children'] : [];
+            $count += self::compactCollectionCount($children);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cases
+     * @return array<string, array<string, mixed>>
+     */
+    private static function compactCasesById(array $cases): array
+    {
+        $byId = [];
+        foreach ($cases as $case) {
+            if (!is_array($case) || !is_string($case['id'] ?? null) || $case['id'] === '') {
+                continue;
+            }
+            $byId[$case['id']] = $case;
+        }
+
+        return $byId;
     }
 
     /**

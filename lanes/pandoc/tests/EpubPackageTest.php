@@ -4201,6 +4201,165 @@ XML;
         $t->same($encryption, $summary['wordpressImport']['encryption']);
     },
 
+    'summarizes compact EPUB package matrix across metadata navigation sidecars overlays and encryption' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMatrix = str_replace(
+            '<dc:title>WordPress Migration Guide</dc:title>',
+            '<dc:title id="title-main">WordPress Migration Guide</dc:title>',
+            $epub3OpfXml
+        );
+        $opfWithMatrix = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#title-main" property="title-type">main</meta>
+    <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+    <link id="creator-record" rel="record" refines="#creator" href="meta/creator.json" media-type="application/json"/>',
+            $opfWithMatrix
+        );
+        $opfWithMatrix = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>',
+            $opfWithMatrix
+        );
+        $opfWithMatrix = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="custom-widget" href="widgets/review.bin" media-type="application/x-review-widget" fallback="chapter1"/>',
+            $opfWithMatrix
+        );
+        $opfWithMatrix = str_replace(
+            '</spine>',
+            '</spine>
+  <guide>
+    <reference type="text" title="Start" href="text/chapter1.xhtml#intro"/>
+    <reference type="cover" title="Cover" href="images/cover.png"/>
+  </guide>
+  <collection id="review-set" role="preview">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Review packet collection</dc:title>
+    </metadata>
+    <link rel="record" href="meta/collection.json" media-type="application/json"/>
+  </collection>',
+            $opfWithMatrix
+        );
+
+        $navWithPageList = str_replace(
+            '  </body>',
+            '    <nav epub:type="page-list" id="pages">
+      <h2>Pages</h2>
+      <ol><li><a href="text/chapter1.xhtml#page-1">1</a></li></ol>
+    </nav>
+  </body>',
+            $epub3NavXml
+        );
+        $smil = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq>
+      <par>
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter.mp3" clipBegin="0:00:00.000" clipEnd="0:00:01.500"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/images/cover.png"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+        $signaturesXml = <<<'XML'
+<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+    <SignedInfo/>
+  </Signature>
+</signatures>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMatrix],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithPageList],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Intro</h1><span id="page-1">1</span></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smil],
+            ['name' => 'EPUB/widgets/review.bin', 'data' => 'WIDGET'],
+            ['name' => 'EPUB/meta/creator.json', 'data' => '{"name":"Data Liberation Team"}'],
+            ['name' => 'EPUB/meta/collection.json', 'data' => '{"name":"Review packet collection"}'],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $summary['compactPackageReport'];
+        $casesById = $report['casesById'];
+
+        $t->same(8, $report['caseCount']);
+        $t->same(8, $report['presentCaseCount']);
+        $t->same(0, $report['diagnosticCaseCount']);
+        $t->same(0, $report['diagnosticCount']);
+        $t->same([], $report['diagnosticTypes']);
+        $t->same([
+            'metadata-refinements',
+            'navigation-sections',
+            'guide-references',
+            'collections',
+            'media-overlays',
+            'manifest-fallbacks',
+            'encrypted-resources',
+            'ocf-sidecars',
+        ], $report['caseIds']);
+        $t->same($report['caseIds'], $report['presentCaseIds']);
+        $t->same([
+            'metadata-refinements' => 2,
+            'navigation-sections' => 2,
+            'guide-references' => 2,
+            'collections' => 1,
+            'media-overlays' => 1,
+            'manifest-fallbacks' => 1,
+            'encrypted-resources' => 1,
+            'ocf-sidecars' => 1,
+        ], $report['caseCounts']);
+        $t->same([
+            'metadata' => 2,
+            'navigation' => 2,
+            'guide' => 2,
+            'collections' => 1,
+            'media-overlays' => 1,
+            'manifest' => 1,
+            'encryption' => 1,
+            'ocf' => 1,
+        ], $report['domainCounts']);
+
+        $t->same(['title-main', 'creator'], $casesById['metadata-refinements']['targetIds']);
+        $t->same(1, $casesById['metadata-refinements']['packageLinkCount']);
+        $t->same('nav', $casesById['navigation-sections']['navigationType']);
+        $t->same(['toc', 'page-list'], $casesById['navigation-sections']['sectionTypes']);
+        $t->same(3, $casesById['navigation-sections']['entryCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml#intro', '/EPUB/images/cover.png'], $casesById['guide-references']['targets']);
+        $t->same(['Review packet collection'], $casesById['collections']['titles']);
+        $t->same(['/EPUB/meta/collection.json'], $casesById['collections']['linkTargets']);
+        $t->same(['/EPUB/text/chapter1.xhtml#intro'], $casesById['media-overlays']['textTargets']);
+        $t->same(['/EPUB/audio/chapter.mp3'], $casesById['media-overlays']['audioTargets']);
+        $t->same(1, $casesById['manifest-fallbacks']['fallbackCount']);
+        $t->same(['/EPUB/images/cover.png'], $casesById['encrypted-resources']['encryptedParts']);
+        $t->same(1, $casesById['encrypted-resources']['blockedByteExposureCount']);
+        $t->same(['signatures'], $casesById['ocf-sidecars']['kinds']);
+        $t->same($report, $summary['wordpressImport']['compactPackageReport']);
+        $t->same($report['cases'], $summary['wordpressImport']['compactPackageReportCases']);
+        $t->same($report['presentCaseIds'], $summary['wordpressImport']['compactPackageReportPresentCaseIds']);
+        $t->same([], $summary['wordpressImport']['compactPackageReportDiagnostics']);
+    },
+
     'summarizes compact EPUB package validation diagnostics for review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithReviewDiagnostics = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">

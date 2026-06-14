@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3445,
-        "latestSlice": "pandoc-typst-zero-dependency-sidecar maps one PDF/Typst zero dependency sidecar case after rebase onto current main 1e17d7fd85. PdfEngineHandoff parses explicit --deps-format=zero NUL-delimited dependency sidecars as input-only provenance, preserves Typst package dependency review metadata, keeps root read-boundary policy ok for workspace inputs, and reports dependency-output policy review because zero sidecars carry no output targets. Mapped denominator moves 3444 -> 3445, mappedTypstZeroDependencySidecarCases is 1, and typstZeroDependencySidecarAssertions is 34. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2543 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83483 assertions, 0 failures. No Pandoc binary, Typst, TeX/PDF engine, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3453,
+        "latestSlice": "pandoc-epub-compact-package-report-matrix maps eight native EPUB3 package report rows after rebase onto current main 8a37169fd5. EpubPackage summary now exposes compactPackageReport and WordPress import mirrors for metadata refinements, navigation sections, guide references, collections, media overlays, manifest fallbacks, encrypted resources, and OCF sidecars without altering existing package metadata or navigation contracts. Mapped denominator moves 3445 -> 3453, mappedEpubCompactPackageReportMatrixCases is 8, and epubCompactPackageReportMatrixAssertions is 27. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2439 assertions, 0 failures. Full lanes/pandoc/tests passed 46 files, 83510 assertions, 0 failures.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "PDF/Typst zero dependency sidecar provenance is verified after rebase onto current main 1e17d7fd85; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 PDF/Typst zero dependency sidecar provenance verified after rebase onto current main 1e17d7fd85; focused PdfEngineHandoffTest.php passed 1 file, 2543 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83483 assertions, 0 failures.",
+        "status": "EPUB3 compact package report matrix is verified after rebase onto current main 8a37169fd5; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-14 EPUB3 compact package report matrix verified after rebase onto current main 8a37169fd5; focused EpubPackageTest.php passed 1 file, 2439 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83510 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -423,10 +423,11 @@
         "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
         "directCslOriginalTitleSubtitleAliasAssertions": 20,
         "mappedOpcZipManifestContentTypeSummaryCases": 5,
-        "opcZipManifestContentTypeSummaryAssertions": 7
-,
+        "opcZipManifestContentTypeSummaryAssertions": 7,
         "mappedTypstZeroDependencySidecarCases": 1,
-        "typstZeroDependencySidecarAssertions": 34
+        "typstZeroDependencySidecarAssertions": 34,
+        "mappedEpubCompactPackageReportMatrixCases": 8,
+        "epubCompactPackageReportMatrixAssertions": 27
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1431,12 +1432,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "PDF/Typst fake runner preserves zero-format dependency sidecar inputs and package review metadata without executing Typst.",
+    "wordpressScenario": "EPUB3 compact package handoff summarizes cross-domain package report matrix rows for package review.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "PDF/Typst zero dependency sidecar provenance is verified after rebase onto current main 1e17d7fd85; phpFail remains 0.",
-    "mapping": "Adds one bounded native PHP PdfEngineHandoff Typst zero dependency sidecar mapping on top of the shared ZIP/OPC manifest content-type summary mappings while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
-    "audit": "updated 2026-06-14: PDF/Typst zero dependency sidecar provenance is verified after rebase onto current main 1e17d7fd85; PdfEngineHandoff parses explicit --deps-format=zero NUL-delimited sidecars as input-only dependency provenance, carries Typst package review metadata, keeps root read-boundary policy ok for workspace inputs, and leaves output-target parity in review because zero sidecars do not carry targets. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2543 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83483 assertions, 0 failures. No Pandoc binary, Typst, TeX/PDF engine, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
-    "latestSlice": "pandoc-typst-zero-dependency-sidecar maps one PDF/Typst zero dependency sidecar case after rebase onto current main 1e17d7fd85. PdfEngineHandoff parses explicit --deps-format=zero NUL-delimited dependency sidecars as input-only provenance, preserves Typst package dependency review metadata, keeps root read-boundary policy ok for workspace inputs, and reports dependency-output policy review because zero sidecars carry no output targets. Mapped denominator moves 3444 -> 3445, mappedTypstZeroDependencySidecarCases is 1, and typstZeroDependencySidecarAssertions is 34. Verification passed php -l for PdfEngineHandoff.php and PdfEngineHandoffTest.php; focused PdfEngineHandoffTest.php passed 1 file, 2543 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83483 assertions, 0 failures. No Pandoc binary, Typst, TeX/PDF engine, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "status": "EPUB3 compact package report matrix is verified after rebase onto current main 8a37169fd5; phpFail remains 0.",
+    "mapping": "Adds eight bounded native PHP EpubPackage compact package report matrix rows on top of the shared ZIP/OPC manifest content-type summary mapping while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "audit": "updated 2026-06-14: EPUB3 compact package report matrix now summarizes metadata refinements, navigation sections, guide references, collections, media overlays, manifest fallbacks, encrypted resources, and OCF sidecars from existing native EpubPackage parse results after rebase onto current main 8a37169fd5. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2439 assertions, 0 failures. Full lanes/pandoc/tests passed 46 files, 83510 assertions, 0 failures. No Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
+    "latestSlice": "pandoc-epub-compact-package-report-matrix maps eight native EPUB3 package report rows after rebase onto current main 8a37169fd5. EpubPackage summary now exposes compactPackageReport and WordPress import mirrors for metadata refinements, navigation sections, guide references, collections, media overlays, manifest fallbacks, encrypted resources, and OCF sidecars without altering existing package metadata or navigation contracts. Mapped denominator moves 3445 -> 3453, mappedEpubCompactPackageReportMatrixCases is 8, and epubCompactPackageReportMatrixAssertions is 27. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2439 assertions, 0 failures. Full lanes/pandoc/tests passed 46 files, 83510 assertions, 0 failures.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1604,7 +1605,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-14 direct CSL JSON original-title subtitle alias composition verified after rebase onto current main 0f124c82; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-14 EPUB3 compact package report matrix verified after rebase onto current main 8a37169fd5; focused EpubPackageTest.php passed 1 file, 2439 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83510 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -2005,5 +2006,7 @@
     "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
     "directCslOriginalTitleSubtitleAliasAssertions": 20,
     "mappedOpcZipManifestContentTypeSummaryCases": 5,
-    "opcZipManifestContentTypeSummaryAssertions": 7
+    "opcZipManifestContentTypeSummaryAssertions": 7,
+    "mappedEpubCompactPackageReportMatrixCases": 8,
+    "epubCompactPackageReportMatrixAssertions": 27
 }
