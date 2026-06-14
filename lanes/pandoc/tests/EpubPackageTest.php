@@ -1360,6 +1360,7 @@ XML;
 
         $metadata = $epub->metadata();
         $summary = $epub->summary();
+        $validation = $epub->validationReport();
         $uniqueIdentifier = $metadata['uniqueIdentifier'];
         $identifierSummary = $metadata['identifierSummary'];
         $identifierDetails = $metadata['identifierDetails'];
@@ -1398,9 +1399,17 @@ XML;
         $t->same('duplicate-metadata-identifier-value', $identifierSummary['diagnostics'][0]['type']);
 
         $t->same(['duplicate-unique-identifier-id', 'duplicate-metadata-identifier-value'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $metadata['identifierDiagnostics']));
+        $t->same(false, $validation['valid']);
+        $t->same(false, $validation['metadata']['identifierValid']);
+        $t->same(2, $validation['metadata']['identifierDiagnosticCount']);
+        $t->same($metadata['identifierDiagnostics'], $validation['metadata']['identifierDiagnostics']);
+        $t->same($metadata['identifierDiagnostics'], $validation['metadata']['diagnostics']);
+        $t->same($metadata['identifierDiagnostics'], $validation['diagnostics']);
         $t->same($uniqueIdentifier, $summary['wordpressImport']['metadataDetails']['uniqueIdentifier']);
         $t->same($identifierSummary, $summary['wordpressImport']['metadataDetails']['identifierSummary']);
         $t->same($metadata['identifierDiagnostics'], $summary['wordpressImport']['metadataDetails']['identifierDiagnostics']);
+        $t->same($metadata['identifierDiagnostics'], $summary['wordpressImport']['packageValidation']['metadata']['identifierDiagnostics']);
+        $t->same($metadata['identifierDiagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
     'summarizes OPF date event metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

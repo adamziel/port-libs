@@ -1083,6 +1083,12 @@ final class EpubPackage
                 $prefixDiagnostics[] = $diagnostic;
             }
         }
+        $identifierDiagnostics = [];
+        foreach (is_array($metadata['identifierDiagnostics'] ?? null) ? $metadata['identifierDiagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $identifierDiagnostics[] = $diagnostic;
+            }
+        }
         $metaPropertyDiagnostics = [];
         $metaPropertyVocabulary = is_array($metadata['metaPropertyVocabulary'] ?? null)
             ? $metadata['metaPropertyVocabulary']
@@ -1122,7 +1128,7 @@ final class EpubPackage
             ];
         }
 
-        array_push($diagnostics, ...$prefixDiagnostics, ...$metaPropertyDiagnostics);
+        array_push($diagnostics, ...$identifierDiagnostics, ...$prefixDiagnostics, ...$metaPropertyDiagnostics);
 
         return [
             'valid' => $diagnostics === [],
@@ -1130,6 +1136,9 @@ final class EpubPackage
             'identifierPresent' => $identifierPresent,
             'languagePresent' => $languagePresent,
             'modifiedPresent' => $modifiedPresent,
+            'identifierValid' => $identifierDiagnostics === [],
+            'identifierDiagnosticCount' => count($identifierDiagnostics),
+            'identifierDiagnostics' => $identifierDiagnostics,
             'prefixValid' => $prefixDiagnostics === [],
             'prefixDiagnosticCount' => count($prefixDiagnostics),
             'prefixDiagnostics' => $prefixDiagnostics,
