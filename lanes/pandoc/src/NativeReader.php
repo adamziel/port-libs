@@ -662,8 +662,11 @@ final class NativeReader
     {
         $nodes = [];
         foreach ($this->listContent($cells, $context) as $cell) {
-            $blocks = $this->blockNodes($this->listContent($cell, 'Pandoc native JSON legacy Table cell blocks'));
-            $attrs = [];
+            $cellBlocks = $this->listContent($cell, 'Pandoc native JSON legacy Table cell blocks');
+            $blocks = $this->blockNodes($cellBlocks);
+            $attrs = [
+                'legacyTableCellBlocksNative' => $cellBlocks,
+            ];
             $text = $this->plainTextFromBlocks($blocks);
             if ($text !== '') {
                 $attrs['text'] = $text;

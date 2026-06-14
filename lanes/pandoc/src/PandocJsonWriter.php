@@ -1033,17 +1033,86 @@ final class PandocJsonWriter
             $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
             $rowspan = max(1, (int) $cell->attr('rowspan', 1));
             $colspan = max(1, (int) $cell->attr('colspan', 1));
+            $blocks = $this->childrenAsBlocks($cell);
             $payload = [
                 $this->attrTuple($cell),
                 $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? $this->enum($alignmentConstructor),
                 $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
                 $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
-                $this->childrenAsBlocks($cell),
+                $this->reusableLegacyTableCellBlocksNative($cell, $blocks) ?? $blocks,
             ];
             $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload) ?? $payload;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $blocks
+     * @return list<array<string, mixed>>|null
+     */
+    private function reusableLegacyTableCellBlocksNative(AstNode $cell, array $blocks): ?array
+    {
+        $native = $cell->attr('legacyTableCellBlocksNative');
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $blocks) {
+            return $native;
+        }
+
+        if ($this->hasNonCurrentNativeBlockPayload($native) || $this->hasNonCurrentNativeInlinePayload($native)) {
+            return null;
+        }
+
+        foreach ($this->legacyTableCellBlockPayloadReaders($native) as $nativeBlocks) {
+            $nativeChildren = $this->tableCellChildrenFromBlocks($nativeBlocks);
+            if ($blocks === $this->mixedChildrenAsBlocks($nativeChildren)) {
+                return $native;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $native
+     * @return list<list<AstNode>>
+     */
+    private function legacyTableCellBlockPayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => self::DEFAULT_API_VERSION,
+            'meta' => [],
+            'blocks' => $native,
+        ];
+
+        $candidates = [];
+        try {
+            $candidates[] = (new PandocJsonReader())->readPacket($packet)->children;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $candidates[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children;
+        } catch (\Throwable) {
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function tableCellChildrenFromBlocks(array $blocks): array
+    {
+        if (count($blocks) === 1 && in_array($blocks[0]->type, ['plain', 'paragraph'], true)) {
+            return $blocks[0]->children;
+        }
+
+        return $blocks;
     }
 
     /**

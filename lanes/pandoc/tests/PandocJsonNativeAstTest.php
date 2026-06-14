@@ -1533,6 +1533,95 @@ return [
         $t->same(['t' => 'AlignRight'], $jsonEncoded['blocks'][0]['c'][2][2][0]);
         $t->same(['t' => 'ColWidth', 'c' => 0.25], $jsonEncoded['blocks'][0]['c'][2][2][1]);
     },
+    'preserves legacy table cell block payloads while upgrading table constructors' => static function (TestRunner $t): void {
+        $headerCellBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Metric'],
+            ], 'reviewQueue' => 'legacy-header-cell-source'],
+        ];
+        $bodyCellBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ready'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'state'],
+            ], 'reviewQueue' => 'legacy-body-cell-source'],
+        ];
+        $legacyTable = [
+            't' => 'Table',
+            'c' => [
+                [],
+                [['t' => 'AlignLeft']],
+                [0.35],
+                [$headerCellBlocks],
+                [[$bodyCellBlocks]],
+            ],
+            'reviewQueue' => 'legacy-table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyTable],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $tableAttrs = $table->attrs;
+            unset($tableAttrs['constructor'], $tableAttrs['native']);
+            $headerCell = $table->children[0]->children[0]->children[0];
+            $body = $table->children[1];
+            $bodyRow = $body->children[0];
+            $bodyCell = $bodyRow->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', $tableAttrs, $table->children),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', $tableAttrs, [
+                    $table->children[0],
+                    new AstNode('table_body', $body->attrs, [
+                        new AstNode('table_row', $bodyRow->attrs, [
+                            new AstNode('table_cell', $bodyCell->attrs, [
+                                new AstNode('text', ['text' => 'Edited']),
+                                new AstNode('space'),
+                                new AstNode('text', ['text' => 'state']),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+            ]);
+
+            $t->same($headerCellBlocks, $headerCell->attr('legacyTableCellBlocksNative'), "{$source} header cell records legacy block payload");
+            $t->same($bodyCellBlocks, $bodyCell->attr('legacyTableCellBlocksNative'), "{$source} body cell records legacy block payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $encodedHeaderBlocks = $encodedTable['c'][3][1][0][1][0][4];
+                $encodedBodyBlocks = $encodedTable['c'][4][0][3][0][1][0][4];
+
+                $t->same(6, count($encodedTable['c']), "{$source} {$writer} writer emits current table constructor");
+                $t->same($headerCellBlocks, $encodedHeaderBlocks, "{$source} {$writer} writer preserves unchanged header cell blocks");
+                $t->same($bodyCellBlocks, $encodedBodyBlocks, "{$source} {$writer} writer preserves unchanged body cell blocks");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedBlocks = $encoded['blocks'][0]['c'][4][0][3][0][1][0][4];
+
+                $t->same('Plain', $editedBlocks[0]['t'], "{$source} {$writer} writer regenerates edited cell block");
+                $t->same('Edited', $editedBlocks[0]['c'][0]['c'], "{$source} {$writer} writer emits edited cell text");
+                $t->same(false, array_key_exists('reviewQueue', $editedBlocks[0]), "{$source} {$writer} writer drops stale edited cell sidecar");
+            }
+        }
+    },
     'emits native fallback constructors through pandoc json writer' => static function (TestRunner $t): void {
         $nativePacket = [
             'pandoc-api-version' => [1, 23, 1],

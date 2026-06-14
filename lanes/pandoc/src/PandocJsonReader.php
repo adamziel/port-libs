@@ -964,8 +964,11 @@ final class PandocJsonReader
     {
         $nodes = [];
         foreach ($this->listContent($cells, $context) as $cell) {
-            $blocks = $this->readBlocks($this->listContent($cell, 'legacy Table cell blocks'));
-            $attrs = [];
+            $cellBlocks = $this->listContent($cell, 'legacy Table cell blocks');
+            $blocks = $this->readBlocks($cellBlocks);
+            $attrs = [
+                'legacyTableCellBlocksNative' => $cellBlocks,
+            ];
             $text = $this->plainTextFromBlocks($blocks);
             if ($text !== '') {
                 $attrs['text'] = $text;
