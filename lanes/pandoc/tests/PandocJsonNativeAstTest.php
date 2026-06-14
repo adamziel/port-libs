@@ -833,6 +833,86 @@ return [
             $t->same($bodyNative, $packet['meta']['body'], "{$writer} writer keeps unchanged direct block metadata payload");
         }
     },
+    'reuses native wrapper payloads when derived helper sidecars are absent' => static function (TestRunner $t): void {
+        $formatNative = ['t' => 'Format', 'c' => 'html', 'reviewQueue' => 'format-source'];
+        $linkAttr = ['source-link', ['review'], [['data-source', 'json-native']]];
+        $targetNative = ['https://example.test/source', 'Source title', 'target-sidecar'];
+        $rawInline = ['t' => 'RawInline', 'c' => [$formatNative, '<span>ok</span>'], 'reviewQueue' => 'raw-source'];
+        $linkInline = ['t' => 'Link', 'c' => [
+            $linkAttr,
+            [['t' => 'Str', 'c' => 'source']],
+            $targetNative,
+        ], 'reviewQueue' => 'link-source'];
+        $paragraphNative = ['t' => 'Para', 'c' => [
+            ['t' => 'Str', 'c' => 'Keep'],
+            ['t' => 'Space'],
+            $rawInline,
+            ['t' => 'Space'],
+            $linkInline,
+        ], 'reviewQueue' => 'paragraph-source'];
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [
+                'constructor' => 'Para',
+                'native' => $paragraphNative,
+            ], [
+                new AstNode('text', ['text' => 'Keep']),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', ['format' => 'html', 'text' => '<span>ok</span>', 'html' => '<span>ok</span>']),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'id' => 'source-link',
+                    'classes' => ['review'],
+                    'attributes' => ['data-source' => 'json-native'],
+                    'url' => 'https://example.test/source',
+                    'title' => 'Source title',
+                ], [
+                    new AstNode('text', ['text' => 'source']),
+                ]),
+            ]),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($document)['blocks'][0],
+            'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR)['blocks'][0],
+        ] as $writer => $encoded) {
+            $t->same($paragraphNative, $encoded, "{$writer} writer reuses wrapper native payload");
+            $t->same('paragraph-source', $encoded['reviewQueue'], "{$writer} writer keeps wrapper sidecar");
+            $t->same('format-source', $encoded['c'][2]['c'][0]['reviewQueue'], "{$writer} writer keeps raw format sidecar");
+            $t->same('target-sidecar', $encoded['c'][4]['c'][2][2], "{$writer} writer keeps target tuple sidecar");
+        }
+
+        $editedDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [
+                'constructor' => 'Para',
+                'native' => $paragraphNative,
+            ], [
+                new AstNode('text', ['text' => 'Keep']),
+                new AstNode('space'),
+                new AstNode('raw_html_inline', ['format' => 'html', 'text' => '<span>edited</span>', 'html' => '<span>edited</span>']),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'id' => 'source-link',
+                    'classes' => ['review'],
+                    'attributes' => ['data-source' => 'json-native'],
+                    'url' => 'https://example.test/source',
+                    'title' => 'Source title',
+                ], [
+                    new AstNode('text', ['text' => 'source']),
+                ]),
+            ]),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($editedDocument)['blocks'][0],
+            'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR)['blocks'][0],
+        ] as $writer => $encoded) {
+            $t->same('Para', $encoded['t'], "{$writer} writer regenerates edited paragraph constructor");
+            $t->same(false, array_key_exists('reviewQueue', $encoded), "{$writer} writer drops stale wrapper sidecar");
+            $t->same('<span>edited</span>', $encoded['c'][2]['c'][1], "{$writer} writer emits edited raw payload");
+            $t->same(false, array_key_exists('reviewQueue', $encoded['c'][2]), "{$writer} writer drops stale raw wrapper sidecar");
+        }
+    },
     'indexes pandoc metadata constructors for json and native review provenance' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],

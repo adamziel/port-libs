@@ -7,6 +7,53 @@ namespace PortLibs\Pandoc;
 final class PandocJsonWriter
 {
     private const DEFAULT_API_VERSION = [1, 23, 1];
+    private const NATIVE_REUSE_PROVENANCE_ATTRS = [
+        'alignmentConstructor',
+        'alignmentConstructors',
+        'alignmentNative',
+        'alignmentNatives',
+        'attrConstructor',
+        'attrNative',
+        'captionConstructor',
+        'captionNative',
+        'citationConstructor',
+        'citationModeConstructor',
+        'citationModeNative',
+        'citationNative',
+        'colSpanConstructor',
+        'colSpanNative',
+        'columnWidthConstructors',
+        'columnWidthNatives',
+        'constructor',
+        'definitionDefinitionsNative',
+        'definitionItemNative',
+        'definitionNative',
+        'definitionTermNative',
+        'formatConstructor',
+        'formatNative',
+        'legacyTableCellBlocksNative',
+        'lineNative',
+        'listDelimiterConstructor',
+        'listDelimiterNative',
+        'listItemNative',
+        'listStyleConstructor',
+        'listStyleNative',
+        'mathTypeConstructor',
+        'mathTypeNative',
+        'native',
+        'nativeInlineParts',
+        'quoteTypeConstructor',
+        'quoteTypeNative',
+        'rowHeadColumnsConstructor',
+        'rowHeadColumnsNative',
+        'rowSpanConstructor',
+        'rowSpanNative',
+        'shortCaptionConstructor',
+        'shortCaptionMaybeConstructor',
+        'shortCaptionMaybeNative',
+        'shortCaptionNative',
+        'targetNative',
+    ];
 
     public function write(AstNode $document): string
     {
@@ -1597,7 +1644,7 @@ final class PandocJsonWriter
     {
         $attrs = [];
         foreach ($node->attrs as $key => $value) {
-            if (in_array($key, ['native', 'constructor', 'attrConstructor', 'attrNative'], true)) {
+            if (in_array($key, self::NATIVE_REUSE_PROVENANCE_ATTRS, true)) {
                 continue;
             }
             $attrs[$key] = $this->comparisonValue($value);
