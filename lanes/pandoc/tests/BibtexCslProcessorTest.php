@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\BibtexCslProcessor;
+use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -281,6 +282,115 @@ BIB;
         $t->same('Afterword', $item['afterword'][0]['family']);
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
         $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
+    },
+    'carries biblatex media and participant creator roles in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@video{legacy-production,
+  producer          = {Producer, Pia},
+  performer         = {Performer, Pat and Ensemble, Archive},
+  narrator          = {Narrator, Nia},
+  executiveproducer = {Executive, Eli},
+  scriptwriter      = {Writer, Sam},
+  title             = {Legacy Production Packet},
+  year              = {2026}
+}
+
+@audio{legacy-conversation,
+  host  = {Host, Hugo},
+  guest = {Guest, Gia and Roe, Pat},
+  title = {Legacy Conversation Packet},
+  year  = {2025}
+}
+
+@proceedings{legacy-participants,
+  chair       = {Committee, Program},
+  composer    = {Morton, Mia},
+  contributor = {Contributors, Migration},
+  curator     = {Curator, Eli},
+  title       = {Legacy Participant Packet},
+  year        = {2024}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $production = $items['legacy-production'];
+        $conversation = $items['legacy-conversation'];
+        $participants = $items['legacy-participants'];
+
+        $t->same('motion_picture', $production['type']);
+        $t->same('song', $conversation['type']);
+        $t->same('paper-conference', $participants['type']);
+        $t->same('Producer', $production['producer'][0]['family']);
+        $t->same('Performer', $production['performer'][0]['family']);
+        $t->same('Ensemble', $production['performer'][1]['family']);
+        $t->same('Narrator', $production['narrator'][0]['family']);
+        $t->same('Executive', $production['executive-producer'][0]['family']);
+        $t->same('Writer', $production['script-writer'][0]['family']);
+        $t->same('Host', $conversation['host'][0]['family']);
+        $t->same('Guest', $conversation['guest'][0]['family']);
+        $t->same('Roe', $conversation['guest'][1]['family']);
+        $t->same('Committee', $participants['chair'][0]['family']);
+        $t->same('Morton', $participants['composer'][0]['family']);
+        $t->same('Contributors', $participants['contributor'][0]['family']);
+        $t->same('Curator', $participants['curator'][0]['family']);
+        $t->same('Executive, Eli', $production['rawBibtex']['fields']['executiveproducer']);
+        $t->same('Writer, Sam', $production['rawBibtex']['fields']['scriptwriter']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Media Creator Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-media-creator-review</id>
+    <updated>2026-06-14T09:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="producer"/>
+        <names variable="performer"/>
+        <names variable="host"/>
+        <names variable="guest"/>
+        <names variable="chair"/>
+        <names variable="curator"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="producer"/>
+      <names variable="executive-producer"/>
+      <names variable="script-writer"/>
+      <names variable="host"/>
+      <names variable="guest"/>
+      <names variable="chair"/>
+      <names variable="composer"/>
+      <names variable="contributor"/>
+      <names variable="curator"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Media Creator Review', $summary['title'] ?? null);
+        $t->same('producer', $summary['citationRendering'][0]['children'][0]['variable'] ?? null);
+        $t->same('(Producer | Performer and Ensemble | 2026; Host | Guest and Roe | 2025; Committee | Curator | 2024)', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-production', 'text' => '[@legacy-production]']),
+            new AstNode('citation', ['id' => 'legacy-conversation', 'text' => '[@legacy-conversation]']),
+            new AstNode('citation', ['id' => 'legacy-participants', 'text' => '[@legacy-participants]']),
+        ]));
+        $t->same('Legacy Production Packet :: Producer, Pia :: Executive, Eli :: Writer, Sam', $styled->renderBibliographyEntry('legacy-production'));
+        $t->same('Legacy Conversation Packet :: Host, Hugo :: Guest, Gia; Roe, Pat', $styled->renderBibliographyEntry('legacy-conversation'));
+        $t->same('Legacy Participant Packet :: Committee, Program :: Morton, Mia :: Contributors, Migration :: Curator, Eli', $styled->renderBibliographyEntry('legacy-participants'));
+
+        $document = (new MarkdownReader())->read('Legacy media credits [@legacy-production; @legacy-conversation; @legacy-participants] keep creator roles visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy media credits (Producer | Performer and Ensemble | 2026; Host | Guest and Roe | 2025; Committee | Curator | 2024) keep creator roles visible.</p>', $blocks);
+        $t->contains('<dt>Legacy Participant Packet 2024</dt><dd>Legacy Participant Packet :: Committee, Program :: Morton, Mia :: Contributors, Migration :: Curator, Eli</dd>', $blocks);
     },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
