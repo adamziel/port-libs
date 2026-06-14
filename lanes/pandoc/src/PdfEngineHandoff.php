@@ -649,6 +649,7 @@ final class PdfEngineHandoff
      *     pdfTrailerComplete: bool,
      *     pdfTrailerCount: int,
      *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     pdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     pdfStartXrefOffsets: list<int>,
      *     pdfIncrementalUpdates: bool,
      *     pdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -1309,6 +1310,7 @@ final class PdfEngineHandoff
         $pdfExtensionMetadata = [];
         $pdfTrailerCount = 0;
         $pdfTrailerRevisions = [];
+        $pdfTrailerIdPolicy = [];
         $pdfStartXrefOffsets = [];
         $pdfIncrementalUpdates = false;
         $pdfXrefStreams = [];
@@ -1451,6 +1453,7 @@ final class PdfEngineHandoff
                 $pdfExtensionMetadata = $pdfInspection['extensionMetadata'];
                 $pdfTrailerCount = $pdfInspection['trailerCount'];
                 $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
+                $pdfTrailerIdPolicy = $pdfInspection['trailerIdPolicy'];
                 $pdfStartXrefOffsets = $pdfInspection['startXrefOffsets'];
                 $pdfIncrementalUpdates = $pdfInspection['incrementalUpdates'];
                 $pdfXrefStreams = $pdfInspection['xrefStreams'];
@@ -2174,6 +2177,26 @@ final class PdfEngineHandoff
                 }
                 if ($pdfTrailerCount > 0) {
                     $diagnostics[] = 'pdf-byte-trailers:' . $pdfTrailerCount;
+                }
+                if ($pdfTrailerIdPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-trailer-id-policy:' . $pdfTrailerIdPolicy['reviewStatus'];
+                    if (($pdfTrailerIdPolicy['trailerIdCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-trailer-ids:' . $pdfTrailerIdPolicy['trailerIdCount'];
+                    }
+                    if (($pdfTrailerIdPolicy['changedIdCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-trailer-id-changes:' . $pdfTrailerIdPolicy['changedIdCount'];
+                    }
+                    if (($pdfTrailerIdPolicy['missingIdCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-trailer-id-missing:' . $pdfTrailerIdPolicy['missingIdCount'];
+                    }
+                    if (($pdfTrailerIdPolicy['incompleteIdCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-trailer-id-incomplete:' . $pdfTrailerIdPolicy['incompleteIdCount'];
+                    }
+                    foreach (($pdfTrailerIdPolicy['issues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $diagnostics[] = 'pdf-byte-trailer-id-policy-issue:' . $issue;
+                        }
+                    }
                 }
                 if ($pdfStartXrefOffsets !== []) {
                     $diagnostics[] = 'pdf-byte-startxref:' . count($pdfStartXrefOffsets);
@@ -4663,6 +4686,7 @@ final class PdfEngineHandoff
             'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfTrailerCount' => $pdfTrailerCount,
             'pdfTrailerRevisions' => $pdfTrailerRevisions,
+            'pdfTrailerIdPolicy' => $pdfTrailerIdPolicy,
             'pdfStartXrefOffsets' => $pdfStartXrefOffsets,
             'pdfIncrementalUpdates' => $pdfIncrementalUpdates,
             'pdfXrefStreams' => $pdfXrefStreams,
@@ -4856,6 +4880,7 @@ final class PdfEngineHandoff
      *     finalPdfGraphicsStateBlendModes: array<string, int>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     finalPdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     finalPdfStartXrefOffsets: list<int>,
      *     finalPdfIncrementalUpdates: bool,
      *     finalPdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -5175,6 +5200,7 @@ final class PdfEngineHandoff
             'finalPdfGraphicsStateBlendModes' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStateBlendModes'] ?? null) ? $finalRun['pdfGraphicsStateBlendModes'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
+            'finalPdfTrailerIdPolicy' => is_array($finalRun) && is_array($finalRun['pdfTrailerIdPolicy'] ?? null) ? $finalRun['pdfTrailerIdPolicy'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
             'finalPdfIncrementalUpdates' => is_array($finalRun) && ($finalRun['pdfIncrementalUpdates'] ?? false) === true,
             'finalPdfXrefStreams' => is_array($finalRun) && is_array($finalRun['pdfXrefStreams'] ?? null) ? $finalRun['pdfXrefStreams'] : [],
@@ -10185,6 +10211,7 @@ final class PdfEngineHandoff
      * @return array{
      *     trailerCount:int,
      *     trailerRevisions:list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     trailerIdPolicy:array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     startXrefOffsets:list<int>,
      *     incrementalUpdates:bool,
      *     xrefStreams:list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -10397,6 +10424,7 @@ final class PdfEngineHandoff
         return [
             'trailerCount' => count($trailerRevisions),
             'trailerRevisions' => $trailerRevisions,
+            'trailerIdPolicy' => $this->summarizePdfTrailerIdPolicy($trailerRevisions),
             'startXrefOffsets' => $this->pdfStartXrefOffsets($trailerRevisions),
             'incrementalUpdates' => $this->pdfHasIncrementalUpdates($trailerRevisions),
             'xrefStreams' => $xrefStreams,
@@ -10717,6 +10745,84 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $revisions
+     * @return array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{}
+     */
+    private function summarizePdfTrailerIdPolicy(array $revisions): array
+    {
+        if ($revisions === []) {
+            return [];
+        }
+
+        $rows = [];
+        $firstIds = [];
+        $secondIds = [];
+        $missingIdCount = 0;
+        $incompleteIdCount = 0;
+        foreach ($revisions as $revision) {
+            $ids = array_values(array_filter(
+                $revision['id'] ?? [],
+                static fn (mixed $id): bool => is_string($id) && $id !== ''
+            ));
+            $complete = count($ids) >= 2;
+            if ($ids === []) {
+                ++$missingIdCount;
+            } elseif (!$complete) {
+                ++$incompleteIdCount;
+            }
+
+            if (isset($ids[0])) {
+                $firstIds[$ids[0]] = true;
+            }
+            if (isset($ids[1])) {
+                $secondIds[$ids[1]] = true;
+            }
+
+            $rows[] = [
+                'revision' => $revision['revision'],
+                'id' => $ids,
+                'complete' => $complete,
+            ];
+        }
+
+        $uniqueFirstIdCount = count($firstIds);
+        $uniqueSecondIdCount = count($secondIds);
+        $stableFirstId = $uniqueFirstIdCount === 0 ? null : $uniqueFirstIdCount === 1;
+        $stableSecondId = $uniqueSecondIdCount === 0 ? null : $uniqueSecondIdCount === 1;
+        $changedIdCount = ($stableFirstId === false ? 1 : 0) + ($stableSecondId === false ? 1 : 0);
+        $issues = [];
+        if ($missingIdCount > 0) {
+            $issues[] = 'trailer-id-missing';
+        }
+        if ($incompleteIdCount > 0) {
+            $issues[] = 'trailer-id-incomplete';
+        }
+        if ($stableFirstId === false) {
+            $issues[] = 'trailer-first-id-changed';
+        }
+        if ($stableSecondId === false) {
+            $issues[] = 'trailer-second-id-changed';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'trailerCount' => count($revisions),
+            'trailerIdCount' => count($revisions) - $missingIdCount,
+            'missingIdCount' => $missingIdCount,
+            'incompleteIdCount' => $incompleteIdCount,
+            'changedIdCount' => $changedIdCount,
+            'uniqueFirstIdCount' => $uniqueFirstIdCount,
+            'uniqueSecondIdCount' => $uniqueSecondIdCount,
+            'firstId' => $rows[0]['id'][0] ?? null,
+            'latestId' => $rows[count($rows) - 1]['id'][1] ?? ($rows[count($rows) - 1]['id'][0] ?? null),
+            'stableFirstId' => $stableFirstId,
+            'stableSecondId' => $stableSecondId,
+            'revisions' => $rows,
+            'issues' => $issues,
+        ];
     }
 
     /**

@@ -6123,7 +6123,45 @@ MARKDOWN);
                 ],
             ],
         ], $result['pdfTrailerRevisions']);
+        $expectedIdPolicy = [
+            'reviewStatus' => 'review',
+            'trailerCount' => 2,
+            'trailerIdCount' => 2,
+            'missingIdCount' => 0,
+            'incompleteIdCount' => 0,
+            'changedIdCount' => 1,
+            'uniqueFirstIdCount' => 1,
+            'uniqueSecondIdCount' => 2,
+            'firstId' => '00112233445566778899AABBCCDDEEFF',
+            'latestId' => 'FFEEDDCCBBAA99887766554433221100',
+            'stableFirstId' => true,
+            'stableSecondId' => false,
+            'revisions' => [
+                [
+                    'revision' => 1,
+                    'id' => [
+                        '00112233445566778899AABBCCDDEEFF',
+                        '00112233445566778899AABBCCDDEEFF',
+                    ],
+                    'complete' => true,
+                ],
+                [
+                    'revision' => 2,
+                    'id' => [
+                        '00112233445566778899AABBCCDDEEFF',
+                        'FFEEDDCCBBAA99887766554433221100',
+                    ],
+                    'complete' => true,
+                ],
+            ],
+            'issues' => ['trailer-second-id-changed'],
+        ];
+        $t->same($expectedIdPolicy, $result['pdfTrailerIdPolicy']);
         $t->contains('pdf-byte-trailers:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-trailer-id-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-trailer-ids:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-trailer-id-changes:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-trailer-id-policy-issue:trailer-second-id-changed', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-startxref:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-incremental-updates', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
@@ -6131,6 +6169,7 @@ MARKDOWN);
         $t->same(true, $sequence['finalPdfIncrementalUpdates']);
         $t->same([128, 512], $sequence['finalPdfStartXrefOffsets']);
         $t->same($result['pdfTrailerRevisions'], $sequence['finalPdfTrailerRevisions']);
+        $t->same($expectedIdPolicy, $sequence['finalPdfTrailerIdPolicy']);
     },
 
     'fake runner extracts bounded pdf xref stream and object stream preflight metadata' => static function (TestRunner $t) use ($document): void {
