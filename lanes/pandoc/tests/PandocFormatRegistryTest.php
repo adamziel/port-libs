@@ -2399,6 +2399,121 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
         $t->same(null, PandocFormatRegistry::wikiOutputTokenStatus('.xwiki'));
         $t->same(null, PandocFormatRegistry::wikiOutputTokenStatus(''));
     },
+    'builds wiki reader writer unsupported taxonomy matrix without parser or writer claims' => static function (TestRunner $t): void {
+        $matrix = PandocFormatRegistry::wikiReaderWriterUnsupportedTaxonomyMatrix();
+        $reviewPacket = PandocFormatRegistry::wikiFormatReviewPacket();
+        $inputMatrix = PandocFormatRegistry::wikiInputUnsupportedReasonRegistryMatrix();
+        $outputMatrix = PandocFormatRegistry::wikiOutputUnsupportedReasonRegistryMatrix();
+        $inputSupport = PandocFormatRegistry::wikiInputSupport();
+        $outputSupport = PandocFormatRegistry::wikiOutputSupport();
+
+        $t->same('2026-06-03', $matrix['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $matrix['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $matrix['upstreamSourceCommit']);
+        $t->same('wiki-reader-writer-unsupported-taxonomy', $matrix['family']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $matrix['inputTokens']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $matrix['outputTokens']);
+        $t->same(PandocFormatRegistry::wikiExtensionInference(), $matrix['extensionAliases']);
+        $t->same($reviewPacket['extensionInference'], $matrix['extensionAliases']);
+        $t->same($reviewPacket['directionBuckets'], $matrix['directionBuckets']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $matrix['unsupportedInputTokens']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $matrix['unsupportedOutputTokens']);
+        $t->same([], $matrix['readerCapableFormats']);
+        $t->same([], $matrix['writerCapableFormats']);
+        $t->same(false, $matrix['directReaderParitySupported']);
+        $t->same(false, $matrix['directWriterParitySupported']);
+        $t->same(true, $matrix['externalToolFree']);
+        $t->same(true, $matrix['nativeImplementationRecordsEmpty']);
+        $t->same(['reader' => [], 'writer' => []], $matrix['nativeImplementationRecords']);
+        $t->same([
+            'reader' => [
+                'reasonCode' => 'wiki-reader-not-ported',
+                'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+            ],
+            'writer' => [
+                'reasonCode' => 'wiki-writer-not-ported',
+                'reason' => 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.',
+            ],
+        ], $matrix['unsupportedReasonPayloads']);
+        $t->same(array_keys($reviewPacket['formats']), array_keys($matrix['rows']));
+
+        foreach ($matrix['rows'] as $format => $row) {
+            $review = $reviewPacket['formats'][$format];
+            $expectedUnsupportedDirections = [];
+            if ($review['inputStatus'] === 'unsupported') {
+                $expectedUnsupportedDirections[] = 'input';
+            }
+            if ($review['outputStatus'] === 'unsupported') {
+                $expectedUnsupportedDirections[] = 'output';
+            }
+
+            $t->same($format, $row['format']);
+            $t->same('wiki', $row['family']);
+            $t->same($review['input'], $row['input'], "Wiki taxonomy {$format} input flag mismatch");
+            $t->same($review['output'], $row['output'], "Wiki taxonomy {$format} output flag mismatch");
+            $t->same($review['direction'], $row['direction'], "Wiki taxonomy {$format} direction mismatch");
+            $t->same($review['inputStatus'], $row['inputStatus'], "Wiki taxonomy {$format} input status mismatch");
+            $t->same($review['outputStatus'], $row['outputStatus'], "Wiki taxonomy {$format} output status mismatch");
+            $t->same($review['extensions'], $row['extensionAliases'], "Wiki taxonomy {$format} extension alias mismatch");
+            $t->same($expectedUnsupportedDirections, $row['unsupportedDirections'], "Wiki taxonomy {$format} unsupported direction mismatch");
+            $t->same('', $row['inputImplementation'], "Wiki taxonomy {$format} must not register a reader");
+            $t->same('', $row['outputImplementation'], "Wiki taxonomy {$format} must not register a writer");
+            $t->same(['inputImplementation' => '', 'outputImplementation' => ''], $row['nativeImplementationRecord']);
+            $t->same(false, $row['readerCapable'], "Wiki taxonomy {$format} must not claim reader capability");
+            $t->same(false, $row['writerCapable'], "Wiki taxonomy {$format} must not claim writer capability");
+            $t->same(false, $row['directReaderParity'], "Wiki taxonomy {$format} must not claim reader parity");
+            $t->same(false, $row['directWriterParity'], "Wiki taxonomy {$format} must not claim writer parity");
+            $t->same(true, $row['externalToolFree'], "Wiki taxonomy {$format} must stay external-tool free");
+
+            if ($review['input']) {
+                $input = $inputSupport[$format];
+                $expectedReaderPayload = [
+                    'format' => $format,
+                    'family' => 'wiki',
+                    'reasonCode' => 'wiki-reader-not-ported',
+                    'reason' => 'Upstream wiki reader coverage is inventoried, but no native PHP wiki reader is registered for this format.',
+                    'inputStatus' => $review['inputStatus'],
+                    'outputStatus' => $review['outputStatus'],
+                    'unsupportedDirections' => $expectedUnsupportedDirections,
+                    'inputNotes' => $input['notes'],
+                ];
+
+                $t->same($expectedReaderPayload, $row['readerUnsupportedReasonPayload']);
+                $t->same($inputMatrix['rows'][$format]['unsupportedReasonPayload']['inputNotes'], $row['readerUnsupportedReasonPayload']['inputNotes']);
+            } else {
+                $t->same(null, $row['readerUnsupportedReasonPayload']);
+            }
+
+            if ($review['output']) {
+                $output = $outputSupport[$format];
+                $expectedWriterPayload = [
+                    'format' => $format,
+                    'family' => 'wiki',
+                    'reasonCode' => 'wiki-writer-not-ported',
+                    'reason' => 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.',
+                    'inputStatus' => $review['inputStatus'],
+                    'outputStatus' => $review['outputStatus'],
+                    'unsupportedDirections' => $expectedUnsupportedDirections,
+                    'outputNotes' => $output['notes'],
+                ];
+
+                $t->same($expectedWriterPayload, $row['writerUnsupportedReasonPayload']);
+                $t->same($outputMatrix['rows'][$format]['unsupportedWriterReasonPayload'], $row['writerUnsupportedReasonPayload']);
+            } else {
+                $t->same(null, $row['writerUnsupportedReasonPayload']);
+            }
+        }
+
+        $t->same(['.dokuwiki'], $matrix['rows']['dokuwiki']['extensionAliases']);
+        $t->same(['input', 'output'], $matrix['rows']['dokuwiki']['unsupportedDirections']);
+        $t->same(['.wiki'], $matrix['rows']['mediawiki']['extensionAliases']);
+        $t->same('input-only', $matrix['rows']['creole']['direction']);
+        $t->same(['input'], $matrix['rows']['creole']['unsupportedDirections']);
+        $t->same(null, $matrix['rows']['creole']['writerUnsupportedReasonPayload']);
+        $t->same('output-only', $matrix['rows']['xwiki']['direction']);
+        $t->same(['output'], $matrix['rows']['xwiki']['unsupportedDirections']);
+        $t->same(null, $matrix['rows']['xwiki']['readerUnsupportedReasonPayload']);
+    },
     'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
         $formats = [
             'asciidoc',
