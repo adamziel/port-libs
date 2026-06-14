@@ -647,8 +647,10 @@ final class PandocFormatRegistry
                 'bounded namespace declaration scope, prefix redefinition, duplicate binding, and reserved-name diagnostics',
                 'namespace-aware element and attribute queries for package-reader handoff',
                 'bounded namespace collision summaries for shared element and attribute local names',
+                'bounded element and attribute namespace usage summaries for generic XML review packets',
                 'bounded namespace prefix and URI frequency summaries for generic XML review packets',
                 'default namespace transition diagnostics for generic XML review packets',
+                'source-level unbound prefix, unused declaration, and reserved xml/xmlns usage diagnostics',
             ],
             'reviewPacketFields' => [
                 'directReaderParity',
@@ -665,6 +667,11 @@ final class PandocFormatRegistry
                 'namespaceUriFrequencies',
                 'namespaceUriFrequencyRows',
                 'defaultNamespaceTransitions',
+                'elementNamespaceUsageSummaries',
+                'attributeNamespaceUsageSummaries',
+                'unboundNamespacePrefixUses',
+                'unusedNamespaceDeclarations',
+                'reservedNamespaceUses',
                 'sameUriMultiplePrefixes',
                 'samePrefixMultipleUris',
             ],
@@ -3811,9 +3818,9 @@ final class PandocFormatRegistry
     /**
      * @return array<string, mixed>
      */
-    public static function xmlNamespaceUsageReviewPacket(\DOMDocument $dom): array
+    public static function xmlNamespaceUsageReviewPacket(\DOMDocument $dom, ?string $xmlSource = null): array
     {
-        $namespacePacket = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
+        $namespacePacket = XmlHtmlDom::summarizeXmlNamespaceUsage($dom, $xmlSource);
         $capabilityPacket = self::xmlJatsBitsDirectReaderCapabilityPacket();
         $xmlFormat = $capabilityPacket['formats']['xml'];
         $unsupportedDirectReaderReason = $xmlFormat['unsupportedDirectReaderReason'];
@@ -3831,6 +3838,7 @@ final class PandocFormatRegistry
             'reviewMethod' => $xmlFormat['reviewMethod'],
             'reviewPolicy' => $xmlFormat['reviewPolicy'],
             'boundedDiagnostics' => $xmlFormat['boundedDiagnostics'],
+            'reviewPacketFields' => $xmlFormat['reviewPacketFields'],
             'remainingReaderGaps' => $xmlFormat['remainingReaderGaps'],
             'directReaderParity' => false,
             'directReaderParityStatus' => 'unsupported',

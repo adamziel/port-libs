@@ -352,6 +352,113 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         ], $packet['defaultNamespaceTransitions']);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'summarizes XML namespace usage counts and source diagnostics without reader parity claims' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<doc xmlns="urn:root" xmlns:a="urn:item-a" xmlns:b="urn:item-b" xmlns:rootAlias="urn:root" xmlns:attrA="urn:attr-a" xmlns:attrB="urn:attr-b" xmlns:unused="urn:unused" attrA:code="A0" xml:lang="en">
+  <item attrA:code="A1" code="plain-root">Root item</item>
+  <rootAlias:item>Root alias item</rootAlias:item>
+  <a:item attrB:code="B1">A item</a:item>
+  <group xmlns="urn:group" attrA:code="A2">
+    <item attrB:code="B2">Group item</item>
+    <item xmlns="" code="plain-reset">Reset item</item>
+    <alias-scope xmlns:a="urn:item-b"><a:item attrB:code="B4">Scoped prefix item</a:item></alias-scope>
+  </group>
+  <b:item attrA:code="A3" attrB:code="B3">B item</b:item>
+</doc>
+XML;
+        $dom = XmlHtmlDom::loadXmlDocument($xml, 'XML namespace usage source packet', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeXmlNamespaceUsage($dom, $xml);
+        $elementUsage = [];
+        foreach ($packet['elementNamespaceUsageSummaries'] as $summary) {
+            $elementUsage[$summary['localName']] = $summary;
+        }
+        $attributeUsage = [];
+        foreach ($packet['attributeNamespaceUsageSummaries'] as $summary) {
+            $attributeUsage[$summary['localName']] = $summary;
+        }
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('xml-namespace-usage', $packet['namespaceReview']);
+        $t->same('xml-namespace-scope', $packet['namespaceScopeReview']);
+        $t->same('provided-source', $packet['namespaceUsageSourceMode']);
+        $t->same([
+            'direct-reader-unsupported',
+            'element-local-name-namespace-collisions',
+            'attribute-local-name-namespace-collisions',
+            'default-namespace-transitions',
+            'default-namespace-usage',
+            'namespace-uri-multiple-prefixes',
+            'namespace-prefix-multiple-uris',
+            'unused-namespace-declarations',
+            'reserved-namespace-usage',
+        ], $packet['directReaderDiagnosticCodes']);
+        $t->same(10, $packet['elementCount']);
+        $t->same(11, $packet['attributeCount']);
+        $t->same(9, $packet['namespacedElementUseCount']);
+        $t->same(1, $packet['unnamespacedElementUseCount']);
+        $t->same(9, $packet['namespacedAttributeUseCount']);
+        $t->same(2, $packet['unnamespacedAttributeUseCount']);
+        $t->same(10, $packet['namespaceDeclarationCount']);
+        $t->same(['a', 'attrA', 'attrB', 'b', 'rootAlias', 'unused', 'xml'], $packet['declaredNamespacePrefixes']);
+        $t->same(4, $packet['elementNamespaceUsageSummaryCount']);
+        $t->same(2, $packet['attributeNamespaceUsageSummaryCount']);
+        $t->same(['', 'urn:group', 'urn:item-a', 'urn:item-b', 'urn:root'], $elementUsage['item']['namespaceUris'] ?? null);
+        $t->same(7, $elementUsage['item']['useCount'] ?? null);
+        $t->same([
+            ['namespaceUri' => '', 'useCount' => 1, 'qualifiedNames' => ['item']],
+            ['namespaceUri' => 'urn:group', 'useCount' => 1, 'qualifiedNames' => ['item']],
+            ['namespaceUri' => 'urn:item-a', 'useCount' => 1, 'qualifiedNames' => ['a:item']],
+            ['namespaceUri' => 'urn:item-b', 'useCount' => 2, 'qualifiedNames' => ['a:item', 'b:item']],
+            ['namespaceUri' => 'urn:root', 'useCount' => 2, 'qualifiedNames' => ['item', 'rootAlias:item']],
+        ], $elementUsage['item']['namespaceUses'] ?? null);
+        $t->same(['', 'urn:attr-a', 'urn:attr-b'], $attributeUsage['code']['namespaceUris'] ?? null);
+        $t->same(10, $attributeUsage['code']['useCount'] ?? null);
+        $t->same([
+            ['namespaceUri' => '', 'useCount' => 2, 'qualifiedNames' => ['code']],
+            ['namespaceUri' => 'urn:attr-a', 'useCount' => 4, 'qualifiedNames' => ['attrA:code']],
+            ['namespaceUri' => 'urn:attr-b', 'useCount' => 4, 'qualifiedNames' => ['attrB:code']],
+        ], $attributeUsage['code']['namespaceUses'] ?? null);
+        $t->same(['http://www.w3.org/XML/1998/namespace'], $attributeUsage['lang']['namespaceUris'] ?? null);
+        $t->same(['xml:lang'], $attributeUsage['lang']['qualifiedNames'] ?? null);
+        $t->same(0, $packet['unboundNamespacePrefixUseCount']);
+        $t->same([], $packet['unboundNamespacePrefixes']);
+        $t->same(1, $packet['unusedNamespaceDeclarationCount']);
+        $t->same('unused', $packet['unusedNamespaceDeclarations'][0]['prefixLabel'] ?? null);
+        $t->same('urn:unused', $packet['unusedNamespaceDeclarations'][0]['uri'] ?? null);
+        $t->same(0, $packet['unusedNamespaceDeclarations'][0]['usedCount'] ?? null);
+        $t->same(1, $packet['reservedNamespaceUseCount']);
+        $t->same(['reserved-xml-prefix-use'], $packet['reservedNamespaceUseCodes']);
+        $t->same('xml:lang', $packet['reservedNamespaceUses'][0]['name'] ?? null);
+        $t->same(false, $packet['reservedNamespaceUses'][0]['directReaderParity'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'summarizes unbound XML namespace prefix source diagnostics without parsing through validators' => static function (TestRunner $t): void {
+        $summary = XmlHtmlDom::summarizeXmlNamespaceSourceUsage(
+            '<doc xmlns="urn:root"><bad:item missing:code="1"/><xml:item xmlns:xmlns="urn:bad" xmlns:bad="http://www.w3.org/2000/xmlns/" bad:code="2"/></doc>'
+        );
+
+        $t->same('xml-namespace-source-usage-review-only', $summary['reviewPolicy']);
+        $t->same(false, $summary['directReaderParity']);
+        $t->same('provided-source', $summary['sourceMode']);
+        $t->same(3, $summary['namespaceSourceElementUseCount']);
+        $t->same(2, $summary['namespaceSourceAttributeUseCount']);
+        $t->same(3, $summary['namespaceSourceDeclarationCount']);
+        $t->same(2, $summary['unboundNamespacePrefixUseCount']);
+        $t->same(['bad', 'missing'], $summary['unboundNamespacePrefixes']);
+        $t->same('bad:item', $summary['unboundNamespacePrefixUses'][0]['name'] ?? null);
+        $t->same('element', $summary['unboundNamespacePrefixUses'][0]['kind'] ?? null);
+        $t->same('missing:code', $summary['unboundNamespacePrefixUses'][1]['name'] ?? null);
+        $t->same('attribute', $summary['unboundNamespacePrefixUses'][1]['kind'] ?? null);
+        $t->same(1, $summary['unusedNamespaceDeclarationCount']);
+        $t->same('xmlns', $summary['unusedNamespaceDeclarations'][0]['prefixLabel'] ?? null);
+        $t->same('urn:bad', $summary['unusedNamespaceDeclarations'][0]['uri'] ?? null);
+        $t->same(2, $summary['reservedNamespaceUseCount']);
+        $t->same(['reserved-xml-prefix-use', 'reserved-xmlns-uri-use'], $summary['reservedNamespaceUseCodes']);
+        $t->same('xml:item', $summary['reservedNamespaceUses'][0]['name'] ?? null);
+        $t->same('bad:code', $summary['reservedNamespaceUses'][1]['name'] ?? null);
+        $t->same(false, $summary['reservedNamespaceUses'][1]['directReaderParity'] ?? null);
+        json_encode($summary, JSON_THROW_ON_ERROR);
+    },
     'summarizes jats and bits front matter plus body and back matter diagnostics without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <jats:article xmlns:jats="http://jats.nlm.nih.gov" xmlns:xlink="http://www.w3.org/1999/xlink" id="article-root" xml:id="xml-root" article-type="research-article" dtd-version="1.3" xml:lang="en">
