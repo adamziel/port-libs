@@ -838,5 +838,5 @@
   "mappedPandocFormatRegistryWikiOutputTokenTaxonomyCases": 1,
   "pandocFormatRegistryWikiOutputTokenTaxonomyAssertions": 145,
   "mappedEpubNavNormalizedTargetCollisionCases": 1,
-  "epubNavNormalizedTargetCollisionAssertions": 47
+  "epubNavNormalizedTargetCollisionAssertions": 69
 }

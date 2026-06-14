@@ -391,7 +391,7 @@
         "mappedPandocFormatRegistryWikiOutputTokenTaxonomyCases": 1,
         "pandocFormatRegistryWikiOutputTokenTaxonomyAssertions": 145,
         "mappedEpubNavNormalizedTargetCollisionCases": 1,
-        "epubNavNormalizedTargetCollisionAssertions": 47
+        "epubNavNormalizedTargetCollisionAssertions": 69
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1942,5 +1942,5 @@
     "mappedOdtCompactRawNameProvenanceCases": 1,
     "odtCompactRawNameProvenanceAssertions": 22,
     "mappedEpubNavNormalizedTargetCollisionCases": 1,
-    "epubNavNormalizedTargetCollisionAssertions": 47
+    "epubNavNormalizedTargetCollisionAssertions": 69
 }

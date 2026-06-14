@@ -1787,6 +1787,12 @@ XML);
             $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
+    <nav id="pages-review" epub:type="page-list">
+      <ol>
+        <li><a href="TEXT/chapter.xhtml">Print page one</a></li>
+        <li><a href="text/chapter.xhtml">Print page one copy</a></li>
+      </ol>
+    </nav>
     <nav id="toc-review" epub:type="toc">
       <ol>
         <li><a href="Text/Chapter.xhtml">Case target</a></li>
@@ -1823,12 +1829,22 @@ XML);
                 $epub['toc'],
                 static fn (array $entry): bool => $entry['type'] === 'landmarks'
             ));
+            $pageList = array_values(array_filter(
+                $epub['toc'],
+                static fn (array $entry): bool => $entry['type'] === 'page-list'
+            ));
             $report = $epub['navReport'];
 
             $tocEntryKeys = ['label', 'href', 'path', 'fragment', 'type', 'sectionType', 'sectionIndex', 'diagnostics', 'children'];
             $t->same($tocEntryKeys, array_values(array_intersect($tocEntryKeys, array_keys($toc[0]))));
             $t->same(11, count($toc));
             $t->same(2, count($landmarks));
+            $t->same(2, count($pageList));
+            $t->same('Print page one', $pageList[0]['label']);
+            $t->same([], array_values(array_diff(
+                ['label', 'href', 'path', 'fragment', 'type', 'children'],
+                array_keys($pageList[0])
+            )));
             $t->same('', $toc[6]['path']);
             $t->same('Appendix', $toc[6]['fragment']);
             $t->same('../../outside.xhtml', $toc[9]['path']);
@@ -1838,29 +1854,36 @@ XML);
             $t->same(true, $toc[10]['unsafe']);
             $t->same('invalid-percent-escape', $toc[10]['hrefKind']);
 
-            $t->same(2, $report['sectionCount']);
-            $t->same(13, $report['itemCount']);
-            $t->same(13, $report['targetedItemCount']);
-            $t->same(11, $report['localTargetCount']);
+            $t->same(3, $report['sectionCount']);
+            $t->same(15, $report['itemCount']);
+            $t->same(15, $report['targetedItemCount']);
+            $t->same(13, $report['localTargetCount']);
             $t->same(2, $report['externalTargetCount']);
             $t->same(1, $report['unsafeTargetCount']);
             $t->same(2, $report['hrefPolicy']['externalTargetCount']);
             $t->same(1, $report['hrefPolicy']['unsafeTargetCount']);
             $t->same(1, $report['hrefNormalization']['packageRootEscapeCount']);
-            $t->same(4, $report['normalizedCollisionGroupCount']);
-            $t->same(10, $report['normalizedCollisionItemCount']);
-            $t->same(4, count($report['normalizedCollisionDiagnostics']));
+            $t->same(5, $report['normalizedCollisionGroupCount']);
+            $t->same(12, $report['normalizedCollisionItemCount']);
+            $t->same(5, count($report['normalizedCollisionDiagnostics']));
+            $t->same(1, $report['crossSectionCollisionGroupCount']);
+            $t->same(7, $report['crossSectionCollisionItemCount']);
 
             $collisionSections = $report['normalizedCollisionSections'];
-            $t->same(3, $collisionSections[0]['normalizedCollisionGroupCount']);
-            $t->same(8, $collisionSections[0]['normalizedCollisionItemCount']);
-            $t->same(2, $collisionSections[0]['externalTargetCount']);
-            $t->same(1, $collisionSections[0]['unsafeTargetCount']);
-            $t->same(1, $collisionSections[0]['packageRootEscapeTargetCount']);
-            $t->same(1, $collisionSections[1]['normalizedCollisionGroupCount']);
-            $t->same(2, $collisionSections[1]['normalizedCollisionItemCount']);
+            $t->same(['page-list', 'toc', 'landmarks'], array_column($collisionSections, 'type'));
+            $t->same(1, $collisionSections[0]['normalizedCollisionGroupCount']);
+            $t->same(2, $collisionSections[0]['normalizedCollisionItemCount']);
+            $t->same(3, $collisionSections[1]['normalizedCollisionGroupCount']);
+            $t->same(8, $collisionSections[1]['normalizedCollisionItemCount']);
+            $t->same(2, $collisionSections[1]['externalTargetCount']);
+            $t->same(1, $collisionSections[1]['unsafeTargetCount']);
+            $t->same(1, $collisionSections[1]['packageRootEscapeTargetCount']);
+            $t->same(1, $collisionSections[2]['normalizedCollisionGroupCount']);
+            $t->same(2, $collisionSections[2]['normalizedCollisionItemCount']);
+            $t->same(['toc', 'toc', 'toc', 'landmarks', 'page-list'], array_column($report['normalizedCollisionDiagnostics'], 'sectionType'));
 
             $pathCollision = $report['normalizedCollisionDiagnostics'][0];
+            $t->same(1, $pathCollision['sectionIndex']);
             $t->same('epub/text/chapter.xhtml', $pathCollision['normalizedTarget']);
             $t->same([0, 1, 2], $pathCollision['itemIndexes']);
             $t->same(['Text/Chapter.xhtml', 'text/%43hapter.xhtml', './text/../text/chapter.xhtml'], $pathCollision['hrefs']);
@@ -1881,6 +1904,25 @@ XML);
             $t->same('landmarks', $landmarkCollision['sectionType']);
             $t->same('epub/text/chapter.xhtml', $landmarkCollision['normalizedTarget']);
             $t->same(['dot-segment'], $landmarkCollision['collisionKinds']);
+
+            $pageListCollision = $report['normalizedCollisionDiagnostics'][4];
+            $t->same('page-list', $pageListCollision['sectionType']);
+            $t->same(0, $pageListCollision['sectionIndex']);
+            $t->same('epub/text/chapter.xhtml', $pageListCollision['normalizedTarget']);
+            $t->same(['case'], $pageListCollision['collisionKinds']);
+
+            $crossSectionCollision = $report['crossSectionCollisionDiagnostics'][0];
+            $t->same('cross-section-normalized-nav-target-collision', $crossSectionCollision['type']);
+            $t->same('epub/text/chapter.xhtml', $crossSectionCollision['normalizedTarget']);
+            $t->same(3, $crossSectionCollision['sectionCount']);
+            $t->same(['toc', 'landmarks', 'page-list'], $crossSectionCollision['sectionTypes']);
+            $t->same([1, 2, 0], $crossSectionCollision['sectionIndexes']);
+            $t->same(['toc-review', 'landmark-review', 'pages-review'], $crossSectionCollision['sectionIds']);
+            $t->same(7, $crossSectionCollision['itemCount']);
+            $t->same(6, $crossSectionCollision['rawHrefCount']);
+            $t->same(['toc', 'toc', 'toc', 'landmarks', 'landmarks', 'page-list', 'page-list'], array_column($crossSectionCollision['itemRefs'], 'sectionType'));
+            $t->same(['Text/Chapter.xhtml', 'text/%43hapter.xhtml', './text/../text/chapter.xhtml', 'text/chapter.xhtml', './text/chapter.xhtml', 'TEXT/chapter.xhtml'], $crossSectionCollision['hrefs']);
+            $t->same(['percent-encoding', 'dot-segment', 'case'], $crossSectionCollision['collisionKinds']);
 
             $targetDiagnosticsByHref = [];
             foreach ($report['hrefPolicy']['diagnostics'] as $diagnostic) {
