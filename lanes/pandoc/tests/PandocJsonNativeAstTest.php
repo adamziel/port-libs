@@ -7329,6 +7329,46 @@ return [
                 'types' => ['raw_html', 'paragraph'],
                 'tags' => ['RawBlock', 'Para'],
             ],
+            'inline formatting constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Inline'],
+                            ['t' => 'Space'],
+                            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'em']]],
+                            ['t' => 'Space'],
+                            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']]],
+                            ['t' => 'Space'],
+                            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']]],
+                            ['t' => 'Space'],
+                            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'old']]],
+                            ['t' => 'Space'],
+                            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => '2']]],
+                            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'n']]],
+                            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']]],
+                            ['t' => 'Quoted', 'c' => [
+                                ['t' => 'SingleQuote'],
+                                [['t' => 'Str', 'c' => 'quote']],
+                            ]],
+                            ['t' => 'Math', 'c' => [
+                                ['t' => 'InlineMath'],
+                                'x + y',
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Math', 'c' => [
+                                ['t' => 'DisplayMath'],
+                                'x = y',
+                            ]],
+                            ['t' => 'SoftBreak'],
+                            ['t' => 'LineBreak'],
+                        ]],
+                    ],
+                ],
+                'types' => ['paragraph'],
+                'tags' => ['Para'],
+            ],
             'target and attr inline constructors' => [
                 'packet' => [
                     'pandoc-api-version' => [1, 23, 1],
