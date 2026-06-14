@@ -97,6 +97,30 @@ final class XmlHtmlDom
         'typemustmatch' => true,
     ];
 
+    /** @var array<string, string> */
+    private const HTML_BUTTON_COMMAND_STATES = [
+        'toggle-popover' => 'toggle-popover',
+        'show-popover' => 'show-popover',
+        'hide-popover' => 'hide-popover',
+        'close' => 'close',
+        'request-close' => 'request-close',
+        'show-modal' => 'show-modal',
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_BUTTON_POPOVER_COMMANDS = [
+        'toggle-popover' => true,
+        'show-popover' => true,
+        'hide-popover' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_BUTTON_DIALOG_COMMANDS = [
+        'close' => true,
+        'request-close' => true,
+        'show-modal' => true,
+    ];
+
     /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
     private const ARIA_ID_REFERENCE_ATTRIBUTES = [
         'aria-activedescendant' => false,
@@ -13361,7 +13385,8 @@ final class XmlHtmlDom
             $summary['label'] = self::normalizedText($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
-            if ($buttonType === 'submit') {
+            $summary += self::buttonCommandSummary($node);
+            if (self::isButtonSubmitButton($node)) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
             }
         }
@@ -16555,6 +16580,208 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    private static function isButtonSubmitButton(\DOMElement $button): bool
+    {
+        $typeRaw = self::attributeOrNull($button, 'type');
+        $type = $typeRaw === null ? '' : strtolower(trim($typeRaw));
+
+        if ($type === 'submit') {
+            return true;
+        }
+        if ($type === 'button' || $type === 'reset') {
+            return false;
+        }
+        if ($button->hasAttribute('command') || $button->hasAttribute('commandfor')) {
+            return false;
+        }
+
+        $parent = $button->parentNode;
+
+        return !($parent instanceof \DOMElement && self::htmlElementName($parent) === 'select');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function buttonCommandSummary(\DOMElement $button): array
+    {
+        if (!$button->hasAttribute('command') && !$button->hasAttribute('commandfor')) {
+            return [];
+        }
+
+        $commandRaw = self::attributeOrNull($button, 'command');
+        $command = self::buttonCommandState($commandRaw);
+        $commandForRaw = self::attributeOrNull($button, 'commandfor');
+        $commandFor = $commandForRaw === null ? null : trim($commandForRaw);
+        $commandForValid = $commandFor !== null && $commandFor !== '' && self::isHtmlIdReferenceToken($commandFor);
+        $target = $commandForValid ? self::htmlElementById($button, $commandFor) : null;
+        $issues = [];
+
+        if ($commandRaw === null || trim($commandRaw) === '') {
+            $issues[] = ['code' => 'missing-button-command'];
+        } elseif ($command['state'] === 'unknown') {
+            $issues[] = [
+                'code' => 'unknown-button-command',
+                'commandRaw' => $commandRaw,
+            ];
+        }
+
+        if ($commandForRaw === null || trim($commandForRaw) === '') {
+            $issues[] = ['code' => 'missing-button-commandfor'];
+        } elseif (!$commandForValid) {
+            $issues[] = [
+                'code' => 'invalid-button-commandfor-target',
+                'commandForRaw' => $commandForRaw,
+            ];
+        } elseif (!$target instanceof \DOMElement) {
+            $issues[] = [
+                'code' => 'missing-button-command-target',
+                'commandFor' => $commandFor,
+            ];
+        }
+
+        if ($target instanceof \DOMElement) {
+            $targetName = self::htmlElementName($target);
+            if (($command['family'] ?? null) === 'popover' && self::attributeOrNull($target, 'popover') === null) {
+                $issues[] = [
+                    'code' => 'non-popover-button-command-target',
+                    'command' => $command['command'],
+                    'targetName' => $targetName,
+                    'targetId' => self::attributeOrNull($target, 'id'),
+                ];
+            }
+            if (($command['family'] ?? null) === 'dialog' && $targetName !== 'dialog') {
+                $issues[] = [
+                    'code' => 'non-dialog-button-command-target',
+                    'command' => $command['command'],
+                    'targetName' => $targetName,
+                    'targetId' => self::attributeOrNull($target, 'id'),
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'buttonCommandReviewPolicy' => 'button-commandfor-target-review',
+            'buttonSubmitButton' => self::isButtonSubmitButton($button),
+            'commandRaw' => $commandRaw,
+            'command' => $command['command'],
+            'commandState' => $command['state'],
+            'commandActionFamily' => $command['family'],
+            'commandCustom' => $command['custom'],
+            'commandKnown' => $command['known'],
+            'commandForRaw' => $commandForRaw,
+            'commandFor' => $commandFor === '' ? null : $commandFor,
+            'commandForValid' => $commandForValid,
+            'commandTargetFound' => $target instanceof \DOMElement,
+            'commandTargetKind' => self::buttonCommandTargetKind($target, $commandForRaw, $commandForValid),
+            'commandTarget' => $target instanceof \DOMElement ? self::buttonCommandTargetSummary($target) : null,
+            'commandIssues' => $issues,
+            'commandIssueCodes' => $issueCodes,
+            'commandInvokesTarget' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{command:?string, state:string, family:?string, custom:bool, known:bool}
+     */
+    private static function buttonCommandState(?string $commandRaw): array
+    {
+        if ($commandRaw === null || trim($commandRaw) === '') {
+            return [
+                'command' => null,
+                'state' => 'missing',
+                'family' => null,
+                'custom' => false,
+                'known' => false,
+            ];
+        }
+
+        $command = strtolower(trim($commandRaw));
+        if (isset(self::HTML_BUTTON_COMMAND_STATES[$command])) {
+            return [
+                'command' => $command,
+                'state' => self::HTML_BUTTON_COMMAND_STATES[$command],
+                'family' => isset(self::HTML_BUTTON_POPOVER_COMMANDS[$command])
+                    ? 'popover'
+                    : (isset(self::HTML_BUTTON_DIALOG_COMMANDS[$command]) ? 'dialog' : null),
+                'custom' => false,
+                'known' => true,
+            ];
+        }
+
+        if (preg_match('/^--[A-Za-z0-9._:-]+$/', trim($commandRaw)) === 1) {
+            return [
+                'command' => trim($commandRaw),
+                'state' => 'custom',
+                'family' => 'custom',
+                'custom' => true,
+                'known' => true,
+            ];
+        }
+
+        return [
+            'command' => null,
+            'state' => 'unknown',
+            'family' => null,
+            'custom' => false,
+            'known' => false,
+        ];
+    }
+
+    private static function buttonCommandTargetKind(?\DOMElement $target, ?string $commandForRaw, bool $commandForValid): string
+    {
+        if (!$target instanceof \DOMElement) {
+            if ($commandForRaw === null || trim($commandForRaw) === '') {
+                return 'missing-reference';
+            }
+
+            return $commandForValid ? 'missing-target' : 'invalid-reference';
+        }
+
+        $name = self::htmlElementName($target);
+        if ($name === 'dialog') {
+            return 'dialog';
+        }
+        if (self::attributeOrNull($target, 'popover') !== null) {
+            return 'popover';
+        }
+
+        return 'element';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function buttonCommandTargetSummary(\DOMElement $target): array
+    {
+        $name = self::htmlElementName($target);
+        $summary = [
+            'tag' => $name,
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+        ];
+
+        if ($name === 'dialog') {
+            $summary['dialogOpen'] = $target->hasAttribute('open');
+            $summary['dialogState'] = $target->hasAttribute('open') ? 'open' : 'closed';
+        }
+
+        $popoverRaw = self::attributeOrNull($target, 'popover');
+        if ($popoverRaw !== null) {
+            $popover = self::popoverState($popoverRaw);
+            $summary['popoverRaw'] = $popoverRaw;
+            $summary['popoverState'] = $popover;
+            $summary['popoverValid'] = $popover !== null;
+        }
+
+        return $summary;
     }
 
     /**

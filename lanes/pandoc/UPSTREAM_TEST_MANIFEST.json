@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3423,
-        "latestSlice": "pandoc-zip-selected-central-directory-variable-field-handoff maps one shared ZIP/OPC selected-entry package handoff case on current main f533906a11. ZipPackage::entryHandoffPreflight now preserves selected central-directory fixed-header and variable-field byte provenance, including raw name, central extra field, raw comment, review-field byte buckets, offsets, SHA-256 digests, aggregate selected byte counts, and mismatch issue reporting before DOCX/EPUB/ODF readers expose package bytes without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3422 -> 3423, mappedZipSelectedCentralDirectoryVariableFieldHandoffCases is 1, zipSelectedCentralDirectoryVariableFieldHandoffAssertions is 42, and zipSelectedSourceByteSpanAssertions moves 48 -> 82. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 test file, 4582 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82365 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
+        "mapped": 3424,
+        "latestSlice": "pandoc-xml-html5-dom-button-command-review maps one native XML/HTML5 DOM commandfor review case on current main 1deca4653e. XmlHtmlDom::summarizeHtmlFragment now preserves button command/commandfor target provenance for built-in popover/dialog commands and custom -- commands, including target ID resolution, target kind, command family/state, issue codes for missing/invalid targets and unknown commands, and submit-button classification without invoking Pandoc, browser renderers, JavaScript engines, online sanitizers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3423 -> 3424, mappedXmlHtmlDomButtonCommandReviewCases is 1, xmlHtmlDomButtonCommandReviewAssertions is 59. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 test file, 4054 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82552 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
         "mappedXmlHtmlDomOutputForReferenceCases": 1,
         "xmlHtmlDomOutputForReferenceAssertions": 41,
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
@@ -54,8 +54,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Shared ZIP/OPC selected central-directory variable-field handoff provenance is verified over current main f533906a11; broader package reader parity remains incremental.",
-        "latestFocusedSource": "2026-06-14 shared ZIP/OPC selected central-directory variable-field provenance inspected ZipPackage selected-entry handoff metadata on current main f533906a11; focused ZipPackageTest.php passed 1 test file, 4582 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82365 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
+        "status": "XML/HTML5 DOM button command target review is verified over current main 1deca4653e; broader direct HTML reader parity remains incremental.",
+        "latestFocusedSource": "2026-06-14 XML/HTML5 DOM button command target review inspected XmlHtmlDom command/commandfor metadata on current main 1deca4653e; focused XmlHtmlDomTest.php passed 1 test file, 4054 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82552 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -401,7 +401,9 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38,
         "mappedZipSelectedCentralDirectoryVariableFieldHandoffCases": 1,
-        "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42
+        "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42,
+        "mappedXmlHtmlDomButtonCommandReviewCases": 1,
+        "xmlHtmlDomButtonCommandReviewAssertions": 59
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1406,12 +1408,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "HTML output for-token provenance remains in raw HTML handoff; WordPress output preserves the serialized output element while reviewer packets inspect resolved, missing, duplicate, invalid, and non-control references.",
+    "wordpressScenario": "WordPress output preserves the serialized raw HTML; button command and commandfor metadata remains review-only and does not execute browser commands.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "Shared ZIP/OPC selected central-directory variable-field handoff provenance is verified over current main f533906a11; broader package reader parity remains incremental.",
-    "mapping": "Adds one bounded native PHP shared ZIP/OPC selected-entry central-directory variable-field provenance mapping on current main f533906a11 while preserving existing DOCX, EPUB, ODF, JSON/native, CSL/BibTeX, XML/HTML, PDF/Typst, MediaBag, Markdown, LaTeX, Typst, wiki, roff, CSV/TSV, CommonMark, and ZIP/OPC counters.",
-    "audit": "updated 2026-06-14: shared ZIP/OPC selected-entry handoff now preserves central-directory fixed-header and variable-field byte provenance, including raw central names, central extra fields, raw central comments, review-field byte buckets, offsets, SHA-256 digests, aggregate selected byte counters, and mismatch issue reporting before DOCX/EPUB/ODF readers expose package bytes. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 test file, 4582 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82365 assertions, 0 failures; jq empty for lane metadata and manifest plus git diff --check are run before submit. No Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
-    "latestSlice": "pandoc-zip-selected-central-directory-variable-field-handoff maps one shared ZIP/OPC selected-entry package handoff case on current main f533906a11. ZipPackage::entryHandoffPreflight now preserves selected central-directory fixed-header and variable-field byte provenance, including raw name, central extra field, raw comment, review-field byte buckets, offsets, SHA-256 digests, aggregate selected byte counts, and mismatch issue reporting before DOCX/EPUB/ODF readers expose package bytes without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3422 -> 3423, mappedZipSelectedCentralDirectoryVariableFieldHandoffCases is 1, zipSelectedCentralDirectoryVariableFieldHandoffAssertions is 42, and zipSelectedSourceByteSpanAssertions moves 48 -> 82. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 test file, 4582 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82365 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
+    "status": "XML/HTML5 DOM button command target review is verified over current main 1deca4653e; broader direct HTML reader parity remains incremental.",
+    "mapping": "Adds one bounded native PHP XML/HTML5 DOM button command target review mapping on current main 1deca4653e while preserving existing DOCX, EPUB, ODF, JSON/native, CSL/BibTeX, XML/HTML, PDF/Typst, MediaBag, Markdown, LaTeX, Typst, wiki, roff, CSV/TSV, CommonMark, and ZIP/OPC counters.",
+    "audit": "updated 2026-06-14: XML/HTML5 DOM button command target review now preserves declarative button command and commandfor metadata for built-in popover/dialog commands, custom -- commands, target ID resolution, target kind summaries, invalid/missing target diagnostics, unknown command diagnostics, and submit-button classification without executing browser commands. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 test file, 4054 assertions, 0 failures; post-rebase full lanes/pandoc/tests gate passed 46 test files, 82552 assertions, 0 failures; jq empty for lane metadata and manifest plus git diff --check are run before submit. No Pandoc, browser renderers, JavaScript engines, online sanitizers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
+    "latestSlice": "pandoc-xml-html5-dom-button-command-review maps one native XML/HTML5 DOM commandfor review case on current main 1deca4653e. XmlHtmlDom::summarizeHtmlFragment now preserves button command/commandfor target provenance for built-in popover/dialog commands and custom -- commands, including target ID resolution, target kind, command family/state, issue codes for missing/invalid targets and unknown commands, and submit-button classification without invoking Pandoc, browser renderers, JavaScript engines, online sanitizers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3423 -> 3424, mappedXmlHtmlDomButtonCommandReviewCases is 1, xmlHtmlDomButtonCommandReviewAssertions is 59. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 test file, 4054 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82552 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1579,7 +1581,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-14 shared ZIP/OPC selected central-directory variable-field provenance inspected ZipPackage selected-entry handoff metadata on current main f533906a11; focused ZipPackageTest.php passed 1 test file, 4582 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82365 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
+    "latestFocusedSource": "2026-06-14 XML/HTML5 DOM button command target review inspected XmlHtmlDom command/commandfor metadata on current main 1deca4653e; focused XmlHtmlDomTest.php passed 1 test file, 4054 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82552 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1962,5 +1964,7 @@
     "mappedEpubNavNormalizedTargetCollisionCases": 1,
     "epubNavNormalizedTargetCollisionAssertions": 69,
     "mappedZipSelectedCentralDirectoryVariableFieldHandoffCases": 1,
-    "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42
+    "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42,
+    "mappedXmlHtmlDomButtonCommandReviewCases": 1,
+    "xmlHtmlDomButtonCommandReviewAssertions": 59
 }

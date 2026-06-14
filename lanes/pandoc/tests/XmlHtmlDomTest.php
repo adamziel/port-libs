@@ -5604,6 +5604,114 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html button command target provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="confirm" open>Confirm body</dialog>'
+                . '<div id="menu" popover="manual">Menu</div>'
+                . '<section id="card">Card</section>'
+                . '<button id="show-menu" commandfor="menu" command="show-popover">Show</button>'
+                . '<button id="close-dialog" commandfor="confirm" command="request-close">Close</button>'
+                . '<button id="custom-card" type="button" commandfor="card" command="--mark-reviewed">Mark</button>'
+                . '<button id="missing-target" commandfor="missing" command="toggle-popover">Missing</button>'
+                . '<button id="bad-command" commandfor="card" command="rotate">Bad command</button>'
+                . '<button id="bad-id" commandfor="bad target" command="close">Bad target</button>'
+                . '<button id="no-command" commandfor="menu">No command</button>',
+            'button command target review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/button-command-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $showMenu = $summary[3];
+        $closeDialog = $summary[4];
+        $customCard = $summary[5];
+        $missingTarget = $summary[6];
+        $badCommand = $summary[7];
+        $badId = $summary[8];
+        $noCommand = $summary[9];
+
+        $t->same('button-commandfor-target-review', $showMenu['buttonCommandReviewPolicy']);
+        $t->same('submit', $showMenu['buttonType']);
+        $t->same(false, $showMenu['buttonSubmitButton']);
+        $t->true(!array_key_exists('submitter', $showMenu));
+        $t->same('show-popover', $showMenu['commandRaw']);
+        $t->same('show-popover', $showMenu['command']);
+        $t->same('show-popover', $showMenu['commandState']);
+        $t->same('popover', $showMenu['commandActionFamily']);
+        $t->same(false, $showMenu['commandCustom']);
+        $t->same(true, $showMenu['commandKnown']);
+        $t->same('menu', $showMenu['commandFor']);
+        $t->same(true, $showMenu['commandForValid']);
+        $t->same(true, $showMenu['commandTargetFound']);
+        $t->same('popover', $showMenu['commandTargetKind']);
+        $t->same('div', $showMenu['commandTarget']['tag'] ?? null);
+        $t->same('menu', $showMenu['commandTarget']['id'] ?? null);
+        $t->same('manual', $showMenu['commandTarget']['popoverState'] ?? null);
+        $t->same([], $showMenu['commandIssueCodes']);
+        $t->same(true, $showMenu['commandInvokesTarget']);
+
+        $t->same('request-close', $closeDialog['command']);
+        $t->same('dialog', $closeDialog['commandActionFamily']);
+        $t->same('dialog', $closeDialog['commandTargetKind']);
+        $t->same('dialog', $closeDialog['commandTarget']['tag'] ?? null);
+        $t->same(true, $closeDialog['commandTarget']['dialogOpen'] ?? null);
+        $t->same('open', $closeDialog['commandTarget']['dialogState'] ?? null);
+        $t->same(true, $closeDialog['commandInvokesTarget']);
+
+        $t->same('button', $customCard['buttonType']);
+        $t->same(false, $customCard['buttonSubmitButton']);
+        $t->same('--mark-reviewed', $customCard['command']);
+        $t->same('custom', $customCard['commandState']);
+        $t->same('custom', $customCard['commandActionFamily']);
+        $t->same(true, $customCard['commandCustom']);
+        $t->same('element', $customCard['commandTargetKind']);
+        $t->same('section', $customCard['commandTarget']['tag'] ?? null);
+        $t->same(true, $customCard['commandInvokesTarget']);
+
+        $t->same('missing', $missingTarget['commandFor']);
+        $t->same(true, $missingTarget['commandForValid']);
+        $t->same(false, $missingTarget['commandTargetFound']);
+        $t->same('missing-target', $missingTarget['commandTargetKind']);
+        $t->same(['missing-button-command-target'], $missingTarget['commandIssueCodes']);
+        $t->same(false, $missingTarget['commandInvokesTarget']);
+
+        $t->same('rotate', $badCommand['commandRaw']);
+        $t->same(null, $badCommand['command']);
+        $t->same('unknown', $badCommand['commandState']);
+        $t->same(false, $badCommand['commandKnown']);
+        $t->same(['unknown-button-command'], $badCommand['commandIssueCodes']);
+        $t->same(false, $badCommand['commandInvokesTarget']);
+
+        $t->same('bad target', $badId['commandForRaw']);
+        $t->same('bad target', $badId['commandFor']);
+        $t->same(false, $badId['commandForValid']);
+        $t->same('invalid-reference', $badId['commandTargetKind']);
+        $t->same(['invalid-button-commandfor-target'], $badId['commandIssueCodes']);
+
+        $t->same(null, $noCommand['commandRaw']);
+        $t->same('missing', $noCommand['commandState']);
+        $t->same(['missing-button-command'], $noCommand['commandIssueCodes']);
+        $t->same(false, $noCommand['commandInvokesTarget']);
+
+        $t->same(
+            '<dialog id="confirm" open>Confirm body</dialog>'
+                . '<div id="menu" popover="manual">Menu</div>'
+                . '<section id="card">Card</section>'
+                . '<button command="show-popover" commandfor="menu" id="show-menu">Show</button>'
+                . '<button command="request-close" commandfor="confirm" id="close-dialog">Close</button>'
+                . '<button command="--mark-reviewed" commandfor="card" id="custom-card" type="button">Mark</button>'
+                . '<button command="toggle-popover" commandfor="missing" id="missing-target">Missing</button>'
+                . '<button command="rotate" commandfor="card" id="bad-command">Bad command</button>'
+                . '<button command="close" commandfor="bad target" id="bad-id">Bad target</button>'
+                . '<button commandfor="menu" id="no-command">No command</button>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/button-command-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
