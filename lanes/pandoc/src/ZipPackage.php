@@ -9533,6 +9533,17 @@ final class ZipPackage
      *     centralDirectoryEnd:int,
      *     eocdOffset:int,
      *     scannedCentralDirectoryBytes:int,
+     *     centralDirectoryEntryRecordBytes:int,
+     *     centralDirectoryFixedHeaderBytes:int,
+     *     centralDirectoryVariableFieldBytes:int,
+     *     centralDirectoryNameBytes:int,
+     *     centralDirectoryExtraFieldBytes:int,
+     *     centralDirectoryCommentBytes:int,
+     *     centralExtraFieldEntryCount:int,
+     *     entryCommentCount:int,
+     *     hasCentralDirectoryVariableFields:bool,
+     *     hasCentralExtraFields:bool,
+     *     hasEntryComments:bool,
      *     centralDirectoryTailBytes:int,
      *     scanStoppedOffset:int,
      *     scanCompletedCentralDirectory:bool,
@@ -9548,7 +9559,7 @@ final class ZipPackage
      *     isCentralDirectoryEocdGapExplainedBySignature:bool,
      *     hasRecoverableCentralDirectoryGapEntries:bool,
      *     recoverableGapEntryCount:int,
-     *     recoverableGapEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>,
+     *     recoverableGapEntries:list<array<string, mixed>>,
      *     skippedArchiveExtraDataRecordCount:int,
      *     skippedArchiveExtraDataRecordBytes:int,
      *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
@@ -9572,7 +9583,7 @@ final class ZipPackage
      *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
-     *     entries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>
+     *     entries:list<array<string, mixed>>
      * }
      */
     public static function centralDirectoryInventoryPreflight(string $bytes): array
@@ -9600,6 +9611,14 @@ final class ZipPackage
         $unexpectedRecordSignatureHex = null;
         $skippedArchiveExtraDataRecords = [];
         $skippedArchiveExtraDataRecordBytes = 0;
+        $centralDirectoryEntryRecordBytes = 0;
+        $centralDirectoryFixedHeaderBytes = 0;
+        $centralDirectoryVariableFieldBytes = 0;
+        $centralDirectoryNameBytes = 0;
+        $centralDirectoryExtraFieldBytes = 0;
+        $centralDirectoryCommentBytes = 0;
+        $centralExtraFieldEntryCount = 0;
+        $entryCommentCount = 0;
         $index = 0;
         while ($cursor < $archive['centralDirectoryEnd']) {
             $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
@@ -9643,6 +9662,18 @@ final class ZipPackage
 
             $entry = self::centralDirectoryInventoryEntryAt($bytes, $cursor, $index);
             $entries[] = $entry;
+            $centralDirectoryEntryRecordBytes += $entry['recordLength'];
+            $centralDirectoryFixedHeaderBytes += $entry['fixedHeaderLength'];
+            $centralDirectoryVariableFieldBytes += $entry['variableFieldsLength'];
+            $centralDirectoryNameBytes += $entry['rawNameLength'];
+            $centralDirectoryExtraFieldBytes += $entry['centralExtraFieldLength'];
+            $centralDirectoryCommentBytes += $entry['rawCommentLength'];
+            if ($entry['centralExtraFieldLength'] > 0) {
+                $centralExtraFieldEntryCount++;
+            }
+            if ($entry['rawCommentLength'] > 0) {
+                $entryCommentCount++;
+            }
             $cursor = $entry['recordEnd'];
             $index++;
         }
@@ -9760,6 +9791,17 @@ final class ZipPackage
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
             'eocdOffset' => $archive['eocdOffset'],
             'scannedCentralDirectoryBytes' => $cursor - $archive['centralDirectoryOffset'],
+            'centralDirectoryEntryRecordBytes' => $centralDirectoryEntryRecordBytes,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryNameBytes' => $centralDirectoryNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryCommentBytes' => $centralDirectoryCommentBytes,
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'entryCommentCount' => $entryCommentCount,
+            'hasCentralDirectoryVariableFields' => $centralDirectoryVariableFieldBytes > 0,
+            'hasCentralExtraFields' => $centralExtraFieldEntryCount > 0,
+            'hasEntryComments' => $entryCommentCount > 0,
             'centralDirectoryTailBytes' => max(0, $archive['centralDirectoryEnd'] - $cursor),
             'scanStoppedOffset' => $cursor,
             'scanCompletedCentralDirectory' => $scanCompletedCentralDirectory,
@@ -10749,7 +10791,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
+     * @return array<string, mixed>
      */
     private static function centralDirectoryInventoryEntryAt(string $bytes, int $cursor, int $index): array
     {
@@ -10765,6 +10807,8 @@ final class ZipPackage
 
         $rawName = substr($bytes, $variableStart, $nameLength);
         $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+        $rawCommentOffset = $variableStart + $nameLength + $extraLength;
+        $recordEnd = $rawCommentOffset + $commentLength;
         self::assertSafePartName($rawName);
         $decodedName = self::decodeZipText(
             $rawName,
@@ -10782,7 +10826,19 @@ final class ZipPackage
             'nameEncoding' => $decodedName['encoding'],
             'centralDirectoryIndex' => $index,
             'offset' => $cursor,
-            'recordEnd' => $cursor + 46 + $variableLength,
+            'recordOffset' => $cursor,
+            'recordLength' => 46 + $variableLength,
+            'fixedHeaderOffset' => $cursor,
+            'fixedHeaderLength' => 46,
+            'variableFieldsOffset' => $variableStart,
+            'variableFieldsLength' => $variableLength,
+            'rawNameOffset' => $variableStart,
+            'rawNameLength' => $nameLength,
+            'centralExtraFieldOffset' => $variableStart + $nameLength,
+            'centralExtraFieldLength' => $extraLength,
+            'rawCommentOffset' => $rawCommentOffset,
+            'rawCommentLength' => $commentLength,
+            'recordEnd' => $recordEnd,
             'localHeaderOffset' => $localHeaderOffset,
         ];
     }

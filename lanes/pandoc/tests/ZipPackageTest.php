@@ -5231,11 +5231,16 @@ return [
     },
 
     'preflights zip central directory inventory counts before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $centralExtra = pack('vva*', 0xcafe, strlen('inventory'), 'inventory');
+        $entryComment = 'inventory review';
         $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document><w:p>central inventory</w:p></w:document>',
                 'method' => 8,
+                'centralExtra' => $centralExtra,
+                'localExtra' => '',
+                'comment' => $entryComment,
             ],
             [
                 'name' => 'word/media/review.png',
@@ -5244,12 +5249,33 @@ return [
             ],
         ]);
         $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $package = ZipPackage::fromString($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $first = $summary['entries'][0];
+        $second = $summary['entries'][1];
+        $firstRecordBytes = 46 + strlen('word/document.xml') + strlen($centralExtra) + strlen($entryComment);
+        $secondRecordBytes = 46 + strlen('word/media/review.png');
 
         $t->same(2, $summary['declaredEntryCount']);
         $t->same(2, $summary['diskEntryCount']);
         $t->same(2, $summary['scannedEntryCount']);
         $t->same(2, $summary['entryCount']);
         $t->same($summary['centralDirectorySize'], $summary['scannedCentralDirectoryBytes']);
+        $t->same($firstRecordBytes + $secondRecordBytes, $summary['centralDirectoryEntryRecordBytes']);
+        $t->same(92, $summary['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            strlen('word/document.xml') + strlen($centralExtra) + strlen($entryComment) + strlen('word/media/review.png'),
+            $summary['centralDirectoryVariableFieldBytes']
+        );
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.png'), $summary['centralDirectoryNameBytes']);
+        $t->same(strlen($centralExtra), $summary['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($entryComment), $summary['centralDirectoryCommentBytes']);
+        $t->same(1, $summary['centralExtraFieldEntryCount']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same(true, $summary['hasEntryComments']);
         $t->same(0, $summary['centralDirectoryTailBytes']);
         $t->same(false, $summary['hasEntryCountMismatch']);
         $t->same(0, $summary['entryCountDelta']);
@@ -5262,7 +5288,28 @@ return [
         $t->same([], $summary['issues']);
         $t->same(['word/document.xml', 'word/media/review.png'], array_column($summary['entries'], 'name'));
         $t->same([0, 1], array_column($summary['entries'], 'centralDirectoryIndex'));
-        $t->same(true, ZipPackage::fromString($zip)->has('/word/document.xml'));
+        $t->same($summary['centralDirectoryOffset'], $first['offset']);
+        $t->same($first['offset'], $first['recordOffset']);
+        $t->same($firstRecordBytes, $first['recordLength']);
+        $t->same($first['offset'], $first['fixedHeaderOffset']);
+        $t->same(46, $first['fixedHeaderLength']);
+        $t->same($first['offset'] + 46, $first['variableFieldsOffset']);
+        $t->same($firstRecordBytes - 46, $first['variableFieldsLength']);
+        $t->same($first['variableFieldsOffset'], $first['rawNameOffset']);
+        $t->same(strlen('word/document.xml'), $first['rawNameLength']);
+        $t->same($first['rawNameOffset'] + strlen('word/document.xml'), $first['centralExtraFieldOffset']);
+        $t->same(strlen($centralExtra), $first['centralExtraFieldLength']);
+        $t->same($first['centralExtraFieldOffset'] + strlen($centralExtra), $first['rawCommentOffset']);
+        $t->same(strlen($entryComment), $first['rawCommentLength']);
+        $t->same($first['rawCommentOffset'] + strlen($entryComment), $first['recordEnd']);
+        $t->same($first['recordEnd'], $second['offset']);
+        $t->same($secondRecordBytes, $second['recordLength']);
+        $t->same(0, $second['centralExtraFieldLength']);
+        $t->same(0, $second['rawCommentLength']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->same($summary, $strict['centralDirectoryInventory']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+        $t->same(true, $package->has('/word/document.xml'));
 
         $declaredTooLow = $rewriteEndOfCentralDirectory($zip, [
             'diskEntryCount' => 1,
@@ -5297,6 +5344,66 @@ return [
         $t->same(['central-directory-entry-count-mismatch'], $highSummary['issues']);
         $t->same(0, $highSummary['centralDirectoryTailBytes']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($declaredTooHigh));
+    },
+
+    'preflights zip central directory inventory byte spans before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $extra = pack('vva*', 0xcafe, strlen('inventory-span'), 'inventory-span');
+        $contentTypes = '<Types><Default Extension="xml" ContentType="application/xml"/></Types>';
+        $documentXml = '<w:document><w:p>inventory byte spans</w:p></w:document>';
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypes,
+                'method' => 0,
+                'localExtra' => $extra,
+                'centralExtra' => $extra,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $first = $summary['entries'][0];
+        $second = $summary['entries'][1];
+        $firstRecordBytes = 46 + strlen('[Content_Types].xml') + strlen($extra);
+        $secondRecordBytes = 46 + strlen('word/document.xml');
+
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->same($summary, $strict['centralDirectoryInventory']);
+        $t->same(true, $rawStrict['isValid']);
+        $t->same(true, $strict['isValid']);
+        $t->same($firstRecordBytes + $secondRecordBytes, $summary['centralDirectoryEntryRecordBytes']);
+        $t->same(92, $summary['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen('[Content_Types].xml') + strlen($extra) + strlen('word/document.xml'), $summary['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen('[Content_Types].xml') + strlen('word/document.xml'), $summary['centralDirectoryNameBytes']);
+        $t->same(strlen($extra), $summary['centralDirectoryExtraFieldBytes']);
+        $t->same(0, $summary['centralDirectoryCommentBytes']);
+        $t->same(1, $summary['centralExtraFieldEntryCount']);
+        $t->same(0, $summary['entryCommentCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same(false, $summary['hasEntryComments']);
+        $t->same($summary['centralDirectoryOffset'], $first['recordOffset']);
+        $t->same($firstRecordBytes, $first['recordLength']);
+        $t->same($first['recordOffset'] + 46, $first['variableFieldsOffset']);
+        $t->same(strlen('[Content_Types].xml'), $first['rawNameLength']);
+        $t->same($first['rawNameOffset'] + strlen('[Content_Types].xml'), $first['centralExtraFieldOffset']);
+        $t->same(strlen($extra), $first['centralExtraFieldLength']);
+        $t->same($first['centralExtraFieldOffset'] + strlen($extra), $first['rawCommentOffset']);
+        $t->same(0, $first['rawCommentLength']);
+        $t->same($first['rawCommentOffset'], $first['recordEnd']);
+        $t->same($first['recordEnd'], $second['recordOffset']);
+        $t->same($secondRecordBytes, $second['recordLength']);
+        $t->same($second['recordOffset'] + 46, $second['variableFieldsOffset']);
+        $t->same(0, $second['centralExtraFieldLength']);
+        $t->same(0, $second['rawCommentLength']);
+        $t->same($second['recordOffset'] + $secondRecordBytes, $second['recordEnd']);
     },
 
     'preflights duplicate zip central directory names before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
