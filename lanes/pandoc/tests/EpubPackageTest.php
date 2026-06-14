@@ -5763,4 +5763,88 @@ XML;
         $t->same($validation, $summary['wordpressImport']['packageValidation']);
         $t->same($manifest['mediaTypeItems'], $summary['wordpressImport']['packageValidation']['manifest']['mediaTypeItems']);
     },
+    'preserves compact OPF manifest and spine authoring attributes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            $epub3OpfXml
+        );
+        $opfWithAuthoring = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
+            $opfWithAuthoring
+        );
+        $opfWithAuthoring = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image" dir="ltr" data-review="cover"/>',
+            $opfWithAuthoring
+        );
+        $opfWithAuthoring = str_replace(
+            '<itemref idref="chapter1"/>',
+            '<itemref id="chapter-one-spine" idref="chapter1" xml:lang="fr" dir="rtl" data-review="primary" review:source="wp-import"/>',
+            $opfWithAuthoring
+        );
+        $opfWithAuthoring = str_replace(
+            '<itemref idref="chapter2" linear="no" properties="page-spread-right"/>',
+            '<itemref idref="chapter2" linear="no" properties="page-spread-right" dir="ltr" data-review="appendix"/>',
+            $opfWithAuthoring
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $chapter = $epub->manifestItem('chapter1');
+        $cover = $epub->manifestItem('cover');
+        $spine = $epub->spine();
+        $summary = $epub->summary();
+        $manifestAuthoring = $summary['manifestAuthoring'];
+        $spineAuthoring = $summary['spineAuthoring'];
+
+        $t->same('fr', $chapter['language']);
+        $t->same('rtl', $chapter['direction']);
+        $t->same('fr', $chapter['attributes']['xml:lang']);
+        $t->same('wp-import', $chapter['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $chapter['customAttributes']);
+        $t->same('ltr', $cover['direction']);
+        $t->same(['data-review' => 'cover'], $cover['customAttributes']);
+
+        $t->same('chapter-one-spine', $spine[0]['id']);
+        $t->same('fr', $spine[0]['language']);
+        $t->same('rtl', $spine[0]['direction']);
+        $t->same('chapter1', $spine[0]['attributes']['idref']);
+        $t->same('wp-import', $spine[0]['attributes']['review:source']);
+        $t->same(['data-review' => 'primary', 'review:source' => 'wp-import'], $spine[0]['customAttributes']);
+        $t->same('ltr', $spine[1]['direction']);
+        $t->same(['data-review' => 'appendix'], $spine[1]['customAttributes']);
+
+        $t->same(5, $manifestAuthoring['itemCount']);
+        $t->same(1, $manifestAuthoring['languageItemCount']);
+        $t->same(2, $manifestAuthoring['directionItemCount']);
+        $t->same(2, $manifestAuthoring['customAttributeItemCount']);
+        $t->same(['chapter1'], array_column($manifestAuthoring['languageItems'], 'id'));
+        $t->same(['cover', 'chapter1'], array_column($manifestAuthoring['directionItems'], 'id'));
+        $t->same('primary', $manifestAuthoring['itemsById']['chapter1']['customAttributes']['data-review']);
+        $t->same('cover', $manifestAuthoring['itemsById']['cover']['customAttributes']['data-review']);
+        $t->same($manifestAuthoring, $summary['wordpressImport']['manifestAuthoring']);
+        $t->same($manifestAuthoring['items'], $summary['wordpressImport']['manifestAuthoringItems']);
+
+        $t->same(2, $spineAuthoring['itemCount']);
+        $t->same(1, $spineAuthoring['languageItemCount']);
+        $t->same(2, $spineAuthoring['directionItemCount']);
+        $t->same(2, $spineAuthoring['customAttributeItemCount']);
+        $t->same(['chapter-one-spine'], array_column($spineAuthoring['languageItems'], 'id'));
+        $t->same([0, 1], array_column($spineAuthoring['directionItems'], 'index'));
+        $t->same('primary', $spineAuthoring['itemsByIndex'][0]['customAttributes']['data-review']);
+        $t->same('wp-import', $spineAuthoring['itemsByIndex'][0]['customAttributes']['review:source']);
+        $t->same('appendix', $spineAuthoring['itemsByIndex'][1]['customAttributes']['data-review']);
+        $t->same($spineAuthoring, $summary['wordpressImport']['spineAuthoring']);
+        $t->same($spineAuthoring['items'], $summary['wordpressImport']['spineAuthoringItems']);
+    },
 ];
