@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3502,
-        "latestSlice": "pandoc-odf-compact-manifest-attribute-collisions maps one compact ODT manifest custom-attribute collision case after rebase onto current main 998af4e12. OpenDocumentPackage preserves duplicate compact manifest custom attribute collision provenance, including repeated custom namespaced manifest:file-entry attribute names across entries, same-prefix namespace rebinding, custom attributes that shadow manifest:media-type and manifest:full-path, decoded package-path conflict rejection, stable manifestCustomAttributeItems ordering, packageInventory propagation, and OdfReader package provenance parity without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3577 -> 3578, phpFail remains 0, mappedOdfCompactManifestAttributeCollisionCases = 1, and odfCompactManifestAttributeCollisionAssertions = 45. Verification passed php -l for OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1409 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6478 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83957 assertions, 0 failures. Mapped denominator moves 3501 -> 3502.",
+        "mapped": 3503,
+        "latestSlice": "pandoc-epub-package-authoring-attributes maps one EPUB3 package ingestion case after rebase onto current main 4058f7afec. EpubPackage emits packageAuthoring rows for OPF package id/version/unique-identifier/xml:base/xml:lang/dir/prefix plus raw and custom package element attributes without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3578 -> 3579, phpFail remains 0, mappedEpubPackageAuthoringAttributeCases = 1, and epubPackageAuthoringAttributeAssertions = 22. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2461 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83979 assertions, 0 failures. Mapped denominator moves 3502 -> 3503.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "ODF/ODT compact manifest attribute collision coverage is verified after rebase onto current main 998af4e12; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 ODF/ODT compact manifest attribute collision coverage verified after rebase onto current main 998af4e12; focused OpenDocumentPackageTest.php passed 1 file, 1409 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6478 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83957 assertions, 0 failures.",
+        "status": "EPUB3 package authoring attribute provenance is verified after rebase onto current main 4058f7afec; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-14 EPUB3 package authoring attribute provenance verified after rebase onto current main 4058f7afec; focused EpubPackageTest.php passed 1 file, 2461 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83979 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -439,7 +439,9 @@
         "mappedTypstBoundaryMatrixCases": 10,
         "typstBoundaryMatrixAssertions": 26,
         "mappedOdfCompactManifestAttributeCollisionCases": 1,
-        "odfCompactManifestAttributeCollisionAssertions": 45
+        "odfCompactManifestAttributeCollisionAssertions": 45,
+        "mappedEpubPackageAuthoringAttributeCases": 1,
+        "epubPackageAuthoringAttributeAssertions": 22
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1446,12 +1448,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "RIS extended metadata review preserves type aliases, number/status, collaborator, collection/language/source, and WordPress CSL rendering without external bibliography tools.",
+    "wordpressScenario": "EPUB3 package review preserves OPF package element authoring attributes without external EPUB tooling.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "ODF/ODT compact manifest attribute collision coverage is verified after rebase onto current main 998af4e12; phpFail remains 0.",
-    "mapping": "Adds five bounded native PHP CitationCslProcessor RIS metadata mappings while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
-    "audit": "updated 2026-06-14: pandoc-ris-extended-metadata maps five Citation/CSL RIS metadata cases after rebase onto current main 047e844929. CitationCslProcessor now maps extended RIS type aliases, M1 number, RP status, A4 collaborator, collection/language/source metadata, and WordPress CSL rendering handoff. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php + BibtexCslProcessorTest.php passed 2 files, 5897 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83872 assertions, 0 failures. No Pandoc binary, citeproc, BibTeX, Biber, bibliography manager, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
-    "latestSlice": "pandoc-odf-compact-manifest-attribute-collisions maps one compact ODT manifest custom-attribute collision case after rebase onto current main 998af4e12. OpenDocumentPackage preserves duplicate compact manifest custom attribute collision provenance, including repeated custom namespaced manifest:file-entry attribute names across entries, same-prefix namespace rebinding, custom attributes that shadow manifest:media-type and manifest:full-path, decoded package-path conflict rejection, stable manifestCustomAttributeItems ordering, packageInventory propagation, and OdfReader package provenance parity without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3577 -> 3578, phpFail remains 0, mappedOdfCompactManifestAttributeCollisionCases = 1, and odfCompactManifestAttributeCollisionAssertions = 45. Verification passed php -l for OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1409 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6478 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83957 assertions, 0 failures.",
+    "status": "EPUB3 package authoring attribute provenance is verified after rebase onto current main 4058f7afec; phpFail remains 0.",
+    "mapping": "Adds one bounded native PHP EpubPackage package-authoring mapping on top of the current CSL/RIS, shared ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, XML/HTML, PDF/Typst, and text-format counters.",
+    "audit": "updated 2026-06-14: EPUB3 package authoring attribute provenance is verified after rebase onto current main 4058f7afec. EpubPackage emits packageAuthoring rows for OPF package id/version/unique-identifier/xml:base/xml:lang/dir/prefix plus raw and custom package element attributes. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2461 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83979 assertions, 0 failures. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "latestSlice": "pandoc-epub-package-authoring-attributes maps one EPUB3 package ingestion case after rebase onto current main 4058f7afec. EpubPackage emits packageAuthoring rows for OPF package id/version/unique-identifier/xml:base/xml:lang/dir/prefix plus raw and custom package element attributes without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3578 -> 3579, phpFail remains 0, mappedEpubPackageAuthoringAttributeCases = 1, and epubPackageAuthoringAttributeAssertions = 22. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2461 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83979 assertions, 0 failures.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1619,7 +1621,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-14 ODF/ODT compact manifest attribute collision coverage verified after rebase onto current main 998af4e12; focused OpenDocumentPackageTest.php passed 1 file, 1409 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6478 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83957 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-14 EPUB3 package authoring attribute provenance verified after rebase onto current main 4058f7afec; focused EpubPackageTest.php passed 1 file, 2461 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83979 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -2034,5 +2036,7 @@
     "mappedTypstBoundaryMatrixCases": 10,
     "typstBoundaryMatrixAssertions": 26,
     "mappedOdfCompactManifestAttributeCollisionCases": 1,
-    "odfCompactManifestAttributeCollisionAssertions": 45
+    "odfCompactManifestAttributeCollisionAssertions": 45,
+    "mappedEpubPackageAuthoringAttributeCases": 1,
+    "epubPackageAuthoringAttributeAssertions": 22
 }

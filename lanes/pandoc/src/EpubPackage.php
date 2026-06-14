@@ -89,6 +89,15 @@ final class EpubPackage
             'reviewPolicy' => 'ocf-signatures-sidecar-review',
         ],
     ];
+    private const OPF_PACKAGE_STRUCTURAL_ATTRIBUTES = [
+        'dir' => true,
+        'id' => true,
+        'prefix' => true,
+        'unique-identifier' => true,
+        'version' => true,
+        'xml:base' => true,
+        'xml:lang' => true,
+    ];
     private const OPF_MANIFEST_ITEM_STRUCTURAL_ATTRIBUTES = [
         'dir' => true,
         'fallback' => true,
@@ -538,6 +547,7 @@ final class EpubPackage
         $validationReport = $this->validationReport();
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
+        $packageAuthoring = self::packageAuthoringReport($this->metadata);
         $manifestAuthoring = self::manifestItemAuthoringReport($this->manifestItems);
         $spineAuthoring = self::spineItemrefAuthoringReport($this->spine);
         $guideReport = $this->guideReport();
@@ -580,6 +590,7 @@ final class EpubPackage
             'ocfSidecars' => $ocfSidecars,
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
+            'packageAuthoring' => $packageAuthoring,
             'metaPropertyVocabulary' => $metaPropertyVocabulary,
             'metadataRefinementTargets' => $metadataRefinementTargets,
             'packageLinks' => $this->packageLinks,
@@ -675,6 +686,7 @@ final class EpubPackage
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                     'refinementTargets' => $metadataRefinementTargets,
                 ],
+                'packageAuthoring' => $packageAuthoring,
                 'metadataPropertyVocabulary' => $metaPropertyVocabulary,
                 'metadataPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                 'metadataRefinementTargets' => $metadataRefinementTargets,
@@ -3606,6 +3618,8 @@ final class EpubPackage
         $packageBase = self::metadataElementBase($packageElement);
         $packageLanguage = self::metadataElementLanguage($packageElement);
         $packageDirection = self::metadataElementDirection($packageElement);
+        $packageAttributes = self::elementAttributes($packageElement);
+        $packageCustomAttributes = self::packageCustomAttributes($packageAttributes);
 
         foreach (self::childElements($metadataElement) as $child) {
             if ($child->namespaceURI === self::DC_NAMESPACE) {
@@ -3734,11 +3748,17 @@ final class EpubPackage
                 'prefixDeclarations' => $prefixReport['bindings'],
                 'prefixBindings' => $prefixBindings,
                 'refinements' => $packageRefinements,
+                'attributes' => $packageAttributes,
+                'attributeCount' => count($packageAttributes),
+                'customAttributes' => $packageCustomAttributes,
+                'customAttributeCount' => count($packageCustomAttributes),
             ],
             'packageId' => $packageId,
             'packageBase' => $packageBase,
             'packageLanguage' => $packageLanguage,
             'packageDirection' => $packageDirection,
+            'packageAttributes' => $packageAttributes,
+            'packageCustomAttributes' => $packageCustomAttributes,
             'version' => $packageVersion,
             'uniqueIdentifierId' => $uniqueIdentifierId,
             'uniqueIdentifier' => $uniqueIdentifier,
@@ -6349,6 +6369,28 @@ final class EpubPackage
      *
      * @return array<string, string>
      */
+    private static function packageCustomAttributes(array $attributes): array
+    {
+        $custom = [];
+        foreach ($attributes as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                continue;
+            }
+            if (isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name]) || $name === 'xmlns' || str_starts_with($name, 'xmlns:')) {
+                continue;
+            }
+
+            $custom[$name] = $value;
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     *
+     * @return array<string, string>
+     */
     private static function manifestItemCustomAttributes(array $attributes): array
     {
         $custom = [];
@@ -6386,6 +6428,48 @@ final class EpubPackage
         }
 
         return $custom;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageAuthoringReport(array $metadata): array
+    {
+        $package = is_array($metadata['package'] ?? null) ? $metadata['package'] : [];
+        $attributes = [];
+        foreach (is_array($package['attributes'] ?? null) ? $package['attributes'] : [] as $name => $value) {
+            if (is_string($name) && is_string($value)) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        $customAttributes = [];
+        foreach (is_array($package['customAttributes'] ?? null) ? $package['customAttributes'] : self::packageCustomAttributes($attributes) as $name => $value) {
+            if (is_string($name) && is_string($value)) {
+                $customAttributes[$name] = $value;
+            }
+        }
+
+        return [
+            'present' => $attributes !== [],
+            'id' => is_string($package['id'] ?? null) ? $package['id'] : null,
+            'version' => is_string($package['version'] ?? null) ? $package['version'] : '',
+            'uniqueIdentifierId' => is_string($package['uniqueIdentifierId'] ?? null) ? $package['uniqueIdentifierId'] : null,
+            'base' => is_string($package['base'] ?? null) ? $package['base'] : null,
+            'language' => is_string($package['language'] ?? null) ? $package['language'] : null,
+            'direction' => is_string($package['direction'] ?? null) ? $package['direction'] : null,
+            'prefix' => is_string($package['prefix'] ?? null) ? $package['prefix'] : '',
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'hasBase' => is_string($package['base'] ?? null) && $package['base'] !== '',
+            'hasLanguage' => is_string($package['language'] ?? null) && $package['language'] !== '',
+            'hasDirection' => is_string($package['direction'] ?? null) && $package['direction'] !== '',
+            'hasCustomAttributes' => $customAttributes !== [],
+        ];
     }
 
     /**

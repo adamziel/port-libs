@@ -6181,4 +6181,51 @@ XML;
         $t->same($spineAuthoring, $summary['wordpressImport']['spineAuthoring']);
         $t->same($spineAuthoring['items'], $summary['wordpressImport']['spineAuthoringItems']);
     },
+
+    'preserves OPF package authoring attributes for package review handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPackageAuthoring = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" id="package-authoring" version="3.0" unique-identifier="bookid" xml:base="https://publisher.example.invalid/epub/" xml:lang="ja" dir="rtl" prefix="review: https://example.invalid/epub-review#" data-review="package" review:source="wp-import">',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPackageAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $package = $metadata['package'];
+        $authoring = $summary['packageAuthoring'];
+
+        $t->same('package-authoring', $package['id']);
+        $t->same('https://publisher.example.invalid/epub/', $package['base']);
+        $t->same('ja', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('package', $package['customAttributes']['data-review']);
+        $t->same('wp-import', $package['customAttributes']['review:source']);
+        $t->same(false, array_key_exists('xmlns:review', $package['customAttributes']));
+
+        $t->same('package-authoring', $authoring['id']);
+        $t->same('3.0', $authoring['version']);
+        $t->same('bookid', $authoring['uniqueIdentifierId']);
+        $t->same(true, $authoring['hasBase']);
+        $t->same(true, $authoring['hasLanguage']);
+        $t->same(true, $authoring['hasDirection']);
+        $t->same(true, $authoring['hasCustomAttributes']);
+        $t->same('https://publisher.example.invalid/epub/', $authoring['attributes']['xml:base']);
+        $t->same('review: https://example.invalid/epub-review#', $authoring['attributes']['prefix']);
+        $t->same(['data-review' => 'package', 'review:source' => 'wp-import'], $authoring['customAttributes']);
+        $t->same(2, $authoring['customAttributeCount']);
+        $t->same($package['attributes'], $metadata['packageAttributes']);
+        $t->same($package['customAttributes'], $metadata['packageCustomAttributes']);
+        $t->same($authoring, $summary['wordpressImport']['packageAuthoring']);
+        $t->same($package, $summary['wordpressImport']['metadataDetails']['package']);
+    },
 ];
