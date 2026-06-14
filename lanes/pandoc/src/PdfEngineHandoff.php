@@ -280,6 +280,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['root'] ?? null) !== null) {
                 $diagnostics[] = 'typst-root-boundary:' . $typstBoundaryProvenance['root']['path'];
             }
+            if (($typstBoundaryProvenance['rootEnvironment'] ?? null) !== null) {
+                $rootEnvironment = $typstBoundaryProvenance['rootEnvironment'];
+                if (is_array($rootEnvironment) && is_string($rootEnvironment['path'] ?? null)) {
+                    $diagnostics[] = 'typst-root-environment:' . ($rootEnvironment['path'] === '' ? 'invalid' : $rootEnvironment['path']);
+                    if (in_array('root-environment-shadowed', $rootEnvironment['issues'] ?? [], true)) {
+                        $diagnostics[] = 'typst-root-environment-shadowed';
+                    }
+                }
+            }
             if (($typstBoundaryProvenance['fontPaths'] ?? []) !== []) {
                 $diagnostics[] = 'typst-font-paths:' . count($typstBoundaryProvenance['fontPaths']);
             }
@@ -6313,6 +6322,7 @@ final class PdfEngineHandoff
 
         $environmentVariables = [];
         $rootEnvironmentVariable = null;
+        $rootEnvironmentShadow = null;
         $fontPathEnvironmentVariable = null;
         $packagePathEnvironmentVariable = null;
         $packageCacheEnvironmentVariable = null;
@@ -6349,6 +6359,15 @@ final class PdfEngineHandoff
         if ($rootValues === [] && array_key_exists('TYPST_ROOT', $engineEnvironment)) {
             $rootValues = [$engineEnvironment['TYPST_ROOT']];
             $rootEnvironmentVariable = 'TYPST_ROOT';
+            $environmentVariables[] = 'TYPST_ROOT';
+        } elseif ($rootValues !== [] && array_key_exists('TYPST_ROOT', $engineEnvironment)) {
+            $rootEnvironmentShadow = $this->typstBoundaryPathEntryFromSource($engineEnvironment['TYPST_ROOT'], 'root', 'TYPST_ROOT');
+            $rootEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $rootEnvironmentShadow['selected'] = $rootValues[count($rootValues) - 1];
+            $rootEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $rootEnvironmentShadow['issues'],
+                ['root-environment-shadowed']
+            )));
             $environmentVariables[] = 'TYPST_ROOT';
         }
         if ($fontPathValues === [] && array_key_exists('TYPST_FONT_PATHS', $engineEnvironment)) {
@@ -6404,7 +6423,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6545,6 +6564,9 @@ final class PdfEngineHandoff
         foreach (($creationTimestampEnvironmentShadow['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
+        foreach (($rootEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6590,6 +6612,9 @@ final class PdfEngineHandoff
         }
         if ($creationTimestampEnvironmentShadow !== null) {
             $provenance['creationTimestampEnvironment'] = $creationTimestampEnvironmentShadow;
+        }
+        if ($rootEnvironmentShadow !== null) {
+            $provenance['rootEnvironment'] = $rootEnvironmentShadow;
         }
         if ($pdfStandard !== null) {
             $provenance['pdfStandard'] = $pdfStandard;
@@ -6804,6 +6829,7 @@ final class PdfEngineHandoff
         };
 
         $appendPathEntry($provenance['root'] ?? null);
+        $appendPathEntry($provenance['rootEnvironment'] ?? null);
         foreach (['fontPaths', 'certificates'] as $listKey) {
             foreach (is_array($provenance[$listKey] ?? null) ? $provenance[$listKey] : [] as $entry) {
                 $appendPathEntry($entry);

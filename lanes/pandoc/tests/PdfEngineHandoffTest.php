@@ -3454,6 +3454,82 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves shadowed typst root environment provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/root-shadow.typ',
+            'outputPath' => 'build/root-shadow.pdf',
+            'source' => '= Typst Root Environment Shadow Packet',
+            'engineOptions' => ['--root=workspace'],
+            'engineEnvironment' => [
+                'TYPST_ROOT' => '/srv/shared-typst-root',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst root environment shadow packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => [
+                'raw' => 'workspace',
+                'path' => 'workspace',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ],
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'root-external-boundary',
+                'root-environment-shadowed',
+            ],
+            'environmentVariables' => ['TYPST_ROOT'],
+            'rootEnvironment' => [
+                'raw' => '/srv/shared-typst-root',
+                'path' => '/srv/shared-typst-root',
+                'kind' => 'absolute',
+                'safe' => false,
+                'issues' => [
+                    'root-external-boundary',
+                    'root-environment-shadowed',
+                ],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_ROOT',
+                'shadowedBy' => 'engine-option',
+                'selected' => 'workspace',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/root-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/root-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('workspace', $plan['engineBoundaryRoot']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(2, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['unsafePathEntryCount']);
+        $t->same(2, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-environment:/srv/shared-typst-root', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
