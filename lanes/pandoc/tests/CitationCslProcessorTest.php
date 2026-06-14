@@ -30316,6 +30316,160 @@ XML);
         $t->contains('<dt>WordPress Migration Team 2025</dt><dd>WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. RIS Review Packet. 3 vols. Archive Press, 2024. Reviewed title: Source Manual. Translated title: Paquete de Revisión RIS. Call number: MS 77. Original title: Legacy Source Packet. ISBN 978-1-4028-9462-6. Accessed 2026-06-12.</dd>', $blocks);
     },
+    'maps extended ris types and metadata aliases into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $ris = <<<'RIS'
+TY  - STAND
+ID  - ris-standard
+AU  - Standards Desk
+A4  - Collaborator, Casey
+TI  - RIS Standard Packet
+T2  - Standards Register
+T3  - Review Standards Series
+PY  - 2026/06/14/
+PB  - Standards Office
+CY  - Geneva
+M1  - STD-9000
+RP  - approved
+LA  - en
+M3  - review standard
+KW  - standards
+ER  -
+
+TY  - CASE
+ID  - ris-case
+AU  - Court Reporter
+TI  - RIS Case Packet
+T2  - Migration Reports
+PY  - 2025
+CY  - Oregon
+M1  - 42
+RP  - remanded
+LA  - en-US
+ER  -
+
+TY  - BLOG
+ID  - ris-blog
+AU  - Editor, Eli
+TI  - RIS Blog Packet
+T2  - Review Blog
+PY  - 2024/05/02/
+UR  - https://example.test/ris-blog
+LA  - en
+ER  -
+
+TY  - ICOMM
+ID  - ris-letter
+AU  - Sender, Sue
+A3  - Translator, Tina
+A4  - Archive, Collaborator
+TI  - RIS Letter Packet
+PY  - 2023
+N1  - private correspondence
+ER  -
+
+TY  - MAP
+ID  - ris-map
+AU  - Cartographer, Cara
+TI  - RIS Map Packet
+PY  - 2022
+SN  - 978-1-4028-9462-6
+M3  - folded map
+LA  - fr
+DB  - Archive Database
+ER  -
+RIS;
+
+        $items = CitationCslProcessor::risItems($ris);
+        $t->same(5, count($items));
+
+        $standard = $items[0];
+        $case = $items[1];
+        $blog = $items[2];
+        $letter = $items[3];
+        $map = $items[4];
+
+        $t->same('standard', $standard['type']);
+        $t->same('STD-9000', $standard['number']);
+        $t->same('approved', $standard['status']);
+        $t->same('en', $standard['language']);
+        $t->same('Review Standards Series', $standard['collection-title']);
+        $t->same('Collaborator', $standard['collaborator'][0]['family']);
+        $t->same('Casey', $standard['collaborator'][0]['given']);
+        $t->same('STD-9000', $standard['rawRis']['fields']['M1'][0] ?? null);
+        $t->same('approved', $standard['rawRis']['fields']['RP'][0] ?? null);
+
+        $t->same('legal_case', $case['type']);
+        $t->same('42', $case['number']);
+        $t->same('remanded', $case['status']);
+        $t->same('en-US', $case['language']);
+        $t->same('post-weblog', $blog['type']);
+        $t->same('https://example.test/ris-blog', $blog['url']);
+        $t->same('personal_communication', $letter['type']);
+        $t->same('Translator', $letter['translator'][0]['family']);
+        $t->same('Archive', $letter['collaborator'][0]['family']);
+        $t->same('map', $map['type']);
+        $t->same('978-1-4028-9462-6', $map['ISBN']);
+        $t->same('folded map', $map['medium']);
+        $t->same('Archive Database', $map['source']);
+
+        $processor = CitationCslProcessor::fromRis($ris);
+        $normalizedStandard = $processor->item('ris-standard');
+        $normalizedLetter = $processor->item('ris-letter');
+        $normalizedMap = $processor->item('ris-map');
+        $t->same('standard', $normalizedStandard['type'] ?? null);
+        $t->same('STD-9000', $normalizedStandard['number'] ?? null);
+        $t->same('approved', $normalizedStandard['status'] ?? null);
+        $t->same('Collaborator', $normalizedStandard['collaborators'][0]['family'] ?? null);
+        $t->same('Translator', $normalizedLetter['translators'][0]['family'] ?? null);
+        $t->same('Archive', $normalizedLetter['collaborators'][0]['family'] ?? null);
+        $t->same('Archive Database', $normalizedMap['source'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="type"/>
+        <text variable="number"/>
+        <text variable="status"/>
+        <text variable="language"/>
+        <names variable="collaborator"/>
+        <names variable="translator"/>
+        <text variable="collection-title"/>
+        <text variable="source"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="type"/>
+      <text variable="number"/>
+      <text variable="status"/>
+      <names variable="collaborator"/>
+      <names variable="translator"/>
+      <text variable="collection-title"/>
+      <text variable="source"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[standard | STD-9000 | approved | en | Collaborator | Review Standards Series]', $styled->renderCitationCluster([
+            $citation('ris-standard', '[@ris-standard]'),
+        ]));
+        $t->same('[personal_communication | Archive | Translator]', $styled->renderCitationCluster([
+            $citation('ris-letter', '[@ris-letter]'),
+        ]));
+        $t->same('RIS Standard Packet :: standard :: STD-9000 :: approved :: Collaborator, Casey :: Review Standards Series', $styled->renderBibliographyEntry('ris-standard'));
+
+        $document = (new MarkdownReader())->read('RIS extended metadata cites [@ris-standard; @ris-letter; @ris-map].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>RIS extended metadata cites [standard | STD-9000 | approved | en | Collaborator | Review Standards Series; personal_communication | Archive | Translator; map | fr | Archive Database].</p>', $blocks);
+        $t->contains('<dt>Standards Desk 2026</dt><dd>RIS Standard Packet :: standard :: STD-9000 :: approved :: Collaborator, Casey :: Review Standards Series</dd>', $blocks);
+        $t->contains('<dt>Cartographer 2022</dt><dd>RIS Map Packet :: map :: Archive Database</dd>', $blocks);
+    },
     'preserves bounded ris attachment tags as source file metadata' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
 TY  - RPRT
