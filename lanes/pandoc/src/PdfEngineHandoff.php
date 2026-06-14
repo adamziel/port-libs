@@ -408,6 +408,15 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-feature-gates:' . $featureGates['featureCount'];
                 }
             }
+            if (($typstBoundaryProvenance['featureGateEnvironment'] ?? null) !== null) {
+                $featureGateEnvironment = $typstBoundaryProvenance['featureGateEnvironment'];
+                if (is_array($featureGateEnvironment) && is_int($featureGateEnvironment['featureCount'] ?? null)) {
+                    $diagnostics[] = 'typst-feature-gates-environment:' . $featureGateEnvironment['featureCount'];
+                    if (in_array('features-environment-shadowed', $featureGateEnvironment['issues'] ?? [], true)) {
+                        $diagnostics[] = 'typst-feature-gates-environment-shadowed';
+                    }
+                }
+            }
             if (($typstBoundaryProvenance['executionPolicy'] ?? null) !== null) {
                 $executionPolicy = $typstBoundaryProvenance['executionPolicy'];
                 if (is_array($executionPolicy) && is_array($executionPolicy['jobs'] ?? null)) {
@@ -6377,6 +6386,7 @@ final class PdfEngineHandoff
         $creationTimestampEnvironmentVariable = null;
         $creationTimestampEnvironmentShadow = null;
         $featureGateEnvironmentVariable = null;
+        $featureGateEnvironmentShadow = null;
         $systemFontEnvironmentFlag = null;
         $embeddedFontEnvironmentFlag = null;
 
@@ -6484,6 +6494,15 @@ final class PdfEngineHandoff
             $featureGateValues = [$engineEnvironment['TYPST_FEATURES']];
             $featureGateEnvironmentVariable = 'TYPST_FEATURES';
             $environmentVariables[] = 'TYPST_FEATURES';
+        } elseif ($featureGateValues !== [] && array_key_exists('TYPST_FEATURES', $engineEnvironment)) {
+            $featureGateEnvironmentShadow = $this->typstFeatureGateEntryFromSource($engineEnvironment['TYPST_FEATURES'], 'TYPST_FEATURES');
+            $featureGateEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $featureGateEnvironmentShadow['selected'] = $featureGateValues[count($featureGateValues) - 1];
+            $featureGateEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $featureGateEnvironmentShadow['issues'],
+                ['features-environment-shadowed']
+            )));
+            $environmentVariables[] = 'TYPST_FEATURES';
         }
         if ($ignoreSystemFontCount === 0 && array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
             $systemFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_SYSTEM_FONTS'], 'ignore-system-fonts');
@@ -6504,7 +6523,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $certificateEnvironmentShadow === null && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $certificateEnvironmentShadow === null && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $featureGateEnvironmentShadow === null && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $outputFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6669,6 +6688,9 @@ final class PdfEngineHandoff
         foreach (($certificateEnvironmentShadow['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
+        foreach (($featureGateEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6735,6 +6757,9 @@ final class PdfEngineHandoff
         }
         if ($featureGates !== null) {
             $provenance['featureGates'] = $featureGates;
+        }
+        if ($featureGateEnvironmentShadow !== null) {
+            $provenance['featureGateEnvironment'] = $featureGateEnvironmentShadow;
         }
         if ($jobs !== null) {
             $jobIssues = [];

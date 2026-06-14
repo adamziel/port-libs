@@ -2241,6 +2241,86 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves typst feature environment shadow provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/feature-env-shadow.pdf',
+            'source' => '= Typst Feature Environment Shadow Packet',
+            'engineOptions' => ['--features=html,packages'],
+            'engineEnvironment' => [
+                'TYPST_FEATURES' => 'html,unsafe feature,',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst feature environment shadow packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'features-invalid-token-boundary:unsafe feature',
+                'features-empty-token-boundary',
+                'features-environment-shadowed',
+            ],
+            'environmentVariables' => ['TYPST_FEATURES'],
+            'featureGates' => [
+                'raw' => 'html,packages',
+                'value' => 'html,packages',
+                'features' => ['html', 'packages'],
+                'featureCount' => 2,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'featureGateEnvironment' => [
+                'raw' => 'html,unsafe feature,',
+                'value' => 'html,unsafe feature,',
+                'features' => ['html'],
+                'featureCount' => 1,
+                'safe' => false,
+                'issues' => [
+                    'features-invalid-token-boundary:unsafe feature',
+                    'features-empty-token-boundary',
+                    'features-environment-shadowed',
+                ],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_FEATURES',
+                'shadowedBy' => 'engine-option',
+                'selected' => 'html,packages',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/feature-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/feature-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates-environment:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(2, $plan['typstBoundarySummary']['featureGateCount']);
+        $t->same(3, $plan['typstBoundarySummary']['issueCount']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same(3, $sequence['finalTypstBoundarySummary']['issueCount']);
+    },
+
     'plans typst execution jobs boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
