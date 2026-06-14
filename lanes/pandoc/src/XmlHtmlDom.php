@@ -4340,7 +4340,7 @@ final class XmlHtmlDom
 
     /**
      * @param array<string, array<string, array{namespaceUri:string, count:int, qualifiedNames:array<string, true>}>> $uses
-     * @return list<array{localName:string, namespaceUris:list<string>, namespaceCount:int, useCount:int, qualifiedNames:list<string>}>
+     * @return list<array{localName:string, namespaceUris:list<string>, namespaceCount:int, useCount:int, qualifiedNames:list<string>, namespaceUses:list<array{namespaceUri:string, useCount:int, qualifiedNames:list<string>}>}>
      */
     private static function xmlNamespaceCollisionSummaries(array $uses): array
     {
@@ -4356,11 +4356,19 @@ final class XmlHtmlDom
             $namespaceUris = [];
             $qualifiedNames = [];
             $useCount = 0;
+            $namespaceRows = [];
 
             foreach ($namespaceUses as $namespaceUse) {
+                $namespaceQualifiedNames = array_keys($namespaceUse['qualifiedNames']);
+                sort($namespaceQualifiedNames, SORT_STRING);
                 $namespaceUris[] = $namespaceUse['namespaceUri'];
                 $useCount += $namespaceUse['count'];
-                array_push($qualifiedNames, ...array_keys($namespaceUse['qualifiedNames']));
+                array_push($qualifiedNames, ...$namespaceQualifiedNames);
+                $namespaceRows[] = [
+                    'namespaceUri' => $namespaceUse['namespaceUri'],
+                    'useCount' => $namespaceUse['count'],
+                    'qualifiedNames' => array_slice($namespaceQualifiedNames, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
+                ];
             }
 
             $qualifiedNames = array_values(array_unique($qualifiedNames));
@@ -4372,6 +4380,7 @@ final class XmlHtmlDom
                 'namespaceCount' => count($namespaceUris),
                 'useCount' => $useCount,
                 'qualifiedNames' => array_slice($qualifiedNames, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
+                'namespaceUses' => array_slice($namespaceRows, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
             ];
         }
 

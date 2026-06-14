@@ -336,6 +336,13 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         $t->same(5, $elementCollision['namespaceCount'] ?? null);
         $t->same(7, $elementCollision['useCount'] ?? null);
         $t->same(['a:item', 'b:item', 'item', 'rootAlias:item'], $elementCollision['qualifiedNames'] ?? null);
+        $t->same([
+            ['namespaceUri' => '', 'useCount' => 1, 'qualifiedNames' => ['item']],
+            ['namespaceUri' => 'urn:group', 'useCount' => 1, 'qualifiedNames' => ['item']],
+            ['namespaceUri' => 'urn:item-a', 'useCount' => 1, 'qualifiedNames' => ['a:item']],
+            ['namespaceUri' => 'urn:item-b', 'useCount' => 2, 'qualifiedNames' => ['a:item', 'b:item']],
+            ['namespaceUri' => 'urn:root', 'useCount' => 2, 'qualifiedNames' => ['item', 'rootAlias:item']],
+        ], $elementCollision['namespaceUses'] ?? null);
 
         $t->same(1, $packet['attributeNamespaceCollisionCount']);
         $attributeCollision = $packet['attributeNamespaceCollisions'][0] ?? [];
@@ -344,6 +351,11 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         $t->same(3, $attributeCollision['namespaceCount'] ?? null);
         $t->same(10, $attributeCollision['useCount'] ?? null);
         $t->same(['attrA:code', 'attrB:code', 'code'], $attributeCollision['qualifiedNames'] ?? null);
+        $t->same([
+            ['namespaceUri' => '', 'useCount' => 2, 'qualifiedNames' => ['code']],
+            ['namespaceUri' => 'urn:attr-a', 'useCount' => 4, 'qualifiedNames' => ['attrA:code']],
+            ['namespaceUri' => 'urn:attr-b', 'useCount' => 4, 'qualifiedNames' => ['attrB:code']],
+        ], $attributeCollision['namespaceUses'] ?? null);
 
         $t->same(3, $packet['defaultNamespaceTransitionCount']);
         $t->same([

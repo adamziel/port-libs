@@ -632,7 +632,7 @@ final class PandocFormatRegistry
         'mappedXmlHtmlDomJatsRelationshipDiagnosticCases' => 1,
         'xmlHtmlDomJatsRelationshipDiagnosticAssertions' => 28,
         'mappedXmlHtmlDomDirectReaderCapabilityCases' => 1,
-        'xmlHtmlDomDirectReaderCapabilityAssertions' => 91,
+        'xmlHtmlDomDirectReaderCapabilityAssertions' => 95,
     ];
 
     /**
@@ -657,6 +657,8 @@ final class PandocFormatRegistry
             ],
             'reviewPacketFields' => [
                 'directReaderParity',
+                'directReaderDiagnosticCodes',
+                'directReaderDiagnostics',
                 'namespaceReview',
                 'namespaceDeclarations',
                 'namespaceScopes',
@@ -674,6 +676,8 @@ final class PandocFormatRegistry
                 'defaultNamespaceTransitions',
                 'elementNamespaceUsageSummaries',
                 'attributeNamespaceUsageSummaries',
+                'elementNamespaceCollisions',
+                'attributeNamespaceCollisions',
                 'unboundNamespacePrefixUses',
                 'unusedNamespaceDeclarations',
                 'reservedNamespaceUses',

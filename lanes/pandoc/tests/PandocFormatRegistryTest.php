@@ -128,7 +128,7 @@ return [
             'mappedXmlHtmlDomJatsRelationshipDiagnosticCases' => 1,
             'xmlHtmlDomJatsRelationshipDiagnosticAssertions' => 28,
             'mappedXmlHtmlDomDirectReaderCapabilityCases' => 1,
-            'xmlHtmlDomDirectReaderCapabilityAssertions' => 91,
+            'xmlHtmlDomDirectReaderCapabilityAssertions' => 95,
         ];
 
         $t->same($expectedFormats, PandocFormatRegistry::xmlJatsBitsInputFormats());
@@ -183,6 +183,8 @@ return [
         $t->contains('root, element, language, id, and attribute provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('namespace declaration provenance', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->contains('bounded namespace declaration scope', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
+        $t->true(in_array('directReaderDiagnosticCodes', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('namespaceScopes', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('prefixRedefinitions', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('duplicateUriSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
@@ -194,6 +196,8 @@ return [
         $t->contains('unbound prefix, unused declaration, and reserved xml/xmlns usage diagnostics', implode('; ', $packet['formats']['xml']['boundedDiagnostics']));
         $t->true(in_array('elementNamespaceUsageSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('attributeNamespaceUsageSummaries', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('elementNamespaceCollisions', $packet['formats']['xml']['reviewPacketFields'], true));
+        $t->true(in_array('attributeNamespaceCollisions', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('unboundNamespacePrefixUses', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('unusedNamespaceDeclarations', $packet['formats']['xml']['reviewPacketFields'], true));
         $t->true(in_array('reservedNamespaceUses', $packet['formats']['xml']['reviewPacketFields'], true));
@@ -278,8 +282,12 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
         $t->contains('prefix and URI frequency summaries', implode('; ', $packet['boundedDiagnostics']));
         $t->contains('element and attribute namespace usage summaries', implode('; ', $packet['boundedDiagnostics']));
         $t->contains('full Pandoc XML input mapping', implode('; ', $packet['remainingReaderGaps']));
+        $t->true(in_array('directReaderDiagnosticCodes', $packet['reviewPacketFields'], true));
+        $t->true(in_array('directReaderDiagnostics', $packet['reviewPacketFields'], true));
         $t->true(in_array('elementNamespaceUsageSummaries', $packet['reviewPacketFields'], true));
         $t->true(in_array('attributeNamespaceUsageSummaries', $packet['reviewPacketFields'], true));
+        $t->true(in_array('elementNamespaceCollisions', $packet['reviewPacketFields'], true));
+        $t->true(in_array('attributeNamespaceCollisions', $packet['reviewPacketFields'], true));
         $t->true(in_array('unboundNamespacePrefixUses', $packet['reviewPacketFields'], true));
         $t->true(in_array('unusedNamespaceDeclarations', $packet['reviewPacketFields'], true));
         $t->true(in_array('reservedNamespaceUses', $packet['reviewPacketFields'], true));
