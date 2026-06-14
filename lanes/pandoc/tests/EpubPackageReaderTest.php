@@ -1933,6 +1933,63 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports direct package spine page progression metadata' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-spine-progression-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-spine-progression-review</dc:identifier>
+    <dc:title>Spine Progression Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="ghost-ncx" page-progression-direction="sideways">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable chapter.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $spineMetadata = $epub['spineMetadata'];
+            $spineReport = $epub['spineReport'];
+
+            $t->same(true, $spineMetadata['present']);
+            $t->same('ghost-ncx', $spineMetadata['toc']);
+            $t->same('default', $spineMetadata['pageProgressionDirection']);
+            $t->same('sideways', $spineMetadata['pageProgressionDirectionRaw']);
+            $t->same(true, $spineMetadata['pageProgressionDirectionSpecified']);
+            $t->same(false, $spineMetadata['pageProgressionDirectionValid']);
+            $t->same(false, $spineMetadata['rightToLeft']);
+            $t->same(1, $spineMetadata['diagnosticCount']);
+            $t->same('invalid-spine-page-progression-direction', $spineMetadata['diagnostics'][0]['type']);
+            $t->same('sideways', $spineMetadata['diagnostics'][0]['value']);
+
+            $t->same($spineMetadata, $spineReport['spineMetadata']);
+            $t->same('default', $spineReport['pageProgressionDirection']);
+            $t->same('sideways', $spineReport['pageProgressionDirectionRaw']);
+            $t->same(true, $spineReport['pageProgressionDirectionSpecified']);
+            $t->same(false, $spineReport['pageProgressionDirectionValid']);
+            $t->same(false, $spineReport['rightToLeft']);
+            $t->same(1, $spineReport['spineMetadataDiagnosticCount']);
+            $t->same(['invalid-spine-page-progression-direction'], array_column($spineReport['spineMetadataDiagnostics'], 'type'));
+            $t->same(['invalid-spine-page-progression-direction'], array_column($spineReport['diagnostics'], 'type'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'rejects missing epub package directories before parsing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static function (): void {
             (new EpubPackageReader())->readDirectory(dirname(__DIR__) . '/fixtures/missing-epub-package');

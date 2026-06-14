@@ -49,6 +49,7 @@ final class EpubPackageReader
                 'manifestById' => $package['manifest'],
                 'manifestReport' => $package['manifestReport'],
                 'spine' => $package['spine'],
+                'spineMetadata' => $package['spineMetadata'],
                 'spineReport' => $package['spineReport'],
                 'guide' => $package['guide'],
                 'toc' => $toc,
@@ -233,6 +234,8 @@ final class EpubPackageReader
         }
         $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
 
+        $spineElement = $this->firstDirectChild($packageElement, 'spine');
+        $spineMetadata = $this->spineMetadataReport($spineElement);
         $spine = [];
         $spineIndex = 0;
         $spineNodes = $xpath->query('./*[local-name()="spine"]/*[local-name()="itemref"]', $packageElement);
@@ -284,7 +287,7 @@ final class EpubPackageReader
                 ++$spineIndex;
             }
         }
-        $spineReport = $this->spineReport($spine);
+        $spineReport = $this->spineReport($spine, $spineMetadata);
 
         $guide = $this->readGuideReferences($root, $opfDir, $manifest, $packageElement);
 
@@ -297,8 +300,50 @@ final class EpubPackageReader
             'manifest' => $manifest,
             'manifestReport' => $manifestReport,
             'spine' => $spine,
+            'spineMetadata' => $spineMetadata,
             'spineReport' => $spineReport,
             'guide' => $guide,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function spineMetadataReport(?\DOMElement $spineElement): array
+    {
+        $diagnostics = [];
+        $rawDirection = $spineElement instanceof \DOMElement
+            ? trim($spineElement->getAttribute('page-progression-direction'))
+            : '';
+        $specified = $rawDirection !== '';
+        $normalized = strtolower($rawDirection);
+        $direction = 'default';
+        $valid = true;
+
+        if ($specified) {
+            if (in_array($normalized, ['ltr', 'rtl', 'default'], true)) {
+                $direction = $normalized;
+            } else {
+                $valid = false;
+                $diagnostics[] = [
+                    'type' => 'invalid-spine-page-progression-direction',
+                    'value' => $rawDirection,
+                    'message' => 'EPUB spine page-progression-direction must be ltr, rtl, or default',
+                ];
+            }
+        }
+
+        return [
+            'present' => $spineElement instanceof \DOMElement,
+            'id' => $spineElement instanceof \DOMElement ? $this->nullableAttribute($spineElement, 'id') : null,
+            'toc' => $spineElement instanceof \DOMElement ? $this->nullableAttribute($spineElement, 'toc') : null,
+            'pageProgressionDirection' => $direction,
+            'pageProgressionDirectionRaw' => $specified ? $rawDirection : null,
+            'pageProgressionDirectionSpecified' => $specified,
+            'pageProgressionDirectionValid' => $valid,
+            'rightToLeft' => $direction === 'rtl',
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -401,14 +446,17 @@ final class EpubPackageReader
      * @param list<array<string, mixed>> $spine
      * @return array<string, mixed>
      */
-    private function spineReport(array $spine): array
+    private function spineReport(array $spine, array $spineMetadata): array
     {
         $linearItemCount = 0;
         $readableItemCount = 0;
         $externalItems = [];
         $missingPackagePartItems = [];
         $missingManifestItems = [];
-        $diagnostics = [];
+        $spineMetadataDiagnostics = is_array($spineMetadata['diagnostics'] ?? null)
+            ? array_values($spineMetadata['diagnostics'])
+            : [];
+        $diagnostics = $spineMetadataDiagnostics;
         $idrefItems = [];
 
         foreach ($spine as $index => $item) {
@@ -478,6 +526,14 @@ final class EpubPackageReader
             'nonlinearItemCount' => count($spine) - $linearItemCount,
             'readableItemCount' => $readableItemCount,
             'skippedItemCount' => count($spine) - $readableItemCount,
+            'spineMetadata' => $spineMetadata,
+            'pageProgressionDirection' => (string) ($spineMetadata['pageProgressionDirection'] ?? 'default'),
+            'pageProgressionDirectionRaw' => $spineMetadata['pageProgressionDirectionRaw'] ?? null,
+            'pageProgressionDirectionSpecified' => (bool) ($spineMetadata['pageProgressionDirectionSpecified'] ?? false),
+            'pageProgressionDirectionValid' => (bool) ($spineMetadata['pageProgressionDirectionValid'] ?? true),
+            'rightToLeft' => (bool) ($spineMetadata['rightToLeft'] ?? false),
+            'spineMetadataDiagnosticCount' => count($spineMetadataDiagnostics),
+            'spineMetadataDiagnostics' => $spineMetadataDiagnostics,
             'externalItemCount' => count($externalItems),
             'externalItems' => $externalItems,
             'missingManifestItemCount' => count($missingManifestItems),
