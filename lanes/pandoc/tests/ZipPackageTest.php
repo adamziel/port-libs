@@ -10921,6 +10921,112 @@ return [
             $summary['selectedDataDescriptorProvenanceEntries']
         ));
     },
+    'summarizes selected zip source byte spans before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected source spans</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>descriptor source span</w:comment></w:comments>';
+        $commentsExtra = pack('vva*', 0xb0b0, strlen('comments-source-span'), 'comments-source-span');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'comment' => 'document source record',
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorSignature' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'comment' => 'comments descriptor source record',
+            ],
+        ], 'source-span-review');
+        $package = ZipPackage::fromString($zip);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate comments fixture');
+        }
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+        ], 2048);
+        $sourceSpansByName = [];
+        foreach ($summary['selectedSourceByteSpanEntries'] as $sourceSpanEntry) {
+            $sourceSpansByName[$sourceSpanEntry['name']] = $sourceSpanEntry;
+        }
+
+        $documentSpan = $sourceSpansByName['word/document.xml'];
+        $commentsSpan = $sourceSpansByName['word/comments.xml'];
+        $documentEntry = $summary['entries'][0];
+        $commentsEntry = $summary['entries'][1];
+
+        $t->same(2, $summary['selectedSourceByteSpanEntryCount']);
+        $t->same(0, $summary['selectedSourceByteSpanIssueCount']);
+        $t->same([], $summary['selectedSourceByteSpanIssues']);
+        $t->same(
+            $documentSpan['localRecordBytes'] + $commentsSpan['localRecordBytes'],
+            $summary['selectedSourceLocalRecordBytes']
+        );
+        $t->same(
+            $documentSpan['localHeaderBytes'] + $commentsSpan['localHeaderBytes'],
+            $summary['selectedSourceLocalHeaderBytes']
+        );
+        $t->same(strlen($documentXml) + strlen($commentsCompressed), $summary['selectedSourceCompressedDataBytes']);
+        $t->same(16, $summary['selectedSourceDataDescriptorBytes']);
+        $t->same(
+            $documentSpan['centralDirectoryRecordBytes'] + $commentsSpan['centralDirectoryRecordBytes'],
+            $summary['selectedSourceCentralDirectoryRecordBytes']
+        );
+        $t->same(
+            $documentSpan['sourceRecordBytes'] + $commentsSpan['sourceRecordBytes'],
+            $summary['selectedSourceTotalRecordBytes']
+        );
+
+        $t->same(true, $documentSpan['hasSourceByteSpanProvenance']);
+        $t->same(0, $documentSpan['localRecordOffset']);
+        $t->same(30 + strlen('word/document.xml'), $documentSpan['localHeaderBytes']);
+        $t->same($documentSpan['localRecordOffset'] + $documentSpan['localHeaderBytes'], $documentSpan['localHeaderEnd']);
+        $t->same($documentSpan['localHeaderEnd'], $documentSpan['compressedDataOffset']);
+        $t->same(strlen($documentXml), $documentSpan['compressedDataBytes']);
+        $t->same($documentSpan['compressedDataOffset'] + strlen($documentXml), $documentSpan['compressedDataEnd']);
+        $t->same($documentSpan['compressedDataEnd'], $documentSpan['localRecordEnd']);
+        $t->same(false, $documentSpan['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(null, $documentSpan['dataDescriptorOffset']);
+        $t->same(0, $documentSpan['dataDescriptorBytes']);
+        $t->same(null, $documentSpan['dataDescriptorEnd']);
+        $t->same(null, $documentSpan['dataDescriptorSha256']);
+        $t->same(hash('sha256', $documentXml), $documentSpan['compressedDataSha256']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localRecordBytes'])), $documentSpan['localRecordSha256']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localHeaderBytes'])), $documentSpan['localHeaderSha256']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['centralDirectoryRecordOffset'], $documentSpan['centralDirectoryRecordBytes'])), $documentSpan['centralDirectoryRecordSha256']);
+        $t->same([], $documentSpan['sourceByteSpanIssues']);
+
+        $t->same(true, $commentsSpan['hasSourceByteSpanProvenance']);
+        $t->same($documentSpan['localRecordEnd'], $commentsSpan['localRecordOffset']);
+        $t->same(30 + strlen('word/comments.xml') + strlen($commentsExtra), $commentsSpan['localHeaderBytes']);
+        $t->same($commentsSpan['localHeaderEnd'], $commentsSpan['compressedDataOffset']);
+        $t->same(strlen($commentsCompressed), $commentsSpan['compressedDataBytes']);
+        $t->same(hash('sha256', $commentsCompressed), $commentsSpan['compressedDataSha256']);
+        $t->same(true, $commentsSpan['sourceByteSpanIncludesDataDescriptor']);
+        $t->same($commentsSpan['compressedDataEnd'], $commentsSpan['dataDescriptorOffset']);
+        $t->same(16, $commentsSpan['dataDescriptorBytes']);
+        $t->same($commentsSpan['dataDescriptorOffset'] + 16, $commentsSpan['dataDescriptorEnd']);
+        $t->same($commentsSpan['dataDescriptorEnd'], $commentsSpan['localRecordEnd']);
+        $t->same(hash('sha256', substr($zip, $commentsSpan['dataDescriptorOffset'], 16)), $commentsSpan['dataDescriptorSha256']);
+        $t->same(hash('sha256', substr($zip, $commentsSpan['localRecordOffset'], $commentsSpan['localRecordBytes'])), $commentsSpan['localRecordSha256']);
+        $t->same(hash('sha256', substr($zip, $commentsSpan['centralDirectoryRecordOffset'], $commentsSpan['centralDirectoryRecordBytes'])), $commentsSpan['centralDirectoryRecordSha256']);
+        $t->same([], $commentsSpan['sourceByteSpanIssues']);
+
+        $t->same($documentSpan['localRecordSha256'], $documentEntry['localRecordSha256']);
+        $t->same($documentSpan['sourceRecordBytes'], $documentEntry['sourceRecordBytes']);
+        $t->same($commentsSpan['dataDescriptorSha256'], $commentsEntry['dataDescriptorSha256']);
+        $t->same($commentsSpan['sourceRecordBytes'], $commentsEntry['sourceRecordBytes']);
+        $t->same($commentsSpan['centralDirectoryRecordSha256'], $commentsEntry['centralDirectoryRecordSha256']);
+        $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
+    },
 
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';

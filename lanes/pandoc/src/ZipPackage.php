@@ -5186,6 +5186,14 @@ final class ZipPackage
         $selectedDataDescriptorValuesMatchCentralEntryCount = 0;
         $selectedDataDescriptorIssueEntries = [];
         $selectedDataDescriptorIssues = [];
+        $selectedSourceByteSpanEntries = [];
+        $selectedSourceLocalRecordBytes = 0;
+        $selectedSourceLocalHeaderBytes = 0;
+        $selectedSourceCompressedDataBytes = 0;
+        $selectedSourceDataDescriptorBytes = 0;
+        $selectedSourceCentralDirectoryRecordBytes = 0;
+        $selectedSourceTotalRecordBytes = 0;
+        $selectedSourceByteSpanIssues = [];
         foreach ($selectedEntriesByName as $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
@@ -5345,6 +5353,23 @@ final class ZipPackage
                     ] + $dataDescriptorProvenance;
                 }
             }
+            $sourceByteSpanProvenance = $this->entrySourceByteSpanHandoffProvenance(
+                $entry,
+                $localHeader,
+                $dataDescriptorProvenance
+            );
+            $selectedSourceLocalRecordBytes += $sourceByteSpanProvenance['localRecordBytes'];
+            $selectedSourceLocalHeaderBytes += $sourceByteSpanProvenance['localHeaderBytes'];
+            $selectedSourceCompressedDataBytes += $sourceByteSpanProvenance['compressedDataBytes'];
+            $selectedSourceDataDescriptorBytes += $sourceByteSpanProvenance['dataDescriptorBytes'];
+            $selectedSourceCentralDirectoryRecordBytes += $sourceByteSpanProvenance['centralDirectoryRecordBytes'] ?? 0;
+            $selectedSourceTotalRecordBytes += $sourceByteSpanProvenance['sourceRecordBytes'];
+            foreach ($sourceByteSpanProvenance['sourceByteSpanIssues'] as $sourceByteSpanIssue) {
+                self::appendUniqueIssue($selectedSourceByteSpanIssues, $sourceByteSpanIssue);
+            }
+            $selectedSourceByteSpanEntries[] = [
+                'name' => $entry->name,
+            ] + $sourceByteSpanProvenance;
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -5513,6 +5538,23 @@ final class ZipPackage
                 'compressedDataEnd' => null,
                 'centralDirectoryRecordOffset' => null,
                 'centralDirectoryRecordEnd' => null,
+                'hasSourceByteSpanProvenance' => false,
+                'localRecordOffset' => null,
+                'localRecordBytes' => null,
+                'localRecordEnd' => null,
+                'localRecordSha256' => null,
+                'localHeaderBytes' => null,
+                'localHeaderEnd' => null,
+                'localHeaderSha256' => null,
+                'compressedDataBytes' => null,
+                'compressedDataSha256' => null,
+                'sourceByteSpanIncludesDataDescriptor' => false,
+                'dataDescriptorBytes' => 0,
+                'dataDescriptorSha256' => null,
+                'centralDirectoryRecordBytes' => null,
+                'centralDirectoryRecordSha256' => null,
+                'sourceRecordBytes' => null,
+                'sourceByteSpanIssues' => [],
                 'maxUncompressedBytes' => $entryMaxUncompressedBytes,
                 'isReadable' => false,
                 'bytesRead' => null,
@@ -5555,7 +5597,12 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, self::entryPlatformAttributeHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
-            $summary = array_merge($summary, $this->entryDataDescriptorHandoffProvenance($entry, $localHeader));
+            $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
+            $summary = array_merge($summary, $dataDescriptorProvenance);
+            $summary = array_merge(
+                $summary,
+                $this->entrySourceByteSpanHandoffProvenance($entry, $localHeader, $dataDescriptorProvenance)
+            );
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['expansionRatio'] = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
@@ -5691,6 +5738,15 @@ final class ZipPackage
             'selectedDataDescriptorValuesMatchCentralEntryCount' => $selectedDataDescriptorValuesMatchCentralEntryCount,
             'selectedDataDescriptorIssueEntryCount' => count($selectedDataDescriptorIssueEntries),
             'selectedDataDescriptorIssues' => $selectedDataDescriptorIssues,
+            'selectedSourceByteSpanEntryCount' => count($selectedSourceByteSpanEntries),
+            'selectedSourceLocalRecordBytes' => $selectedSourceLocalRecordBytes,
+            'selectedSourceLocalHeaderBytes' => $selectedSourceLocalHeaderBytes,
+            'selectedSourceCompressedDataBytes' => $selectedSourceCompressedDataBytes,
+            'selectedSourceDataDescriptorBytes' => $selectedSourceDataDescriptorBytes,
+            'selectedSourceCentralDirectoryRecordBytes' => $selectedSourceCentralDirectoryRecordBytes,
+            'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
+            'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
+            'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5710,6 +5766,7 @@ final class ZipPackage
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
+            'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -5801,6 +5858,104 @@ final class ZipPackage
         $summary['dataDescriptorIssues'] = $descriptor['issues'];
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @param array<string, mixed> $dataDescriptorProvenance
+     * @return array{
+     *     hasSourceByteSpanProvenance:bool,
+     *     localRecordOffset:int,
+     *     localRecordBytes:int,
+     *     localRecordEnd:int,
+     *     localRecordSha256:string,
+     *     localHeaderBytes:int,
+     *     localHeaderEnd:int,
+     *     localHeaderSha256:string,
+     *     compressedDataOffset:int,
+     *     compressedDataBytes:int,
+     *     compressedDataEnd:int,
+     *     compressedDataSha256:string,
+     *     sourceByteSpanIncludesDataDescriptor:bool,
+     *     dataDescriptorOffset:?int,
+     *     dataDescriptorBytes:int,
+     *     dataDescriptorEnd:?int,
+     *     dataDescriptorSha256:?string,
+     *     centralDirectoryRecordOffset:?int,
+     *     centralDirectoryRecordBytes:?int,
+     *     centralDirectoryRecordEnd:?int,
+     *     centralDirectoryRecordSha256:?string,
+     *     sourceRecordBytes:int,
+     *     sourceByteSpanIssues:list<string>
+     * }
+     */
+    private function entrySourceByteSpanHandoffProvenance(
+        ZipPackageEntry $entry,
+        array $localHeader,
+        array $dataDescriptorProvenance
+    ): array {
+        $localRecordOffset = $entry->localHeaderOffset;
+        $localHeaderBytes = (int) $localHeader['localHeaderLength'];
+        $localHeaderEnd = $localRecordOffset + $localHeaderBytes;
+        $compressedDataOffset = (int) $localHeader['dataStart'];
+        $compressedDataBytes = $entry->compressedSize;
+        $compressedDataEnd = $compressedDataOffset + $compressedDataBytes;
+        $dataDescriptorBytes = is_int($dataDescriptorProvenance['dataDescriptorLength'] ?? null)
+            ? (int) $dataDescriptorProvenance['dataDescriptorLength']
+            : 0;
+        $dataDescriptorOffset = is_int($dataDescriptorProvenance['dataDescriptorOffset'] ?? null)
+            ? (int) $dataDescriptorProvenance['dataDescriptorOffset']
+            : null;
+        $dataDescriptorEnd = is_int($dataDescriptorProvenance['dataDescriptorEnd'] ?? null)
+            ? (int) $dataDescriptorProvenance['dataDescriptorEnd']
+            : null;
+        $localRecordEnd = $dataDescriptorEnd ?? $compressedDataEnd;
+        $localRecordBytes = $localRecordEnd - $localRecordOffset;
+        $sourceByteSpanIssues = [];
+
+        $centralDirectoryRecordOffset = $entry->centralDirectoryRecordOffset;
+        $centralDirectoryRecordEnd = $entry->centralDirectoryRecordEnd;
+        $centralDirectoryRecordBytes = null;
+        $centralDirectoryRecordSha256 = null;
+        if ($centralDirectoryRecordOffset === null || $centralDirectoryRecordEnd === null) {
+            $sourceByteSpanIssues[] = 'central-directory-record-span-missing';
+        } elseif ($centralDirectoryRecordEnd < $centralDirectoryRecordOffset) {
+            $sourceByteSpanIssues[] = 'central-directory-record-span-invalid';
+        } else {
+            $centralDirectoryRecordBytes = $centralDirectoryRecordEnd - $centralDirectoryRecordOffset;
+            $centralDirectoryRecordSha256 = hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryRecordOffset, $centralDirectoryRecordBytes)
+            );
+        }
+
+        return [
+            'hasSourceByteSpanProvenance' => true,
+            'localRecordOffset' => $localRecordOffset,
+            'localRecordBytes' => $localRecordBytes,
+            'localRecordEnd' => $localRecordEnd,
+            'localRecordSha256' => hash('sha256', substr($this->bytes, $localRecordOffset, $localRecordBytes)),
+            'localHeaderBytes' => $localHeaderBytes,
+            'localHeaderEnd' => $localHeaderEnd,
+            'localHeaderSha256' => hash('sha256', substr($this->bytes, $localRecordOffset, $localHeaderBytes)),
+            'compressedDataOffset' => $compressedDataOffset,
+            'compressedDataBytes' => $compressedDataBytes,
+            'compressedDataEnd' => $compressedDataEnd,
+            'compressedDataSha256' => hash('sha256', substr($this->bytes, $compressedDataOffset, $compressedDataBytes)),
+            'sourceByteSpanIncludesDataDescriptor' => $dataDescriptorBytes > 0,
+            'dataDescriptorOffset' => $dataDescriptorOffset,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'dataDescriptorEnd' => $dataDescriptorEnd,
+            'dataDescriptorSha256' => $dataDescriptorBytes > 0 && $dataDescriptorOffset !== null
+                ? hash('sha256', substr($this->bytes, $dataDescriptorOffset, $dataDescriptorBytes))
+                : null,
+            'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+            'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
+            'sourceRecordBytes' => $localRecordBytes + ($centralDirectoryRecordBytes ?? 0),
+            'sourceByteSpanIssues' => $sourceByteSpanIssues,
+        ];
     }
 
     /**
