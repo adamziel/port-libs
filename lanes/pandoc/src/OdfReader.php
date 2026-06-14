@@ -1298,6 +1298,12 @@ final class OdfReader
             'embeddedObjectPackageMissingCount' => $embeddedObjectPackages['missingCount'],
             'embeddedObjectPackageEncryptedCount' => $embeddedObjectPackages['encryptedCount'],
             'embeddedObjectContainedPartCount' => $embeddedObjectPackages['containedPartCount'],
+            'embeddedObjectContainedRoleCounts' => $embeddedObjectPackages['containedRoleCounts'],
+            'embeddedObjectContainedRoleByteLengths' => $embeddedObjectPackages['containedRoleByteLengths'],
+            'embeddedObjectContainedRoleCompressedByteLengths' => $embeddedObjectPackages['containedRoleCompressedByteLengths'],
+            'embeddedObjectContainedMediaFamilyCounts' => $embeddedObjectPackages['containedMediaFamilyCounts'],
+            'embeddedObjectContainedMediaFamilyByteLengths' => $embeddedObjectPackages['containedMediaFamilyByteLengths'],
+            'embeddedObjectContainedMediaFamilyCompressedByteLengths' => $embeddedObjectPackages['containedMediaFamilyCompressedByteLengths'],
             'embeddedObjectDeclaredContainedPartCount' => $embeddedObjectPackages['declaredContainedPartCount'],
             'embeddedObjectExistingDeclaredContainedPartCount' => $embeddedObjectPackages['existingDeclaredContainedPartCount'],
             'embeddedObjectMissingDeclaredContainedPartCount' => $embeddedObjectPackages['missingDeclaredContainedPartCount'],
@@ -1394,6 +1400,13 @@ final class OdfReader
         foreach ($package->entries() as $entry) {
             $entriesByPart[$entry->name] = $entry;
         }
+        $manifestByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $manifestByPart[$part] = $item;
+            }
+        }
 
         $items = [];
         $byRootPart = [];
@@ -1429,11 +1442,23 @@ final class OdfReader
             $containedParts = [];
             $undeclaredContainedParts = [];
             $containedByteLength = 0;
+            $containedRoleCounts = [];
+            $containedRoleByteLengths = [];
+            $containedRoleCompressedByteLengths = [];
+            $containedMediaFamilyCounts = [];
+            $containedMediaFamilyByteLengths = [];
+            $containedMediaFamilyCompressedByteLengths = [];
             foreach ($entriesByPart as $part => $entry) {
                 if ($part === $rootPart || !str_starts_with($part, $rootPart) || $entry->isDirectory()) {
                     continue;
                 }
 
+                $containedClassification = self::embeddedObjectContainedPartClassification(
+                    $entry->name,
+                    $manifestByPart[$entry->name] ?? null
+                );
+                $containedRole = $containedClassification['containedRole'];
+                $containedMediaFamily = $containedClassification['containedMediaFamily'];
                 $partSummary = [
                     'part' => $entry->name,
                     'byteLength' => $entry->uncompressedSize,
@@ -1442,9 +1467,17 @@ final class OdfReader
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'containedRole' => $containedRole,
+                    'containedMediaFamily' => $containedMediaFamily,
                 ];
                 $containedParts[] = $partSummary;
                 $containedByteLength += $entry->uncompressedSize;
+                $containedRoleCounts[$containedRole] = ($containedRoleCounts[$containedRole] ?? 0) + 1;
+                $containedRoleByteLengths[$containedRole] = ($containedRoleByteLengths[$containedRole] ?? 0) + $entry->uncompressedSize;
+                $containedRoleCompressedByteLengths[$containedRole] = ($containedRoleCompressedByteLengths[$containedRole] ?? 0) + $entry->compressedSize;
+                $containedMediaFamilyCounts[$containedMediaFamily] = ($containedMediaFamilyCounts[$containedMediaFamily] ?? 0) + 1;
+                $containedMediaFamilyByteLengths[$containedMediaFamily] = ($containedMediaFamilyByteLengths[$containedMediaFamily] ?? 0) + $entry->uncompressedSize;
+                $containedMediaFamilyCompressedByteLengths[$containedMediaFamily] = ($containedMediaFamilyCompressedByteLengths[$containedMediaFamily] ?? 0) + $entry->compressedSize;
                 if (!isset($declaredContainedParts[$entry->name])) {
                     $undeclaredContainedParts[] = $partSummary;
                 }
@@ -1452,6 +1485,12 @@ final class OdfReader
 
             usort($containedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
             usort($undeclaredContainedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+            ksort($containedRoleCounts, SORT_STRING);
+            ksort($containedRoleByteLengths, SORT_STRING);
+            ksort($containedRoleCompressedByteLengths, SORT_STRING);
+            ksort($containedMediaFamilyCounts, SORT_STRING);
+            ksort($containedMediaFamilyByteLengths, SORT_STRING);
+            ksort($containedMediaFamilyCompressedByteLengths, SORT_STRING);
 
             $exists = $containedParts !== [] || isset($entriesByPart[$rootPart]);
             $encrypted = ($rootItem['encrypted'] ?? false) === true || $encryptedDeclaredContainedParts !== [];
@@ -1490,6 +1529,12 @@ final class OdfReader
                 'reviewPolicy' => 'embedded-object-package-metadata-only',
                 'containedPartCount' => count($containedParts),
                 'containedByteLength' => $containedParts === [] ? null : $containedByteLength,
+                'containedRoleCounts' => $containedRoleCounts,
+                'containedRoleByteLengths' => $containedRoleByteLengths,
+                'containedRoleCompressedByteLengths' => $containedRoleCompressedByteLengths,
+                'containedMediaFamilyCounts' => $containedMediaFamilyCounts,
+                'containedMediaFamilyByteLengths' => $containedMediaFamilyByteLengths,
+                'containedMediaFamilyCompressedByteLengths' => $containedMediaFamilyCompressedByteLengths,
                 'containedParts' => $containedParts,
                 'declaredContainedPartCount' => count($declaredContainedPartItems),
                 'declaredContainedParts' => $declaredContainedPartItems,
@@ -1517,6 +1562,12 @@ final class OdfReader
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'containedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['containedPartCount'], $items)),
             'containedByteLength' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedByteLength'] ?? 0), $items)),
+            'containedRoleCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleCounts'),
+            'containedRoleByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleByteLengths'),
+            'containedRoleCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleCompressedByteLengths'),
+            'containedMediaFamilyCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCounts'),
+            'containedMediaFamilyByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyByteLengths'),
+            'containedMediaFamilyCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCompressedByteLengths'),
             'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
             'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
             'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
@@ -1531,6 +1582,98 @@ final class OdfReader
             'byRootPart' => $byRootPart,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $manifestItem
+     * @return array{containedRole:string, containedMediaFamily:string}
+     */
+    private static function embeddedObjectContainedPartClassification(string $part, ?array $manifestItem): array
+    {
+        $mediaTypeBase = '';
+        if (is_array($manifestItem)) {
+            $mediaTypeBase = (string) ($manifestItem['mediaTypeBase'] ?? '');
+            if ($mediaTypeBase === '') {
+                $mediaTypeBase = self::mediaTypeReport((string) ($manifestItem['mediaType'] ?? ''))['mediaTypeBase'];
+            }
+        }
+
+        $mediaFamily = self::embeddedObjectContainedMediaFamily($part, $mediaTypeBase);
+        $role = match ($mediaFamily) {
+            'rdf' => 'rdf-metadata',
+            'image', 'audio', 'video' => 'media-resource',
+            'xml' => 'document-xml',
+            default => 'package-part',
+        };
+
+        return [
+            'containedRole' => $role,
+            'containedMediaFamily' => $mediaFamily,
+        ];
+    }
+
+    private static function embeddedObjectContainedMediaFamily(string $part, string $mediaTypeBase): string
+    {
+        $base = strtolower(trim($mediaTypeBase));
+        if ($base === 'application/rdf+xml' || strtolower(basename($part)) === 'manifest.rdf') {
+            return 'rdf';
+        }
+
+        $mediaFamily = self::mediaResourceFamilyFromMediaTypeBase($base);
+        if ($mediaFamily !== null) {
+            return $mediaFamily;
+        }
+        if (self::isXmlMediaTypeBase($base) || self::isEmbeddedObjectXmlPartName($part)) {
+            return 'xml';
+        }
+
+        $packageFamily = self::mediaResourceFamilyFromPackagePart($part);
+        if ($packageFamily !== null) {
+            return $packageFamily;
+        }
+
+        return 'other';
+    }
+
+    private static function isXmlMediaTypeBase(string $mediaTypeBase): bool
+    {
+        $base = strtolower(trim($mediaTypeBase));
+
+        return $base === 'text/xml'
+            || $base === 'application/xml'
+            || str_ends_with($base, '+xml');
+    }
+
+    private static function isEmbeddedObjectXmlPartName(string $part): bool
+    {
+        $name = strtolower(basename($part));
+
+        return in_array($name, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)
+            || str_ends_with($name, '.xml');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, int>
+     */
+    private static function sumEmbeddedObjectPackageBuckets(array $items, string $key): array
+    {
+        $summary = [];
+        foreach ($items as $item) {
+            $buckets = $item[$key] ?? [];
+            if (!is_array($buckets)) {
+                continue;
+            }
+            foreach ($buckets as $bucket => $value) {
+                if (!is_string($bucket)) {
+                    continue;
+                }
+                $summary[$bucket] = ($summary[$bucket] ?? 0) + (int) $value;
+            }
+        }
+        ksort($summary, SORT_STRING);
+
+        return $summary;
     }
 
     /**

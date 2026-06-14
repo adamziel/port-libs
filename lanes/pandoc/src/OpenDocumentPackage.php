@@ -2538,6 +2538,13 @@ final class OpenDocumentPackage
         foreach ($package->entries() as $entry) {
             $entriesByPath[$entry->name] = $entry;
         }
+        $manifestEntriesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (is_string($packagePath) && $packagePath !== '') {
+                $manifestEntriesByPath[$packagePath] = $entry;
+            }
+        }
 
         $items = [];
         $byRootPart = [];
@@ -2573,11 +2580,23 @@ final class OpenDocumentPackage
             $containedParts = [];
             $undeclaredContainedParts = [];
             $containedByteLength = 0;
+            $containedRoleCounts = [];
+            $containedRoleByteLengths = [];
+            $containedRoleCompressedByteLengths = [];
+            $containedMediaFamilyCounts = [];
+            $containedMediaFamilyByteLengths = [];
+            $containedMediaFamilyCompressedByteLengths = [];
             foreach ($entriesByPath as $path => $entry) {
                 if ($path === $rootPart || !str_starts_with($path, $rootPart) || $entry->isDirectory()) {
                     continue;
                 }
 
+                $containedClassification = self::embeddedObjectContainedPartClassification(
+                    $entry->name,
+                    $manifestEntriesByPath[$entry->name] ?? null
+                );
+                $containedRole = $containedClassification['containedRole'];
+                $containedMediaFamily = $containedClassification['containedMediaFamily'];
                 $partSummary = [
                     'path' => $entry->name,
                     'part' => $entry->name,
@@ -2587,9 +2606,17 @@ final class OpenDocumentPackage
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'containedRole' => $containedRole,
+                    'containedMediaFamily' => $containedMediaFamily,
                 ];
                 $containedParts[] = $partSummary;
                 $containedByteLength += $entry->uncompressedSize;
+                $containedRoleCounts[$containedRole] = ($containedRoleCounts[$containedRole] ?? 0) + 1;
+                $containedRoleByteLengths[$containedRole] = ($containedRoleByteLengths[$containedRole] ?? 0) + $entry->uncompressedSize;
+                $containedRoleCompressedByteLengths[$containedRole] = ($containedRoleCompressedByteLengths[$containedRole] ?? 0) + $entry->compressedSize;
+                $containedMediaFamilyCounts[$containedMediaFamily] = ($containedMediaFamilyCounts[$containedMediaFamily] ?? 0) + 1;
+                $containedMediaFamilyByteLengths[$containedMediaFamily] = ($containedMediaFamilyByteLengths[$containedMediaFamily] ?? 0) + $entry->uncompressedSize;
+                $containedMediaFamilyCompressedByteLengths[$containedMediaFamily] = ($containedMediaFamilyCompressedByteLengths[$containedMediaFamily] ?? 0) + $entry->compressedSize;
                 if (!isset($declaredContainedParts[$entry->name])) {
                     $undeclaredContainedParts[] = $partSummary;
                 }
@@ -2597,6 +2624,12 @@ final class OpenDocumentPackage
 
             usort($containedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
             usort($undeclaredContainedParts, static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']));
+            ksort($containedRoleCounts, SORT_STRING);
+            ksort($containedRoleByteLengths, SORT_STRING);
+            ksort($containedRoleCompressedByteLengths, SORT_STRING);
+            ksort($containedMediaFamilyCounts, SORT_STRING);
+            ksort($containedMediaFamilyByteLengths, SORT_STRING);
+            ksort($containedMediaFamilyCompressedByteLengths, SORT_STRING);
 
             $exists = $containedParts !== [] || isset($entriesByPath[$rootPart]);
             $encrypted = ($rootEntry['encrypted'] ?? false) === true || $encryptedDeclaredContainedParts !== [];
@@ -2635,6 +2668,12 @@ final class OpenDocumentPackage
                 'reviewPolicy' => 'embedded-object-package-metadata-only',
                 'containedPartCount' => count($containedParts),
                 'containedByteLength' => $containedParts === [] ? null : $containedByteLength,
+                'containedRoleCounts' => $containedRoleCounts,
+                'containedRoleByteLengths' => $containedRoleByteLengths,
+                'containedRoleCompressedByteLengths' => $containedRoleCompressedByteLengths,
+                'containedMediaFamilyCounts' => $containedMediaFamilyCounts,
+                'containedMediaFamilyByteLengths' => $containedMediaFamilyByteLengths,
+                'containedMediaFamilyCompressedByteLengths' => $containedMediaFamilyCompressedByteLengths,
                 'containedParts' => $containedParts,
                 'declaredContainedPartCount' => count($declaredContainedPartItems),
                 'declaredContainedParts' => $declaredContainedPartItems,
@@ -2662,6 +2701,12 @@ final class OpenDocumentPackage
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'containedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['containedPartCount'], $items)),
             'containedByteLength' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedByteLength'] ?? 0), $items)),
+            'containedRoleCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleCounts'),
+            'containedRoleByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleByteLengths'),
+            'containedRoleCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedRoleCompressedByteLengths'),
+            'containedMediaFamilyCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCounts'),
+            'containedMediaFamilyByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyByteLengths'),
+            'containedMediaFamilyCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCompressedByteLengths'),
             'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
             'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
             'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
@@ -2676,6 +2721,129 @@ final class OpenDocumentPackage
             'byRootPart' => $byRootPart,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $manifestEntry
+     * @return array{containedRole:string, containedMediaFamily:string}
+     */
+    private static function embeddedObjectContainedPartClassification(string $part, ?array $manifestEntry): array
+    {
+        $mediaTypeBase = '';
+        if (is_array($manifestEntry)) {
+            $mediaTypeBase = (string) ($manifestEntry['mediaTypeBase'] ?? '');
+            if ($mediaTypeBase === '') {
+                $mediaTypeBase = self::mediaTypeReport((string) ($manifestEntry['mediaType'] ?? ''))['mediaTypeBase'];
+            }
+        }
+
+        $mediaFamily = self::embeddedObjectContainedMediaFamily($part, $mediaTypeBase);
+        $role = match ($mediaFamily) {
+            'rdf' => 'rdf-metadata',
+            'image', 'audio', 'video' => 'media-resource',
+            'xml' => 'document-xml',
+            default => 'package-part',
+        };
+
+        return [
+            'containedRole' => $role,
+            'containedMediaFamily' => $mediaFamily,
+        ];
+    }
+
+    private static function embeddedObjectContainedMediaFamily(string $part, string $mediaTypeBase): string
+    {
+        $base = strtolower(trim($mediaTypeBase));
+        if ($base === 'application/rdf+xml' || self::isRdfPartName($part)) {
+            return 'rdf';
+        }
+
+        $mediaFamily = self::mediaResourceFamilyFromMediaTypeBase($base);
+        if ($mediaFamily !== null) {
+            return $mediaFamily;
+        }
+        if (self::isXmlMediaTypeBase($base) || self::isEmbeddedObjectXmlPartName($part)) {
+            return 'xml';
+        }
+
+        $packageFamily = self::mediaResourceFamilyFromPackagePart($part);
+        if ($packageFamily !== null) {
+            return $packageFamily;
+        }
+
+        return 'other';
+    }
+
+    private static function isXmlMediaTypeBase(string $mediaTypeBase): bool
+    {
+        $base = strtolower(trim($mediaTypeBase));
+
+        return $base === 'text/xml'
+            || $base === 'application/xml'
+            || str_ends_with($base, '+xml');
+    }
+
+    private static function isEmbeddedObjectXmlPartName(string $part): bool
+    {
+        $name = strtolower(basename($part));
+
+        return in_array($name, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)
+            || str_ends_with($name, '.xml');
+    }
+
+    private static function mediaResourceFamilyFromMediaTypeBase(string $mediaTypeBase): ?string
+    {
+        $base = strtolower(trim($mediaTypeBase));
+        if (str_starts_with($base, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($base, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($base, 'video/')) {
+            return 'video';
+        }
+
+        return null;
+    }
+
+    private static function mediaResourceFamilyFromPackagePart(string $part): ?string
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+        if (str_starts_with($normalized, 'pictures/')) {
+            return 'image';
+        }
+
+        return match (strtolower(pathinfo($normalized, PATHINFO_EXTENSION))) {
+            'apng', 'avif', 'bmp', 'gif', 'jpe', 'jpeg', 'jpg', 'png', 'svg', 'tif', 'tiff', 'webp' => 'image',
+            'aac', 'aif', 'aiff', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'weba' => 'audio',
+            'avi', 'm4v', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'webm' => 'video',
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, int>
+     */
+    private static function sumEmbeddedObjectPackageBuckets(array $items, string $key): array
+    {
+        $summary = [];
+        foreach ($items as $item) {
+            $buckets = $item[$key] ?? [];
+            if (!is_array($buckets)) {
+                continue;
+            }
+            foreach ($buckets as $bucket => $value) {
+                if (!is_string($bucket)) {
+                    continue;
+                }
+                $summary[$bucket] = ($summary[$bucket] ?? 0) + (int) $value;
+            }
+        }
+        ksort($summary, SORT_STRING);
+
+        return $summary;
     }
 
     /**

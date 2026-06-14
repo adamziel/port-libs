@@ -1563,6 +1563,10 @@ XML;
         foreach ($review['items'] as $item) {
             $reviewByPath[$item['fullPath']] = $item;
         }
+        $chartContainedByPart = [];
+        foreach ($chart['containedParts'] as $item) {
+            $chartContainedByPart[$item['part']] = $item;
+        }
 
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
         $t->same(1, $summary['exposableMediaPartCount']);
@@ -1580,6 +1584,42 @@ XML;
         $t->same(0, $objects['encryptedCount']);
         $t->same(4, $objects['containedPartCount']);
         $t->same(strlen($chartContent) + strlen($chartPreview) + strlen($chartRdf) + strlen($oleBytes), $objects['containedByteLength']);
+        $t->same([
+            'document-xml' => 1,
+            'media-resource' => 1,
+            'package-part' => 1,
+            'rdf-metadata' => 1,
+        ], $objects['containedRoleCounts']);
+        $t->same([
+            'document-xml' => strlen($chartContent),
+            'media-resource' => strlen($chartPreview),
+            'package-part' => strlen($oleBytes),
+            'rdf-metadata' => strlen($chartRdf),
+        ], $objects['containedRoleByteLengths']);
+        $t->same([
+            'document-xml' => strlen($chartContent),
+            'media-resource' => strlen($chartPreview),
+            'package-part' => strlen($oleBytes),
+            'rdf-metadata' => strlen($chartRdf),
+        ], $objects['containedRoleCompressedByteLengths']);
+        $t->same([
+            'image' => 1,
+            'other' => 1,
+            'rdf' => 1,
+            'xml' => 1,
+        ], $objects['containedMediaFamilyCounts']);
+        $t->same([
+            'image' => strlen($chartPreview),
+            'other' => strlen($oleBytes),
+            'rdf' => strlen($chartRdf),
+            'xml' => strlen($chartContent),
+        ], $objects['containedMediaFamilyByteLengths']);
+        $t->same([
+            'image' => strlen($chartPreview),
+            'other' => strlen($oleBytes),
+            'rdf' => strlen($chartRdf),
+            'xml' => strlen($chartContent),
+        ], $objects['containedMediaFamilyCompressedByteLengths']);
         $t->same(4, $objects['declaredContainedPartCount']);
         $t->same(3, $objects['existingDeclaredContainedPartCount']);
         $t->same(1, $objects['missingDeclaredContainedPartCount']);
@@ -1606,12 +1646,38 @@ XML;
         $t->same('embedded-object-package-bytes-blocked', $chart['byteExposurePolicy']);
         $t->same(3, $chart['containedPartCount']);
         $t->same(strlen($chartContent) + strlen($chartPreview) + strlen($chartRdf), $chart['containedByteLength']);
+        $t->same([
+            'document-xml' => 1,
+            'media-resource' => 1,
+            'rdf-metadata' => 1,
+        ], $chart['containedRoleCounts']);
+        $t->same([
+            'document-xml' => strlen($chartContent),
+            'media-resource' => strlen($chartPreview),
+            'rdf-metadata' => strlen($chartRdf),
+        ], $chart['containedRoleByteLengths']);
+        $t->same([
+            'image' => 1,
+            'rdf' => 1,
+            'xml' => 1,
+        ], $chart['containedMediaFamilyCounts']);
+        $t->same([
+            'image' => strlen($chartPreview),
+            'rdf' => strlen($chartRdf),
+            'xml' => strlen($chartContent),
+        ], $chart['containedMediaFamilyByteLengths']);
         $t->same(['Object Chart/Pictures/preview.png', 'Object Chart/content.xml', 'Object Chart/manifest.rdf'], array_column($chart['containedParts'], 'part'));
+        $t->same(['media-resource', 'document-xml', 'rdf-metadata'], array_column($chart['containedParts'], 'containedRole'));
+        $t->same(['image', 'xml', 'rdf'], array_column($chart['containedParts'], 'containedMediaFamily'));
+        $t->same('document-xml', $chartContainedByPart['Object Chart/content.xml']['containedRole']);
+        $t->same('xml', $chartContainedByPart['Object Chart/content.xml']['containedMediaFamily']);
         $t->same(2, $chart['declaredContainedPartCount']);
         $t->same(2, $chart['existingDeclaredContainedPartCount']);
         $t->same(0, $chart['missingDeclaredContainedPartCount']);
         $t->same(1, $chart['undeclaredContainedPartCount']);
         $t->same(['Object Chart/manifest.rdf'], array_column($chart['undeclaredContainedParts'], 'part'));
+        $t->same(['rdf-metadata'], array_column($chart['undeclaredContainedParts'], 'containedRole'));
+        $t->same(['rdf'], array_column($chart['undeclaredContainedParts'], 'containedMediaFamily'));
         $t->same(['odf-embedded-object-package-undeclared-contained-part'], $chart['issues']);
 
         $t->same('spreadsheet', $ole['objectType']);
@@ -1620,7 +1686,13 @@ XML;
         $t->same('embedded-object-package-bytes-blocked', $ole['byteExposurePolicy']);
         $t->same(1, $ole['containedPartCount']);
         $t->same(strlen($oleBytes), $ole['containedByteLength']);
+        $t->same(['package-part' => 1], $ole['containedRoleCounts']);
+        $t->same(['package-part' => strlen($oleBytes)], $ole['containedRoleByteLengths']);
+        $t->same(['other' => 1], $ole['containedMediaFamilyCounts']);
+        $t->same(['other' => strlen($oleBytes)], $ole['containedMediaFamilyByteLengths']);
         $t->same(['Object OLE/oleObject.bin'], array_column($ole['containedParts'], 'part'));
+        $t->same(['package-part'], array_column($ole['containedParts'], 'containedRole'));
+        $t->same(['other'], array_column($ole['containedParts'], 'containedMediaFamily'));
         $t->same([], $ole['issues']);
 
         $t->same('Object Missing/', $missing['rootPart']);
