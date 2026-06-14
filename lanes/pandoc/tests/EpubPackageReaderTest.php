@@ -1778,6 +1778,83 @@ XML);
             $removeDirectory($root);
         }
     },
+    'keeps unsafe page-list hrefs out of collision reading order summaries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-page-list-collision-precedence-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-page-list-collision-precedence</dc:identifier>
+    <dc:title>Page List Collision Precedence</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="pages-review" epub:type="page-list">
+      <ol>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#Page-1">1</a></li>
+        <li><a epub:type="pagebreak" href="text/chapter.xhtml#%50age-1">1 encoded</a></li>
+        <li><a epub:type="pagebreak" href="https://example.invalid/text/chapter.xhtml#page-1">remote</a></li>
+        <li><a epub:type="pagebreak" href="javascript:alert(1)#page-1">script</a></li>
+        <li><a epub:type="pagebreak" href="#local-note">local note</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="Page-1">Readable page.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $navReport = $epub['navReport'];
+            $pageListReport = $epub['tocReport']['pageList'];
+            $items = $pageListReport['items'];
+
+            $t->same(5, $pageListReport['itemCount']);
+            $t->same(2, $navReport['externalTargetCount']);
+            $t->same(1, $navReport['unsafeTargetCount']);
+            $t->same(1, $navReport['normalizedCollisionGroupCount']);
+            $t->same(2, $navReport['normalizedCollisionItemCount']);
+            $t->same(0, $navReport['crossSectionCollisionGroupCount']);
+            $t->same(0, $pageListReport['collisionTargetCount']);
+            $t->same(0, $pageListReport['duplicatePageTargetCount']);
+
+            $collision = $navReport['normalizedCollisionDiagnostics'][0];
+            $t->same('page-list', $collision['sectionType']);
+            $t->same('epub/text/chapter.xhtml#page-1', $collision['normalizedTarget']);
+            $t->same(['text/chapter.xhtml#Page-1', 'text/chapter.xhtml#%50age-1'], $collision['hrefs']);
+            $t->same([0, 1], $collision['pageListItemIndexes']);
+            $t->same([0], $collision['pageListSpineIndexes']);
+            $t->same([0], $collision['pageListReadingSpineIndexes']);
+            $t->same(2, $collision['pageListTargetCount']);
+            $t->same(['fragment', 'percent-encoding'], $collision['collisionKinds']);
+
+            $t->same([0, 0, null, null, null], array_column($pageListReport['readingOrder'], 'spineIndex'));
+            $t->same([true, true, null, null, null], array_column($pageListReport['readingOrder'], 'linear'));
+            $t->same(['external-nav-href-target', 'unsafe-nav-href-target', 'external-page-list-reference'], array_column($items[3]['diagnostics'], 'type'));
+            $t->same(['missing-page-list-manifest-item'], array_column($items[4]['diagnostics'], 'type'));
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports normalized epub nav target collisions without changing toc entries' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-nav-collisions-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
