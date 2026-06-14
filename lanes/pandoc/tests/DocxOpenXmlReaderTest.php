@@ -4236,6 +4236,65 @@ XML;
         $t->same('1024x768', $webSettings['targetScreenSize']);
         $t->same(144, $webSettings['pixelsPerInch']);
     },
+    'summarizes docx web settings output policy for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/policy-web-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rWebPolicy" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="web/policy-web-settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/web/policy-web-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser/>
+  <w:allowPNG w:val="0"/>
+  <w:relyOnVML w:val="on"/>
+  <w:doNotRelyOnCSS w:val="1"/>
+  <w:doNotSaveAsSingleFile w:val="true"/>
+  <w:doNotOrganizeInFolder w:val="false"/>
+  <w:doNotUseLongFileNames/>
+  <w:encoding w:val="windows-1252"/>
+  <w:targetScreenSz w:val="800x600"/>
+  <w:pixelsPerInch w:val="96"/>
+</w:webSettings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $policy = $docx['webSettings']['outputPolicy'];
+        $summary = $docx['packageProvenance']['summary'];
+        $expectedFlags = [
+            'browser-optimized',
+            'png-disabled',
+            'vml-required',
+            'css-output-disabled',
+            'single-file-output-disabled',
+            'folder-organization-allowed',
+            'long-file-names-disabled',
+        ];
+
+        $t->same(7, $policy['flagCount']);
+        $t->same($expectedFlags, $policy['flags']);
+        $t->same(true, $policy['browserOptimized']);
+        $t->same(false, $policy['pngAllowed']);
+        $t->same(true, $policy['vmlRequired']);
+        $t->same(true, $policy['cssOutputDisabled']);
+        $t->same(true, $policy['singleFileOutputDisabled']);
+        $t->same(false, $policy['folderOrganizationDisabled']);
+        $t->same(true, $policy['longFileNamesDisabled']);
+        $t->same('windows-1252', $policy['encoding']);
+        $t->same('800x600', $policy['targetScreenSize']);
+        $t->same(96, $policy['pixelsPerInch']);
+        $t->same(7, $summary['webSettingsOutputPolicyFlagCount']);
+        $t->same($expectedFlags, $summary['webSettingsOutputPolicyFlags']);
+    },
     'resolves docx theme font and color scheme from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

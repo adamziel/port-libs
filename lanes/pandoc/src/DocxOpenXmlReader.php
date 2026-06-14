@@ -456,6 +456,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
+        $webSettingsOutputPolicy = $webSettings['outputPolicy'] ?? null;
+        if (is_array($webSettingsOutputPolicy)) {
+            $packageProvenance['summary']['webSettingsOutputPolicyFlagCount'] = (int) ($webSettingsOutputPolicy['flagCount'] ?? 0);
+            $packageProvenance['summary']['webSettingsOutputPolicyFlags'] = $webSettingsOutputPolicy['flags'] ?? [];
+        }
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
         $packageProvenance['summary']['chartPartRelationshipCount'] = $chartParts['relationshipCount'];
@@ -8676,7 +8681,70 @@ final class DocxOpenXmlReader
             $webSettings['pixelsPerInch'] = (int) $pixelsPerInch->getAttributeNS(self::NS_W, 'val');
         }
 
+        if ($webSettings !== []) {
+            $webSettings['outputPolicy'] = $this->webSettingsOutputPolicy($webSettings);
+        }
+
         return $webSettings;
+    }
+
+    /**
+     * @param array<string, mixed> $webSettings
+     * @return array<string, mixed>
+     */
+    private function webSettingsOutputPolicy(array $webSettings): array
+    {
+        $flags = [];
+        foreach ([
+            'optimizeForBrowser' => [
+                'enabled' => 'browser-optimized',
+                'disabled' => 'browser-optimization-disabled',
+            ],
+            'allowPng' => [
+                'enabled' => 'png-allowed',
+                'disabled' => 'png-disabled',
+            ],
+            'relyOnVml' => [
+                'enabled' => 'vml-required',
+                'disabled' => 'vml-not-required',
+            ],
+            'doNotRelyOnCss' => [
+                'enabled' => 'css-output-disabled',
+                'disabled' => 'css-output-allowed',
+            ],
+            'doNotSaveAsSingleFile' => [
+                'enabled' => 'single-file-output-disabled',
+                'disabled' => 'single-file-output-allowed',
+            ],
+            'doNotOrganizeInFolder' => [
+                'enabled' => 'folder-organization-disabled',
+                'disabled' => 'folder-organization-allowed',
+            ],
+            'doNotUseLongFileNames' => [
+                'enabled' => 'long-file-names-disabled',
+                'disabled' => 'long-file-names-allowed',
+            ],
+        ] as $key => $labels) {
+            $value = $webSettings[$key] ?? null;
+            if (is_bool($value)) {
+                $flags[] = $value ? $labels['enabled'] : $labels['disabled'];
+            }
+        }
+
+        return [
+            'flagCount' => count($flags),
+            'flags' => $flags,
+            'browserOptimized' => $webSettings['optimizeForBrowser'] ?? null,
+            'pngAllowed' => $webSettings['allowPng'] ?? null,
+            'vmlRequired' => $webSettings['relyOnVml'] ?? null,
+            'cssOutputDisabled' => $webSettings['doNotRelyOnCss'] ?? null,
+            'singleFileOutputDisabled' => $webSettings['doNotSaveAsSingleFile'] ?? null,
+            'folderOrganizationDisabled' => $webSettings['doNotOrganizeInFolder'] ?? null,
+            'longFileNamesDisabled' => $webSettings['doNotUseLongFileNames'] ?? null,
+            'encoding' => is_string($webSettings['encoding'] ?? null) ? $webSettings['encoding'] : null,
+            'targetScreenSize' => is_string($webSettings['targetScreenSize'] ?? null) ? $webSettings['targetScreenSize'] : null,
+            'pixelsPerInch' => is_int($webSettings['pixelsPerInch'] ?? null) ? $webSettings['pixelsPerInch'] : null,
+        ];
     }
 
     /**
