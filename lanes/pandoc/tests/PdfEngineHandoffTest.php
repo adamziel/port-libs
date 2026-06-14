@@ -5972,6 +5972,124 @@ return [
         $t->same($expected, $sequence['finalTypstWarningProvenance']);
     },
 
+    'maps typst pdf boundary matrix across provenance domains without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Boundary Matrix Packet',
+            '#import "@preview/cetz:0.3.2": canvas',
+            '#import "@typst/tablex:0.0.8": tablex',
+            '#image("workspace/assets/chart.svg")',
+            '',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/matrix.typ',
+            'outputPath' => 'build/matrix.pdf',
+            'source' => $source,
+            'engineOptions' => [
+                '--root=workspace',
+                '--cert=certs/cli-ca.pem',
+                '--package-path=/srv/typst-packages',
+                '--package-cache=https://cache.example.invalid/typst',
+                '--features=html',
+                '--features=packages,a11y',
+                '--format=svg',
+                '--format=pdf',
+                '--pages=1-3,2',
+                '--ppi=300',
+                '--pdf-standard=pdf/ua-1',
+                '--deps=build/matrix.d',
+            ],
+            'engineEnvironment' => [
+                'TYPST_ROOT' => '/outside/workspace',
+                'TYPST_CERT' => 'https://ca.example.invalid/root.pem',
+                'TYPST_PACKAGE_PATH' => 'vendor/env-packages',
+                'TYPST_PACKAGE_CACHE_PATH' => 'cache/env-packages',
+                'TYPST_FEATURES' => 'legacy-html',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary matrix packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/matrix.pdf: workspace/matrix.typ workspace/assets/chart.svg @preview/cetz:0.3.2 @preview/cetz:0.3.3 @typst/tablex:0.0.8',
+            '',
+        ]);
+        $stderr = implode("\n", [
+            'warning: package import crosses review root',
+            '  ' . "\u{250C}\u{2500}" . ' shared/packages/remote.typ:4:1',
+            '  = hint: keep review package imports under workspace/',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/matrix.d' => $depfile,
+                'build/matrix.pdf' => $pdfBytes,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/matrix.d' => $depfile,
+                'build/matrix.pdf' => $pdfBytes,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]]);
+
+        $t->same([
+            'environment-shadows',
+            'feature-gates',
+            'certificate-paths',
+            'package-storage',
+            'output-format',
+            'pdf-export-controls',
+        ], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(6, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->contains('typst-boundary-matrix-cases:6', implode(',', $plan['diagnostics']));
+
+        $matrix = $result['typstBoundaryMatrix'];
+        $cases = [];
+        foreach ($matrix['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'environment-shadows',
+            'feature-gates',
+            'certificate-paths',
+            'package-storage',
+            'output-format',
+            'pdf-export-controls',
+            'root-read-boundary',
+            'dependency-output-policy',
+            'package-dependencies',
+            'warning-provenance',
+        ], array_column($matrix['cases'], 'case'));
+        $t->same('review', $matrix['reviewStatus']);
+        $t->same(10, $matrix['caseCount']);
+        $t->same(8, $matrix['reviewCaseCount']);
+        $t->same(5, $cases['environment-shadows']['details']['shadowedCount']);
+        $t->same(3, $cases['feature-gates']['observed']);
+        $t->same(2, $cases['certificate-paths']['observed']);
+        $t->same(4, $cases['package-storage']['observed']);
+        $t->same(['pdf', 'svg'], $cases['output-format']['details']['distinctFormats']);
+        $t->same(true, $cases['pdf-export-controls']['details']['pageSelectionPresent']);
+        $t->same(2, $cases['root-read-boundary']['details']['insideRootCount']);
+        $t->same(true, $cases['dependency-output-policy']['details']['declaredOutputPresent']);
+        $t->same(3, $cases['package-dependencies']['observed']);
+        $t->same(1, $cases['package-dependencies']['details']['versionConflictCount']);
+        $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
+        $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
+        $t->contains('typst-boundary-matrix-cases:10', implode(',', $result['diagnostics']));
+        $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
+        $t->contains('package-dependencies:package-version-conflict:preview/cetz', implode(',', $matrix['issues']));
+        $t->contains('warning-provenance:warning-source-outside-root', implode(',', $matrix['issues']));
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

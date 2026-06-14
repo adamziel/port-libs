@@ -207,6 +207,12 @@ final class PdfEngineHandoff
         }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $typstBoundarySummary = $this->typstBoundarySummaryFor($typstBoundaryProvenance);
+        $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
+            $engine,
+            $typstBoundaryProvenance,
+            $typstBoundarySummary,
+            $typstOutputFormatPolicy
+        );
         $typstImportPathPolicy = $this->typstImportPathPolicyFor($engine, is_string($sourceBytes) ? $sourceBytes : null);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
@@ -591,6 +597,16 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
         }
+        if ($typstBoundaryMatrix !== []) {
+            $diagnostics[] = 'typst-boundary-matrix:' . $typstBoundaryMatrix['reviewStatus'];
+            $diagnostics[] = 'typst-boundary-matrix-cases:' . $typstBoundaryMatrix['caseCount'];
+            if ($typstBoundaryMatrix['reviewCaseCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-matrix-review-cases:' . $typstBoundaryMatrix['reviewCaseCount'];
+            }
+            if ($typstBoundaryMatrix['issueCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-matrix-issues:' . $typstBoundaryMatrix['issueCount'];
+            }
+        }
         if ($sourceMapFile !== null) {
             $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
@@ -639,6 +655,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
         ];
@@ -1335,6 +1352,26 @@ final class PdfEngineHandoff
                 ) {
                     $diagnostics[] = 'typst-warning-source-outside-root:' . $warning['sourceFile'];
                 }
+            }
+        }
+        $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
+            $engine,
+            $typstBoundaryProvenance,
+            $typstBoundarySummary,
+            $typstOutputFormatPolicy,
+            $typstReadBoundaryPolicy,
+            $typstDependencyOutputPolicy,
+            $typstPackageDependencyPolicy,
+            $typstWarningProvenance
+        );
+        if ($typstBoundaryMatrix !== []) {
+            $diagnostics[] = 'typst-boundary-matrix:' . $typstBoundaryMatrix['reviewStatus'];
+            $diagnostics[] = 'typst-boundary-matrix-cases:' . $typstBoundaryMatrix['caseCount'];
+            if ($typstBoundaryMatrix['reviewCaseCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-matrix-review-cases:' . $typstBoundaryMatrix['reviewCaseCount'];
+            }
+            if ($typstBoundaryMatrix['issueCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-matrix-issues:' . $typstBoundaryMatrix['issueCount'];
             }
         }
         if ($engineMissingDependencies !== []) {
@@ -4712,6 +4749,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
@@ -4748,6 +4786,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'engineBoundaryRoot' => $engineBoundaryRoot,
@@ -5419,6 +5458,7 @@ final class PdfEngineHandoff
             'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
             'finalTypstBoundarySummary' => is_array($finalRun) && is_array($finalRun['typstBoundarySummary'] ?? null) ? $finalRun['typstBoundarySummary'] : [],
+            'finalTypstBoundaryMatrix' => is_array($finalRun) && is_array($finalRun['typstBoundaryMatrix'] ?? null) ? $finalRun['typstBoundaryMatrix'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
@@ -7034,6 +7074,272 @@ final class PdfEngineHandoff
             'distinctFormats' => $distinctFormats,
             'formatEntryCount' => count($formatHistory),
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $outputFormatPolicy
+     * @param array<string, mixed> $readBoundaryPolicy
+     * @param array<string, mixed> $dependencyOutputPolicy
+     * @param array<string, mixed> $packageDependencyPolicy
+     * @param list<array<string, mixed>> $warningProvenance
+     * @return array<string, mixed>
+     */
+    private function typstBoundaryMatrixFor(
+        string $engine,
+        array $provenance,
+        array $summary,
+        array $outputFormatPolicy = [],
+        array $readBoundaryPolicy = [],
+        array $dependencyOutputPolicy = [],
+        array $packageDependencyPolicy = [],
+        array $warningProvenance = []
+    ): array {
+        if ($engine !== 'typst' || $provenance === []) {
+            return [];
+        }
+
+        $normalizeIssues = static function (array $rawIssues): array {
+            $issues = array_values(array_filter(
+                $rawIssues,
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+            ));
+            $issues = array_values(array_unique($issues));
+            sort($issues);
+
+            return $issues;
+        };
+        $entryIssues = static function (mixed $entry) use ($normalizeIssues): array {
+            if (!is_array($entry)) {
+                return [];
+            }
+
+            return $normalizeIssues(is_array($entry['issues'] ?? null) ? $entry['issues'] : []);
+        };
+        $listIssues = static function (array $entries) use ($entryIssues, $normalizeIssues): array {
+            $issues = [];
+            foreach ($entries as $entry) {
+                array_push($issues, ...$entryIssues($entry));
+            }
+
+            return $normalizeIssues($issues);
+        };
+
+        $cases = [];
+        $matrixIssues = [];
+        $appendCase = static function (
+            string $case,
+            string $reviewStatus,
+            int $observed,
+            array $details,
+            array $caseIssues
+        ) use (&$cases, &$matrixIssues, $normalizeIssues): void {
+            if ($observed <= 0 && $details === [] && $caseIssues === []) {
+                return;
+            }
+
+            $caseIssues = $normalizeIssues($caseIssues);
+            if ($caseIssues !== [] && $reviewStatus === 'ok') {
+                $reviewStatus = 'review';
+            }
+            foreach ($caseIssues as $issue) {
+                $matrixIssues[] = $case . ':' . $issue;
+            }
+
+            $cases[] = [
+                'case' => $case,
+                'reviewStatus' => $reviewStatus,
+                'observed' => $observed,
+                'details' => $details,
+                'issues' => $caseIssues,
+            ];
+        };
+
+        $shadowEntries = [];
+        foreach ([
+            'rootEnvironment',
+            'certificateEnvironment',
+            'packagePathEnvironment',
+            'packageCacheEnvironment',
+            'featureGateEnvironment',
+            'creationTimestampEnvironment',
+        ] as $key) {
+            if (is_array($provenance[$key] ?? null)) {
+                $shadowEntries[] = $provenance[$key];
+            }
+        }
+        $shadowedVariables = [];
+        foreach ($shadowEntries as $entry) {
+            if (!is_string($entry['shadowedBy'] ?? null)) {
+                continue;
+            }
+            $environmentVariable = is_string($entry['environmentVariable'] ?? null) ? $entry['environmentVariable'] : null;
+            if ($environmentVariable !== null && $environmentVariable !== '') {
+                $shadowedVariables[] = $environmentVariable;
+            }
+        }
+        sort($shadowedVariables);
+        $environmentVariables = array_values(array_filter(
+            is_array($provenance['environmentVariables'] ?? null) ? $provenance['environmentVariables'] : [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+        sort($environmentVariables);
+        if ($shadowEntries !== [] || $environmentVariables !== []) {
+            $appendCase('environment-shadows', $shadowedVariables === [] ? 'ok' : 'review', count($shadowEntries), [
+                'environmentVariableCount' => count($environmentVariables),
+                'shadowedCount' => count($shadowedVariables),
+                'shadowedVariables' => $shadowedVariables,
+            ], $listIssues($shadowEntries));
+        }
+
+        $featureGates = is_array($provenance['featureGates'] ?? null) ? $provenance['featureGates'] : [];
+        $featureGateEnvironment = is_array($provenance['featureGateEnvironment'] ?? null) ? $provenance['featureGateEnvironment'] : [];
+        $featureGateIssues = array_merge($entryIssues($featureGates), $entryIssues($featureGateEnvironment));
+        $featureCount = is_int($featureGates['featureCount'] ?? null) ? $featureGates['featureCount'] : 0;
+        $environmentFeatureCount = is_int($featureGateEnvironment['featureCount'] ?? null) ? $featureGateEnvironment['featureCount'] : 0;
+        if ($featureCount > 0 || $environmentFeatureCount > 0 || $featureGateIssues !== []) {
+            $appendCase('feature-gates', $featureGateIssues === [] ? 'ok' : 'review', $featureCount + $environmentFeatureCount, [
+                'featureCount' => $featureCount,
+                'environmentFeatureCount' => $environmentFeatureCount,
+                'features' => array_values(array_filter(
+                    is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
+                    static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+                )),
+            ], $featureGateIssues);
+        }
+
+        $certificatePolicy = is_array($provenance['certificatePolicy'] ?? null) ? $provenance['certificatePolicy'] : [];
+        $certificateIssues = array_merge(
+            $listIssues(is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : []),
+            $entryIssues($provenance['certificateEnvironment'] ?? null),
+            is_array($certificatePolicy['issues'] ?? null) ? $certificatePolicy['issues'] : []
+        );
+        $certificateCount = is_int($certificatePolicy['certificateCount'] ?? null)
+            ? $certificatePolicy['certificateCount']
+            : (is_int($summary['certificateCount'] ?? null) ? $summary['certificateCount'] : 0);
+        if ($certificateCount > 0 || $certificateIssues !== []) {
+            $appendCase('certificate-paths', ($certificatePolicy['reviewStatus'] ?? 'ok') === 'ok' && $certificateIssues === [] ? 'ok' : 'review', $certificateCount, [
+                'safeCertificateCount' => is_int($certificatePolicy['safeCertificateCount'] ?? null) ? $certificatePolicy['safeCertificateCount'] : 0,
+                'unsafeCertificateCount' => is_int($certificatePolicy['unsafeCertificateCount'] ?? null) ? $certificatePolicy['unsafeCertificateCount'] : 0,
+                'environmentCertificatePresent' => is_array($provenance['certificateEnvironment'] ?? null),
+            ], $certificateIssues);
+        }
+
+        $packageStoragePolicy = is_array($provenance['packageStoragePolicy'] ?? null) ? $provenance['packageStoragePolicy'] : [];
+        $packageStorageIssues = is_array($packageStoragePolicy['issues'] ?? null) ? $packageStoragePolicy['issues'] : [];
+        $storageEntryCount = is_int($packageStoragePolicy['storageEntryCount'] ?? null)
+            ? $packageStoragePolicy['storageEntryCount']
+            : (is_int($summary['packageStorageEntryCount'] ?? null) ? $summary['packageStorageEntryCount'] : 0);
+        if ($storageEntryCount > 0 || $packageStorageIssues !== []) {
+            $appendCase('package-storage', ($packageStoragePolicy['reviewStatus'] ?? 'ok') === 'ok' && $packageStorageIssues === [] ? 'ok' : 'review', $storageEntryCount, [
+                'safeStorageEntryCount' => is_int($packageStoragePolicy['safeStorageEntryCount'] ?? null) ? $packageStoragePolicy['safeStorageEntryCount'] : 0,
+                'unsafeStorageEntryCount' => is_int($packageStoragePolicy['unsafeStorageEntryCount'] ?? null) ? $packageStoragePolicy['unsafeStorageEntryCount'] : 0,
+                'packagePathCount' => is_int($packageStoragePolicy['packagePathCount'] ?? null) ? $packageStoragePolicy['packagePathCount'] : 0,
+                'packageCacheCount' => is_int($packageStoragePolicy['packageCacheCount'] ?? null) ? $packageStoragePolicy['packageCacheCount'] : 0,
+            ], $packageStorageIssues);
+        }
+
+        $boundaryOutputFormatPolicy = is_array($provenance['outputFormatPolicy'] ?? null) ? $provenance['outputFormatPolicy'] : [];
+        $formatPolicy = $outputFormatPolicy !== [] ? $outputFormatPolicy : $boundaryOutputFormatPolicy;
+        $formatIssues = is_array($formatPolicy['issues'] ?? null) ? $formatPolicy['issues'] : [];
+        if ($formatPolicy !== []) {
+            $formatOptions = array_values(array_filter(
+                is_array($formatPolicy['formatOptions'] ?? null) ? $formatPolicy['formatOptions'] : [],
+                static fn (mixed $format): bool => is_string($format) && $format !== ''
+            ));
+            $distinctFormats = array_values(array_filter(
+                is_array($formatPolicy['distinctFormats'] ?? null) ? $formatPolicy['distinctFormats'] : [],
+                static fn (mixed $format): bool => is_string($format) && $format !== ''
+            ));
+            if ($distinctFormats === [] && $formatOptions !== []) {
+                $distinctFormats = array_values(array_unique($formatOptions));
+                sort($distinctFormats);
+            }
+            $appendCase('output-format', ($formatPolicy['reviewStatus'] ?? 'ok') === 'ok' && $formatIssues === [] ? 'ok' : 'review', is_int($formatPolicy['formatEntryCount'] ?? null) ? $formatPolicy['formatEntryCount'] : count(is_array($formatPolicy['formatOptions'] ?? null) ? $formatPolicy['formatOptions'] : []), [
+                'inferredOutputFormat' => is_string($formatPolicy['inferredOutputFormat'] ?? null) ? $formatPolicy['inferredOutputFormat'] : null,
+                'explicitFormat' => is_string($formatPolicy['explicitFormat'] ?? null) ? $formatPolicy['explicitFormat'] : null,
+                'distinctFormats' => $distinctFormats,
+            ], $formatIssues);
+        }
+
+        $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
+        $pdfExportIssues = is_array($pdfExport['issues'] ?? null) ? $pdfExport['issues'] : [];
+        $pdfStandardPolicy = is_array($provenance['pdfStandardPolicy'] ?? null) ? $provenance['pdfStandardPolicy'] : [];
+        $pdfExportIssues = array_merge($pdfExportIssues, is_array($pdfStandardPolicy['issues'] ?? null) ? $pdfStandardPolicy['issues'] : []);
+        $pdfExportControlCount = is_int($summary['pdfExportControlCount'] ?? null) ? $summary['pdfExportControlCount'] : 0;
+        if ($pdfExportControlCount > 0 || $pdfExportIssues !== []) {
+            $appendCase('pdf-export-controls', $pdfExportIssues === [] ? 'ok' : 'review', $pdfExportControlCount, [
+                'pageSelectionPresent' => is_array($pdfExport['pageSelection'] ?? null),
+                'ppiPresent' => is_array($pdfExport['ppi'] ?? null),
+                'pdfStandardCount' => is_int($pdfStandardPolicy['standardCount'] ?? null) ? $pdfStandardPolicy['standardCount'] : 0,
+                'pdfVersionCount' => is_int($pdfStandardPolicy['pdfVersionCount'] ?? null) ? $pdfStandardPolicy['pdfVersionCount'] : 0,
+            ], $pdfExportIssues);
+        }
+
+        if ($readBoundaryPolicy !== []) {
+            $readIssues = is_array($readBoundaryPolicy['issues'] ?? null) ? $readBoundaryPolicy['issues'] : [];
+            $appendCase('root-read-boundary', ($readBoundaryPolicy['reviewStatus'] ?? 'ok') === 'ok' && $readIssues === [] ? 'ok' : 'review', count(is_array($readBoundaryPolicy['inputFiles'] ?? null) ? $readBoundaryPolicy['inputFiles'] : []), [
+                'insideRootCount' => count(is_array($readBoundaryPolicy['insideRootFiles'] ?? null) ? $readBoundaryPolicy['insideRootFiles'] : []),
+                'outsideRootCount' => count(is_array($readBoundaryPolicy['outsideRootFiles'] ?? null) ? $readBoundaryPolicy['outsideRootFiles'] : []),
+            ], $readIssues);
+        }
+
+        if ($dependencyOutputPolicy !== []) {
+            $dependencyOutputIssues = is_array($dependencyOutputPolicy['issues'] ?? null) ? $dependencyOutputPolicy['issues'] : [];
+            $appendCase('dependency-output-policy', ($dependencyOutputPolicy['reviewStatus'] ?? 'ok') === 'ok' && $dependencyOutputIssues === [] ? 'ok' : 'review', count(is_array($dependencyOutputPolicy['dependencyOutputFiles'] ?? null) ? $dependencyOutputPolicy['dependencyOutputFiles'] : []), [
+                'declaredOutputPresent' => ($dependencyOutputPolicy['declaredOutputPresent'] ?? false) === true,
+                'extraOutputFileCount' => count(is_array($dependencyOutputPolicy['extraOutputFiles'] ?? null) ? $dependencyOutputPolicy['extraOutputFiles'] : []),
+            ], $dependencyOutputIssues);
+        }
+
+        if ($packageDependencyPolicy !== []) {
+            $packageDependencyIssues = is_array($packageDependencyPolicy['issues'] ?? null) ? $packageDependencyPolicy['issues'] : [];
+            $appendCase('package-dependencies', ($packageDependencyPolicy['reviewStatus'] ?? 'ok') === 'ok' && $packageDependencyIssues === [] ? 'ok' : 'review', is_int($packageDependencyPolicy['packageDependencyCount'] ?? null) ? $packageDependencyPolicy['packageDependencyCount'] : 0, [
+                'packageCount' => is_int($packageDependencyPolicy['packageCount'] ?? null) ? $packageDependencyPolicy['packageCount'] : 0,
+                'sidecarFileCount' => is_int($packageDependencyPolicy['sidecarFileCount'] ?? null) ? $packageDependencyPolicy['sidecarFileCount'] : 0,
+                'versionConflictCount' => is_int($packageDependencyPolicy['versionConflictCount'] ?? null) ? $packageDependencyPolicy['versionConflictCount'] : 0,
+                'sourceClasses' => array_values(array_filter(
+                    is_array($packageDependencyPolicy['sourceClasses'] ?? null) ? $packageDependencyPolicy['sourceClasses'] : [],
+                    static fn (mixed $sourceClass): bool => is_string($sourceClass) && $sourceClass !== ''
+                )),
+            ], $packageDependencyIssues);
+        }
+
+        if ($warningProvenance !== []) {
+            $warningIssues = $listIssues($warningProvenance);
+            $outsideRootCount = 0;
+            foreach ($warningProvenance as $warning) {
+                if (is_array($warning) && ($warning['boundaryStatus'] ?? null) === 'outside-root') {
+                    ++$outsideRootCount;
+                }
+            }
+            $appendCase('warning-provenance', $warningIssues === [] ? 'ok' : 'review', count($warningProvenance), [
+                'sourceIssueCount' => count($warningIssues),
+                'outsideRootCount' => $outsideRootCount,
+            ], $warningIssues);
+        }
+
+        if ($cases === []) {
+            return [];
+        }
+
+        $matrixIssues = $normalizeIssues($matrixIssues);
+        $reviewCaseCount = 0;
+        foreach ($cases as $case) {
+            if (($case['reviewStatus'] ?? 'ok') !== 'ok') {
+                ++$reviewCaseCount;
+            }
+        }
+
+        return [
+            'reviewStatus' => $reviewCaseCount === 0 && $matrixIssues === [] ? 'ok' : 'review',
+            'caseCount' => count($cases),
+            'reviewCaseCount' => $reviewCaseCount,
+            'issueCount' => count($matrixIssues),
+            'cases' => $cases,
+            'issues' => $matrixIssues,
         ];
     }
 
