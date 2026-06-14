@@ -7640,6 +7640,102 @@ XML);
         $t->contains('<p>Collection aliases Curator (2026) and (Ng 2025) keep source series visible.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.</dd>', $blocks);
     },
+    'maps bounded biblatex series title aliases into csl collection metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-series-title,
+  author             = {Curator, Eli},
+  title              = {Hyphen Series Title Packet},
+  date               = {2026},
+  series-title       = {Source Review Dossiers},
+  series-title-short = {SRD},
+  series-number      = {9},
+  publisher          = {Review Press}
+}
+
+@book{compact-series-title,
+  author           = {Ng, Nia},
+  title            = {Compact Series Title Packet},
+  date             = {2025},
+  seriestitle      = {Archive Source Library},
+  seriestitleshort = {ASL},
+  seriesnumber     = {4}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Source Review Dossiers', $items[0]['collection-title'] ?? null);
+        $t->same('SRD', $items[0]['collection-title-short'] ?? null);
+        $t->same('9', $items[0]['collection-number'] ?? null);
+        $t->same('Archive Source Library', $items[1]['collection-title'] ?? null);
+        $t->same('ASL', $items[1]['collection-title-short'] ?? null);
+        $t->same('4', $items[1]['collection-number'] ?? null);
+        $t->same('Source Review Dossiers', $items[0]['rawBibtex']['fields']['series-title'] ?? null);
+        $t->same('Archive Source Library', $items[1]['rawBibtex']['fields']['seriestitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-series-title');
+        $compact = $processor->item('compact-series-title');
+        $t->same('Source Review Dossiers', $hyphen['collectionTitle'] ?? null);
+        $t->same('SRD', $hyphen['collectionTitleShort'] ?? null);
+        $t->same('9', $hyphen['collectionNumber'] ?? null);
+        $t->same('Archive Source Library', $compact['collectionTitle'] ?? null);
+        $t->same('ASL', $compact['collectionTitleShort'] ?? null);
+        $t->same('4', $compact['collectionNumber'] ?? null);
+        $t->same(
+            'Curator, Eli. Hyphen Series Title Packet. Source Review Dossiers, no. 9. Series abbreviation: SRD. Review Press, 2026.',
+            $processor->renderBibliographyEntry('hyphen-series-title')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Series Title Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-title-alias-review</id>
+    <updated>2026-06-14T05:52:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="series-title"/>
+        <text variable="series-title-short"/>
+        <number variable="seriesnumber" form="ordinal"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="series"/>
+      <text variable="series-title-short"/>
+      <number variable="series-number" form="roman"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Series Title Alias Review', $summary['title'] ?? null);
+        $t->same('series-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('series-title-short', $citationChildren[2]['variable'] ?? null);
+        $t->same('seriesnumber', $citationChildren[3]['variable'] ?? null);
+        $t->same('series-number', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('[Curator | Source Review Dossiers | SRD | 9th; Ng | Archive Source Library | ASL | 4th]', $styled->renderCitationCluster([
+            $citation('hyphen-series-title', '[@hyphen-series-title]'),
+            $citation('compact-series-title', '[@compact-series-title]'),
+        ]));
+        $t->same('Hyphen Series Title Packet :: Source Review Dossiers :: SRD :: ix', $styled->renderBibliographyEntry('hyphen-series-title'));
+        $t->same('Compact Series Title Packet :: Archive Source Library :: ASL :: iv', $styled->renderBibliographyEntry('compact-series-title'));
+
+        $document = (new MarkdownReader())->read('Series title aliases [@hyphen-series-title; @compact-series-title] keep BibLaTeX source series visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series title aliases [Curator | Source Review Dossiers | SRD | 9th; Ng | Archive Source Library | ASL | 4th] keep BibLaTeX source series visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Hyphen Series Title Packet :: Source Review Dossiers :: SRD :: ix</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Compact Series Title Packet :: Archive Source Library :: ASL :: iv</dd>', $blocks);
+    },
     'normalizes bounded direct csl json biblatex series aliases into collection metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
