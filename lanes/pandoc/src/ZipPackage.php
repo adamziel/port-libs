@@ -5201,6 +5201,12 @@ final class ZipPackage
         $selectedSourceCompressedDataBytes = 0;
         $selectedSourceDataDescriptorBytes = 0;
         $selectedSourceCentralDirectoryRecordBytes = 0;
+        $selectedSourceCentralDirectoryFixedHeaderBytes = 0;
+        $selectedSourceCentralDirectoryVariableFieldBytes = 0;
+        $selectedSourceCentralDirectoryRawNameBytes = 0;
+        $selectedSourceCentralDirectoryExtraFieldBytes = 0;
+        $selectedSourceCentralDirectoryRawCommentBytes = 0;
+        $selectedSourceCentralDirectoryReviewFieldBytes = 0;
         $selectedSourceTotalRecordBytes = 0;
         $selectedSourceByteSpanIssues = [];
         foreach ($selectedEntriesByName as $entry) {
@@ -5372,6 +5378,12 @@ final class ZipPackage
             $selectedSourceCompressedDataBytes += $sourceByteSpanProvenance['compressedDataBytes'];
             $selectedSourceDataDescriptorBytes += $sourceByteSpanProvenance['dataDescriptorBytes'];
             $selectedSourceCentralDirectoryRecordBytes += $sourceByteSpanProvenance['centralDirectoryRecordBytes'] ?? 0;
+            $selectedSourceCentralDirectoryFixedHeaderBytes += $sourceByteSpanProvenance['centralDirectoryFixedHeaderBytes'] ?? 0;
+            $selectedSourceCentralDirectoryVariableFieldBytes += $sourceByteSpanProvenance['centralDirectoryVariableFieldBytes'] ?? 0;
+            $selectedSourceCentralDirectoryRawNameBytes += $sourceByteSpanProvenance['centralDirectoryRawNameBytes'] ?? 0;
+            $selectedSourceCentralDirectoryExtraFieldBytes += $sourceByteSpanProvenance['centralDirectoryExtraFieldBytes'] ?? 0;
+            $selectedSourceCentralDirectoryRawCommentBytes += $sourceByteSpanProvenance['centralDirectoryRawCommentBytes'] ?? 0;
+            $selectedSourceCentralDirectoryReviewFieldBytes += $sourceByteSpanProvenance['centralDirectoryReviewFieldBytes'] ?? 0;
             $selectedSourceTotalRecordBytes += $sourceByteSpanProvenance['sourceRecordBytes'];
             foreach ($sourceByteSpanProvenance['sourceByteSpanIssues'] as $sourceByteSpanIssue) {
                 self::appendUniqueIssue($selectedSourceByteSpanIssues, $sourceByteSpanIssue);
@@ -5562,6 +5574,20 @@ final class ZipPackage
                 'dataDescriptorSha256' => null,
                 'centralDirectoryRecordBytes' => null,
                 'centralDirectoryRecordSha256' => null,
+                'centralDirectoryFixedHeaderBytes' => null,
+                'centralDirectoryVariableFieldOffset' => null,
+                'centralDirectoryVariableFieldBytes' => null,
+                'centralDirectoryVariableFieldSha256' => null,
+                'centralDirectoryRawNameOffset' => null,
+                'centralDirectoryRawNameBytes' => null,
+                'centralDirectoryRawNameSha256' => null,
+                'centralDirectoryExtraFieldOffset' => null,
+                'centralDirectoryExtraFieldBytes' => null,
+                'centralDirectoryExtraFieldSha256' => null,
+                'centralDirectoryRawCommentOffset' => null,
+                'centralDirectoryRawCommentBytes' => null,
+                'centralDirectoryRawCommentSha256' => null,
+                'centralDirectoryReviewFieldBytes' => null,
                 'sourceRecordBytes' => null,
                 'sourceByteSpanIssues' => [],
                 'maxUncompressedBytes' => $entryMaxUncompressedBytes,
@@ -5753,6 +5779,12 @@ final class ZipPackage
             'selectedSourceCompressedDataBytes' => $selectedSourceCompressedDataBytes,
             'selectedSourceDataDescriptorBytes' => $selectedSourceDataDescriptorBytes,
             'selectedSourceCentralDirectoryRecordBytes' => $selectedSourceCentralDirectoryRecordBytes,
+            'selectedSourceCentralDirectoryFixedHeaderBytes' => $selectedSourceCentralDirectoryFixedHeaderBytes,
+            'selectedSourceCentralDirectoryVariableFieldBytes' => $selectedSourceCentralDirectoryVariableFieldBytes,
+            'selectedSourceCentralDirectoryRawNameBytes' => $selectedSourceCentralDirectoryRawNameBytes,
+            'selectedSourceCentralDirectoryExtraFieldBytes' => $selectedSourceCentralDirectoryExtraFieldBytes,
+            'selectedSourceCentralDirectoryRawCommentBytes' => $selectedSourceCentralDirectoryRawCommentBytes,
+            'selectedSourceCentralDirectoryReviewFieldBytes' => $selectedSourceCentralDirectoryReviewFieldBytes,
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
@@ -5894,6 +5926,20 @@ final class ZipPackage
      *     centralDirectoryRecordBytes:?int,
      *     centralDirectoryRecordEnd:?int,
      *     centralDirectoryRecordSha256:?string,
+     *     centralDirectoryFixedHeaderBytes:?int,
+     *     centralDirectoryVariableFieldOffset:?int,
+     *     centralDirectoryVariableFieldBytes:?int,
+     *     centralDirectoryVariableFieldSha256:?string,
+     *     centralDirectoryRawNameOffset:?int,
+     *     centralDirectoryRawNameBytes:?int,
+     *     centralDirectoryRawNameSha256:?string,
+     *     centralDirectoryExtraFieldOffset:?int,
+     *     centralDirectoryExtraFieldBytes:?int,
+     *     centralDirectoryExtraFieldSha256:?string,
+     *     centralDirectoryRawCommentOffset:?int,
+     *     centralDirectoryRawCommentBytes:?int,
+     *     centralDirectoryRawCommentSha256:?string,
+     *     centralDirectoryReviewFieldBytes:?int,
      *     sourceRecordBytes:int,
      *     sourceByteSpanIssues:list<string>
      * }
@@ -5926,6 +5972,20 @@ final class ZipPackage
         $centralDirectoryRecordEnd = $entry->centralDirectoryRecordEnd;
         $centralDirectoryRecordBytes = null;
         $centralDirectoryRecordSha256 = null;
+        $centralDirectoryFixedHeaderBytes = null;
+        $centralDirectoryVariableFieldOffset = null;
+        $centralDirectoryVariableFieldBytes = null;
+        $centralDirectoryVariableFieldSha256 = null;
+        $centralDirectoryRawNameOffset = null;
+        $centralDirectoryRawNameBytes = null;
+        $centralDirectoryRawNameSha256 = null;
+        $centralDirectoryExtraFieldOffset = null;
+        $centralDirectoryExtraFieldBytes = null;
+        $centralDirectoryExtraFieldSha256 = null;
+        $centralDirectoryRawCommentOffset = null;
+        $centralDirectoryRawCommentBytes = null;
+        $centralDirectoryRawCommentSha256 = null;
+        $centralDirectoryReviewFieldBytes = null;
         if ($centralDirectoryRecordOffset === null || $centralDirectoryRecordEnd === null) {
             $sourceByteSpanIssues[] = 'central-directory-record-span-missing';
         } elseif ($centralDirectoryRecordEnd < $centralDirectoryRecordOffset) {
@@ -5935,6 +5995,39 @@ final class ZipPackage
             $centralDirectoryRecordSha256 = hash(
                 'sha256',
                 substr($this->bytes, $centralDirectoryRecordOffset, $centralDirectoryRecordBytes)
+            );
+            $centralDirectoryFixedHeaderBytes = 46;
+            $centralDirectoryVariableFieldOffset = $centralDirectoryRecordOffset + $centralDirectoryFixedHeaderBytes;
+            $centralDirectoryRawNameOffset = $centralDirectoryVariableFieldOffset;
+            $centralDirectoryRawNameBytes = strlen($entry->rawName);
+            $centralDirectoryExtraFieldOffset = $centralDirectoryRawNameOffset + $centralDirectoryRawNameBytes;
+            $centralDirectoryExtraFieldBytes = strlen($entry->centralExtraFieldData);
+            $centralDirectoryRawCommentOffset = $centralDirectoryExtraFieldOffset + $centralDirectoryExtraFieldBytes;
+            $centralDirectoryRawCommentBytes = strlen($entry->rawComment);
+            $centralDirectoryReviewFieldBytes = $centralDirectoryExtraFieldBytes + $centralDirectoryRawCommentBytes;
+            $centralDirectoryVariableFieldBytes = $centralDirectoryRawNameBytes
+                + $centralDirectoryExtraFieldBytes
+                + $centralDirectoryRawCommentBytes;
+            $expectedCentralDirectoryRecordBytes = $centralDirectoryFixedHeaderBytes + $centralDirectoryVariableFieldBytes;
+            if ($centralDirectoryRecordBytes !== $expectedCentralDirectoryRecordBytes) {
+                $sourceByteSpanIssues[] = 'central-directory-record-variable-fields-mismatch';
+            }
+
+            $centralDirectoryVariableFieldSha256 = hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryVariableFieldOffset, $centralDirectoryVariableFieldBytes)
+            );
+            $centralDirectoryRawNameSha256 = hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryRawNameOffset, $centralDirectoryRawNameBytes)
+            );
+            $centralDirectoryExtraFieldSha256 = hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryExtraFieldOffset, $centralDirectoryExtraFieldBytes)
+            );
+            $centralDirectoryRawCommentSha256 = hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryRawCommentOffset, $centralDirectoryRawCommentBytes)
             );
         }
 
@@ -5962,6 +6055,20 @@ final class ZipPackage
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
             'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryVariableFieldSha256' => $centralDirectoryVariableFieldSha256,
+            'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+            'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+            'centralDirectoryRawNameSha256' => $centralDirectoryRawNameSha256,
+            'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryExtraFieldSha256' => $centralDirectoryExtraFieldSha256,
+            'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+            'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+            'centralDirectoryRawCommentSha256' => $centralDirectoryRawCommentSha256,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $localRecordBytes + ($centralDirectoryRecordBytes ?? 0),
             'sourceByteSpanIssues' => $sourceByteSpanIssues,
         ];

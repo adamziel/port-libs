@@ -10951,12 +10951,14 @@ return [
         $documentXml = '<w:document><w:body><w:p>selected source spans</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>descriptor source span</w:comment></w:comments>';
         $commentsExtra = pack('vva*', 0xb0b0, strlen('comments-source-span'), 'comments-source-span');
+        $documentComment = 'document source record';
+        $commentsComment = 'comments descriptor source record';
         $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => $documentXml,
                 'method' => 0,
-                'comment' => 'document source record',
+                'comment' => $documentComment,
             ],
             [
                 'name' => 'word/comments.xml',
@@ -10966,7 +10968,7 @@ return [
                 'descriptorSignature' => true,
                 'localExtra' => $commentsExtra,
                 'centralExtra' => $commentsExtra,
-                'comment' => 'comments descriptor source record',
+                'comment' => $commentsComment,
             ],
         ], 'source-span-review');
         $package = ZipPackage::fromString($zip);
@@ -11006,6 +11008,21 @@ return [
             $documentSpan['centralDirectoryRecordBytes'] + $commentsSpan['centralDirectoryRecordBytes'],
             $summary['selectedSourceCentralDirectoryRecordBytes']
         );
+        $t->same(92, $summary['selectedSourceCentralDirectoryFixedHeaderBytes']);
+        $t->same(
+            $documentSpan['centralDirectoryVariableFieldBytes'] + $commentsSpan['centralDirectoryVariableFieldBytes'],
+            $summary['selectedSourceCentralDirectoryVariableFieldBytes']
+        );
+        $t->same(
+            strlen('word/document.xml') + strlen('word/comments.xml'),
+            $summary['selectedSourceCentralDirectoryRawNameBytes']
+        );
+        $t->same(strlen($commentsExtra), $summary['selectedSourceCentralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment) + strlen($commentsComment), $summary['selectedSourceCentralDirectoryRawCommentBytes']);
+        $t->same(
+            strlen($commentsExtra) + strlen($documentComment) + strlen($commentsComment),
+            $summary['selectedSourceCentralDirectoryReviewFieldBytes']
+        );
         $t->same(
             $documentSpan['sourceRecordBytes'] + $commentsSpan['sourceRecordBytes'],
             $summary['selectedSourceTotalRecordBytes']
@@ -11028,6 +11045,20 @@ return [
         $t->same(hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localRecordBytes'])), $documentSpan['localRecordSha256']);
         $t->same(hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localHeaderBytes'])), $documentSpan['localHeaderSha256']);
         $t->same(hash('sha256', substr($zip, $documentSpan['centralDirectoryRecordOffset'], $documentSpan['centralDirectoryRecordBytes'])), $documentSpan['centralDirectoryRecordSha256']);
+        $t->same(46, $documentSpan['centralDirectoryFixedHeaderBytes']);
+        $t->same($documentSpan['centralDirectoryRecordOffset'] + 46, $documentSpan['centralDirectoryVariableFieldOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentComment), $documentSpan['centralDirectoryVariableFieldBytes']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['centralDirectoryVariableFieldOffset'], $documentSpan['centralDirectoryVariableFieldBytes'])), $documentSpan['centralDirectoryVariableFieldSha256']);
+        $t->same($documentSpan['centralDirectoryVariableFieldOffset'], $documentSpan['centralDirectoryRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentSpan['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentSpan['centralDirectoryRawNameSha256']);
+        $t->same($documentSpan['centralDirectoryRawNameOffset'] + strlen('word/document.xml'), $documentSpan['centralDirectoryExtraFieldOffset']);
+        $t->same(0, $documentSpan['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', ''), $documentSpan['centralDirectoryExtraFieldSha256']);
+        $t->same($documentSpan['centralDirectoryExtraFieldOffset'], $documentSpan['centralDirectoryRawCommentOffset']);
+        $t->same(strlen($documentComment), $documentSpan['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentSpan['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($documentComment), $documentSpan['centralDirectoryReviewFieldBytes']);
         $t->same([], $documentSpan['sourceByteSpanIssues']);
 
         $t->same(true, $commentsSpan['hasSourceByteSpanProvenance']);
@@ -11044,6 +11075,23 @@ return [
         $t->same(hash('sha256', substr($zip, $commentsSpan['dataDescriptorOffset'], 16)), $commentsSpan['dataDescriptorSha256']);
         $t->same(hash('sha256', substr($zip, $commentsSpan['localRecordOffset'], $commentsSpan['localRecordBytes'])), $commentsSpan['localRecordSha256']);
         $t->same(hash('sha256', substr($zip, $commentsSpan['centralDirectoryRecordOffset'], $commentsSpan['centralDirectoryRecordBytes'])), $commentsSpan['centralDirectoryRecordSha256']);
+        $t->same(46, $commentsSpan['centralDirectoryFixedHeaderBytes']);
+        $t->same($commentsSpan['centralDirectoryRecordOffset'] + 46, $commentsSpan['centralDirectoryVariableFieldOffset']);
+        $t->same(
+            strlen('word/comments.xml') + strlen($commentsExtra) + strlen($commentsComment),
+            $commentsSpan['centralDirectoryVariableFieldBytes']
+        );
+        $t->same(hash('sha256', substr($zip, $commentsSpan['centralDirectoryVariableFieldOffset'], $commentsSpan['centralDirectoryVariableFieldBytes'])), $commentsSpan['centralDirectoryVariableFieldSha256']);
+        $t->same($commentsSpan['centralDirectoryVariableFieldOffset'], $commentsSpan['centralDirectoryRawNameOffset']);
+        $t->same(strlen('word/comments.xml'), $commentsSpan['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/comments.xml'), $commentsSpan['centralDirectoryRawNameSha256']);
+        $t->same($commentsSpan['centralDirectoryRawNameOffset'] + strlen('word/comments.xml'), $commentsSpan['centralDirectoryExtraFieldOffset']);
+        $t->same(strlen($commentsExtra), $commentsSpan['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsSpan['centralDirectoryExtraFieldSha256']);
+        $t->same($commentsSpan['centralDirectoryExtraFieldOffset'] + strlen($commentsExtra), $commentsSpan['centralDirectoryRawCommentOffset']);
+        $t->same(strlen($commentsComment), $commentsSpan['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $commentsComment), $commentsSpan['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($commentsExtra) + strlen($commentsComment), $commentsSpan['centralDirectoryReviewFieldBytes']);
         $t->same([], $commentsSpan['sourceByteSpanIssues']);
 
         $t->same($documentSpan['localRecordSha256'], $documentEntry['localRecordSha256']);
@@ -11052,6 +11100,90 @@ return [
         $t->same($commentsSpan['sourceRecordBytes'], $commentsEntry['sourceRecordBytes']);
         $t->same($commentsSpan['centralDirectoryRecordSha256'], $commentsEntry['centralDirectoryRecordSha256']);
         $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
+    },
+
+    'preflights selected zip central directory variable fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected central directory fields</w:p></w:body></w:document>';
+        $mediaBytes = "selected central directory media bytes\n";
+        $documentExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $documentComment = 'central document comment';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'centralExtra' => $documentExtra,
+                'localExtra' => '',
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/review.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 2048);
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][1];
+        $missingEntry = $summary['entries'][2];
+        $documentSpan = $summary['selectedSourceByteSpanEntries'][0];
+        $mediaSpan = $summary['selectedSourceByteSpanEntries'][1];
+
+        $t->same(3, $summary['requestedEntryCount']);
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedSourceByteSpanEntryCount']);
+        $t->same(92, $summary['selectedSourceCentralDirectoryFixedHeaderBytes']);
+        $t->same(
+            strlen('word/document.xml') + strlen($documentExtra) + strlen($documentComment) + strlen('word/media/review.bin'),
+            $summary['selectedSourceCentralDirectoryVariableFieldBytes']
+        );
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.bin'), $summary['selectedSourceCentralDirectoryRawNameBytes']);
+        $t->same(strlen($documentExtra), $summary['selectedSourceCentralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $summary['selectedSourceCentralDirectoryRawCommentBytes']);
+        $t->same(strlen($documentExtra) + strlen($documentComment), $summary['selectedSourceCentralDirectoryReviewFieldBytes']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+
+        $t->same('word/document.xml', $documentSpan['name']);
+        $t->same(46, $documentSpan['centralDirectoryFixedHeaderBytes']);
+        $t->same($documentSpan['centralDirectoryRecordOffset'] + 46, $documentSpan['centralDirectoryVariableFieldOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentExtra) + strlen($documentComment), $documentSpan['centralDirectoryVariableFieldBytes']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['centralDirectoryVariableFieldOffset'], $documentSpan['centralDirectoryVariableFieldBytes'])), $documentSpan['centralDirectoryVariableFieldSha256']);
+        $t->same($documentSpan['centralDirectoryVariableFieldOffset'], $documentSpan['centralDirectoryRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentSpan['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentSpan['centralDirectoryRawNameSha256']);
+        $t->same($documentSpan['centralDirectoryRawNameOffset'] + strlen('word/document.xml'), $documentSpan['centralDirectoryExtraFieldOffset']);
+        $t->same(strlen($documentExtra), $documentSpan['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $documentExtra), $documentSpan['centralDirectoryExtraFieldSha256']);
+        $t->same($documentSpan['centralDirectoryExtraFieldOffset'] + strlen($documentExtra), $documentSpan['centralDirectoryRawCommentOffset']);
+        $t->same(strlen($documentComment), $documentSpan['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentSpan['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($documentExtra) + strlen($documentComment), $documentSpan['centralDirectoryReviewFieldBytes']);
+        $t->same($documentSpan['centralDirectoryRecordBytes'], $documentSpan['centralDirectoryFixedHeaderBytes'] + $documentSpan['centralDirectoryVariableFieldBytes']);
+        $t->same([], $documentSpan['sourceByteSpanIssues']);
+
+        $t->same('word/media/review.bin', $mediaSpan['name']);
+        $t->same(46, $mediaSpan['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen('word/media/review.bin'), $mediaSpan['centralDirectoryVariableFieldBytes']);
+        $t->same(0, $mediaSpan['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', ''), $mediaSpan['centralDirectoryExtraFieldSha256']);
+        $t->same(0, $mediaSpan['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', ''), $mediaSpan['centralDirectoryRawCommentSha256']);
+        $t->same(0, $mediaSpan['centralDirectoryReviewFieldBytes']);
+        $t->same([], $mediaSpan['sourceByteSpanIssues']);
+
+        $t->same($documentSpan['centralDirectoryVariableFieldSha256'], $documentEntry['centralDirectoryVariableFieldSha256']);
+        $t->same($mediaSpan['centralDirectoryRawNameBytes'], $mediaEntry['centralDirectoryRawNameBytes']);
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['centralDirectoryVariableFieldBytes']);
+        $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
     },
 
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
