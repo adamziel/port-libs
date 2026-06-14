@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3438,
-        "latestSlice": "pandoc-odf-package-handoff-order-compression maps one ODF/ODT package handoff-order case after rebase onto current main 6f3ab17956. OdfReader coverage now verifies manifest and local ZIP entry ordering across mimetype, META-INF/manifest.xml, core XML parts, declared media, missing package parts, unsupported-compression byte blocks, script sidecars, and RDF metadata-only sidecars while preserving media byte exposure only for document media. Mapped denominator moves 3437 -> 3438, mappedOdfPackageHandoffOrderUnsupportedCompressionCases is 1, and odfPackageHandoffOrderUnsupportedCompressionAssertions is 45. Verification passed php -l for OdfReaderTest.php; focused OdfReaderTest.php passed 1 file, 4769 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83368 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3439,
+        "latestSlice": "pandoc-csl-direct-original-title-subtitle-aliases maps one direct CSL JSON citation/bibliography case after rebase onto current main 0f124c82. CitationCslProcessor now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata, retains originalSubtitle/origsubtitle raw provenance, exposes original-subtitle as a CSL text and sort variable, and keeps WordPress bibliography review output deterministic without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3438 -> 3439, mappedDirectCslOriginalTitleSubtitleAliasCases is 1, and directCslOriginalTitleSubtitleAliasAssertions is 20. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "ODF/ODT package handoff-order compression provenance is verified after rebase onto current main 6f3ab17956; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 ODF/ODT package handoff-order compression provenance verified after rebase onto current main 6f3ab17956; focused OdfReaderTest.php passed 1 file, 4769 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83368 assertions, 0 failures.",
+        "status": "Direct CSL original-title subtitle alias composition is verified after rebase onto current main 0f124c82; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-14 direct CSL JSON original-title subtitle alias composition verified after rebase onto current main 0f124c82; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -419,7 +419,9 @@
         "mappedPandocFormatRegistryWikiAliasCollisionCases": 1,
         "pandocFormatRegistryWikiAliasCollisionAssertions": 72,
         "mappedXmlHtmlDomJatsFundingBacklinkCases": 1,
-        "xmlHtmlDomJatsFundingBacklinkAssertions": 76
+        "xmlHtmlDomJatsFundingBacklinkAssertions": 76,
+        "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
+        "directCslOriginalTitleSubtitleAliasAssertions": 20
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1424,12 +1426,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "ODF/ODT package handoff preserves missing and unsupported-compression provenance without exposing sidecar bytes.",
+    "wordpressScenario": "Direct CSL JSON original-title subtitle aliases remain visible in WordPress import review metadata.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "ODF/ODT package handoff-order compression provenance is verified after rebase onto current main 6f3ab17956; phpFail remains 0.",
-    "mapping": "Adds one bounded native PHP ODF/ODT package handoff-order mapping on top of the wiki alias collision taxonomy mapping while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
-    "audit": "updated 2026-06-14: ODF/ODT package handoff-order compression provenance is verified after rebase onto current main 6f3ab17956; OdfReader preserves manifest and local ZIP order across missing package parts and unsupported-compression media while scripts and RDF sidecars remain metadata-only. Verification passed php -l for OdfReaderTest.php; focused OdfReaderTest.php passed 1 file, 4769 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6351 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83368 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
-    "latestSlice": "pandoc-odf-package-handoff-order-compression maps one ODF/ODT package handoff-order case after rebase onto current main 6f3ab17956. OdfReader coverage now verifies manifest and local ZIP entry ordering across mimetype, META-INF/manifest.xml, core XML parts, declared media, missing package parts, unsupported-compression byte blocks, script sidecars, and RDF metadata-only sidecars while preserving media byte exposure only for document media. Mapped denominator moves 3437 -> 3438, mappedOdfPackageHandoffOrderUnsupportedCompressionCases is 1, and odfPackageHandoffOrderUnsupportedCompressionAssertions is 45. Verification passed php -l for OdfReaderTest.php; focused OdfReaderTest.php passed 1 file, 4769 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83368 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "status": "Direct CSL original-title subtitle alias composition is verified after rebase onto current main 0f124c82; phpFail remains 0.",
+    "mapping": "Adds one bounded native PHP Direct CSL original-title subtitle alias mapping on top of the ODF/ODT handoff-order compression mapping while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "audit": "updated 2026-06-14: Direct CSL JSON citation and bibliography handoff now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata while retaining original-subtitle as sortable and renderable review metadata after rebase onto current main 0f124c82. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83388 assertions, 0 failures. No Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
+    "latestSlice": "pandoc-csl-direct-original-title-subtitle-aliases maps one direct CSL JSON citation/bibliography case after rebase onto current main 0f124c82. CitationCslProcessor now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata, retains originalSubtitle/origsubtitle raw provenance, exposes original-subtitle as a CSL text and sort variable, and keeps WordPress bibliography review output deterministic without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3438 -> 3439, mappedDirectCslOriginalTitleSubtitleAliasCases is 1, and directCslOriginalTitleSubtitleAliasAssertions is 20. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1597,7 +1599,7 @@
     "xmlHtmlDomSharedQueryAssertions": 17,
     "mappedPdfJavaScriptActionSafetyCases": 1,
     "pdfJavaScriptActionSafetyAssertions": 12,
-    "latestFocusedSource": "2026-06-14 ODF/ODT package handoff-order compression provenance verified after rebase onto current main 6f3ab17956; focused OdfReaderTest.php passed 1 file, 4769 assertions, 0 failures; focused ODF/ODT gate passed 5 files, 6351 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83368 assertions, 0 failures.",
+    "latestFocusedSource": "2026-06-14 direct CSL JSON original-title subtitle alias composition verified after rebase onto current main 0f124c82; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
     "mappedDocxOpenXmlSettingsFontTableCases": 1,
     "docxOpenXmlSettingsFontTableAssertions": 39,
     "mappedEpubXhtmlOutputControlCases": 1,
@@ -1994,5 +1996,7 @@
     "mappedPandocFormatRegistryWikiAliasCollisionCases": 1,
     "pandocFormatRegistryWikiAliasCollisionAssertions": 72,
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
-    "odfPackageHandoffOrderUnsupportedCompressionAssertions": 45
+    "odfPackageHandoffOrderUnsupportedCompressionAssertions": 45,
+    "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
+    "directCslOriginalTitleSubtitleAliasAssertions": 20
 }

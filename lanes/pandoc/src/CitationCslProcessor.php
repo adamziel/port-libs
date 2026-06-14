@@ -1292,6 +1292,8 @@ final class CitationCslProcessor
             'subtitleTranslation',
             'subtitletranslation',
         ];
+        $originalTitleKeys = ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle'];
+        $originalSubtitleKeys = ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle', 'origSubtitle'];
 
         return [
             'id' => $id,
@@ -1565,7 +1567,8 @@ final class CitationCslProcessor
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
             'availableDate' => $availableDate,
-            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle']),
+            'originalTitle' => self::composedStringField($item, $originalTitleKeys, $originalSubtitleKeys),
+            'originalSubtitle' => self::firstStringField($item, $originalSubtitleKeys),
             'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'origtitleaddon', 'origTitleAddon']),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
@@ -6326,6 +6329,8 @@ final class CitationCslProcessor
             'sort-shorthand', 'sortshorthand', 'list-shorthand', 'listshorthand', 'shorthand-list-sort-key' => $this->normalizeSortText((string) ($item['shorthandListSortKey'] ?? $item['sortShorthand'] ?? $item['shorthand'] ?? '')),
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => $this->normalizeSortText((string) ($item['translatedTitle'] ?? '')),
             'translated-subtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitletranslation' => $this->normalizeSortText((string) ($item['translatedSubtitle'] ?? '')),
+            'original-title', 'originaltitle', 'origtitle' => $this->normalizeSortText((string) ($item['originalTitle'] ?? '')),
+            'original-subtitle', 'originalsubtitle', 'origsubtitle' => $this->normalizeSortText((string) ($item['originalSubtitle'] ?? '')),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext' => $this->normalizeSortText((string) $item['containerTitle']),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
@@ -8312,6 +8317,7 @@ final class CitationCslProcessor
             ['reprintTitle', 'Reprint title'],
             ['translatedTitle', 'Translated title'],
             ['translatedSubtitle', 'Translated subtitle'],
+            ['originalSubtitle', 'Original subtitle'],
             ['categorySummary', 'Categories'],
             ['citationAliasSummary', 'Citation aliases'],
             ['sortShorthand', 'Sort shorthand'],
@@ -10486,6 +10492,7 @@ final class CitationCslProcessor
             'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
+            'original-subtitle', 'originalsubtitle', 'origsubtitle' => (string) ($item['originalSubtitle'] ?? ''),
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],

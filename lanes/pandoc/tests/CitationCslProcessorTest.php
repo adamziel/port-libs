@@ -29300,6 +29300,99 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin</dd>', $blocks);
     },
+    'normalizes bounded direct csl json original title subtitle aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-original-subtitle-camel',
+                'type' => 'book',
+                'title' => 'Direct Original Subtitle Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'originalTitle' => 'Manual Fuente',
+                'originalSubtitle' => 'Archive Appendix',
+                'originalTitleAddon' => 'source leaf',
+            ],
+            [
+                'id' => 'direct-original-subtitle-compact',
+                'type' => 'report',
+                'title' => 'Direct Original Subtitle Compact Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'origtitle' => 'Review Log',
+                'origsubtitle' => 'Source Annex',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-original-subtitle-camel');
+        $compact = $processor->item('direct-original-subtitle-compact');
+        $t->same('Manual Fuente: Archive Appendix', $camel['originalTitle'] ?? null);
+        $t->same('Archive Appendix', $camel['originalSubtitle'] ?? null);
+        $t->same('Manual Fuente', $camel['raw']['originalTitle'] ?? null);
+        $t->same('Archive Appendix', $camel['raw']['originalSubtitle'] ?? null);
+        $t->same('Review Log: Source Annex', $compact['originalTitle'] ?? null);
+        $t->same('Source Annex', $compact['originalSubtitle'] ?? null);
+        $t->same('Review Log', $compact['raw']['origtitle'] ?? null);
+        $t->same('Source Annex', $compact['raw']['origsubtitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Original Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-original-subtitle-alias-review</id>
+    <updated>2026-06-14T13:03:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="original-subtitle"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-title"/>
+        <text variable="original-subtitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="origsubtitle"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="origtitle"/>
+      <text variable="origsubtitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Original Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('original-subtitle', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('origsubtitle', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('original-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('original-subtitle', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | Manual Fuente: Archive Appendix | Archive Appendix; Roe | Review Log: Source Annex | Source Annex]', $styled->renderCitationCluster([
+            $citation('direct-original-subtitle-compact', '[@direct-original-subtitle-compact]'),
+            $citation('direct-original-subtitle-camel', '[@direct-original-subtitle-camel]'),
+        ]));
+        $t->same('Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix', $styled->renderBibliographyEntry('direct-original-subtitle-camel'));
+        $t->same('Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex', $styled->renderBibliographyEntry('direct-original-subtitle-compact'));
+        $t->same('Ng, Nia. Direct Original Subtitle Camel Packet. 2026. Original subtitle: Archive Appendix. Original title: Manual Fuente: Archive Appendix. Original title addendum: source leaf.', $processor->renderBibliographyEntry('direct-original-subtitle-camel'));
+
+        $document = (new MarkdownReader())->read('Original subtitle aliases [@direct-original-subtitle-compact; @direct-original-subtitle-camel] stay composed.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Original Subtitle Sources'));
+        $t->contains('<p>Original subtitle aliases [Ng | Manual Fuente: Archive Appendix | Archive Appendix; Roe | Review Log: Source Annex | Source Annex] stay composed.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex</dd>', $blocks);
+    },
     'normalizes bounded direct csl json title subtitle family aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
