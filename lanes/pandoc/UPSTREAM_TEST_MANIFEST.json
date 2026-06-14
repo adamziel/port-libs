@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3425,
-        "latestSlice": "pandoc-ris-attachment-source-file-review maps one native Citation/CSL RIS attachment metadata case on current main e36a5b808f. CitationCslProcessor now preserves RIS L1-L4 attachment/link tags as source-file review metadata, carrying safe relative paths into sourceFiles and remote or traversal paths into sourceFileDiagnostics through existing source-file policy without fetching attachments or invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3424 -> 3425, mappedCitationRisParserCases moves 2 -> 3, and citationRisParserAssertions moves 41 -> 57. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 test file, 5622 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82604 assertions, 0 failures; jq empty for lane metadata and manifest; git diff --check.",
+        "mapped": 3426,
+        "latestSlice": "pandoc-zip-selected-central-directory-fixed-field-handoff maps one native shared ZIP/OPC selected-entry handoff case on current main 3f33d1dd5e. ZipPackage::entryHandoffPreflight() now preserves selected central-directory fixed-header offsets and values, including version-made-by, version-needed-to-extract, flags, methods, DOS timestamps, CRC/size fields, name/extra/comment lengths, disk/internal/external attributes, local-header offsets, and mismatch issue rollups before DOCX/EPUB/ODF readers expose package bytes without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3425 -> 3426, mappedZipSelectedCentralDirectoryFixedFieldHandoffCases is 1, and zipSelectedCentralDirectoryFixedFieldHandoffAssertions is 50. Verification passed php -l for ZipPackage.php and ZipPackageTest.php; focused ZipPackageTest.php passed 1 test file, 4664 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82652 assertions, 0 failures.",
         "mappedXmlHtmlDomOutputForReferenceCases": 1,
         "xmlHtmlDomOutputForReferenceAssertions": 41,
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
@@ -54,8 +54,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Citation/CSL RIS attachment source-file review is verified over current main e36a5b808f; broader RIS import parity remains incremental.",
-        "latestFocusedSource": "2026-06-14 RIS attachment source-file review inspected CitationCslProcessor RIS L1-L4 metadata after rebase onto current main e36a5b808f; focused CitationCslProcessorTest.php passed 1 test file, 5622 assertions, 0 failures; post-rebase full lanes/pandoc/tests passed 46 test files, 82604 assertions, 0 failures; jq empty for lane metadata/manifest and git diff --check.",
+        "status": "Shared ZIP/OPC selected central-directory fixed-header handoff is verified over current main 3f33d1dd5e; broader package handoff hardening remains incremental.",
+        "latestFocusedSource": "2026-06-14 shared ZIP/OPC selected-entry handoff inspected ZipPackage central-directory fixed-header provenance on current main 3f33d1dd5e; focused ZipPackageTest.php passed 1 test file, 4664 assertions, 0 failures; full lanes/pandoc/tests passed 46 test files, 82652 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -403,7 +403,9 @@
         "mappedZipSelectedCentralDirectoryVariableFieldHandoffCases": 1,
         "zipSelectedCentralDirectoryVariableFieldHandoffAssertions": 42,
         "mappedXmlHtmlDomButtonCommandReviewCases": 1,
-        "xmlHtmlDomButtonCommandReviewAssertions": 59
+        "xmlHtmlDomButtonCommandReviewAssertions": 59,
+        "mappedZipSelectedCentralDirectoryFixedFieldHandoffCases": 1,
+        "zipSelectedCentralDirectoryFixedFieldHandoffAssertions": 50
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
