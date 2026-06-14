@@ -2,7 +2,7 @@
 
 Slice: `plib-s4ngz`, EPUB3 package ingestion.
 
-Base: `origin/main` at `1018e5f40c` after ZIP inventory manifest accounting.
+Base: `origin/main` at `04a5cb913f` after JSON/native table span sidecar coverage.
 
 `EpubPackage` now reports OPF metadata `<meta refines>` target accounting for
 compact package review. Local refinement subjects are matched against package,
@@ -28,7 +28,9 @@ Verification:
 - `php tools/run-tests.php lanes/pandoc/tests/EpubPackageTest.php`
   - 1 file, 2382 assertions, 0 failures
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - 46 files, 82744 assertions, 0 failures
+  - 46 files, 82824 assertions, 0 failures
+- `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `git diff --check`
 
 No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, Cabal/Haskell runner,
 browser renderer, external validator, online service, live provider test, or
