@@ -5366,6 +5366,7 @@ final class DocxOpenXmlReader
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partExtensions = $this->packagePartExtensionSummary($partInventory);
+        $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
         $relationshipCount = 0;
@@ -5580,6 +5581,7 @@ final class DocxOpenXmlReader
             'partCount' => count($partInventory),
             'partDirectoryCount' => count($partDirectories),
             'partExtensionCount' => count($partExtensions),
+            'partContentTypeCount' => count($partContentTypes),
             'packageByteLength' => $packageByteLength,
             'largestPartCount' => count($largestParts),
             'largestPartName' => $largestPart['partName'] ?? null,
@@ -5643,6 +5645,7 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'partDirectories' => $partDirectories,
             'partExtensions' => $partExtensions,
+            'partContentTypes' => $partContentTypes,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
@@ -5703,6 +5706,102 @@ final class DocxOpenXmlReader
         );
 
         return array_slice($items, 0, max(0, $limit));
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeSummary(array $partInventory): array
+    {
+        $contentTypes = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            if (!isset($contentTypes[$contentTypeKey])) {
+                $contentTypes[$contentTypeKey] = [
+                    'contentTypeKey' => $contentTypeKey,
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypes' => [],
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$contentTypes[$contentTypeKey]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentTypes[$contentTypeKey]['byteLength'] += $bytes;
+            $contentTypes[$contentTypeKey]['partNames'][] = (string) $partName;
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$contentTypes[$contentTypeKey]['relationshipPartCount'];
+            }
+            if (($part['contentTypeSource'] ?? '') === 'missing') {
+                ++$contentTypes[$contentTypeKey]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$contentTypes[$contentTypeKey]['parameterizedPartCount'];
+            }
+
+            $contentTypeSource = (string) ($part['contentTypeSource'] ?? 'missing');
+            $contentTypes[$contentTypeKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($contentTypes[$contentTypeKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $contentTypes[$contentTypeKey]['roleCounts'][$role] =
+                    ($contentTypes[$contentTypeKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $contentTypes[$contentTypeKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $contentTypes[$contentTypeKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($contentTypes, SORT_STRING);
+        foreach ($contentTypes as $key => $summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $contentTypes[$key] = $summary;
+        }
+
+        return array_values($contentTypes);
     }
 
     /**
