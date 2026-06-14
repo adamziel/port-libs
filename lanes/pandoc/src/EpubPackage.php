@@ -15,6 +15,7 @@ final class EpubPackage
     public const NCX_NAMESPACE = 'http://www.daisy.org/z3986/2005/ncx/';
     public const SMIL_NAMESPACE = 'http://www.w3.org/ns/SMIL';
     public const XMLENC_NAMESPACE = 'http://www.w3.org/2001/04/xmlenc#';
+    public const XMLDSIG_NAMESPACE = 'http://www.w3.org/2000/09/xmldsig#';
     public const ODF_MANIFEST_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
     public const EPUB_MIMETYPE = 'application/epub+zip';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
@@ -9780,13 +9781,26 @@ final class EpubPackage
                 ? array_values($manifestItem['properties'])
                 : [];
             $algorithm = $method instanceof \DOMElement ? self::emptyToNull($method->getAttribute('Algorithm')) : null;
+            $cipherReferenceReport = self::encryptionCipherReferenceReport($cipherReference);
+            $keyInfo = self::encryptionKeyInfoReport($encryptedData);
             $obfuscatedFont = self::isObfuscatedFont($algorithm, $mediaType, $partName);
             $isCoverImage = in_array('cover-image', $properties, true);
             $item = [
                 'index' => $index,
+                'encryptedDataId' => self::emptyToNull($encryptedData->getAttribute('Id')),
+                'encryptedDataType' => self::emptyToNull($encryptedData->getAttribute('Type')),
+                'encryptedDataMimeType' => self::emptyToNull($encryptedData->getAttribute('MimeType')),
+                'encryptedDataEncoding' => self::emptyToNull($encryptedData->getAttribute('Encoding')),
+                'encryptedDataAttributes' => self::elementAttributes($encryptedData),
                 'uri' => $uri,
                 'partName' => $partName,
                 'algorithm' => $algorithm,
+                'encryptionMethodAttributes' => $method instanceof \DOMElement ? self::elementAttributes($method) : [],
+                'cipherReferenceAttributes' => $cipherReference instanceof \DOMElement ? self::elementAttributes($cipherReference) : [],
+                'cipherReferenceTransformCount' => $cipherReferenceReport['transformCount'],
+                'cipherReferenceTransforms' => $cipherReferenceReport['transforms'],
+                'cipherReferenceTransformAlgorithms' => $cipherReferenceReport['transformAlgorithms'],
+                'keyInfo' => $keyInfo,
                 'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
                 'mediaType' => $mediaType,
                 'role' => self::encryptedResourceRole($mediaType, $partName, $properties),
@@ -9846,6 +9860,104 @@ final class EpubPackage
         }
 
         return $elements;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function encryptionCipherReferenceReport(?\DOMElement $cipherReference): array
+    {
+        if (!$cipherReference instanceof \DOMElement) {
+            return [
+                'transformCount' => 0,
+                'transformAlgorithms' => [],
+                'transforms' => [],
+            ];
+        }
+
+        $transformsElement = null;
+        foreach (self::childElements($cipherReference, 'Transforms') as $child) {
+            $transformsElement = $child;
+            break;
+        }
+
+        $transforms = [];
+        $algorithms = [];
+        if ($transformsElement instanceof \DOMElement) {
+            foreach (self::childElements($transformsElement, 'Transform') as $index => $transform) {
+                $algorithm = self::emptyToNull($transform->getAttribute('Algorithm'));
+                $transforms[] = [
+                    'index' => $index,
+                    'algorithm' => $algorithm,
+                    'attributes' => self::elementAttributes($transform),
+                ];
+                if ($algorithm !== null) {
+                    $algorithms[] = $algorithm;
+                }
+            }
+        }
+
+        return [
+            'transformCount' => count($transforms),
+            'transformAlgorithms' => array_values(array_unique($algorithms)),
+            'transforms' => $transforms,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function encryptionKeyInfoReport(\DOMElement $encryptedData): array
+    {
+        $keyInfo = self::firstChildElement($encryptedData, 'KeyInfo', self::XMLDSIG_NAMESPACE);
+        if (!$keyInfo instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'attributes' => [],
+                'childElementCount' => 0,
+                'childElementNames' => [],
+                'keyNameCount' => 0,
+                'keyNames' => [],
+                'retrievalMethodCount' => 0,
+                'x509DataCount' => 0,
+            ];
+        }
+
+        $childElementNames = [];
+        $keyNames = [];
+        $retrievalMethodCount = 0;
+        $x509DataCount = 0;
+        foreach (self::childElements($keyInfo) as $child) {
+            $childElementNames[] = self::qualifiedElementName($child);
+            if ($child->namespaceURI !== self::XMLDSIG_NAMESPACE) {
+                continue;
+            }
+            if ($child->localName === 'KeyName') {
+                $keyName = self::normalizeText($child->textContent);
+                if ($keyName !== '') {
+                    $keyNames[] = $keyName;
+                }
+                continue;
+            }
+            if ($child->localName === 'RetrievalMethod') {
+                ++$retrievalMethodCount;
+                continue;
+            }
+            if ($child->localName === 'X509Data') {
+                ++$x509DataCount;
+            }
+        }
+
+        return [
+            'present' => true,
+            'attributes' => self::elementAttributes($keyInfo),
+            'childElementCount' => count($childElementNames),
+            'childElementNames' => $childElementNames,
+            'keyNameCount' => count($keyNames),
+            'keyNames' => $keyNames,
+            'retrievalMethodCount' => $retrievalMethodCount,
+            'x509DataCount' => $x509DataCount,
+        ];
     }
 
     private static function encryptionCipherPart(string $uri): string
@@ -9969,6 +10081,10 @@ final class EpubPackage
         $nonObfuscatedEncryptedParts = [];
         $blockedByteExposureCount = 0;
         $attachmentCandidateBlockedCount = 0;
+        $cipherReferenceTransformCount = 0;
+        $cipherReferenceTransformAlgorithmCounts = [];
+        $keyInfoCount = 0;
+        $keyNames = [];
 
         foreach ($items as $item) {
             $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
@@ -9976,6 +10092,28 @@ final class EpubPackage
             $obfuscatedFont = ($item['obfuscatedFont'] ?? false) === true;
             $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
             $attachmentCandidateBlocked = ($item['attachmentCandidateBlocked'] ?? false) === true;
+            $cipherReferenceTransforms = is_array($item['cipherReferenceTransforms'] ?? null)
+                ? array_values(array_filter(
+                    $item['cipherReferenceTransforms'],
+                    static fn (mixed $transform): bool => is_array($transform),
+                ))
+                : [];
+            $cipherReferenceTransformAlgorithms = is_array($item['cipherReferenceTransformAlgorithms'] ?? null)
+                ? array_values(array_filter(
+                    $item['cipherReferenceTransformAlgorithms'],
+                    static fn (mixed $algorithm): bool => is_string($algorithm) && $algorithm !== '',
+                ))
+                : [];
+            $keyInfo = is_array($item['keyInfo'] ?? null) ? $item['keyInfo'] : [
+                'present' => false,
+                'attributes' => [],
+                'childElementCount' => 0,
+                'childElementNames' => [],
+                'keyNameCount' => 0,
+                'keyNames' => [],
+                'retrievalMethodCount' => 0,
+                'x509DataCount' => 0,
+            ];
 
             $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
             if (!$canExposeBytes) {
@@ -9991,15 +10129,38 @@ final class EpubPackage
                     $nonObfuscatedEncryptedParts[] = $partName;
                 }
             }
+            $cipherReferenceTransformCount += count($cipherReferenceTransforms);
+            foreach ($cipherReferenceTransformAlgorithms as $algorithm) {
+                $cipherReferenceTransformAlgorithmCounts[$algorithm] = ($cipherReferenceTransformAlgorithmCounts[$algorithm] ?? 0) + 1;
+            }
+            if (($keyInfo['present'] ?? false) === true) {
+                ++$keyInfoCount;
+            }
+            foreach (is_array($keyInfo['keyNames'] ?? null) ? $keyInfo['keyNames'] : [] as $keyName) {
+                if (is_string($keyName) && $keyName !== '') {
+                    $keyNames[] = $keyName;
+                }
+            }
 
             $reportItems[] = [
                 'index' => (int) ($item['index'] ?? 0),
+                'encryptedDataId' => is_string($item['encryptedDataId'] ?? null) ? $item['encryptedDataId'] : null,
+                'encryptedDataType' => is_string($item['encryptedDataType'] ?? null) ? $item['encryptedDataType'] : null,
+                'encryptedDataMimeType' => is_string($item['encryptedDataMimeType'] ?? null) ? $item['encryptedDataMimeType'] : null,
+                'encryptedDataEncoding' => is_string($item['encryptedDataEncoding'] ?? null) ? $item['encryptedDataEncoding'] : null,
+                'encryptedDataAttributes' => is_array($item['encryptedDataAttributes'] ?? null) ? $item['encryptedDataAttributes'] : [],
                 'uri' => is_string($item['uri'] ?? null) ? $item['uri'] : null,
                 'partName' => $partName,
                 'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : null,
                 'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
                 'role' => $role,
                 'algorithm' => is_string($item['algorithm'] ?? null) ? $item['algorithm'] : null,
+                'encryptionMethodAttributes' => is_array($item['encryptionMethodAttributes'] ?? null) ? $item['encryptionMethodAttributes'] : [],
+                'cipherReferenceAttributes' => is_array($item['cipherReferenceAttributes'] ?? null) ? $item['cipherReferenceAttributes'] : [],
+                'cipherReferenceTransformCount' => count($cipherReferenceTransforms),
+                'cipherReferenceTransforms' => $cipherReferenceTransforms,
+                'cipherReferenceTransformAlgorithms' => $cipherReferenceTransformAlgorithms,
+                'keyInfo' => $keyInfo,
                 'exists' => ($item['exists'] ?? false) === true,
                 'obfuscatedFont' => $obfuscatedFont,
                 'canExposeBytes' => $canExposeBytes,
@@ -10014,10 +10175,13 @@ final class EpubPackage
         }
 
         ksort($roleCounts);
+        ksort($cipherReferenceTransformAlgorithmCounts);
         $obfuscatedFontParts = array_values(array_unique($obfuscatedFontParts));
         $nonObfuscatedEncryptedParts = array_values(array_unique($nonObfuscatedEncryptedParts));
+        $keyNames = array_values(array_unique($keyNames));
         sort($obfuscatedFontParts, SORT_STRING);
         sort($nonObfuscatedEncryptedParts, SORT_STRING);
+        sort($keyNames, SORT_STRING);
 
         return [
             'present' => $items !== [],
@@ -10026,6 +10190,11 @@ final class EpubPackage
             'obfuscatedFontCount' => count($obfuscatedFontParts),
             'nonObfuscatedEncryptedCount' => count($nonObfuscatedEncryptedParts),
             'attachmentCandidateBlockedCount' => $attachmentCandidateBlockedCount,
+            'cipherReferenceTransformCount' => $cipherReferenceTransformCount,
+            'cipherReferenceTransformAlgorithms' => array_keys($cipherReferenceTransformAlgorithmCounts),
+            'cipherReferenceTransformAlgorithmCounts' => $cipherReferenceTransformAlgorithmCounts,
+            'keyInfoCount' => $keyInfoCount,
+            'keyNames' => $keyNames,
             'roles' => array_keys($roleCounts),
             'roleCounts' => $roleCounts,
             'items' => $reportItems,
@@ -11632,6 +11801,15 @@ final class EpubPackage
         ksort($attributes);
 
         return $attributes;
+    }
+
+    private static function qualifiedElementName(\DOMElement $element): string
+    {
+        if (is_string($element->prefix) && $element->prefix !== '') {
+            return $element->prefix . ':' . $element->localName;
+        }
+
+        return $element->localName;
     }
 
     private static function nullableNamespacedAttribute(

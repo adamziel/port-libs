@@ -4117,6 +4117,90 @@ XML;
         $t->same([], $summary['wordpressImport']['encryptedResourceDiagnostics']);
     },
 
+    'preserves OCF encryption XML provenance for compact package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"
+    xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+    xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    xmlns:review="https://example.invalid/epub-encryption-review">
+  <xenc:EncryptedData Id="ed-cover" Type="http://www.w3.org/2001/04/xmlenc#Element" MimeType="image/png" Encoding="http://www.w3.org/2000/09/xmldsig#base64" review:source="wp-import">
+    <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc" review:strength="legacy"/>
+    <ds:KeyInfo Id="key-cover">
+      <ds:KeyName>cover-key</ds:KeyName>
+      <ds:RetrievalMethod URI="keys.xml#cover"/>
+      <ds:X509Data/>
+    </ds:KeyInfo>
+    <xenc:CipherData>
+      <xenc:CipherReference URI="EPUB/images/cover.png" Id="cipher-cover">
+        <xenc:Transforms>
+          <xenc:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#base64"/>
+          <xenc:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+        </xenc:Transforms>
+      </xenc:CipherReference>
+    </xenc:CipherData>
+  </xenc:EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $encryption = $epub->encryption();
+        $item = $encryption['items'][0];
+        $summary = $epub->summary();
+        $exposure = $summary['wordpressImport']['encryptedResourceExposure'];
+        $exposureItem = $exposure['items'][0];
+
+        $t->same('ed-cover', $item['encryptedDataId']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#Element', $item['encryptedDataType']);
+        $t->same('image/png', $item['encryptedDataMimeType']);
+        $t->same('http://www.w3.org/2000/09/xmldsig#base64', $item['encryptedDataEncoding']);
+        $t->same('wp-import', $item['encryptedDataAttributes']['review:source']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#aes128-cbc', $item['algorithm']);
+        $t->same('legacy', $item['encryptionMethodAttributes']['review:strength']);
+        $t->same('cipher-cover', $item['cipherReferenceAttributes']['Id']);
+        $t->same(2, $item['cipherReferenceTransformCount']);
+        $t->same([
+            'http://www.w3.org/2000/09/xmldsig#base64',
+            'http://www.w3.org/2001/10/xml-exc-c14n#',
+        ], $item['cipherReferenceTransformAlgorithms']);
+        $t->same('http://www.w3.org/2000/09/xmldsig#base64', $item['cipherReferenceTransforms'][0]['algorithm']);
+        $t->same('http://www.w3.org/2001/10/xml-exc-c14n#', $item['cipherReferenceTransforms'][1]['attributes']['Algorithm']);
+        $t->same(true, $item['keyInfo']['present']);
+        $t->same('key-cover', $item['keyInfo']['attributes']['Id']);
+        $t->same(['ds:KeyName', 'ds:RetrievalMethod', 'ds:X509Data'], $item['keyInfo']['childElementNames']);
+        $t->same(1, $item['keyInfo']['keyNameCount']);
+        $t->same(['cover-key'], $item['keyInfo']['keyNames']);
+        $t->same(1, $item['keyInfo']['retrievalMethodCount']);
+        $t->same(1, $item['keyInfo']['x509DataCount']);
+
+        $t->same($item['keyInfo'], $epub->manifestItem('cover')['encryption']['items'][0]['keyInfo']);
+        $t->same(2, $exposure['cipherReferenceTransformCount']);
+        $t->same([
+            'http://www.w3.org/2000/09/xmldsig#base64',
+            'http://www.w3.org/2001/10/xml-exc-c14n#',
+        ], $exposure['cipherReferenceTransformAlgorithms']);
+        $t->same([
+            'http://www.w3.org/2000/09/xmldsig#base64' => 1,
+            'http://www.w3.org/2001/10/xml-exc-c14n#' => 1,
+        ], $exposure['cipherReferenceTransformAlgorithmCounts']);
+        $t->same(1, $exposure['keyInfoCount']);
+        $t->same(['cover-key'], $exposure['keyNames']);
+        $t->same('ed-cover', $exposureItem['encryptedDataId']);
+        $t->same($item['cipherReferenceTransforms'], $exposureItem['cipherReferenceTransforms']);
+        $t->same($item['keyInfo'], $exposureItem['keyInfo']);
+        $t->same($encryption, $summary['encryption']);
+        $t->same($encryption, $summary['wordpressImport']['encryption']);
+    },
+
     'summarizes compact EPUB package validation diagnostics for review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
         $opfWithReviewDiagnostics = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
