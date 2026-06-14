@@ -55,6 +55,7 @@ final class EpubPackageReader
                 'tocReport' => $navReport,
                 'navReport' => $navReport,
                 'navigationReport' => $navReport,
+                'pageListReport' => $navReport['pageList'],
                 'ncx' => $ncx,
                 'ncxReport' => $ncxReport,
             ],
@@ -164,6 +165,8 @@ final class EpubPackageReader
         }
 
         $manifest = [];
+        $manifestOccurrences = [];
+        $manifestIndex = 0;
         $manifestNodes = $xpath->query('./*[local-name()="manifest"]/*[local-name()="item"]', $packageElement);
         if ($manifestNodes instanceof \DOMNodeList) {
             foreach ($manifestNodes as $node) {
@@ -207,7 +210,8 @@ final class EpubPackageReader
                         'fragment' => $suffix['fragment'],
                     ];
                 }
-                $manifest[$id] = [
+                $item = [
+                    'index' => $manifestIndex,
                     'id' => $id,
                     'href' => $href,
                     'target' => $external ? $href : $this->targetWithSuffix($path, $suffix),
@@ -222,11 +226,15 @@ final class EpubPackageReader
                     'properties' => $this->tokens($node->getAttribute('properties')),
                     'diagnostics' => $diagnostics,
                 ];
+                $manifestOccurrences[$id][] = $item;
+                $manifest[$id] = $item;
+                ++$manifestIndex;
             }
         }
-        $manifestReport = $this->manifestReport($manifest);
+        $manifestReport = $this->manifestReport($manifest, $manifestOccurrences);
 
         $spine = [];
+        $spineIndex = 0;
         $spineNodes = $xpath->query('./*[local-name()="spine"]/*[local-name()="itemref"]', $packageElement);
         if ($spineNodes instanceof \DOMNodeList) {
             foreach ($spineNodes as $node) {
@@ -260,6 +268,7 @@ final class EpubPackageReader
                     ];
                 }
                 $spine[] = [
+                    'index' => $spineIndex,
                     'idref' => $idref,
                     'href' => is_array($item) ? $item['href'] : '',
                     'target' => is_array($item) ? $item['target'] : '',
@@ -272,6 +281,7 @@ final class EpubPackageReader
                     'readable' => $readable,
                     'diagnostics' => $diagnostics,
                 ];
+                ++$spineIndex;
             }
         }
         $spineReport = $this->spineReport($spine);
@@ -294,15 +304,15 @@ final class EpubPackageReader
 
     /**
      * @param array<string, array<string, mixed>> $manifest
+     * @param array<string, list<array<string, mixed>>> $manifestOccurrences
      * @return array<string, mixed>
      */
-    private function manifestReport(array $manifest): array
+    private function manifestReport(array $manifest, array $manifestOccurrences): array
     {
         $externalItems = [];
         $missingItems = [];
         $hrefSuffixItems = [];
         $diagnostics = [];
-        $index = 0;
 
         foreach ($manifest as $item) {
             if (($item['external'] ?? false) === true) {
@@ -326,10 +336,42 @@ final class EpubPackageReader
                 if (!is_array($diagnostic)) {
                     continue;
                 }
-                $diagnostics[] = ['index' => $index, 'id' => $item['id']] + $diagnostic;
+                $diagnostics[] = ['index' => (int) ($item['index'] ?? 0), 'id' => $item['id']] + $diagnostic;
             }
-            ++$index;
         }
+
+        $duplicateIdItems = [];
+        $duplicateIdDiagnostics = [];
+        foreach ($manifestOccurrences as $id => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $indexes = array_map(static fn (array $item): int => (int) ($item['index'] ?? 0), $items);
+            $hrefs = array_map(static fn (array $item): string => (string) ($item['href'] ?? ''), $items);
+            $targets = array_map(static fn (array $item): string => (string) ($item['target'] ?? ''), $items);
+            $duplicateIdItems[] = [
+                'id' => $id,
+                'itemCount' => count($items),
+                'indexes' => $indexes,
+                'hrefs' => $hrefs,
+                'targets' => $targets,
+                'items' => array_values($items),
+            ];
+            foreach ($items as $item) {
+                $duplicateIdDiagnostics[] = [
+                    'type' => 'duplicate-manifest-id',
+                    'index' => (int) ($item['index'] ?? 0),
+                    'id' => $id,
+                    'indexes' => $indexes,
+                    'hrefs' => $hrefs,
+                    'targets' => $targets,
+                    'message' => 'EPUB OPF manifest contains multiple item elements with the same id',
+                ];
+            }
+        }
+
+        $diagnostics = array_merge($diagnostics, $duplicateIdDiagnostics);
 
         return [
             'itemCount' => count($manifest),
@@ -337,6 +379,17 @@ final class EpubPackageReader
             'externalItems' => $externalItems,
             'missingItemCount' => count($missingItems),
             'missingItems' => $missingItems,
+            'duplicateManifestIdCount' => count($duplicateIdItems),
+            'duplicateManifestItemCount' => array_sum(array_map(
+                static fn (array $item): int => (int) $item['itemCount'],
+                $duplicateIdItems
+            )),
+            'duplicateManifestIds' => array_map(
+                static fn (array $item): string => (string) $item['id'],
+                $duplicateIdItems
+            ),
+            'duplicateManifestIdItems' => $duplicateIdItems,
+            'duplicateManifestIdDiagnostics' => $duplicateIdDiagnostics,
             'hrefSuffixCount' => count($hrefSuffixItems),
             'hrefSuffixItems' => $hrefSuffixItems,
             'diagnosticCount' => count($diagnostics),
@@ -356,6 +409,7 @@ final class EpubPackageReader
         $missingPackagePartItems = [];
         $missingManifestItems = [];
         $diagnostics = [];
+        $idrefItems = [];
 
         foreach ($spine as $index => $item) {
             if (($item['linear'] ?? false) === true) {
@@ -373,6 +427,9 @@ final class EpubPackageReader
             if (($item['external'] ?? false) !== true && ($item['path'] ?? '') !== '' && ($item['exists'] ?? true) !== true) {
                 $missingPackagePartItems[] = $item;
             }
+            if (($item['idref'] ?? '') !== '') {
+                $idrefItems[(string) $item['idref']][] = $item;
+            }
 
             foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
                 if (!is_array($diagnostic)) {
@@ -381,6 +438,39 @@ final class EpubPackageReader
                 $diagnostics[] = ['index' => $index] + $diagnostic;
             }
         }
+
+        $duplicateIdrefItems = [];
+        $duplicateIdrefDiagnostics = [];
+        foreach ($idrefItems as $idref => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $indexes = array_map(static fn (array $item): int => (int) ($item['index'] ?? 0), $items);
+            $targets = array_map(static fn (array $item): string => (string) ($item['target'] ?? ''), $items);
+            $linear = array_map(static fn (array $item): bool => (bool) ($item['linear'] ?? false), $items);
+            $duplicateIdrefItems[] = [
+                'idref' => $idref,
+                'itemCount' => count($items),
+                'indexes' => $indexes,
+                'targets' => $targets,
+                'linear' => $linear,
+                'items' => array_values($items),
+            ];
+            foreach ($items as $item) {
+                $duplicateIdrefDiagnostics[] = [
+                    'type' => 'duplicate-spine-idref',
+                    'index' => (int) ($item['index'] ?? 0),
+                    'idref' => $idref,
+                    'indexes' => $indexes,
+                    'targets' => $targets,
+                    'linear' => $linear,
+                    'message' => 'EPUB spine contains multiple itemref elements for the same manifest idref',
+                ];
+            }
+        }
+
+        $diagnostics = array_merge($diagnostics, $duplicateIdrefDiagnostics);
 
         return [
             'itemCount' => count($spine),
@@ -394,6 +484,17 @@ final class EpubPackageReader
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItemCount' => count($missingPackagePartItems),
             'missingPackagePartItems' => $missingPackagePartItems,
+            'duplicateIdrefCount' => count($duplicateIdrefItems),
+            'duplicateIdrefItemCount' => array_sum(array_map(
+                static fn (array $item): int => (int) $item['itemCount'],
+                $duplicateIdrefItems
+            )),
+            'duplicateIdrefs' => array_map(
+                static fn (array $item): string => (string) $item['idref'],
+                $duplicateIdrefItems
+            ),
+            'duplicateIdrefItems' => $duplicateIdrefItems,
+            'duplicateIdrefDiagnostics' => $duplicateIdrefDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -695,6 +796,11 @@ final class EpubPackageReader
         $hrefNormalizationReport = $this->navHrefNormalizationReport($flat);
         $sections = [];
         $sectionKeys = [];
+        $entriesByType = [
+            'toc' => [],
+            'landmarks' => [],
+            'page-list' => [],
+        ];
         $typeCounts = [];
 
         foreach ($flat as $item) {
@@ -705,6 +811,9 @@ final class EpubPackageReader
                 : (is_string($item['type'] ?? null) ? $item['type'] : '');
             if ($sectionType !== '') {
                 $typeCounts[$sectionType] = ($typeCounts[$sectionType] ?? 0) + 1;
+                if (isset($entriesByType[$sectionType])) {
+                    $entriesByType[$sectionType][] = $item;
+                }
             }
 
             if (!isset($sectionKeys[$sectionKey])) {
@@ -724,10 +833,14 @@ final class EpubPackageReader
             'present' => $flat !== [],
             'itemCount' => count($flat),
             'entryCount' => count($flat),
+            'tocEntryCount' => count($entriesByType['toc']),
+            'landmarksEntryCount' => count($entriesByType['landmarks']),
+            'pageListEntryCount' => count($entriesByType['page-list']),
             'topLevelItemCount' => count($entries),
             'sectionCount' => count($sections),
             'types' => array_keys($typeCounts),
             'typeCounts' => $typeCounts,
+            'entriesByType' => $entriesByType,
             'sections' => $sections,
             'hierarchy' => $this->hierarchySummary($flat, count($entries)),
             'targetedItemCount' => $hrefPolicyReport['targetedItemCount'],
@@ -1117,11 +1230,43 @@ final class EpubPackageReader
             }
         }
 
+        $collisionsByTarget = [];
+        foreach ($flat as $sourceIndex => $item) {
+            $sectionType = is_string($item['sectionType'] ?? null)
+                ? $item['sectionType']
+                : (is_string($item['type'] ?? null) ? $item['type'] : '');
+            if ($sectionType !== 'toc' && $sectionType !== 'landmarks') {
+                continue;
+            }
+
+            $target = is_string($item['target'] ?? null) ? $item['target'] : '';
+            if ($target === '') {
+                continue;
+            }
+
+            $collisionsByTarget[$target][] = [
+                'navigationIndex' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                'sourceIndex' => $sourceIndex,
+                'type' => $sectionType,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'href' => is_string($item['href'] ?? null) ? $item['href'] : '',
+                'target' => $target,
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'fragment' => is_string($item['fragment'] ?? null) ? $item['fragment'] : '',
+            ];
+        }
+
         $pageListItems = [];
         $pageBreakItemCount = 0;
         $diagnostics = [];
         $seenPageListHrefs = [];
         $seenPageListLabels = [];
+        $collisionTargets = [];
+        $fragmentTargets = [];
+        $readingOrder = [];
+        $previousSpineIndex = null;
+        $linearTargetCount = 0;
+        $nonlinearTargetCount = 0;
         $targetedItemCount = 0;
         $manifestTargetCount = 0;
         $spineReadingOrderTargetCount = 0;
@@ -1162,6 +1307,9 @@ final class EpubPackageReader
             $manifestItem = !$external && $path !== '' ? ($manifestByPath[$path] ?? null) : null;
             $spineItem = !$external && $path !== '' ? ($spineByPath[$path] ?? null) : null;
             $readingSpineItem = !$external && $path !== '' ? ($readingSpineByPath[$path] ?? null) : null;
+            $spineIndex = is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null;
+            $spineLinear = is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null;
+            $collisions = $target !== '' ? ($collisionsByTarget[$target] ?? []) : [];
             $itemDiagnostics = array_values(array_filter(
                 is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [],
                 static fn (mixed $diagnostic): bool => is_array($diagnostic)
@@ -1189,11 +1337,108 @@ final class EpubPackageReader
                 'epubTypes' => is_array($item['epubTypes'] ?? null) ? array_values($item['epubTypes']) : [],
                 'manifestId' => is_array($manifestItem) && is_string($manifestItem['id'] ?? null) ? $manifestItem['id'] : null,
                 'mediaType' => is_array($manifestItem) && is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null,
-                'spineIndex' => is_array($spineItem) && is_int($spineItem['index'] ?? null) ? $spineItem['index'] : null,
+                'spineIndex' => $spineIndex,
                 'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
-                'spineLinear' => is_array($spineItem) ? (($spineItem['linear'] ?? false) === true) : null,
+                'spineLinear' => $spineLinear,
+                'linear' => $spineLinear,
                 'inSpineReadingOrder' => is_array($readingSpineItem),
+                'collisions' => $collisions,
                 'diagnostics' => $itemDiagnostics,
+            ];
+
+            if ($collisions !== []) {
+                $diagnostic = [
+                    'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                    'pageListIndex' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                    'type' => 'page-list-target-nav-collision',
+                    'navType' => $type,
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'collisions' => $collisions,
+                    'message' => 'EPUB page-list target also appears in toc or landmarks navigation',
+                ];
+                $diagnostics[] = $diagnostic;
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+                $collisionTargets[$target] = [
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                    'collisions' => $collisions,
+                ];
+            }
+
+            if (is_array($spineItem)) {
+                if ($spineLinear === true) {
+                    ++$linearTargetCount;
+                } else {
+                    ++$nonlinearTargetCount;
+                    $diagnostic = [
+                        'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'pageListIndex' => $pageListIndex,
+                        'sourceIndex' => $sourceIndex,
+                        'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                        'type' => 'page-list-target-nonlinear-spine-item',
+                        'navType' => $type,
+                        'href' => $href,
+                        'target' => $target,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'spineIndex' => $spineIndex,
+                        'spineIdref' => is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : '',
+                        'message' => 'EPUB page-list target resolves to a non-linear spine itemref',
+                    ];
+                    $diagnostics[] = $diagnostic;
+                    $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+                }
+
+                if ($previousSpineIndex !== null && $spineIndex !== null && $spineIndex < $previousSpineIndex) {
+                    $diagnostic = [
+                        'index' => is_int($item['index'] ?? null) ? $item['index'] : 0,
+                        'pageListIndex' => $pageListIndex,
+                        'sourceIndex' => $sourceIndex,
+                        'depth' => is_int($item['depth'] ?? null) ? $item['depth'] : 0,
+                        'type' => 'page-list-reading-order-regression',
+                        'navType' => $type,
+                        'href' => $href,
+                        'target' => $target,
+                        'path' => $path,
+                        'fragment' => $fragment,
+                        'previousSpineIndex' => $previousSpineIndex,
+                        'spineIndex' => $spineIndex,
+                        'message' => 'EPUB page-list target order moves backward through the package spine',
+                    ];
+                    $diagnostics[] = $diagnostic;
+                    $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+                }
+                $previousSpineIndex = $spineIndex;
+            }
+
+            if ($target !== '' && $fragment !== '') {
+                $fragmentTargets[$target][] = [
+                    'index' => $pageListIndex,
+                    'sourceIndex' => $sourceIndex,
+                    'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                    'href' => $href,
+                    'target' => $target,
+                    'path' => $path,
+                    'fragment' => $fragment,
+                ];
+            }
+
+            $readingOrder[] = [
+                'index' => $pageListIndex,
+                'sourceIndex' => $sourceIndex,
+                'label' => is_string($item['label'] ?? null) ? $item['label'] : '',
+                'target' => $target,
+                'path' => $path,
+                'fragment' => $fragment,
+                'spineIndex' => $spineIndex,
+                'spineIdref' => is_array($spineItem) && is_string($spineItem['idref'] ?? null) ? $spineItem['idref'] : null,
+                'linear' => $spineLinear,
             ];
 
             if ($href !== '') {
@@ -1324,6 +1569,44 @@ final class EpubPackageReader
             $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
         }
 
+        $repeatedFragmentTargets = [];
+        foreach ($fragmentTargets as $target => $targetItems) {
+            if (count($targetItems) < 2) {
+                continue;
+            }
+
+            $indexes = array_map(static fn (array $item): int => (int) $item['index'], $targetItems);
+            $labels = array_map(static fn (array $item): string => (string) $item['label'], $targetItems);
+            $hrefs = array_map(static fn (array $item): string => (string) $item['href'], $targetItems);
+            $repeatedFragmentTargets[] = [
+                'target' => $target,
+                'path' => (string) ($targetItems[0]['path'] ?? ''),
+                'fragment' => (string) ($targetItems[0]['fragment'] ?? ''),
+                'indexes' => $indexes,
+                'labels' => $labels,
+                'hrefs' => $hrefs,
+                'items' => $targetItems,
+            ];
+            $diagnostic = [
+                'type' => 'repeated-page-list-fragment-target',
+                'target' => $target,
+                'path' => (string) ($targetItems[0]['path'] ?? ''),
+                'fragment' => (string) ($targetItems[0]['fragment'] ?? ''),
+                'indexes' => $indexes,
+                'labels' => $labels,
+                'hrefs' => $hrefs,
+                'message' => 'EPUB page-list contains repeated entries for the same fragment target',
+            ];
+            $diagnostics[] = $diagnostic;
+
+            foreach ($indexes as $pageListIndex) {
+                if (!isset($pageListItems[$pageListIndex])) {
+                    continue;
+                }
+                $pageListItems[$pageListIndex]['diagnostics'][] = $diagnostic;
+            }
+        }
+
         return [
             'present' => $pageListItems !== [],
             'itemCount' => count($pageListItems),
@@ -1331,10 +1614,17 @@ final class EpubPackageReader
             'targetedItemCount' => $targetedItemCount,
             'manifestTargetCount' => $manifestTargetCount,
             'spineReadingOrderTargetCount' => $spineReadingOrderTargetCount,
+            'linearTargetCount' => $linearTargetCount,
+            'nonlinearTargetCount' => $nonlinearTargetCount,
             'missingManifestTargetCount' => $missingManifestTargetCount,
             'outsideSpineTargetCount' => $outsideSpineTargetCount,
             'externalTargetCount' => $externalTargetCount,
             'unresolvedTargetCount' => $unresolvedTargetCount,
+            'collisionTargetCount' => count($collisionTargets),
+            'collisionTargets' => array_values($collisionTargets),
+            'repeatedFragmentTargetCount' => count($repeatedFragmentTargets),
+            'repeatedFragmentTargets' => $repeatedFragmentTargets,
+            'readingOrder' => $readingOrder,
             'items' => $pageListItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
