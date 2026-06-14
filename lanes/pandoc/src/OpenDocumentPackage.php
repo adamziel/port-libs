@@ -301,6 +301,7 @@ final class OpenDocumentPackage
                     'compressionMethodName' => $entry['compressionMethodName'],
                     'crc32' => $entry['crc32'],
                     'storedCrc32' => $entry['storedCrc32'],
+                    'byteSha256' => $entry['byteSha256'],
                     'declaredSize' => $entry['size'],
                     'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
                     'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
@@ -452,6 +453,7 @@ final class OpenDocumentPackage
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
+                'byteSha256' => is_array($manifestEntry) ? ($manifestEntry['byteSha256'] ?? null) : null,
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestIndex' => is_array($manifestEntry) ? $manifestEntry['manifestIndex'] : null,
@@ -976,6 +978,7 @@ final class OpenDocumentPackage
                 'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
                 'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'byteSha256' => self::packageEntryByteSha256($package, $packagePath, $canExposeBytes),
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'embeddedObjectPackagePart' => $embeddedObjectPackagePart,
@@ -1063,6 +1066,15 @@ final class OpenDocumentPackage
         return $exists ? 'package-bytes-exposable' : 'missing-package-part';
     }
 
+    private static function packageEntryByteSha256(ZipPackage $package, ?string $packagePath, bool $canExposeBytes): ?string
+    {
+        if (!$canExposeBytes || $packagePath === null || $packagePath === '' || str_ends_with($packagePath, '/')) {
+            return null;
+        }
+
+        return hash('sha256', $package->read($packagePath));
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -1088,6 +1100,7 @@ final class OpenDocumentPackage
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
+                'byteSha256' => null,
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
@@ -3174,6 +3187,7 @@ final class OpenDocumentPackage
             'compressionMethodName' => $entry['compressionMethodName'] ?? null,
             'crc32' => $entry['crc32'] ?? null,
             'storedCrc32' => $entry['storedCrc32'] ?? null,
+            'byteSha256' => $entry['byteSha256'] ?? null,
             'declaredSize' => $entry['declaredSize'] ?? null,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,

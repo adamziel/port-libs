@@ -1299,6 +1299,87 @@ XML;
         $t->same(['undeclared-package-entry'], $inventory['parts']['Notes/private.txt']['roles']);
         $t->same(['Pictures/hero.png', 'Media/theme.ogg'], array_column($summary['mediaParts'], 'path'));
     },
+    'preserves compact ODT exposable package SHA-256 provenance for review handoff' => static function (TestRunner $t) use (
+        $buildZipPackageWithCentralDirectoryOrder,
+        $manifestXml,
+        $contentXml,
+        $stylesXml,
+        $metaXml
+    ): void {
+        $reviewImage = 'REVIEW-PNG-BYTES';
+        $secretImage = 'SECRET-PNG-BYTES';
+        $audioBytes = 'AUDIO-BYTES';
+        $privateNote = 'private note';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/secret.png" manifest:size="16">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="secret-checksum"/>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/review.png" manifest:size="' . strlen($reviewImage) . '"/>'
+            . $encryptedEntry
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/theme.ogg" manifest:size="' . strlen($audioBytes) . '"/>',
+            $manifestXml
+        );
+
+        $package = $buildZipPackageWithCentralDirectoryOrder([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 8],
+            ['name' => 'Pictures/secret.png', 'data' => $secretImage, 'compressionMethod' => 0],
+            ['name' => 'Media/theme.ogg', 'data' => $audioBytes, 'compressionMethod' => 12],
+            ['name' => 'Notes/private.txt', 'data' => $privateNote, 'compressionMethod' => 0],
+        ], [
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/review.png',
+            'Pictures/secret.png',
+            'Media/theme.ogg',
+            'Notes/private.txt',
+        ]);
+
+        $odt = OpenDocumentPackage::fromPackage($package);
+        $summary = $odt->summarize();
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(hash('sha256', 'PNGDATA'), $odt->manifestEntry('Pictures/hero.png')['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $odt->manifestEntry('Pictures/review.png')['byteSha256']);
+        $t->same(null, $odt->manifestEntry('Pictures/secret.png')['byteSha256']);
+        $t->same(null, $odt->manifestEntry('Media/theme.ogg')['byteSha256']);
+
+        $t->same(hash('sha256', $reviewImage), $mediaByPath['Pictures/review.png']['byteSha256']);
+        $t->same(null, $mediaByPath['Pictures/secret.png']['byteSha256']);
+        $t->same(null, $mediaByPath['Media/theme.ogg']['byteSha256']);
+
+        $t->same(hash('sha256', $contentXml), $reviewByPath['content.xml']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $reviewByPath['Pictures/review.png']['byteSha256']);
+        $t->same(null, $reviewByPath['Pictures/secret.png']['byteSha256']);
+        $t->same(null, $reviewByPath['Media/theme.ogg']['byteSha256']);
+
+        $t->same(hash('sha256', $contentXml), $inventory['content.xml']['byteSha256']);
+        $t->same(hash('sha256', $reviewImage), $inventory['Pictures/review.png']['byteSha256']);
+        $t->same(null, $inventory['Pictures/secret.png']['byteSha256']);
+        $t->same(null, $inventory['Media/theme.ogg']['byteSha256']);
+        $t->same(null, $inventory['Notes/private.txt']['byteSha256']);
+    },
     'blocks compact ODT configuration package sidecars from document media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
         $configIconBytes = 'CONFIGPNG';
