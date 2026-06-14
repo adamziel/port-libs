@@ -205,6 +205,18 @@ final class PandocFormatRegistry
         '.vimwiki' => 'vimwiki',
     ];
 
+    /** @var array<string, array{reasonCode:string, reason:string}> */
+    private const WIKI_UNSUPPORTED_REASON_PAYLOADS = [
+        'input' => [
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => 'Upstream wiki reader token or extension alias is inventoried, but no native PHP wiki reader is registered for this format.',
+        ],
+        'output' => [
+            'reasonCode' => 'wiki-writer-not-ported',
+            'reason' => 'Upstream wiki writer token or extension alias is inventoried, but no native PHP wiki writer is registered for this format.',
+        ],
+    ];
+
     /** @var array<string, list<string>> */
     private const WIKI_READER_FIXTURE_SOURCES = [
         'creole' => [
@@ -2100,6 +2112,150 @@ final class PandocFormatRegistry
             'unsupportedOutputOnly' => $unsupportedOutputOnly,
             'noNativeReader' => self::unsupportedWikiInputFormats(),
             'noNativeWriter' => self::unsupportedWikiOutputFormats(),
+        ];
+    }
+
+    /**
+     * @return array<string, array{
+     *     alias:string,
+     *     aliasKind:string,
+     *     collisionKind:string,
+     *     canonicalFormat:string|null,
+     *     extensionInferredFormat:string|null,
+     *     formats:list<string>,
+     *     readerTokens:list<string>,
+     *     writerTokens:list<string>,
+     *     fixtureInputFormats:list<string>,
+     *     fixtureOutputFormats:list<string>,
+     *     extensionVsTokenConflict:bool,
+     *     extensionConflictFormats:list<string>,
+     *     unsupportedReasonPayloads:array<string, array{input:array{status:string, reasonCode:string, reason:string, notes:string}|null, output:array{status:string, reasonCode:string, reason:string, notes:string}|null}>,
+     *     nativeImplementations:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool
+     * }>
+     */
+    public static function wikiAliasCollisionDiagnostics(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $fixtureExtensions = self::wikiFixtureExtensionFormatBuckets();
+        $diagnostics = [];
+
+        $suffixFormats = [];
+        foreach (array_keys($directions) as $format) {
+            if (str_ends_with($format, 'wiki')) {
+                $suffixFormats[] = $format;
+            }
+        }
+
+        $diagnostics['wiki-suffix'] = self::wikiAliasCollisionDiagnostic(
+            'wiki',
+            'token-suffix',
+            'wiki-family-token-suffix',
+            null,
+            $suffixFormats,
+            [],
+            [],
+            []
+        );
+
+        foreach ($fixtureExtensions as $extension => $buckets) {
+            $canonicalFormat = self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+            $formats = array_values(array_unique(array_merge(
+                $canonicalFormat === null ? [] : [$canonicalFormat],
+                $buckets['input'],
+                $buckets['output']
+            )));
+            $extensionConflictFormats = array_values(array_filter(
+                $formats,
+                static fn (string $format): bool => $canonicalFormat !== null && $format !== $canonicalFormat
+            ));
+
+            if (count($formats) < 2 && $extensionConflictFormats === []) {
+                continue;
+            }
+
+            $diagnostics[$extension] = self::wikiAliasCollisionDiagnostic(
+                $extension,
+                'file-extension',
+                'wiki-extension-token-collision',
+                $canonicalFormat,
+                $formats,
+                $buckets['input'],
+                $buckets['output'],
+                $extensionConflictFormats
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     extensionInference:array<string, string>,
+     *     aliasCollisionCount:int,
+     *     multiTokenAliases:list<string>,
+     *     extensionVsTokenConflictAliases:list<string>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     diagnostics:array<string, array{
+     *         alias:string,
+     *         aliasKind:string,
+     *         collisionKind:string,
+     *         canonicalFormat:string|null,
+     *         extensionInferredFormat:string|null,
+     *         formats:list<string>,
+     *         readerTokens:list<string>,
+     *         writerTokens:list<string>,
+     *         fixtureInputFormats:list<string>,
+     *         fixtureOutputFormats:list<string>,
+     *         extensionVsTokenConflict:bool,
+     *         extensionConflictFormats:list<string>,
+     *         unsupportedReasonPayloads:array<string, array{input:array{status:string, reasonCode:string, reason:string, notes:string}|null, output:array{status:string, reasonCode:string, reason:string, notes:string}|null}>,
+     *         nativeImplementations:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *         externalToolFree:bool,
+     *         directReaderParitySupported:bool,
+     *         directWriterParitySupported:bool
+     *     }>
+     * }
+     */
+    public static function wikiAliasCollisionReviewPacket(): array
+    {
+        $diagnostics = self::wikiAliasCollisionDiagnostics();
+        $summary = self::wikiFormatParitySummary();
+        $multiTokenAliases = [];
+        $extensionVsTokenConflictAliases = [];
+
+        foreach ($diagnostics as $alias => $diagnostic) {
+            if (count($diagnostic['formats']) > 1) {
+                $multiTokenAliases[] = $alias;
+            }
+            if ($diagnostic['extensionVsTokenConflict']) {
+                $extensionVsTokenConflictAliases[] = $alias;
+            }
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'aliasCollisionCount' => count($diagnostics),
+            'multiTokenAliases' => $multiTokenAliases,
+            'extensionVsTokenConflictAliases' => $extensionVsTokenConflictAliases,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $summary['directReaderParitySupported'],
+            'directWriterParitySupported' => $summary['directWriterParitySupported'],
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -5233,6 +5389,156 @@ final class PandocFormatRegistry
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $formats
+     * @param list<string> $fixtureInputFormats
+     * @param list<string> $fixtureOutputFormats
+     * @param list<string> $extensionConflictFormats
+     * @return array{
+     *     alias:string,
+     *     aliasKind:string,
+     *     collisionKind:string,
+     *     canonicalFormat:string|null,
+     *     extensionInferredFormat:string|null,
+     *     formats:list<string>,
+     *     readerTokens:list<string>,
+     *     writerTokens:list<string>,
+     *     fixtureInputFormats:list<string>,
+     *     fixtureOutputFormats:list<string>,
+     *     extensionVsTokenConflict:bool,
+     *     extensionConflictFormats:list<string>,
+     *     unsupportedReasonPayloads:array<string, array{input:array{status:string, reasonCode:string, reason:string, notes:string}|null, output:array{status:string, reasonCode:string, reason:string, notes:string}|null}>,
+     *     nativeImplementations:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool
+     * }
+     */
+    private static function wikiAliasCollisionDiagnostic(
+        string $alias,
+        string $aliasKind,
+        string $collisionKind,
+        ?string $canonicalFormat,
+        array $formats,
+        array $fixtureInputFormats,
+        array $fixtureOutputFormats,
+        array $extensionConflictFormats
+    ): array {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $summary = self::wikiFormatParitySummary();
+        $readerTokens = [];
+        $writerTokens = [];
+        $unsupportedReasonPayloads = [];
+        $nativeImplementations = [];
+
+        foreach ($formats as $format) {
+            $direction = $directions[$format];
+            $input = $direction['input'] ? $inputSupport[$format] : null;
+            $output = $direction['output'] ? $outputSupport[$format] : null;
+
+            if ($input !== null) {
+                $readerTokens[] = $format;
+            }
+            if ($output !== null) {
+                $writerTokens[] = $format;
+            }
+
+            $unsupportedReasonPayloads[$format] = [
+                'input' => $input === null ? null : [
+                    'status' => $input['status'],
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['input']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['input']['reason'],
+                    'notes' => $input['notes'],
+                ],
+                'output' => $output === null ? null : [
+                    'status' => $output['status'],
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['output']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['output']['reason'],
+                    'notes' => $output['notes'],
+                ],
+            ];
+            $nativeImplementations[$format] = [
+                'inputImplementation' => $input['implementation'] ?? '',
+                'outputImplementation' => $output['implementation'] ?? '',
+            ];
+        }
+
+        return [
+            'alias' => $alias,
+            'aliasKind' => $aliasKind,
+            'collisionKind' => $collisionKind,
+            'canonicalFormat' => $canonicalFormat,
+            'extensionInferredFormat' => $canonicalFormat,
+            'formats' => $formats,
+            'readerTokens' => $readerTokens,
+            'writerTokens' => $writerTokens,
+            'fixtureInputFormats' => $fixtureInputFormats,
+            'fixtureOutputFormats' => $fixtureOutputFormats,
+            'extensionVsTokenConflict' => $extensionConflictFormats !== [],
+            'extensionConflictFormats' => $extensionConflictFormats,
+            'unsupportedReasonPayloads' => $unsupportedReasonPayloads,
+            'nativeImplementations' => $nativeImplementations,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $summary['directReaderParitySupported'],
+            'directWriterParitySupported' => $summary['directWriterParitySupported'],
+        ];
+    }
+
+    /**
+     * @return array<string, array{input:list<string>, output:list<string>}>
+     */
+    private static function wikiFixtureExtensionFormatBuckets(): array
+    {
+        $buckets = [];
+
+        foreach (self::WIKI_READER_FIXTURE_SOURCES as $format => $sources) {
+            foreach ($sources as $source) {
+                $extension = self::sourcePathExtensionAlias($source);
+                if ($extension === null) {
+                    continue;
+                }
+                $buckets[$extension]['input'] ??= [];
+                $buckets[$extension]['output'] ??= [];
+                $buckets[$extension]['input'][] = $format;
+            }
+        }
+
+        foreach (self::WIKI_WRITER_FIXTURE_SOURCES as $format => $sources) {
+            foreach ($sources as $source) {
+                $extension = self::sourcePathExtensionAlias($source);
+                if ($extension === null) {
+                    continue;
+                }
+                $buckets[$extension]['input'] ??= [];
+                $buckets[$extension]['output'] ??= [];
+                $buckets[$extension]['output'][] = $format;
+            }
+        }
+
+        foreach ($buckets as $extension => $bucket) {
+            $buckets[$extension] = [
+                'input' => array_values(array_unique($bucket['input'])),
+                'output' => array_values(array_unique($bucket['output'])),
+            ];
+        }
+        ksort($buckets);
+
+        return $buckets;
+    }
+
+    private static function sourcePathExtensionAlias(string $path): ?string
+    {
+        $normalized = strtolower($path);
+        $offset = strrpos($normalized, '.');
+        if ($offset === false || $offset === strlen($normalized) - 1) {
+            return null;
+        }
+
+        return substr($normalized, $offset);
     }
 
     /**

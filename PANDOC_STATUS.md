@@ -25,3 +25,7 @@ ODF/ODT is marked ship-ready: 53 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Shared ZIP / OPC package | 107 | 578 |
 | PDF import (adjacent; not upstream Pandoc input) | 49 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
+
+Latest registry evidence: `PandocFormatRegistry` records bounded wiki-family alias collision diagnostics for the `wiki` token suffix and `.wiki` MediaWiki/Vimwiki fixture-extension conflict while keeping `.wiki => mediawiki` extension inference unchanged. The slice keeps stable unsupported reader/writer reason payloads, empty native implementation records, `externalToolFree=true`, `directReaderParitySupported=false`, and `directWriterParitySupported=false`; native wiki reader/writer parity remains unsupported.
+
+Current Pandoc counters: 3,518 PHP passes / 0 failures and 3,437 mapped upstream cases. Verification passed `php -l` for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php` (`1` file, `2,484` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,323` assertions, `0` failures), `jq empty`, and `git diff --check`.

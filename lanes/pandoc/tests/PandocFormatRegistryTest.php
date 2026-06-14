@@ -2279,6 +2279,102 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
             $t->same($expectedImplementationRecord, $matrix['nativeImplementationRecords'][$format]);
         }
     },
+    'builds wiki alias collision diagnostics without direct reader writer claims' => static function (TestRunner $t): void {
+        $diagnostics = PandocFormatRegistry::wikiAliasCollisionDiagnostics();
+        $packet = PandocFormatRegistry::wikiAliasCollisionReviewPacket();
+
+        $t->same($diagnostics, $packet['diagnostics']);
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $packet['outputFormats']);
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $packet['extensionInference']);
+        $t->same(2, $packet['aliasCollisionCount']);
+        $t->same(['wiki-suffix', '.wiki'], $packet['multiTokenAliases']);
+        $t->same(['.wiki'], $packet['extensionVsTokenConflictAliases']);
+        $t->same(true, $packet['externalToolFree']);
+        $t->same(false, $packet['directReaderParitySupported']);
+        $t->same(false, $packet['directWriterParitySupported']);
+        $t->same(['wiki-suffix', '.wiki'], array_keys($diagnostics));
+
+        $suffix = $diagnostics['wiki-suffix'];
+        $t->same('wiki', $suffix['alias']);
+        $t->same('token-suffix', $suffix['aliasKind']);
+        $t->same('wiki-family-token-suffix', $suffix['collisionKind']);
+        $t->same(null, $suffix['canonicalFormat']);
+        $t->same(null, $suffix['extensionInferredFormat']);
+        $t->same([
+            'dokuwiki',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], $suffix['formats']);
+        $t->same([
+            'dokuwiki',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ], $suffix['readerTokens']);
+        $t->same([
+            'dokuwiki',
+            'mediawiki',
+            'xwiki',
+            'zimwiki',
+        ], $suffix['writerTokens']);
+        $t->same([], $suffix['fixtureInputFormats']);
+        $t->same([], $suffix['fixtureOutputFormats']);
+        $t->same(false, $suffix['extensionVsTokenConflict']);
+        $t->same([], $suffix['extensionConflictFormats']);
+
+        $wikiExtension = $diagnostics['.wiki'];
+        $t->same('.wiki', $wikiExtension['alias']);
+        $t->same('file-extension', $wikiExtension['aliasKind']);
+        $t->same('wiki-extension-token-collision', $wikiExtension['collisionKind']);
+        $t->same('mediawiki', $wikiExtension['canonicalFormat']);
+        $t->same('mediawiki', $wikiExtension['extensionInferredFormat']);
+        $t->same(['mediawiki', 'vimwiki'], $wikiExtension['formats']);
+        $t->same(['mediawiki', 'vimwiki'], $wikiExtension['readerTokens']);
+        $t->same(['mediawiki'], $wikiExtension['writerTokens']);
+        $t->same(['mediawiki', 'vimwiki'], $wikiExtension['fixtureInputFormats']);
+        $t->same([], $wikiExtension['fixtureOutputFormats']);
+        $t->same(true, $wikiExtension['extensionVsTokenConflict']);
+        $t->same(['vimwiki'], $wikiExtension['extensionConflictFormats']);
+        $t->same([
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $wikiExtension['nativeImplementations']['mediawiki']);
+        $t->same([
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $wikiExtension['nativeImplementations']['vimwiki']);
+        $t->same('wiki-reader-not-ported', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['input']['reasonCode']);
+        $t->same('unsupported', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['input']['status']);
+        $t->contains('no native PHP wiki reader', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['input']['reason']);
+        $t->same('wiki-writer-not-ported', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['output']['reasonCode']);
+        $t->same('unsupported', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['output']['status']);
+        $t->contains('no native PHP wiki writer', $wikiExtension['unsupportedReasonPayloads']['mediawiki']['output']['reason']);
+        $t->same('wiki-reader-not-ported', $wikiExtension['unsupportedReasonPayloads']['vimwiki']['input']['reasonCode']);
+        $t->same(null, $wikiExtension['unsupportedReasonPayloads']['vimwiki']['output']);
+
+        foreach ($diagnostics as $alias => $diagnostic) {
+            $t->same(true, $diagnostic['externalToolFree'], "Wiki alias collision {$alias} must remain external-tool free");
+            $t->same(false, $diagnostic['directReaderParitySupported'], "Wiki alias collision {$alias} must not claim direct reader parity");
+            $t->same(false, $diagnostic['directWriterParitySupported'], "Wiki alias collision {$alias} must not claim direct writer parity");
+
+            foreach ($diagnostic['nativeImplementations'] as $format => $implementation) {
+                $t->same('', $implementation['inputImplementation'], "Wiki alias collision {$alias}/{$format} must not register a native input implementation");
+                $t->same('', $implementation['outputImplementation'], "Wiki alias collision {$alias}/{$format} must not register a native output implementation");
+            }
+        }
+    },
     'builds wiki output unsupported writer token taxonomy without writer claims' => static function (TestRunner $t): void {
         $outputTokens = [
             'dokuwiki',
