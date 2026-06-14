@@ -1638,6 +1638,7 @@ final class XmlHtmlDom
             : null;
         $contributors = $metadata instanceof \DOMElement ? self::jatsContributorSummaries($metadata) : [];
         $dates = $metadata instanceof \DOMElement ? self::jatsPublicationDateSummaries($metadata) : [];
+        $publicationMetadata = self::jatsPublicationMetadataSummary($root, $metadata);
         $sections = $body instanceof \DOMElement ? self::jatsSectionSummaries($body) : [];
         $sectionTitlePaths = array_values(array_filter(
             array_map(static fn (array $section): array => $section['titlePath'], $sections),
@@ -1786,6 +1787,36 @@ final class XmlHtmlDom
             'articleIds' => $articleIds,
             'bookIds' => $bookIds,
             'identifierCount' => count($articleIds) + count($bookIds),
+            'publicationMetadataReviewPolicy' => 'jats-bits-publication-metadata-review-only',
+            'publicationMetadata' => $publicationMetadata,
+            'publicationMetadataMappedCaseKinds' => $publicationMetadata['mappedCaseKinds'],
+            'publicationMetadataMappedCaseCount' => $publicationMetadata['mappedCaseCount'],
+            'publicationMetadataDiagnosticCodes' => $publicationMetadata['diagnosticCodes'],
+            'publicationMetadataDiagnosticCount' => $publicationMetadata['diagnosticCount'],
+            'publicationMetadataDiagnostics' => $publicationMetadata['diagnostics'],
+            'serialTitleRecords' => $publicationMetadata['serialTitleRecords'],
+            'serialTitleRecordCount' => $publicationMetadata['serialTitleRecordCount'],
+            'serialIdentifierRecords' => $publicationMetadata['serialIdentifierRecords'],
+            'serialIdentifierRecordCount' => $publicationMetadata['serialIdentifierRecordCount'],
+            'serialIdentifierTypes' => $publicationMetadata['serialIdentifierTypes'],
+            'publisherRecords' => $publicationMetadata['publisherRecords'],
+            'publisherRecordCount' => $publicationMetadata['publisherRecordCount'],
+            'publisherNames' => $publicationMetadata['publisherNames'],
+            'issuePageMetadata' => $publicationMetadata['issuePageMetadata'],
+            'issuePageMetadataFieldCount' => $publicationMetadata['issuePageMetadataFieldCount'],
+            'historyDates' => $publicationMetadata['historyDates'],
+            'historyDateCount' => $publicationMetadata['historyDateCount'],
+            'articleLinkRecords' => $publicationMetadata['articleLinkRecords'],
+            'articleLinkRecordCount' => $publicationMetadata['articleLinkRecordCount'],
+            'articleLinkTargets' => $publicationMetadata['articleLinkTargets'],
+            'frontMatterPermissions' => $publicationMetadata['permissions'],
+            'frontMatterPermissionCount' => $publicationMetadata['permissionCount'],
+            'frontMatterLicenseCount' => $publicationMetadata['licenseCount'],
+            'frontMatterLicenseRefCount' => $publicationMetadata['licenseRefCount'],
+            'frontMatterCopyrightStatementCount' => $publicationMetadata['copyrightStatementCount'],
+            'frontMatterPermissionIssueCodes' => $publicationMetadata['permissionIssueCodes'],
+            'frontMatterPermissionIssueCount' => $publicationMetadata['permissionIssueCount'],
+            'frontMatterPermissionIssues' => $publicationMetadata['permissionIssues'],
             'abstractText' => $metadata instanceof \DOMElement ? self::jatsFirstText($metadata, ['abstract']) : null,
             'keywords' => $metadata instanceof \DOMElement ? self::jatsTextList($metadata, 'kwd') : [],
             'contributors' => $contributors,
@@ -7843,6 +7874,474 @@ final class XmlHtmlDom
         }
 
         return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsPublicationMetadataSummary(\DOMElement $root, ?\DOMElement $metadata): array
+    {
+        $journalMeta = self::firstDescendantElement($root, 'journal-meta');
+        $serialTitleRecords = [];
+        $serialIdentifierRecords = [];
+        $publisherRecords = [];
+
+        if ($journalMeta instanceof \DOMElement) {
+            $serialTitleRecords = array_merge(
+                $serialTitleRecords,
+                self::jatsPublicationTextRecords(
+                    $journalMeta,
+                    ['journal-title', 'journal-subtitle', 'abbrev-journal-title'],
+                    'journal-meta',
+                    ['journal-title-type', 'abbrev-type']
+                )
+            );
+            $serialIdentifierRecords = array_merge(
+                $serialIdentifierRecords,
+                self::jatsPublicationTypedTextRecords(
+                    $journalMeta,
+                    ['journal-id', 'issn', 'issn-l'],
+                    ['journal-id-type', 'pub-id-type', 'content-type', 'publication-format'],
+                    'journal-meta'
+                )
+            );
+            $publisherRecords = array_merge(
+                $publisherRecords,
+                self::jatsPublisherRecords($journalMeta, 'journal-meta')
+            );
+        }
+
+        if ($metadata instanceof \DOMElement) {
+            $serialTitleRecords = array_merge(
+                $serialTitleRecords,
+                self::jatsPublicationTextRecords(
+                    $metadata,
+                    ['book-title', 'book-subtitle'],
+                    $metadata->localName,
+                    ['book-title-type']
+                )
+            );
+            $serialIdentifierRecords = array_merge(
+                $serialIdentifierRecords,
+                self::jatsPublicationTypedTextRecords(
+                    $metadata,
+                    ['isbn'],
+                    ['content-type', 'pub-id-type', 'publication-format'],
+                    $metadata->localName
+                )
+            );
+            $publisherRecords = array_merge(
+                $publisherRecords,
+                self::jatsPublisherRecords($metadata, $metadata->localName)
+            );
+        }
+
+        $permissions = $metadata instanceof \DOMElement
+            ? self::jatsChildPermissionSummaries($metadata)
+            : [];
+        $permissionIssues = self::jatsPermissionDuplicateLicenseIssues('front-matter', null, null, $permissions);
+        $issuePageMetadata = $metadata instanceof \DOMElement
+            ? self::jatsIssuePageMetadataSummary($metadata)
+            : self::jatsEmptyIssuePageMetadataSummary();
+        $historyDates = $metadata instanceof \DOMElement ? self::jatsHistoryDateSummaries($metadata) : [];
+        $articleLinks = $metadata instanceof \DOMElement ? self::jatsArticleLinkRecords($metadata) : [];
+
+        $mappedCaseKinds = [];
+        if ($serialIdentifierRecords !== []) {
+            $mappedCaseKinds[] = 'serial-identifiers';
+        }
+        if ($publisherRecords !== []) {
+            $mappedCaseKinds[] = 'publisher-provenance';
+        }
+        if ($permissions !== []) {
+            $mappedCaseKinds[] = 'front-matter-permissions';
+        }
+        if ($historyDates !== []) {
+            $mappedCaseKinds[] = 'history-dates';
+        }
+        if ($articleLinks !== []) {
+            $mappedCaseKinds[] = 'article-link-targets';
+        }
+        if ((int) $issuePageMetadata['fieldCount'] > 0) {
+            $mappedCaseKinds[] = 'issue-page-metadata';
+        }
+
+        $diagnostics = self::jatsPublicationMetadataDiagnostics(
+            $serialIdentifierRecords,
+            $publisherRecords,
+            $permissions,
+            $permissionIssues,
+            $historyDates,
+            $articleLinks,
+            $issuePageMetadata
+        );
+
+        return [
+            'serialTitleRecords' => $serialTitleRecords,
+            'serialTitleRecordCount' => count($serialTitleRecords),
+            'serialIdentifierRecords' => $serialIdentifierRecords,
+            'serialIdentifierRecordCount' => count($serialIdentifierRecords),
+            'serialIdentifierTypes' => self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $record): ?string => $record['type'] ?? null,
+                $serialIdentifierRecords
+            )),
+            'publisherRecords' => $publisherRecords,
+            'publisherRecordCount' => count($publisherRecords),
+            'publisherNames' => self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $publisher): ?string => $publisher['name'] ?? null,
+                $publisherRecords
+            )),
+            'issuePageMetadata' => $issuePageMetadata,
+            'issuePageMetadataFieldCount' => $issuePageMetadata['fieldCount'],
+            'historyDates' => $historyDates,
+            'historyDateCount' => count($historyDates),
+            'articleLinkRecords' => $articleLinks,
+            'articleLinkRecordCount' => count($articleLinks),
+            'articleLinkTargets' => self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $link): ?string => $link['target'] ?? null,
+                $articleLinks
+            )),
+            'permissions' => $permissions,
+            'permissionCount' => count($permissions),
+            'licenseCount' => self::jatsPermissionRecordCount($permissions, 'licenses'),
+            'licenseRefCount' => self::jatsPermissionRecordCount($permissions, 'licenseRefs'),
+            'copyrightStatementCount' => self::jatsPermissionRecordCount($permissions, 'copyrightStatements'),
+            'permissionIssues' => $permissionIssues,
+            'permissionIssueCodes' => self::jatsFigurePermissionIssueCodes($permissionIssues),
+            'permissionIssueCount' => count($permissionIssues),
+            'mappedCaseKinds' => $mappedCaseKinds,
+            'mappedCaseCount' => count($mappedCaseKinds),
+            'diagnostics' => $diagnostics,
+            'diagnosticCodes' => array_values(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $diagnostics
+            )),
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @param list<string> $typeAttributes
+     * @return list<array{context:string, element:string, type:?string, value:string}>
+     */
+    private static function jatsPublicationTextRecords(
+        \DOMElement $container,
+        array $localNames,
+        string $context,
+        array $typeAttributes = []
+    ): array {
+        $records = [];
+        foreach ($localNames as $localName) {
+            foreach (self::descendantElements($container, $localName) as $element) {
+                $value = self::normalizedText($element);
+                if ($value === '') {
+                    continue;
+                }
+
+                $type = null;
+                foreach ($typeAttributes as $attribute) {
+                    $attributeValue = self::normalizedAttribute($element, $attribute);
+                    if ($attributeValue !== null) {
+                        $type = $attributeValue;
+                        break;
+                    }
+                }
+
+                $records[] = [
+                    'context' => $context,
+                    'element' => $localName,
+                    'type' => $type,
+                    'value' => $value,
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @param list<string> $typeAttributes
+     * @return list<array{context:string, element:string, type:?string, value:string}>
+     */
+    private static function jatsPublicationTypedTextRecords(
+        \DOMElement $container,
+        array $localNames,
+        array $typeAttributes,
+        string $context
+    ): array {
+        $records = [];
+        foreach (self::jatsTypedTextRecords($container, $localNames, $typeAttributes) as $record) {
+            $records[] = ['context' => $context] + $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{context:string, id:?string, name:?string, location:?string, text:string}>
+     */
+    private static function jatsPublisherRecords(\DOMElement $container, string $context): array
+    {
+        $records = [];
+        foreach (self::descendantElements($container, 'publisher') as $publisher) {
+            $name = self::jatsFirstText($publisher, ['publisher-name']);
+            $location = self::jatsFirstText($publisher, ['publisher-loc']);
+            $text = self::normalizedText($publisher);
+            if ($name === null && $location === null && $text === '') {
+                continue;
+            }
+
+            $records[] = [
+                'context' => $context,
+                'id' => self::normalizedAttribute($publisher, 'id'),
+                'name' => $name,
+                'location' => $location,
+                'text' => $text,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsIssuePageMetadataSummary(\DOMElement $metadata): array
+    {
+        $fields = [];
+        foreach ([
+            'volume',
+            'volume-id',
+            'volume-series',
+            'issue',
+            'issue-id',
+            'issue-title',
+            'issue-sponsor',
+            'fpage',
+            'lpage',
+            'page-range',
+            'elocation-id',
+        ] as $localName) {
+            $values = self::jatsTextList($metadata, $localName);
+            if ($values !== []) {
+                $fields[$localName] = $values;
+            }
+        }
+
+        return [
+            'fields' => $fields,
+            'fieldNames' => array_keys($fields),
+            'fieldCount' => count($fields),
+            'volume' => $fields['volume'][0] ?? null,
+            'issue' => $fields['issue'][0] ?? null,
+            'issueTitle' => $fields['issue-title'][0] ?? null,
+            'firstPage' => $fields['fpage'][0] ?? null,
+            'lastPage' => $fields['lpage'][0] ?? null,
+            'pageRange' => $fields['page-range'][0] ?? null,
+            'elocationId' => $fields['elocation-id'][0] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function jatsEmptyIssuePageMetadataSummary(): array
+    {
+        return [
+            'fields' => [],
+            'fieldNames' => [],
+            'fieldCount' => 0,
+            'volume' => null,
+            'issue' => null,
+            'issueTitle' => null,
+            'firstPage' => null,
+            'lastPage' => null,
+            'pageRange' => null,
+            'elocationId' => null,
+        ];
+    }
+
+    /**
+     * @return list<array{type:?string, year:?string, month:?string, day:?string, iso:?string, text:string}>
+     */
+    private static function jatsHistoryDateSummaries(\DOMElement $metadata): array
+    {
+        $history = self::firstDescendantElement($metadata, 'history');
+        if (!$history instanceof \DOMElement) {
+            return [];
+        }
+
+        $dates = [];
+        foreach (self::descendantElements($history, 'date') as $date) {
+            $dates[] = self::jatsDateElementSummary($date);
+        }
+
+        return $dates;
+    }
+
+    /**
+     * @return array{type:?string, year:?string, month:?string, day:?string, iso:?string, text:string}
+     */
+    private static function jatsDateElementSummary(\DOMElement $date): array
+    {
+        $year = self::jatsFirstText($date, ['year']);
+        $month = self::jatsFirstText($date, ['month']);
+        $day = self::jatsFirstText($date, ['day']);
+
+        return [
+            'type' => self::normalizedAttribute($date, 'date-type')
+                ?? self::normalizedAttribute($date, 'publication-format')
+                ?? self::normalizedAttribute($date, 'specific-use'),
+            'year' => $year,
+            'month' => $month,
+            'day' => $day,
+            'iso' => self::jatsIsoDate($year, $month, $day),
+            'text' => self::normalizedText($date),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsArticleLinkRecords(\DOMElement $metadata): array
+    {
+        $records = [];
+        foreach (['self-uri', 'related-article', 'related-object'] as $localName) {
+            foreach (self::descendantElements($metadata, $localName) as $element) {
+                $target = self::jatsLinkTarget($element);
+                $records[] = [
+                    'element' => $localName,
+                    'id' => self::normalizedAttribute($element, 'id'),
+                    'type' => self::normalizedAttribute($element, 'content-type')
+                        ?? self::normalizedAttribute($element, 'self-uri-type')
+                        ?? self::normalizedAttribute($element, 'related-article-type')
+                        ?? self::normalizedAttribute($element, 'related-object-type')
+                        ?? self::normalizedAttribute($element, 'object-id-type')
+                        ?? self::normalizedAttribute($element, 'ext-link-type')
+                        ?? self::normalizedAttribute($element, 'link-type'),
+                    'target' => $target,
+                    'targetKind' => self::jatsLinkTargetKind($target),
+                    'hrefAttribute' => self::jatsLinkTargetAttribute($element),
+                    'mimeType' => self::normalizedAttribute($element, 'mimetype')
+                        ?? self::normalizedAttribute($element, 'mime-type'),
+                    'mimeSubtype' => self::normalizedAttribute($element, 'mime-subtype'),
+                    'text' => self::normalizedText($element),
+                    'payloadBytesExposed' => false,
+                ];
+            }
+        }
+
+        return $records;
+    }
+
+    private static function jatsLinkTargetKind(?string $target): ?string
+    {
+        if ($target === null) {
+            return null;
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $target) === 1) {
+            return 'absolute-uri';
+        }
+
+        if (str_starts_with($target, '#')) {
+            return 'fragment';
+        }
+
+        return 'relative';
+    }
+
+    private static function jatsLinkTargetAttribute(\DOMElement $element): ?string
+    {
+        if (self::normalizedAttribute($element, 'href', self::XLINK_NAMESPACE) !== null) {
+            return 'xlink:href';
+        }
+
+        if (self::normalizedAttribute($element, 'xlink:href') !== null) {
+            return 'xlink:href';
+        }
+
+        return self::normalizedAttribute($element, 'href') !== null ? 'href' : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $serialIdentifierRecords
+     * @param list<array<string, mixed>> $publisherRecords
+     * @param list<array<string, mixed>> $permissions
+     * @param list<array<string, mixed>> $permissionIssues
+     * @param list<array<string, mixed>> $historyDates
+     * @param list<array<string, mixed>> $articleLinks
+     * @param array<string, mixed> $issuePageMetadata
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsPublicationMetadataDiagnostics(
+        array $serialIdentifierRecords,
+        array $publisherRecords,
+        array $permissions,
+        array $permissionIssues,
+        array $historyDates,
+        array $articleLinks,
+        array $issuePageMetadata
+    ): array {
+        $diagnostics = [];
+        if ($serialIdentifierRecords !== []) {
+            $diagnostics[] = [
+                'code' => 'publication-serial-identifiers-review-only',
+                'severity' => 'info',
+                'message' => 'JATS/BITS serial identifiers are summarized for review but are not mapped as full reader metadata.',
+                'identifierCount' => count($serialIdentifierRecords),
+            ];
+        }
+        if ($publisherRecords !== []) {
+            $diagnostics[] = [
+                'code' => 'publication-publisher-provenance-review-only',
+                'severity' => 'info',
+                'message' => 'Publisher names and locations are preserved as bounded review metadata.',
+                'publisherCount' => count($publisherRecords),
+            ];
+        }
+        if ($permissions !== []) {
+            $diagnostics[] = [
+                'code' => 'publication-permissions-review-only',
+                'severity' => 'info',
+                'message' => 'Front-matter permissions and licenses are summarized without claiming full JATS/BITS reader parity.',
+                'permissionCount' => count($permissions),
+                'licenseCount' => self::jatsPermissionRecordCount($permissions, 'licenses'),
+                'licenseRefCount' => self::jatsPermissionRecordCount($permissions, 'licenseRefs'),
+            ];
+        }
+        foreach ($permissionIssues as $issue) {
+            $diagnostics[] = ['severity' => 'warning', 'message' => 'Front-matter permission issue detected.'] + $issue;
+        }
+        if ($historyDates !== []) {
+            $diagnostics[] = [
+                'code' => 'publication-history-dates-review-only',
+                'severity' => 'info',
+                'message' => 'Article history dates are summarized for reviewer handoff.',
+                'historyDateCount' => count($historyDates),
+            ];
+        }
+        if ($articleLinks !== []) {
+            $diagnostics[] = [
+                'code' => 'publication-link-targets-review-only',
+                'severity' => 'info',
+                'message' => 'Self and related article/object links are summarized without dereferencing targets.',
+                'linkCount' => count($articleLinks),
+            ];
+        }
+        if ((int) $issuePageMetadata['fieldCount'] > 0) {
+            $diagnostics[] = [
+                'code' => 'publication-issue-page-metadata-review-only',
+                'severity' => 'info',
+                'message' => 'Volume, issue, page, and elocation fields are summarized for review metadata.',
+                'fieldCount' => $issuePageMetadata['fieldCount'],
+                'fieldNames' => $issuePageMetadata['fieldNames'],
+            ];
+        }
+
+        return $diagnostics;
     }
 
     /**

@@ -1442,6 +1442,144 @@ XML, 'JATS funding conflict metadata XML', preserveWhiteSpace: false);
         $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedPacket, 'Blocked Conflict Citation Secret'), 'Expected citation payload text to stay blocked from funding conflict diagnostics');
     },
+    'summarizes jats bits publication metadata links history permissions and serial identifiers' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front>
+    <journal-meta>
+      <journal-id journal-id-type="nlm-ta">PLib Rev</journal-id>
+      <journal-title-group>
+        <journal-title>Port Libs Review</journal-title>
+        <abbrev-journal-title abbrev-type="publisher">PLR</abbrev-journal-title>
+      </journal-title-group>
+      <issn publication-format="print">1111-2222</issn>
+      <issn publication-format="electronic">3333-4444</issn>
+      <issn-l>1111-2222</issn-l>
+      <publisher id="pub-journal"><publisher-name>Port Libs Press</publisher-name><publisher-loc>New York</publisher-loc></publisher>
+    </journal-meta>
+    <article-meta>
+      <article-id pub-id-type="doi">10.5555/pubmeta.42</article-id>
+      <title-group><article-title>Publication Metadata Review</article-title></title-group>
+      <volume>12</volume>
+      <issue>3</issue>
+      <issue-title>Special Matrix Chunk</issue-title>
+      <fpage>10</fpage>
+      <lpage>20</lpage>
+      <page-range>10-20</page-range>
+      <elocation-id>e42</elocation-id>
+      <pub-date date-type="epub"><year>2026</year><month>06</month><day>14</day></pub-date>
+      <history>
+        <date date-type="received"><year>2026</year><month>01</month><day>02</day></date>
+        <date date-type="accepted"><year>2026</year><month>05</month><day>09</day></date>
+      </history>
+      <permissions id="perm-article">
+        <copyright-statement>Copyright 2026 Port Libs</copyright-statement>
+        <copyright-year>2026</copyright-year>
+        <copyright-holder>Port Libs</copyright-holder>
+        <license license-type="open-access" xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license>
+        <license license-type="open-access" xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0 duplicate</license-p></license>
+        <license-ref xlink:href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0 reference</license-ref>
+      </permissions>
+      <self-uri content-type="pdf" mimetype="application" mime-subtype="pdf" xlink:href="article.pdf">PDF</self-uri>
+      <related-article related-article-type="corrected-article" xlink:href="https://doi.org/10.5555/original"/>
+      <related-object object-id-type="doi" xlink:href="10.5555/dataset.1">Dataset</related-object>
+    </article-meta>
+  </front>
+  <body><sec><title>Body</title><p>Body.</p></sec></body>
+</article>
+XML, 'JATS publication metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('jats-bits-publication-metadata-review-only', $packet['publicationMetadataReviewPolicy']);
+        $t->same([
+            'serial-identifiers',
+            'publisher-provenance',
+            'front-matter-permissions',
+            'history-dates',
+            'article-link-targets',
+            'issue-page-metadata',
+        ], $packet['publicationMetadataMappedCaseKinds']);
+        $t->same(6, $packet['publicationMetadataMappedCaseCount']);
+        $t->same([
+            'publication-serial-identifiers-review-only',
+            'publication-publisher-provenance-review-only',
+            'publication-permissions-review-only',
+            'duplicate-license',
+            'publication-history-dates-review-only',
+            'publication-link-targets-review-only',
+            'publication-issue-page-metadata-review-only',
+        ], $packet['publicationMetadataDiagnosticCodes']);
+        $t->same(7, $packet['publicationMetadataDiagnosticCount']);
+        $t->same(4, $packet['serialIdentifierRecordCount']);
+        $t->same(['nlm-ta', 'print', 'electronic'], $packet['serialIdentifierTypes']);
+        $t->same('journal-id', $packet['serialIdentifierRecords'][0]['element'] ?? null);
+        $t->same('PLib Rev', $packet['serialIdentifierRecords'][0]['value'] ?? null);
+        $t->same('print', $packet['serialIdentifierRecords'][1]['type'] ?? null);
+        $t->same('1111-2222', $packet['serialIdentifierRecords'][1]['value'] ?? null);
+        $t->same(2, $packet['serialTitleRecordCount']);
+        $t->same('Port Libs Review', $packet['serialTitleRecords'][0]['value'] ?? null);
+        $t->same('publisher', $packet['serialTitleRecords'][1]['type'] ?? null);
+        $t->same(1, $packet['publisherRecordCount']);
+        $t->same(['Port Libs Press'], $packet['publisherNames']);
+        $t->same('New York', $packet['publisherRecords'][0]['location'] ?? null);
+        $t->same(7, $packet['issuePageMetadataFieldCount']);
+        $t->same('12', $packet['issuePageMetadata']['volume'] ?? null);
+        $t->same('3', $packet['issuePageMetadata']['issue'] ?? null);
+        $t->same('Special Matrix Chunk', $packet['issuePageMetadata']['issueTitle'] ?? null);
+        $t->same('10', $packet['issuePageMetadata']['firstPage'] ?? null);
+        $t->same('20', $packet['issuePageMetadata']['lastPage'] ?? null);
+        $t->same('10-20', $packet['issuePageMetadata']['pageRange'] ?? null);
+        $t->same('e42', $packet['issuePageMetadata']['elocationId'] ?? null);
+        $t->same(2, $packet['historyDateCount']);
+        $t->same('received', $packet['historyDates'][0]['type'] ?? null);
+        $t->same('2026-01-02', $packet['historyDates'][0]['iso'] ?? null);
+        $t->same('accepted', $packet['historyDates'][1]['type'] ?? null);
+        $t->same('2026-05-09', $packet['historyDates'][1]['iso'] ?? null);
+        $t->same(3, $packet['articleLinkRecordCount']);
+        $t->same(['article.pdf', 'https://doi.org/10.5555/original', '10.5555/dataset.1'], $packet['articleLinkTargets']);
+        $t->same('relative', $packet['articleLinkRecords'][0]['targetKind'] ?? null);
+        $t->same('application', $packet['articleLinkRecords'][0]['mimeType'] ?? null);
+        $t->same('pdf', $packet['articleLinkRecords'][0]['mimeSubtype'] ?? null);
+        $t->same('absolute-uri', $packet['articleLinkRecords'][1]['targetKind'] ?? null);
+        $t->same('corrected-article', $packet['articleLinkRecords'][1]['type'] ?? null);
+        $t->same('relative', $packet['articleLinkRecords'][2]['targetKind'] ?? null);
+        $t->same('doi', $packet['articleLinkRecords'][2]['type'] ?? null);
+        $t->same(1, $packet['frontMatterPermissionCount']);
+        $t->same(2, $packet['frontMatterLicenseCount']);
+        $t->same(1, $packet['frontMatterLicenseRefCount']);
+        $t->same(1, $packet['frontMatterCopyrightStatementCount']);
+        $t->same(['duplicate-license'], $packet['frontMatterPermissionIssueCodes']);
+        $t->same('front-matter', $packet['frontMatterPermissionIssues'][0]['scope'] ?? null);
+        $t->same('href:https://creativecommons.org/licenses/by/4.0/', $packet['frontMatterPermissionIssues'][0]['licenseKey'] ?? null);
+        $t->same(2, $packet['frontMatterPermissionIssues'][0]['count'] ?? null);
+
+        $bits = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<book book-type="monograph">
+  <book-meta>
+    <title-group><book-title>BITS Publication Metadata</book-title></title-group>
+    <isbn content-type="print">978-1-55555-200-4</isbn>
+    <publisher id="pub-book"><publisher-name>Book Press</publisher-name><publisher-loc>London</publisher-loc></publisher>
+  </book-meta>
+  <book-body><book-part><body><sec><title>Chapter</title><p>Body.</p></sec></body></book-part></book-body>
+</book>
+XML, 'BITS publication metadata XML', preserveWhiteSpace: false);
+        $bitsPacket = XmlHtmlDom::summarizeJatsFrontMatter($bits, 'bits');
+
+        $t->same(false, $bitsPacket['directReaderParity']);
+        $t->same(1, $bitsPacket['serialTitleRecordCount']);
+        $t->same('book-title', $bitsPacket['serialTitleRecords'][0]['element'] ?? null);
+        $t->same('BITS Publication Metadata', $bitsPacket['serialTitleRecords'][0]['value'] ?? null);
+        $t->same(1, $bitsPacket['serialIdentifierRecordCount']);
+        $t->same('isbn', $bitsPacket['serialIdentifierRecords'][0]['element'] ?? null);
+        $t->same('print', $bitsPacket['serialIdentifierRecords'][0]['type'] ?? null);
+        $t->same('978-1-55555-200-4', $bitsPacket['serialIdentifierRecords'][0]['value'] ?? null);
+        $t->same(['Book Press'], $bitsPacket['publisherNames']);
+        $t->same('London', $bitsPacket['publisherRecords'][0]['location'] ?? null);
+        $t->same(['serial-identifiers', 'publisher-provenance'], $bitsPacket['publicationMetadataMappedCaseKinds']);
+        $t->same(2, $bitsPacket['publicationMetadataMappedCaseCount']);
+        json_encode([$packet, $bitsPacket], JSON_THROW_ON_ERROR);
+    },
     'summarizes jats bits figure label caption and title metadata diagnostics' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="review">
