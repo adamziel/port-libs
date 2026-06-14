@@ -3483,6 +3483,142 @@ final class EpubPackage
     }
 
     /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataMetaPropertyTokenReport(?string $property, array $prefixBindings, int $metaIndex): array
+    {
+        $property = is_string($property) ? trim($property) : '';
+        $tokens = $property !== '' ? [$property] : [];
+        $report = self::linkVocabularyTokenReport(
+            $tokens,
+            $prefixBindings,
+            'property',
+            $metaIndex,
+            'metadata-meta',
+            'EPUB OPF metadata meta',
+        );
+        $diagnostics = [];
+        foreach ($report['diagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostics[] = ['metaIndex' => $metaIndex, 'property' => $property] + $diagnostic;
+        }
+
+        $items = [];
+        foreach ($report['items'] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $items[] = ['metaIndex' => $metaIndex, 'property' => $property] + $item;
+        }
+
+        $report['metaIndex'] = $metaIndex;
+        $report['property'] = $property !== '' ? $property : null;
+        $report['present'] = $property !== '';
+        $report['valid'] = $diagnostics === [];
+        $report['diagnosticCount'] = count($diagnostics);
+        $report['items'] = $items;
+        $report['diagnostics'] = $diagnostics;
+
+        return $report;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $meta
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataMetaPropertyVocabularySummary(array $meta): array
+    {
+        $items = [];
+        $invalidItems = [];
+        $diagnostics = [];
+        $propertyCounts = [];
+        $validCount = 0;
+        $resolvedCount = 0;
+        $absoluteUrlCount = 0;
+
+        foreach ($meta as $metaIndex => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $property = is_string($entry['property'] ?? null) ? trim($entry['property']) : '';
+            if ($property === '') {
+                continue;
+            }
+
+            $report = is_array($entry['propertyVocabulary'] ?? null)
+                ? $entry['propertyVocabulary']
+                : self::metadataMetaPropertyTokenReport($property, [], (int) $metaIndex);
+            $reportItems = is_array($report['items'] ?? null) ? array_values($report['items']) : [];
+            $tokenItem = is_array($reportItems[0] ?? null) ? $reportItems[0] : [];
+            $itemDiagnostics = is_array($report['diagnostics'] ?? null) ? array_values($report['diagnostics']) : [];
+            $item = [
+                'metaIndex' => (int) $metaIndex,
+                'property' => $property,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                'subjectId' => is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null,
+                'value' => is_string($entry['content'] ?? null) ? $entry['content'] : '',
+                'kind' => is_string($tokenItem['kind'] ?? null) ? $tokenItem['kind'] : null,
+                'prefix' => is_string($tokenItem['prefix'] ?? null) ? $tokenItem['prefix'] : null,
+                'localName' => is_string($tokenItem['localName'] ?? null) ? $tokenItem['localName'] : null,
+                'iri' => is_string($tokenItem['iri'] ?? null) ? $tokenItem['iri'] : null,
+                'resolved' => ($tokenItem['resolved'] ?? false) === true,
+                'absoluteUrlWithFragment' => ($tokenItem['absoluteUrlWithFragment'] ?? false) === true,
+                'valid' => $itemDiagnostics === [],
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $propertyCounts[$property] = ($propertyCounts[$property] ?? 0) + 1;
+            $items[] = $item;
+            if ($item['valid']) {
+                ++$validCount;
+            } else {
+                $invalidItems[] = $item;
+            }
+            if ($item['resolved']) {
+                ++$resolvedCount;
+            }
+            if ($item['absoluteUrlWithFragment']) {
+                ++$absoluteUrlCount;
+            }
+            foreach ($itemDiagnostics as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+        }
+
+        ksort($propertyCounts, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'propertyCount' => count($items),
+            'validCount' => $validCount,
+            'diagnosticPropertyCount' => count($invalidItems),
+            'resolvedCount' => $resolvedCount,
+            'absoluteUrlCount' => $absoluteUrlCount,
+            'duplicatePropertyCount' => count(array_filter(
+                $propertyCounts,
+                static fn (int $count): bool => $count > 1,
+            )),
+            'properties' => array_keys($propertyCounts),
+            'propertyCounts' => $propertyCounts,
+            'items' => $items,
+            'diagnosticItems' => $invalidItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $links
      *

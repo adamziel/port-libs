@@ -5576,6 +5576,92 @@ XML;
         $t->same('audio', $inventory['byPackagePath']['EPUB/audio/theme.mp3']['resourceKind']);
     },
 
+    'reports OPF metadata meta property vocabulary diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithMetaVocabulary = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="review: https://example.invalid/epub-review#">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:meta-property-vocabulary</dc:identifier>
+    <dc:title>Meta property vocabulary review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-14T04:30:00Z</meta>
+    <meta id="local-record" property="review:source-record">Local source record</meta>
+    <meta id="absolute-record" property="https://example.invalid/meta#record">Absolute source record</meta>
+    <meta id="bad-url" property="https://example.invalid/no-fragment">Missing URL fragment</meta>
+    <meta id="bad-token" property="bad/property">Bad token</meta>
+    <meta id="unknown-record" property="unknown:record">Unknown source record</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="text/chapter.xhtml">Meta properties</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMetaVocabulary],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/text/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Meta properties</h1></body></html>'],
+        ]));
+        $metadata = $epub->metadata();
+        $vocabulary = $metadata['metaPropertyVocabulary'];
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same(6, $vocabulary['propertyCount']);
+        $t->same(3, $vocabulary['validCount']);
+        $t->same(3, $vocabulary['diagnosticPropertyCount']);
+        $t->same(2, $vocabulary['resolvedCount']);
+        $t->same(1, $vocabulary['absoluteUrlCount']);
+        $t->same(3, $vocabulary['diagnosticCount']);
+        $t->same([
+            'bad/property',
+            'dcterms:modified',
+            'https://example.invalid/meta#record',
+            'https://example.invalid/no-fragment',
+            'review:source-record',
+            'unknown:record',
+        ], $vocabulary['properties']);
+
+        $itemsById = [];
+        foreach ($vocabulary['items'] as $item) {
+            $itemsById[$item['id'] ?? $item['property']] = $item;
+        }
+
+        $t->same('http://purl.org/dc/terms/modified', $vocabulary['items'][0]['iri']);
+        $t->same('https://example.invalid/epub-review#source-record', $itemsById['local-record']['iri']);
+        $t->same(true, $itemsById['absolute-record']['absoluteUrlWithFragment']);
+        $t->same(null, $itemsById['bad-token']['iri']);
+        $t->same([
+            'invalid-metadata-meta-property-url-fragment',
+            'invalid-metadata-meta-property-token',
+            'unknown-metadata-meta-property-prefix',
+        ], array_column($vocabulary['diagnostics'], 'type'));
+        $t->same('unknown', $vocabulary['diagnostics'][2]['prefix']);
+        $t->same(false, $validation['metadata']['metaPropertyValid']);
+        $t->same(3, $validation['metadata']['metaPropertyDiagnosticCount']);
+        $t->same($vocabulary['diagnostics'], $validation['metadata']['metaPropertyDiagnostics']);
+        $t->same($vocabulary['diagnostics'], $validation['diagnostics']);
+        $t->same($vocabulary, $summary['metaPropertyVocabulary']);
+        $t->same($vocabulary, $summary['wordpressImport']['metadataPropertyVocabulary']);
+        $t->same($vocabulary, $summary['wordpressImport']['metadataDetails']['metaPropertyVocabulary']);
+        $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['metadataPropertyDiagnostics']);
+        $t->same($metadata['meta'][4]['propertyVocabulary']['diagnostics'][0]['type'], $itemsById['bad-token']['diagnostics'][0]['type']);
+    },
+
     'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithMediaTypeParameters = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',
