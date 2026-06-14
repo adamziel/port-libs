@@ -3771,6 +3771,13 @@ final class XmlHtmlDom
         $captionCrossReferences = self::docBookCaptionCrossReferences($xrefs);
         $missingCaptionTargets = self::docBookMissingCaptionTargets($xrefs);
         $bibliographyMediaCaptionCrosslinks = self::docBookBibliographyMediaCaptionCrosslinks($xrefs);
+        $bibliographyEntries = self::docBookBibliographyEntrySummaries($root);
+        $bibliographyMediaObjects = self::docBookBibliographyMediaObjectSummaries($root, $bibliographyEntries);
+        $bibliographyMediaCrosslinks = self::docBookBibliographyMediaCrosslinkSummary(
+            $bibliographyEntries,
+            $xrefs,
+            $mediaTargetManifest
+        );
 
         return [
             'formatFamily' => 'xml-html5-docbook-dom',
@@ -3857,8 +3864,13 @@ final class XmlHtmlDom
             'mediaTargetManifest' => $mediaTargetManifest,
             'mediaTargetManifestCount' => count($mediaTargetManifest),
             'bibliographyCount' => count(self::descendantElements($root, 'bibliography')),
-            'bibliographyEntryCount' => count(self::descendantElements($root, 'biblioentry'))
-                + count(self::descendantElements($root, 'bibliomixed')),
+            'bibliographyEntries' => $bibliographyEntries,
+            'bibliographyEntryCount' => count($bibliographyEntries),
+            'bibliographyMediaObjects' => $bibliographyMediaObjects,
+            'bibliographyMediaObjectCount' => count($bibliographyMediaObjects),
+            'bibliographyMediaCrosslinks' => $bibliographyMediaCrosslinks,
+            'bibliographyMediaCrosslinkDiagnosticCodes' => $bibliographyMediaCrosslinks['diagnosticCodes'],
+            'bibliographyMediaCrosslinkDiagnosticCount' => count($bibliographyMediaCrosslinks['diagnosticCodes']),
             'mediaObjectCount' => count(self::descendantElements($root, 'mediaobject'))
                 + count(self::descendantElements($root, 'inlinemediaobject')),
             'imageObjectCount' => count(self::descendantElements($root, 'imageobject')),
@@ -6211,6 +6223,264 @@ final class XmlHtmlDom
             static fn (array $xref): bool => ($xref['sourceBibliographyId'] ?? null) !== null
                 && in_array($xref['targetKind'] ?? null, ['figure', 'media', 'caption', 'title'], true)
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookBibliographyMediaObjectSummaries(\DOMElement $root, array $entries): array
+    {
+        $entriesById = self::docBookBibliographyEntriesById($entries);
+        $summaries = [];
+
+        foreach (self::docBookElementsByNames($root, ['mediaobject', 'inlinemediaobject']) as $mediaObject) {
+            $block = self::docBookNearestAncestorByNames($mediaObject, [
+                'biblioentry',
+                'bibliodiv',
+                'bibliography',
+                'bibliomixed',
+                'bibliomset',
+                'biblioset',
+            ]);
+            if (!$block instanceof \DOMElement) {
+                continue;
+            }
+
+            $entry = self::docBookNearestAncestorByNames($mediaObject, ['biblioentry', 'bibliomixed']);
+            $entryId = $entry instanceof \DOMElement ? self::docBookBibliographyElementId($entry) : null;
+            $entryContext = $entryId !== null && isset($entriesById[$entryId])
+                ? self::docBookBibliographyMediaEntryContext($entriesById[$entryId], $entryId)
+                : self::docBookBibliographyMediaEntryContext([], $entryId);
+            $imageDataRefs = self::docBookImageDataRefs($mediaObject);
+
+            $summaries[] = $entryContext + [
+                'element' => $mediaObject->localName,
+                'id' => self::docBookElementId($mediaObject),
+                'title' => self::docBookChildTitleText($mediaObject),
+                'captionText' => self::docBookCaptionText($mediaObject),
+                'imageDataRefs' => $imageDataRefs,
+                'imageDataRefCount' => count($imageDataRefs),
+                'bibliographyBlockElement' => $block->localName,
+                'bibliographyBlockId' => self::docBookBibliographyElementId($block),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $xrefs
+     * @param list<array<string, mixed>> $mediaTargetManifest
+     * @return array<string, mixed>
+     */
+    private static function docBookBibliographyMediaCrosslinkSummary(
+        array $entries,
+        array $xrefs,
+        array $mediaTargetManifest
+    ): array {
+        $entriesById = self::docBookBibliographyEntriesById($entries);
+        [$mediaTargetCounts, $mediaTargetsById] = self::docBookMediaTargetsById($mediaTargetManifest);
+        $groups = [];
+
+        foreach ($xrefs as $xref) {
+            $entryId = $xref['sourceBibliographyId'] ?? null;
+            $target = $xref['target'] ?? null;
+            if (!is_string($entryId) || $entryId === '' || !is_string($target) || $target === '') {
+                continue;
+            }
+
+            $resolved = (bool) ($xref['resolved'] ?? false);
+            if ($resolved && !in_array($xref['targetKind'] ?? null, ['figure', 'media'], true)) {
+                continue;
+            }
+
+            $key = $entryId . "\0" . $target;
+            $groups[$key] ??= [
+                'entryId' => $entryId,
+                'target' => $target,
+                'occurrences' => 0,
+                'xrefs' => [],
+            ];
+            ++$groups[$key]['occurrences'];
+            $groups[$key]['xrefs'][] = $xref;
+        }
+
+        $resolved = [];
+        $missing = [];
+        $duplicates = [];
+        $entriesWithMediaLinks = [];
+
+        foreach ($groups as $group) {
+            $entryId = (string) $group['entryId'];
+            $target = (string) $group['target'];
+            $xref = $group['xrefs'][0] ?? [];
+            if (!is_array($xref)) {
+                continue;
+            }
+
+            self::docBookAppendUniqueString($entriesWithMediaLinks, $entryId);
+            $entryContext = self::docBookBibliographyMediaEntryContext($entriesById[$entryId] ?? [], $entryId);
+            $manifestTargets = $mediaTargetsById[$target] ?? [];
+            $manifestRefs = self::docBookMediaTargetManifestImageDataRefs($manifestTargets);
+
+            if (!($xref['resolved'] ?? false)) {
+                $missing[] = $entryContext + [
+                    'code' => 'missing-bibliography-media-target',
+                    'targetId' => $target,
+                    'sourceElement' => $xref['sourceElement'] ?? null,
+                    'sourceId' => $xref['sourceId'] ?? null,
+                    'attribute' => $xref['attribute'] ?? null,
+                ];
+                continue;
+            }
+
+            if (($mediaTargetCounts[$target] ?? 0) > 1) {
+                $duplicates[] = $entryContext + [
+                    'code' => 'duplicate-bibliography-media-target-id',
+                    'targetId' => $target,
+                    'targetCount' => $mediaTargetCounts[$target],
+                    'targetElements' => array_values(array_map(
+                        static fn (array $manifestTarget): ?string => is_string($manifestTarget['element'] ?? null)
+                            ? $manifestTarget['element']
+                            : null,
+                        $manifestTargets
+                    )),
+                    'mediaTargetManifestRefs' => $manifestRefs,
+                ];
+                continue;
+            }
+
+            $resolved[] = $entryContext + [
+                'targetId' => $target,
+                'targetElement' => $xref['targetElement'] ?? null,
+                'targetKind' => $xref['targetKind'] ?? null,
+                'targetTitle' => $xref['targetTitle'] ?? null,
+                'targetCaptionText' => $xref['targetCaptionText'] ?? null,
+                'targetImageDataRefs' => $xref['targetImageDataRefs'] ?? [],
+                'mediaTargetManifestRefs' => $manifestRefs,
+                'mediaTargetManifestRefCount' => count($manifestRefs),
+            ];
+
+            if ((int) $group['occurrences'] > 1) {
+                $duplicates[] = $entryContext + [
+                    'code' => 'duplicate-bibliography-media-crosslink',
+                    'targetId' => $target,
+                    'occurrences' => (int) $group['occurrences'],
+                    'targetKind' => $xref['targetKind'] ?? null,
+                    'mediaTargetManifestRefs' => $manifestRefs,
+                ];
+            }
+        }
+
+        $diagnosticCodes = [];
+        if ($missing !== []) {
+            $diagnosticCodes[] = 'missing-bibliography-media-target';
+        }
+        foreach (['duplicate-bibliography-media-crosslink', 'duplicate-bibliography-media-target-id'] as $code) {
+            foreach ($duplicates as $duplicate) {
+                if (($duplicate['code'] ?? null) === $code) {
+                    $diagnosticCodes[] = $code;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'entriesWithMediaLinks' => $entriesWithMediaLinks,
+            'entriesWithMediaLinkCount' => count($entriesWithMediaLinks),
+            'resolved' => $resolved,
+            'resolvedCount' => count($resolved),
+            'missing' => $missing,
+            'missingCount' => count($missing),
+            'duplicates' => $duplicates,
+            'duplicateCount' => count($duplicates),
+            'diagnosticCodes' => $diagnosticCodes,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, array<string, mixed>>
+     */
+    private static function docBookBibliographyEntriesById(array $entries): array
+    {
+        $entriesById = [];
+        foreach ($entries as $entry) {
+            $id = $entry['id'] ?? null;
+            if (is_string($id) && $id !== '' && !isset($entriesById[$id])) {
+                $entriesById[$id] = $entry;
+            }
+        }
+
+        return $entriesById;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array{entryId:?string, entryIndex:?int, entryElement:?string, entryTitle:?string, entryContributorNames:list<string>, entryYear:?string, entryYearLikeValues:list<string>}
+     */
+    private static function docBookBibliographyMediaEntryContext(array $entry, ?string $fallbackEntryId): array
+    {
+        $yearLikeValues = array_values(array_filter(
+            is_array($entry['yearLikeValues'] ?? null) ? $entry['yearLikeValues'] : [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+        $contributorNames = array_values(array_filter(
+            is_array($entry['contributorNames'] ?? null) ? $entry['contributorNames'] : [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+
+        return [
+            'entryId' => is_string($entry['id'] ?? null) && $entry['id'] !== '' ? $entry['id'] : $fallbackEntryId,
+            'entryIndex' => is_int($entry['entryIndex'] ?? null) ? $entry['entryIndex'] : null,
+            'entryElement' => is_string($entry['element'] ?? null) ? $entry['element'] : null,
+            'entryTitle' => is_string($entry['title'] ?? null) ? $entry['title'] : null,
+            'entryContributorNames' => $contributorNames,
+            'entryYear' => $yearLikeValues[0] ?? null,
+            'entryYearLikeValues' => $yearLikeValues,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $mediaTargetManifest
+     * @return array{0:array<string, int>, 1:array<string, list<array<string, mixed>>>}
+     */
+    private static function docBookMediaTargetsById(array $mediaTargetManifest): array
+    {
+        $counts = [];
+        $targetsById = [];
+
+        foreach ($mediaTargetManifest as $target) {
+            $id = $target['id'] ?? null;
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+
+            $counts[$id] = ($counts[$id] ?? 0) + 1;
+            $targetsById[$id] ??= [];
+            $targetsById[$id][] = $target;
+        }
+
+        return [$counts, $targetsById];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $mediaTargets
+     * @return list<string>
+     */
+    private static function docBookMediaTargetManifestImageDataRefs(array $mediaTargets): array
+    {
+        $refs = [];
+        foreach ($mediaTargets as $target) {
+            foreach (is_array($target['imageDataRefs'] ?? null) ? $target['imageDataRefs'] : [] as $ref) {
+                self::docBookAppendUniqueString($refs, $ref);
+            }
+        }
+
+        return $refs;
     }
 
     /**

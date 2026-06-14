@@ -3134,6 +3134,96 @@ XML, 'DocBook media caption cross-reference XML', preserveWhiteSpace: false);
         $t->same(['images/hero.png', 'images/hero-repeat.png', 'images/poster.png'], $packet['imageDataRefs']);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'summarizes docbook bibliography media crosslink diagnostics' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.2" xml:lang="en">
+  <info><title>Bibliography Media Crosslinks</title></info>
+  <section xml:id="media-targets">
+    <title>Media Targets</title>
+    <figure xml:id="fig-photo">
+      <title>Plate A</title>
+      <mediaobject><imageobject><imagedata fileref="media/plate-a.png"/></imageobject></mediaobject>
+    </figure>
+    <mediaobject xml:id="dup-media"><imageobject><imagedata fileref="media/dup-a.png"/></imageobject></mediaobject>
+    <mediaobject xml:id="dup-media"><imageobject><imagedata fileref="media/dup-b.png"/></imageobject></mediaobject>
+  </section>
+  <bibliography xml:id="refs">
+    <biblioentry xml:id="ref-media">
+      <author><personname><firstname>Mira</firstname><surname>Lens</surname></personname></author>
+      <title>Media Study</title>
+      <pubdate>2025</pubdate>
+      <para>See <xref linkend="fig-photo missing-media dup-media fig-photo"/>.</para>
+    </biblioentry>
+    <bibliomixed xml:id="ref-inline">
+      <author><personname><firstname>Ira</firstname><surname>Inline</surname></personname></author>
+      <citetitle>Inline Media Appendix</citetitle>
+      <year>2024</year>
+      <mediaobject xml:id="bib-media"><imageobject><imagedata fileref="media/bib-inline.png"/></imageobject></mediaobject>
+    </bibliomixed>
+  </bibliography>
+</article>
+XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookStructure($docbook, 'docbook5');
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(2, $packet['bibliographyEntryCount']);
+        $t->same('ref-media', $packet['bibliographyEntries'][0]['id'] ?? null);
+        $t->same('Media Study', $packet['bibliographyEntries'][0]['title'] ?? null);
+        $t->same(['Mira Lens'], $packet['bibliographyEntries'][0]['contributorNames'] ?? null);
+        $t->same(['2025'], $packet['bibliographyEntries'][0]['yearLikeValues'] ?? null);
+        $t->same('ref-inline', $packet['bibliographyEntries'][1]['id'] ?? null);
+        $t->same('Inline Media Appendix', $packet['bibliographyEntries'][1]['title'] ?? null);
+        $t->same(['Ira Inline'], $packet['bibliographyEntries'][1]['contributorNames'] ?? null);
+        $t->same(['2024'], $packet['bibliographyEntries'][1]['yearLikeValues'] ?? null);
+
+        $t->same(1, $packet['bibliographyMediaObjectCount']);
+        $t->same('mediaobject', $packet['bibliographyMediaObjects'][0]['element'] ?? null);
+        $t->same('bib-media', $packet['bibliographyMediaObjects'][0]['id'] ?? null);
+        $t->same('bibliomixed', $packet['bibliographyMediaObjects'][0]['bibliographyBlockElement'] ?? null);
+        $t->same('ref-inline', $packet['bibliographyMediaObjects'][0]['entryId'] ?? null);
+        $t->same('Inline Media Appendix', $packet['bibliographyMediaObjects'][0]['entryTitle'] ?? null);
+        $t->same(['Ira Inline'], $packet['bibliographyMediaObjects'][0]['entryContributorNames'] ?? null);
+        $t->same(['2024'], $packet['bibliographyMediaObjects'][0]['entryYearLikeValues'] ?? null);
+        $t->same(['media/bib-inline.png'], $packet['bibliographyMediaObjects'][0]['imageDataRefs'] ?? null);
+
+        $crosslinks = $packet['bibliographyMediaCrosslinks'];
+        $t->same(2, $crosslinks['entryCount']);
+        $t->same(['ref-media'], $crosslinks['entriesWithMediaLinks']);
+        $t->same(1, $crosslinks['resolvedCount']);
+        $t->same(1, $crosslinks['missingCount']);
+        $t->same(2, $crosslinks['duplicateCount']);
+        $t->same([
+            'missing-bibliography-media-target',
+            'duplicate-bibliography-media-crosslink',
+            'duplicate-bibliography-media-target-id',
+        ], $packet['bibliographyMediaCrosslinkDiagnosticCodes']);
+
+        $t->same('ref-media', $crosslinks['resolved'][0]['entryId'] ?? null);
+        $t->same('Media Study', $crosslinks['resolved'][0]['entryTitle'] ?? null);
+        $t->same('2025', $crosslinks['resolved'][0]['entryYear'] ?? null);
+        $t->same(['Mira Lens'], $crosslinks['resolved'][0]['entryContributorNames'] ?? null);
+        $t->same('fig-photo', $crosslinks['resolved'][0]['targetId'] ?? null);
+        $t->same('figure', $crosslinks['resolved'][0]['targetElement'] ?? null);
+        $t->same('Plate A', $crosslinks['resolved'][0]['targetTitle'] ?? null);
+        $t->same(['media/plate-a.png'], $crosslinks['resolved'][0]['targetImageDataRefs'] ?? null);
+        $t->same(['media/plate-a.png'], $crosslinks['resolved'][0]['mediaTargetManifestRefs'] ?? null);
+
+        $t->same('missing-bibliography-media-target', $crosslinks['missing'][0]['code'] ?? null);
+        $t->same('missing-media', $crosslinks['missing'][0]['targetId'] ?? null);
+        $t->same('ref-media', $crosslinks['missing'][0]['entryId'] ?? null);
+        $t->same('duplicate-bibliography-media-crosslink', $crosslinks['duplicates'][0]['code'] ?? null);
+        $t->same('fig-photo', $crosslinks['duplicates'][0]['targetId'] ?? null);
+        $t->same(2, $crosslinks['duplicates'][0]['occurrences'] ?? null);
+        $t->same(['media/plate-a.png'], $crosslinks['duplicates'][0]['mediaTargetManifestRefs'] ?? null);
+        $t->same('duplicate-bibliography-media-target-id', $crosslinks['duplicates'][1]['code'] ?? null);
+        $t->same('dup-media', $crosslinks['duplicates'][1]['targetId'] ?? null);
+        $t->same(2, $crosslinks['duplicates'][1]['targetCount'] ?? null);
+        $t->same(['mediaobject', 'mediaobject'], $crosslinks['duplicates'][1]['targetElements'] ?? null);
+        $t->same(['media/dup-a.png', 'media/dup-b.png'], $crosslinks['duplicates'][1]['mediaTargetManifestRefs'] ?? null);
+        $t->true(in_array('bib-media', array_column($packet['mediaTargetManifest'], 'id'), true));
+        $t->true(in_array('media/bib-inline.png', $packet['imageDataRefs'], true));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
