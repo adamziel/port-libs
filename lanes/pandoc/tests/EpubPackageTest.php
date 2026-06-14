@@ -1262,6 +1262,97 @@ XML;
         $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
     },
 
+    'reports OPF metadata refinement target resolution for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithTargetedRefinements = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/">',
+            $epub3OpfXml
+        );
+        $opfWithTargetedRefinements = str_replace(
+            '<dc:title>WordPress Migration Guide</dc:title>',
+            '<dc:title id="main-title">WordPress Migration Guide</dc:title>',
+            $opfWithTargetedRefinements
+        );
+        $opfWithTargetedRefinements = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <link id="source-record" rel="record" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <meta id="package-name" refines="#package-record" property="schema:name">Package record</meta>
+    <meta refines="#main-title" property="file-as">WordPress Migration Guide, The</meta>
+    <meta refines="#cover" property="schema:about">Cover manifest asset</meta>
+    <meta refines="#chapter1-spine" property="schema:position">1</meta>
+    <meta refines="#source-record" property="schema:about">Source link target</meta>
+    <meta refines="#series" property="schema:name">Series collection</meta>
+    <meta refines="#missing-subject" property="schema:name">Missing compact target</meta>',
+            $opfWithTargetedRefinements
+        );
+        $opfWithTargetedRefinements = str_replace(
+            '<itemref idref="chapter1"/>',
+            '<itemref id="chapter1-spine" idref="chapter1"/>',
+            $opfWithTargetedRefinements
+        );
+        $opfWithTargetedRefinements = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration series</dc:title>
+    </metadata>
+  </collection>',
+            $opfWithTargetedRefinements
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithTargetedRefinements],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $metadata = $epub->metadata();
+        $targets = $metadata['refinementTargets'];
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $itemsBySubject = [];
+        foreach ($targets['items'] as $item) {
+            $itemsBySubject[$item['subjectId']] = $item;
+        }
+
+        $t->same(true, $targets['present']);
+        $t->same(7, $targets['refinementCount']);
+        $t->same(7, $targets['localRefinementCount']);
+        $t->same(6, $targets['resolvedRefinementCount']);
+        $t->same(1, $targets['unresolvedRefinementCount']);
+        $t->same(1, $targets['diagnosticCount']);
+        $t->same('unresolved-metadata-refinement-target', $targets['diagnostics'][0]['type']);
+        $t->same('missing-subject', $targets['diagnostics'][0]['subjectId']);
+        $t->same('Package record', $itemsBySubject['package-record']['value']);
+        $t->same(['package'], $itemsBySubject['package-record']['targetKinds']);
+        $t->same(['dc-metadata'], $itemsBySubject['main-title']['targetKinds']);
+        $t->same(['manifest-item'], $itemsBySubject['cover']['targetKinds']);
+        $t->same('/EPUB/images/cover.png', $itemsBySubject['cover']['targets'][0]['partName']);
+        $t->same(['spine-itemref'], $itemsBySubject['chapter1-spine']['targetKinds']);
+        $t->same('chapter1', $itemsBySubject['chapter1-spine']['targets'][0]['idref']);
+        $t->same(['metadata-link'], $itemsBySubject['source-record']['targetKinds']);
+        $t->same('text/chapter1.xhtml', $itemsBySubject['source-record']['targets'][0]['href']);
+        $t->same(['collection'], $itemsBySubject['series']['targetKinds']);
+        $t->same('series', $itemsBySubject['series']['targets'][0]['role']);
+        $t->same(false, $itemsBySubject['missing-subject']['resolved']);
+        $t->same('unresolved-metadata-refinement-target', $itemsBySubject['missing-subject']['diagnostics'][0]['type']);
+        $t->same(false, $validation['metadata']['valid']);
+        $t->same(false, $validation['metadata']['refinementTargetValid']);
+        $t->same(1, $validation['metadata']['refinementTargetDiagnosticCount']);
+        $t->same($targets['diagnostics'], $validation['metadata']['refinementTargetDiagnostics']);
+        $t->same($targets, $validation['metadata']['refinementTargets']);
+        $t->same($targets, $summary['metadataRefinementTargets']);
+        $t->same($targets, $summary['wordpressImport']['metadataDetails']['refinementTargets']);
+        $t->same($targets, $summary['wordpressImport']['metadataRefinementTargets']);
+        $t->same($targets['diagnostics'], $summary['wordpressImport']['metadataRefinementTargetDiagnostics']);
+    },
+
     'summarizes compact OPF creator contributor display order for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithAgentOrder = str_replace(
             '<dc:creator id="creator">Data Liberation Team</dc:creator>',

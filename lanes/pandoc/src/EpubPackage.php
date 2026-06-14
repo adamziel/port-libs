@@ -525,6 +525,9 @@ final class EpubPackage
         $metaPropertyVocabulary = is_array($this->metadata['metaPropertyVocabulary'] ?? null)
             ? $this->metadata['metaPropertyVocabulary']
             : self::metadataMetaPropertyVocabularySummary([]);
+        $metadataRefinementTargets = is_array($this->metadata['refinementTargets'] ?? null)
+            ? $this->metadata['refinementTargets']
+            : self::metadataRefinementTargetReport([], [], [], [], []);
         $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
         $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
@@ -563,6 +566,7 @@ final class EpubPackage
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
             'metaPropertyVocabulary' => $metaPropertyVocabulary,
+            'metadataRefinementTargets' => $metadataRefinementTargets,
             'packageLinks' => $this->packageLinks,
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
             'packageLinkRelCounts' => $packageLinkReport['relCounts'],
@@ -649,9 +653,12 @@ final class EpubPackage
                     'metaPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                     'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
+                    'refinementTargets' => $metadataRefinementTargets,
                 ],
                 'metadataPropertyVocabulary' => $metaPropertyVocabulary,
                 'metadataPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
+                'metadataRefinementTargets' => $metadataRefinementTargets,
+                'metadataRefinementTargetDiagnostics' => $metadataRefinementTargets['diagnostics'],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
@@ -1120,9 +1127,18 @@ final class EpubPackage
         $metaPropertyVocabulary = is_array($metadata['metaPropertyVocabulary'] ?? null)
             ? $metadata['metaPropertyVocabulary']
             : self::metadataMetaPropertyVocabularySummary([]);
+        $refinementTargets = is_array($metadata['refinementTargets'] ?? null)
+            ? $metadata['refinementTargets']
+            : self::metadataRefinementTargetReport([], [], [], [], []);
         foreach (is_array($metaPropertyVocabulary['diagnostics'] ?? null) ? $metaPropertyVocabulary['diagnostics'] : [] as $diagnostic) {
             if (is_array($diagnostic)) {
                 $metaPropertyDiagnostics[] = $diagnostic;
+            }
+        }
+        $refinementTargetDiagnostics = [];
+        foreach (is_array($refinementTargets['diagnostics'] ?? null) ? $refinementTargets['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $refinementTargetDiagnostics[] = $diagnostic;
             }
         }
         $diagnostics = [];
@@ -1155,7 +1171,13 @@ final class EpubPackage
             ];
         }
 
-        array_push($diagnostics, ...$identifierDiagnostics, ...$prefixDiagnostics, ...$metaPropertyDiagnostics);
+        array_push(
+            $diagnostics,
+            ...$identifierDiagnostics,
+            ...$prefixDiagnostics,
+            ...$metaPropertyDiagnostics,
+            ...$refinementTargetDiagnostics,
+        );
 
         return [
             'valid' => $diagnostics === [],
@@ -1172,6 +1194,10 @@ final class EpubPackage
             'metaPropertyValid' => $metaPropertyDiagnostics === [],
             'metaPropertyDiagnosticCount' => count($metaPropertyDiagnostics),
             'metaPropertyDiagnostics' => $metaPropertyDiagnostics,
+            'refinementTargetValid' => $refinementTargetDiagnostics === [],
+            'refinementTargetDiagnosticCount' => count($refinementTargetDiagnostics),
+            'refinementTargetDiagnostics' => $refinementTargetDiagnostics,
+            'refinementTargets' => $refinementTargets,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3206,6 +3232,13 @@ final class EpubPackage
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
         $mediaOverlays = self::parseMediaOverlays($manifestById, $metadata, $package);
         $manifestFallbacks = self::manifestFallbackPreflight($manifestById, $package);
+        $metadata['refinementTargets'] = self::metadataRefinementTargetReport(
+            $metadata,
+            $manifestItems,
+            $spine,
+            $packageLinks,
+            $collections,
+        );
 
         return [
             'metadata' => $metadata,
@@ -3649,6 +3682,339 @@ final class EpubPackage
             'propertyCounts' => $propertyCounts,
             'items' => $items,
             'diagnosticItems' => $invalidItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $manifestItems
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataRefinementTargetReport(
+        array $metadata,
+        array $manifestItems,
+        array $spine,
+        array $packageLinks,
+        array $collections
+    ): array {
+        $targetItems = [];
+        $targetsById = [];
+        $targetKindCounts = [];
+
+        $addTarget = static function (?string $id, string $kind, array $context = []) use (&$targetItems, &$targetsById, &$targetKindCounts): void {
+            $id = is_string($id) ? trim($id) : '';
+            if ($id === '') {
+                return;
+            }
+
+            $item = [
+                'id' => $id,
+                'kind' => $kind,
+            ] + $context;
+            $targetItems[] = $item;
+            $targetsById[$id][] = $item;
+            $targetKindCounts[$kind] = ($targetKindCounts[$kind] ?? 0) + 1;
+        };
+
+        $addTarget(is_string($metadata['packageId'] ?? null) ? $metadata['packageId'] : null, 'package');
+
+        foreach (is_array($metadata['dc'] ?? null) ? $metadata['dc'] : [] as $name => $entries) {
+            if (!is_array($entries)) {
+                continue;
+            }
+
+            foreach ($entries as $index => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $addTarget(
+                    is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'dc-metadata',
+                    [
+                        'name' => is_string($name) ? $name : (string) $name,
+                        'index' => (int) $index,
+                    ],
+                );
+            }
+        }
+
+        foreach (is_array($metadata['meta'] ?? null) ? $metadata['meta'] : [] as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $addTarget(
+                is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'metadata-meta',
+                [
+                    'index' => (int) $index,
+                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                    'name' => is_string($entry['name'] ?? null) ? $entry['name'] : null,
+                ],
+            );
+        }
+
+        foreach ($packageLinks as $index => $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $addTarget(
+                is_string($link['id'] ?? null) ? $link['id'] : null,
+                'metadata-link',
+                [
+                    'index' => (int) $index,
+                    'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                ],
+            );
+        }
+
+        foreach ($manifestItems as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $addTarget(
+                is_string($item['id'] ?? null) ? $item['id'] : null,
+                'manifest-item',
+                [
+                    'index' => (int) $index,
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                    'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                ],
+            );
+        }
+
+        foreach ($spine as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $addTarget(
+                is_string($item['id'] ?? null) ? $item['id'] : null,
+                'spine-itemref',
+                [
+                    'index' => (int) $index,
+                    'idref' => is_string($item['idref'] ?? null) ? $item['idref'] : null,
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                ],
+            );
+        }
+
+        $appendCollectionTargets = static function (array $items, array $path = []) use (&$appendCollectionTargets, $addTarget): void {
+            foreach ($items as $index => $collection) {
+                if (!is_array($collection)) {
+                    continue;
+                }
+
+                $currentPath = array_merge($path, [(int) $index]);
+                $addTarget(
+                    is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                    'collection',
+                    [
+                        'index' => (int) $index,
+                        'path' => $currentPath,
+                        'role' => is_string($collection['role'] ?? null) ? $collection['role'] : null,
+                    ],
+                );
+
+                foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $addTarget(
+                        is_string($link['id'] ?? null) ? $link['id'] : null,
+                        'collection-link',
+                        [
+                            'index' => (int) $linkIndex,
+                            'collectionPath' => $currentPath,
+                            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                        ],
+                    );
+                }
+
+                $collectionMetadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($collectionMetadata['dc'] ?? null) ? $collectionMetadata['dc'] : [] as $name => $entries) {
+                    if (!is_array($entries)) {
+                        continue;
+                    }
+
+                    foreach ($entries as $entryIndex => $entry) {
+                        if (!is_array($entry)) {
+                            continue;
+                        }
+
+                        $addTarget(
+                            is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                            'collection-dc-metadata',
+                            [
+                                'name' => is_string($name) ? $name : (string) $name,
+                                'index' => (int) $entryIndex,
+                                'collectionPath' => $currentPath,
+                            ],
+                        );
+                    }
+                }
+
+                foreach (is_array($collectionMetadata['meta'] ?? null) ? $collectionMetadata['meta'] : [] as $entryIndex => $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $addTarget(
+                        is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                        'collection-metadata-meta',
+                        [
+                            'index' => (int) $entryIndex,
+                            'collectionPath' => $currentPath,
+                            'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                        ],
+                    );
+                }
+
+                $appendCollectionTargets(
+                    is_array($collection['children'] ?? null) ? $collection['children'] : [],
+                    $currentPath,
+                );
+            }
+        };
+        $appendCollectionTargets($collections);
+
+        ksort($targetKindCounts, SORT_STRING);
+        $duplicateTargetItems = [];
+        foreach ($targetsById as $id => $targets) {
+            if (count($targets) < 2) {
+                continue;
+            }
+
+            $duplicateTargetItems[] = [
+                'id' => $id,
+                'targetCount' => count($targets),
+                'targetKinds' => array_values(array_unique(array_map(
+                    static fn (array $target): string => (string) ($target['kind'] ?? ''),
+                    $targets,
+                ))),
+                'targets' => array_values($targets),
+            ];
+        }
+
+        $items = [];
+        $resolvedItems = [];
+        $unresolvedItems = [];
+        $externalItems = [];
+        $packageRelativeItems = [];
+        $diagnostics = [];
+
+        foreach (is_array($metadata['meta'] ?? null) ? $metadata['meta'] : [] as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refines = is_string($entry['refines'] ?? null) ? trim($entry['refines']) : '';
+            if ($refines === '') {
+                continue;
+            }
+
+            $subjectId = is_string($entry['subjectId'] ?? null)
+                ? trim($entry['subjectId'])
+                : (self::metadataRefinementSubject($refines) ?? '');
+            $targetLocal = str_starts_with($refines, '#');
+            $targetExternal = !$targetLocal && self::isAbsoluteUri($refines);
+            $targetPackageRelative = !$targetLocal && !$targetExternal && str_contains($refines, '#');
+            $targets = $targetLocal && $subjectId !== '' && isset($targetsById[$subjectId])
+                ? array_values($targetsById[$subjectId])
+                : [];
+            $targetKinds = array_values(array_unique(array_map(
+                static fn (array $target): string => (string) ($target['kind'] ?? ''),
+                $targets,
+            )));
+            $itemDiagnostics = [];
+            if ($subjectId === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-metadata-refinement-target',
+                    'metaIndex' => (int) $index,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                    'refines' => $refines,
+                    'message' => 'EPUB OPF metadata refinement target must include a fragment identifier',
+                ];
+            } elseif ($targetLocal && $targets === []) {
+                $itemDiagnostics[] = [
+                    'type' => 'unresolved-metadata-refinement-target',
+                    'metaIndex' => (int) $index,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                    'refines' => $refines,
+                    'subjectId' => $subjectId,
+                    'message' => 'EPUB OPF metadata refinement points at a local package subject id that was not found in the compact handoff target inventory',
+                ];
+            }
+
+            $item = [
+                'metaIndex' => (int) $index,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
+                'refines' => $refines,
+                'subjectId' => $subjectId === '' ? null : $subjectId,
+                'value' => self::metadataEntryValue($entry),
+                'targetLocal' => $targetLocal,
+                'targetExternal' => $targetExternal,
+                'targetPackageRelative' => $targetPackageRelative,
+                'resolved' => $targets !== [],
+                'targetCount' => count($targets),
+                'targetKinds' => $targetKinds,
+                'targets' => $targets,
+                'diagnostics' => $itemDiagnostics,
+            ];
+            $items[] = $item;
+
+            if ($item['resolved']) {
+                $resolvedItems[] = $item;
+            } else {
+                $unresolvedItems[] = $item;
+            }
+
+            if ($targetExternal) {
+                $externalItems[] = $item;
+            } elseif ($targetPackageRelative) {
+                $packageRelativeItems[] = $item;
+            }
+
+            array_push($diagnostics, ...$itemDiagnostics);
+        }
+
+        return [
+            'present' => $items !== [],
+            'targetIdCount' => count($targetsById),
+            'targetCount' => count($targetItems),
+            'targetKindCounts' => $targetKindCounts,
+            'targetItems' => $targetItems,
+            'targetsById' => $targetsById,
+            'duplicateTargetIdCount' => count($duplicateTargetItems),
+            'duplicateTargetItems' => $duplicateTargetItems,
+            'refinementCount' => count($items),
+            'localRefinementCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => ($item['targetLocal'] ?? false) === true,
+            )),
+            'externalRefinementCount' => count($externalItems),
+            'packageRelativeRefinementCount' => count($packageRelativeItems),
+            'resolvedRefinementCount' => count($resolvedItems),
+            'unresolvedRefinementCount' => count($unresolvedItems),
+            'items' => $items,
+            'resolvedItems' => $resolvedItems,
+            'unresolvedItems' => $unresolvedItems,
+            'externalItems' => $externalItems,
+            'packageRelativeItems' => $packageRelativeItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
