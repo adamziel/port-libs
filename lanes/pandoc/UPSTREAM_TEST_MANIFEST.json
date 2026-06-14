@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3393,
-        "latestSlice": "pandoc-epub-page-list-nav-collisions-direct-package maps one native EPUB direct package-reader case on current main c7516f37a1 after CSV/TSV control row repair interaction. EpubPackageReader keeps epub.toc entry fields compatible while adding navigationReport/pageListReport diagnostics for page-list targets colliding with toc/landmarks, repeated fragment targets, nonlinear and backward spine reading order, duplicate OPF manifest ids, and duplicate spine idrefs. Mapped denominator moves 3392 -> 3393, mappedEpubPageListNavCollisionCases is 1, and epubPageListNavCollisionAssertions is 33. Verification passed php -l for EpubPackageReader.php and EpubPackageReaderTest.php; focused EpubPackageReaderTest.php passed 1 file, 619 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80231 assertions, 0 failures; jq empty; and git diff --check.",
+        "mapped": 3394,
+        "latestSlice": "pandoc-odt-rich-package-signature-review maps one native ODT rich reader package-signature review case on current main 842d188a76. OdfReader now exposes packageSignatures, metadata odfPackageSignatures, and importReport packageSignatures; blocks signature package sidecars from document media byte exposure even when manifest media types are invalid; and keeps XML signature parsing metadata separate. Mapped denominator moves 3393 -> 3394, mappedOdtReaderPackageSignatureProvenanceCases is 2, and odtReaderPackageSignatureProvenanceAssertions is 72. Verification passed php -l for OdfReader.php and OdfReaderTest.php; focused OdfReaderTest.php passed 1 file, 4688 assertions, 0 failures; focused ODF/ODT readiness gate passed 5 files, 6169 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80299 assertions, 0 failures; jq empty; and git diff --check.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -44,8 +44,8 @@
         "docxOpenXmlContentTypeParameterAssertions": 30,
         "mappedOpcRawZipCentralDirectoryManifestCases": 1,
         "opcRawZipCentralDirectoryManifestAssertions": 37,
-        "status": "EPUB direct package-reader page-list nav collision diagnostics are verified over current main c7516f37a1; broader direct EPUB structural/content parity remains partial.",
-        "latestFocusedSource": "2026-06-13 EPUB direct package-reader page-list nav collision slice inspected bounded OPF/nav XHTML fixtures against the accepted static Pandoc EPUB inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main c7516f37a1; focused EpubPackageReaderTest.php passed 1 file, 619 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80231 assertions, 0 failures.",
+        "status": "ODF/ODT rich package-reader signature sidecar review metadata is verified over current main 842d188a76; broader direct EPUB structural/content parity remains partial.",
+        "latestFocusedSource": "2026-06-14 ODF/ODT rich package signature review slice inspected bounded signature sidecar fixtures against the accepted static Pandoc ODT inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after refresh onto current main 842d188a76; focused OdfReaderTest.php passed 1 file, 4688 assertions, 0 failures; focused ODF/ODT readiness gate passed 5 files, 6169 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 80299 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -353,7 +353,9 @@
         "mappedPandocXmlNamespaceRegistryReviewCases": 1,
         "pandocXmlNamespaceRegistryReviewAssertions": 51,
         "mappedEpubPageListNavCollisionCases": 1,
-        "epubPageListNavCollisionAssertions": 33
+        "epubPageListNavCollisionAssertions": 33,
+        "mappedOdtReaderPackageSignatureProvenanceCases": 2,
+        "odtReaderPackageSignatureProvenanceAssertions": 72
     },
     "benchmarkDenominator": {
         "status": "XML/HTML5 DOM template content review provenance is verified over current main a0e620b5f8.",
