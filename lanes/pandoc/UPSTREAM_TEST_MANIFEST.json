@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3411,
-        "latestSlice": "pandoc-epub-identifier-validation-handoff maps one EPUB3 package ingestion slice on current main 5b8d64a87a after ODF/ODT package byte-exposure policy rollups. EpubPackage promotes OPF unique-identifier and duplicate identifier diagnostics into package metadata validation and WordPress import packageValidationDiagnostics. phpPass moves 3474 -> 3475, phpFail remains 0, mappedEpubIdentifierValidationHandoffCases is 1, and epubIdentifierValidationHandoffAssertions is 8. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2316 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81314 assertions, 0 failures. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, Cabal/Haskell runner, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3412,
+        "latestSlice": "pandoc-xml-namespace-frequency-review maps one additional native XML DOM diagnostics case on current main 67ad15b after DOCX custom XML property schema diagnostics. XmlHtmlDom now emits bounded prefix and URI frequency summaries sorted by use count while XML/JATS/BITS remain diagnostics-only registry surfaces with no direct reader implementation. phpPass moves 3480 -> 3481, phpFail remains 0, mappedXmlHtmlDomNamespaceFrequencyDiagnosticsCases is 2, and xmlHtmlDomNamespaceFrequencyDiagnosticsAssertions is 51. Verification passed php -l for XmlHtmlDom.php, PandocFormatRegistry.php, XmlHtmlDomTest.php, and PandocFormatRegistryTest.php; focused XmlHtmlDomTest.php plus PandocFormatRegistryTest.php passed 2 files, 5868 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81520 assertions, 0 failures; jq empty for lane metadata; git diff --check. No Pandoc, XML validators, browsers, Node tooling, online services, live providers, or external validators were invoked.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -48,8 +48,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "EPUB identifier validation diagnostics are verified over current main 5b8d64a87a after ODF/ODT package byte-exposure policy rollups; broader EPUB package ingestion parity remains partial while remaining package surfaces are mapped.",
-        "latestFocusedSource": "2026-06-14 EPUB identifier validation handoff inspected EpubPackage native package metadata validation against accepted static Pandoc inventory constraints after rebase onto current main 5b8d64a87a; focused EpubPackageTest.php passed 1 file, 2316 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81314 assertions, 0 failures.",
+        "status": "XML namespace frequency diagnostics are verified with bounded prefix and URI review summaries; XML/JATS/BITS direct readers remain unregistered.",
+        "latestFocusedSource": "2026-06-14 XML namespace frequency review inspected bounded prefix and URI summaries against current main 67ad15b after DOCX custom XML property schema diagnostics; focused XmlHtmlDomTest.php plus PandocFormatRegistryTest.php passed 2 files, 5868 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81520 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -381,7 +381,9 @@
         "mappedXmlHtmlDomDocBookMediaTargetManifestCases": 1,
         "xmlHtmlDomDocBookMediaTargetManifestAssertions": 95,
         "mappedEpubMetadataMetaPropertyVocabularyCases": 1,
-        "epubMetadataMetaPropertyVocabularyAssertions": 23
+        "epubMetadataMetaPropertyVocabularyAssertions": 23,
+        "mappedXmlHtmlDomNamespaceFrequencyDiagnosticsCases": 2,
+        "xmlHtmlDomNamespaceFrequencyDiagnosticsAssertions": 51
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1389,7 +1391,7 @@
     "status": "EPUB identifier validation diagnostics are verified over current main 5b8d64a87a after ODF/ODT package byte-exposure policy rollups; broader EPUB package ingestion parity remains partial while remaining package surfaces are mapped.",
     "mapping": "Adds one bounded native PHP EPUB package identifier-validation handoff on current main 5b8d64a87a while preserving DOCX, ODF, XML/HTML, JSON/native, CSL/BibTeX, PDF/Typst, MediaBag, Markdown, LaTeX, Typst, wiki, roff, CSV/TSV, CommonMark, and ZIP/OPC counters.",
     "audit": "updated 2026-06-14: EPUB identifier validation diagnostics verified on current main 5b8d64a87a after ODF/ODT package byte-exposure policy rollups with focused EpubPackageTest.php and full lanes/pandoc/tests; mapped upstream moves 3410 -> 3411 and phpPass moves 3474 -> 3475.",
-    "latestSlice": "pandoc-epub-identifier-validation-handoff maps one EPUB3 package ingestion slice on current main 5b8d64a87a after ODF/ODT package byte-exposure policy rollups. EpubPackage promotes OPF unique-identifier and duplicate identifier diagnostics into package metadata validation and WordPress import packageValidationDiagnostics. phpPass moves 3474 -> 3475, phpFail remains 0, mappedEpubIdentifierValidationHandoffCases is 1, and epubIdentifierValidationHandoffAssertions is 8. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2316 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81314 assertions, 0 failures. No Pandoc binary, EPUBCheck, zip/unzip, ZipArchive, Cabal/Haskell runner, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "latestSlice": "pandoc-xml-namespace-frequency-review maps one additional native XML DOM diagnostics case on current main 67ad15b after DOCX custom XML property schema diagnostics. XmlHtmlDom now emits bounded prefix and URI frequency summaries sorted by use count while XML/JATS/BITS remain diagnostics-only registry surfaces with no direct reader implementation. phpPass moves 3480 -> 3481, phpFail remains 0, mappedXmlHtmlDomNamespaceFrequencyDiagnosticsCases is 2, and xmlHtmlDomNamespaceFrequencyDiagnosticsAssertions is 51. Verification passed php -l for XmlHtmlDom.php, PandocFormatRegistry.php, XmlHtmlDomTest.php, and PandocFormatRegistryTest.php; focused XmlHtmlDomTest.php plus PandocFormatRegistryTest.php passed 2 files, 5868 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81520 assertions, 0 failures; jq empty for lane metadata; git diff --check. No Pandoc, XML validators, browsers, Node tooling, online services, live providers, or external validators were invoked.",
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
     "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
     "mappedBibtexCslProcessorCases": 6,
@@ -1924,5 +1926,7 @@
     "mappedEpubMetadataMetaPropertyVocabularyCases": 1,
     "epubMetadataMetaPropertyVocabularyAssertions": 23,
     "mappedEpubIdentifierValidationHandoffCases": 1,
-    "epubIdentifierValidationHandoffAssertions": 8
+    "epubIdentifierValidationHandoffAssertions": 8,
+    "mappedXmlHtmlDomNamespaceFrequencyDiagnosticsCases": 2,
+    "xmlHtmlDomNamespaceFrequencyDiagnosticsAssertions": 51
 }

@@ -87,24 +87,25 @@ return [
         $t->same(OdtReader::class, $inputSupport['odt']['implementation']);
         $t->same(RtfReader::class, $inputSupport['rtf']['implementation']);
         $t->same(PandocJsonReader::class, $inputSupport['json']['implementation']);
-        $t->same('partial', $inputSupport['xml']['status']);
-        $t->same(XmlHtmlDom::class, $inputSupport['xml']['implementation']);
+        $t->same('unsupported', $inputSupport['xml']['status']);
+        $t->same('', $inputSupport['xml']['implementation']);
         $t->contains('full Pandoc XML reader parity remains open', $inputSupport['xml']['notes']);
-        $t->same('partial', $inputSupport['jats']['status']);
-        $t->same(XmlHtmlDom::class, $inputSupport['jats']['implementation']);
-        $t->contains('unsupported direct-reader parity reasons', $inputSupport['jats']['notes']);
-        $t->same('partial', $inputSupport['bits']['status']);
-        $t->same(XmlHtmlDom::class, $inputSupport['bits']['implementation']);
+        $t->contains('no native PHP XML direct reader is registered', $inputSupport['xml']['notes']);
+        $t->same('unsupported', $inputSupport['jats']['status']);
+        $t->same('', $inputSupport['jats']['implementation']);
+        $t->contains('no native PHP JATS direct reader is registered', $inputSupport['jats']['notes']);
+        $t->same('unsupported', $inputSupport['bits']['status']);
+        $t->same('', $inputSupport['bits']['implementation']);
         $t->contains('full Pandoc BITS reader parity remains open', $inputSupport['bits']['notes']);
         $t->same(MarkdownWriter::class, $outputSupport['markdown']['implementation']);
         $t->same(PandocJsonWriter::class, $outputSupport['json']['implementation']);
         $t->same(PlainWriter::class, $outputSupport['plain']['implementation']);
         $t->contains('wrapping diagnostics', $outputSupport['plain']['notes']);
 
-        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
-        $t->same(false, in_array('xml', PandocFormatRegistry::unsupportedInputFormats(), true));
-        $t->same(false, in_array('jats', PandocFormatRegistry::unsupportedInputFormats(), true));
-        $t->same(false, in_array('bits', PandocFormatRegistry::unsupportedInputFormats(), true));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(true, in_array('xml', PandocFormatRegistry::unsupportedInputFormats(), true));
+        $t->same(true, in_array('jats', PandocFormatRegistry::unsupportedInputFormats(), true));
+        $t->same(true, in_array('bits', PandocFormatRegistry::unsupportedInputFormats(), true));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks xml jats bits direct reader capabilities without parity claims' => static function (TestRunner $t): void {
@@ -132,7 +133,7 @@ return [
 
         $t->same($expectedFormats, PandocFormatRegistry::xmlJatsBitsInputFormats());
         $t->same($expectedFormats, array_keys($inputSupport));
-        $t->same([], PandocFormatRegistry::unsupportedXmlJatsBitsInputFormats());
+        $t->same($expectedFormats, PandocFormatRegistry::unsupportedXmlJatsBitsInputFormats());
         $t->same($expectedFormats, array_keys($directions));
         $t->same($expectedCounters, PandocFormatRegistry::xmlJatsBitsLocalEvidenceCounters());
         $t->same($expectedCounters, $packet['localEvidenceCounters']);
@@ -140,17 +141,17 @@ return [
         $t->same(3, $packet['unsupportedDirectReaderCount']);
 
         foreach ($expectedFormats as $format) {
-            $t->same('partial', $inputSupport[$format]['status'], "XML/JATS/BITS input {$format} should expose bounded direct input routing");
-            $t->same(XmlHtmlDom::class, $inputSupport[$format]['implementation']);
+            $t->same('unsupported', $inputSupport[$format]['status'], "XML/JATS/BITS input {$format} should remain diagnostics-only");
+            $t->same('', $inputSupport[$format]['implementation']);
             $t->contains('full Pandoc', $inputSupport[$format]['notes']);
             $t->same(true, $directions[$format]['input']);
             $t->same(false, $directions[$format]['output']);
             $t->same('input-only', $directions[$format]['direction']);
-            $t->same('partial', $directions[$format]['inputStatus']);
+            $t->same('unsupported', $directions[$format]['inputStatus']);
             $t->same('not-applicable', $directions[$format]['outputStatus']);
             $t->same(false, $packet['formats'][$format]['directReaderParity']);
             $t->same(XmlHtmlDom::class, $packet['formats'][$format]['diagnosticImplementation']);
-            $t->same(XmlHtmlDom::class, $packet['formats'][$format]['inputImplementation']);
+            $t->same('', $packet['formats'][$format]['inputImplementation']);
             $t->contains('full Pandoc', $packet['formats'][$format]['inputNotes']);
             $t->same(false, $packet['formats'][$format]['registeredDirectReaderRecord']);
             $t->same('full-direct-reader-missing', $packet['formats'][$format]['unsupportedDirectReaderReason']['code']);
@@ -163,9 +164,9 @@ return [
         $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
         $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
         $t->same($expectedFormats, $packet['inputFormats']);
-        $t->same([], $packet['unsupportedInputFormats']);
-        $t->same(0, $packet['unsupportedInputCount']);
-        $t->same(['partial' => 3], $packet['inputSupportStatusCounts']);
+        $t->same($expectedFormats, $packet['unsupportedInputFormats']);
+        $t->same(3, $packet['unsupportedInputCount']);
+        $t->same(['unsupported' => 3], $packet['inputSupportStatusCounts']);
         $t->same(false, $packet['directReaderParitySupported']);
         $t->same(0, $packet['registeredDirectReaderImplementations']);
         $t->same(0, $packet['registeredDirectReaderRecords']);
@@ -173,7 +174,7 @@ return [
         $t->same(3, $packet['registeredDiagnosticImplementations']);
         $t->same(3, $packet['boundedDiagnosticSurfaceCount']);
         $t->same(true, $packet['explicitUnsupportedVerdict']);
-        $t->contains('no full direct reader parity is registered', $packet['reviewNote']);
+        $t->contains('no native direct reader implementation is registered', $packet['reviewNote']);
 
         $t->same('summarizeXmlNamespaceUsage', $packet['formats']['xml']['reviewMethod']);
         $t->same('xml-namespace-usage-diagnostics-review-only', $packet['formats']['xml']['reviewPolicy']);
@@ -241,6 +242,14 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
         foreach ($packet['namespaceUriFrequencyRows'] as $row) {
             $uriRows[$row['namespaceUri']] = $row;
         }
+        $prefixSummaries = [];
+        foreach ($packet['namespacePrefixFrequencySummaries'] as $row) {
+            $prefixSummaries[$row['prefix']] = $row;
+        }
+        $uriSummaries = [];
+        foreach ($packet['namespaceUriFrequencySummaries'] as $row) {
+            $uriSummaries[$row['namespaceUri']] = $row;
+        }
         $sameUriAliases = [];
         foreach ($packet['sameUriMultiplePrefixes'] as $alias) {
             $sameUriAliases[$alias['namespaceUri']] = $alias;
@@ -252,8 +261,8 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
 
         $t->same('xml', $packet['format']);
         $t->same('xml', $packet['inputFormat']);
-        $t->same('partial', $packet['inputStatus']);
-        $t->same(XmlHtmlDom::class, $packet['inputImplementation']);
+        $t->same('unsupported', $packet['inputStatus']);
+        $t->same('', $packet['inputImplementation']);
         $t->same(XmlHtmlDom::class, $packet['diagnosticImplementation']);
         $t->same('summarizeXmlNamespaceUsage', $packet['reviewMethod']);
         $t->same('xml-namespace-usage-diagnostics-review-only', $packet['reviewPolicy']);
@@ -274,6 +283,8 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
         $t->true(in_array('unboundNamespacePrefixUses', $packet['reviewPacketFields'], true));
         $t->true(in_array('unusedNamespaceDeclarations', $packet['reviewPacketFields'], true));
         $t->true(in_array('reservedNamespaceUses', $packet['reviewPacketFields'], true));
+        $t->true(in_array('namespacePrefixFrequencySummaries', $packet['reviewPacketFields'], true));
+        $t->true(in_array('namespaceUriFrequencySummaries', $packet['reviewPacketFields'], true));
         $t->same('xml-namespace-usage', $packet['namespaceReview']);
         $t->same('xml-namespace-scope', $packet['namespaceScopeReview']);
         $t->same('serialized-dom', $packet['namespaceUsageSourceMode']);
@@ -290,8 +301,12 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
 
         $t->same(7, $packet['namespacePrefixFrequencyRowCount']);
         $t->same($packet['namespacePrefixFrequencies'], $packet['namespacePrefixFrequencyRows']);
+        $t->same(7, $packet['namespacePrefixFrequencySummaryCount']);
+        $t->same('default', $packet['namespacePrefixFrequencySummaries'][0]['prefix'] ?? null);
+        $t->same(6, $packet['namespacePrefixFrequencySummaries'][0]['useCount'] ?? null);
         $t->same(['urn:item-a', 'urn:item-b'], $prefixRows['a']['namespaceUris'] ?? null);
         $t->same(2, $prefixRows['a']['useCount'] ?? null);
+        $t->same(2, $prefixSummaries['a']['useCount'] ?? null);
         $t->same(['', 'urn:group', 'urn:root'], $prefixRows['default']['namespaceUris'] ?? null);
         $t->same(6, $prefixRows['default']['useCount'] ?? null);
         $t->same(['urn:attr-a'], $prefixRows['attrA']['namespaceUris'] ?? null);
@@ -299,8 +314,12 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
 
         $t->same(7, $packet['namespaceUriFrequencyRowCount']);
         $t->same($packet['namespaceUriFrequencies'], $packet['namespaceUriFrequencyRows']);
+        $t->same(7, $packet['namespaceUriFrequencySummaryCount']);
+        $t->same('urn:attr-a', $packet['namespaceUriFrequencySummaries'][0]['namespaceUri'] ?? null);
+        $t->same(4, $packet['namespaceUriFrequencySummaries'][0]['useCount'] ?? null);
         $t->same(['default', 'rootAlias'], $uriRows['urn:root']['prefixes'] ?? null);
         $t->same(3, $uriRows['urn:root']['useCount'] ?? null);
+        $t->same(3, $uriSummaries['urn:root']['useCount'] ?? null);
         $t->same(['a', 'b'], $uriRows['urn:item-b']['prefixes'] ?? null);
         $t->same(['default', 'none'], $uriRows['']['prefixes'] ?? null);
 
@@ -358,7 +377,7 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
 
-        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
@@ -866,7 +885,7 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
             $t->contains('No native PHP reader or writer is registered', $outputSupport[$format]['notes']);
         }
 
-        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks rich package input output direction buckets without direct writer parity claims' => static function (TestRunner $t): void {
@@ -1404,7 +1423,7 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
 
         $t->same([], PandocFormatRegistry::unsupportedTabularDataInputFormats());
         $t->same([], PandocFormatRegistry::unsupportedTabularDataOutputFormats());
-        $t->same(28, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(31, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'builds tabular data review packets from option profiles without full converter claims' => static function (TestRunner $t): void {

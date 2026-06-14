@@ -230,9 +230,17 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         foreach ($packet['namespacePrefixFrequencies'] as $frequency) {
             $prefixFrequencies[$frequency['prefix']] = $frequency;
         }
+        $prefixFrequencySummaries = [];
+        foreach ($packet['namespacePrefixFrequencySummaries'] as $frequency) {
+            $prefixFrequencySummaries[$frequency['prefix']] = $frequency;
+        }
         $uriFrequencies = [];
         foreach ($packet['namespaceUriFrequencies'] as $frequency) {
             $uriFrequencies[$frequency['namespaceUri']] = $frequency;
+        }
+        $uriFrequencySummaries = [];
+        foreach ($packet['namespaceUriFrequencySummaries'] as $frequency) {
+            $uriFrequencySummaries[$frequency['namespaceUri']] = $frequency;
         }
         $sameUriAliases = [];
         foreach ($packet['sameUriMultiplePrefixes'] as $alias) {
@@ -279,14 +287,21 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         ], $packet['namespaceUris']);
         $t->same(6, $packet['namespaceUriCount']);
         $t->same(7, $packet['namespacePrefixFrequencyCount']);
+        $t->same(7, $packet['namespacePrefixFrequencySummaryCount']);
         $t->same(7, $packet['namespaceUriFrequencyCount']);
+        $t->same(7, $packet['namespaceUriFrequencySummaryCount']);
         $t->same(5, $packet['defaultNamespaceUseCount']);
         $t->same(['urn:group', 'urn:root'], $packet['defaultNamespaceUris']);
         $t->same(2, $packet['defaultNamespaceUriCount']);
+        $t->same('default', $packet['namespacePrefixFrequencySummaries'][0]['prefix'] ?? null);
+        $t->same(6, $packet['namespacePrefixFrequencySummaries'][0]['useCount'] ?? null);
+        $t->same('urn:attr-a', $packet['namespaceUriFrequencySummaries'][0]['namespaceUri'] ?? null);
+        $t->same(4, $packet['namespaceUriFrequencySummaries'][0]['useCount'] ?? null);
         $t->same(['urn:item-a', 'urn:item-b'], $prefixFrequencies['a']['namespaceUris'] ?? null);
         $t->same(2, $prefixFrequencies['a']['namespaceUriCount'] ?? null);
         $t->same(2, $prefixFrequencies['a']['useCount'] ?? null);
         $t->same(['a:item'], $prefixFrequencies['a']['qualifiedNames'] ?? null);
+        $t->same(2, $prefixFrequencySummaries['a']['useCount'] ?? null);
         $t->same(['', 'urn:group', 'urn:root'], $prefixFrequencies['default']['namespaceUris'] ?? null);
         $t->same(6, $prefixFrequencies['default']['useCount'] ?? null);
         $t->same(['alias-scope', 'doc', 'group', 'item'], $prefixFrequencies['default']['qualifiedNames'] ?? null);
@@ -300,6 +315,7 @@ XML, 'XML namespace collision packet', preserveWhiteSpace: false);
         $t->same(2, $uriFrequencies['urn:item-b']['useCount'] ?? null);
         $t->same(['default', 'none'], $uriFrequencies['']['prefixes'] ?? null);
         $t->same(3, $uriFrequencies['']['useCount'] ?? null);
+        $t->same(3, $uriFrequencySummaries['urn:root']['useCount'] ?? null);
         $t->same(2, $packet['sameUriMultiplePrefixCount']);
         $t->same(['a', 'b'], $sameUriAliases['urn:item-b']['prefixes'] ?? null);
         $t->same(['default', 'rootAlias'], $sameUriAliases['urn:root']['prefixes'] ?? null);
@@ -458,6 +474,40 @@ XML;
         $t->same('bad:code', $summary['reservedNamespaceUses'][1]['name'] ?? null);
         $t->same(false, $summary['reservedNamespaceUses'][1]['directReaderParity'] ?? null);
         json_encode($summary, JSON_THROW_ON_ERROR);
+    },
+    'bounds XML namespace prefix and URI frequency summaries by highest use count' => static function (TestRunner $t): void {
+        $namespaceDeclarations = [];
+        $items = [];
+        for ($index = 0; $index < 30; ++$index) {
+            $prefix = 'p' . str_pad((string) $index, 2, '0', STR_PAD_LEFT);
+            $namespaceDeclarations[] = 'xmlns:' . $prefix . '="urn:' . $prefix . '"';
+            $items[] = '<' . $prefix . ':item ' . $prefix . ':code="' . $index . '"/>';
+        }
+
+        $dom = XmlHtmlDom::loadXmlDocument(
+            '<doc xmlns="urn:doc" xmlns:hot="urn:hot" '
+                . implode(' ', $namespaceDeclarations)
+                . '><hot:a/><hot:b/><hot:c/><hot:d/>'
+                . implode('', $items)
+                . '</doc>',
+            'XML namespace frequency packet',
+            preserveWhiteSpace: false
+        );
+        $packet = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
+
+        $t->same(25, $packet['namespacePrefixFrequencySummaryCount']);
+        $t->same(25, count($packet['namespacePrefixFrequencySummaries']));
+        $t->same(25, $packet['namespaceUriFrequencySummaryCount']);
+        $t->same(25, count($packet['namespaceUriFrequencySummaries']));
+        $t->same('hot', $packet['namespacePrefixFrequencySummaries'][0]['prefix'] ?? null);
+        $t->same(4, $packet['namespacePrefixFrequencySummaries'][0]['useCount'] ?? null);
+        $t->same(['urn:hot'], $packet['namespacePrefixFrequencySummaries'][0]['namespaceUris'] ?? null);
+        $t->same('urn:hot', $packet['namespaceUriFrequencySummaries'][0]['namespaceUri'] ?? null);
+        $t->same(4, $packet['namespaceUriFrequencySummaries'][0]['useCount'] ?? null);
+        $t->same(['hot'], $packet['namespaceUriFrequencySummaries'][0]['prefixes'] ?? null);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same('xml-namespace-usage-diagnostics-review-only', $packet['reviewPolicy']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes jats and bits front matter plus body and back matter diagnostics without reader parity claims' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'

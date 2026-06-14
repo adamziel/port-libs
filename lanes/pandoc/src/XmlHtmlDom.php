@@ -771,11 +771,25 @@ final class XmlHtmlDom
             'namespaceUris',
             'namespaceUriCount'
         );
+        $prefixFrequencySummaries = self::xmlNamespaceFrequencySummaries(
+            $prefixUses,
+            'prefix',
+            'namespaceUris',
+            'namespaceUriCount',
+            true
+        );
         $uriFrequencies = self::xmlNamespaceFrequencySummaries(
             $uriUses,
             'namespaceUri',
             'prefixes',
             'prefixCount'
+        );
+        $uriFrequencySummaries = self::xmlNamespaceFrequencySummaries(
+            $uriUses,
+            'namespaceUri',
+            'prefixes',
+            'prefixCount',
+            true
         );
         $sameUriMultiplePrefixes = self::xmlNamespaceUriAliasSummaries($uriFrequencies);
         $samePrefixMultipleUris = self::xmlNamespacePrefixAliasSummaries($prefixFrequencies);
@@ -864,8 +878,12 @@ final class XmlHtmlDom
             'reservedNamespaceUses' => $sourceUsageSummary['reservedNamespaceUses'],
             'namespacePrefixFrequencyCount' => count($prefixFrequencies),
             'namespacePrefixFrequencies' => $prefixFrequencies,
+            'namespacePrefixFrequencySummaryCount' => count($prefixFrequencySummaries),
+            'namespacePrefixFrequencySummaries' => $prefixFrequencySummaries,
             'namespaceUriFrequencyCount' => count($uriFrequencies),
             'namespaceUriFrequencies' => $uriFrequencies,
+            'namespaceUriFrequencySummaryCount' => count($uriFrequencySummaries),
+            'namespaceUriFrequencySummaries' => $uriFrequencySummaries,
             'defaultNamespaceUseCount' => $defaultNamespaceUseCount,
             'defaultNamespaceUris' => $defaultNamespaceUris,
             'defaultNamespaceUriCount' => count($defaultNamespaceUris),
@@ -4226,7 +4244,8 @@ final class XmlHtmlDom
         array $uses,
         string $valueKey,
         string $relatedKey,
-        string $relatedCountKey
+        string $relatedCountKey,
+        bool $sortByUseCount = false
     ): array {
         $summaries = [];
         ksort($uses, SORT_STRING);
@@ -4246,6 +4265,30 @@ final class XmlHtmlDom
                 'attributeUseCount' => $use['attributeUseCount'],
                 'qualifiedNames' => array_slice($qualifiedNames, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS),
             ];
+        }
+
+        if ($sortByUseCount) {
+            usort(
+                $summaries,
+                static function (array $left, array $right) use ($valueKey): int {
+                    $useCountComparison = ((int) $right['useCount']) <=> ((int) $left['useCount']);
+                    if ($useCountComparison !== 0) {
+                        return $useCountComparison;
+                    }
+
+                    $elementUseComparison = ((int) $right['elementUseCount']) <=> ((int) $left['elementUseCount']);
+                    if ($elementUseComparison !== 0) {
+                        return $elementUseComparison;
+                    }
+
+                    $attributeUseComparison = ((int) $right['attributeUseCount']) <=> ((int) $left['attributeUseCount']);
+                    if ($attributeUseComparison !== 0) {
+                        return $attributeUseComparison;
+                    }
+
+                    return strcmp((string) ($left[$valueKey] ?? ''), (string) ($right[$valueKey] ?? ''));
+                }
+            );
         }
 
         return array_slice($summaries, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);

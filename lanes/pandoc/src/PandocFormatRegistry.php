@@ -664,8 +664,10 @@ final class PandocFormatRegistry
                 'namespaceDiagnosticCodes',
                 'namespacePrefixFrequencies',
                 'namespacePrefixFrequencyRows',
+                'namespacePrefixFrequencySummaries',
                 'namespaceUriFrequencies',
                 'namespaceUriFrequencyRows',
+                'namespaceUriFrequencySummaries',
                 'defaultNamespaceTransitions',
                 'elementNamespaceUsageSummaries',
                 'attributeNamespaceUsageSummaries',
@@ -853,9 +855,9 @@ final class PandocFormatRegistry
      */
     private const PHP_INPUT_SUPPORT = [
         'bits' => [
-            'status' => 'partial',
-            'implementation' => XmlHtmlDom::class,
-            'notes' => 'BITS XML review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc BITS reader parity remains open.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'BITS XML review packets expose XmlHtmlDom diagnostics only; no native PHP BITS direct reader is registered, and full Pandoc BITS reader parity remains open.',
         ],
         'commonmark' => [
             'status' => 'partial',
@@ -903,9 +905,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving nbformat version diagnostics, metadata keys, cell tags, execution/output metadata, and metadata-only blocked resource diagnostics; full Jupyter notebook parity remains open.',
         ],
         'jats' => [
-            'status' => 'partial',
-            'implementation' => XmlHtmlDom::class,
-            'notes' => 'JATS XML review packets are parsed through XmlHtmlDom with serialized unsupported direct-reader parity reasons; full Pandoc JATS reader parity remains open.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'JATS XML review packets expose XmlHtmlDom diagnostics only; no native PHP JATS direct reader is registered, and full Pandoc JATS reader parity remains open.',
         ],
         'json' => [
             'status' => 'partial',
@@ -973,9 +975,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded native PHP TSV reader maps tab-delimited text into the shared table AST with geometry review packets; full Pandoc TSV reader parity remains open.',
         ],
         'xml' => [
-            'status' => 'partial',
-            'implementation' => XmlHtmlDom::class,
-            'notes' => 'Direct XML input is routed through XmlHtmlDom safe DOM loading and diagnostic serialization; full Pandoc XML reader parity remains open.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Generic XML review packets expose XmlHtmlDom namespace diagnostics only; no native PHP XML direct reader is registered, and full Pandoc XML reader parity remains open.',
         ],
     ];
 
@@ -3810,7 +3812,7 @@ final class PandocFormatRegistry
             'registeredDiagnosticImplementations' => $registeredDiagnosticImplementations,
             'boundedDiagnosticSurfaceCount' => $boundedDiagnosticSurfaceCount,
             'explicitUnsupportedVerdict' => true,
-            'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no full direct reader parity is registered.',
+            'reviewNote' => 'XML, JATS, and BITS have bounded native PHP diagnostics, but no native direct reader implementation is registered.',
             'formats' => $formats,
         ];
     }
