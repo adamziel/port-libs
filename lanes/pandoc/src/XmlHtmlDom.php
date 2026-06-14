@@ -13373,6 +13373,9 @@ final class XmlHtmlDom
             $summary['value'] = $node->textContent;
             $summary['forRaw'] = $forRaw;
             $summary['forIds'] = $forRaw === null ? [] : self::spaceSeparatedTokens($forRaw);
+            if ($forRaw !== null) {
+                $summary += self::outputForReferenceSummary($node, $forRaw);
+            }
         }
         if ($name === 'datalist') {
             $summary['formControl'] = 'datalist';
@@ -16414,6 +16417,187 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function outputForReferenceSummary(\DOMElement $output, string $forRaw): array
+    {
+        $tokens = self::spaceSeparatedTokens($forRaw);
+        $ids = [];
+        $invalid = [];
+        $duplicates = [];
+        $resolved = [];
+        $missing = [];
+        $nonControls = [];
+        $references = [];
+        $controlReferences = [];
+        $issues = [];
+        $seen = [];
+
+        foreach ($tokens as $index => $token) {
+            $record = [
+                'index' => $index,
+                'token' => $token,
+                'state' => 'unresolved',
+            ];
+
+            $firstIndex = $seen[$token] ?? null;
+            if ($firstIndex === null) {
+                $seen[$token] = $index;
+            } else {
+                $record['duplicateToken'] = true;
+                $record['firstIndex'] = $firstIndex;
+                if (self::isHtmlIdReferenceToken($token) && !in_array($token, $duplicates, true)) {
+                    $duplicates[] = $token;
+                }
+                $issues[] = [
+                    'code' => 'duplicate-output-for-reference-token',
+                    'token' => $token,
+                    'index' => $index,
+                    'firstIndex' => $firstIndex,
+                ];
+            }
+
+            if (!self::isHtmlIdReferenceToken($token)) {
+                if (!in_array($token, $invalid, true)) {
+                    $invalid[] = $token;
+                }
+                $record['state'] = 'invalid-token';
+                $issues[] = [
+                    'code' => 'invalid-output-for-reference-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+                $references[] = $record;
+                continue;
+            }
+
+            if (!in_array($token, $ids, true)) {
+                $ids[] = $token;
+            }
+
+            $target = self::htmlElementById($output, $token);
+            if (!$target instanceof \DOMElement) {
+                if (!in_array($token, $missing, true)) {
+                    $missing[] = $token;
+                }
+                $record['state'] = 'missing-target';
+                $record['targetState'] = 'missing';
+                $issues[] = [
+                    'code' => 'missing-output-for-target',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+                $references[] = $record;
+                continue;
+            }
+
+            $targetSummary = self::outputForTargetSummary($target);
+            $record['target'] = $targetSummary;
+            if (!self::isFormControlElement($target)) {
+                if (!in_array($token, $nonControls, true)) {
+                    $nonControls[] = $token;
+                }
+                $record['state'] = 'non-control-target';
+                $record['targetState'] = 'non-control';
+                $issues[] = [
+                    'code' => 'non-control-output-for-target',
+                    'token' => $token,
+                    'index' => $index,
+                    'targetName' => $targetSummary['tag'],
+                    'targetText' => $targetSummary['text'],
+                ];
+                $references[] = $record;
+                continue;
+            }
+
+            if (!in_array($token, $resolved, true)) {
+                $resolved[] = $token;
+                $controlReferences[] = $targetSummary;
+            }
+            $record['state'] = 'resolved-control';
+            $record['targetState'] = 'resolved';
+            $references[] = $record;
+        }
+
+        return [
+            'forReferenceReviewPolicy' => 'output-for-idref-review',
+            'forReferenceIds' => $ids,
+            'invalidForReferenceTokens' => $invalid,
+            'duplicateForReferenceIds' => $duplicates,
+            'resolvedForReferenceIds' => $resolved,
+            'missingForReferenceIds' => $missing,
+            'nonControlForReferenceIds' => $nonControls,
+            'forReferences' => $references,
+            'forControlReferences' => $controlReferences,
+            'forControlReferenceCount' => count($controlReferences),
+            'forControlNames' => self::outputForControlNames($controlReferences),
+            'forReferenceIssues' => $issues,
+            'forReferenceIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'forReferencesResolved' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function outputForTargetSummary(\DOMElement $target): array
+    {
+        $name = self::htmlElementName($target);
+        $summary = [
+            'tag' => $name,
+            'id' => self::attributeOrNull($target, 'id'),
+            'controlName' => self::attributeOrNull($target, 'name'),
+            'text' => self::normalizedText($target),
+        ];
+
+        if (self::isFormControlElement($target)) {
+            $summary += self::formOwnerSummary($target);
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($target);
+        }
+        if ($name === 'input') {
+            $summary['inputType'] = self::inputType($target);
+            $summary['value'] = self::attributeOrNull($target, 'value');
+            $summary['checked'] = $target->hasAttribute('checked');
+        } elseif ($name === 'button') {
+            $summary['buttonType'] = self::buttonType($target);
+            $summary['value'] = self::attributeOrNull($target, 'value');
+            $summary['label'] = self::normalizedText($target);
+        } elseif ($name === 'select') {
+            $summary['selectedValues'] = array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                array_filter(
+                    self::selectOptionSummaries($target),
+                    static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+                )
+            ));
+        } elseif ($name === 'textarea' || $name === 'output') {
+            $summary['value'] = $target->textContent;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function outputForControlNames(array $controls): array
+    {
+        $names = [];
+        foreach ($controls as $control) {
+            $name = $control['controlName'] ?? null;
+            if (is_string($name) && $name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**

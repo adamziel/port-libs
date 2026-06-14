@@ -5000,6 +5000,70 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['source-a', 'source-b', 'missing'], $output['forIds']);
         $t->same('<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output for="source-a  source-b missing" id="checksum" name="checksum">Ready <strong>hash</strong></output></label></form>', $html);
     },
+    'resolves html output for-token provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button" name="add" value="+">Add</button><span id="note">Not a control</span><output id="checksum" name="checksum" for="source-a source-b source-a missing note bad<tag">Ready</output></form>',
+            'output for-token review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/output-for-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $form = $summary[0];
+        $output = $form['children'][3];
+
+        $t->same('output', $output['name']);
+        $t->same('output-for-idref-review', $output['forReferenceReviewPolicy']);
+        $t->same(['source-a', 'source-b', 'source-a', 'missing', 'note', 'bad<tag'], $output['forIds']);
+        $t->same(['source-a', 'source-b', 'missing', 'note'], $output['forReferenceIds']);
+        $t->same(['source-a', 'source-b'], $output['resolvedForReferenceIds']);
+        $t->same(['source-a'], $output['duplicateForReferenceIds']);
+        $t->same(['missing'], $output['missingForReferenceIds']);
+        $t->same(['note'], $output['nonControlForReferenceIds']);
+        $t->same(['bad<tag'], $output['invalidForReferenceTokens']);
+        $t->same(2, $output['forControlReferenceCount']);
+        $t->same(['a', 'add'], $output['forControlNames']);
+        $t->same(false, $output['forReferencesResolved']);
+        $t->same([
+            'duplicate-output-for-reference-token',
+            'missing-output-for-target',
+            'non-control-output-for-target',
+            'invalid-output-for-reference-token',
+        ], $output['forReferenceIssueCodes']);
+
+        $t->same('resolved-control', $output['forReferences'][0]['state']);
+        $t->same('input', $output['forReferences'][0]['target']['tag']);
+        $t->same('a', $output['forReferences'][0]['target']['controlName']);
+        $t->same('text', $output['forReferences'][0]['target']['inputType']);
+        $t->same('5', $output['forReferences'][0]['target']['value']);
+        $t->same('resolved-control', $output['forReferences'][1]['state']);
+        $t->same('button', $output['forReferences'][1]['target']['tag']);
+        $t->same('button', $output['forReferences'][1]['target']['buttonType']);
+        $t->same('Add', $output['forReferences'][1]['target']['label']);
+        $t->same(true, $output['forReferences'][2]['duplicateToken']);
+        $t->same(0, $output['forReferences'][2]['firstIndex']);
+        $t->same('missing-target', $output['forReferences'][3]['state']);
+        $t->same('non-control-target', $output['forReferences'][4]['state']);
+        $t->same('span', $output['forReferences'][4]['target']['tag']);
+        $t->same('Not a control', $output['forReferences'][4]['target']['text']);
+        $t->same('invalid-token', $output['forReferences'][5]['state']);
+
+        $t->same('duplicate-output-for-reference-token', $output['forReferenceIssues'][0]['code']);
+        $t->same('source-a', $output['forReferenceIssues'][0]['token']);
+        $t->same(2, $output['forReferenceIssues'][0]['index']);
+        $t->same('missing-output-for-target', $output['forReferenceIssues'][1]['code']);
+        $t->same('missing', $output['forReferenceIssues'][1]['token']);
+        $t->same('non-control-output-for-target', $output['forReferenceIssues'][2]['code']);
+        $t->same('span', $output['forReferenceIssues'][2]['targetName']);
+        $t->same('invalid-output-for-reference-token', $output['forReferenceIssues'][3]['code']);
+        $t->same('bad<tag', $output['forReferenceIssues'][3]['token']);
+        $t->same('<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" name="add" type="button" value="+">Add</button><span id="note">Not a control</span><output for="source-a source-b source-a missing note bad&lt;tag" id="checksum" name="checksum">Ready</output></form>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/output-for-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html label control associations for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="labels"><label for="title">Title <span>required</span></label><input id="title" name="title" value="Draft"><label>Wrapped <textarea id="notes" name="notes">Note</textarea></label><label for="missing">Missing</label><label for="save">Explicit <button id="ignored" name="ignored">Ignored</button></label><button id="save" name="save" disabled>Save</button><label><input type="hidden" id="secret" name="secret" value="x"> Hidden</label></form>',
