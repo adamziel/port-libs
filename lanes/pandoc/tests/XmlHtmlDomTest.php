@@ -2967,6 +2967,67 @@ XML, 'DocBook media caption cross-reference XML', preserveWhiteSpace: false);
             $html
         );
     },
+    'summarizes html writing assistance attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="editor" contenteditable autocorrect="off" writingsuggestions="false" virtualkeyboardpolicy="manual">Draft</section>'
+                . '<input id="lookup" value="Ada" autocorrect writingsuggestions virtualkeyboardpolicy>'
+                . '<p autocorrect="maybe" writingsuggestions="maybe" virtualkeyboardpolicy="onscreen">Fallback</p>',
+            'writing assistance attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/writing-assistance-attribute-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $editor = $summary[0];
+        $lookup = $summary[1];
+        $fallback = $summary[2];
+
+        $t->same('section', $editor['name']);
+        $t->same('editor', $editor['elementId']);
+        $t->same('off', $editor['autocorrectRaw']);
+        $t->same('off', $editor['autocorrect']);
+        $t->same(true, $editor['autocorrectValid']);
+        $t->same('false', $editor['writingSuggestionsRaw']);
+        $t->same(false, $editor['writingSuggestions']);
+        $t->same(true, $editor['writingSuggestionsValid']);
+        $t->same('manual', $editor['virtualKeyboardPolicyRaw']);
+        $t->same('manual', $editor['virtualKeyboardPolicy']);
+        $t->same(true, $editor['virtualKeyboardPolicyValid']);
+
+        $t->same('input', $lookup['name']);
+        $t->same('lookup', $lookup['elementId']);
+        $t->same('', $lookup['autocorrectRaw']);
+        $t->same('on', $lookup['autocorrect']);
+        $t->same(true, $lookup['autocorrectValid']);
+        $t->same('', $lookup['writingSuggestionsRaw']);
+        $t->same(true, $lookup['writingSuggestions']);
+        $t->same(true, $lookup['writingSuggestionsValid']);
+        $t->same('', $lookup['virtualKeyboardPolicyRaw']);
+        $t->same('auto', $lookup['virtualKeyboardPolicy']);
+        $t->same(true, $lookup['virtualKeyboardPolicyValid']);
+
+        $t->same('p', $fallback['name']);
+        $t->same('maybe', $fallback['autocorrectRaw']);
+        $t->same(null, $fallback['autocorrect']);
+        $t->same(false, $fallback['autocorrectValid']);
+        $t->same('maybe', $fallback['writingSuggestionsRaw']);
+        $t->same(null, $fallback['writingSuggestions']);
+        $t->same(false, $fallback['writingSuggestionsValid']);
+        $t->same('onscreen', $fallback['virtualKeyboardPolicyRaw']);
+        $t->same(null, $fallback['virtualKeyboardPolicy']);
+        $t->same(false, $fallback['virtualKeyboardPolicyValid']);
+        $t->same(
+            '<section autocorrect="off" contenteditable="" id="editor" virtualkeyboardpolicy="manual" writingsuggestions="false">Draft</section>'
+                . '<input autocorrect="" id="lookup" value="Ada" virtualkeyboardpolicy="" writingsuggestions="">'
+                . '<p autocorrect="maybe" virtualkeyboardpolicy="onscreen" writingsuggestions="maybe">Fallback</p>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/writing-assistance-attribute-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html microdata attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article id="review" itemscope itemtype="https://schema.org/Article ./Local bad&lt;tag" itemid="./articles/42" itemref="headline author missing bad&lt;tag">'

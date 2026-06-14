@@ -14262,6 +14262,27 @@ final class XmlHtmlDom
             $summary['autocapitalizeValid'] = $autocapitalize !== null;
         }
 
+        if (array_key_exists('autocorrect', $attributes)) {
+            $autocorrect = self::autocorrectState($attributes['autocorrect']);
+            $summary['autocorrectRaw'] = $attributes['autocorrect'];
+            $summary['autocorrect'] = $autocorrect;
+            $summary['autocorrectValid'] = $autocorrect !== null;
+        }
+
+        if (array_key_exists('writingsuggestions', $attributes)) {
+            $writingSuggestions = self::writingSuggestionsState($attributes['writingsuggestions']);
+            $summary['writingSuggestionsRaw'] = $attributes['writingsuggestions'];
+            $summary['writingSuggestions'] = $writingSuggestions;
+            $summary['writingSuggestionsValid'] = $writingSuggestions !== null;
+        }
+
+        if (array_key_exists('virtualkeyboardpolicy', $attributes)) {
+            $virtualKeyboardPolicy = self::virtualKeyboardPolicyState($attributes['virtualkeyboardpolicy']);
+            $summary['virtualKeyboardPolicyRaw'] = $attributes['virtualkeyboardpolicy'];
+            $summary['virtualKeyboardPolicy'] = $virtualKeyboardPolicy;
+            $summary['virtualKeyboardPolicyValid'] = $virtualKeyboardPolicy !== null;
+        }
+
         if (array_key_exists('popover', $attributes)) {
             $popover = self::popoverState($attributes['popover']);
             $summary['popoverRaw'] = $attributes['popover'];
@@ -14681,6 +14702,39 @@ final class XmlHtmlDom
             'on', 'sentences' => 'sentences',
             'words' => 'words',
             'characters' => 'characters',
+            default => null,
+        };
+    }
+
+    private static function autocorrectState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'on' => 'on',
+            'off' => 'off',
+            default => null,
+        };
+    }
+
+    private static function writingSuggestionsState(string $value): ?bool
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    private static function virtualKeyboardPolicyState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'auto' => 'auto',
+            'manual' => 'manual',
             default => null,
         };
     }
