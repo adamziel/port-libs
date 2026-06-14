@@ -1009,12 +1009,14 @@ XML, 'JATS funding acknowledgment XML', preserveWhiteSpace: false);
         $t->same(['missing-ref'], $packet['awardGroups'][1]['missingReferenceIds'] ?? null);
         $t->same(['R01-42', 'R01-42'], $packet['awardIds']);
         $t->same(['R01-42'], $packet['duplicateAwardIds']);
-        $t->same(['duplicate-award-id', 'missing-award-id'], $packet['fundingDiagnosticCodes']);
+        $t->same(['duplicate-award-id', 'duplicate-award-source-pair', 'missing-award-id'], $packet['fundingDiagnosticCodes']);
         $t->same(2, $packet['fundingDiagnostics'][0]['count'] ?? null);
         $t->same(['award-a', 'award-a-copy'], $packet['fundingDiagnostics'][0]['recordIds'] ?? null);
-        $t->same('award-group', $packet['fundingDiagnostics'][1]['container'] ?? null);
-        $t->same('ag2', $packet['fundingDiagnostics'][1]['id'] ?? null);
-        $t->same('fg1', $packet['fundingDiagnostics'][1]['fundingGroupId'] ?? null);
+        $t->same('duplicate-award-source-pair', $packet['fundingDiagnostics'][1]['code'] ?? null);
+        $t->same(['award-a', 'award-a-copy'], $packet['fundingDiagnostics'][1]['recordIds'] ?? null);
+        $t->same('award-group', $packet['fundingDiagnostics'][2]['container'] ?? null);
+        $t->same('ag2', $packet['fundingDiagnostics'][2]['id'] ?? null);
+        $t->same('fg1', $packet['fundingDiagnostics'][2]['fundingGroupId'] ?? null);
         $t->same(1, $packet['acknowledgmentCount']);
         $t->same(['ack1'], $packet['acknowledgmentIds']);
         $t->same('Acknowledgments', $packet['acknowledgments'][0]['title'] ?? null);
@@ -1027,6 +1029,91 @@ XML, 'JATS funding acknowledgment XML', preserveWhiteSpace: false);
 
         $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedPacket, 'Blocked Citation Payload With Secret Grant Text'), 'Expected citation payload text to stay blocked from the bounded review packet');
+    },
+    'summarizes jats bits award source linkage diagnostics without citation payload text' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group><article-title>Award Linkage Review</article-title></title-group>
+      <funding-group id="fg-linkage">
+        <award-group id="ag-nih">
+          <funding-source id="fs-nih" source-type="agency">
+            <institution id="inst-nih" institution-type="funder">National Institutes of Health</institution>
+            <institution-id institution-id-type="ROR">https://ror.org/01cwqze88</institution-id>
+            <source-id source-id-type="fundref">10.13039/100000002</source-id>
+            <named-content content-type="funder-name">NIH Office of Extramural Research</named-content>
+          </funding-source>
+          <award-id id="award-r01" award-id-type="grant">R01-AI-123</award-id>
+          <award-id id="award-r01-copy" pub-id-type="grant-number">R01-AI-123</award-id>
+          <grant-num id="award-u01" specific-use="cooperative-agreement">U01-HL-456</grant-num>
+          <xref ref-type="bibr" rid="funding-ref">funding reference</xref>
+        </award-group>
+        <award-group id="ag-missing-source">
+          <award-id id="award-k99">K99-789</award-id>
+          <xref ref-type="bibr" rid="missing-funding-ref">missing reference</xref>
+        </award-group>
+        <award-group id="ag-missing-award">
+          <funding-source id="fs-orphan"><institution>Orphan Funder</institution></funding-source>
+        </award-group>
+      </funding-group>
+    </article-meta>
+  </front>
+  <body><sec><title>Body</title><p>Body citation <xref ref-type="bibr" rid="funding-ref">[funding]</xref>.</p></sec></body>
+  <back>
+    <ref-list><ref id="funding-ref"><label>F1</label><mixed-citation>Blocked Award Source Citation Secret</mixed-citation></ref></ref-list>
+  </back>
+</article>
+XML, 'JATS award source linkage XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(3, $packet['awardGroupCount']);
+        $t->same(2, $packet['fundingSourceCount']);
+        $t->same(['fs-nih', 'fs-orphan'], $packet['fundingSourceIds']);
+        $t->same(2, $packet['fundingSourceIdentifierCount']);
+        $t->same(['ROR', 'fundref'], $packet['fundingSourceIdentifierTypes']);
+        $t->same('fs-nih', $packet['fundingSourceIdentifierRecords'][0]['fundingSourceId'] ?? null);
+        $t->same('institution-id', $packet['fundingSourceIdentifierRecords'][0]['element'] ?? null);
+        $t->same('https://ror.org/01cwqze88', $packet['fundingSourceIdentifierRecords'][0]['value'] ?? null);
+        $t->same('source-id', $packet['fundingSourceIdentifierRecords'][1]['element'] ?? null);
+        $t->same('10.13039/100000002', $packet['fundingSourceIdentifierRecords'][1]['value'] ?? null);
+        $t->same(2, $packet['fundingInstitutionCount']);
+        $t->same(['National Institutes of Health', 'Orphan Funder'], $packet['fundingInstitutionNames']);
+        $t->same(['National Institutes of Health', 'NIH Office of Extramural Research'], $packet['fundingSources'][0]['funderNames'] ?? null);
+        $t->same(['R01-AI-123', 'R01-AI-123', 'U01-HL-456', 'K99-789'], $packet['awardIds']);
+        $t->same(4, $packet['awardIdCount']);
+        $t->same('award-id', $packet['awardIdRecords'][0]['element'] ?? null);
+        $t->same('award-id-type', $packet['awardIdRecords'][0]['typeSourceAttribute'] ?? null);
+        $t->same('pub-id-type', $packet['awardIdRecords'][1]['typeSourceAttribute'] ?? null);
+        $t->same('grant-num', $packet['awardIdRecords'][2]['element'] ?? null);
+        $t->same('specific-use', $packet['awardIdRecords'][2]['typeSourceAttribute'] ?? null);
+        $t->same('ag-nih', $packet['awardIdRecords'][2]['awardGroupId'] ?? null);
+        $t->same(3, $packet['awardSourcePairCount']);
+        $t->same('R01-AI-123', $packet['awardSourcePairs'][0]['awardId'] ?? null);
+        $t->same('fs-nih', $packet['awardSourcePairs'][0]['fundingSourceId'] ?? null);
+        $t->same(['https://ror.org/01cwqze88', '10.13039/100000002'], $packet['awardSourcePairs'][0]['fundingSourceIdentifierValues'] ?? null);
+        $t->same(['National Institutes of Health'], $packet['awardSourcePairs'][0]['fundingSourceInstitutionNames'] ?? null);
+        $t->same(['funding-ref'], $packet['awardSourcePairs'][0]['linkedReferenceIds'] ?? null);
+        $t->same([], $packet['awardSourcePairs'][0]['missingReferenceIds'] ?? null);
+        $t->same(1, $packet['duplicateAwardSourcePairCount']);
+        $t->same('R01-AI-123', $packet['duplicateAwardSourcePairs'][0]['awardId'] ?? null);
+        $t->same('fs-nih', $packet['duplicateAwardSourcePairs'][0]['fundingSourceId'] ?? null);
+        $t->same(2, $packet['duplicateAwardSourcePairs'][0]['count'] ?? null);
+        $t->same(['award-r01', 'award-r01-copy'], $packet['duplicateAwardSourcePairs'][0]['awardRecordIds'] ?? null);
+        $t->same(['funding-ref'], $packet['duplicateAwardSourcePairs'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['duplicate-award-id', 'duplicate-award-source-pair', 'missing-award-id', 'missing-funding-source'], $packet['fundingDiagnosticCodes']);
+        $t->same('duplicate-award-source-pair', $packet['fundingDiagnostics'][1]['code'] ?? null);
+        $t->same(['award-r01', 'award-r01-copy'], $packet['fundingDiagnostics'][1]['recordIds'] ?? null);
+        $t->same('ag-missing-award', $packet['fundingDiagnostics'][2]['id'] ?? null);
+        $t->same('ag-missing-source', $packet['fundingDiagnostics'][3]['id'] ?? null);
+        $t->same(['K99-789'], $packet['fundingDiagnostics'][3]['awardIds'] ?? null);
+        $t->same(['missing-funding-ref'], $packet['fundingDiagnostics'][3]['missingReferenceIds'] ?? null);
+        $t->same(['funding-ref'], $packet['resolvedCitationReferenceIds']);
+        $t->same(['missing-funding-ref'], $packet['missingCitationReferenceIds']);
+
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked Award Source Citation Secret'), 'Expected citation payload text to stay blocked from award/source linkage diagnostics');
     },
     'summarizes jats bits figure label caption and title metadata diagnostics' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
