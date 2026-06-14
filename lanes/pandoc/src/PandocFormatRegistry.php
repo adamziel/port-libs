@@ -177,6 +177,9 @@ final class PandocFormatRegistry
         'zimwiki' => 'ZimWiki',
     ];
 
+    private const WIKI_WRITER_UNSUPPORTED_REASON_CODE = 'wiki-writer-not-ported';
+    private const WIKI_WRITER_UNSUPPORTED_REASON = 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.';
+
     /** @var array<string, string> */
     private const WIKI_EXTENSION_INFERENCE = [
         '.dokuwiki' => 'dokuwiki',
@@ -1460,6 +1463,83 @@ final class PandocFormatRegistry
 
     /**
      * @return array{
+     *     query:string,
+     *     normalizedToken:string,
+     *     format:string,
+     *     label:string,
+     *     family:string,
+     *     input:bool,
+     *     output:bool,
+     *     direction:string,
+     *     inputStatus:string,
+     *     outputStatus:string,
+     *     verdict:string,
+     *     reasonCode:string,
+     *     reason:string,
+     *     unsupportedReason:array{family:string, format:string, direction:string, status:string, reasonCode:string, reason:string},
+     *     serializedReason:string,
+     *     inputImplementation:string,
+     *     outputImplementation:string,
+     *     directWriterParitySupported:bool,
+     *     externalToolFree:bool
+     * }|null
+     */
+    public static function wikiOutputTokenStatus(string $token): ?array
+    {
+        $normalizedToken = strtolower(trim($token));
+        if ($normalizedToken === '' || str_starts_with($normalizedToken, '.')) {
+            return null;
+        }
+
+        $format = self::wikiBaseFormat($normalizedToken);
+        if (!in_array($format, self::WIKI_OUTPUT_FORMATS, true)) {
+            return null;
+        }
+
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $direction = $directions[$format];
+        $input = $inputSupport[$format] ?? [
+            'status' => 'not-applicable',
+            'implementation' => '',
+            'notes' => 'No upstream Pandoc reader token is registered for this wiki output format.',
+        ];
+        $output = $outputSupport[$format];
+        $unsupportedReason = [
+            'family' => 'wiki',
+            'format' => $format,
+            'direction' => 'output',
+            'status' => $output['status'],
+            'reasonCode' => self::WIKI_WRITER_UNSUPPORTED_REASON_CODE,
+            'reason' => self::WIKI_WRITER_UNSUPPORTED_REASON,
+        ];
+
+        return [
+            'query' => $token,
+            'normalizedToken' => $normalizedToken,
+            'format' => $format,
+            'label' => self::WIKI_FORMAT_LABELS[$format] ?? $format,
+            'family' => 'wiki',
+            'input' => $direction['input'],
+            'output' => true,
+            'direction' => $direction['direction'],
+            'inputStatus' => $input['status'],
+            'outputStatus' => $output['status'],
+            'verdict' => $output['status'] === 'unsupported' ? 'unsupported' : $output['status'],
+            'reasonCode' => self::WIKI_WRITER_UNSUPPORTED_REASON_CODE,
+            'reason' => self::WIKI_WRITER_UNSUPPORTED_REASON,
+            'unsupportedReason' => $unsupportedReason,
+            'serializedReason' => json_encode($unsupportedReason, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            'inputImplementation' => $input['implementation'],
+            'outputImplementation' => $output['implementation'],
+            'directWriterParitySupported' => $output['status'] !== 'unsupported' && $output['implementation'] !== '',
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
+     * @return array{
      *     upstreamManualDate:string,
      *     upstreamManualUrl:string,
      *     upstreamSourceCommit:string,
@@ -2093,6 +2173,94 @@ final class PandocFormatRegistry
             'unsupportedInputTokens' => $unsupportedInputTokens,
             'unsupportedInputCount' => count($unsupportedInputTokens),
             'directReaderParitySupported' => $unsupportedInputTokens === [],
+            'externalToolFree' => true,
+            'nativeImplementationRecordsEmpty' => self::nativeImplementationRecordsEmpty($nativeImplementationRecords),
+            'nativeImplementationRecords' => $nativeImplementationRecords,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     outputTokens:list<string>,
+     *     inputExtensionInference:array<string, string>,
+     *     unsupportedOutputTokens:list<string>,
+     *     unsupportedOutputCount:int,
+     *     directWriterParitySupported:bool,
+     *     externalToolFree:bool,
+     *     nativeImplementationRecordsEmpty:bool,
+     *     nativeImplementationRecords:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     rows:array<string, array{outputToken:string, family:string, writerFixtures:list<string>, templateResource:string, hasTemplateResource:bool, sourceProvenance:array{module:string, function:string, registry:string}, unsupportedWriterReasonPayload:array{format:string, family:string, reasonCode:string, reason:string, inputStatus:string, outputStatus:string, unsupportedDirections:list<string>, outputNotes:string}, serializedUnsupportedWriterReasonPayload:string, directWriterParity:bool, externalToolFree:bool, nativeImplementationRecord:array{inputImplementation:string, outputImplementation:string}}>
+     * }
+     */
+    public static function wikiOutputUnsupportedReasonRegistryMatrix(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $templates = self::wikiTemplateResources();
+        $unsupportedOutputTokens = self::unsupportedWikiOutputFormats();
+        $nativeImplementationRecords = [];
+        $rows = [];
+
+        foreach (self::WIKI_OUTPUT_FORMATS as $format) {
+            $direction = $directions[$format];
+            $input = $inputSupport[$format] ?? [
+                'implementation' => '',
+            ];
+            $output = $outputSupport[$format];
+            $unsupportedDirections = [];
+            if ($direction['inputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'input';
+            }
+            if ($direction['outputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'output';
+            }
+
+            $nativeImplementationRecord = [
+                'inputImplementation' => $input['implementation'],
+                'outputImplementation' => $output['implementation'],
+            ];
+            $unsupportedWriterReasonPayload = [
+                'format' => $format,
+                'family' => 'wiki',
+                'reasonCode' => self::WIKI_WRITER_UNSUPPORTED_REASON_CODE,
+                'reason' => self::WIKI_WRITER_UNSUPPORTED_REASON,
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'unsupportedDirections' => $unsupportedDirections,
+                'outputNotes' => $output['notes'],
+            ];
+            $directWriterParity = $output['implementation'] !== '' && $output['status'] !== 'unsupported';
+
+            $nativeImplementationRecords[$format] = $nativeImplementationRecord;
+            $rows[$format] = [
+                'outputToken' => $format,
+                'family' => 'wiki',
+                'writerFixtures' => self::WIKI_WRITER_FIXTURE_SOURCES[$format] ?? [],
+                'templateResource' => $templates[$format] ?? '',
+                'hasTemplateResource' => array_key_exists($format, $templates),
+                'sourceProvenance' => self::WIKI_OUTPUT_SOURCE_PROVENANCE[$format],
+                'unsupportedWriterReasonPayload' => $unsupportedWriterReasonPayload,
+                'serializedUnsupportedWriterReasonPayload' => json_encode($unsupportedWriterReasonPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                'directWriterParity' => $directWriterParity,
+                'externalToolFree' => true,
+                'nativeImplementationRecord' => $nativeImplementationRecord,
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'outputTokens' => self::WIKI_OUTPUT_FORMATS,
+            'inputExtensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'unsupportedOutputTokens' => $unsupportedOutputTokens,
+            'unsupportedOutputCount' => count($unsupportedOutputTokens),
+            'directWriterParitySupported' => $unsupportedOutputTokens === [],
             'externalToolFree' => true,
             'nativeImplementationRecordsEmpty' => self::nativeImplementationRecordsEmpty($nativeImplementationRecords),
             'nativeImplementationRecords' => $nativeImplementationRecords,

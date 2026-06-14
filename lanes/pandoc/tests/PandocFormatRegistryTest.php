@@ -2271,6 +2271,126 @@ XML, 'registry XML namespace packet', preserveWhiteSpace: false);
             $t->same($expectedImplementationRecord, $matrix['nativeImplementationRecords'][$format]);
         }
     },
+    'builds wiki output unsupported writer token taxonomy without writer claims' => static function (TestRunner $t): void {
+        $outputTokens = [
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'xwiki',
+            'zimwiki',
+        ];
+        $writerFixturesByToken = [
+            'dokuwiki' => [
+                'test/tables.dokuwiki',
+                'test/writer.dokuwiki',
+            ],
+            'jira' => [
+                'test/tables.jira',
+                'test/writer.jira',
+            ],
+            'mediawiki' => [
+                'test/tables.mediawiki',
+                'test/tables/*.mediawiki',
+                'test/writer.mediawiki',
+            ],
+            'xwiki' => [
+                'test/tables.xwiki',
+                'test/writer.xwiki',
+            ],
+            'zimwiki' => [
+                'test/tables.zimwiki',
+                'test/writer.zimwiki',
+            ],
+        ];
+        $templateResourcesByToken = [
+            'dokuwiki' => 'data/templates/default.dokuwiki',
+            'jira' => 'data/templates/default.jira',
+            'mediawiki' => 'data/templates/default.mediawiki',
+            'xwiki' => 'data/templates/default.xwiki',
+            'zimwiki' => 'data/templates/default.zimwiki',
+        ];
+        $matrix = PandocFormatRegistry::wikiOutputUnsupportedReasonRegistryMatrix();
+
+        $t->same('2026-06-03', $matrix['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $matrix['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $matrix['upstreamSourceCommit']);
+        $t->same($outputTokens, $matrix['outputTokens']);
+        $t->same($outputTokens, $matrix['unsupportedOutputTokens']);
+        $t->same(5, $matrix['unsupportedOutputCount']);
+        $t->same(false, $matrix['directWriterParitySupported']);
+        $t->same(true, $matrix['externalToolFree']);
+        $t->same(true, $matrix['nativeImplementationRecordsEmpty']);
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $matrix['inputExtensionInference']);
+        $t->same($matrix['inputExtensionInference'], PandocFormatRegistry::wikiExtensionInference());
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension('.xwiki'));
+        $t->same(null, PandocFormatRegistry::inferWikiFormatFromExtension('.zimwiki'));
+        $t->same($outputTokens, array_keys($matrix['rows']));
+        $t->same($outputTokens, array_keys($matrix['nativeImplementationRecords']));
+
+        foreach ($outputTokens as $format) {
+            $status = PandocFormatRegistry::wikiOutputTokenStatus($format);
+            $row = $matrix['rows'][$format];
+            $inputStatus = in_array($format, ['xwiki', 'zimwiki'], true) ? 'not-applicable' : 'unsupported';
+            $unsupportedDirections = $inputStatus === 'unsupported' ? ['input', 'output'] : ['output'];
+            $expectedReasonPayload = [
+                'format' => $format,
+                'family' => 'wiki',
+                'reasonCode' => 'wiki-writer-not-ported',
+                'reason' => 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.',
+                'inputStatus' => $inputStatus,
+                'outputStatus' => 'unsupported',
+                'unsupportedDirections' => $unsupportedDirections,
+                'outputNotes' => 'No native PHP reader or writer is registered for this upstream Pandoc format yet.',
+            ];
+            $expectedImplementationRecord = [
+                'inputImplementation' => '',
+                'outputImplementation' => '',
+            ];
+
+            $t->same($format, $status['format']);
+            $t->same('wiki', $status['family']);
+            $t->same($inputStatus, $status['inputStatus']);
+            $t->same('unsupported', $status['outputStatus']);
+            $t->same('unsupported', $status['verdict']);
+            $t->same('wiki-writer-not-ported', $status['reasonCode']);
+            $t->same('', $status['inputImplementation']);
+            $t->same('', $status['outputImplementation']);
+            $t->same(false, $status['directWriterParitySupported']);
+            $t->same(true, $status['externalToolFree']);
+            $t->same([
+                'family' => 'wiki',
+                'format' => $format,
+                'direction' => 'output',
+                'status' => 'unsupported',
+                'reasonCode' => 'wiki-writer-not-ported',
+                'reason' => 'Upstream wiki writer coverage is inventoried, but no native PHP wiki writer is registered for this format.',
+            ], $status['unsupportedReason']);
+            $t->same($format, $row['outputToken']);
+            $t->same('wiki', $row['family']);
+            $t->same($writerFixturesByToken[$format], $row['writerFixtures']);
+            $t->same($templateResourcesByToken[$format], $row['templateResource']);
+            $t->same(true, $row['hasTemplateResource']);
+            $t->contains('Text.Pandoc.Writers.', $row['sourceProvenance']['module']);
+            $t->contains('TextWriter', $row['sourceProvenance']['registry']);
+            $t->same(true, str_starts_with($row['sourceProvenance']['function'], 'write'));
+            $t->same($expectedReasonPayload, $row['unsupportedWriterReasonPayload']);
+            $t->same(json_encode($expectedReasonPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $row['serializedUnsupportedWriterReasonPayload']);
+            $t->same(false, $row['directWriterParity']);
+            $t->same(true, $row['externalToolFree']);
+            $t->same($expectedImplementationRecord, $row['nativeImplementationRecord']);
+            $t->same($expectedImplementationRecord, $matrix['nativeImplementationRecords'][$format]);
+        }
+
+        $mediaWikiExtensionStatus = PandocFormatRegistry::wikiOutputTokenStatus('mediawiki+smart');
+        $t->same('mediawiki+smart', $mediaWikiExtensionStatus['normalizedToken']);
+        $t->same('mediawiki', $mediaWikiExtensionStatus['format']);
+        $t->same(null, PandocFormatRegistry::wikiOutputTokenStatus('creole'));
+        $t->same(null, PandocFormatRegistry::wikiOutputTokenStatus('.xwiki'));
+        $t->same(null, PandocFormatRegistry::wikiOutputTokenStatus(''));
+    },
     'builds text markup unsupported diagnostics without reader or writer claims' => static function (TestRunner $t): void {
         $formats = [
             'asciidoc',

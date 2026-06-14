@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3413,
-        "latestSlice": "pandoc-odt-compact-raw-name-provenance maps one ODF/ODT package ingestion slice on current main 865a3748 after CSL/BibLaTeX series-title aliases. OpenDocumentPackage promotes raw ZIP entry name provenance into compact packageInventory review packets, including rawNameHex, nameEncoding, decoded-name mismatch, CP437 legacy encoding, and aggregate raw-name counters while preserving URI-decoded manifest package paths and SHA-256 media byte provenance. phpPass moves 3483 -> 3484, phpFail remains 0, mappedOdtCompactRawNameProvenanceCases is 1, and odtCompactRawNameProvenanceAssertions is 22. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1241 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81593 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3414,
+        "latestSlice": "pandoc-wiki-output-token-taxonomy maps one Pandoc format-registry slice on current main 865a3748 after ODT compact raw ZIP name provenance. PandocFormatRegistry now exposes wiki output-token status and unsupported writer reason matrix rows for dokuwiki, jira, mediawiki, xwiki, and zimwiki, with empty native implementation records, externalToolFree=true, directWriterParitySupported=false, unchanged input extension inference, and stable serialized writer reason payloads. phpPass moves 3484 -> 3485, phpFail remains 0, mappedPandocFormatRegistryWikiOutputTokenTaxonomyCases is 1, and pandocFormatRegistryWikiOutputTokenTaxonomyAssertions is 145. Verification passed php -l for PandocFormatRegistry.php and PandocFormatRegistryTest.php; focused PandocFormatRegistryTest.php passed 1 file, 2192 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81738 assertions, 0 failures. No Pandoc executable, external wiki converter, browser renderer, Node tooling, online service, live provider test, live-service provider test, or external validator was invoked.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -48,8 +48,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "ODF/ODT compact raw ZIP entry name provenance is verified after CSL/BibLaTeX series-title aliases; ODF/ODT remains ship-ready while broader package surfaces continue to be mapped.",
-        "latestFocusedSource": "2026-06-14 ODT compact raw ZIP name provenance inspected OpenDocumentPackage package inventory review against accepted static Pandoc inventory constraints after rebase onto current main 865a3748; focused OpenDocumentPackageTest.php passed 1 file, 1241 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81593 assertions, 0 failures.",
+        "status": "Pandoc wiki output-token unsupported writer taxonomy is verified after ODT compact raw ZIP name provenance; wiki-family output tokens remain registry-only with no native writer parity claim.",
+        "latestFocusedSource": "2026-06-14 wiki output-token taxonomy inspected PandocFormatRegistry writer status evidence against accepted static Pandoc inventory constraints after rebase onto current main 865a3748; focused PandocFormatRegistryTest.php passed 1 file, 2192 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81738 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -385,7 +385,9 @@
         "mappedXmlHtmlDomNamespaceFrequencyDiagnosticsCases": 2,
         "xmlHtmlDomNamespaceFrequencyDiagnosticsAssertions": 51,
         "mappedOdtCompactRawNameProvenanceCases": 1,
-        "odtCompactRawNameProvenanceAssertions": 22
+        "odtCompactRawNameProvenanceAssertions": 22,
+        "mappedPandocFormatRegistryWikiOutputTokenTaxonomyCases": 1,
+        "pandocFormatRegistryWikiOutputTokenTaxonomyAssertions": 145
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
