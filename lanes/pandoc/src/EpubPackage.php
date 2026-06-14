@@ -1068,6 +1068,12 @@ final class EpubPackage
             || (is_array($metadata['identifiers'] ?? null) && $metadata['identifiers'] !== []);
         $languagePresent = trim((string) ($metadata['language'] ?? '')) !== '';
         $modifiedPresent = trim((string) ($metadata['modified'] ?? '')) !== '';
+        $prefixDiagnostics = [];
+        foreach (is_array($metadata['prefixDiagnostics'] ?? null) ? $metadata['prefixDiagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $prefixDiagnostics[] = $diagnostic;
+            }
+        }
         $diagnostics = [];
 
         if (!$titlePresent) {
@@ -1098,12 +1104,17 @@ final class EpubPackage
             ];
         }
 
+        array_push($diagnostics, ...$prefixDiagnostics);
+
         return [
             'valid' => $diagnostics === [],
             'titlePresent' => $titlePresent,
             'identifierPresent' => $identifierPresent,
             'languagePresent' => $languagePresent,
             'modifiedPresent' => $modifiedPresent,
+            'prefixValid' => $prefixDiagnostics === [],
+            'prefixDiagnosticCount' => count($prefixDiagnostics),
+            'prefixDiagnostics' => $prefixDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];

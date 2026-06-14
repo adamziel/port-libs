@@ -2963,6 +2963,50 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['packageLinkVocabularyDiagnostics']);
     },
 
+    'reports OPF package prefix diagnostics in package validation handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPrefixDiagnostics = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="review: https://example.invalid/review-vocab# review: https://example.invalid/review-vocab-2# bad-prefix">',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPrefixDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $metadataValidation = $validation['metadata'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(2, $validation['diagnosticCount']);
+        $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_column($validation['diagnostics'], 'type'));
+        $t->same(false, $metadataValidation['valid']);
+        $t->same(true, $metadataValidation['titlePresent']);
+        $t->same(true, $metadataValidation['identifierPresent']);
+        $t->same(true, $metadataValidation['languagePresent']);
+        $t->same(true, $metadataValidation['modifiedPresent']);
+        $t->same(false, $metadataValidation['prefixValid']);
+        $t->same(2, $metadataValidation['prefixDiagnosticCount']);
+        $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_column($metadataValidation['prefixDiagnostics'], 'type'));
+        $t->same('review', $metadataValidation['prefixDiagnostics'][0]['prefix']);
+        $t->same('https://example.invalid/review-vocab#', $metadataValidation['prefixDiagnostics'][0]['previousIri']);
+        $t->same('https://example.invalid/review-vocab-2#', $metadataValidation['prefixDiagnostics'][0]['iri']);
+        $t->contains('bad-prefix', $metadataValidation['prefixDiagnostics'][1]['value']);
+        $t->same($metadata['prefixDiagnostics'], $metadataValidation['prefixDiagnostics']);
+        $t->same($validation, $summary['validation']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'summarizes OPF collection link vocabulary tokens for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithCollectionVocabulary = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
