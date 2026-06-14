@@ -444,7 +444,21 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentIssueCodes'] = $glossaryDocument['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
+        $packageProvenance['summary']['customXmlPropertiesPartCount'] = $customXmlParts['propertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesExistingPartCount'] = $customXmlParts['existingPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesMissingPartCount'] = $customXmlParts['missingPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesExternalPartCount'] = $customXmlParts['externalPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesInvalidXmlCount'] = $customXmlParts['invalidPropertiesXmlCount'];
+        $packageProvenance['summary']['customXmlPropertiesInvalidRootCount'] = $customXmlParts['invalidPropertiesRootCount'];
+        $packageProvenance['summary']['customXmlPropertiesMissingStoreItemIdCount'] = $customXmlParts['missingPropertiesStoreItemIdCount'];
+        $packageProvenance['summary']['customXmlSchemaRefCount'] = $customXmlParts['schemaRefCount'];
+        $packageProvenance['summary']['customXmlUniqueSchemaRefCount'] = $customXmlParts['uniqueSchemaRefCount'];
+        $packageProvenance['summary']['customXmlDuplicateSchemaRefCount'] = $customXmlParts['duplicateSchemaRefCount'];
+        $packageProvenance['summary']['customXmlDuplicateSchemaRefs'] = $customXmlParts['duplicateSchemaRefs'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
+        $packageProvenance['summary']['customXmlIssueCodes'] = $customXmlParts['issueCodes'];
+        $packageProvenance['summary']['customXmlPropertiesIssueCount'] = $customXmlParts['propertiesIssueCount'];
+        $packageProvenance['summary']['customXmlPropertiesIssueCodes'] = $customXmlParts['propertiesIssueCodes'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
@@ -4015,13 +4029,54 @@ final class DocxOpenXmlReader
         $propertiesPartCount = 0;
         $existingPropertiesPartCount = 0;
         $missingPropertiesPartCount = 0;
+        $externalPropertiesPartCount = 0;
         $invalidPropertiesXmlCount = 0;
+        $invalidPropertiesRootCount = 0;
+        $missingPropertiesStoreItemIdCount = 0;
+        $propertiesIssueCount = 0;
+        $issueCodes = [];
+        $propertiesIssueCodes = [];
+        $schemaRefs = [];
+        $schemaRefCounts = [];
         foreach ($items as $item) {
             $propertiesParts = $item['propertiesParts'];
             $propertiesPartCount += (int) $propertiesParts['count'];
             $existingPropertiesPartCount += (int) $propertiesParts['existingCount'];
             $missingPropertiesPartCount += (int) $propertiesParts['missingCount'];
+            $externalPropertiesPartCount += (int) $propertiesParts['externalCount'];
             $invalidPropertiesXmlCount += (int) $propertiesParts['invalidXmlCount'];
+            $invalidPropertiesRootCount += (int) $propertiesParts['invalidRootCount'];
+            $missingPropertiesStoreItemIdCount += (int) $propertiesParts['missingStoreItemIdCount'];
+            foreach ($item['issues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+            foreach ($propertiesParts['items'] as $propertiesItem) {
+                foreach (($propertiesItem['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                        $propertiesIssueCodes[$issue] = true;
+                        ++$propertiesIssueCount;
+                    }
+                }
+                foreach (($propertiesItem['schemaRefs'] ?? []) as $schemaRef) {
+                    if (!is_string($schemaRef) || $schemaRef === '') {
+                        continue;
+                    }
+                    $schemaRefs[] = $schemaRef;
+                    $schemaRefCounts[$schemaRef] = ($schemaRefCounts[$schemaRef] ?? 0) + 1;
+                }
+            }
+        }
+        ksort($issueCodes);
+        ksort($propertiesIssueCodes);
+        ksort($schemaRefCounts);
+        $duplicateSchemaRefs = [];
+        foreach ($schemaRefCounts as $schemaRef => $count) {
+            if ($count > 1) {
+                $duplicateSchemaRefs[] = $schemaRef;
+            }
         }
 
         return [
@@ -4036,12 +4091,24 @@ final class DocxOpenXmlReader
             'propertiesPartCount' => $propertiesPartCount,
             'existingPropertiesPartCount' => $existingPropertiesPartCount,
             'missingPropertiesPartCount' => $missingPropertiesPartCount,
+            'externalPropertiesPartCount' => $externalPropertiesPartCount,
             'invalidPropertiesXmlCount' => $invalidPropertiesXmlCount,
+            'invalidPropertiesRootCount' => $invalidPropertiesRootCount,
+            'missingPropertiesStoreItemIdCount' => $missingPropertiesStoreItemIdCount,
+            'schemaRefCount' => count($schemaRefs),
+            'uniqueSchemaRefCount' => count($schemaRefCounts),
+            'schemaRefs' => $schemaRefs,
+            'schemaRefCounts' => $schemaRefCounts,
+            'duplicateSchemaRefCount' => count($duplicateSchemaRefs),
+            'duplicateSchemaRefs' => $duplicateSchemaRefs,
             'storeItemIds' => $storeItemSummary['storeItemIds'],
             'duplicateStoreItemIdCount' => count($storeItemSummary['duplicateStoreItemIds']),
             'duplicateStoreItemIds' => $storeItemSummary['duplicateStoreItemIds'],
             'duplicateStoreItemIdReferences' => $storeItemSummary['duplicateStoreItemIdReferences'],
             'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'propertiesIssueCount' => $propertiesIssueCount,
+            'propertiesIssueCodes' => array_keys($propertiesIssueCodes),
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
             'byRelationshipId' => $byRelationshipId,
@@ -4243,10 +4310,12 @@ final class DocxOpenXmlReader
                 'count' => 0,
                 'existingCount' => 0,
                 'missingCount' => 0,
+                'externalCount' => 0,
                 'invalidXmlCount' => 0,
                 'invalidRootCount' => 0,
                 'missingContentTypeCount' => 0,
                 'unexpectedContentTypeCount' => 0,
+                'missingStoreItemIdCount' => 0,
                 'relationshipIds' => [],
                 'partNames' => [],
                 'byRelationshipId' => [],
@@ -4277,10 +4346,12 @@ final class DocxOpenXmlReader
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-properties-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-properties', $item['issues'], true))),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-root', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
+            'missingStoreItemIdCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-store-item-id', $item['issues'], true))),
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
             'byRelationshipId' => $byRelationshipId,
@@ -4331,6 +4402,9 @@ final class DocxOpenXmlReader
             'validRoot' => null,
             'itemId' => null,
             'schemaRefs' => [],
+            'schemaRefCount' => 0,
+            'uniqueSchemaRefs' => [],
+            'duplicateSchemaRefs' => [],
         ];
         if ($exists && $targetPart !== null) {
             $metadata = $this->customXmlPropertiesMetadata($parts[$targetPart], $targetPart);
@@ -4338,6 +4412,12 @@ final class DocxOpenXmlReader
                 $issues[] = 'invalid-xml';
             } elseif ($metadata['validRoot'] === false) {
                 $issues[] = 'unexpected-root';
+            }
+            if ($metadata['validRoot'] === true && $metadata['itemId'] === null) {
+                $issues[] = 'missing-store-item-id';
+            }
+            if (($metadata['duplicateSchemaRefs'] ?? []) !== []) {
+                $issues[] = 'duplicate-schema-ref';
             }
         }
 
@@ -4374,6 +4454,11 @@ final class DocxOpenXmlReader
             'validRoot' => $metadata['validRoot'],
             'itemId' => $metadata['itemId'],
             'schemaRefs' => $metadata['schemaRefs'],
+            'schemaRefCount' => $metadata['schemaRefCount'],
+            'uniqueSchemaRefs' => $metadata['uniqueSchemaRefs'],
+            'uniqueSchemaRefCount' => count($metadata['uniqueSchemaRefs']),
+            'duplicateSchemaRefs' => $metadata['duplicateSchemaRefs'],
+            'duplicateSchemaRefCount' => count($metadata['duplicateSchemaRefs']),
             'relationship' => $summary,
             'issues' => $issues,
         ];
@@ -4405,7 +4490,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string, validRoot:bool, itemId:?string, schemaRefs:list<string>}
+     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string, validRoot:bool, itemId:?string, schemaRefs:list<string>, schemaRefCount:int, uniqueSchemaRefs:list<string>, duplicateSchemaRefs:list<string>}
      */
     private function customXmlPropertiesMetadata(string $xml, string $partName): array
     {
@@ -4419,6 +4504,9 @@ final class DocxOpenXmlReader
                 'validRoot' => false,
                 'itemId' => null,
                 'schemaRefs' => [],
+                'schemaRefCount' => 0,
+                'uniqueSchemaRefs' => [],
+                'duplicateSchemaRefs' => [],
             ];
         }
 
@@ -4427,13 +4515,22 @@ final class DocxOpenXmlReader
             && $root->namespaceURI === self::NS_DS
             && $root->localName === 'datastoreItem';
         $schemaRefs = [];
+        $schemaRefCounts = [];
         if ($validRoot) {
             $xpath = $this->xpath($dom);
             foreach ($this->elements($xpath, '/ds:datastoreItem/ds:schemaRefs/ds:schemaRef') as $schemaRef) {
                 $uri = $schemaRef->getAttributeNS(self::NS_DS, 'uri');
                 if ($uri !== '') {
                     $schemaRefs[] = $uri;
+                    $schemaRefCounts[$uri] = ($schemaRefCounts[$uri] ?? 0) + 1;
                 }
+            }
+        }
+        ksort($schemaRefCounts);
+        $duplicateSchemaRefs = [];
+        foreach ($schemaRefCounts as $uri => $count) {
+            if ($count > 1) {
+                $duplicateSchemaRefs[] = $uri;
             }
         }
 
@@ -4445,6 +4542,9 @@ final class DocxOpenXmlReader
             'validRoot' => $validRoot,
             'itemId' => $validRoot && $root instanceof \DOMElement ? $this->emptyStringToNull($root->getAttributeNS(self::NS_DS, 'itemID')) : null,
             'schemaRefs' => $schemaRefs,
+            'schemaRefCount' => count($schemaRefs),
+            'uniqueSchemaRefs' => array_keys($schemaRefCounts),
+            'duplicateSchemaRefs' => $duplicateSchemaRefs,
         ];
     }
 
@@ -7829,6 +7929,8 @@ final class DocxOpenXmlReader
             self::HEADER_REL => 'header-part',
             self::FOOTER_REL => 'footer-part',
             self::SUBDOCUMENT_REL => 'subdocument',
+            self::CUSTOM_XML_REL => 'custom-xml-part',
+            self::CUSTOM_XML_PROPS_REL => 'custom-xml-properties',
             self::ALT_CHUNK_REL => 'alternative-format-import',
             self::GLOSSARY_DOCUMENT_REL => 'glossary-document',
             self::OLE_OBJECT_REL => 'embedded-object',
