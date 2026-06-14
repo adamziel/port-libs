@@ -1699,6 +1699,7 @@ final class CitationCslProcessor
             'editor' => self::risNames($fields, ['A2', 'ED']),
             'translator' => self::risNames($fields, ['A3']),
             'keyword' => self::risValues($fields, ['KW']),
+            'sourceFiles' => self::risSourceFiles($fields),
             'rawRis' => [
                 'type' => $type,
                 'fields' => $fields,
@@ -1771,6 +1772,26 @@ final class CitationCslProcessor
         }
 
         return $values;
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @return list<array{label:string, path:string, mediaType:string}>
+     */
+    private static function risSourceFiles(array $fields): array
+    {
+        $files = [];
+        foreach (['L1', 'L2', 'L3', 'L4'] as $tag) {
+            foreach (self::risValues($fields, [$tag]) as $path) {
+                $files[] = [
+                    'label' => 'RIS ' . $tag,
+                    'path' => $path,
+                    'mediaType' => '',
+                ];
+            }
+        }
+
+        return $files;
     }
 
     /**

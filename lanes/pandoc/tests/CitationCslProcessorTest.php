@@ -30223,6 +30223,81 @@ XML);
         $t->contains('<dt>WordPress Migration Team 2025</dt><dd>WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. RIS Review Packet. 3 vols. Archive Press, 2024. Reviewed title: Source Manual. Translated title: Paquete de Revisión RIS. Call number: MS 77. Original title: Legacy Source Packet. ISBN 978-1-4028-9462-6. Accessed 2026-06-12.</dd>', $blocks);
     },
+    'preserves bounded ris attachment tags as source file metadata' => static function (TestRunner $t) use ($citation): void {
+        $ris = <<<'RIS'
+TY  - RPRT
+ID  - ris-attachments
+AU  - Ng, Nia
+TI  - RIS Attachment Packet
+PY  - 2026
+L1  - attachments/report.pdf
+L2  - https://example.test/report.pdf
+L3  - ../private/report.pdf
+L4  - images/chart.png
+ER  -
+RIS;
+
+        $items = CitationCslProcessor::risItems($ris);
+        $t->same(1, count($items));
+        $t->same('RIS L1', $items[0]['sourceFiles'][0]['label'] ?? null);
+        $t->same('attachments/report.pdf', $items[0]['sourceFiles'][0]['path'] ?? null);
+        $t->same('https://example.test/report.pdf', $items[0]['sourceFiles'][1]['path'] ?? null);
+        $t->same('RIS L4', $items[0]['sourceFiles'][3]['label'] ?? null);
+        $t->same('images/chart.png', $items[0]['sourceFiles'][3]['path'] ?? null);
+        $t->same('https://example.test/report.pdf', $items[0]['rawRis']['fields']['L2'][0] ?? null);
+
+        $processor = CitationCslProcessor::fromRis($ris);
+        $item = $processor->item('ris-attachments');
+        $t->same([
+            ['label' => 'RIS L1', 'path' => 'attachments/report.pdf', 'mediaType' => ''],
+            ['label' => 'RIS L4', 'path' => 'images/chart.png', 'mediaType' => ''],
+        ], $item['sourceFiles'] ?? null);
+        $t->same('remote-uri', $item['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('RIS L2', $item['sourceFileDiagnostics'][0]['label'] ?? null);
+        $t->same('path-traversal', $item['sourceFileDiagnostics'][1]['reason'] ?? null);
+        $t->same('RIS L3', $item['sourceFileDiagnostics'][1]['label'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded RIS Attachment Source File Review</title>
+    <id>https://example.test/styles/bounded-ris-attachment-source-file-review</id>
+    <updated>2026-06-14T10:11:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="source-file-summary"/>
+        <text variable="source-file-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-labels"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-diagnostic-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[RIS Attachment Packet | RIS L1: attachments/report.pdf; RIS L4: images/chart.png | remote-uri; path-traversal]', $styled->renderCitationCluster([
+            $citation('ris-attachments', '[@ris-attachments]'),
+        ]));
+        $t->same(
+            'RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)',
+            $styled->renderBibliographyEntry('ris-attachments')
+        );
+
+        $document = (new MarkdownReader())->read('RIS attachments [@ris-attachments] remain reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>RIS attachments [RIS Attachment Packet | RIS L1: attachments/report.pdf; RIS L4: images/chart.png | remote-uri; path-traversal] remain reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
