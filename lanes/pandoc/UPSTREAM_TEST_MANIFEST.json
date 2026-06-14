@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3506,
-        "latestSlice": "pandoc-ris-review-metadata-provenance maps one additional native RIS citation review-provenance case after rebase onto current main 59fdbc62eb. CitationCslProcessor now keeps TT, OP, RI, NV, CN, M1, RP, A4, collection/language/source-file metadata, and stable RIS field provenance, duplicate-field, and conflict summaries visible through CSL and WordPress review output without treating repeated AU/KW list values as conflicts. phpPass moves 3581 -> 3582, phpFail remains 0, mapped upstream cases move 3505 -> 3506, mappedCitationRisParserCases moves 8 -> 9, and citationRisParserAssertions moves 93 -> 114. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5699 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84075 assertions, 0 failures; jq empty; git diff --check; and conflict-marker scan. No Pandoc binary, citeproc, BibTeX, Biber, bibliography manager, browser renderer, online service, live provider test, live-service provider test, or external validator was invoked.",
+        "mapped": 3508,
+        "latestSlice": "pandoc-csv-tsv-input-prefix-diagnostics maps two CSV/TSV prefix cases after rebase onto current main dbd8f70d9a. DelimitedTextReader records bounded inputPrefix evidence for UTF-8 BOM stripping, leading whitespace-only header preludes, 64-byte null/control inspection, sourcePath/extension format context, and stable diagnostics for explicit csv/tsv reads without invoking Pandoc, spreadsheet applications, browsers, Node tooling, online services, live providers, or external validators. phpPass moves 3582 -> 3584, phpFail remains 0, mapped upstream cases move 3506 -> 3508, mappedCsvTsvInputPrefixDiagnosticCases = 2, and csvTsvInputPrefixDiagnosticAssertions = 41. Verification passed php -l for DelimitedTextReader.php and DelimitedTextReaderTest.php; focused DelimitedTextReaderTest.php passed 1 file, 369 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84116 assertions, 0 failures; jq empty; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "RIS review metadata provenance is verified after rebase onto current main 59fdbc62eb; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 RIS review metadata provenance verified after rebase onto current main 59fdbc62eb; focused CitationCslProcessorTest.php passed 1 file, 5699 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84075 assertions, 0 failures.",
+        "status": "CSV/TSV input-prefix diagnostics are verified after rebase onto current main dbd8f70d9a; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-14 CSV/TSV input-prefix diagnostics verified after rebase onto current main dbd8f70d9a; focused DelimitedTextReaderTest.php passed 1 file, 369 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 84116 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -441,7 +441,9 @@
         "mappedOdfCompactManifestAttributeCollisionCases": 1,
         "odfCompactManifestAttributeCollisionAssertions": 45,
         "mappedEpubPackageAuthoringAttributeCases": 1,
-        "epubPackageAuthoringAttributeAssertions": 22
+        "epubPackageAuthoringAttributeAssertions": 22,
+        "mappedCsvTsvInputPrefixDiagnosticCases": 2,
+        "csvTsvInputPrefixDiagnosticAssertions": 41
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",

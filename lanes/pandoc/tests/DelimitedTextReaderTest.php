@@ -136,6 +136,9 @@ return [
         $t->same(2, $csvRepair['rows'][1]['missingFieldsAdded'] ?? null);
         $t->same('unchanged', $csvRepair['rows'][2]['repair'] ?? null);
         $t->same([
+            'delimited-text-input-prefix-utf8-bom',
+            'delimited-text-input-prefix-null-byte',
+            'delimited-text-input-prefix-control-character',
             'delimited-text-strict-row-width-mismatch',
             'delimited-text-row-widths-uneven',
             'delimited-text-header-width-mismatch',
@@ -193,6 +196,7 @@ return [
         $t->same(2, $tsvRepair['rows'][1]['missingFieldsAdded'] ?? null);
         $t->same('unchanged', $tsvRepair['rows'][2]['repair'] ?? null);
         $t->same([
+            'delimited-text-input-prefix-control-character',
             'delimited-text-trailing-delimiter-empty-field',
             'delimited-text-trailing-empty-fields-preserved',
             'delimited-text-strict-row-width-mismatch',
@@ -277,6 +281,109 @@ return [
         $t->same(2, $tsvPacket['bodyRowCount'] ?? null);
         $t->same('A', $tsvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('20', $tsvTable->children[1]->children[1]->children[1]->attr('text'));
+    },
+    'records csv bom and leading whitespace prefix diagnostics without losing the header row' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv("\xEF\xBB\xBF  \r\nsource_id,title\n42,Post\n", [
+            'extension' => '.csv',
+            'sourcePath' => 'exports/posts.csv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $prefix = $packet['inputPrefix'] ?? [];
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same('csv', $document->attr('sourceFormat'));
+        $t->same(['source_id', 'title'], $packet['columnNames'] ?? null);
+        $t->same(2, $packet['rowCount'] ?? null);
+        $t->same(1, $packet['bodyRowCount'] ?? null);
+        $t->same(2, $packet['diagnosticCount'] ?? null);
+        $t->same('42', $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Post', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('bounded-input-prefix-review', $prefix['policy'] ?? null);
+        $t->same('utf-8', $prefix['encoding'] ?? null);
+        $t->same('utf-8', $prefix['bom'] ?? null);
+        $t->same(3, $prefix['bomByteCount'] ?? null);
+        $t->same(4, $prefix['leadingWhitespaceByteCount'] ?? null);
+        $t->same(1, $prefix['leadingWhitespaceLineCount'] ?? null);
+        $t->same(7, $prefix['firstContentOffset'] ?? null);
+        $t->same(2, $prefix['firstContentLine'] ?? null);
+        $t->same(31, $prefix['inputByteCount'] ?? null);
+        $t->same(64, $prefix['inspectionByteLimit'] ?? null);
+        $t->same(31, $prefix['inspectedByteCount'] ?? null);
+        $t->same(false, $prefix['inspectionTruncated'] ?? null);
+        $t->same(32, $prefix['prefixPreviewByteLimit'] ?? null);
+        $t->same(31, $prefix['prefixPreviewByteCount'] ?? null);
+        $t->same('efbbbf20200d0a', substr((string) ($prefix['prefixPreviewHex'] ?? ''), 0, 14));
+        $t->same(0, $prefix['nullByteCount'] ?? null);
+        $t->same(0, $prefix['controlCharacterCount'] ?? null);
+        $t->same([
+            'requestedFormat' => 'csv',
+            'selectedFormat' => 'csv',
+            'sourcePath' => 'exports/posts.csv',
+            'sourcePathExtension' => 'csv',
+            'sourcePathFormat' => 'csv',
+            'extension' => '.csv',
+            'extensionFormat' => 'csv',
+            'contextFormats' => ['csv'],
+            'formatMatchesContext' => true,
+            'contextConflict' => false,
+        ], $prefix['formatContext'] ?? null);
+        $t->same([
+            'delimited-text-input-prefix-utf8-bom',
+            'delimited-text-input-prefix-leading-whitespace',
+        ], $codes);
+    },
+    'records tsv null-byte and control-character prefix diagnostics with source path context' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readTsv("name\tqty\nA\x00\t10\nB\x1F\t20\n", [
+            'sourcePath' => 'exports/inventory.tsv',
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $prefix = $packet['inputPrefix'] ?? [];
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same('tsv', $document->attr('sourceFormat'));
+        $t->same('tab', $packet['delimiter'] ?? null);
+        $t->same(['name', 'qty'], $packet['columnNames'] ?? null);
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same("A\x00", $table->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("B\x1F", $table->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('none', $prefix['bom'] ?? null);
+        $t->same(0, $prefix['leadingWhitespaceByteCount'] ?? null);
+        $t->same(1, $prefix['nullByteCount'] ?? null);
+        $t->same([
+            [
+                'offset' => 10,
+                'hex' => '00',
+                'name' => 'NUL',
+            ],
+        ], $prefix['nullBytes'] ?? null);
+        $t->same(1, $prefix['controlCharacterCount'] ?? null);
+        $t->same([
+            [
+                'offset' => 16,
+                'hex' => '1F',
+                'name' => 'US',
+            ],
+        ], $prefix['controlCharacters'] ?? null);
+        $t->same([
+            'requestedFormat' => 'tsv',
+            'selectedFormat' => 'tsv',
+            'sourcePath' => 'exports/inventory.tsv',
+            'sourcePathExtension' => 'tsv',
+            'sourcePathFormat' => 'tsv',
+            'extension' => null,
+            'extensionFormat' => null,
+            'contextFormats' => ['tsv'],
+            'formatMatchesContext' => true,
+            'contextConflict' => false,
+        ], $prefix['formatContext'] ?? null);
+        $t->same([
+            'delimited-text-input-prefix-null-byte',
+            'delimited-text-input-prefix-control-character',
+            'delimited-text-control-characters',
+        ], $codes);
     },
     'records csv quote and escape diagnostics while preserving partial records' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
@@ -527,6 +634,7 @@ return [
         $t->same('padded', $repairSummary['rows'][3]['repair'] ?? null);
         $t->same(2, $repairSummary['rows'][3]['missingFieldsAdded'] ?? null);
         $t->same([
+            'delimited-text-input-prefix-utf8-bom',
             'delimited-text-multiline-quoted-field',
             'delimited-text-strict-row-width-mismatch',
             'delimited-text-row-widths-uneven',
