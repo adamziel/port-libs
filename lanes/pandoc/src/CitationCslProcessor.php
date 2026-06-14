@@ -1275,6 +1275,7 @@ final class CitationCslProcessor
             ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']
         );
         $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'reviewgenre']);
+        $risFieldProvenance = is_array($item['risFieldProvenance'] ?? null) ? array_values($item['risFieldProvenance']) : [];
         $orcid = self::firstStringField($item, ['ORCID', 'orcid', 'orcid-id', 'orcidId', 'orcidid']);
         $isni = self::firstStringField($item, ['ISNI', 'isni']);
         $viaf = self::firstStringField($item, ['VIAF', 'viaf']);
@@ -1303,6 +1304,10 @@ final class CitationCslProcessor
             'endnotePublicationTypeHintSummary' => self::firstStringField($item, ['endnote-publication-type-hint-summary', 'endnotePublicationTypeHintSummary', 'endnotepublicationtypehintsummary']),
             'endnoteDateDiagnosticSummary' => self::firstStringField($item, ['endnote-date-diagnostic-summary', 'endnoteDateDiagnosticSummary', 'endnotedatediagnosticsummary']),
             'endnoteUnsupportedFieldSummary' => self::firstStringField($item, ['endnote-unsupported-field-summary', 'endnoteUnsupportedFieldSummary', 'endnoteunsupportedfieldsummary']),
+            'risFieldProvenance' => $risFieldProvenance,
+            'risFieldProvenanceSummary' => self::firstStringField($item, ['risFieldProvenanceSummary', 'ris-field-provenance-summary', 'risProvenanceSummary', 'ris-provenance-summary']),
+            'risFieldDuplicateSummary' => self::firstStringField($item, ['risFieldDuplicateSummary', 'ris-field-duplicate-summary', 'risDuplicateSummary', 'ris-duplicate-summary']),
+            'risFieldConflictSummary' => self::firstStringField($item, ['risFieldConflictSummary', 'ris-field-conflict-summary', 'risConflictSummary', 'ris-conflict-summary']),
             'citationAliases' => $citationAliases,
             'citationAliasSummary' => implode('; ', $citationAliases),
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
@@ -1668,6 +1673,7 @@ final class CitationCslProcessor
         if ($id === '') {
             $id = 'ris-' . $index;
         }
+        $provenance = self::risFieldMappingProvenance($fields);
 
         $item = [
             'id' => $id,
@@ -1710,6 +1716,10 @@ final class CitationCslProcessor
                 'type' => $type,
                 'fields' => $fields,
             ],
+            'risFieldProvenance' => $provenance['rows'],
+            'risFieldProvenanceSummary' => $provenance['summary'],
+            'risFieldDuplicateSummary' => $provenance['duplicateSummary'],
+            'risFieldConflictSummary' => $provenance['conflictSummary'],
         ];
 
         $serialNumber = self::risFirst($fields, ['SN']);
@@ -1718,6 +1728,155 @@ final class CitationCslProcessor
         }
 
         return array_filter($item, static fn (mixed $value): bool => $value !== '' && $value !== [] && $value !== null);
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @return array{rows:list<array<string, mixed>>, summary:string, duplicateSummary:string, conflictSummary:string}
+     */
+    private static function risFieldMappingProvenance(array $fields): array
+    {
+        $rows = [];
+        $summary = [];
+        $duplicates = [];
+        $conflicts = [];
+        $reviewFields = self::risReviewProvenanceFields();
+
+        foreach (self::risFieldMappingSpecs() as $field => $tags) {
+            $sources = self::risFieldSources($fields, $tags);
+            if ($sources === []) {
+                continue;
+            }
+
+            $tagCounts = [];
+            $uniqueValues = [];
+            foreach ($sources as $source) {
+                $tag = $source['tag'];
+                $tagCounts[$tag] = ($tagCounts[$tag] ?? 0) + 1;
+                $valueKey = preg_replace('/\s+/u', ' ', $source['value']) ?? $source['value'];
+                $uniqueValues[$valueKey] = $source['value'];
+            }
+
+            $hasDuplicate = count($sources) > 1;
+            $hasConflict = count($uniqueValues) > 1;
+            if (!in_array($field, $reviewFields, true) && !$hasDuplicate && !$hasConflict) {
+                continue;
+            }
+
+            $selected = $sources[0];
+            $sourceSummary = self::risTagCountSummary($tagCounts);
+            $row = [
+                'field' => $field,
+                'selectedTag' => $selected['tag'],
+                'selectedValue' => $selected['value'],
+                'sourceTags' => array_keys($tagCounts),
+                'sourceCount' => count($sources),
+                'sourceSummary' => $sourceSummary,
+            ];
+
+            if ($hasDuplicate) {
+                $row['duplicate'] = true;
+                $duplicates[] = $field . ': ' . $sourceSummary;
+            }
+
+            if ($hasConflict) {
+                $row['conflict'] = true;
+                $row['conflictingValues'] = array_values($uniqueValues);
+                $conflicts[] = $field . ': ' . implode(' | ', array_values($uniqueValues));
+            }
+
+            $summary[] = $field . '<=' . $selected['tag'] . ($hasDuplicate ? '[' . $sourceSummary . ']' : '');
+            $rows[] = $row;
+        }
+
+        return [
+            'rows' => $rows,
+            'summary' => implode('; ', $summary),
+            'duplicateSummary' => implode('; ', $duplicates),
+            'conflictSummary' => implode('; ', $conflicts),
+        ];
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private static function risFieldMappingSpecs(): array
+    {
+        return [
+            'title' => ['TI', 'T1', 'CT'],
+            'short-title' => ['ST'],
+            'container-title' => ['T2', 'JF', 'JO', 'JA', 'BT'],
+            'container-title-short' => ['J2'],
+            'collection-title' => ['T3'],
+            'translated-title' => ['TT'],
+            'reviewed-title' => ['RI'],
+            'original-title' => ['OP'],
+            'publisher' => ['PB'],
+            'publisher-place' => ['CY', 'PP'],
+            'volume' => ['VL'],
+            'issue' => ['IS'],
+            'number-of-volumes' => ['NV'],
+            'edition' => ['ET'],
+            'section' => ['SE'],
+            'call-number' => ['CN'],
+            'doi' => ['DO'],
+            'url' => ['UR'],
+            'language' => ['LA'],
+            'abstract' => ['AB', 'N2'],
+            'note' => ['N1', 'NT'],
+            'medium' => ['M3'],
+            'source' => ['DB'],
+            'issued' => ['Y1', 'PY', 'DA'],
+            'accessed' => ['Y2'],
+            'serial-number' => ['SN'],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function risReviewProvenanceFields(): array
+    {
+        return [
+            'translated-title',
+            'reviewed-title',
+            'original-title',
+            'number-of-volumes',
+            'call-number',
+        ];
+    }
+
+    /**
+     * @param array<string, list<string>> $fields
+     * @param list<string> $tags
+     * @return list<array{tag:string, value:string}>
+     */
+    private static function risFieldSources(array $fields, array $tags): array
+    {
+        $sources = [];
+        foreach ($tags as $tag) {
+            foreach ($fields[$tag] ?? [] as $value) {
+                $value = trim($value);
+                if ($value !== '') {
+                    $sources[] = ['tag' => $tag, 'value' => $value];
+                }
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @param array<string, int> $tagCounts
+     */
+    private static function risTagCountSummary(array $tagCounts): string
+    {
+        $parts = [];
+        foreach ($tagCounts as $tag => $count) {
+            $parts[] = $tag . ($count > 1 ? 'x' . $count : '');
+        }
+
+        return implode('+', $parts);
     }
 
     private static function risCslType(string $type): string
@@ -8371,6 +8530,9 @@ final class CitationCslProcessor
             ['reprintDateAddon', 'Reprint date addendum'],
             ['eventDateAddon', 'Event date addendum'],
             ['accessedDateAddon', 'Accessed date addendum'],
+            ['risFieldProvenanceSummary', 'RIS field provenance'],
+            ['risFieldDuplicateSummary', 'RIS duplicate fields'],
+            ['risFieldConflictSummary', 'RIS conflicting fields'],
         ] as [$key, $label]) {
             if ($key === 'status' && in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
                 continue;
@@ -10473,6 +10635,9 @@ final class CitationCslProcessor
             'source-file-media-types', 'source-file-media-type' => $this->sourceFileMediaTypes($item),
             'source-file-diagnostic-summary', 'source-file-diagnostics', 'source-file-policy-summary' => $this->sourceFileDiagnosticSummary($item),
             'source-file-diagnostic-reasons', 'source-file-policy-reasons' => $this->sourceFileDiagnosticReasons($item),
+            'ris-field-provenance', 'ris-field-provenance-summary', 'ris-provenance-summary' => (string) ($item['risFieldProvenanceSummary'] ?? ''),
+            'ris-field-duplicates', 'ris-field-duplicate-summary', 'ris-duplicate-summary' => (string) ($item['risFieldDuplicateSummary'] ?? ''),
+            'ris-field-conflicts', 'ris-field-conflict-summary', 'ris-conflict-summary' => (string) ($item['risFieldConflictSummary'] ?? ''),
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
             'citation-alias-summary', 'citation-aliases-summary' => (string) ($item['citationAliasSummary'] ?? ''),
             'citation-label' => (string) $item['citationLabel'],

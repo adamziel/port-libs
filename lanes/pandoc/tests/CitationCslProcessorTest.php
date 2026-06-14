@@ -30220,9 +30220,11 @@ TY  - BOOK
 ID  - ris-review-book
 AU  - Curator, Eli
 TI  - RIS Review Packet
-TT  - Paquete de Revisión RIS
+T1  - Alternate RIS Review Packet
+TT  - RIS Review Translation
 OP  - Legacy Source Packet
 RI  - Source Manual
+RI  - Conflicting Source Manual
 PB  - Archive Press
 PY  - 2024
 NV  - 3
@@ -30243,13 +30245,28 @@ RIS;
         $t->same(['wordpress', 'pandoc'], $items[0]['keyword']);
         $t->same('JOUR', $items[0]['rawRis']['type']);
         $t->same(['literal' => 'WordPress Migration Team'], $items[1]['author'][0]);
-        $t->same('Paquete de Revisión RIS', $items[2]['translated-title']);
+        $t->same('RIS Review Translation', $items[2]['translated-title']);
         $t->same('Legacy Source Packet', $items[2]['original-title']);
         $t->same('Source Manual', $items[2]['reviewed-title']);
         $t->same('3', $items[2]['number-of-volumes']);
         $t->same('MS 77', $items[2]['call-number']);
         $t->same('978-1-4028-9462-6', $items[2]['ISBN']);
         $t->same([2026, 6, 12], $items[2]['accessed']['date-parts'][0]);
+        $t->same('title<=TI[TI+T1]; translated-title<=TT; reviewed-title<=RI[RIx2]; original-title<=OP; number-of-volumes<=NV; call-number<=CN', $items[2]['risFieldProvenanceSummary']);
+        $t->same('title: TI+T1; reviewed-title: RIx2', $items[2]['risFieldDuplicateSummary']);
+        $t->same('title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual', $items[2]['risFieldConflictSummary']);
+
+        $provenanceByField = [];
+        foreach ($items[2]['risFieldProvenance'] ?? [] as $row) {
+            $provenanceByField[$row['field']] = $row;
+        }
+        $t->same('TI', $provenanceByField['title']['selectedTag'] ?? null);
+        $t->same(['TI', 'T1'], $provenanceByField['title']['sourceTags'] ?? null);
+        $t->same(true, $provenanceByField['title']['conflict'] ?? false);
+        $t->same('RI', $provenanceByField['reviewed-title']['selectedTag'] ?? null);
+        $t->same('RIx2', $provenanceByField['reviewed-title']['sourceSummary'] ?? null);
+        $t->same(true, $provenanceByField['reviewed-title']['duplicate'] ?? false);
+        $t->same(['Source Manual', 'Conflicting Source Manual'], $provenanceByField['reviewed-title']['conflictingValues'] ?? null);
 
         $processor = CitationCslProcessor::fromRis($ris);
         $journal = $processor->item('ris-journal');
@@ -30262,13 +30279,16 @@ RIS;
         $t->same('report', $report['type'] ?? null);
         $t->same('Review Press', $report['publisher'] ?? null);
         $t->same('Portland', $report['publisherPlace'] ?? null);
-        $t->same('Paquete de Revisión RIS', $reviewBook['translatedTitle'] ?? null);
+        $t->same('RIS Review Translation', $reviewBook['translatedTitle'] ?? null);
         $t->same('Legacy Source Packet', $reviewBook['originalTitle'] ?? null);
         $t->same('Source Manual', $reviewBook['reviewedTitle'] ?? null);
         $t->same('3', $reviewBook['numberOfVolumes'] ?? null);
         $t->same('MS 77', $reviewBook['callNumber'] ?? null);
         $t->same('978-1-4028-9462-6', $reviewBook['isbn'] ?? null);
         $t->same([2026, 6, 12], $reviewBook['accessedDate']['parts'] ?? null);
+        $t->same('title<=TI[TI+T1]; translated-title<=TT; reviewed-title<=RI[RIx2]; original-title<=OP; number-of-volumes<=NV; call-number<=CN', $reviewBook['risFieldProvenanceSummary'] ?? null);
+        $t->same('title: TI+T1; reviewed-title: RIx2', $reviewBook['risFieldDuplicateSummary'] ?? null);
+        $t->same('title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual', $reviewBook['risFieldConflictSummary'] ?? null);
 
         $t->same('(Ng and Roe 2026; WordPress Migration Team 2025; Curator 2024)', $processor->renderCitationCluster([
             $citation('ris-journal', '[@ris-journal]'),
@@ -30277,7 +30297,14 @@ RIS;
         ]));
         $t->same('Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.', $processor->renderBibliographyEntry('ris-journal'));
         $t->same('WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.', $processor->renderBibliographyEntry('ris-report'));
-        $t->same('Curator, Eli. RIS Review Packet. 3 vols. Archive Press, 2024. Reviewed title: Source Manual. Translated title: Paquete de Revisión RIS. Call number: MS 77. Original title: Legacy Source Packet. ISBN 978-1-4028-9462-6. Accessed 2026-06-12.', $processor->renderBibliographyEntry('ris-review-book'));
+        $reviewEntry = $processor->renderBibliographyEntry('ris-review-book');
+        $t->contains('Reviewed title: Source Manual.', $reviewEntry);
+        $t->contains('Translated title: RIS Review Translation.', $reviewEntry);
+        $t->contains('Call number: MS 77.', $reviewEntry);
+        $t->contains('Original title: Legacy Source Packet.', $reviewEntry);
+        $t->contains('RIS field provenance: title<=TI[TI+T1]; translated-title<=TT; reviewed-title<=RI[RIx2]; original-title<=OP; number-of-volumes<=NV; call-number<=CN.', $reviewEntry);
+        $t->contains('RIS duplicate fields: title: TI+T1; reviewed-title: RIx2.', $reviewEntry);
+        $t->contains('RIS conflicting fields: title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual.', $reviewEntry);
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -30291,6 +30318,9 @@ RIS;
         <text variable="reviewed-title"/>
         <text variable="number-of-volumes"/>
         <text variable="call-number"/>
+        <text variable="ris-field-provenance"/>
+        <text variable="ris-field-duplicates"/>
+        <text variable="ris-field-conflicts"/>
       </group>
     </layout>
   </citation>
@@ -30302,19 +30332,27 @@ RIS;
       <text variable="reviewed-title"/>
       <text variable="number-of-volumes"/>
       <text variable="call-number"/>
+      <text variable="ris-field-provenance"/>
+      <text variable="ris-field-duplicates"/>
+      <text variable="ris-field-conflicts"/>
     </layout>
   </bibliography>
 </style>
 XML);
-        $t->same('[Curator | Paquete de Revisión RIS | Legacy Source Packet | Source Manual | 3 | MS 77]', $styled->renderCitationCluster([$citation('ris-review-book', '[@ris-review-book]')]));
-        $t->same('RIS Review Packet :: Paquete de Revisión RIS :: Legacy Source Packet :: Source Manual :: 3 :: MS 77', $styled->renderBibliographyEntry('ris-review-book'));
+        $expectedProvenance = 'title<=TI[TI+T1]; translated-title<=TT; reviewed-title<=RI[RIx2]; original-title<=OP; number-of-volumes<=NV; call-number<=CN';
+        $expectedDuplicates = 'title: TI+T1; reviewed-title: RIx2';
+        $expectedConflicts = 'title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual';
+        $t->same('[Curator | RIS Review Translation | Legacy Source Packet | Source Manual | 3 | MS 77 | ' . $expectedProvenance . ' | ' . $expectedDuplicates . ' | ' . $expectedConflicts . ']', $styled->renderCitationCluster([$citation('ris-review-book', '[@ris-review-book]')]));
+        $t->same('RIS Review Packet :: RIS Review Translation :: Legacy Source Packet :: Source Manual :: 3 :: MS 77 :: ' . $expectedProvenance . ' :: ' . $expectedDuplicates . ' :: ' . $expectedConflicts, $styled->renderBibliographyEntry('ris-review-book'));
 
         $document = (new MarkdownReader())->read('RIS imports cite [@ris-journal; @ris-report; @ris-review-book].');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>RIS imports cite (Ng and Roe 2026; WordPress Migration Team 2025; Curator 2024).</p>', $blocks);
         $t->contains('<dt>Ng and Roe 2026</dt><dd>Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.</dd>', $blocks);
         $t->contains('<dt>WordPress Migration Team 2025</dt><dd>WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.</dd>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. RIS Review Packet. 3 vols. Archive Press, 2024. Reviewed title: Source Manual. Translated title: Paquete de Revisión RIS. Call number: MS 77. Original title: Legacy Source Packet. ISBN 978-1-4028-9462-6. Accessed 2026-06-12.</dd>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>', $blocks);
+        $t->contains('RIS field provenance: title&lt;=TI[TI+T1]; translated-title&lt;=TT; reviewed-title&lt;=RI[RIx2]; original-title&lt;=OP; number-of-volumes&lt;=NV; call-number&lt;=CN.', $blocks);
+        $t->contains('RIS conflicting fields: title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual.', $blocks);
     },
     'maps extended ris types and metadata aliases into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
