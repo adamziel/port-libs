@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3439,
-        "latestSlice": "pandoc-csl-direct-original-title-subtitle-aliases maps one direct CSL JSON citation/bibliography case after rebase onto current main 0f124c82. CitationCslProcessor now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata, retains originalSubtitle/origsubtitle raw provenance, exposes original-subtitle as a CSL text and sort variable, and keeps WordPress bibliography review output deterministic without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3438 -> 3439, mappedDirectCslOriginalTitleSubtitleAliasCases is 1, and directCslOriginalTitleSubtitleAliasAssertions is 20. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
+        "mapped": 3444,
+        "latestSlice": "pandoc-opc-zip-manifest-content-type-summary maps five shared ZIP/OPC manifest content-type summary cases after rebase onto current main 2ddf03c4d1. OpcRelationshipGraph::preflightZipEntryManifest now emits contentTypeSummaries and contentTypeSourceSummaries with entry counts, file/package counts, byte totals, role/handoff-kind counts, entry names, and part names for default, override, missing-extension-default, missing-extensionless, XML/media/binary/relationship content-type buckets before graph construction. Mapped denominator moves 3439 -> 3444, mappedOpcZipManifestContentTypeSummaryCases is 5, and opcZipManifestContentTypeSummaryAssertions is 7. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4326 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83449 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "Direct CSL original-title subtitle alias composition is verified after rebase onto current main 0f124c82; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-14 direct CSL JSON original-title subtitle alias composition verified after rebase onto current main 0f124c82; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
+        "status": "Shared ZIP/OPC manifest content-type summary provenance is verified after rebase onto current main 2ddf03c4d1; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-14 shared ZIP/OPC manifest content-type summary provenance verified after rebase onto current main 2ddf03c4d1; focused OpenPackagingConventionsTest.php passed 1 file, 4326 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83449 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -421,7 +421,9 @@
         "mappedXmlHtmlDomJatsFundingBacklinkCases": 1,
         "xmlHtmlDomJatsFundingBacklinkAssertions": 76,
         "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
-        "directCslOriginalTitleSubtitleAliasAssertions": 20
+        "directCslOriginalTitleSubtitleAliasAssertions": 20,
+        "mappedOpcZipManifestContentTypeSummaryCases": 5,
+        "opcZipManifestContentTypeSummaryAssertions": 7
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1426,12 +1428,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "Direct CSL JSON original-title subtitle aliases remain visible in WordPress import review metadata.",
+    "wordpressScenario": "Shared ZIP/OPC package manifest content-type summary provenance is available for WordPress import preflight.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "Direct CSL original-title subtitle alias composition is verified after rebase onto current main 0f124c82; phpFail remains 0.",
-    "mapping": "Adds one bounded native PHP Direct CSL original-title subtitle alias mapping on top of the ODF/ODT handoff-order compression mapping while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
-    "audit": "updated 2026-06-14: Direct CSL JSON citation and bibliography handoff now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata while retaining original-subtitle as sortable and renderable review metadata after rebase onto current main 0f124c82. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83388 assertions, 0 failures. No Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests were invoked.",
-    "latestSlice": "pandoc-csl-direct-original-title-subtitle-aliases maps one direct CSL JSON citation/bibliography case after rebase onto current main 0f124c82. CitationCslProcessor now composes originalTitle/originalSubtitle and origtitle/origsubtitle aliases into canonical original-title metadata, retains originalSubtitle/origsubtitle raw provenance, exposes original-subtitle as a CSL text and sort variable, and keeps WordPress bibliography review output deterministic without invoking Pandoc, citeproc, BibTeX, Biber, bibliography managers, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3438 -> 3439, mappedDirectCslOriginalTitleSubtitleAliasCases is 1, and directCslOriginalTitleSubtitleAliasAssertions is 20. Verification passed php -l for CitationCslProcessor.php and CitationCslProcessorTest.php; focused CitationCslProcessorTest.php passed 1 file, 5642 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83388 assertions, 0 failures.",
+    "status": "Shared ZIP/OPC manifest content-type summary provenance is verified after rebase onto current main 2ddf03c4d1; phpFail remains 0.",
+    "mapping": "Adds five bounded shared ZIP/OPC manifest content-type summary mappings on top of the direct CSL original-title subtitle alias mapping while preserving prior registry, ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "audit": "updated 2026-06-14: Shared ZIP/OPC manifest content-type summary provenance is verified after rebase onto current main 2ddf03c4d1; OpcRelationshipGraph preserves compact content-type and content-type-source summary rows with byte, role, handoff-kind, entry-name, and part-name provenance for default, override, and missing content-type buckets before graph construction. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4326 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83449 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "latestSlice": "pandoc-opc-zip-manifest-content-type-summary maps five shared ZIP/OPC manifest content-type summary cases after rebase onto current main 2ddf03c4d1. OpcRelationshipGraph::preflightZipEntryManifest now emits contentTypeSummaries and contentTypeSourceSummaries with entry counts, file/package counts, byte totals, role/handoff-kind counts, entry names, and part names for default, override, missing-extension-default, missing-extensionless, XML/media/binary/relationship content-type buckets before graph construction. Mapped denominator moves 3439 -> 3444, mappedOpcZipManifestContentTypeSummaryCases is 5, and opcZipManifestContentTypeSummaryAssertions is 7. Verification passed php -l for OpcRelationshipGraph.php and OpenPackagingConventionsTest.php; focused OpenPackagingConventionsTest.php passed 1 file, 4326 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83449 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1998,5 +2000,7 @@
     "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
     "odfPackageHandoffOrderUnsupportedCompressionAssertions": 45,
     "mappedDirectCslOriginalTitleSubtitleAliasCases": 1,
-    "directCslOriginalTitleSubtitleAliasAssertions": 20
+    "directCslOriginalTitleSubtitleAliasAssertions": 20,
+    "mappedOpcZipManifestContentTypeSummaryCases": 5,
+    "opcZipManifestContentTypeSummaryAssertions": 7
 }

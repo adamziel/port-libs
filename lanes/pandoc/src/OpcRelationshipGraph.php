@@ -568,6 +568,8 @@ final class OpcRelationshipGraph
         $byteCountsByContentTypeSource = [];
         $entryNamesByContentType = [];
         $entryNamesByContentTypeSource = [];
+        $contentTypeSummariesByType = [];
+        $contentTypeSourceSummariesBySource = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -674,6 +676,11 @@ final class OpcRelationshipGraph
                 $contentTypeSource = $entry['contentTypeSource'] ?? 'unavailable';
                 $entryNamesByContentTypeSource[$contentTypeSource] ??= [];
                 self::appendUniqueString($entryNamesByContentTypeSource[$contentTypeSource], $entry['entryName']);
+                self::recordZipEntryManifestContentTypeSourceSummary(
+                    $contentTypeSourceSummariesBySource,
+                    $contentTypeSource,
+                    $entry,
+                );
                 if (is_string($entry['contentType'])) {
                     self::incrementZipEntryManifestByteBucket(
                         $byteCountsByContentType,
@@ -683,6 +690,12 @@ final class OpcRelationshipGraph
                     );
                     $entryNamesByContentType[$entry['contentType']] ??= [];
                     self::appendUniqueString($entryNamesByContentType[$entry['contentType']], $entry['entryName']);
+                    self::recordZipEntryManifestContentTypeSummary(
+                        $contentTypeSummariesByType,
+                        $entry['contentType'],
+                        $contentTypeSource,
+                        $entry,
+                    );
                 }
             }
             self::recordZipEntryManifestCompressionMethodProvenance(
@@ -813,6 +826,8 @@ final class OpcRelationshipGraph
         ksort($byteCountsByContentTypeSource);
         self::sortStringListMap($entryNamesByContentType);
         self::sortStringListMap($entryNamesByContentTypeSource);
+        $contentTypeSummaries = self::zipEntryManifestContentSummaries($contentTypeSummariesByType);
+        $contentTypeSourceSummaries = self::zipEntryManifestContentSummaries($contentTypeSourceSummariesBySource);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -896,6 +911,8 @@ final class OpcRelationshipGraph
             'byteCountsByContentTypeSource' => $byteCountsByContentTypeSource,
             'entryNamesByContentType' => $entryNamesByContentType,
             'entryNamesByContentTypeSource' => $entryNamesByContentTypeSource,
+            'contentTypeSummaries' => $contentTypeSummaries,
+            'contentTypeSourceSummaries' => $contentTypeSourceSummaries,
             'compressionMethodCounts' => $compressionMethodCounts,
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
@@ -7674,6 +7691,94 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['entryCount']++;
         $buckets[$bucket]['compressedBytes'] += $compressedSize;
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
+    }
+
+    private static function recordZipEntryManifestContentTypeSourceSummary(
+        array &$summaries,
+        string $contentTypeSource,
+        array $entry
+    ): void {
+        $summaries[$contentTypeSource] ??= [
+            'contentTypeSource' => $contentTypeSource,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$contentTypeSource], $entry);
+    }
+
+    private static function recordZipEntryManifestContentTypeSummary(
+        array &$summaries,
+        string $contentType,
+        string $contentTypeSource,
+        array $entry
+    ): void {
+        $summaries[$contentType] ??= [
+            'contentType' => $contentType,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'contentTypeSourceCounts' => [],
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        $summaries[$contentType]['contentTypeSourceCounts'][$contentTypeSource] =
+            ($summaries[$contentType]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$contentType], $entry);
+    }
+
+    private static function recordZipEntryManifestContentSummaryEntry(array &$summary, array $entry): void
+    {
+        $summary['entryCount']++;
+        if ($entry['isDirectory']) {
+            $summary['directoryEntryCount']++;
+        } else {
+            $summary['fileEntryCount']++;
+        }
+        if ($entry['isPackagePart']) {
+            $summary['packagePartCount']++;
+        }
+
+        $summary['compressedBytes'] += $entry['compressedSize'];
+        $summary['uncompressedBytes'] += $entry['uncompressedSize'];
+        $summary['roleCounts'][$entry['role']] = ($summary['roleCounts'][$entry['role']] ?? 0) + 1;
+        $summary['handoffKindCounts'][$entry['handoffKind']] =
+            ($summary['handoffKindCounts'][$entry['handoffKind']] ?? 0) + 1;
+        self::appendUniqueString($summary['entryNames'], $entry['entryName']);
+        if (is_string($entry['partName'])) {
+            self::appendUniqueString($summary['partNames'], $entry['partName']);
+        }
+    }
+
+    private static function zipEntryManifestContentSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            if (isset($summary['contentTypeSourceCounts'])) {
+                ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            }
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**

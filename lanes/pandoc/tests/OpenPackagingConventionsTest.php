@@ -1039,6 +1039,7 @@ XML;
         $embeddedPackageBytes = 'DOCXDATA';
         $customXml = '<audit/>';
         $binaryBytes = 'PAYLOAD';
+        $missingThemeBytes = 'THEME';
         $missingBytes = 'RAW';
 
         $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
@@ -1050,6 +1051,7 @@ XML;
             ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
             ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
             ['name' => 'word/payload.bin', 'data' => $binaryBytes, 'compressionMethod' => 0],
+            ['name' => 'word/theme/theme1.thmx', 'data' => $missingThemeBytes, 'compressionMethod' => 0],
             ['name' => 'word/media/source', 'data' => $missingBytes, 'compressionMethod' => 0],
         ]));
 
@@ -1057,7 +1059,11 @@ XML;
         $t->same(7, $summary['contentTypeResolvedPartCount']);
         $t->same(5, $summary['contentTypeDefaultResolvedPartCount']);
         $t->same(2, $summary['contentTypeOverrideResolvedPartCount']);
-        $t->same(1, $summary['missingContentTypePartCount']);
+        $t->same(2, $summary['missingContentTypePartCount']);
+        $t->same(1, $summary['missingContentTypeDefaultCount']);
+        $t->same(1, $summary['missingContentTypeExtensionlessCount']);
+        $t->same(['/word/media/source', '/word/theme/theme1.thmx'], $summary['missingContentTypeParts']);
+        $t->same(['thmx'], $summary['missingContentTypeExtensions']);
         $t->same([
             'default' => [
                 'entryCount' => 5,
@@ -1065,9 +1071,9 @@ XML;
                 'uncompressedBytes' => strlen($rootRelationshipsXml) + strlen($stylesXml) + strlen($imageBytes) + strlen($customXml) + strlen($binaryBytes),
             ],
             'missing' => [
-                'entryCount' => 1,
-                'compressedBytes' => strlen($missingBytes),
-                'uncompressedBytes' => strlen($missingBytes),
+                'entryCount' => 2,
+                'compressedBytes' => strlen($missingThemeBytes) + strlen($missingBytes),
+                'uncompressedBytes' => strlen($missingThemeBytes) + strlen($missingBytes),
             ],
             'override' => [
                 'entryCount' => 2,
@@ -1107,6 +1113,117 @@ XML;
                 'uncompressedBytes' => strlen($imageBytes),
             ],
         ], $summary['byteCountsByContentType']);
+        $t->same([
+            [
+                'contentTypeSource' => 'default',
+                'entryCount' => 5,
+                'fileEntryCount' => 5,
+                'directoryEntryCount' => 0,
+                'packagePartCount' => 5,
+                'compressedBytes' => strlen($rootRelationshipsXml) + strlen($stylesXml) + strlen($imageBytes) + strlen($customXml) + strlen($binaryBytes),
+                'uncompressedBytes' => strlen($rootRelationshipsXml) + strlen($stylesXml) + strlen($imageBytes) + strlen($customXml) + strlen($binaryBytes),
+                'roleCounts' => [
+                    'binary-part' => 1,
+                    'media' => 1,
+                    'package-relationships' => 1,
+                    'xml-part' => 2,
+                ],
+                'handoffKindCounts' => [
+                    'binary' => 1,
+                    'media' => 1,
+                    'relationships+xml' => 1,
+                    'xml' => 2,
+                ],
+                'entryNames' => [
+                    '_rels/.rels',
+                    'customXml/item1.xml',
+                    'word/media/image.PNG',
+                    'word/payload.bin',
+                    'word/styles.xml',
+                ],
+                'partNames' => [
+                    '/_rels/.rels',
+                    '/customXml/item1.xml',
+                    '/word/media/image.PNG',
+                    '/word/payload.bin',
+                    '/word/styles.xml',
+                ],
+            ],
+            [
+                'contentTypeSource' => 'missing',
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'packagePartCount' => 2,
+                'compressedBytes' => strlen($missingThemeBytes) + strlen($missingBytes),
+                'uncompressedBytes' => strlen($missingThemeBytes) + strlen($missingBytes),
+                'roleCounts' => [
+                    'binary-part' => 2,
+                ],
+                'handoffKindCounts' => [
+                    'binary' => 2,
+                ],
+                'entryNames' => [
+                    'word/media/source',
+                    'word/theme/theme1.thmx',
+                ],
+                'partNames' => [
+                    '/word/media/source',
+                    '/word/theme/theme1.thmx',
+                ],
+            ],
+            [
+                'contentTypeSource' => 'override',
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'packagePartCount' => 2,
+                'compressedBytes' => strlen($documentXml) + strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($documentXml) + strlen($embeddedPackageBytes),
+                'roleCounts' => [
+                    'embedded-package-candidate' => 1,
+                    'xml-part' => 1,
+                ],
+                'handoffKindCounts' => [
+                    'embedded-package' => 1,
+                    'xml' => 1,
+                ],
+                'entryNames' => [
+                    'word/document.xml',
+                    'word/embeddings/package1.docx',
+                ],
+                'partNames' => [
+                    '/word/document.xml',
+                    '/word/embeddings/package1.docx',
+                ],
+            ],
+        ], $summary['contentTypeSourceSummaries']);
+        $contentTypeSummariesByType = [];
+        foreach ($summary['contentTypeSummaries'] as $contentTypeSummary) {
+            $contentTypeSummariesByType[$contentTypeSummary['contentType']] = $contentTypeSummary;
+        }
+        $t->same([
+            'contentType' => 'application/xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 2,
+            'compressedBytes' => strlen($stylesXml) + strlen($customXml),
+            'uncompressedBytes' => strlen($stylesXml) + strlen($customXml),
+            'contentTypeSourceCounts' => ['default' => 2],
+            'roleCounts' => ['xml-part' => 2],
+            'handoffKindCounts' => ['xml' => 2],
+            'entryNames' => ['customXml/item1.xml', 'word/styles.xml'],
+            'partNames' => ['/customXml/item1.xml', '/word/styles.xml'],
+        ], $contentTypeSummariesByType['application/xml']);
+        $t->same([
+            'application/octet-stream',
+            'application/vnd.openxmlformats-officedocument.package',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-package.relationships+xml',
+            'application/xml',
+            'image/png',
+        ], array_column($summary['contentTypeSummaries'], 'contentType'));
     },
     'summarizes OPC ZIP entry manifest content type entry name provenance before graph construction' => static function (TestRunner $t): void {
         $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
