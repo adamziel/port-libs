@@ -1016,6 +1016,11 @@ final class PdfEngineHandoff
             static fn (string $input): bool => str_starts_with($input, 'typst-package:')
         ));
         $engineTypstPackageDependencies = $this->typstPackageDependenciesFor($engineTypstPackageInputList);
+        $typstImportPathPolicy = $this->typstImportPathPolicyWithSidecarPackageComparison(
+            $engine,
+            $typstImportPathPolicy,
+            $engineTypstPackageInputList
+        );
         $typstPackageDependencyPolicy = $this->typstPackageDependencyPolicy(
             $engine,
             $engineTypstPackageDependencies,
@@ -1092,6 +1097,7 @@ final class PdfEngineHandoff
         if ($engineTypstPackageDependencies !== []) {
             $diagnostics[] = 'engine-typst-package-dependencies:' . count($engineTypstPackageDependencies);
         }
+        $this->appendTypstImportPathPolicyDiagnostics($diagnostics, $typstImportPathPolicy);
         if ($typstPackageDependencyPolicy !== []) {
             $diagnostics[] = 'typst-package-dependency-policy:' . $typstPackageDependencyPolicy['reviewStatus'];
             $diagnostics[] = 'typst-package-dependency-count:' . $typstPackageDependencyPolicy['packageDependencyCount'];
@@ -8463,6 +8469,17 @@ final class PdfEngineHandoff
                 $append('typst-import-path-issue:' . $issue . ':' . $count);
             }
         }
+        foreach ([
+            'duplicateUnsupportedExpressionCount' => 'typst-import-path-unsupported-expression-duplicates',
+            'sourceSidecarPackageConflictCount' => 'typst-import-path-source-sidecar-conflicts',
+            'literalDynamicImportConflictCount' => 'typst-import-path-literal-dynamic-conflicts',
+            'dynamicSidecarPackageConflictCount' => 'typst-import-path-dynamic-sidecar-conflicts',
+        ] as $key => $diagnosticPrefix) {
+            $count = (int) ($policy[$key] ?? 0);
+            if ($count > 0) {
+                $append($diagnosticPrefix . ':' . $count);
+            }
+        }
     }
 
     /**
@@ -8477,7 +8494,8 @@ final class PdfEngineHandoff
         $entries = [];
         $unsupported = [];
         $matches = [];
-        if (preg_match_all('/#(import|include)\b/i', $sourceBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) === false) {
+        $searchBytes = $this->typstDirectiveSearchBytes($sourceBytes);
+        if (preg_match_all('/#(import|include)\b/i', $searchBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) === false) {
             return [];
         }
 
@@ -8486,15 +8504,14 @@ final class PdfEngineHandoff
             $operation = strtolower($match[1][0]);
             $directiveOffset = $match[0][1];
             $cursor = $directiveOffset + strlen($match[0][0]);
-            while ($cursor < $sourceLength && ctype_space($sourceBytes[$cursor])) {
-                ++$cursor;
-            }
+            $cursor = $this->skipTypstWhitespaceAndComments($sourceBytes, $cursor);
 
             $lineColumn = $this->sourceLineColumnForOffset($sourceBytes, $directiveOffset);
             if ($cursor >= $sourceLength || ($sourceBytes[$cursor] !== '"' && $sourceBytes[$cursor] !== "'")) {
                 $unsupported[] = [
                     'operation' => $operation,
                     'reason' => 'dynamic-' . $operation . '-path',
+                    'expression' => $this->readTypstImportPathExpressionSnippet($sourceBytes, $cursor, $operation),
                     'line' => $lineColumn['line'],
                     'column' => $lineColumn['column'],
                 ];
@@ -8506,6 +8523,7 @@ final class PdfEngineHandoff
                 $unsupported[] = [
                     'operation' => $operation,
                     'reason' => 'unterminated-' . $operation . '-path',
+                    'expression' => $this->readTypstImportPathExpressionSnippet($sourceBytes, $cursor, $operation),
                     'line' => $lineColumn['line'],
                     'column' => $lineColumn['column'],
                 ];
@@ -8608,9 +8626,56 @@ final class PdfEngineHandoff
         }
 
         $unsupportedReasonCounts = [];
+        $unsupportedExpressionSummaries = [];
+        $unsupportedExpressionSummaryMap = [];
         foreach ($unsupported as $unsupportedEntry) {
             $reason = is_string($unsupportedEntry['reason'] ?? null) ? $unsupportedEntry['reason'] : 'unknown-typst-import-path';
             $unsupportedReasonCounts[$reason] = ($unsupportedReasonCounts[$reason] ?? 0) + 1;
+            $operation = is_string($unsupportedEntry['operation'] ?? null) ? $unsupportedEntry['operation'] : 'import';
+            $expression = is_string($unsupportedEntry['expression'] ?? null) ? $unsupportedEntry['expression'] : '';
+            $summaryKey = $operation . "\0" . $reason . "\0" . $expression;
+            if (!isset($unsupportedExpressionSummaryMap[$summaryKey])) {
+                $unsupportedExpressionSummaryMap[$summaryKey] = [
+                    'operation' => $operation,
+                    'reason' => $reason,
+                    'expression' => $expression,
+                    'count' => 0,
+                    'lines' => [],
+                ];
+            }
+            ++$unsupportedExpressionSummaryMap[$summaryKey]['count'];
+            if (is_int($unsupportedEntry['line'] ?? null)) {
+                $unsupportedExpressionSummaryMap[$summaryKey]['lines'][] = $unsupportedEntry['line'];
+            }
+        }
+        foreach ($unsupportedExpressionSummaryMap as $summary) {
+            $lines = array_values(array_unique(array_filter(
+                $summary['lines'],
+                static fn (mixed $line): bool => is_int($line)
+            )));
+            sort($lines);
+            $summary['lines'] = $lines;
+            $unsupportedExpressionSummaries[] = $summary;
+        }
+        usort($unsupportedExpressionSummaries, static fn (array $a, array $b): int => [
+            $a['operation'],
+            $a['reason'],
+            $a['expression'],
+        ] <=> [
+            $b['operation'],
+            $b['reason'],
+            $b['expression'],
+        ]);
+        $duplicateUnsupportedExpressionSummaries = array_values(array_filter(
+            $unsupportedExpressionSummaries,
+            static fn (array $summary): bool => (int) ($summary['count'] ?? 0) > 1
+        ));
+        $duplicateUnsupportedExpressionReferenceCount = array_sum(array_map(
+            static fn (array $summary): int => max(0, (int) ($summary['count'] ?? 0) - 1),
+            $duplicateUnsupportedExpressionSummaries
+        ));
+        if ($duplicateUnsupportedExpressionSummaries !== []) {
+            $issueCounts['duplicate-unsupported-expression'] = count($duplicateUnsupportedExpressionSummaries);
         }
 
         ksort($sourceClassCounts);
@@ -8659,6 +8724,10 @@ final class PdfEngineHandoff
             'duplicateReferenceCount' => array_sum(array_map(static fn (array $duplicate): int => max(0, $duplicate['count'] - 1), $duplicates)),
             'unsupportedCount' => count($unsupported),
             'unsupportedReasonCounts' => $unsupportedReasonCounts,
+            'unsupportedExpressionSummaries' => $unsupportedExpressionSummaries,
+            'duplicateUnsupportedExpressionCount' => count($duplicateUnsupportedExpressionSummaries),
+            'duplicateUnsupportedExpressionReferenceCount' => $duplicateUnsupportedExpressionReferenceCount,
+            'duplicateUnsupportedExpressionSummaries' => $duplicateUnsupportedExpressionSummaries,
             'sourceClassCounts' => $sourceClassCounts,
             'packageImportReferences' => $packageReferenceList,
             'packageDependencies' => $packageDependencies,
@@ -8671,6 +8740,385 @@ final class PdfEngineHandoff
             'issueCounts' => $issueCounts,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @param list<string> $engineTypstPackageInputs
+     * @return array<string, mixed>
+     */
+    private function typstImportPathPolicyWithSidecarPackageComparison(string $engine, array $policy, array $engineTypstPackageInputs): array
+    {
+        if ($engine !== 'typst' || $policy === [] || $engineTypstPackageInputs === []) {
+            return $policy;
+        }
+
+        $sourcePackageReferences = array_values(array_filter(
+            $policy['packageImportReferences'] ?? [],
+            static fn (mixed $reference): bool => is_string($reference) && $reference !== ''
+        ));
+        $sourcePackageReferences = array_values(array_unique($sourcePackageReferences));
+        sort($sourcePackageReferences);
+
+        $sidecarPackageReferences = [];
+        foreach ($this->typstPackageDependenciesFor($engineTypstPackageInputs) as $dependency) {
+            if (is_string($dependency['reference'] ?? null) && $dependency['reference'] !== '') {
+                $sidecarPackageReferences[] = $dependency['reference'];
+            }
+        }
+        $sidecarPackageReferences = array_values(array_unique($sidecarPackageReferences));
+        sort($sidecarPackageReferences);
+
+        $sourceOnlyPackageImports = array_values(array_diff($sourcePackageReferences, $sidecarPackageReferences));
+        $sidecarOnlyPackageImports = array_values(array_diff($sidecarPackageReferences, $sourcePackageReferences));
+        sort($sourceOnlyPackageImports);
+        sort($sidecarOnlyPackageImports);
+        $sourceSidecarConflictCount = count($sourceOnlyPackageImports) + count($sidecarOnlyPackageImports);
+        $policy['sourceSidecarPackageComparison'] = [
+            'sourcePackageCount' => count($sourcePackageReferences),
+            'sidecarPackageCount' => count($sidecarPackageReferences),
+            'sourceOnlyCount' => count($sourceOnlyPackageImports),
+            'sidecarOnlyCount' => count($sidecarOnlyPackageImports),
+            'sourcePackageReferences' => $sourcePackageReferences,
+            'sidecarPackageReferences' => $sidecarPackageReferences,
+            'sourceOnlyPackageImports' => $sourceOnlyPackageImports,
+            'sidecarOnlyPackageImports' => $sidecarOnlyPackageImports,
+        ];
+        $policy['sourceSidecarPackageConflictCount'] = $sourceSidecarConflictCount;
+        $policy['sourceSidecarPackageConflicts'] = [];
+        if ($sourceOnlyPackageImports !== []) {
+            $policy['sourceSidecarPackageConflicts'][] = [
+                'kind' => 'source-only-package-imports',
+                'packageReferences' => $sourceOnlyPackageImports,
+            ];
+        }
+        if ($sidecarOnlyPackageImports !== []) {
+            $policy['sourceSidecarPackageConflicts'][] = [
+                'kind' => 'sidecar-only-package-dependencies',
+                'packageReferences' => $sidecarOnlyPackageImports,
+            ];
+        }
+
+        $dynamicUnsupported = $this->typstDynamicUnsupportedImportRows($policy);
+        $dynamicExpressions = $this->typstUnsupportedExpressionRows($dynamicUnsupported);
+        $literalDynamicConflictCount = $sourcePackageReferences !== [] ? count($dynamicUnsupported) : 0;
+        $policy['literalDynamicImportConflictCount'] = $literalDynamicConflictCount;
+        $policy['literalDynamicImportConflicts'] = $literalDynamicConflictCount > 0 ? [[
+            'literalPackageReferences' => $sourcePackageReferences,
+            'dynamicExpressions' => $dynamicExpressions,
+        ]] : [];
+
+        $dynamicSidecarConflictCount = $dynamicUnsupported !== [] ? count($sidecarOnlyPackageImports) : 0;
+        $policy['dynamicSidecarPackageConflictCount'] = $dynamicSidecarConflictCount;
+        $policy['dynamicSidecarPackageConflicts'] = $dynamicSidecarConflictCount > 0 ? [[
+            'sidecarOnlyPackageReferences' => $sidecarOnlyPackageImports,
+            'dynamicExpressions' => $dynamicExpressions,
+        ]] : [];
+
+        $issueCounts = is_array($policy['issueCounts'] ?? null) ? $policy['issueCounts'] : [];
+        if ($sourceSidecarConflictCount > 0) {
+            $issueCounts['source-sidecar-package-disagreement'] = $sourceSidecarConflictCount;
+        }
+        if ($literalDynamicConflictCount > 0) {
+            $issueCounts['literal-dynamic-import-mix'] = $literalDynamicConflictCount;
+        }
+        if ($dynamicSidecarConflictCount > 0) {
+            $issueCounts['dynamic-sidecar-package-disagreement'] = $dynamicSidecarConflictCount;
+        }
+        ksort($issueCounts);
+        $policy['issueCounts'] = $issueCounts;
+
+        $issues = is_array($policy['issues'] ?? null)
+            ? array_values(array_filter($policy['issues'], static fn (mixed $issue): bool => is_string($issue) && $issue !== ''))
+            : [];
+        foreach ([
+            'source-sidecar-package-disagreement' => $sourceSidecarConflictCount,
+            'literal-dynamic-import-mix' => $literalDynamicConflictCount,
+            'dynamic-sidecar-package-disagreement' => $dynamicSidecarConflictCount,
+        ] as $issue => $count) {
+            if ($count > 0) {
+                $issues[] = $issue . ':' . $count;
+            }
+        }
+        $policy['issues'] = array_values(array_unique($issues));
+        if ($policy['issues'] !== []) {
+            $policy['reviewStatus'] = 'review';
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function typstDynamicUnsupportedImportRows(array $policy): array
+    {
+        $rows = [];
+        foreach (is_array($policy['unsupported'] ?? null) ? $policy['unsupported'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $reason = is_string($entry['reason'] ?? null) ? $entry['reason'] : '';
+            if (str_starts_with($reason, 'dynamic-')) {
+                $rows[] = $entry;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $unsupportedRows
+     * @return list<array{operation:string, reason:string, expression:string, line:int|null, column:int|null}>
+     */
+    private function typstUnsupportedExpressionRows(array $unsupportedRows): array
+    {
+        $rows = [];
+        foreach ($unsupportedRows as $entry) {
+            $rows[] = [
+                'operation' => is_string($entry['operation'] ?? null) ? $entry['operation'] : 'import',
+                'reason' => is_string($entry['reason'] ?? null) ? $entry['reason'] : 'unknown-typst-import-path',
+                'expression' => is_string($entry['expression'] ?? null) ? $entry['expression'] : '',
+                'line' => is_int($entry['line'] ?? null) ? $entry['line'] : null,
+                'column' => is_int($entry['column'] ?? null) ? $entry['column'] : null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function typstDirectiveSearchBytes(string $sourceBytes): string
+    {
+        $masked = $sourceBytes;
+        $length = strlen($sourceBytes);
+        $state = 'code';
+        $quote = '';
+        $escaped = false;
+        $blockDepth = 0;
+
+        for ($cursor = 0; $cursor < $length; ++$cursor) {
+            $char = $sourceBytes[$cursor];
+            $next = $cursor + 1 < $length ? $sourceBytes[$cursor + 1] : '';
+
+            if ($state === 'line-comment') {
+                if ($char === "\n" || $char === "\r") {
+                    $state = 'code';
+                    continue;
+                }
+                $masked[$cursor] = ' ';
+                continue;
+            }
+
+            if ($state === 'block-comment') {
+                if ($char !== "\n" && $char !== "\r") {
+                    $masked[$cursor] = ' ';
+                }
+                if ($char === '/' && $next === '*') {
+                    $masked[$cursor] = ' ';
+                    $masked[$cursor + 1] = ' ';
+                    ++$cursor;
+                    ++$blockDepth;
+                    continue;
+                }
+                if ($char === '*' && $next === '/') {
+                    $masked[$cursor] = ' ';
+                    $masked[$cursor + 1] = ' ';
+                    ++$cursor;
+                    --$blockDepth;
+                    if ($blockDepth <= 0) {
+                        $state = 'code';
+                    }
+                    continue;
+                }
+                continue;
+            }
+
+            if ($state === 'string') {
+                if ($char !== "\n" && $char !== "\r") {
+                    $masked[$cursor] = ' ';
+                }
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $state = 'code';
+                    $quote = '';
+                }
+                continue;
+            }
+
+            if ($char === '/' && $next === '/') {
+                $masked[$cursor] = ' ';
+                $masked[$cursor + 1] = ' ';
+                ++$cursor;
+                $state = 'line-comment';
+                continue;
+            }
+            if ($char === '/' && $next === '*') {
+                $masked[$cursor] = ' ';
+                $masked[$cursor + 1] = ' ';
+                ++$cursor;
+                $state = 'block-comment';
+                $blockDepth = 1;
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $masked[$cursor] = ' ';
+                $state = 'string';
+                $quote = $char;
+                $escaped = false;
+            }
+        }
+
+        return $masked;
+    }
+
+    private function skipTypstWhitespaceAndComments(string $sourceBytes, int $offset): int
+    {
+        $cursor = max(0, $offset);
+        $length = strlen($sourceBytes);
+
+        while ($cursor < $length) {
+            while ($cursor < $length && ctype_space($sourceBytes[$cursor])) {
+                ++$cursor;
+            }
+            if ($cursor + 1 >= $length) {
+                return $cursor;
+            }
+            if ($sourceBytes[$cursor] === '/' && $sourceBytes[$cursor + 1] === '/') {
+                $cursor += 2;
+                while ($cursor < $length && $sourceBytes[$cursor] !== "\n" && $sourceBytes[$cursor] !== "\r") {
+                    ++$cursor;
+                }
+                continue;
+            }
+            if ($sourceBytes[$cursor] === '/' && $sourceBytes[$cursor + 1] === '*') {
+                $cursor += 2;
+                $depth = 1;
+                while ($cursor < $length && $depth > 0) {
+                    if ($cursor + 1 < $length && $sourceBytes[$cursor] === '/' && $sourceBytes[$cursor + 1] === '*') {
+                        $cursor += 2;
+                        ++$depth;
+                        continue;
+                    }
+                    if ($cursor + 1 < $length && $sourceBytes[$cursor] === '*' && $sourceBytes[$cursor + 1] === '/') {
+                        $cursor += 2;
+                        --$depth;
+                        continue;
+                    }
+                    ++$cursor;
+                }
+                continue;
+            }
+            break;
+        }
+
+        return $cursor;
+    }
+
+    private function readTypstImportPathExpressionSnippet(string $sourceBytes, int $offset, string $operation): string
+    {
+        $length = strlen($sourceBytes);
+        if ($offset >= $length) {
+            return '';
+        }
+
+        $raw = '';
+        $quote = '';
+        $escaped = false;
+        $blockCommentDepth = 0;
+        $roundDepth = 0;
+        $squareDepth = 0;
+        $curlyDepth = 0;
+
+        for ($cursor = max(0, $offset); $cursor < $length; ++$cursor) {
+            $char = $sourceBytes[$cursor];
+            $next = $cursor + 1 < $length ? $sourceBytes[$cursor + 1] : '';
+
+            if ($blockCommentDepth > 0) {
+                if ($char === "\n" || $char === "\r") {
+                    $raw .= ' ';
+                    continue;
+                }
+                if ($char === '/' && $next === '*') {
+                    ++$blockCommentDepth;
+                    ++$cursor;
+                    continue;
+                }
+                if ($char === '*' && $next === '/') {
+                    --$blockCommentDepth;
+                    ++$cursor;
+                    continue;
+                }
+                continue;
+            }
+
+            if ($quote !== '') {
+                $raw .= $char;
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = '';
+                }
+                continue;
+            }
+
+            if ($char === "\n" || $char === "\r") {
+                break;
+            }
+            if ($char === '/' && $next === '/') {
+                break;
+            }
+            if ($char === '/' && $next === '*') {
+                $raw .= ' ';
+                $blockCommentDepth = 1;
+                ++$cursor;
+                continue;
+            }
+            if ($operation === 'import' && $char === ':' && $roundDepth === 0 && $squareDepth === 0 && $curlyDepth === 0) {
+                break;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $escaped = false;
+                $raw .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                ++$roundDepth;
+            } elseif ($char === ')' && $roundDepth > 0) {
+                --$roundDepth;
+            } elseif ($char === '[') {
+                ++$squareDepth;
+            } elseif ($char === ']' && $squareDepth > 0) {
+                --$squareDepth;
+            } elseif ($char === '{') {
+                ++$curlyDepth;
+            } elseif ($char === '}' && $curlyDepth > 0) {
+                --$curlyDepth;
+            }
+
+            $raw .= $char;
+        }
+
+        $compact = preg_replace('/\s+/', ' ', trim($raw));
+        $snippet = is_string($compact) ? $compact : trim($raw);
+        if (strlen($snippet) > 160) {
+            return substr($snippet, 0, 157) . '...';
+        }
+
+        return $snippet;
     }
 
     /**

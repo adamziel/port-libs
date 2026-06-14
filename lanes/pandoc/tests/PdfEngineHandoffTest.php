@@ -3947,19 +3947,71 @@ return [
             [
                 'operation' => 'import',
                 'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
                 'line' => 8,
                 'column' => 1,
             ],
             [
                 'operation' => 'include',
                 'reason' => 'dynamic-include-path',
+                'expression' => 'module.path',
                 'line' => 9,
                 'column' => 1,
             ],
         ], $policy['unsupported']);
-        $t->same($policy, $result['typstImportPathPolicy']);
-        $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
-        $t->same($policy, $sequence['finalTypstImportPathPolicy']);
+        $resultPolicy = $result['typstImportPathPolicy'];
+        $t->same($resultPolicy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same($resultPolicy, $sequence['finalTypstImportPathPolicy']);
+        $t->same([
+            'sourcePackageCount' => 1,
+            'sidecarPackageCount' => 2,
+            'sourceOnlyCount' => 0,
+            'sidecarOnlyCount' => 1,
+            'sourcePackageReferences' => ['@preview/cetz:0.3.2/src/lib.typ'],
+            'sidecarPackageReferences' => [
+                '@preview/cetz:0.3.2/src/lib.typ',
+                '@team/private:1.2.0/theme.typ',
+            ],
+            'sourceOnlyPackageImports' => [],
+            'sidecarOnlyPackageImports' => ['@team/private:1.2.0/theme.typ'],
+        ], $resultPolicy['sourceSidecarPackageComparison']);
+        $t->same(1, $resultPolicy['sourceSidecarPackageConflictCount']);
+        $t->same([
+            [
+                'kind' => 'sidecar-only-package-dependencies',
+                'packageReferences' => ['@team/private:1.2.0/theme.typ'],
+            ],
+        ], $resultPolicy['sourceSidecarPackageConflicts']);
+        $expectedDynamicExpressions = [
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
+                'line' => 8,
+                'column' => 1,
+            ],
+            [
+                'operation' => 'include',
+                'reason' => 'dynamic-include-path',
+                'expression' => 'module.path',
+                'line' => 9,
+                'column' => 1,
+            ],
+        ];
+        $t->same(2, $resultPolicy['literalDynamicImportConflictCount']);
+        $t->same([
+            [
+                'literalPackageReferences' => ['@preview/cetz:0.3.2/src/lib.typ'],
+                'dynamicExpressions' => $expectedDynamicExpressions,
+            ],
+        ], $resultPolicy['literalDynamicImportConflicts']);
+        $t->same(1, $resultPolicy['dynamicSidecarPackageConflictCount']);
+        $t->same([
+            [
+                'sidecarOnlyPackageReferences' => ['@team/private:1.2.0/theme.typ'],
+                'dynamicExpressions' => $expectedDynamicExpressions,
+            ],
+        ], $resultPolicy['dynamicSidecarPackageConflicts']);
         $t->same([
             'typst-package:@preview/cetz:0.3.2/src/lib.typ',
             'typst-package:@team/private:1.2.0/theme.typ',
@@ -3982,7 +4034,140 @@ return [
         $t->contains('typst-import-path-issue:duplicate-import-path:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-import-path-issue:parent-relative-import-path:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-import-path-issue:remote-include-path:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-source-sidecar-conflicts:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-literal-dynamic-conflicts:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-dynamic-sidecar-conflicts:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-issue:source-sidecar-package-disagreement:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-issue:literal-dynamic-import-mix:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-import-path-issue:dynamic-sidecar-package-disagreement:1', implode(',', $result['diagnostics']));
         $t->contains('typst-import-path-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+    },
+
+    'plans typst import path edge diagnostics without treating comments as imports' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = implode("\n", [
+            '= Typst Commented Import Packet',
+            '// #import "@preview/commented:9.9.9": nope',
+            '#let rendered = "#include \"not-real.typ\""',
+            '/* #include "../ignored.typ" */',
+            '#import "theme\\ folder/main.typ": theme',
+            '#include \'chapters/appendix.typ\'',
+            '#include "chapters/appendix.typ"',
+            '#include "../escape.typ"',
+            '#import packagePath: first',
+            '#import packagePath: second',
+            '#include ("chapters/" + chapter + ".typ")',
+            '',
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/commented-imports.pdf',
+            'source' => $source,
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst commented import packet\n%%EOF\n";
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/commented-imports.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/commented-imports.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $policy = $plan['typstImportPathPolicy'];
+
+        $t->same('review', $policy['reviewStatus']);
+        $t->same(4, $policy['pathCount']);
+        $t->same(1, $policy['importCount']);
+        $t->same(3, $policy['includeCount']);
+        $t->same(0, $policy['packagePathCount']);
+        $t->same(4, $policy['localPathCount']);
+        $t->same(1, $policy['unsafePathCount']);
+        $t->same(1, $policy['duplicatePathCount']);
+        $t->same(1, $policy['duplicateReferenceCount']);
+        $t->same(3, $policy['unsupportedCount']);
+        $t->same(['../escape.typ', 'chapters/appendix.typ', 'theme folder/main.typ'], $policy['localImportHints']);
+        $t->same(['../escape.typ'], $policy['unsafeImportPaths']);
+        $t->same([
+            [
+                'path' => 'chapters/appendix.typ',
+                'count' => 2,
+                'operations' => ['include' => 2],
+                'lines' => [6, 7],
+            ],
+        ], $policy['duplicates']);
+        $t->same([
+            'duplicate-import-path' => 1,
+            'duplicate-unsupported-expression' => 1,
+            'parent-relative-include-path' => 1,
+        ], $policy['issueCounts']);
+        $t->same([
+            'dynamic-import-path' => 2,
+            'dynamic-include-path' => 1,
+        ], $policy['unsupportedReasonCounts']);
+        $t->same([
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
+                'count' => 2,
+                'lines' => [9, 10],
+            ],
+            [
+                'operation' => 'include',
+                'reason' => 'dynamic-include-path',
+                'expression' => '("chapters/" + chapter + ".typ")',
+                'count' => 1,
+                'lines' => [11],
+            ],
+        ], $policy['unsupportedExpressionSummaries']);
+        $t->same(1, $policy['duplicateUnsupportedExpressionCount']);
+        $t->same(1, $policy['duplicateUnsupportedExpressionReferenceCount']);
+        $t->same([
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
+                'count' => 2,
+                'lines' => [9, 10],
+            ],
+        ], $policy['duplicateUnsupportedExpressionSummaries']);
+        $t->same([
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
+                'line' => 9,
+                'column' => 1,
+            ],
+            [
+                'operation' => 'import',
+                'reason' => 'dynamic-import-path',
+                'expression' => 'packagePath',
+                'line' => 10,
+                'column' => 1,
+            ],
+            [
+                'operation' => 'include',
+                'reason' => 'dynamic-include-path',
+                'expression' => '("chapters/" + chapter + ".typ")',
+                'line' => 11,
+                'column' => 1,
+            ],
+        ], $policy['unsupported']);
+        $t->same($policy, $result['typstImportPathPolicy']);
+        $t->same($policy, $result['artifactProvenanceReview']['typstImportPathPolicy']);
+        $t->same($policy, $sequence['finalTypstImportPathPolicy']);
+        $t->contains('typst-import-paths:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-local:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsafe:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported-expression-duplicates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-issue:duplicate-unsupported-expression:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported-reason:dynamic-import-path:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-import-path-unsupported-reason:dynamic-include-path:1', implode(',', $plan['diagnostics']));
     },
 
     'fake runner normalizes typst package cache paths into dependency provenance' => static function (TestRunner $t) use ($document): void {
