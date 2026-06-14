@@ -1178,7 +1178,12 @@ XML, 'JATS funding acknowledgment XML', preserveWhiteSpace: false);
         $t->same(['missing-ref'], $packet['awardGroups'][1]['missingReferenceIds'] ?? null);
         $t->same(['R01-42', 'R01-42'], $packet['awardIds']);
         $t->same(['R01-42'], $packet['duplicateAwardIds']);
-        $t->same(['duplicate-award-id', 'duplicate-award-source-pair', 'missing-award-id'], $packet['fundingDiagnosticCodes']);
+        $t->same([
+            'duplicate-award-id',
+            'duplicate-award-source-pair',
+            'missing-award-id',
+            'missing-funding-reference-backlink',
+        ], $packet['fundingDiagnosticCodes']);
         $t->same(2, $packet['fundingDiagnostics'][0]['count'] ?? null);
         $t->same(['award-a', 'award-a-copy'], $packet['fundingDiagnostics'][0]['recordIds'] ?? null);
         $t->same('duplicate-award-source-pair', $packet['fundingDiagnostics'][1]['code'] ?? null);
@@ -1186,6 +1191,29 @@ XML, 'JATS funding acknowledgment XML', preserveWhiteSpace: false);
         $t->same('award-group', $packet['fundingDiagnostics'][2]['container'] ?? null);
         $t->same('ag2', $packet['fundingDiagnostics'][2]['id'] ?? null);
         $t->same('fg1', $packet['fundingDiagnostics'][2]['fundingGroupId'] ?? null);
+        $t->same('missing-funding-reference-backlink', $packet['fundingDiagnostics'][3]['code'] ?? null);
+        $t->same('missing-ref', $packet['fundingDiagnostics'][3]['referenceId'] ?? null);
+        $t->same('jats-bits-funding-reference-backlinks-metadata-only', $packet['fundingReferenceBacklinkReviewPolicy']);
+        $t->same(2, $packet['fundingReferenceBacklinkCount']);
+        $t->same(1, $packet['missingFundingReferenceBacklinkCount']);
+        $t->same(0, $packet['duplicateFundingReferenceBacklinkCount']);
+        $fundingBacklinksById = [];
+        foreach ($packet['fundingReferenceBacklinks'] as $backlink) {
+            $fundingBacklinksById[(string) $backlink['referenceId']] = $backlink;
+        }
+        $t->same(true, $fundingBacklinksById['r1']['found'] ?? null);
+        $t->same(false, $fundingBacklinksById['r1']['duplicate'] ?? null);
+        $t->same(1, $fundingBacklinksById['r1']['linkCount'] ?? null);
+        $t->same(['fg1'], $fundingBacklinksById['r1']['fundingGroupIds'] ?? null);
+        $t->same(['ag1'], $fundingBacklinksById['r1']['awardGroupIds'] ?? null);
+        $t->same(['R01-42'], $fundingBacklinksById['r1']['awardIds'] ?? null);
+        $t->same(['fs1'], $fundingBacklinksById['r1']['fundingSourceIds'] ?? null);
+        $t->same(true, $fundingBacklinksById['r1']['citationTextBlocked'] ?? null);
+        $t->same(1, preg_match('/^[a-f0-9]{64}$/', (string) ($fundingBacklinksById['r1']['textSha256'] ?? '')));
+        $t->same(true, $fundingBacklinksById['r1']['links'][0]['linkTextBlocked'] ?? null);
+        $t->same(hash('sha256', 'funding ref'), $fundingBacklinksById['r1']['links'][0]['linkTextSha256'] ?? null);
+        $t->same(false, $fundingBacklinksById['missing-ref']['found'] ?? null);
+        $t->same(null, $fundingBacklinksById['missing-ref']['textSha256'] ?? null);
         $t->same(1, $packet['acknowledgmentCount']);
         $t->same(['ack1'], $packet['acknowledgmentIds']);
         $t->same('Acknowledgments', $packet['acknowledgments'][0]['title'] ?? null);
@@ -1271,13 +1299,24 @@ XML, 'JATS award source linkage XML', preserveWhiteSpace: false);
         $t->same(2, $packet['duplicateAwardSourcePairs'][0]['count'] ?? null);
         $t->same(['award-r01', 'award-r01-copy'], $packet['duplicateAwardSourcePairs'][0]['awardRecordIds'] ?? null);
         $t->same(['funding-ref'], $packet['duplicateAwardSourcePairs'][0]['linkedReferenceIds'] ?? null);
-        $t->same(['duplicate-award-id', 'duplicate-award-source-pair', 'missing-award-id', 'missing-funding-source'], $packet['fundingDiagnosticCodes']);
+        $t->same([
+            'duplicate-award-id',
+            'duplicate-award-source-pair',
+            'missing-award-id',
+            'missing-funding-source',
+            'missing-funding-reference-backlink',
+        ], $packet['fundingDiagnosticCodes']);
         $t->same('duplicate-award-source-pair', $packet['fundingDiagnostics'][1]['code'] ?? null);
         $t->same(['award-r01', 'award-r01-copy'], $packet['fundingDiagnostics'][1]['recordIds'] ?? null);
         $t->same('ag-missing-award', $packet['fundingDiagnostics'][2]['id'] ?? null);
         $t->same('ag-missing-source', $packet['fundingDiagnostics'][3]['id'] ?? null);
         $t->same(['K99-789'], $packet['fundingDiagnostics'][3]['awardIds'] ?? null);
         $t->same(['missing-funding-ref'], $packet['fundingDiagnostics'][3]['missingReferenceIds'] ?? null);
+        $t->same('missing-funding-reference-backlink', $packet['fundingDiagnostics'][4]['code'] ?? null);
+        $t->same('missing-funding-ref', $packet['fundingDiagnostics'][4]['referenceId'] ?? null);
+        $t->same(2, $packet['fundingReferenceBacklinkCount']);
+        $t->same(1, $packet['missingFundingReferenceBacklinkCount']);
+        $t->same(0, $packet['duplicateFundingReferenceBacklinkCount']);
         $t->same(['funding-ref'], $packet['resolvedCitationReferenceIds']);
         $t->same(['missing-funding-ref'], $packet['missingCitationReferenceIds']);
 
@@ -1306,6 +1345,7 @@ XML, 'JATS award source linkage XML', preserveWhiteSpace: false);
             <institution>Beta Institute</institution>
           </funding-source>
           <award-id id="award-beta">PL-42</award-id>
+          <xref id="funding-xref-repeat" ref-type="bibr" rid="fund-ref">repeat funding reference</xref>
         </award-group>
         <award-group id="ag-sibling">
           <funding-source id="fs-sibling">Sibling Source</funding-source>
@@ -1351,14 +1391,42 @@ XML, 'JATS funding conflict metadata XML', preserveWhiteSpace: false);
         ));
         $t->same('fs-nameless', $packet['fundingInstitutionSourceMismatches'][0]['fundingSourceId'] ?? null);
         $t->same('ag-sibling', $packet['fundingInstitutionSourceMismatches'][1]['awardGroupId'] ?? null);
-        $t->same(1, $packet['fundingLinkedReferenceCount']);
+        $t->same(2, $packet['fundingLinkedReferenceCount']);
         $t->same(['fund-ref', 'missing-ref'], $packet['fundingLinkedReferences'][0]['targets'] ?? null);
         $t->same(['fund-ref'], $packet['fundingLinkedReferences'][0]['linkedReferenceIds'] ?? null);
         $t->same(['missing-ref'], $packet['fundingLinkedReferences'][0]['missingReferenceIds'] ?? null);
         $t->same(true, $packet['fundingLinkedReferences'][0]['linkTextBlocked'] ?? null);
+        $t->same(['PL-42'], $packet['fundingLinkedReferences'][0]['awardIds'] ?? null);
+        $t->same(['PL-42'], $packet['fundingLinkedReferences'][0]['conflictingAwardIds'] ?? null);
+        $t->same(['fs-alpha'], $packet['fundingLinkedReferences'][0]['fundingSourceIds'] ?? null);
+        $t->same(true, $packet['fundingLinkedReferences'][0]['fundingSourceTextDigests'][0]['textBlocked'] ?? null);
         $t->same('F1', $packet['fundingLinkedReferences'][0]['references'][0]['label'] ?? null);
         $t->same(true, $packet['fundingLinkedReferences'][0]['references'][0]['citationTextBlocked'] ?? null);
         $t->same(false, $packet['fundingLinkedReferences'][0]['references'][1]['found'] ?? null);
+        $t->same(['fund-ref'], $packet['fundingLinkedReferences'][1]['targets'] ?? null);
+        $t->same(['fs-beta'], $packet['fundingLinkedReferences'][1]['fundingSourceIds'] ?? null);
+        $t->same(['PL-42'], $packet['fundingLinkedReferences'][1]['conflictingAwardIds'] ?? null);
+        $t->same(2, $packet['fundingReferenceBacklinkCount']);
+        $t->same(1, $packet['missingFundingReferenceBacklinkCount']);
+        $t->same(1, $packet['duplicateFundingReferenceBacklinkCount']);
+        $conflictBacklinksById = [];
+        foreach ($packet['fundingReferenceBacklinks'] as $backlink) {
+            $conflictBacklinksById[(string) $backlink['referenceId']] = $backlink;
+        }
+        $t->same(true, $conflictBacklinksById['fund-ref']['found'] ?? null);
+        $t->same(true, $conflictBacklinksById['fund-ref']['duplicate'] ?? null);
+        $t->same(2, $conflictBacklinksById['fund-ref']['linkCount'] ?? null);
+        $t->same(['fg-conflict'], $conflictBacklinksById['fund-ref']['fundingGroupIds'] ?? null);
+        $t->same(['ag-alpha', 'ag-beta'], $conflictBacklinksById['fund-ref']['awardGroupIds'] ?? null);
+        $t->same(['PL-42'], $conflictBacklinksById['fund-ref']['awardIds'] ?? null);
+        $t->same(['fs-alpha', 'fs-beta'], $conflictBacklinksById['fund-ref']['fundingSourceIds'] ?? null);
+        $t->same(['PL-42'], $conflictBacklinksById['fund-ref']['conflictingAwardIds'] ?? null);
+        $t->same(1, $conflictBacklinksById['fund-ref']['awardSourceConflictCount'] ?? null);
+        $t->same(true, $conflictBacklinksById['fund-ref']['citationTextBlocked'] ?? null);
+        $t->same(1, preg_match('/^[a-f0-9]{64}$/', (string) ($conflictBacklinksById['fund-ref']['textSha256'] ?? '')));
+        $t->same(hash('sha256', 'funding reference'), $conflictBacklinksById['fund-ref']['links'][0]['linkTextSha256'] ?? null);
+        $t->same(hash('sha256', 'repeat funding reference'), $conflictBacklinksById['fund-ref']['links'][1]['linkTextSha256'] ?? null);
+        $t->same(false, $conflictBacklinksById['missing-ref']['found'] ?? null);
         $t->same([
             'duplicate-award-id',
             'duplicate-funder-identifier',
@@ -1366,8 +1434,10 @@ XML, 'JATS funding conflict metadata XML', preserveWhiteSpace: false);
             'institution-id-funding-source-mismatch',
             'missing-award-id',
             'missing-funding-source',
+            'missing-funding-reference-backlink',
+            'duplicate-funding-reference-backlink',
         ], array_values(array_unique($packet['fundingDiagnosticCodes'])));
-        $t->same(7, $packet['fundingDiagnosticCount']);
+        $t->same(9, $packet['fundingDiagnosticCount']);
 
         $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedPacket, 'Blocked Conflict Citation Secret'), 'Expected citation payload text to stay blocked from funding conflict diagnostics');

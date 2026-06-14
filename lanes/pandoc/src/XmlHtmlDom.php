@@ -1926,6 +1926,11 @@ final class XmlHtmlDom
             'conflictingAwardSourcePairCount' => $fundingReview['conflictingAwardSourcePairCount'],
             'fundingLinkedReferences' => $fundingReview['fundingLinkedReferences'],
             'fundingLinkedReferenceCount' => $fundingReview['fundingLinkedReferenceCount'],
+            'fundingReferenceBacklinkReviewPolicy' => 'jats-bits-funding-reference-backlinks-metadata-only',
+            'fundingReferenceBacklinks' => $fundingReview['fundingReferenceBacklinks'],
+            'fundingReferenceBacklinkCount' => $fundingReview['fundingReferenceBacklinkCount'],
+            'missingFundingReferenceBacklinkCount' => $fundingReview['missingFundingReferenceBacklinkCount'],
+            'duplicateFundingReferenceBacklinkCount' => $fundingReview['duplicateFundingReferenceBacklinkCount'],
             'fundingDiagnostics' => $fundingReview['fundingDiagnostics'],
             'fundingDiagnosticCodes' => $fundingReview['fundingDiagnosticCodes'],
             'fundingDiagnosticCount' => $fundingReview['fundingDiagnosticCount'],
@@ -8182,7 +8187,13 @@ final class XmlHtmlDom
         $duplicateFunderIdentifiers = self::jatsDuplicateFunderIdentifiers($fundingSourceIdentifierRecords);
         $conflictingAwardSourcePairs = self::jatsConflictingAwardSourcePairs($awardSourcePairs);
         $fundingInstitutionSourceMismatches = self::jatsFundingInstitutionSourceMismatches($root, $fundingSources);
-        $fundingLinkedReferences = self::jatsFundingLinkedReferenceSummaries($root, $referenceIds, $safeReferenceMap);
+        $fundingLinkedReferences = self::jatsFundingLinkedReferenceSummaries(
+            $root,
+            $referenceIds,
+            $safeReferenceMap,
+            $conflictingAwardSourcePairs
+        );
+        $fundingReferenceBacklinks = self::jatsFundingReferenceBacklinkSummaries($fundingLinkedReferences, $safeReferenceMap);
         $fundingDiagnostics = self::jatsFundingDiagnostics(
             $fundingGroups,
             $awardGroups,
@@ -8192,7 +8203,8 @@ final class XmlHtmlDom
             $duplicateAwardSourcePairs,
             $duplicateFunderIdentifiers,
             $conflictingAwardSourcePairs,
-            $fundingInstitutionSourceMismatches
+            $fundingInstitutionSourceMismatches,
+            $fundingReferenceBacklinks
         );
 
         return [
@@ -8234,6 +8246,16 @@ final class XmlHtmlDom
             'conflictingAwardSourcePairCount' => count($conflictingAwardSourcePairs),
             'fundingLinkedReferences' => $fundingLinkedReferences,
             'fundingLinkedReferenceCount' => count($fundingLinkedReferences),
+            'fundingReferenceBacklinks' => $fundingReferenceBacklinks,
+            'fundingReferenceBacklinkCount' => count($fundingReferenceBacklinks),
+            'missingFundingReferenceBacklinkCount' => count(array_filter(
+                $fundingReferenceBacklinks,
+                static fn (array $backlink): bool => ($backlink['found'] ?? null) === false
+            )),
+            'duplicateFundingReferenceBacklinkCount' => count(array_filter(
+                $fundingReferenceBacklinks,
+                static fn (array $backlink): bool => ($backlink['duplicate'] ?? null) === true
+            )),
             'fundingDiagnostics' => $fundingDiagnostics,
             'fundingDiagnosticCodes' => array_values(array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
@@ -9002,11 +9024,26 @@ final class XmlHtmlDom
     /**
      * @param list<string> $referenceIds
      * @param array<string, array<string, mixed>> $safeReferenceMap
+     * @param list<array<string, mixed>> $conflictingAwardSourcePairs
      * @return list<array<string, mixed>>
      */
-    private static function jatsFundingLinkedReferenceSummaries(\DOMElement $root, array $referenceIds, array $safeReferenceMap): array
+    private static function jatsFundingLinkedReferenceSummaries(
+        \DOMElement $root,
+        array $referenceIds,
+        array $safeReferenceMap,
+        array $conflictingAwardSourcePairs
+    ): array
     {
         $referenceLookup = array_fill_keys($referenceIds, true);
+        $conflictingAwardsByNormalizedId = [];
+        foreach ($conflictingAwardSourcePairs as $conflict) {
+            $normalizedAwardId = self::stringOrNull($conflict['normalizedAwardId'] ?? null);
+            $awardId = self::stringOrNull($conflict['awardId'] ?? null);
+            if ($normalizedAwardId !== null && $awardId !== null) {
+                $conflictingAwardsByNormalizedId[$normalizedAwardId] = $awardId;
+            }
+        }
+
         $summaries = [];
         foreach (self::descendantElements($root, 'xref') as $xref) {
             $fundingGroup = self::jatsNearestAncestorElement($xref, 'funding-group');
@@ -9033,12 +9070,36 @@ final class XmlHtmlDom
             }
 
             $awardGroup = self::jatsNearestAncestorElement($xref, 'award-group');
+            $context = $awardGroup instanceof \DOMElement ? $awardGroup : $fundingGroup;
+            $fundingGroupId = self::jatsTrimmedAttribute($fundingGroup, 'id');
+            $awardGroupId = $awardGroup instanceof \DOMElement ? self::jatsTrimmedAttribute($awardGroup, 'id') : null;
+            $awardRecords = self::jatsAwardIdRecords($context, $fundingGroupId, $awardGroupId);
+            $awardIds = self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $record): ?string => $record['awardId'] ?? null,
+                $awardRecords
+            ));
+            $normalizedAwardIds = self::jatsUniqueNonEmptyStrings(array_map(
+                static fn (array $record): ?string => $record['normalizedAwardId'] ?? null,
+                $awardRecords
+            ));
+            $conflictingAwardIds = [];
+            foreach ($normalizedAwardIds as $normalizedAwardId) {
+                if (isset($conflictingAwardsByNormalizedId[$normalizedAwardId])) {
+                    $conflictingAwardIds[] = $conflictingAwardsByNormalizedId[$normalizedAwardId];
+                }
+            }
+
+            $fundingSources = [];
+            foreach (self::descendantElements($context, 'funding-source') as $sourceIndex => $fundingSource) {
+                $fundingSources[] = self::jatsFundingSourceSummary($fundingSource, $sourceIndex, $fundingGroupId, $awardGroupId);
+            }
+
             $linkText = self::normalizedText($xref);
             $summaries[] = [
                 'id' => self::jatsTrimmedAttribute($xref, 'id'),
                 'container' => $awardGroup instanceof \DOMElement ? 'award-group' : 'funding-group',
-                'fundingGroupId' => self::jatsTrimmedAttribute($fundingGroup, 'id'),
-                'awardGroupId' => $awardGroup instanceof \DOMElement ? self::jatsTrimmedAttribute($awardGroup, 'id') : null,
+                'fundingGroupId' => $fundingGroupId,
+                'awardGroupId' => $awardGroupId,
                 'refType' => $refType,
                 'targets' => $targets,
                 'linkedReferenceIds' => array_values(array_filter(
@@ -9052,11 +9113,28 @@ final class XmlHtmlDom
                 'linkTextBlocked' => true,
                 'linkTextLength' => strlen($linkText),
                 'linkTextSha256' => hash('sha256', $linkText),
+                'awardIds' => $awardIds,
+                'normalizedAwardIds' => $normalizedAwardIds,
+                'conflictingAwardIds' => self::jatsUniqueNonEmptyStrings($conflictingAwardIds),
+                'awardSourceConflictCount' => count(self::jatsUniqueNonEmptyStrings($conflictingAwardIds)),
+                'fundingSourceIds' => self::jatsUniqueNonEmptyStrings(array_map(
+                    static fn (array $source): ?string => $source['id'] ?? null,
+                    $fundingSources
+                )),
+                'fundingSourceKeys' => self::jatsUniqueNonEmptyStrings(array_map(
+                    static fn (array $source): string => self::jatsFundingSourcePairKey($source),
+                    $fundingSources
+                )),
+                'fundingSourceTextDigests' => self::jatsFundingSourceTextDigests($fundingSources),
                 'references' => array_map(
                     static fn (string $target): array => $safeReferenceMap[$target] ?? [
                         'id' => $target,
                         'found' => false,
                         'citationTextBlocked' => true,
+                        'textLength' => null,
+                        'textSha256' => null,
+                        'blockedCitationTextPayloadCount' => 0,
+                        'citationElementNames' => [],
                     ],
                     $referenceTargets
                 ),
@@ -9065,6 +9143,135 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fundingSources
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFundingSourceTextDigests(array $fundingSources): array
+    {
+        $digests = [];
+        foreach ($fundingSources as $fundingSource) {
+            $digests[] = [
+                'id' => $fundingSource['id'] ?? null,
+                'sourceType' => $fundingSource['sourceType'] ?? null,
+                'fundingSourceKey' => self::jatsFundingSourcePairKey($fundingSource),
+                'textBlocked' => true,
+                'textLength' => (int) ($fundingSource['textLength'] ?? 0),
+                'textSha256' => self::stringOrNull($fundingSource['textSha256'] ?? null),
+            ];
+        }
+
+        return $digests;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $linkedReferences
+     * @param array<string, array<string, mixed>> $safeReferenceMap
+     * @return list<array<string, mixed>>
+     */
+    private static function jatsFundingReferenceBacklinkSummaries(array $linkedReferences, array $safeReferenceMap): array
+    {
+        $backlinks = [];
+        foreach ($linkedReferences as $linkedReference) {
+            $linkedReferenceIds = is_array($linkedReference['linkedReferenceIds'] ?? null)
+                ? $linkedReference['linkedReferenceIds']
+                : [];
+            $missingReferenceIds = is_array($linkedReference['missingReferenceIds'] ?? null)
+                ? $linkedReference['missingReferenceIds']
+                : [];
+            $targets = array_values(array_unique([...$linkedReferenceIds, ...$missingReferenceIds]));
+
+            foreach ($targets as $target) {
+                if (!is_string($target) || trim($target) === '') {
+                    continue;
+                }
+
+                $target = trim($target);
+                if (!isset($backlinks[$target])) {
+                    $reference = $safeReferenceMap[$target] ?? null;
+                    $backlinks[$target] = [
+                        'referenceId' => $target,
+                        'found' => $reference !== null,
+                        'label' => $reference['label'] ?? null,
+                        'status' => $reference['status'] ?? null,
+                        'metadataOnly' => true,
+                        'citationTextBlocked' => true,
+                        'textLength' => $reference['textLength'] ?? null,
+                        'textSha256' => $reference['textSha256'] ?? null,
+                        'blockedCitationTextPayloadCount' => $reference['blockedCitationTextPayloadCount'] ?? 0,
+                        'citationElementNames' => $reference['citationElementNames'] ?? [],
+                        'linkCount' => 0,
+                        'duplicate' => false,
+                        'fundingGroupIds' => [],
+                        'awardGroupIds' => [],
+                        'awardIds' => [],
+                        'normalizedAwardIds' => [],
+                        'conflictingAwardIds' => [],
+                        'awardSourceConflictCount' => 0,
+                        'fundingSourceIds' => [],
+                        'fundingSourceKeys' => [],
+                        'links' => [],
+                    ];
+                }
+
+                $awardIds = is_array($linkedReference['awardIds'] ?? null) ? $linkedReference['awardIds'] : [];
+                $normalizedAwardIds = is_array($linkedReference['normalizedAwardIds'] ?? null) ? $linkedReference['normalizedAwardIds'] : [];
+                $conflictingAwardIds = is_array($linkedReference['conflictingAwardIds'] ?? null) ? $linkedReference['conflictingAwardIds'] : [];
+                $fundingSourceIds = is_array($linkedReference['fundingSourceIds'] ?? null) ? $linkedReference['fundingSourceIds'] : [];
+                $fundingSourceKeys = is_array($linkedReference['fundingSourceKeys'] ?? null) ? $linkedReference['fundingSourceKeys'] : [];
+                $link = [
+                    'id' => $linkedReference['id'] ?? null,
+                    'container' => $linkedReference['container'] ?? null,
+                    'fundingGroupId' => $linkedReference['fundingGroupId'] ?? null,
+                    'awardGroupId' => $linkedReference['awardGroupId'] ?? null,
+                    'refType' => $linkedReference['refType'] ?? null,
+                    'awardIds' => self::jatsUniqueNonEmptyStrings($awardIds),
+                    'normalizedAwardIds' => self::jatsUniqueNonEmptyStrings($normalizedAwardIds),
+                    'conflictingAwardIds' => self::jatsUniqueNonEmptyStrings($conflictingAwardIds),
+                    'awardSourceConflictCount' => count(self::jatsUniqueNonEmptyStrings($conflictingAwardIds)),
+                    'fundingSourceIds' => self::jatsUniqueNonEmptyStrings($fundingSourceIds),
+                    'fundingSourceKeys' => self::jatsUniqueNonEmptyStrings($fundingSourceKeys),
+                    'linkTextBlocked' => true,
+                    'linkTextLength' => (int) ($linkedReference['linkTextLength'] ?? 0),
+                    'linkTextSha256' => self::stringOrNull($linkedReference['linkTextSha256'] ?? null),
+                    'sourcePosition' => $linkedReference['sourcePosition'] ?? null,
+                ];
+
+                $backlinks[$target]['links'][] = $link;
+                $fundingGroupId = self::stringOrNull($linkedReference['fundingGroupId'] ?? null);
+                if ($fundingGroupId !== null) {
+                    $backlinks[$target]['fundingGroupIds'][] = $fundingGroupId;
+                }
+                $awardGroupId = self::stringOrNull($linkedReference['awardGroupId'] ?? null);
+                if ($awardGroupId !== null) {
+                    $backlinks[$target]['awardGroupIds'][] = $awardGroupId;
+                }
+                array_push($backlinks[$target]['awardIds'], ...$awardIds);
+                array_push($backlinks[$target]['normalizedAwardIds'], ...$normalizedAwardIds);
+                array_push($backlinks[$target]['conflictingAwardIds'], ...$conflictingAwardIds);
+                array_push($backlinks[$target]['fundingSourceIds'], ...$fundingSourceIds);
+                array_push($backlinks[$target]['fundingSourceKeys'], ...$fundingSourceKeys);
+            }
+        }
+
+        ksort($backlinks);
+        foreach ($backlinks as $target => $backlink) {
+            $conflictingAwardIds = self::jatsUniqueNonEmptyStrings($backlink['conflictingAwardIds']);
+            $backlinks[$target]['linkCount'] = count($backlink['links']);
+            $backlinks[$target]['duplicate'] = count($backlink['links']) > 1;
+            $backlinks[$target]['fundingGroupIds'] = self::jatsUniqueNonEmptyStrings($backlink['fundingGroupIds']);
+            $backlinks[$target]['awardGroupIds'] = self::jatsUniqueNonEmptyStrings($backlink['awardGroupIds']);
+            $backlinks[$target]['awardIds'] = self::jatsUniqueNonEmptyStrings($backlink['awardIds']);
+            $backlinks[$target]['normalizedAwardIds'] = self::jatsUniqueNonEmptyStrings($backlink['normalizedAwardIds']);
+            $backlinks[$target]['conflictingAwardIds'] = $conflictingAwardIds;
+            $backlinks[$target]['awardSourceConflictCount'] = count($conflictingAwardIds);
+            $backlinks[$target]['fundingSourceIds'] = self::jatsUniqueNonEmptyStrings($backlink['fundingSourceIds']);
+            $backlinks[$target]['fundingSourceKeys'] = self::jatsUniqueNonEmptyStrings($backlink['fundingSourceKeys']);
+        }
+
+        return array_values($backlinks);
     }
 
     /**
@@ -9148,6 +9355,7 @@ final class XmlHtmlDom
      * @param list<array<string, mixed>> $duplicateFunderIdentifiers
      * @param list<array<string, mixed>> $conflictingAwardSourcePairs
      * @param list<array<string, mixed>> $fundingInstitutionSourceMismatches
+     * @param list<array<string, mixed>> $fundingReferenceBacklinks
      * @return list<array<string, mixed>>
      */
     private static function jatsFundingDiagnostics(
@@ -9159,7 +9367,8 @@ final class XmlHtmlDom
         array $duplicateAwardSourcePairs,
         array $duplicateFunderIdentifiers,
         array $conflictingAwardSourcePairs,
-        array $fundingInstitutionSourceMismatches
+        array $fundingInstitutionSourceMismatches,
+        array $fundingReferenceBacklinks
     ): array {
         $diagnostics = [];
         foreach ($duplicateAwardIds as $duplicateAwardId) {
@@ -9304,6 +9513,43 @@ final class XmlHtmlDom
                 'awardIds' => $fundingGroup['awardIds'] ?? [],
                 'linkedReferenceIds' => $fundingGroup['linkedReferenceIds'] ?? [],
                 'missingReferenceIds' => $fundingGroup['missingReferenceIds'] ?? [],
+            ];
+        }
+
+        foreach ($fundingReferenceBacklinks as $backlink) {
+            if (($backlink['found'] ?? null) !== false) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'missing-funding-reference-backlink',
+                'severity' => 'warning',
+                'referenceId' => $backlink['referenceId'] ?? null,
+                'linkCount' => $backlink['linkCount'] ?? 0,
+                'fundingGroupIds' => $backlink['fundingGroupIds'] ?? [],
+                'awardGroupIds' => $backlink['awardGroupIds'] ?? [],
+                'awardIds' => $backlink['awardIds'] ?? [],
+                'fundingSourceIds' => $backlink['fundingSourceIds'] ?? [],
+                'conflictingAwardIds' => $backlink['conflictingAwardIds'] ?? [],
+            ];
+        }
+
+        foreach ($fundingReferenceBacklinks as $backlink) {
+            if (($backlink['duplicate'] ?? null) !== true) {
+                continue;
+            }
+
+            $diagnostics[] = [
+                'code' => 'duplicate-funding-reference-backlink',
+                'severity' => 'warning',
+                'referenceId' => $backlink['referenceId'] ?? null,
+                'found' => $backlink['found'] ?? null,
+                'linkCount' => $backlink['linkCount'] ?? 0,
+                'fundingGroupIds' => $backlink['fundingGroupIds'] ?? [],
+                'awardGroupIds' => $backlink['awardGroupIds'] ?? [],
+                'awardIds' => $backlink['awardIds'] ?? [],
+                'fundingSourceIds' => $backlink['fundingSourceIds'] ?? [],
+                'conflictingAwardIds' => $backlink['conflictingAwardIds'] ?? [],
             ];
         }
 
