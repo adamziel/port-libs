@@ -10307,6 +10307,9 @@ final class MarkdownReader
 
         for ($cursor = $index; $cursor < $count; $cursor++) {
             $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && trim($line) === '') {
+                return null;
+            }
             if ($cursor > $index && $this->htmlLineStartsImplicitParagraphClose($line)) {
                 return [implode("\n", $content), $cursor - 1];
             }
@@ -10317,11 +10320,7 @@ final class MarkdownReader
             }
         }
 
-        if ($content === []) {
-            return null;
-        }
-
-        return [implode("\n", $content), $count - 1];
+        return null;
     }
 
     private function htmlLineStartsImplicitParagraphClose(string $line): bool
