@@ -8,8 +8,8 @@
         "commit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3408,
-        "latestSlice": "pandoc-epub-package-prefix-validation maps one EPUB3 package ingestion slice on current main 291e42a014 after ODT embedded object bucket summaries. EpubPackageTest covers duplicate and malformed OPF package prefix declarations flowing into package validation and WordPress import handoff without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped upstream cases move 3407 -> 3408, mappedEpubPackagePrefixValidationCases is 1, and epubPackagePrefixValidationAssertions is 19. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2285 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81054 assertions, 0 failures.",
+        "mapped": 3409,
+        "latestSlice": "pandoc-docbook-media-target-manifest-review maps one DocBook XmlHtmlDom review-packet case on current main b5ea76cb98 after PDF/Typst root environment shadow provenance. XmlHtmlDom preserves the existing role/caption mediaTargetManifest while adding imagedata-level mediaImageTargetManifest rows, repeated target summaries, missing target metadata diagnostics, basename/content-type grouping, media object association diagnostics, and media linkend/id references without invoking Pandoc, XML validators, browsers, Node tooling, online services, live providers, live-service provider tests, or external validators. Mapped upstream cases move 3408 -> 3409, mappedXmlHtmlDomDocBookMediaTargetManifestCases is 1, and xmlHtmlDomDocBookMediaTargetManifestAssertions is 95. Verification passed php -l for XmlHtmlDom.php and XmlHtmlDomTest.php; focused XmlHtmlDomTest.php passed 1 file, 3749 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81165 assertions, 0 failures; jq empty; and git diff --check.",
         "mappedEndnoteXmlNameGroupDiagnosticCases": 1,
         "endnoteXmlNameGroupDiagnosticAssertions": 40,
         "mappedEndnoteXmlTitleDateDiagnosticCases": 1,
@@ -48,8 +48,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "EPUB package prefix validation is verified over current main 291e42a014 after ODT embedded object bucket summaries.",
-        "latestFocusedSource": "2026-06-14 EPUB package prefix validation inspected EpubPackage native package validation metadata against accepted static Pandoc inventory constraints after refresh onto current main 291e42a014; focused EpubPackageTest.php passed 1 file, 2285 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81054 assertions, 0 failures.",
+        "status": "DocBook media target manifest review diagnostics are verified over current main b5ea76cb98 after PDF/Typst root environment shadow provenance; broader DocBook direct reader parity remains intentionally unsupported.",
+        "latestFocusedSource": "2026-06-14 DocBook media target manifest slice inspected bounded DocBook mediaobject and inlinemediaobject fixtures against the accepted static Pandoc XML/DocBook inventory on upstream commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 after rebase onto current main b5ea76cb98; focused XmlHtmlDomTest.php passed 1 file, 3749 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 81165 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -375,7 +375,9 @@
         "mappedXmlHtmlDomJatsReferenceTitleSourceCases": 1,
         "xmlHtmlDomJatsReferenceTitleSourceAssertions": 61,
         "mappedMediaBagRepairDiagnosticCases": 1,
-        "mediaBagRepairDiagnosticAssertions": 30
+        "mediaBagRepairDiagnosticAssertions": 30,
+        "mappedXmlHtmlDomDocBookMediaTargetManifestCases": 1,
+        "xmlHtmlDomDocBookMediaTargetManifestAssertions": 95
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",

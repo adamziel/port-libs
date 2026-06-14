@@ -2372,6 +2372,11 @@ final class XmlHtmlDom
         int $figureCount,
         int $mediaObjectCount,
         int $imageDataRefCount,
+        int $mediaTargetManifestCount,
+        int $repeatedMediaTargetCount,
+        int $missingMediaTargetMetadataCount,
+        int $mediaObjectAssociationDiagnosticCount,
+        int $mediaLinkendReferenceCount,
         int $linkendReferenceCount,
         int $xmlIdTargetCount,
         int $unsupportedChildDiagnosticCount
@@ -2439,6 +2444,30 @@ final class XmlHtmlDom
                 false,
                 false,
                 ['imageDataRefCount' => $imageDataRefCount]
+            );
+        }
+
+        if (
+            $mediaTargetManifestCount > 0
+            || $repeatedMediaTargetCount > 0
+            || $missingMediaTargetMetadataCount > 0
+            || $mediaObjectAssociationDiagnosticCount > 0
+            || $mediaLinkendReferenceCount > 0
+        ) {
+            $diagnostics[] = self::docBookDirectReaderDiagnostic(
+                'media-target-manifest-review-only',
+                'unsupported',
+                'DocBook media target manifests and media linkend/id associations are summarized without loading media payloads or claiming direct-reader parity.',
+                false,
+                false,
+                [
+                    'mediaTargetManifestCount' => $mediaTargetManifestCount,
+                    'repeatedMediaTargetCount' => $repeatedMediaTargetCount,
+                    'missingMediaTargetMetadataCount' => $missingMediaTargetMetadataCount,
+                    'mediaObjectAssociationDiagnosticCount' => $mediaObjectAssociationDiagnosticCount,
+                    'mediaLinkendReferenceCount' => $mediaLinkendReferenceCount,
+                    'payloadBytesExposed' => false,
+                ]
             );
         }
 
@@ -2552,6 +2581,8 @@ final class XmlHtmlDom
         $mediaDiagnostics = self::docBookMediaObjectDiagnostics($mediaObjects['items'], $repeatedMediaRoleTargetPairs);
         $imageDataRefs = self::docBookImageDataReferences($root);
         $targetSummary = self::docBookTargetSummary($root);
+        $crossReferences = self::docBookCrossReferenceSummaries($root, self::docBookElementIdMap($root));
+        $mediaReview = self::docBookMediaTargetReviewSummary($root, $crossReferences);
         $unsupportedChildDiagnostics = self::docBookUnsupportedChildDiagnostics($root);
         $directReaderDiagnostics = self::docBookDirectReaderDiagnostics(
             $format,
@@ -2560,6 +2591,11 @@ final class XmlHtmlDom
             $figures['count'],
             $mediaObjects['count'],
             $imageDataRefs['count'],
+            $mediaReview['mediaTargetManifest']['count'],
+            $mediaReview['repeatedMediaTargets']['count'],
+            $mediaReview['missingMediaTargetMetadata']['count'],
+            $mediaReview['mediaObjectAssociationDiagnostics']['count'],
+            $mediaReview['mediaLinkendReferences']['count'],
             count($targetSummary['linkendReferences']),
             count($targetSummary['xmlIdTargets']),
             $unsupportedChildDiagnostics['count']
@@ -2625,6 +2661,38 @@ final class XmlHtmlDom
             'imageDataRefs' => $imageDataRefs['items'],
             'imageDataRefCount' => $imageDataRefs['count'],
             'imageDataRefsTruncated' => $imageDataRefs['truncated'],
+            'mediaImageTargetManifest' => $mediaReview['mediaTargetManifest']['items'],
+            'mediaImageTargetManifestCount' => $mediaReview['mediaTargetManifest']['count'],
+            'mediaImageTargetManifestTruncated' => $mediaReview['mediaTargetManifest']['truncated'],
+            'repeatedMediaTargets' => $mediaReview['repeatedMediaTargets']['items'],
+            'repeatedMediaTargetCount' => $mediaReview['repeatedMediaTargets']['count'],
+            'repeatedMediaTargetsTruncated' => $mediaReview['repeatedMediaTargets']['truncated'],
+            'missingMediaTargetMetadata' => $mediaReview['missingMediaTargetMetadata']['items'],
+            'missingMediaTargetMetadataCount' => $mediaReview['missingMediaTargetMetadata']['count'],
+            'missingMediaTargetMetadataTruncated' => $mediaReview['missingMediaTargetMetadata']['truncated'],
+            'mediaTargetBasenameGroups' => $mediaReview['mediaTargetBasenameGroups']['items'],
+            'mediaTargetBasenameGroupCount' => $mediaReview['mediaTargetBasenameGroups']['count'],
+            'mediaTargetBasenameGroupsTruncated' => $mediaReview['mediaTargetBasenameGroups']['truncated'],
+            'mediaTargetContentTypeGroups' => $mediaReview['mediaTargetContentTypeGroups']['items'],
+            'mediaTargetContentTypeGroupCount' => $mediaReview['mediaTargetContentTypeGroups']['count'],
+            'mediaTargetContentTypeGroupsTruncated' => $mediaReview['mediaTargetContentTypeGroups']['truncated'],
+            'mediaObjectAssociations' => $mediaReview['mediaObjectAssociations']['items'],
+            'mediaObjectAssociationCount' => $mediaReview['mediaObjectAssociations']['count'],
+            'mediaObjectAssociationsTruncated' => $mediaReview['mediaObjectAssociations']['truncated'],
+            'mediaObjectAssociationDiagnostics' => $mediaReview['mediaObjectAssociationDiagnostics']['items'],
+            'mediaObjectAssociationDiagnosticCount' => $mediaReview['mediaObjectAssociationDiagnostics']['count'],
+            'mediaObjectAssociationDiagnosticsTruncated' => $mediaReview['mediaObjectAssociationDiagnostics']['truncated'],
+            'mediaObjectAssociationDiagnosticCodes' => array_values(array_unique(array_map(
+                static fn (array $diagnostic): string => (string) $diagnostic['code'],
+                $mediaReview['mediaObjectAssociationDiagnostics']['items']
+            ))),
+            'mediaIdTargetSummaries' => $mediaReview['mediaIdTargetSummaries']['items'],
+            'mediaIdTargetSummaryCount' => $mediaReview['mediaIdTargetSummaries']['count'],
+            'mediaIdTargetSummariesTruncated' => $mediaReview['mediaIdTargetSummaries']['truncated'],
+            'mediaIdTargets' => $mediaReview['mediaIdTargets'],
+            'mediaLinkendReferences' => $mediaReview['mediaLinkendReferences']['items'],
+            'mediaLinkendReferenceCount' => $mediaReview['mediaLinkendReferences']['count'],
+            'mediaLinkendReferencesTruncated' => $mediaReview['mediaLinkendReferences']['truncated'],
             'xmlIdTargets' => $targetSummary['xmlIdTargets'],
             'idTargets' => $targetSummary['idTargets'],
             'targetSummaries' => $targetSummary['targetSummaries'],
@@ -6646,22 +6714,7 @@ final class XmlHtmlDom
                 continue;
             }
 
-            $mediaObject = self::docBookNearestAncestor($element, ['mediaobject', 'inlinemediaobject']);
-            $items[] = [
-                'path' => self::docBookElementPath($element),
-                'parentMediaObjectType' => $mediaObject instanceof \DOMElement ? $mediaObject->localName : null,
-                'fileref' => self::attribute($element, 'fileref'),
-                'entityref' => self::attribute($element, 'entityref'),
-                'format' => self::attribute($element, 'format'),
-                'width' => self::attribute($element, 'width'),
-                'depth' => self::attribute($element, 'depth'),
-                'contentwidth' => self::attribute($element, 'contentwidth'),
-                'contentdepth' => self::attribute($element, 'contentdepth'),
-                'scale' => self::attribute($element, 'scale'),
-                'scalefit' => self::attribute($element, 'scalefit'),
-                'align' => self::attribute($element, 'align'),
-                'valign' => self::attribute($element, 'valign'),
-            ];
+            $items[] = self::docBookImageDataReferenceRecord($element, $count - 1);
         }
 
         return [
@@ -6669,6 +6722,448 @@ final class XmlHtmlDom
             'items' => $items,
             'truncated' => $count > count($items),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookImageDataReferenceRecord(\DOMElement $imageData, int $index): array
+    {
+        $mediaObject = self::docBookNearestAncestor($imageData, ['mediaobject', 'inlinemediaobject']);
+        $imageObject = self::docBookNearestAncestor($imageData, ['imageobject']);
+        $figure = self::docBookNearestAncestor($imageData, ['figure', 'informalfigure']);
+
+        return [
+            'index' => $index,
+            'path' => self::docBookElementPath($imageData),
+            'parentMediaObjectType' => $mediaObject instanceof \DOMElement ? $mediaObject->localName : null,
+            'parentMediaObjectId' => $mediaObject instanceof \DOMElement ? self::docBookElementId($mediaObject) : null,
+            'parentMediaObjectXmlId' => $mediaObject instanceof \DOMElement ? self::docBookXmlId($mediaObject) : null,
+            'parentImageObjectId' => $imageObject instanceof \DOMElement ? self::docBookElementId($imageObject) : null,
+            'parentFigureId' => $figure instanceof \DOMElement ? self::docBookElementId($figure) : null,
+            'parentFigureXmlId' => $figure instanceof \DOMElement ? self::docBookXmlId($figure) : null,
+            'width' => self::attribute($imageData, 'width'),
+            'depth' => self::attribute($imageData, 'depth'),
+            'contentwidth' => self::attribute($imageData, 'contentwidth'),
+            'contentdepth' => self::attribute($imageData, 'contentdepth'),
+            'scale' => self::attribute($imageData, 'scale'),
+            'scalefit' => self::attribute($imageData, 'scalefit'),
+            'align' => self::attribute($imageData, 'align'),
+            'valign' => self::attribute($imageData, 'valign'),
+        ] + self::docBookImageDataSummary($imageData);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaTargetReviewSummary(\DOMElement $root, array $xrefs): array
+    {
+        $targetGroups = [];
+        $missingTargetMetadata = [];
+        $mediaObjectAssociations = [];
+        $associationDiagnostics = [];
+        $imageDataIndex = 0;
+
+        foreach (self::docBookElementsByNames($root, ['mediaobject', 'inlinemediaobject']) as $mediaIndex => $mediaObject) {
+            $mediaImageData = [];
+            foreach (self::descendantElements($mediaObject, 'imagedata') as $imageData) {
+                $record = self::docBookImageDataReferenceRecord($imageData, $imageDataIndex++);
+                $mediaImageData[] = $record;
+                $target = $record['target'] ?? null;
+                if (!is_string($target) || $target === '') {
+                    $missingTargetMetadata[] = self::docBookMissingMediaTargetRecord($record);
+                    continue;
+                }
+
+                $targetGroups[$target] ??= [
+                    'target' => $target,
+                    'targetPath' => $record['targetPath'] ?? null,
+                    'targetBasename' => $record['targetBasename'] ?? null,
+                    'targetExtension' => $record['targetExtension'] ?? null,
+                    'targetSources' => [],
+                    'contentTypes' => [],
+                    'contentTypeSources' => [],
+                    'mediaObjectIds' => [],
+                    'mediaObjectTypes' => [],
+                    'mediaObjectPaths' => [],
+                    'parentFigureIds' => [],
+                    'imageObjectIds' => [],
+                    'imageDataPaths' => [],
+                    'imageDataCount' => 0,
+                    'payloadBytesExposed' => false,
+                ];
+                ++$targetGroups[$target]['imageDataCount'];
+                self::docBookAppendUniqueString($targetGroups[$target]['targetSources'], $record['targetSource'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['contentTypes'], $record['contentType'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['contentTypeSources'], $record['contentTypeSource'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['mediaObjectIds'], $record['parentMediaObjectId'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['mediaObjectTypes'], $record['parentMediaObjectType'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['mediaObjectPaths'], self::docBookElementPath($mediaObject));
+                self::docBookAppendUniqueString($targetGroups[$target]['parentFigureIds'], $record['parentFigureId'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['imageObjectIds'], $record['parentImageObjectId'] ?? null);
+                self::docBookAppendUniqueString($targetGroups[$target]['imageDataPaths'], $record['path'] ?? null);
+            }
+
+            $association = self::docBookMediaObjectAssociationSummary($mediaObject, $mediaIndex, $mediaImageData);
+            $mediaObjectAssociations[] = $association;
+            foreach (self::docBookMediaObjectAssociationDiagnostics($association) as $diagnostic) {
+                $associationDiagnostics[] = $diagnostic;
+            }
+        }
+
+        $targetManifest = array_values(array_map(
+            static function (array $group): array {
+                $group['repeated'] = (int) $group['imageDataCount'] > 1;
+                $group['mediaObjectCount'] = count($group['mediaObjectIds']);
+                $group['contentTypeCount'] = count($group['contentTypes']);
+
+                return $group;
+            },
+            $targetGroups
+        ));
+        $repeatedMediaTargets = array_values(array_filter(
+            $targetManifest,
+            static fn (array $group): bool => ($group['repeated'] ?? false) === true
+        ));
+        $mediaIdTargetSummaries = self::docBookMediaIdTargetSummaries($root);
+        $mediaLinkendReferences = self::docBookMediaLinkendReferences($xrefs);
+        $boundedMediaIdTargetSummaries = self::docBookBoundedPacketItems($mediaIdTargetSummaries);
+
+        return [
+            'mediaTargetManifest' => self::docBookBoundedPacketItems($targetManifest),
+            'repeatedMediaTargets' => self::docBookBoundedPacketItems($repeatedMediaTargets),
+            'missingMediaTargetMetadata' => self::docBookBoundedPacketItems($missingTargetMetadata),
+            'mediaTargetBasenameGroups' => self::docBookBoundedPacketItems(self::docBookMediaTargetBasenameGroups($targetManifest)),
+            'mediaTargetContentTypeGroups' => self::docBookBoundedPacketItems(self::docBookMediaTargetContentTypeGroups($targetManifest)),
+            'mediaObjectAssociations' => self::docBookBoundedPacketItems($mediaObjectAssociations),
+            'mediaObjectAssociationDiagnostics' => self::docBookBoundedPacketItems($associationDiagnostics),
+            'mediaIdTargetSummaries' => $boundedMediaIdTargetSummaries,
+            'mediaIdTargets' => array_values(array_map(
+                static fn (array $target): string => (string) $target['id'],
+                $boundedMediaIdTargetSummaries['items']
+            )),
+            'mediaLinkendReferences' => self::docBookBoundedPacketItems($mediaLinkendReferences),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{count:int, items:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function docBookBoundedPacketItems(array $items): array
+    {
+        return [
+            'count' => count($items),
+            'items' => array_slice($items, 0, self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS),
+            'truncated' => count($items) > self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookMissingMediaTargetRecord(array $imageData): array
+    {
+        return [
+            'code' => 'docbook-media-target-missing-metadata',
+            'severity' => 'warning',
+            'path' => $imageData['path'] ?? null,
+            'parentMediaObjectType' => $imageData['parentMediaObjectType'] ?? null,
+            'parentMediaObjectId' => $imageData['parentMediaObjectId'] ?? null,
+            'parentFigureId' => $imageData['parentFigureId'] ?? null,
+            'format' => $imageData['format'] ?? null,
+            'contentType' => $imageData['contentType'] ?? null,
+            'contentTypeSource' => $imageData['contentTypeSource'] ?? null,
+            'message' => 'DocBook imagedata is missing fileref, entityref, and xlink:href target metadata.',
+            'directReaderParity' => false,
+            'coveredByPacket' => true,
+            'payloadBytesExposed' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $imageData
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaObjectAssociationSummary(\DOMElement $mediaObject, int $index, array $imageData): array
+    {
+        $imageObjects = self::descendantElements($mediaObject, 'imageobject');
+        $textObjects = self::descendantElements($mediaObject, 'textobject');
+        $targets = [];
+        $targetBasenames = [];
+        $contentTypes = [];
+        $missingTargetCount = 0;
+        foreach ($imageData as $record) {
+            if (is_string($record['target'] ?? null) && $record['target'] !== '') {
+                self::docBookAppendUniqueString($targets, $record['target']);
+            } else {
+                ++$missingTargetCount;
+            }
+            self::docBookAppendUniqueString($targetBasenames, $record['targetBasename'] ?? null);
+            self::docBookAppendUniqueString($contentTypes, $record['contentType'] ?? null);
+        }
+
+        $imageObjectIds = [];
+        foreach ($imageObjects as $imageObject) {
+            self::docBookAppendUniqueString($imageObjectIds, self::docBookElementId($imageObject));
+        }
+
+        $textObjectIds = [];
+        $textObjectTexts = [];
+        foreach ($textObjects as $textObject) {
+            self::docBookAppendUniqueString($textObjectIds, self::docBookElementId($textObject));
+            $text = self::normalizedText($textObject);
+            if ($text !== '') {
+                self::docBookAppendUniqueString($textObjectTexts, $text);
+            }
+        }
+
+        $altTexts = self::docBookAltTexts($mediaObject);
+
+        return [
+            'index' => $index,
+            'type' => $mediaObject->localName,
+            'id' => self::docBookElementId($mediaObject),
+            'xmlId' => self::docBookXmlId($mediaObject),
+            'path' => self::docBookElementPath($mediaObject),
+            'parentFigureId' => ($figure = self::docBookNearestAncestor($mediaObject, ['figure', 'informalfigure'])) instanceof \DOMElement
+                ? self::docBookElementId($figure)
+                : null,
+            'imageObjectCount' => count($imageObjects),
+            'imageObjectIds' => $imageObjectIds,
+            'textObjectCount' => count($textObjects),
+            'textObjectIds' => $textObjectIds,
+            'textObjectTexts' => $textObjectTexts,
+            'altTexts' => $altTexts,
+            'hasAccessibleText' => $altTexts !== [] || $textObjectTexts !== [],
+            'imageDataCount' => count($imageData),
+            'imageDataTargetCount' => count($targets),
+            'missingTargetCount' => $missingTargetCount,
+            'targets' => $targets,
+            'targetBasenames' => $targetBasenames,
+            'contentTypes' => $contentTypes,
+            'payloadBytesExposed' => false,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaObjectAssociationDiagnostics(array $association): array
+    {
+        $diagnostics = [];
+        $imageObjectCount = (int) ($association['imageObjectCount'] ?? 0);
+        $textObjectCount = (int) ($association['textObjectCount'] ?? 0);
+        $missingTargetCount = (int) ($association['missingTargetCount'] ?? 0);
+        $hasAccessibleText = ($association['hasAccessibleText'] ?? false) === true;
+
+        if ($imageObjectCount > 0 && $textObjectCount === 0 && !$hasAccessibleText) {
+            $diagnostics[] = self::docBookMediaObjectAssociationDiagnostic(
+                'docbook-media-imageobject-without-textobject',
+                'notice',
+                'DocBook mediaobject has imageobject children without textobject or alt fallback text.',
+                $association
+            );
+        }
+
+        if ($textObjectCount > 0 && $imageObjectCount === 0) {
+            $diagnostics[] = self::docBookMediaObjectAssociationDiagnostic(
+                'docbook-media-textobject-without-imageobject',
+                'notice',
+                'DocBook mediaobject has textobject fallback text without an associated imageobject.',
+                $association
+            );
+        }
+
+        if ($missingTargetCount > 0) {
+            $diagnostics[] = self::docBookMediaObjectAssociationDiagnostic(
+                'docbook-media-target-missing-metadata',
+                'warning',
+                'DocBook mediaobject contains imagedata without fileref, entityref, or xlink:href target metadata.',
+                $association
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookMediaObjectAssociationDiagnostic(
+        string $code,
+        string $severity,
+        string $message,
+        array $association
+    ): array {
+        return [
+            'code' => $code,
+            'severity' => $severity,
+            'message' => $message,
+            'directReaderParity' => false,
+            'coveredByPacket' => true,
+            'details' => [
+                'mediaObjectId' => $association['id'] ?? null,
+                'mediaObjectType' => $association['type'] ?? null,
+                'parentFigureId' => $association['parentFigureId'] ?? null,
+                'imageObjectCount' => $association['imageObjectCount'] ?? 0,
+                'textObjectCount' => $association['textObjectCount'] ?? 0,
+                'imageDataCount' => $association['imageDataCount'] ?? 0,
+                'missingTargetCount' => $association['missingTargetCount'] ?? 0,
+                'targets' => $association['targets'] ?? [],
+                'payloadBytesExposed' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targetManifest
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaTargetBasenameGroups(array $targetManifest): array
+    {
+        $groups = [];
+        foreach ($targetManifest as $target) {
+            $basename = $target['targetBasename'] ?? null;
+            if (!is_string($basename) || $basename === '') {
+                continue;
+            }
+
+            $groups[$basename] ??= [
+                'targetBasename' => $basename,
+                'targets' => [],
+                'contentTypes' => [],
+                'mediaObjectIds' => [],
+                'targetCount' => 0,
+                'imageDataCount' => 0,
+            ];
+            self::docBookAppendUniqueString($groups[$basename]['targets'], $target['target'] ?? null);
+            foreach ($target['contentTypes'] ?? [] as $contentType) {
+                self::docBookAppendUniqueString($groups[$basename]['contentTypes'], is_string($contentType) ? $contentType : null);
+            }
+            foreach ($target['mediaObjectIds'] ?? [] as $mediaObjectId) {
+                self::docBookAppendUniqueString($groups[$basename]['mediaObjectIds'], is_string($mediaObjectId) ? $mediaObjectId : null);
+            }
+            $groups[$basename]['imageDataCount'] += (int) ($target['imageDataCount'] ?? 0);
+        }
+
+        foreach ($groups as &$group) {
+            $group['targetCount'] = count($group['targets']);
+        }
+        unset($group);
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targetManifest
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaTargetContentTypeGroups(array $targetManifest): array
+    {
+        $groups = [];
+        foreach ($targetManifest as $target) {
+            foreach ($target['contentTypes'] ?? [] as $contentType) {
+                if (!is_string($contentType) || $contentType === '') {
+                    continue;
+                }
+
+                $groups[$contentType] ??= [
+                    'contentType' => $contentType,
+                    'targets' => [],
+                    'targetBasenames' => [],
+                    'contentTypeSources' => [],
+                    'targetCount' => 0,
+                    'imageDataCount' => 0,
+                ];
+                self::docBookAppendUniqueString($groups[$contentType]['targets'], $target['target'] ?? null);
+                self::docBookAppendUniqueString($groups[$contentType]['targetBasenames'], $target['targetBasename'] ?? null);
+                foreach ($target['contentTypeSources'] ?? [] as $source) {
+                    self::docBookAppendUniqueString($groups[$contentType]['contentTypeSources'], is_string($source) ? $source : null);
+                }
+                $groups[$contentType]['imageDataCount'] += (int) ($target['imageDataCount'] ?? 0);
+            }
+        }
+
+        foreach ($groups as &$group) {
+            $group['targetCount'] = count($group['targets']);
+        }
+        unset($group);
+
+        return array_values($groups);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaIdTargetSummaries(\DOMElement $root): array
+    {
+        $summaries = [];
+        foreach (self::docBookElementsByNames($root, ['figure', 'informalfigure', 'mediaobject', 'inlinemediaobject', 'imageobject', 'imagedata']) as $element) {
+            $id = self::docBookElementId($element);
+            if ($id === null) {
+                continue;
+            }
+
+            $summaries[] = [
+                'element' => $element->localName,
+                'kind' => self::docBookTargetKind($element),
+                'id' => $id,
+                'path' => self::docBookElementPath($element),
+                'title' => self::docBookChildTitleText($element),
+                'imageDataRefs' => self::docBookImageDataRefs($element),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xrefs
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookMediaLinkendReferences(array $xrefs): array
+    {
+        $references = [];
+        foreach ($xrefs as $xref) {
+            if (($xref['attribute'] ?? null) !== 'linkend') {
+                continue;
+            }
+            if (!in_array($xref['targetKind'] ?? null, ['figure', 'media'], true)) {
+                continue;
+            }
+
+            $targetImageDataRefs = is_array($xref['targetImageDataRefs'] ?? null) ? $xref['targetImageDataRefs'] : [];
+            $references[] = [
+                'sourceElement' => $xref['sourceElement'] ?? null,
+                'sourceId' => $xref['sourceId'] ?? null,
+                'sourceText' => $xref['sourceText'] ?? null,
+                'target' => $xref['target'] ?? null,
+                'targetElement' => $xref['targetElement'] ?? null,
+                'targetKind' => $xref['targetKind'] ?? null,
+                'targetId' => $xref['targetId'] ?? null,
+                'targetRole' => $xref['targetRole'] ?? null,
+                'targetTitle' => $xref['targetTitle'] ?? null,
+                'targetImageDataRefs' => $targetImageDataRefs,
+                'targetImageDataRefCount' => count($targetImageDataRefs),
+                'payloadBytesExposed' => false,
+            ];
+        }
+
+        return $references;
+    }
+
+    private static function docBookAppendUniqueString(array &$values, mixed $value): void
+    {
+        if (!is_string($value) || $value === '' || in_array($value, $values, true)) {
+            return;
+        }
+        if (count($values) >= self::DOCBOOK_REVIEW_PACKET_MAX_ITEMS) {
+            return;
+        }
+
+        $values[] = $value;
     }
 
     /**
@@ -16461,8 +16956,17 @@ final class XmlHtmlDom
     {
         $fileref = self::attributeOrNull($imageData, 'fileref');
         $entityref = self::attributeOrNull($imageData, 'entityref');
+        $xlinkHref = self::attribute($imageData, 'href', self::XLINK_NAMESPACE);
         $format = self::attributeOrNull($imageData, 'format');
-        $target = self::normalizedNonEmptyAttribute($fileref) ?? self::normalizedNonEmptyAttribute($entityref);
+        $target = null;
+        $targetSource = null;
+        foreach (['fileref' => $fileref, 'entityref' => $entityref, 'xlink:href' => $xlinkHref] as $source => $candidate) {
+            $target = self::normalizedNonEmptyAttribute($candidate);
+            if ($target !== null) {
+                $targetSource = $source;
+                break;
+            }
+        }
         $path = $target === null ? null : self::docBookTargetPath($target);
         $basename = $path === null ? null : self::docBookTargetBasename($path);
         $extension = $basename === null ? null : self::docBookTargetExtension($basename);
@@ -16470,8 +16974,10 @@ final class XmlHtmlDom
 
         return [
             'target' => $target,
+            'targetSource' => $targetSource,
             'fileref' => $fileref,
             'entityref' => $entityref,
+            'xlinkHref' => $xlinkHref,
             'format' => $format,
             'targetPath' => $path,
             'targetBasename' => $basename,

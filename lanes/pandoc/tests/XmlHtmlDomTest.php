@@ -1581,10 +1581,11 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
             'figures-review-only',
             'mediaobjects-review-only',
             'image-references-review-only',
+            'media-target-manifest-review-only',
             'linkend-targets-review-only',
             'unsupported-children-review-only',
         ], $packet['directReaderDiagnosticCodes']);
-        $t->same(8, $packet['directReaderDiagnosticCount']);
+        $t->same(9, $packet['directReaderDiagnosticCount']);
         $t->same(false, $packet['directReaderDiagnostics'][0]['directReaderParity'] ?? null);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same(false, $packet['directReaderDiagnostics'][1]['coveredByPacket'] ?? null);
@@ -1592,8 +1593,14 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->same(1, $packet['directReaderDiagnostics'][3]['details']['figureCount'] ?? null);
         $t->same(3, $packet['directReaderDiagnostics'][4]['details']['mediaObjectCount'] ?? null);
         $t->same(3, $packet['directReaderDiagnostics'][5]['details']['imageDataRefCount'] ?? null);
-        $t->same(2, $packet['directReaderDiagnostics'][6]['details']['linkendReferenceCount'] ?? null);
-        $t->true(($packet['directReaderDiagnostics'][7]['details']['unsupportedChildDiagnosticCount'] ?? 0) >= 3);
+        $t->same(2, $packet['directReaderDiagnostics'][6]['details']['mediaTargetManifestCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['repeatedMediaTargetCount'] ?? null);
+        $t->same(0, $packet['directReaderDiagnostics'][6]['details']['missingMediaTargetMetadataCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['mediaObjectAssociationDiagnosticCount'] ?? null);
+        $t->same(1, $packet['directReaderDiagnostics'][6]['details']['mediaLinkendReferenceCount'] ?? null);
+        $t->same(false, $packet['directReaderDiagnostics'][6]['details']['payloadBytesExposed'] ?? null);
+        $t->same(2, $packet['directReaderDiagnostics'][7]['details']['linkendReferenceCount'] ?? null);
+        $t->true(($packet['directReaderDiagnostics'][8]['details']['unsupportedChildDiagnosticCount'] ?? 0) >= 3);
         $t->same('article', $packet['rootName']);
         $t->same('http://docbook.org/ns/docbook', $packet['rootNamespace']);
         $t->same('5.2', $packet['version']);
@@ -1680,6 +1687,23 @@ XML, 'DocBook review XML', preserveWhiteSpace: false);
         $t->same('images/cover.png', $packet['imageDataRefs'][1]['fileref'] ?? null);
         $t->same('PNG', $packet['imageDataRefs'][1]['format'] ?? null);
         $t->same('images/poster.png', $packet['imageDataRefs'][2]['fileref'] ?? null);
+        $t->same(2, $packet['mediaImageTargetManifestCount']);
+        $t->same('images/cover.png', $packet['mediaImageTargetManifest'][0]['target'] ?? null);
+        $t->same(['image/png'], $packet['mediaImageTargetManifest'][0]['contentTypes'] ?? null);
+        $t->same(2, $packet['mediaImageTargetManifest'][0]['imageDataCount'] ?? null);
+        $t->same(true, $packet['mediaImageTargetManifest'][0]['repeated'] ?? null);
+        $t->same(['media-cover', 'inline-cover'], $packet['mediaImageTargetManifest'][0]['mediaObjectIds'] ?? null);
+        $t->same('images/poster.png', $packet['mediaImageTargetManifest'][1]['target'] ?? null);
+        $t->same(['image/png'], $packet['mediaImageTargetManifest'][1]['contentTypes'] ?? null);
+        $t->same(1, $packet['repeatedMediaTargetCount']);
+        $t->same('images/cover.png', $packet['repeatedMediaTargets'][0]['target'] ?? null);
+        $t->same(0, $packet['missingMediaTargetMetadataCount']);
+        $t->same(['docbook-media-imageobject-without-textobject'], $packet['mediaObjectAssociationDiagnosticCodes']);
+        $t->same(1, $packet['mediaObjectAssociationDiagnosticCount']);
+        $t->same(['fig-cover', 'media-cover', 'inline-cover', 'poster-media'], $packet['mediaIdTargets']);
+        $t->same(1, $packet['mediaLinkendReferenceCount']);
+        $t->same('fig-cover', $packet['mediaLinkendReferences'][0]['target'] ?? null);
+        $t->same(['images/cover.png'], $packet['mediaLinkendReferences'][0]['targetImageDataRefs'] ?? null);
         $t->same(['book-root', 'intro', 'warn-media', 'fig-cover', 'media-cover', 'inline-cover', 'poster-media'], $packet['xmlIdTargets']);
         $t->same(['legacy-tip'], $packet['idTargets']);
         $t->same(8, $packet['targetSummaryCount']);
@@ -1764,6 +1788,123 @@ XML, 'DocBook media role caption XML', preserveWhiteSpace: false);
         $t->same('hero-inline', $packet['mediaDiagnostics'][0]['details']['xmlId'] ?? null);
         $t->same('poster-media', $packet['mediaDiagnostics'][2]['details']['xmlId'] ?? null);
         $t->same('images/hero.png', $packet['mediaDiagnostics'][3]['details']['target'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'summarizes docbook media target manifests without reader parity claims' => static function (TestRunner $t): void {
+        $docbook = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.2" xml:id="media-root">
+  <title>Media Target Review</title>
+  <para>See <xref linkend="fig-diagram"/> and <link linkend="media-repeat">reused media</link>.</para>
+  <figure xml:id="fig-diagram">
+    <title>Diagram</title>
+    <mediaobject xml:id="media-diagram" role="screenshot">
+      <imageobject xml:id="image-primary"><imagedata fileref="assets/diagram.png" format="PNG"/></imageobject>
+      <imageobject xml:id="image-alternate"><imagedata fileref="alt/diagram.png" format="image/png"/></imageobject>
+      <textobject xml:id="diagram-text"><phrase>Diagram fallback text</phrase></textobject>
+    </mediaobject>
+  </figure>
+  <mediaobject xml:id="media-repeat">
+    <imageobject><imagedata fileref="assets/diagram.png" format="PNG"/></imageobject>
+    <alt>Repeated diagram fallback</alt>
+  </mediaobject>
+  <inlinemediaobject xml:id="inline-icon">
+    <imageobject xml:id="icon-image"><imagedata xlink:href="assets/icon.svg" format="SVG"/></imageobject>
+  </inlinemediaobject>
+  <mediaobject xml:id="missing-media">
+    <imageobject xml:id="missing-image"><imagedata format="JPEG"/></imageobject>
+  </mediaobject>
+  <mediaobject xml:id="text-only-media">
+    <textobject xml:id="text-only-object"><phrase>Text-only fallback</phrase></textobject>
+  </mediaobject>
+</article>
+XML, 'DocBook media target XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeDocBookReviewPacket($docbook);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->true(in_array('media-target-manifest-review-only', $packet['directReaderDiagnosticCodes'], true));
+        $mediaDiagnostic = array_values(array_filter(
+            $packet['directReaderDiagnostics'],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'media-target-manifest-review-only'
+        ))[0] ?? [];
+        $t->same('media-target-manifest-review-only', $mediaDiagnostic['code'] ?? null);
+        $t->same(false, $mediaDiagnostic['directReaderParity'] ?? null);
+        $t->same(false, $mediaDiagnostic['coveredByPacket'] ?? null);
+        $t->same(3, $mediaDiagnostic['details']['mediaTargetManifestCount'] ?? null);
+        $t->same(1, $mediaDiagnostic['details']['repeatedMediaTargetCount'] ?? null);
+        $t->same(1, $mediaDiagnostic['details']['missingMediaTargetMetadataCount'] ?? null);
+        $t->same(4, $mediaDiagnostic['details']['mediaObjectAssociationDiagnosticCount'] ?? null);
+        $t->same(2, $mediaDiagnostic['details']['mediaLinkendReferenceCount'] ?? null);
+        $t->same(false, $mediaDiagnostic['details']['payloadBytesExposed'] ?? null);
+
+        $t->same(3, $packet['mediaImageTargetManifestCount']);
+        $t->same('assets/diagram.png', $packet['mediaImageTargetManifest'][0]['target'] ?? null);
+        $t->same(['fileref'], $packet['mediaImageTargetManifest'][0]['targetSources'] ?? null);
+        $t->same('diagram.png', $packet['mediaImageTargetManifest'][0]['targetBasename'] ?? null);
+        $t->same(['image/png'], $packet['mediaImageTargetManifest'][0]['contentTypes'] ?? null);
+        $t->same(2, $packet['mediaImageTargetManifest'][0]['imageDataCount'] ?? null);
+        $t->same(true, $packet['mediaImageTargetManifest'][0]['repeated'] ?? null);
+        $t->same(['media-diagram', 'media-repeat'], $packet['mediaImageTargetManifest'][0]['mediaObjectIds'] ?? null);
+        $t->same(false, $packet['mediaImageTargetManifest'][0]['payloadBytesExposed'] ?? null);
+        $t->same('alt/diagram.png', $packet['mediaImageTargetManifest'][1]['target'] ?? null);
+        $t->same('assets/icon.svg', $packet['mediaImageTargetManifest'][2]['target'] ?? null);
+        $t->same(['xlink:href'], $packet['mediaImageTargetManifest'][2]['targetSources'] ?? null);
+        $t->same(['image/svg+xml'], $packet['mediaImageTargetManifest'][2]['contentTypes'] ?? null);
+
+        $t->same(1, $packet['repeatedMediaTargetCount']);
+        $t->same('assets/diagram.png', $packet['repeatedMediaTargets'][0]['target'] ?? null);
+        $t->same(2, $packet['repeatedMediaTargets'][0]['imageDataCount'] ?? null);
+        $t->same(1, $packet['missingMediaTargetMetadataCount']);
+        $t->same('docbook-media-target-missing-metadata', $packet['missingMediaTargetMetadata'][0]['code'] ?? null);
+        $t->same('missing-media', $packet['missingMediaTargetMetadata'][0]['parentMediaObjectId'] ?? null);
+        $t->same('image/jpeg', $packet['missingMediaTargetMetadata'][0]['contentType'] ?? null);
+        $t->same(false, $packet['missingMediaTargetMetadata'][0]['payloadBytesExposed'] ?? null);
+
+        $t->same(2, $packet['mediaTargetBasenameGroupCount']);
+        $t->same('diagram.png', $packet['mediaTargetBasenameGroups'][0]['targetBasename'] ?? null);
+        $t->same(['assets/diagram.png', 'alt/diagram.png'], $packet['mediaTargetBasenameGroups'][0]['targets'] ?? null);
+        $t->same(3, $packet['mediaTargetBasenameGroups'][0]['imageDataCount'] ?? null);
+        $t->same(2, $packet['mediaTargetBasenameGroups'][0]['targetCount'] ?? null);
+        $t->same('icon.svg', $packet['mediaTargetBasenameGroups'][1]['targetBasename'] ?? null);
+        $t->same(2, $packet['mediaTargetContentTypeGroupCount']);
+        $t->same('image/png', $packet['mediaTargetContentTypeGroups'][0]['contentType'] ?? null);
+        $t->same(['assets/diagram.png', 'alt/diagram.png'], $packet['mediaTargetContentTypeGroups'][0]['targets'] ?? null);
+        $t->same(['diagram.png'], $packet['mediaTargetContentTypeGroups'][0]['targetBasenames'] ?? null);
+        $t->same(['format'], $packet['mediaTargetContentTypeGroups'][0]['contentTypeSources'] ?? null);
+        $t->same(3, $packet['mediaTargetContentTypeGroups'][0]['imageDataCount'] ?? null);
+
+        $t->same(5, $packet['mediaObjectAssociationCount']);
+        $t->same('media-diagram', $packet['mediaObjectAssociations'][0]['id'] ?? null);
+        $t->same(true, $packet['mediaObjectAssociations'][0]['hasAccessibleText'] ?? null);
+        $t->same(['Diagram fallback text'], $packet['mediaObjectAssociations'][0]['textObjectTexts'] ?? null);
+        $t->same('inline-icon', $packet['mediaObjectAssociations'][2]['id'] ?? null);
+        $t->same(false, $packet['mediaObjectAssociations'][2]['hasAccessibleText'] ?? null);
+        $t->same(1, $packet['mediaObjectAssociations'][3]['missingTargetCount'] ?? null);
+        $t->same('text-only-media', $packet['mediaObjectAssociations'][4]['id'] ?? null);
+        $t->same(0, $packet['mediaObjectAssociations'][4]['imageObjectCount'] ?? null);
+        $t->same(1, $packet['mediaObjectAssociations'][4]['textObjectCount'] ?? null);
+        $t->same([
+            'docbook-media-imageobject-without-textobject',
+            'docbook-media-target-missing-metadata',
+            'docbook-media-textobject-without-imageobject',
+        ], $packet['mediaObjectAssociationDiagnosticCodes']);
+        $t->same(4, $packet['mediaObjectAssociationDiagnosticCount']);
+        $t->same('inline-icon', $packet['mediaObjectAssociationDiagnostics'][0]['details']['mediaObjectId'] ?? null);
+        $t->same('missing-media', $packet['mediaObjectAssociationDiagnostics'][1]['details']['mediaObjectId'] ?? null);
+        $t->same('missing-media', $packet['mediaObjectAssociationDiagnostics'][2]['details']['mediaObjectId'] ?? null);
+        $t->same('docbook-media-target-missing-metadata', $packet['mediaObjectAssociationDiagnostics'][2]['code'] ?? null);
+        $t->same('text-only-media', $packet['mediaObjectAssociationDiagnostics'][3]['details']['mediaObjectId'] ?? null);
+
+        $t->true(in_array('fig-diagram', $packet['mediaIdTargets'], true));
+        $t->true(in_array('media-repeat', $packet['mediaIdTargets'], true));
+        $t->true(in_array('image-primary', $packet['mediaIdTargets'], true));
+        $t->same(2, $packet['mediaLinkendReferenceCount']);
+        $t->same('fig-diagram', $packet['mediaLinkendReferences'][0]['target'] ?? null);
+        $t->same('figure', $packet['mediaLinkendReferences'][0]['targetKind'] ?? null);
+        $t->same(['assets/diagram.png', 'alt/diagram.png'], $packet['mediaLinkendReferences'][0]['targetImageDataRefs'] ?? null);
+        $t->same('media-repeat', $packet['mediaLinkendReferences'][1]['target'] ?? null);
+        $t->same('media', $packet['mediaLinkendReferences'][1]['targetKind'] ?? null);
+        $t->same(['assets/diagram.png'], $packet['mediaLinkendReferences'][1]['targetImageDataRefs'] ?? null);
+        $t->same(false, $packet['mediaLinkendReferences'][1]['payloadBytesExposed'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes docbook bibliography reference diagnostics without reader parity claims' => static function (TestRunner $t): void {
