@@ -11186,6 +11186,80 @@ return [
         $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip local header variable fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>selected local header fields</w:p></w:body></w:document>';
+        $mediaBytes = "selected local header media bytes\n";
+        $documentLocalExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'localExtra' => $documentLocalExtra,
+                'centralExtra' => '',
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/review.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 2048);
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][1];
+        $missingEntry = $summary['entries'][2];
+        $documentSpan = $summary['selectedSourceByteSpanEntries'][0];
+        $mediaSpan = $summary['selectedSourceByteSpanEntries'][1];
+
+        $t->same(3, $summary['requestedEntryCount']);
+        $t->same(2, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['selectedSourceByteSpanEntryCount']);
+        $t->same(60, $summary['selectedSourceLocalFixedHeaderBytes']);
+        $t->same(
+            strlen('word/document.xml') + strlen($documentLocalExtra) + strlen('word/media/review.bin'),
+            $summary['selectedSourceLocalHeaderVariableFieldBytes']
+        );
+        $t->same(strlen('word/document.xml') + strlen('word/media/review.bin'), $summary['selectedSourceLocalRawNameBytes']);
+        $t->same(strlen($documentLocalExtra), $summary['selectedSourceLocalExtraFieldBytes']);
+        $t->same(strlen($documentLocalExtra), $summary['selectedSourceLocalReviewFieldBytes']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+
+        $t->same('word/document.xml', $documentSpan['name']);
+        $t->same(30, $documentSpan['localFixedHeaderBytes']);
+        $t->same($documentSpan['localRecordOffset'] + 30, $documentSpan['localHeaderVariableFieldOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentLocalExtra), $documentSpan['localHeaderVariableFieldBytes']);
+        $t->same(hash('sha256', substr($zip, $documentSpan['localHeaderVariableFieldOffset'], $documentSpan['localHeaderVariableFieldBytes'])), $documentSpan['localHeaderVariableFieldSha256']);
+        $t->same($documentSpan['localHeaderVariableFieldOffset'], $documentSpan['localRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentSpan['localRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentSpan['localRawNameSha256']);
+        $t->same($documentSpan['localRawNameOffset'] + strlen('word/document.xml'), $documentSpan['localExtraFieldOffset']);
+        $t->same(strlen($documentLocalExtra), $documentSpan['localExtraFieldBytes']);
+        $t->same(hash('sha256', $documentLocalExtra), $documentSpan['localExtraFieldSha256']);
+        $t->same(strlen($documentLocalExtra), $documentSpan['localHeaderReviewFieldBytes']);
+        $t->same($documentSpan['localHeaderBytes'], $documentSpan['localFixedHeaderBytes'] + $documentSpan['localHeaderVariableFieldBytes']);
+
+        $t->same('word/media/review.bin', $mediaSpan['name']);
+        $t->same(30, $mediaSpan['localFixedHeaderBytes']);
+        $t->same(strlen('word/media/review.bin'), $mediaSpan['localHeaderVariableFieldBytes']);
+        $t->same(0, $mediaSpan['localExtraFieldBytes']);
+        $t->same(hash('sha256', ''), $mediaSpan['localExtraFieldSha256']);
+        $t->same(0, $mediaSpan['localHeaderReviewFieldBytes']);
+
+        $t->same($documentSpan['localHeaderVariableFieldSha256'], $documentEntry['localHeaderVariableFieldSha256']);
+        $t->same($mediaSpan['localRawNameBytes'], $mediaEntry['localRawNameBytes']);
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['localHeaderVariableFieldBytes']);
+        $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip package aggregate bytes before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected aggregate budget</w:p></w:body></w:document>';
         $mediaBytes = "selected media handoff bytes\n";

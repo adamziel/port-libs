@@ -5198,6 +5198,11 @@ final class ZipPackage
         $selectedSourceByteSpanEntries = [];
         $selectedSourceLocalRecordBytes = 0;
         $selectedSourceLocalHeaderBytes = 0;
+        $selectedSourceLocalFixedHeaderBytes = 0;
+        $selectedSourceLocalHeaderVariableFieldBytes = 0;
+        $selectedSourceLocalRawNameBytes = 0;
+        $selectedSourceLocalExtraFieldBytes = 0;
+        $selectedSourceLocalReviewFieldBytes = 0;
         $selectedSourceCompressedDataBytes = 0;
         $selectedSourceDataDescriptorBytes = 0;
         $selectedSourceCentralDirectoryRecordBytes = 0;
@@ -5375,6 +5380,11 @@ final class ZipPackage
             );
             $selectedSourceLocalRecordBytes += $sourceByteSpanProvenance['localRecordBytes'];
             $selectedSourceLocalHeaderBytes += $sourceByteSpanProvenance['localHeaderBytes'];
+            $selectedSourceLocalFixedHeaderBytes += $sourceByteSpanProvenance['localFixedHeaderBytes'];
+            $selectedSourceLocalHeaderVariableFieldBytes += $sourceByteSpanProvenance['localHeaderVariableFieldBytes'];
+            $selectedSourceLocalRawNameBytes += $sourceByteSpanProvenance['localRawNameBytes'];
+            $selectedSourceLocalExtraFieldBytes += $sourceByteSpanProvenance['localExtraFieldBytes'];
+            $selectedSourceLocalReviewFieldBytes += $sourceByteSpanProvenance['localHeaderReviewFieldBytes'];
             $selectedSourceCompressedDataBytes += $sourceByteSpanProvenance['compressedDataBytes'];
             $selectedSourceDataDescriptorBytes += $sourceByteSpanProvenance['dataDescriptorBytes'];
             $selectedSourceCentralDirectoryRecordBytes += $sourceByteSpanProvenance['centralDirectoryRecordBytes'] ?? 0;
@@ -5567,6 +5577,17 @@ final class ZipPackage
                 'localHeaderBytes' => null,
                 'localHeaderEnd' => null,
                 'localHeaderSha256' => null,
+                'localFixedHeaderBytes' => null,
+                'localHeaderVariableFieldOffset' => null,
+                'localHeaderVariableFieldBytes' => null,
+                'localHeaderVariableFieldSha256' => null,
+                'localRawNameOffset' => null,
+                'localRawNameBytes' => null,
+                'localRawNameSha256' => null,
+                'localExtraFieldOffset' => null,
+                'localExtraFieldBytes' => null,
+                'localExtraFieldSha256' => null,
+                'localHeaderReviewFieldBytes' => null,
                 'compressedDataBytes' => null,
                 'compressedDataSha256' => null,
                 'sourceByteSpanIncludesDataDescriptor' => false,
@@ -5776,6 +5797,11 @@ final class ZipPackage
             'selectedSourceByteSpanEntryCount' => count($selectedSourceByteSpanEntries),
             'selectedSourceLocalRecordBytes' => $selectedSourceLocalRecordBytes,
             'selectedSourceLocalHeaderBytes' => $selectedSourceLocalHeaderBytes,
+            'selectedSourceLocalFixedHeaderBytes' => $selectedSourceLocalFixedHeaderBytes,
+            'selectedSourceLocalHeaderVariableFieldBytes' => $selectedSourceLocalHeaderVariableFieldBytes,
+            'selectedSourceLocalRawNameBytes' => $selectedSourceLocalRawNameBytes,
+            'selectedSourceLocalExtraFieldBytes' => $selectedSourceLocalExtraFieldBytes,
+            'selectedSourceLocalReviewFieldBytes' => $selectedSourceLocalReviewFieldBytes,
             'selectedSourceCompressedDataBytes' => $selectedSourceCompressedDataBytes,
             'selectedSourceDataDescriptorBytes' => $selectedSourceDataDescriptorBytes,
             'selectedSourceCentralDirectoryRecordBytes' => $selectedSourceCentralDirectoryRecordBytes,
@@ -5913,6 +5939,17 @@ final class ZipPackage
      *     localHeaderBytes:int,
      *     localHeaderEnd:int,
      *     localHeaderSha256:string,
+     *     localFixedHeaderBytes:int,
+     *     localHeaderVariableFieldOffset:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderVariableFieldSha256:string,
+     *     localRawNameOffset:int,
+     *     localRawNameBytes:int,
+     *     localRawNameSha256:string,
+     *     localExtraFieldOffset:int,
+     *     localExtraFieldBytes:int,
+     *     localExtraFieldSha256:string,
+     *     localHeaderReviewFieldBytes:int,
      *     compressedDataOffset:int,
      *     compressedDataBytes:int,
      *     compressedDataEnd:int,
@@ -5952,6 +5989,14 @@ final class ZipPackage
         $localRecordOffset = $entry->localHeaderOffset;
         $localHeaderBytes = (int) $localHeader['localHeaderLength'];
         $localHeaderEnd = $localRecordOffset + $localHeaderBytes;
+        $localFixedHeaderBytes = 30;
+        $localHeaderVariableFieldOffset = $localRecordOffset + $localFixedHeaderBytes;
+        $localRawNameOffset = $localHeaderVariableFieldOffset;
+        $localRawNameBytes = (int) $localHeader['nameLength'];
+        $localExtraFieldOffset = $localRawNameOffset + $localRawNameBytes;
+        $localExtraFieldBytes = (int) $localHeader['extraFieldLength'];
+        $localHeaderVariableFieldBytes = $localRawNameBytes + $localExtraFieldBytes;
+        $localHeaderReviewFieldBytes = $localExtraFieldBytes;
         $compressedDataOffset = (int) $localHeader['dataStart'];
         $compressedDataBytes = $entry->compressedSize;
         $compressedDataEnd = $compressedDataOffset + $compressedDataBytes;
@@ -6040,6 +6085,20 @@ final class ZipPackage
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderEnd' => $localHeaderEnd,
             'localHeaderSha256' => hash('sha256', substr($this->bytes, $localRecordOffset, $localHeaderBytes)),
+            'localFixedHeaderBytes' => $localFixedHeaderBytes,
+            'localHeaderVariableFieldOffset' => $localHeaderVariableFieldOffset,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localHeaderVariableFieldSha256' => hash(
+                'sha256',
+                substr($this->bytes, $localHeaderVariableFieldOffset, $localHeaderVariableFieldBytes)
+            ),
+            'localRawNameOffset' => $localRawNameOffset,
+            'localRawNameBytes' => $localRawNameBytes,
+            'localRawNameSha256' => hash('sha256', substr($this->bytes, $localRawNameOffset, $localRawNameBytes)),
+            'localExtraFieldOffset' => $localExtraFieldOffset,
+            'localExtraFieldBytes' => $localExtraFieldBytes,
+            'localExtraFieldSha256' => hash('sha256', substr($this->bytes, $localExtraFieldOffset, $localExtraFieldBytes)),
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
             'compressedDataOffset' => $compressedDataOffset,
             'compressedDataBytes' => $compressedDataBytes,
             'compressedDataEnd' => $compressedDataEnd,
