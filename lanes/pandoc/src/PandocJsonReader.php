@@ -1619,6 +1619,7 @@ final class PandocJsonReader
     {
         $native = $value;
         $content = $this->constructorContent($value, 'Attr', 'Attr', false);
+        $content = $this->attrTupleContent($content);
         $tuple = $this->tuplePrefix($content, 3, 'Attr');
         if (!is_string($tuple[0])) {
             throw new \InvalidArgumentException('Attr identifier must be a string');
@@ -1656,6 +1657,22 @@ final class PandocJsonReader
         }
 
         return $attrs;
+    }
+
+    private function attrTupleContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) >= 3
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     private function formatTextTuple(mixed $content, string $context): array

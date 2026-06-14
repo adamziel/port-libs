@@ -2711,6 +2711,94 @@ return [
         $t->same($rowAttr, $nativeTableRow[0]);
         $t->same($cellAttr, $nativeTableCell[0]);
     },
+    'preserves single wrapped tagged attr constructor content across json and native ast' => static function (TestRunner $t): void {
+        $headerTuple = ['wrapped-heading', ['review'], [['data-source', 'wrapped']]];
+        $codeTuple = ['wrapped-code', ['php'], [['data-code', 'source']]];
+        $spanTuple = ['wrapped-span', ['inline'], [['data-span', 'source']]];
+        $headerAttr = ['t' => 'Attr', 'c' => [$headerTuple], 'reviewQueue' => 'header-attr-source'];
+        $codeAttr = ['t' => 'Attr', 'c' => [$codeTuple], 'reviewQueue' => 'code-attr-source'];
+        $spanAttr = ['t' => 'Attr', 'c' => [$spanTuple], 'reviewQueue' => 'span-attr-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headerAttr,
+                    [['t' => 'Str', 'c' => 'Wrapped']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Code', 'c' => [$codeAttr, 'echo 1;']],
+                    ['t' => 'Space'],
+                    ['t' => 'Span', 'c' => [
+                        $spanAttr,
+                        [
+                            ['t' => 'Str', 'c' => 'wrapped'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'span'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+        $withoutNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $paragraph = $document->children[1];
+            $code = $paragraph->children[0];
+            $span = $paragraph->children[2];
+
+            $t->same('wrapped-heading', $heading->attr('id'), "{$source} heading attr id");
+            $t->same($headerAttr, $heading->attr('attrNative'), "{$source} heading keeps wrapped attr constructor");
+            $t->same(['php'], $code->attr('classes'), "{$source} code attr classes");
+            $t->same($codeAttr, $code->attr('attrNative'), "{$source} code keeps wrapped attr constructor");
+            $t->same(['data-span' => 'source'], $span->attr('attributes'), "{$source} span attr key-values");
+            $t->same($spanAttr, $span->attr('attrNative'), "{$source} span keeps wrapped attr constructor");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('heading', $withoutNative($heading), $heading->children),
+                new AstNode('paragraph', [], [
+                    new AstNode('code', $withoutNative($code)),
+                    new AstNode('space'),
+                    new AstNode('span', $withoutNative($span), $span->children),
+                ]),
+            ]);
+
+            foreach ([
+                "{$source} json" => (new PandocJsonWriter())->toArray($rebuilt),
+                "{$source} native" => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($headerAttr, $encoded['blocks'][0]['c'][1], "{$writer} writer preserves wrapped heading attr constructor");
+                $t->same($codeAttr, $encoded['blocks'][1]['c'][0]['c'][0], "{$writer} writer preserves wrapped code attr constructor");
+                $t->same($spanAttr, $encoded['blocks'][1]['c'][2]['c'][0], "{$writer} writer preserves wrapped span attr constructor");
+            }
+
+            $editedHeading = new AstNode('heading', array_replace($withoutNative($heading), [
+                'id' => 'edited-heading',
+            ]), $heading->children);
+
+            foreach ([
+                "{$source} edited json" => (new PandocJsonWriter())->toArray(new AstNode('document', $document->attrs, [$editedHeading])),
+                "{$source} edited native" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedHeading])), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedAttr = $encoded['blocks'][0]['c'][1];
+
+                $t->same(['edited-heading', ['review'], [['data-source', 'wrapped']]], $editedAttr, "{$writer} regenerates edited wrapped attr as canonical tuple");
+                $t->same(false, array_key_exists('t', $editedAttr), "{$writer} drops stale wrapped attr constructor");
+            }
+        }
+    },
     'preserves compatible pandoc attr native tuples through json and native writers' => static function (TestRunner $t): void {
         $headerAttr = ['dup-heading', ['review', 'source'], [
             ['data-key', 'first'],

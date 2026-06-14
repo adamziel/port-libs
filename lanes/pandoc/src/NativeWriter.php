@@ -1942,6 +1942,16 @@ final class NativeWriter
      */
     private function validAttrTuplePrefix(mixed $value): ?array
     {
+        if (
+            is_array($value)
+            && array_is_list($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && array_is_list($value[0])
+        ) {
+            return $this->validAttrTuplePrefix($value[0]);
+        }
+
         if (!is_array($value) || !array_is_list($value) || count($value) < 3) {
             return null;
         }

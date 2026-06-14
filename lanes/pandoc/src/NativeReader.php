@@ -1876,6 +1876,7 @@ final class NativeReader
     {
         $native = $attr;
         $attr = $this->constructorContent($attr, 'Attr', 'Pandoc native JSON Attr', false);
+        $attr = $this->attrTupleContent($attr);
         if (!is_array($attr)) {
             return [];
         }
@@ -1935,6 +1936,22 @@ final class NativeReader
         }
 
         return $attrs;
+    }
+
+    private function attrTupleContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) >= 3
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     /**
