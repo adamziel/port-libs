@@ -14140,8 +14140,9 @@ final class XmlHtmlDom
         if ($name === 'script') {
             $typeRaw = self::attributeOrNull($element, 'type');
             $type = $typeRaw === null ? null : strtolower(trim($typeRaw));
-
-            return [
+            $scriptType = self::scriptTypeSummary($type);
+            $loading = self::scriptLoadingReviewSummary($element, $scriptType['scriptPayloadKind']);
+            $summary = [
                 'activeContent' => 'script',
                 'scriptSourceKind' => $element->hasAttribute('src') ? 'external' : 'inline',
                 'src' => self::attributeOrNull($element, 'src'),
@@ -14161,7 +14162,13 @@ final class XmlHtmlDom
                 'scriptTextLength' => strlen($text),
                 'scriptTextSha256' => hash('sha256', $text),
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
-            ];
+            ] + $scriptType + $loading;
+
+            if (in_array($scriptType['scriptPayloadKind'], ['importmap', 'speculationrules', 'json-data'], true)) {
+                $summary += self::scriptJsonReviewSummary($text, $scriptType['scriptPayloadKind']);
+            }
+
+            return $summary;
         }
 
         $typeRaw = self::attributeOrNull($element, 'type');
@@ -14181,6 +14188,220 @@ final class XmlHtmlDom
             'styleTextSha256' => hash('sha256', $text),
             'activeReviewPolicy' => 'inline-style-source',
         ];
+    }
+
+    /**
+     * @return array{
+     *     scriptPayloadKind:string,
+     *     scriptExecutable:bool,
+     *     scriptDataBlock:bool,
+     *     scriptTypeKnown:bool
+     * }
+     */
+    private static function scriptTypeSummary(?string $type): array
+    {
+        $javascriptTypes = [
+            'application/ecmascript' => true,
+            'application/javascript' => true,
+            'application/x-ecmascript' => true,
+            'application/x-javascript' => true,
+            'text/ecmascript' => true,
+            'text/javascript' => true,
+            'text/javascript1.0' => true,
+            'text/javascript1.1' => true,
+            'text/javascript1.2' => true,
+            'text/javascript1.3' => true,
+            'text/javascript1.4' => true,
+            'text/javascript1.5' => true,
+            'text/jscript' => true,
+            'text/livescript' => true,
+            'text/x-ecmascript' => true,
+            'text/x-javascript' => true,
+        ];
+
+        $normalized = $type === null ? '' : strtolower(trim(explode(';', $type, 2)[0]));
+        $kind = match (true) {
+            $normalized === '', isset($javascriptTypes[$normalized]) => 'classic',
+            $normalized === 'module' => 'module',
+            $normalized === 'importmap' => 'importmap',
+            $normalized === 'speculationrules' => 'speculationrules',
+            $normalized === 'application/json',
+                $normalized === 'application/ld+json',
+                str_ends_with($normalized, '+json') => 'json-data',
+            default => 'data-block',
+        };
+
+        return [
+            'scriptPayloadKind' => $kind,
+            'scriptExecutable' => in_array($kind, ['classic', 'module'], true),
+            'scriptDataBlock' => !in_array($kind, ['classic', 'module'], true),
+            'scriptTypeKnown' => $kind !== 'data-block',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptLoadingReviewSummary(\DOMElement $script, string $payloadKind): array
+    {
+        $crossoriginRaw = self::attributeOrNull($script, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
+        $fetchPriorityRaw = self::attributeOrNull($script, 'fetchpriority');
+        $fetchPriority = $fetchPriorityRaw === null ? null : self::fetchPriorityState($fetchPriorityRaw);
+        $referrerPolicyRaw = self::attributeOrNull($script, 'referrerpolicy');
+        $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $blockingTokens = $script->hasAttribute('blocking') ? self::spaceSeparatedTokens($script->getAttribute('blocking')) : [];
+        $blockingTokenCounts = [];
+        foreach ($blockingTokens as $token) {
+            $lower = strtolower($token);
+            $blockingTokenCounts[$lower] = ($blockingTokenCounts[$lower] ?? 0) + 1;
+        }
+
+        $invalidBlockingTokens = array_values(array_filter(
+            array_keys($blockingTokenCounts),
+            static fn (string $token): bool => $token !== 'render'
+        ));
+
+        $sourceKind = $script->hasAttribute('src') ? 'external' : 'inline';
+        $loadingMode = match (true) {
+            !in_array($payloadKind, ['classic', 'module'], true) => 'inert-data-block',
+            $sourceKind === 'inline' => 'inline-executable',
+            $script->hasAttribute('async') && $payloadKind === 'module' => 'async-module',
+            $script->hasAttribute('async') => 'async-classic',
+            $payloadKind === 'module' => 'module-deferred',
+            $script->hasAttribute('defer') => 'defer-classic',
+            default => 'parser-blocking-classic',
+        };
+
+        return [
+            'scriptLoadingReviewPolicy' => 'script-loading-metadata-review',
+            'scriptLoadingMode' => $loadingMode,
+            'scriptCrossoriginState' => $crossorigin,
+            'scriptCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'scriptReferrerPolicy' => $referrerPolicy,
+            'scriptReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'scriptFetchPriority' => $fetchPriority,
+            'scriptFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'scriptBlockingTokenCounts' => $blockingTokenCounts,
+            'invalidScriptBlockingTokens' => $invalidBlockingTokens,
+        ];
+    }
+
+    private static function htmlCorsSettingsAttributeState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+        if ($value === '' || $value === 'anonymous') {
+            return 'anonymous';
+        }
+
+        return $value === 'use-credentials' ? $value : null;
+    }
+
+    private static function fetchPriorityState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['auto', 'high', 'low'], true) ? $value : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptJsonReviewSummary(string $source, string $payloadKind): array
+    {
+        $summary = [
+            'scriptJsonReviewPolicy' => 'script-json-inert-source-review',
+            'scriptJsonParsed' => false,
+            'scriptJsonType' => null,
+            'scriptJsonObjectKeys' => [],
+            'scriptJsonObjectKeyCount' => 0,
+            'scriptJsonDiagnostics' => [],
+        ];
+
+        try {
+            $json = json_decode($source, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            $summary['scriptJsonDiagnostics'] = ['script-json-syntax-error'];
+            $summary['scriptJsonError'] = $exception->getMessage();
+
+            return $summary;
+        }
+
+        $summary['scriptJsonParsed'] = true;
+        $summary['scriptJsonType'] = self::jsonValueKind($json);
+        if (is_array($json) && !self::isJsonList($json)) {
+            $summary['scriptJsonObjectKeys'] = array_values(array_map('strval', array_keys($json)));
+            $summary['scriptJsonObjectKeyCount'] = count($summary['scriptJsonObjectKeys']);
+        }
+
+        $diagnostics = [];
+        if ($payloadKind === 'importmap') {
+            if (!is_array($json) || self::isJsonList($json)) {
+                $diagnostics[] = 'importmap-top-level-not-object';
+            } else {
+                foreach (['imports', 'scopes', 'integrity'] as $key) {
+                    if (array_key_exists($key, $json) && (!is_array($json[$key]) || self::isJsonList($json[$key]))) {
+                        $diagnostics[] = 'importmap-' . $key . '-not-object';
+                    }
+                }
+                $summary['importMapImportsCount'] = isset($json['imports']) && is_array($json['imports']) && !self::isJsonList($json['imports'])
+                    ? count($json['imports'])
+                    : 0;
+                $summary['importMapScopesCount'] = isset($json['scopes']) && is_array($json['scopes']) && !self::isJsonList($json['scopes'])
+                    ? count($json['scopes'])
+                    : 0;
+                $summary['importMapIntegrityCount'] = isset($json['integrity']) && is_array($json['integrity']) && !self::isJsonList($json['integrity'])
+                    ? count($json['integrity'])
+                    : 0;
+            }
+        }
+
+        if ($payloadKind === 'speculationrules') {
+            if (!is_array($json) || self::isJsonList($json)) {
+                $diagnostics[] = 'speculationrules-top-level-not-object';
+            } else {
+                $ruleSetCounts = [];
+                foreach (['prefetch', 'prerender'] as $key) {
+                    if (!array_key_exists($key, $json)) {
+                        continue;
+                    }
+                    if (!is_array($json[$key]) || !self::isJsonList($json[$key])) {
+                        $diagnostics[] = 'speculationrules-' . $key . '-not-array';
+                        $ruleSetCounts[$key] = null;
+                        continue;
+                    }
+                    $ruleSetCounts[$key] = count($json[$key]);
+                }
+                $summary['speculationRuleSetNames'] = array_keys($ruleSetCounts);
+                $summary['speculationRuleSetCounts'] = $ruleSetCounts;
+            }
+        }
+
+        $summary['scriptJsonDiagnostics'] = $diagnostics;
+
+        return $summary;
+    }
+
+    private static function jsonValueKind(mixed $value): string
+    {
+        return match (true) {
+            is_array($value) && self::isJsonList($value) => 'array',
+            is_array($value) => 'object',
+            is_string($value) => 'string',
+            is_int($value), is_float($value) => 'number',
+            is_bool($value) => 'boolean',
+            $value === null => 'null',
+            default => 'unknown',
+        };
+    }
+
+    private static function isJsonList(array $value): bool
+    {
+        if ($value === []) {
+            return true;
+        }
+
+        return array_keys($value) === range(0, count($value) - 1);
     }
 
     /**

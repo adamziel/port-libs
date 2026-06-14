@@ -4542,6 +4542,10 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('module', $externalScript['scriptTypeRaw']);
         $t->same('module', $externalScript['scriptType']);
         $t->same(true, $externalScript['module']);
+        $t->same('module', $externalScript['scriptPayloadKind']);
+        $t->same(true, $externalScript['scriptExecutable']);
+        $t->same(false, $externalScript['scriptDataBlock']);
+        $t->same(true, $externalScript['scriptTypeKnown']);
         $t->same(true, $externalScript['async']);
         $t->same(true, $externalScript['defer']);
         $t->same(false, $externalScript['nomodule']);
@@ -4551,6 +4555,16 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('high', $externalScript['fetchpriority']);
         $t->same('render', $externalScript['blockingRaw']);
         $t->same(['render'], $externalScript['blockingTokens']);
+        $t->same('script-loading-metadata-review', $externalScript['scriptLoadingReviewPolicy']);
+        $t->same('async-module', $externalScript['scriptLoadingMode']);
+        $t->same('anonymous', $externalScript['scriptCrossoriginState']);
+        $t->same(true, $externalScript['scriptCrossoriginValid']);
+        $t->same('no-referrer', $externalScript['scriptReferrerPolicy']);
+        $t->same(true, $externalScript['scriptReferrerPolicyValid']);
+        $t->same('high', $externalScript['scriptFetchPriority']);
+        $t->same(true, $externalScript['scriptFetchPriorityValid']);
+        $t->same(['render' => 1], $externalScript['scriptBlockingTokenCounts']);
+        $t->same([], $externalScript['invalidScriptBlockingTokens']);
         $t->same('', $externalScript['scriptText']);
         $t->same(0, $externalScript['scriptTextLength']);
         $t->same(hash('sha256', ''), $externalScript['scriptTextSha256']);
@@ -4558,6 +4572,10 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('script', $inlineScript['activeContent']);
         $t->same('inline', $inlineScript['scriptSourceKind']);
         $t->same(null, $inlineScript['src']);
+        $t->same('classic', $inlineScript['scriptPayloadKind']);
+        $t->same(true, $inlineScript['scriptExecutable']);
+        $t->same(false, $inlineScript['scriptDataBlock']);
+        $t->same('inline-executable', $inlineScript['scriptLoadingMode']);
         $t->same(false, $inlineScript['module']);
         $t->same(false, $inlineScript['async']);
         $t->same(false, $inlineScript['defer']);
@@ -4582,6 +4600,73 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('<script async blocking="render" crossorigin="anonymous" defer fetchpriority="high" integrity="sha384-review" referrerpolicy="no-referrer" src="app.js" type="module"></script><script nomodule>console.log("<review> & source");</script><style blocking="render" disabled media="print" type="text/css">body > .review { color: red; }</style>', $html);
         $t->contains($html, $blocks);
         $t->same('/migration/active-content-review.html', $document->children[0]->attr('part'));
+    },
+    'summarizes html script import map and speculation rules json provenance' => static function (TestRunner $t): void {
+        $importMapSource = '{"imports":{"app":"/assets/app.js","pkg/":"/vendor/pkg/"},"scopes":{"/admin/":{"app":"/admin/app.js"}},"integrity":{"app":"sha384-app"}}';
+        $speculationRulesSource = '{"prefetch":[{"source":"list","urls":["/next"]}],"prerender":{"source":"document"}}';
+        $badJsonSource = '{"broken":';
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script type="importmap">' . $importMapSource . '</script>'
+                . '<script type="speculationrules" blocking="render render bad-token">' . $speculationRulesSource . '</script>'
+                . '<script type="application/json">' . $badJsonSource . '</script>',
+            'script json provenance review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/script-json-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $importMap = $summary[0];
+        $speculationRules = $summary[1];
+        $badJson = $summary[2];
+
+        $t->same('importmap', $importMap['scriptPayloadKind']);
+        $t->same(false, $importMap['scriptExecutable']);
+        $t->same(true, $importMap['scriptDataBlock']);
+        $t->same('inert-data-block', $importMap['scriptLoadingMode']);
+        $t->same('script-json-inert-source-review', $importMap['scriptJsonReviewPolicy']);
+        $t->same(true, $importMap['scriptJsonParsed']);
+        $t->same('object', $importMap['scriptJsonType']);
+        $t->same(['imports', 'scopes', 'integrity'], $importMap['scriptJsonObjectKeys']);
+        $t->same(3, $importMap['scriptJsonObjectKeyCount']);
+        $t->same([], $importMap['scriptJsonDiagnostics']);
+        $t->same(2, $importMap['importMapImportsCount']);
+        $t->same(1, $importMap['importMapScopesCount']);
+        $t->same(1, $importMap['importMapIntegrityCount']);
+        $t->same($importMapSource, $importMap['scriptText']);
+        $t->same(hash('sha256', $importMapSource), $importMap['scriptTextSha256']);
+
+        $t->same('speculationrules', $speculationRules['scriptPayloadKind']);
+        $t->same(false, $speculationRules['scriptExecutable']);
+        $t->same(true, $speculationRules['scriptDataBlock']);
+        $t->same('inert-data-block', $speculationRules['scriptLoadingMode']);
+        $t->same(['render', 'render', 'bad-token'], $speculationRules['blockingTokens']);
+        $t->same(['render' => 2, 'bad-token' => 1], $speculationRules['scriptBlockingTokenCounts']);
+        $t->same(['bad-token'], $speculationRules['invalidScriptBlockingTokens']);
+        $t->same(true, $speculationRules['scriptJsonParsed']);
+        $t->same('object', $speculationRules['scriptJsonType']);
+        $t->same(['prefetch', 'prerender'], $speculationRules['scriptJsonObjectKeys']);
+        $t->same(['speculationrules-prerender-not-array'], $speculationRules['scriptJsonDiagnostics']);
+        $t->same(['prefetch', 'prerender'], $speculationRules['speculationRuleSetNames']);
+        $t->same(['prefetch' => 1, 'prerender' => null], $speculationRules['speculationRuleSetCounts']);
+
+        $t->same('json-data', $badJson['scriptPayloadKind']);
+        $t->same(false, $badJson['scriptExecutable']);
+        $t->same(true, $badJson['scriptDataBlock']);
+        $t->same(false, $badJson['scriptJsonParsed']);
+        $t->same(null, $badJson['scriptJsonType']);
+        $t->same(['script-json-syntax-error'], $badJson['scriptJsonDiagnostics']);
+        $t->contains('Syntax error', $badJson['scriptJsonError']);
+        $t->same($badJsonSource, $badJson['scriptText']);
+
+        $t->same(
+            '<script type="importmap">' . $importMapSource . '</script><script blocking="render render bad-token" type="speculationrules">' . $speculationRulesSource . '</script><script type="application/json">' . $badJsonSource . '</script>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/script-json-review.html', $document->children[0]->attr('part'));
     },
     'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
