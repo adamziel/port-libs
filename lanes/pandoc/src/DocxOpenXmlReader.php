@@ -4557,8 +4557,12 @@ final class DocxOpenXmlReader
 
         ksort($issueCodes, SORT_STRING);
         $targetCollisions = $this->relatedPartInternalExternalTargetCollisions($items);
+        $internalTargetCollisions = $this->relatedPartSameModeTargetCollisions($items, false);
+        $externalTargetCollisions = $this->relatedPartSameModeTargetCollisions($items, true);
         $repeatedTargetSuffixes = $this->relatedPartRepeatedTargetReferenceSuffixes($items);
         $recordTargetCollisions = $this->relatedPartInternalExternalTargetCollisions($relationshipRecords);
+        $recordInternalTargetCollisions = $this->relatedPartSameModeTargetCollisions($relationshipRecords, false);
+        $recordExternalTargetCollisions = $this->relatedPartSameModeTargetCollisions($relationshipRecords, true);
         $recordRepeatedTargetSuffixes = $this->relatedPartRepeatedTargetReferenceSuffixes($relationshipRecords);
 
         return [
@@ -4595,6 +4599,12 @@ final class DocxOpenXmlReader
             'internalExternalTargetCollisionCount' => $targetCollisions['groupCount'],
             'internalExternalTargetCollisionRelationshipCount' => $targetCollisions['relationshipCount'],
             'internalExternalTargetCollisions' => $targetCollisions['groups'],
+            'internalTargetCollisionCount' => $internalTargetCollisions['groupCount'],
+            'internalTargetCollisionRelationshipCount' => $internalTargetCollisions['relationshipCount'],
+            'internalTargetCollisions' => $internalTargetCollisions['groups'],
+            'externalTargetCollisionCount' => $externalTargetCollisions['groupCount'],
+            'externalTargetCollisionRelationshipCount' => $externalTargetCollisions['relationshipCount'],
+            'externalTargetCollisions' => $externalTargetCollisions['groups'],
             'repeatedTargetReferenceSuffixCount' => $repeatedTargetSuffixes['groupCount'],
             'repeatedTargetReferenceSuffixRelationshipCount' => $repeatedTargetSuffixes['relationshipCount'],
             'repeatedTargetReferenceSuffixes' => $repeatedTargetSuffixes['suffixes'],
@@ -4602,6 +4612,12 @@ final class DocxOpenXmlReader
             'recordInternalExternalTargetCollisionCount' => $recordTargetCollisions['groupCount'],
             'recordInternalExternalTargetCollisionRelationshipCount' => $recordTargetCollisions['relationshipCount'],
             'recordInternalExternalTargetCollisions' => $recordTargetCollisions['groups'],
+            'recordInternalTargetCollisionCount' => $recordInternalTargetCollisions['groupCount'],
+            'recordInternalTargetCollisionRelationshipCount' => $recordInternalTargetCollisions['relationshipCount'],
+            'recordInternalTargetCollisions' => $recordInternalTargetCollisions['groups'],
+            'recordExternalTargetCollisionCount' => $recordExternalTargetCollisions['groupCount'],
+            'recordExternalTargetCollisionRelationshipCount' => $recordExternalTargetCollisions['relationshipCount'],
+            'recordExternalTargetCollisions' => $recordExternalTargetCollisions['groups'],
             'recordRepeatedTargetReferenceSuffixCount' => $recordRepeatedTargetSuffixes['groupCount'],
             'recordRepeatedTargetReferenceSuffixRelationshipCount' => $recordRepeatedTargetSuffixes['relationshipCount'],
             'recordRepeatedTargetReferenceSuffixes' => $recordRepeatedTargetSuffixes['suffixes'],
@@ -4611,6 +4627,75 @@ final class DocxOpenXmlReader
             'byId' => $byId,
             'items' => $items,
             'relationshipRecords' => $relationshipRecords,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{groupCount:int, relationshipCount:int, groups:list<array<string, mixed>>}
+     */
+    private function relatedPartSameModeTargetCollisions(array $items, bool $external): array
+    {
+        $byTarget = [];
+        foreach ($items as $item) {
+            if ((($item['external'] ?? false) === true) !== $external) {
+                continue;
+            }
+
+            $relationshipId = is_string($item['id'] ?? null) ? $item['id'] : '';
+            $target = $external
+                ? (is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : '')
+                : (is_string($item['targetPart'] ?? null) ? $item['targetPart'] : '');
+            if ($relationshipId === '' || $target === '') {
+                continue;
+            }
+
+            $byTarget[$target] ??= [
+                'target' => $target,
+                'relationshipIds' => [],
+                'ordinals' => [],
+                'targetParts' => [],
+                'externalTargets' => [],
+                'targets' => [],
+                'resolvedTargets' => [],
+                'targetReferenceSuffixes' => [],
+                'relationships' => [],
+            ];
+            if ($external) {
+                $byTarget[$target]['externalTarget'] = $target;
+            } else {
+                $byTarget[$target]['targetPart'] = $target;
+            }
+
+            $this->appendUniqueString($byTarget[$target]['relationshipIds'], $relationshipId);
+            if (is_int($item['ordinal'] ?? null)) {
+                $byTarget[$target]['ordinals'][] = $item['ordinal'];
+            }
+            $this->appendUniqueString($byTarget[$target]['targetParts'], is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($byTarget[$target]['externalTargets'], is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : null);
+            }
+            $this->appendUniqueString($byTarget[$target]['targets'], is_string($item['target'] ?? null) ? $item['target'] : null);
+            $this->appendUniqueString($byTarget[$target]['resolvedTargets'], is_string($item['resolvedTarget'] ?? null) ? $item['resolvedTarget'] : null);
+            $this->appendUniqueString($byTarget[$target]['targetReferenceSuffixes'], is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : null);
+            $byTarget[$target]['relationships'][] = $item;
+        }
+
+        $groups = [];
+        $relationshipCount = 0;
+        foreach ($byTarget as $group) {
+            if (count($group['relationships']) < 2) {
+                continue;
+            }
+
+            $groups[] = $group;
+            $relationshipCount += count($group['relationships']);
+        }
+
+        return [
+            'groupCount' => count($groups),
+            'relationshipCount' => $relationshipCount,
+            'groups' => $groups,
         ];
     }
 
@@ -4761,6 +4846,8 @@ final class DocxOpenXmlReader
             $relationshipIds = is_array($item['relationshipIds'] ?? null) ? $item['relationshipIds'] : [];
             $knownRelationshipIds = [];
             $itemDuplicateRelationshipIds = [];
+            $itemReferencedRelationships = [];
+            $itemReferencedRelationshipItems = [];
             $itemReferencedRelationshipRecords = [];
             $itemRelationshipBacklinks = [];
             foreach ($relationshipIds as $relationshipId) {
@@ -4778,6 +4865,8 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
                 if (isset($relationships[$relationshipId])) {
                     $this->appendUniqueString($knownRelationshipIds, $relationshipId);
+                    $itemReferencedRelationships[$relationshipId] = $relationships[$relationshipId];
+                    $itemReferencedRelationshipItems[] = $relationships[$relationshipId];
                 } else {
                     $this->appendUniqueString($missingReferencedRelationshipIds, $relationshipId);
                 }
@@ -4795,6 +4884,11 @@ final class DocxOpenXmlReader
 
             $item['knownRelationshipIds'] = $knownRelationshipIds;
             $item['knownRelationshipCount'] = count($knownRelationshipIds);
+            $item['referencedRelationshipIds'] = $knownRelationshipIds;
+            $item['referencedRelationshipCount'] = count($knownRelationshipIds);
+            $item['referencedDuplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
+            $item['referencedRelationships'] = $itemReferencedRelationships;
+            $item['referencedRelationshipItems'] = $itemReferencedRelationshipItems;
             $item['missingRelationshipCount'] = count(is_array($item['missingRelationshipIds'] ?? null) ? $item['missingRelationshipIds'] : []);
             $item['duplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
             $item['duplicateRelationshipCount'] = count($itemDuplicateRelationshipIds);
@@ -4876,6 +4970,12 @@ final class DocxOpenXmlReader
             'internalExternalRelationshipTargetCollisionCount' => $relationshipDiagnostics['internalExternalTargetCollisionCount'],
             'internalExternalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['internalExternalTargetCollisionRelationshipCount'],
             'internalExternalRelationshipTargetCollisions' => $relationshipDiagnostics['internalExternalTargetCollisions'],
+            'internalRelationshipTargetCollisionCount' => $relationshipDiagnostics['internalTargetCollisionCount'],
+            'internalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['internalTargetCollisionRelationshipCount'],
+            'internalRelationshipTargetCollisions' => $relationshipDiagnostics['internalTargetCollisions'],
+            'externalRelationshipTargetCollisionCount' => $relationshipDiagnostics['externalTargetCollisionCount'],
+            'externalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['externalTargetCollisionRelationshipCount'],
+            'externalRelationshipTargetCollisions' => $relationshipDiagnostics['externalTargetCollisions'],
             'repeatedRelationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['repeatedTargetReferenceSuffixCount'],
             'repeatedRelationshipTargetReferenceSuffixRelationshipCount' => $relationshipDiagnostics['repeatedTargetReferenceSuffixRelationshipCount'],
             'repeatedRelationshipTargetReferenceSuffixes' => $relationshipDiagnostics['repeatedTargetReferenceSuffixes'],
@@ -4883,6 +4983,12 @@ final class DocxOpenXmlReader
             'recordInternalExternalRelationshipTargetCollisionCount' => $relationshipDiagnostics['recordInternalExternalTargetCollisionCount'],
             'recordInternalExternalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['recordInternalExternalTargetCollisionRelationshipCount'],
             'recordInternalExternalRelationshipTargetCollisions' => $relationshipDiagnostics['recordInternalExternalTargetCollisions'],
+            'recordInternalRelationshipTargetCollisionCount' => $relationshipDiagnostics['recordInternalTargetCollisionCount'],
+            'recordInternalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['recordInternalTargetCollisionRelationshipCount'],
+            'recordInternalRelationshipTargetCollisions' => $relationshipDiagnostics['recordInternalTargetCollisions'],
+            'recordExternalRelationshipTargetCollisionCount' => $relationshipDiagnostics['recordExternalTargetCollisionCount'],
+            'recordExternalRelationshipTargetCollisionRelationshipCount' => $relationshipDiagnostics['recordExternalTargetCollisionRelationshipCount'],
+            'recordExternalRelationshipTargetCollisions' => $relationshipDiagnostics['recordExternalTargetCollisions'],
             'recordRepeatedRelationshipTargetReferenceSuffixCount' => $relationshipDiagnostics['recordRepeatedTargetReferenceSuffixCount'],
             'recordRepeatedRelationshipTargetReferenceSuffixRelationshipCount' => $relationshipDiagnostics['recordRepeatedTargetReferenceSuffixRelationshipCount'],
             'recordRepeatedRelationshipTargetReferenceSuffixes' => $relationshipDiagnostics['recordRepeatedTargetReferenceSuffixes'],
