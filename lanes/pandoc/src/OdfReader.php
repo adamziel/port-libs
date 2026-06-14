@@ -36,6 +36,9 @@ final class OdfReader
         'size' => true,
         'version' => true,
     ];
+    private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
+        'version' => true,
+    ];
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -44,6 +47,9 @@ final class OdfReader
     private array $manifestByPart = [];
 
     private string $manifestVersion = '';
+
+    /** @var array<string, mixed> */
+    private array $manifestRootAttributeProvenance = [];
 
     /** @var array<string, array<string, mixed>> */
     private array $formControlsById = [];
@@ -110,6 +116,7 @@ final class OdfReader
 
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
+        $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $rdfMetadata = $this->readRdfMetadata($package, $manifest);
         $signatureMetadata = $this->readSignatureMetadata($package, $manifest);
         $this->packageRdfMetadata = $rdfMetadata;
@@ -156,6 +163,13 @@ final class OdfReader
             'manifest' => [
                 'mimetype' => self::MIMETYPE,
                 'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+                'rootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
+                'rootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
+                'rootAttributes' => $manifestRootAttributes['attributes'] ?? [],
+                'rootCustomAttributeCount' => $manifestRootAttributes['customAttributeCount'] ?? 0,
+                'rootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
+                'rootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
+                'rootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -236,6 +250,13 @@ final class OdfReader
                 'manifest' => [
                     'count' => count($manifest),
                     'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+                    'rootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
+                    'rootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
+                    'rootAttributes' => $manifestRootAttributes['attributes'] ?? [],
+                    'rootCustomAttributeCount' => $manifestRootAttributes['customAttributeCount'] ?? 0,
+                    'rootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
+                    'rootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
+                    'rootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -447,6 +468,7 @@ final class OdfReader
         }
 
         $this->manifestVersion = self::attr($root, self::MANIFEST_NS, 'version');
+        $this->manifestRootAttributeProvenance = $this->manifestRootAttributeProvenance($root);
         $rawItems = [];
         $seenFullPaths = [];
         $seenParts = [];
@@ -635,6 +657,39 @@ final class OdfReader
      */
     private function manifestFileEntryAttributeProvenance(\DOMElement $element): array
     {
+        return $this->manifestElementAttributeProvenance($element, self::MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>
+     * }
+     */
+    private function manifestRootAttributeProvenance(\DOMElement $element): array
+    {
+        return $this->manifestElementAttributeProvenance($element, self::MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @param array<string, bool> $structuralAttributes
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>
+     * }
+     */
+    private function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
+    {
         $attributes = [];
         $customAttributes = [];
         $customAttributeMap = [];
@@ -648,7 +703,7 @@ final class OdfReader
                     ? $attribute->prefix . ':' . $attribute->localName
                     : $attribute->name;
                 $structural = $attribute->namespaceURI === self::MANIFEST_NS
-                    && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES[$attribute->localName]);
+                    && isset($structuralAttributes[$attribute->localName]);
                 $record = [
                     'name' => $name,
                     'localName' => $attribute->localName,
@@ -1018,6 +1073,7 @@ final class OdfReader
         array $mimetypeEntry,
         array $undeclaredEntries
     ): array {
+        $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $manifestByPart = [];
@@ -1308,6 +1364,13 @@ final class OdfReader
             'mimetypeEntry' => $mimetypeEntry,
             'entryCount' => count($parts),
             'manifestDeclaredPartCount' => count($manifestByPart),
+            'manifestRootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
+            'manifestRootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
+            'manifestRootAttributes' => $manifestRootAttributes['attributes'] ?? [],
+            'manifestRootCustomAttributeCount' => $manifestRootAttributes['customAttributeCount'] ?? 0,
+            'manifestRootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
+            'manifestRootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
+            'manifestRootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
             'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,

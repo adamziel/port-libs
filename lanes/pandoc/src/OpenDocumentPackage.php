@@ -26,6 +26,9 @@ final class OpenDocumentPackage
         'size' => true,
         'version' => true,
     ];
+    private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
+        'version' => true,
+    ];
     private const MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT = 5;
 
     /** @var array<string, array<string, mixed>> */
@@ -42,6 +45,7 @@ final class OpenDocumentPackage
     private function __construct(
         private readonly ZipPackage $package,
         private readonly ?string $manifestVersion,
+        private readonly array $manifestRootAttributes,
         private readonly array $manifestEntries,
         array $manifestEntriesByPath,
         private readonly array $stylesByName,
@@ -111,7 +115,17 @@ final class OpenDocumentPackage
         $settings = isset($manifestEntriesByPath['settings.xml']) ? self::parseSettings($package->read('settings.xml')) : self::emptySettings();
         $rdfMetadata = self::readRdfMetadata($package, $manifestEntries);
 
-        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata, $settings, $rdfMetadata);
+        return new self(
+            $package,
+            $manifest['version'],
+            $manifest['rootAttributes'],
+            $manifestEntries,
+            $manifestEntriesByPath,
+            $styles,
+            $metadata,
+            $settings,
+            $rdfMetadata
+        );
     }
 
     public function package(): ZipPackage
@@ -122,6 +136,14 @@ final class OpenDocumentPackage
     public function manifestVersion(): ?string
     {
         return $this->manifestVersion;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function manifestRootAttributes(): array
+    {
+        return $this->manifestRootAttributes;
     }
 
     /**
@@ -331,6 +353,7 @@ final class OpenDocumentPackage
         return [
             'mimetype' => self::TEXT_MIMETYPE,
             'manifestVersion' => $this->manifestVersion,
+            'manifestRootAttributes' => $this->manifestRootAttributes,
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
@@ -351,7 +374,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'rdfMetadata' => $this->rdfMetadata,
-            'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
+            'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
             'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
             'settings' => $this->settings,
@@ -2948,7 +2971,7 @@ final class OpenDocumentPackage
      * @param list<array<string, mixed>> $undeclaredPackageEntries
      * @return array<string, mixed>
      */
-    private static function manifestReview(array $entries, array $undeclaredPackageEntries = []): array
+    private static function manifestReview(array $entries, array $undeclaredPackageEntries = [], array $manifestRootAttributes = []): array
     {
         $summary = [
             'count' => count($entries),
@@ -2975,6 +2998,13 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'manifestRootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
+            'manifestRootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
+            'manifestRootAttributes' => $manifestRootAttributes['attributes'] ?? [],
+            'manifestRootCustomAttributeCount' => $manifestRootAttributes['customAttributeCount'] ?? 0,
+            'manifestRootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
+            'manifestRootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
+            'manifestRootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
             'manifestCustomAttributeEntryCount' => 0,
             'manifestCustomAttributeCount' => 0,
             'manifestCustomAttributeNames' => [],
@@ -3340,6 +3370,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
+     *     rootAttributes:array<string, mixed>,
      *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
@@ -3354,6 +3385,7 @@ final class OpenDocumentPackage
         $entries = [];
         $manifestIndex = 0;
         $manifestVersion = self::optionalString(self::namespacedAttribute($root, self::MANIFEST_NAMESPACE, 'version'));
+        $rootAttributes = self::manifestRootAttributeProvenance($root);
         foreach ($root->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -3413,6 +3445,7 @@ final class OpenDocumentPackage
 
         return [
             'version' => $manifestVersion,
+            'rootAttributes' => $rootAttributes,
             'entries' => $entries,
         ];
     }
@@ -3430,6 +3463,39 @@ final class OpenDocumentPackage
      */
     private static function manifestFileEntryAttributeProvenance(\DOMElement $element): array
     {
+        return self::manifestElementAttributeProvenance($element, self::MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>
+     * }
+     */
+    private static function manifestRootAttributeProvenance(\DOMElement $element): array
+    {
+        return self::manifestElementAttributeProvenance($element, self::MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @param array<string, bool> $structuralAttributes
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>
+     * }
+     */
+    private static function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
+    {
         $attributes = [];
         $customAttributes = [];
         $customAttributeMap = [];
@@ -3443,7 +3509,7 @@ final class OpenDocumentPackage
                     ? $attribute->prefix . ':' . $attribute->localName
                     : $attribute->name;
                 $structural = $attribute->namespaceURI === self::MANIFEST_NAMESPACE
-                    && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_ATTRIBUTES[$attribute->localName]);
+                    && isset($structuralAttributes[$attribute->localName]);
                 $record = [
                     'name' => $name,
                     'localName' => $attribute->localName,

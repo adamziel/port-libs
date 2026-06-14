@@ -303,7 +303,7 @@ return [
                 '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
             ],
             [
-                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:names:experimental:office:xmlns:loext:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3">',
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:names:experimental:office:xmlns:loext:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3" loext:generator="LibreOffice 24.2" wp:review-source="migration-queue" xml:lang="en-US">',
                 '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" loext:checksum="sha256-content" wp:review-priority="high"/>',
                 '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" loext:media-type-hint="review-cover" wp:empty-note="" xml:lang="en-US"/>',
             ],
@@ -312,8 +312,13 @@ return [
 
         $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
         $summary = $odt->summarize();
+        $rootAttributeProvenance = $odt->manifestRootAttributes();
         $content = $odt->manifestEntry('content.xml');
         $hero = $odt->manifestEntry('Pictures/hero.png');
+        $rootAttributes = [];
+        foreach ($rootAttributeProvenance['attributes'] as $attribute) {
+            $rootAttributes[$attribute['name']] = $attribute;
+        }
         $contentAttributes = [];
         foreach ($content['manifestAttributes'] as $attribute) {
             $contentAttributes[$attribute['name']] = $attribute;
@@ -325,6 +330,23 @@ return [
         $order = $summary['manifestReview']['manifestFileEntryOrder'];
         $inventory = $summary['packageInventory']['parts'];
 
+        $t->same(4, $rootAttributeProvenance['attributeCount']);
+        $t->same(['loext:generator', 'manifest:version', 'wp:review-source', 'xml:lang'], $rootAttributeProvenance['attributeNames']);
+        $t->same(true, $rootAttributes['manifest:version']['structural']);
+        $t->same(false, $rootAttributes['wp:review-source']['structural']);
+        $t->same('urn:wordpress:review', $rootAttributes['wp:review-source']['namespaceUri']);
+        $t->same('migration-queue', $rootAttributes['wp:review-source']['value']);
+        $t->same(3, $rootAttributeProvenance['customAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source', 'xml:lang'], $rootAttributeProvenance['customAttributeNames']);
+        $t->same([
+            'loext:generator' => 'LibreOffice 24.2',
+            'wp:review-source' => 'migration-queue',
+            'xml:lang' => 'en-US',
+        ], $rootAttributeProvenance['customAttributeMap']);
+        $t->same($rootAttributeProvenance, $summary['manifestRootAttributes']);
+        $t->same(4, $summary['manifestReview']['manifestRootAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source', 'xml:lang'], $summary['manifestReview']['manifestRootCustomAttributeNames']);
+        $t->same('LibreOffice 24.2', $summary['manifestReview']['manifestRootCustomAttributeMap']['loext:generator']);
         $t->same(4, $content['manifestAttributeCount']);
         $t->same(['loext:checksum', 'manifest:full-path', 'manifest:media-type', 'wp:review-priority'], $content['manifestAttributeNames']);
         $t->same(true, $contentAttributes['manifest:full-path']['structural']);
