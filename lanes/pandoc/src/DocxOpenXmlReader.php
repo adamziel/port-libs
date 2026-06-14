@@ -5258,7 +5258,7 @@ final class DocxOpenXmlReader
         return [
             'contentTypesPart' => $contentTypesPart,
             'relationshipParts' => $relationshipParts,
-            'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts),
+            'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts, $partInventory),
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
@@ -7140,9 +7140,10 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $relationshipParts
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array<string, array<string, mixed>>
      */
-    private function relationshipTypeProvenance(array $relationshipParts): array
+    private function relationshipTypeProvenance(array $relationshipParts, array $partInventory): array
     {
         $types = [];
         foreach ($relationshipParts as $relationshipPart) {
@@ -7167,16 +7168,26 @@ final class DocxOpenXmlReader
                         'externalCount' => 0,
                         'existingTargetCount' => 0,
                         'missingTargetCount' => 0,
+                        'missingContentTypeTargetCount' => 0,
+                        'parameterizedContentTypeTargetCount' => 0,
                         'parentTraversalTargetCount' => 0,
                         'sameSourceTargetCount' => 0,
+                        'existingTargetPartByteLength' => 0,
                         'relationshipParts' => [],
                         'sourceParts' => [],
                         'targetParts' => [],
                         'existingTargetParts' => [],
                         'missingTargetParts' => [],
+                        'targetDirectories' => [],
+                        'targetDirectoryCounts' => [],
                         'externalTargets' => [],
                         'contentTypes' => [],
+                        'targetContentTypeSourceCounts' => [],
+                        'targetRoleCounts' => [],
+                        'existingTargetPartDigests' => [],
+                        'largestExistingTargetPart' => null,
                         'relationships' => [],
+                        '_seenExistingTargetParts' => [],
                     ];
                 }
 
@@ -7193,6 +7204,8 @@ final class DocxOpenXmlReader
                 $contentTypeParameterCount = is_int($relationship['contentTypeParameterCount'] ?? null)
                     ? $relationship['contentTypeParameterCount']
                     : count($contentTypeParameters);
+                $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '';
+                $targetContentTypeSource = $contentTypeSource === '' ? 'missing' : $contentTypeSource;
 
                 $types[$typeKey]['count']++;
                 if ($external) {
@@ -7207,6 +7220,60 @@ final class DocxOpenXmlReader
                         $types[$typeKey]['sameSourceTargetCount']++;
                     }
                     $this->appendUniqueString($types[$typeKey]['targetParts'], $targetPart);
+                    if ($targetPart !== null) {
+                        $targetPartInventory = $partInventory[$targetPart] ?? null;
+                        $targetDirectory = is_array($targetPartInventory) && is_string($targetPartInventory['directory'] ?? null)
+                            ? $targetPartInventory['directory']
+                            : $this->packagePartDirectory($targetPart);
+                        $types[$typeKey]['targetDirectoryCounts'][$targetDirectory] =
+                            ($types[$typeKey]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                        $this->appendUniqueString($types[$typeKey]['targetDirectories'], $targetDirectory);
+
+                        $types[$typeKey]['targetContentTypeSourceCounts'][$targetContentTypeSource] =
+                            ($types[$typeKey]['targetContentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                        if ($targetContentTypeSource === 'missing') {
+                            $types[$typeKey]['missingContentTypeTargetCount']++;
+                        }
+                        if ((bool) ($relationship['contentTypeHasParameters'] ?? false)) {
+                            $types[$typeKey]['parameterizedContentTypeTargetCount']++;
+                        }
+
+                        if (is_array($targetPartInventory)) {
+                            foreach (($targetPartInventory['roles'] ?? []) as $role) {
+                                $role = (string) $role;
+                                $types[$typeKey]['targetRoleCounts'][$role] =
+                                    ($types[$typeKey]['targetRoleCounts'][$role] ?? 0) + 1;
+                            }
+
+                            if ($exists && !isset($types[$typeKey]['_seenExistingTargetParts'][$targetPart])) {
+                                $types[$typeKey]['_seenExistingTargetParts'][$targetPart] = true;
+                                $targetPartSummary = [
+                                    'partName' => $targetPart,
+                                    'directory' => $targetDirectory,
+                                    'bytes' => (int) ($targetPartInventory['bytes'] ?? 0),
+                                    'crc32' => is_string($targetPartInventory['crc32'] ?? null) ? $targetPartInventory['crc32'] : null,
+                                    'sha256' => is_string($targetPartInventory['sha256'] ?? null) ? $targetPartInventory['sha256'] : null,
+                                    'contentType' => is_string($targetPartInventory['contentType'] ?? null) ? $targetPartInventory['contentType'] : '',
+                                    'contentTypeBase' => is_string($targetPartInventory['contentTypeBase'] ?? null) ? $targetPartInventory['contentTypeBase'] : '',
+                                    'contentTypeSource' => is_string($targetPartInventory['contentTypeSource'] ?? null) ? $targetPartInventory['contentTypeSource'] : 'missing',
+                                    'roles' => array_values(array_map('strval', $targetPartInventory['roles'] ?? [])),
+                                ];
+                                $types[$typeKey]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                                $types[$typeKey]['existingTargetPartDigests'][] = $targetPartSummary;
+                                $largest = $types[$typeKey]['largestExistingTargetPart'];
+                                if (
+                                    !is_array($largest)
+                                    || $targetPartSummary['bytes'] > (int) ($largest['bytes'] ?? 0)
+                                    || (
+                                        $targetPartSummary['bytes'] === (int) ($largest['bytes'] ?? 0)
+                                        && strcmp($targetPartSummary['partName'], (string) ($largest['partName'] ?? '')) < 0
+                                    )
+                                ) {
+                                    $types[$typeKey]['largestExistingTargetPart'] = $targetPartSummary;
+                                }
+                            }
+                        }
+                    }
                     if ($exists) {
                         $types[$typeKey]['existingTargetCount']++;
                         $this->appendUniqueString($types[$typeKey]['existingTargetParts'], $targetPart);
@@ -7235,7 +7302,7 @@ final class DocxOpenXmlReader
                     'contentTypeParameterCount' => $contentTypeParameterCount,
                     'contentTypeParameters' => $contentTypeParameters,
                     'contentTypeParameterMap' => $contentTypeParameterMap,
-                    'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
+                    'contentTypeSource' => $contentTypeSource,
                     'defaultExtension' => is_string($relationship['defaultExtension'] ?? null) ? $relationship['defaultExtension'] : null,
                     'overridePartName' => is_string($relationship['overridePartName'] ?? null) ? $relationship['overridePartName'] : null,
                     'targetReferenceSuffix' => is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '',
@@ -7248,6 +7315,18 @@ final class DocxOpenXmlReader
                 ];
             }
         }
+
+        foreach ($types as &$type) {
+            ksort($type['targetDirectoryCounts']);
+            ksort($type['targetContentTypeSourceCounts']);
+            ksort($type['targetRoleCounts']);
+            usort(
+                $type['existingTargetPartDigests'],
+                static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+            );
+            unset($type['_seenExistingTargetParts']);
+        }
+        unset($type);
 
         ksort($types);
 

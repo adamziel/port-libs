@@ -1191,6 +1191,138 @@ XML;
         $t->same('kind=thumb', $thumbnail['relationships'][0]['targetQuery']);
         $t->same('cover', $thumbnail['relationships'][0]['targetFragment']);
     },
+    'summarizes docx relationship type package matrix rollups for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $footnotesRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+        $endnotesRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $glossaryRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+        $activeXRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+        $vbaProjectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $settingsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+        $commentsXml = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="1"><w:p><w:r><w:t>review</w:t></w:r></w:p></w:comment></w:comments>';
+        $footnotesXml = '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:footnote w:id="2"><w:p><w:r><w:t>foot</w:t></w:r></w:p></w:footnote></w:footnotes>';
+        $endnotesXml = '<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:endnote w:id="3"><w:p><w:r><w:t>end</w:t></w:r></w:p></w:endnote></w:endnotes>';
+        $customXml = '<review><field>value</field></review>';
+        $glossaryXml = '<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docParts/></w:glossaryDocument>';
+        $activeXXml = '<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:name="ReviewControl"/>';
+        $vbaProject = 'vba project bytes';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/review-source.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=review-comments"/>' . "\n" .
+            '  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>' . "\n" .
+            '  <Override PartName="/word/activeX/control1.xml" ContentType="application/vnd.ms-office.activex+xml"/>' . "\n" .
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaproject"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/review-source.xml'] = '<review-source/>';
+        $parts['word/_rels/review-source.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentsMatrix" Type="{$commentsRel}" Target="comments.xml?round=1#comments"/>
+  <Relationship Id="rFootnotesMatrix" Type="{$footnotesRel}" Target="footnotes.xml"/>
+  <Relationship Id="rEndnotesMatrix" Type="{$endnotesRel}" Target="endnotes.xml"/>
+  <Relationship Id="rCustomXmlMatrix" Type="{$customXmlRel}" Target="../customXml/item-review.xml?store=review#xml"/>
+  <Relationship Id="rGlossaryMatrix" Type="{$glossaryRel}" Target="glossary/document.xml"/>
+  <Relationship Id="rActiveXMatrix" Type="{$activeXRel}" Target="activeX/control1.xml"/>
+  <Relationship Id="rVbaMatrix" Type="{$vbaProjectRel}" Target="vbaProject.bin"/>
+  <Relationship Id="rMissingSettingsMatrix" Type="{$settingsRel}" Target="missing-settings.bin"/>
+</Relationships>
+XML;
+        $parts['word/comments.xml'] = $commentsXml;
+        $parts['word/footnotes.xml'] = $footnotesXml;
+        $parts['word/endnotes.xml'] = $endnotesXml;
+        $parts['customXml/item-review.xml'] = $customXml;
+        $parts['word/glossary/document.xml'] = $glossaryXml;
+        $parts['word/activeX/control1.xml'] = $activeXXml;
+        $parts['word/vbaProject.bin'] = $vbaProject;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $types = $package['relationshipTypes'];
+        $summary = $package['summary'];
+        $comments = $types[$commentsRel];
+        $footnotes = $types[$footnotesRel];
+        $endnotes = $types[$endnotesRel];
+        $custom = $types[$customXmlRel];
+        $glossary = $types[$glossaryRel];
+        $activeX = $types[$activeXRel];
+        $vba = $types[$vbaProjectRel];
+        $settings = $types[$settingsRel];
+
+        $t->same(8, $package['relationshipParts']['word/_rels/review-source.xml.rels']['relationshipCount']);
+        $t->true(in_array('word/_rels/review-source.xml.rels', $summary['relationshipPartsWithTargetReferenceSuffix'], true), 'matrix relationship sidecar suffix summary missing');
+        $t->same(3, $summary['relationshipTargetReferenceSuffixCount']);
+        $t->same(3, $summary['relationshipTargetQueryCount']);
+        $t->same(2, $summary['relationshipTargetFragmentCount']);
+
+        $t->same('comments', $comments['label']);
+        $t->same(1, $comments['count']);
+        $t->same(1, $comments['parameterizedContentTypeTargetCount']);
+        $t->same(['word'], $comments['targetDirectories']);
+        $t->same(['word' => 1], $comments['targetDirectoryCounts']);
+        $t->same(['override' => 1], $comments['targetContentTypeSourceCounts']);
+        $t->same(0, $comments['missingContentTypeTargetCount']);
+        $t->same(1, $comments['targetRoleCounts']['comments']);
+        $t->same(1, $comments['targetRoleCounts']['relationship-target']);
+        $t->same(strlen($commentsXml), $comments['existingTargetPartByteLength']);
+        $t->same('word/comments.xml', $comments['largestExistingTargetPart']['partName']);
+        $t->same(hash('sha256', $commentsXml), $comments['largestExistingTargetPart']['sha256']);
+        $t->same(sprintf('%08x', crc32($commentsXml)), $comments['existingTargetPartDigests'][0]['crc32']);
+        $t->same('?round=1#comments', $comments['relationships'][0]['targetReferenceSuffix']);
+        $t->same(['profile' => 'review-comments'], $comments['relationships'][0]['contentTypeParameterMap']);
+
+        $t->same('footnotes', $footnotes['label']);
+        $t->same(['footnotes' => 1, 'relationship-target' => 1], $footnotes['targetRoleCounts']);
+        $t->same(strlen($footnotesXml), $footnotes['existingTargetPartByteLength']);
+        $t->same(hash('sha256', $footnotesXml), $footnotes['existingTargetPartDigests'][0]['sha256']);
+        $t->same('word/footnotes.xml', $footnotes['largestExistingTargetPart']['partName']);
+
+        $t->same('endnotes', $endnotes['label']);
+        $t->same(['endnotes' => 1, 'relationship-target' => 1], $endnotes['targetRoleCounts']);
+        $t->same(strlen($endnotesXml), $endnotes['existingTargetPartByteLength']);
+        $t->same('word/endnotes.xml', $endnotes['existingTargetPartDigests'][0]['partName']);
+
+        $t->same('customXml', $custom['label']);
+        $t->same(['customXml' => 1], $custom['targetDirectoryCounts']);
+        $t->same(['default' => 1], $custom['targetContentTypeSourceCounts']);
+        $t->same(['custom-xml-part' => 1, 'relationship-target' => 1], $custom['targetRoleCounts']);
+        $t->same(strlen($customXml), $custom['existingTargetPartByteLength']);
+        $t->same('store=review', $custom['relationships'][0]['targetQuery']);
+        $t->same('xml', $custom['relationships'][0]['targetFragment']);
+
+        $t->same('glossaryDocument', $glossary['label']);
+        $t->same(['word/glossary' => 1], $glossary['targetDirectoryCounts']);
+        $t->same(['glossary-document' => 1, 'relationship-target' => 1], $glossary['targetRoleCounts']);
+        $t->same(strlen($glossaryXml), $glossary['existingTargetPartByteLength']);
+
+        $t->same('control', $activeX['label']);
+        $t->same(['activex-control' => 1, 'relationship-target' => 1], $activeX['targetRoleCounts']);
+        $t->same(strlen($activeXXml), $activeX['existingTargetPartByteLength']);
+        $t->same(hash('sha256', $activeXXml), $activeX['existingTargetPartDigests'][0]['sha256']);
+
+        $t->same('vbaProject', $vba['label']);
+        $t->same(['relationship-target' => 1, 'vba-project' => 1], $vba['targetRoleCounts']);
+        $t->same(strlen($vbaProject), $vba['existingTargetPartByteLength']);
+        $t->same('word/vbaProject.bin', $vba['largestExistingTargetPart']['partName']);
+
+        $t->same('settings', $settings['label']);
+        $t->same(0, $settings['existingTargetCount']);
+        $t->same(1, $settings['missingTargetCount']);
+        $t->same(['word/missing-settings.bin'], $settings['missingTargetParts']);
+        $t->same(['word' => 1], $settings['targetDirectoryCounts']);
+        $t->same(['missing' => 1], $settings['targetContentTypeSourceCounts']);
+        $t->same(1, $settings['missingContentTypeTargetCount']);
+        $t->same([], $settings['targetRoleCounts']);
+        $t->same(0, $settings['existingTargetPartByteLength']);
+        $t->same(null, $settings['largestExistingTargetPart']);
+    },
     'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
