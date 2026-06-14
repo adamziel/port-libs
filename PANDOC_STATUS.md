@@ -4,7 +4,7 @@ Updated: 2026-06-14 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 54 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 55 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 54 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest PDF/Typst evidence: `PdfEngineHandoff` parses explicit Typst `--deps-format=zero` sidecars as NUL-delimited input-only dependency provenance, including local inputs, Typst package review metadata, root read-boundary policy, and dependency-output review when the sidecar carries no output target.
+Latest ODF/ODT evidence: `OpenDocumentPackage` preserves compact manifest custom attribute collision provenance, including repeated custom attribute names across entries, namespace rebinding, structural-name shadowing, decoded path conflict rejection, stable ordering, and `OdfReader` package provenance parity.
 
-Current Pandoc counters: 3,528 PHP passes / 0 failures and 3,445 mapped upstream cases. Verification passed `php -l lanes/pandoc/src/PdfEngineHandoff.php`, `php -l lanes/pandoc/tests/PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2,543` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,483` assertions, `0` failures), `jq empty`, and `git diff --check`.
+Current Pandoc counters: 3,578 PHP passes / 0 failures and 3,502 mapped upstream cases. Verification passed `php -l lanes/pandoc/tests/OpenDocumentPackageTest.php`, focused `OpenDocumentPackageTest.php` (`1` file, `1,409` assertions, `0` failures), focused ODF/ODT gate (`5` files, `6,478` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,957` assertions, `0` failures), `jq empty`, and `git diff --check`.
