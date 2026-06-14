@@ -88,6 +88,7 @@ return [
     'reads tagged pandoc document constructors into shared ast documents' => static function (TestRunner $t): void {
         $pandoc = [
             't' => 'Pandoc',
+            'pandoc-api-version' => [1, 24, 2],
             'c' => [
                 ['t' => 'MetaMap', 'c' => [
                     'source' => ['t' => 'MetaString', 'c' => 'tagged-document'],
@@ -119,6 +120,7 @@ return [
             $t->same('document', $document->type, "{$source} document type");
             $t->same('Pandoc', $document->attr('documentConstructor'), "{$source} document constructor");
             $t->same($pandoc, $document->attr('documentNative'), "{$source} document native payload");
+            $t->same([1, 24, 2], $document->attr('pandocApiVersion'), "{$source} tagged document API version");
             $t->same($source === 'json' ? 'tagged-document' : ['t' => 'MetaString', 'c' => 'tagged-document'], $document->attr('meta')['source'], "{$source} tagged document metadata");
             $t->same($source === 'json' ? true : ['t' => 'MetaBool', 'c' => true], $document->attr('meta')['review'], "{$source} tagged document bool metadata");
             $t->same('paragraph', $paragraph->type, "{$source} paragraph type");
@@ -126,6 +128,8 @@ return [
             $t->same($pandoc['c'][1][0], $paragraph->attr('native'), "{$source} paragraph native payload");
             $t->same(['t' => 'MetaString', 'c' => 'tagged-document'], $jsonPacket['meta']['source'], "{$source} json writer emits standard meta");
             $t->same(['t' => 'MetaString', 'c' => 'tagged-document'], $nativePacket['meta']['source'], "{$source} native writer emits standard meta");
+            $t->same([1, 24, 2], $jsonPacket['pandoc-api-version'], "{$source} json writer emits tagged document API version");
+            $t->same([1, 24, 2], $nativePacket['pandoc-api-version'], "{$source} native writer emits tagged document API version");
             $t->same($pandoc['c'][1], $jsonPacket['blocks'], "{$source} json writer preserves tagged document blocks");
             $t->same($pandoc['c'][1], $nativePacket['blocks'], "{$source} native writer preserves tagged document blocks");
             $t->same(false, array_key_exists('t', $jsonPacket), "{$source} json writer emits packet object");

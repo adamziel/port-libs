@@ -76,11 +76,15 @@ final class PandocJsonReader
     {
         if ($this->isTaggedObject($packet) && $packet['t'] === 'Pandoc') {
             $content = $this->tuple($packet['c'] ?? null, 2, 'Pandoc');
-
-            return [
+            $normalized = [
                 'meta' => $content[0],
                 'blocks' => $content[1],
             ];
+            if (array_key_exists('pandoc-api-version', $packet)) {
+                $normalized['pandoc-api-version'] = $packet['pandoc-api-version'];
+            }
+
+            return $normalized;
         }
 
         if (!array_is_list($packet)) {

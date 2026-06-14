@@ -57,11 +57,15 @@ final class NativeReader
     {
         if ($this->isTaggedConstructor($native, 'Pandoc')) {
             $content = $this->tuple($native['c'] ?? null, 2, 'Pandoc native JSON Pandoc content');
-
-            return [
+            $normalized = [
                 'meta' => $content[0],
                 'blocks' => $content[1],
             ];
+            if (array_key_exists('pandoc-api-version', $native)) {
+                $normalized['pandoc-api-version'] = $native['pandoc-api-version'];
+            }
+
+            return $normalized;
         }
 
         if (!array_is_list($native)) {
