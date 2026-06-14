@@ -4,7 +4,7 @@ Updated: 2026-06-14 UTC
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 53 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 54 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 53 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 49 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest registry evidence: `PandocFormatRegistry` records bounded wiki-family alias collision diagnostics for the `wiki` token suffix and `.wiki` MediaWiki/Vimwiki fixture-extension conflict while keeping `.wiki => mediawiki` extension inference unchanged. The slice keeps stable unsupported reader/writer reason payloads, empty native implementation records, `externalToolFree=true`, `directReaderParitySupported=false`, and `directWriterParitySupported=false`; native wiki reader/writer parity remains unsupported.
+Latest ODF package evidence: `OdfReader` preserves manifest and local ZIP entry ordering across mimetype, `META-INF/manifest.xml`, core XML parts, declared media, missing package parts, unsupported-compression byte blocks, script sidecars, and RDF metadata-only sidecars while exposing bytes only for eligible document media.
 
-Current Pandoc counters: 3,518 PHP passes / 0 failures and 3,437 mapped upstream cases. Verification passed `php -l` for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php` (`1` file, `2,484` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,323` assertions, `0` failures), `jq empty`, and `git diff --check`.
+Current Pandoc counters: 3,519 PHP passes / 0 failures and 3,438 mapped upstream cases. Verification passed `php -l lanes/pandoc/tests/OdfReaderTest.php`, focused `OdfReaderTest.php` (`1` file, `4,769` assertions, `0` failures), focused ODF/ODT gate (`5` files, `6,351` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,368` assertions, `0` failures), `jq empty`, and `git diff --check`.

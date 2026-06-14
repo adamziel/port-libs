@@ -5,7 +5,7 @@
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | PHP green, upstream gap | 100.0% | 3,621 pass / 0 fail | [763 / 78 (978.2%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No GPU/model execution will be run for markerPDF under current user d... | pending fast ba... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |
-| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,518 pass / 0 fail | [3,437 / 2,276 (151.0%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue wiki/roff/text reader parity after alias collision diagnostics | pandoc-wiki-alias-collision-taxonomy |
+| [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 96.0% | 3,519 pass / 0 fail | [3,438 / 2,276 (151.1%)](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | 0 | Continue ODF/ODT hardening after handoff-order compression coverage | odf-handoff-order-compression |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55 (100.0%)](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | cd2e8a0 |
 | [syncthing](lanes/syncthing/lane-status.json) | Backlog | PHP green, upstream gap | 99.0% | 350 pass / 0 fail | [350 / 658 (53.2%)](lanes/syncthing/UPSTREAM_TEST_MANIFEST.json) | 308 | No local blocker | cd2e8a0 |
 | [difftastic](lanes/difftastic/lane-status.json) | Backlog | Active port | 80.0% | 279 pass / 0 fail | [272 / 586 (46.4%)](lanes/difftastic/UPSTREAM_TEST_MANIFEST.json) | 314 | Upstream runner parity unavailable | cd2e8a0 |
@@ -37,7 +37,7 @@ Focused test counts below are evidence counters, not a strict remaining-test bur
 | JSON/native AST | `json`, `native` | partial | 62 | 252 | Single-wrapped metadata constructor payloads, Figure child block payload preservation, nested metadata payload preservation, mixed metadata block-container stress coverage, mixed Figure link/raw/code handoff, citation prefix/suffix payload preservation, raw HTML alias preservation, table attribute handoff, table ColSpec sidecars, mixed block-container and table caption/cell flushing, nullary helper payload validation, task-list checkbox sidecars, note label sidecars, definition-list term handoff, and fixture writer handoff are preserved; complete broader JSON/native AST constructor coverage. |
 | DOCX/OpenXML | `docx` | partial | 95 | 35 | Finish remaining direct WordprocessingML/package reader parity; section-property review metadata, subdocument diagnostics, note/comment relationship diagnostics, and custom XML properties schema diagnostics are covered. |
 | EPUB/EPUB3 | `epub` | partial | 66 | 9 | Direct manifest suffix diagnostics, skipped spine-entry reporting, XHTML definition-list handoff, XHTML table-section review metadata, compact nav/NCX label provenance, NCX hierarchy diagnostics, nav fragment target diagnostics, and nav document section diagnostics are covered; finish broader EPUB package reader parity. |
-| ODF/ODT/OpenDocument | `odt` | ship-ready | 53 | 20 | 0 critical gaps for native PHP ODT import; compact raw ZIP name provenance, compact manifest custom attribute provenance, and sidecar package byte-exposure ordering are covered. Continue only non-critical hardening slices as discovered. |
+| ODF/ODT/OpenDocument | `odt` | ship-ready | 54 | 20 | 0 critical gaps for native PHP ODT import; compact raw ZIP name provenance, compact manifest custom attribute provenance, sidecar package byte-exposure ordering, and handoff ordering across missing package parts plus unsupported-compression byte blocks are covered. Continue only non-critical hardening slices as discovered. |
 | Shared ZIP/OPC package | dependency for package readers | partial dependency | 107 | 67 | Selected-entry role bucket handoff is covered; finish shared ZIP/OPC package ingestion used by DOCX, EPUB, ODT, PPTX, and XLSX. |
 | CSL/BibTeX/BibLaTeX/csljson citations | `bibtex`, `biblatex`, `csljson`, `endnotexml`, `ris` | mixed | 79 | 8 | Citation prefix/suffix affix review metadata, bounded RIS item parsing, and bounded EndNote XML name-group diagnostics are covered; broader EndNote XML reader parity, broader RIS coverage, and full reader-registry parity remain. |
 | LaTeX/TeX/math | `latex` | partial | 21 | 14 | Labelled note anchor handoff is covered for LaTeX writer output; finish LaTeX reader and math conversion parity. |
@@ -56,6 +56,14 @@ Adjacent import targets outside the Pandoc input denominator:
 | PDF | 49 / 17 | Pandoc has `pdf` as an output target, not an input format. | Track as separate PDF import/markerPDF ingestion work. |
 | Legacy DOC/CFB | 7 / 7 | Not a current upstream Pandoc input token. | Decide and track as separate legacy document import support. |
 | IPYNB/notebook | skipped | Upstream Pandoc input token intentionally skipped for this phase. | No work in this burn-down. |
+
+### ODF Package Handoff Order Compression Update (2026-06-14)
+
+Bounded native PHP ODF/ODT package-reader coverage advanced by one handoff-order compression slice after the wiki alias collision taxonomy slice. `OdfReader` now verifies manifest and local ZIP entry ordering across mimetype, `META-INF/manifest.xml`, core XML parts, declared media, missing package parts, unsupported-compression byte blocks, script sidecars, and RDF metadata-only sidecars while keeping script/RDF bytes out of document media handoff.
+
+Verification passed `php -l lanes/pandoc/tests/OdfReaderTest.php`; focused `OdfReaderTest.php` passed (`1` file, `4,769` assertions, `0` failures); focused ODF/ODT gate passed (`5` files, `6,351` assertions, `0` failures); full `lanes/pandoc/tests` passed (`46` files, `83,368` assertions, `0` failures). No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, online validator, live provider, or external validator was invoked.
+
+ODF/ODT evidence is now 54 local mapped cases against the 20 accepted static upstream ODF/ODT rows, with 0 remaining critical ODF/ODT gaps. The native PHP ODF/ODT input ship-ready verdict remains unchanged.
 
 ### Wiki Alias Collision Taxonomy Update (2026-06-14)
 
@@ -91,7 +99,7 @@ DOCX/OpenXML evidence is now 95 local cases against the 35 accepted static upstr
 
 ### Closure-Wave Evidence Snapshot (2026-06-13)
 
-Current-main counters are reconciled through the Pandoc wiki alias collision taxonomy slice rebased on `1bf195ba7b`: 3,518 PHP passes, 0 failures, and 3,437 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `PandocFormatRegistry.php` and `PandocFormatRegistryTest.php`, focused `PandocFormatRegistryTest.php` (`1` file, `2,484` assertions, `0` failures), and full `lanes/pandoc/tests` (`46` files, `83,323` assertions, `0` failures).
+Current-main counters are reconciled through the ODF/ODT package handoff-order compression slice rebased on `6f3ab17956`: 3,519 PHP passes, 0 failures, and 3,438 mapped upstream cases out of the accepted 2,276-row static upstream inventory. Rows below summarize the recently landed closure-wave evidence; they are factual evidence counters, not global ship-ready claims. This refresh was checked with `jq empty`, `git diff --check`, syntax checks for `OdfReaderTest.php`, focused `OdfReaderTest.php` (`1` file, `4,769` assertions, `0` failures), focused ODF/ODT gate (`5` files, `6,351` assertions, `0` failures), and full `lanes/pandoc/tests` (`46` files, `83,368` assertions, `0` failures).
 
 | Surface | Evidence state | Upstream denominator | Local passing numerator | Ship verdict | Remaining critical gaps |
 | --- | --- | ---: | ---: | --- | --- |

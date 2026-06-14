@@ -9824,6 +9824,126 @@ XML;
         $t->same(7, $image->attr('compressedByteLength'));
         $t->same(7, $image->attr('bytes'));
     },
+    'preserves ODT package handoff order across missing and unsupported byte blocks' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $contentXml, $stylesXml, $metaXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:settings/>
+</office:document-settings>
+XML;
+        $rdfXml = <<<'XML'
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="content.xml"/>
+</rdf:RDF>
+XML;
+        $unsupportedBytes = 'UNSUPPORTED-BLOCK';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $manifestWithPackageHandoff = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/unsupported.bin" manifest:media-type="application/octet-stream"/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
+</manifest:manifest>
+XML;
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithPackageHandoff],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/unsupported.bin', 'data' => $unsupportedBytes, 'compressionMethod' => 12],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+            ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+
+        $manifestReport = $result['importReport']['manifest'];
+        $provenance = $manifestReport['packageProvenance'];
+        $packageParts = $provenance['parts'];
+        $manifestOrder = $provenance['manifestFileEntryOrder'];
+        $localOrder = $provenance['localHeaderOrder'];
+        $compression = $provenance['compressionMethods'];
+
+        $t->same([
+            '/',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+            'Pictures/hero.png',
+            'Pictures/missing.png',
+            'Pictures/unsupported.bin',
+            'Basic/Standard/Module1.xml',
+            'manifest.rdf',
+        ], array_column($manifestOrder, 'fullPath'));
+        $t->same(array_column($parts, 'name'), array_column($localOrder['entries'], 'name'));
+        $t->same(10, $provenance['entryCount']);
+        $t->same(9, $provenance['manifestDeclaredPartCount']);
+        $t->same(10, $provenance['manifestFileEntryCount']);
+        $t->same(6, $provenance['corePackagePartCount']);
+        $t->same(2, $provenance['mediaResourcePartCount']);
+        $t->same(1, $provenance['rdfMetadataPartCount']);
+        $t->same(1, $provenance['roleCounts']['script-package']);
+        $t->same(1, $provenance['roleCounts']['rdf-metadata']);
+
+        $t->same(['odf-mimetype'], $packageParts['mimetype']['roles']);
+        $t->same(['odf-manifest'], $packageParts['META-INF/manifest.xml']['roles']);
+        $t->same(['odf-content', 'manifest-declared'], $packageParts['content.xml']['roles']);
+        $t->same(['odf-styles', 'manifest-declared'], $packageParts['styles.xml']['roles']);
+        $t->same(['odf-meta', 'manifest-declared'], $packageParts['meta.xml']['roles']);
+        $t->same(['odf-settings', 'manifest-declared'], $packageParts['settings.xml']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $packageParts['Pictures/hero.png']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $packageParts['Pictures/unsupported.bin']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $packageParts['Basic/Standard/Module1.xml']['roles']);
+        $t->same(['rdf-metadata', 'manifest-declared'], $packageParts['manifest.rdf']['roles']);
+
+        $t->same(['Pictures/hero.png', 'Pictures/missing.png', 'Pictures/unsupported.bin'], array_column($result['media'], 'part'));
+        $t->same(true, $mediaByPart['Pictures/hero.png']['canExposeBytes']);
+        $t->same('package-bytes-exposable', $mediaByPart['Pictures/hero.png']['byteExposurePolicy']);
+        $t->same(false, $mediaByPart['Pictures/missing.png']['exists']);
+        $t->same(null, $mediaByPart['Pictures/missing.png']['byteLength']);
+        $t->same('missing-package-part', $mediaByPart['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same(true, $mediaByPart['Pictures/unsupported.bin']['exists']);
+        $t->same(null, $mediaByPart['Pictures/unsupported.bin']['byteLength']);
+        $t->same(strlen($unsupportedBytes), $mediaByPart['Pictures/unsupported.bin']['storedByteLength']);
+        $t->same(12, $mediaByPart['Pictures/unsupported.bin']['compressionMethod']);
+        $t->same('unsupported', $mediaByPart['Pictures/unsupported.bin']['compressionMethodName']);
+        $t->same(false, $mediaByPart['Pictures/unsupported.bin']['canExposeBytes']);
+        $t->same('unsupported-compression-bytes-blocked', $mediaByPart['Pictures/unsupported.bin']['byteExposurePolicy']);
+
+        $t->same('missing-package-part', $manifestByPart['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same('unsupported-compression-bytes-blocked', $manifestByPart['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->same('rdf-metadata-bytes-blocked', $manifestByPart['manifest.rdf']['byteExposurePolicy']);
+        $t->same('unsupported-compression-bytes-blocked', $packageParts['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same('script-package-bytes-blocked', $packageParts['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->same('rdf-metadata-bytes-blocked', $packageParts['manifest.rdf']['byteExposurePolicy']);
+        $t->same(['Pictures/missing.png'], array_column($manifestReport['missingItems'], 'part'));
+        $t->same(1, $compression['unsupportedCompressionMethodCount']);
+        $t->same(['Pictures/unsupported.bin'], array_column($compression['unsupportedEntries'], 'name'));
+        $t->same(1, $result['rdfMetadata']['partCount']);
+        $t->same(1, $result['scriptMetadata']['count']);
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
