@@ -1308,9 +1308,47 @@ final class NativeReader
     private function inlineBlock(string $type, array $attrs, mixed $nativeInlines): AstNode
     {
         $children = $this->inlines($nativeInlines);
+        if ($type === 'paragraph') {
+            $figure = $this->legacySimpleFigureBlock($attrs, $children);
+            if ($figure instanceof AstNode) {
+                return $figure;
+            }
+        }
+
         $attrs['text'] = $this->plainTextFromInlines($children);
 
         return new AstNode($type, $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $blockAttrs
+     * @param list<AstNode> $children
+     */
+    private function legacySimpleFigureBlock(array $blockAttrs, array $children): ?AstNode
+    {
+        if (count($children) !== 1 || $children[0]->type !== 'image') {
+            return null;
+        }
+
+        $image = $children[0];
+        $title = $image->attr('title', null);
+        if (!is_string($title) || !str_starts_with($title, 'fig:')) {
+            return null;
+        }
+
+        $captionInlines = $image->children;
+        $attrs = array_replace($blockAttrs, [
+            'caption' => $this->plainTextFromInlines($captionInlines),
+            'simpleFigure' => true,
+        ]);
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        $imageAttrs = $image->attrs;
+        $imageAttrs['title'] = substr($title, 4);
+
+        return new AstNode('figure', $attrs, [new AstNode('image', $imageAttrs, $captionInlines)]);
     }
 
     /**

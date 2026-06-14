@@ -556,8 +556,8 @@ final class PandocJsonReader
         [$tag, $content] = $this->tagged($value, 'block');
 
         $node = match ($tag) {
-            'Plain' => new AstNode('plain', [], $this->readInlines($this->listContent($content, 'Plain'))),
-            'Para' => new AstNode('paragraph', [], $this->readInlines($this->listContent($content, 'Para'))),
+            'Plain' => $this->readInlineBlock('plain', $content, 'Plain'),
+            'Para' => $this->readInlineBlock('paragraph', $content, 'Para'),
             'Header' => $this->readHeaderBlock($content),
             'CodeBlock' => $this->readCodeBlock($content),
             'RawBlock' => $this->readRawBlock($content),
@@ -575,6 +575,49 @@ final class PandocJsonReader
         };
 
         return $this->withConstructorPayload($node, $tag, $value);
+    }
+
+    private function readInlineBlock(string $type, mixed $content, string $context): AstNode
+    {
+        $children = $this->readInlines($this->listContent($content, $context));
+        if ($type === 'paragraph') {
+            $figure = $this->legacySimpleFigureBlock($children);
+            if ($figure instanceof AstNode) {
+                return $figure;
+            }
+        }
+
+        return new AstNode($type, [], $children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function legacySimpleFigureBlock(array $children): ?AstNode
+    {
+        if (count($children) !== 1 || $children[0]->type !== 'image') {
+            return null;
+        }
+
+        $image = $children[0];
+        $title = $image->attr('title', null);
+        if (!is_string($title) || !str_starts_with($title, 'fig:')) {
+            return null;
+        }
+
+        $captionInlines = $image->children;
+        $attrs = [
+            'caption' => $this->plainText($captionInlines),
+            'simpleFigure' => true,
+        ];
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        $imageAttrs = $image->attrs;
+        $imageAttrs['title'] = substr($title, 4);
+
+        return new AstNode('figure', $attrs, [new AstNode('image', $imageAttrs, $captionInlines)]);
     }
 
     private function readHeaderBlock(mixed $content): AstNode

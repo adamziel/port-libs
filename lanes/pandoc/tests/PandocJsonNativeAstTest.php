@@ -7168,6 +7168,63 @@ return [
         $t->same('Generated short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Generated alt', $generatedRoundTrip->children[0]->children[0]->attr('alt'));
     },
+    'normalizes legacy simple figure image paragraphs through json and native readers' => static function (TestRunner $t): void {
+        $legacyImage = [
+            't' => 'Image',
+            'c' => [
+                ['legacy-figure-image', ['asset'], [['data-source', 'legacy']]],
+                [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Emph', 'c' => [
+                        ['t' => 'Str', 'c' => 'caption'],
+                    ]],
+                ],
+                ['media/legacy.png', 'fig:Legacy title'],
+            ],
+            'reviewQueue' => 'legacy-image-source',
+        ];
+        $legacyParagraph = [
+            't' => 'Para',
+            'c' => [$legacyImage],
+            'reviewQueue' => 'legacy-simple-figure-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$legacyParagraph],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $figure = $document->children[0];
+            $image = $figure->children[0];
+            $captionInlines = $figure->attr('captionInlines');
+            $captionTypes = $source === 'native' ? ['text', 'emph'] : ['text', 'space', 'emph'];
+
+            $t->same('figure', $figure->type, "{$source} legacy simple figure normalizes to figure");
+            $t->same('Para', $figure->attr('constructor'), "{$source} retains source paragraph constructor");
+            $t->same($legacyParagraph, $figure->attr('native'), "{$source} retains source paragraph native payload");
+            $t->same('Legacy caption', $figure->attr('caption'), "{$source} maps image label as figure caption");
+            $t->same(true, is_array($captionInlines), "{$source} exposes caption inlines");
+            $t->same($captionTypes, array_map(static fn (AstNode $node): string => $node->type, $captionInlines), "{$source} preserves formatted caption inlines");
+            $t->same('image', $image->type, "{$source} keeps image child");
+            $t->same('Legacy caption', $image->attr('alt'), "{$source} keeps image alt text");
+            $t->same('Legacy title', $image->attr('title'), "{$source} strips legacy fig title marker from shared image title");
+            $t->same(['media/legacy.png', 'fig:Legacy title'], $image->attr('targetNative'), "{$source} keeps source target tuple");
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($document),
+                'native writer' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($legacyParagraph, $encoded['blocks'][0], "{$source} {$writer} preserves unchanged legacy simple figure payload");
+            }
+        }
+    },
     'reads table just and figure nothing short caption constructors' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',
