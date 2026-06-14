@@ -503,6 +503,9 @@ final class EpubPackage
         $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
             ? $this->metadata['linkVocabulary']
             : self::metadataLinkVocabularySummary($this->packageLinks);
+        $metaPropertyVocabulary = is_array($this->metadata['metaPropertyVocabulary'] ?? null)
+            ? $this->metadata['metaPropertyVocabulary']
+            : self::metadataMetaPropertyVocabularySummary([]);
         $collectionLinkVocabulary = self::collectionLinkVocabularySummary($this->collections);
         $collectionRoleVocabulary = self::collectionRoleVocabularySummary($this->collections);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
@@ -538,6 +541,7 @@ final class EpubPackage
             'ocfSidecars' => $ocfSidecars,
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
+            'metaPropertyVocabulary' => $metaPropertyVocabulary,
             'packageLinks' => $this->packageLinks,
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
             'packageLinkRelCounts' => $packageLinkReport['relCounts'],
@@ -617,9 +621,14 @@ final class EpubPackage
                     'bibliographicDetails' => $this->metadata['bibliographicDetails'] ?? [],
                     'bibliographicDetailsByKind' => $this->metadata['bibliographicDetailsByKind'] ?? [],
                     'bibliographicSummary' => $this->metadata['bibliographicSummary'] ?? [],
+                    'meta' => $this->metadata['meta'] ?? [],
+                    'metaPropertyVocabulary' => $metaPropertyVocabulary,
+                    'metaPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                     'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
+                'metadataPropertyVocabulary' => $metaPropertyVocabulary,
+                'metadataPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
                 'renditions' => $this->renditions,
                 'renditionDiagnostics' => $this->renditions['diagnostics'],
@@ -1074,6 +1083,15 @@ final class EpubPackage
                 $prefixDiagnostics[] = $diagnostic;
             }
         }
+        $metaPropertyDiagnostics = [];
+        $metaPropertyVocabulary = is_array($metadata['metaPropertyVocabulary'] ?? null)
+            ? $metadata['metaPropertyVocabulary']
+            : self::metadataMetaPropertyVocabularySummary([]);
+        foreach (is_array($metaPropertyVocabulary['diagnostics'] ?? null) ? $metaPropertyVocabulary['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $metaPropertyDiagnostics[] = $diagnostic;
+            }
+        }
         $diagnostics = [];
 
         if (!$titlePresent) {
@@ -1104,7 +1122,7 @@ final class EpubPackage
             ];
         }
 
-        array_push($diagnostics, ...$prefixDiagnostics);
+        array_push($diagnostics, ...$prefixDiagnostics, ...$metaPropertyDiagnostics);
 
         return [
             'valid' => $diagnostics === [],
@@ -1115,6 +1133,9 @@ final class EpubPackage
             'prefixValid' => $prefixDiagnostics === [],
             'prefixDiagnosticCount' => count($prefixDiagnostics),
             'prefixDiagnostics' => $prefixDiagnostics,
+            'metaPropertyValid' => $metaPropertyDiagnostics === [],
+            'metaPropertyDiagnosticCount' => count($metaPropertyDiagnostics),
+            'metaPropertyDiagnostics' => $metaPropertyDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3256,6 +3277,11 @@ final class EpubPackage
                 'language' => self::metadataElementLanguage($child),
                 'direction' => self::metadataElementDirection($child),
             ];
+            $entry['propertyVocabulary'] = self::metadataMetaPropertyTokenReport(
+                $property,
+                $prefixBindings,
+                count($meta),
+            );
             $meta[] = $entry;
 
             if ($property !== null && $property !== '') {
@@ -3294,6 +3320,7 @@ final class EpubPackage
         $rightsDetails = $bibliographicDetailsByKind['rights'] ?? [];
         $rightsSummary = self::metadataRightsSummary($rightsDetails);
         $renditionLayout = self::metadataRenditionLayoutReport($metaProperties);
+        $metaPropertyVocabulary = self::metadataMetaPropertyVocabularySummary($meta);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
         $packageRefinements = $packageId !== null && isset($refinementsById[$packageId]) && is_array($refinementsById[$packageId])
             ? $refinementsById[$packageId]
@@ -3375,6 +3402,8 @@ final class EpubPackage
             'properties' => $propertyValues,
             'dc' => $dc,
             'metaProperties' => $metaProperties,
+            'metaPropertyVocabulary' => $metaPropertyVocabulary,
+            'metaPropertyDiagnostics' => $metaPropertyVocabulary['diagnostics'],
             'meta' => $meta,
             'refinementsById' => $refinementsById,
             'coverImageId' => $coverImageId,
