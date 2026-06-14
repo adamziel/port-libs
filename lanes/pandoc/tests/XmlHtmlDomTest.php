@@ -5111,6 +5111,51 @@ XML, 'DocBook media caption cross-reference XML', preserveWhiteSpace: false);
         $t->contains($html, $blocks);
         $t->same('/migration/dialog-state-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes implicit html popover target toggle action for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<button id="toggle-notes" type="button" popovertarget="notes">Toggle</button>'
+                . '<button id="empty-action" popovertarget="notes" popovertargetaction="">Empty</button>'
+                . '<button id="bad-action" popovertarget="notes" popovertargetaction="dismiss">Bad</button>'
+                . '<aside id="notes" popover>Notes</aside>',
+            'implicit popover target action review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $toggle = $summary[0];
+        $empty = $summary[1];
+        $bad = $summary[2];
+        $notes = $summary[3];
+
+        $t->same('notes', $toggle['popoverTargetRaw']);
+        $t->same('notes', $toggle['popoverTarget']);
+        $t->same(true, $toggle['popoverTargetValid']);
+        $t->same(null, $toggle['popoverTargetActionRaw']);
+        $t->same('toggle', $toggle['popoverTargetAction']);
+        $t->same(true, $toggle['popoverTargetActionValid']);
+        $t->same(true, $toggle['popoverTargetActionDefaulted']);
+
+        $t->same('', $empty['popoverTargetActionRaw']);
+        $t->same('toggle', $empty['popoverTargetAction']);
+        $t->same(true, $empty['popoverTargetActionValid']);
+        $t->same(false, $empty['popoverTargetActionDefaulted']);
+
+        $t->same('dismiss', $bad['popoverTargetActionRaw']);
+        $t->same(null, $bad['popoverTargetAction']);
+        $t->same(false, $bad['popoverTargetActionValid']);
+        $t->same(false, $bad['popoverTargetActionDefaulted']);
+
+        $t->same('', $notes['popoverRaw']);
+        $t->same('auto', $notes['popoverState']);
+        $t->same(true, $notes['popoverValid']);
+        $t->same(
+            '<button id="toggle-notes" popovertarget="notes" type="button">Toggle</button>'
+                . '<button id="empty-action" popovertarget="notes" popovertargetaction="">Empty</button>'
+                . '<button id="bad-action" popovertarget="notes" popovertargetaction="dismiss">Bad</button>'
+                . '<aside id="notes" popover="">Notes</aside>',
+            $html
+        );
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

@@ -14792,11 +14792,13 @@ final class XmlHtmlDom
             $summary['popoverTargetValid'] = $target !== null;
         }
 
-        if (array_key_exists('popovertargetaction', $attributes)) {
-            $action = self::popoverTargetAction($attributes['popovertargetaction']);
-            $summary['popoverTargetActionRaw'] = $attributes['popovertargetaction'];
+        if (array_key_exists('popovertarget', $attributes) || array_key_exists('popovertargetaction', $attributes)) {
+            $actionRaw = $attributes['popovertargetaction'] ?? '';
+            $action = self::popoverTargetAction($actionRaw);
+            $summary['popoverTargetActionRaw'] = $attributes['popovertargetaction'] ?? null;
             $summary['popoverTargetAction'] = $action;
             $summary['popoverTargetActionValid'] = $action !== null;
+            $summary['popoverTargetActionDefaulted'] = !array_key_exists('popovertargetaction', $attributes);
         }
 
         return $summary;
@@ -15259,7 +15261,7 @@ final class XmlHtmlDom
     {
         $value = strtolower(trim($value));
 
-        return in_array($value, ['hide', 'show', 'toggle'], true) ? $value : null;
+        return in_array($value, ['', 'hide', 'show', 'toggle'], true) ? ($value === '' ? 'toggle' : $value) : null;
     }
 
     /**
