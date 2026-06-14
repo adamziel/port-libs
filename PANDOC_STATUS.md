@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 52 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 0 | 20 |
 | HTML / XML / JATS / BITS DOM | 29 | 54 |
 | DOCX / OpenXML | 94 | 256 |
-| EPUB / EPUB3 | 9 | 15 |
+| EPUB / EPUB3 | 10 | 15 |
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 79 | 227 |
 | LaTeX / TeX / math | 21 | 36 |

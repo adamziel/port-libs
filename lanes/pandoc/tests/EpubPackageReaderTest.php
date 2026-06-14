@@ -436,6 +436,136 @@ XML);
             $removeDirectory($root);
         }
     },
+    'reports epub nav document section diagnostics for direct package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-nav-document-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:reader-nav-document-review</dc:identifier>
+    <dc:title>Navigation Document Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="hidden-toc" epub:type="toc" hidden="hidden">
+      <h1>Hidden contents</h1>
+      <ol>
+        <li><a href="chapter.xhtml#hidden">Hidden start</a></li>
+      </ol>
+    </nav>
+    <nav id="visible-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a href="chapter.xhtml#start">Start</a></li>
+      </ol>
+    </nav>
+    <nav id="untitled-pages" epub:type="page-list">
+      <ol></ol>
+    </nav>
+    <nav id="glossary-review" epub:type="loi">
+      <h2>Figures</h2>
+    </nav>
+    <nav id="untyped-review">
+      <ol>
+        <li><a href="chapter.xhtml#note">Untyped note</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1 id="start">Start</h1>
+    <p id="hidden">Hidden start.</p>
+    <p id="note">Untyped note.</p>
+  </body>
+</html>
+XML);
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $navReport = $epub['navReport'];
+            $documentReport = $navReport['document'];
+            $sections = $documentReport['sections'];
+
+            $t->same($navReport, $epub['tocReport']);
+            $t->same($documentReport, $navReport['document']);
+            $t->same($documentReport['diagnostics'], $navReport['documentDiagnostics']);
+            $t->same(8, $navReport['documentDiagnosticCount']);
+            $t->same(true, $documentReport['present']);
+            $t->same('/EPUB/nav.xhtml', $documentReport['part']);
+            $t->same('EPUB/nav.xhtml', $documentReport['path']);
+            $t->same(5, $documentReport['sectionCount']);
+            $t->same(3, $documentReport['primarySectionCount']);
+            $t->same(2, $documentReport['tocSectionCount']);
+            $t->same(0, $documentReport['landmarksSectionCount']);
+            $t->same(1, $documentReport['pageListSectionCount']);
+            $t->same(true, $documentReport['requiredTocPresent']);
+            $t->same(1, $documentReport['duplicatePrimaryTypeCount']);
+            $t->same(1, $documentReport['hiddenPrimarySectionCount']);
+            $t->same(1, $documentReport['missingHeadingSectionCount']);
+            $t->same(1, $documentReport['missingOrderedListSectionCount']);
+            $t->same(2, $documentReport['emptySectionCount']);
+            $t->same(1, $documentReport['untypedSectionCount']);
+            $t->same(1, $documentReport['unrecognizedSectionCount']);
+            $t->same([
+                'hidden-primary-nav-section',
+                'missing-primary-nav-section-heading',
+                'empty-nav-section',
+                'unrecognized-nav-section-type',
+                'missing-nav-section-ordered-list',
+                'empty-nav-section',
+                'missing-nav-section-type',
+                'duplicate-primary-nav-section',
+            ], array_column($documentReport['diagnostics'], 'type'));
+
+            $t->same('hidden-toc', $sections[0]['sectionId']);
+            $t->same(['toc'], $sections[0]['sectionTypes']);
+            $t->same(true, $sections[0]['hidden']);
+            $t->same(1, $sections[0]['itemCount']);
+            $t->same('hidden-primary-nav-section', $sections[0]['diagnostics'][0]['type']);
+            $t->same('visible-toc', $sections[1]['sectionId']);
+            $t->same(['toc'], $sections[1]['sectionTypes']);
+            $t->same('untitled-pages', $sections[2]['sectionId']);
+            $t->same(['page-list'], $sections[2]['sectionTypes']);
+            $t->same(0, $sections[2]['itemCount']);
+            $t->same(['missing-primary-nav-section-heading', 'empty-nav-section'], array_column($sections[2]['diagnostics'], 'type'));
+            $t->same('glossary-review', $sections[3]['sectionId']);
+            $t->same(['loi'], $sections[3]['epubTypes']);
+            $t->same(null, $sections[3]['sectionType']);
+            $t->same(['unrecognized-nav-section-type', 'missing-nav-section-ordered-list', 'empty-nav-section'], array_column($sections[3]['diagnostics'], 'type'));
+            $t->same('untyped-review', $sections[4]['sectionId']);
+            $t->same([], $sections[4]['epubTypes']);
+            $t->same(['missing-nav-section-type'], array_column($sections[4]['diagnostics'], 'type'));
+
+            $duplicate = $documentReport['diagnostics'][7];
+            $t->same('toc', $duplicate['sectionType']);
+            $t->same([0, 1], $duplicate['sectionIndexes']);
+            $t->same(['hidden-toc', 'visible-toc'], $duplicate['sectionIds']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub toc accessibility labels roles and duplicate nav relations' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-toc-a11y-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
