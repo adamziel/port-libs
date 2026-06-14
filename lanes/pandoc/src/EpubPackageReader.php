@@ -1664,6 +1664,14 @@ final class EpubPackageReader
             $firstSpineItem = $spineItems[0] ?? null;
             $spineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $spineItems);
             $readingSpineIndexes = array_map(static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0), $readingSpineItems);
+            $nonlinearSpineIndexes = array_map(
+                static fn (array $spineItem): int => (int) ($spineItem['index'] ?? 0),
+                array_values(array_filter(
+                    $spineItems,
+                    static fn (array $spineItem): bool => ($spineItem['linear'] ?? false) !== true
+                ))
+            );
+            $spineIdrefs = array_map(static fn (array $spineItem): string => (string) ($spineItem['idref'] ?? ''), $spineItems);
             $spineIndex = is_array($firstSpineItem) && is_int($firstSpineItem['index'] ?? null) ? $firstSpineItem['index'] : null;
             $spineLinear = is_array($firstSpineItem) ? (($firstSpineItem['linear'] ?? false) === true) : null;
             $duplicatePageTarget = $target !== '' ? ($duplicatePageTargetsByTarget[$target] ?? null) : null;
@@ -1698,7 +1706,9 @@ final class EpubPackageReader
                 'spineIndex' => $spineIndex,
                 'spineIndexes' => $spineIndexes,
                 'readingSpineIndexes' => $readingSpineIndexes,
+                'nonlinearSpineIndexes' => $nonlinearSpineIndexes,
                 'spineIdref' => is_array($firstSpineItem) && is_string($firstSpineItem['idref'] ?? null) ? $firstSpineItem['idref'] : null,
+                'spineIdrefs' => $spineIdrefs,
                 'spineLinear' => $spineLinear,
                 'linear' => $spineLinear,
                 'inSpineReadingOrder' => $readingSpineItems !== [],
@@ -1763,7 +1773,7 @@ final class EpubPackageReader
                         'path' => $path,
                         'count' => count($spineItems),
                         'spineIndexes' => $spineIndexes,
-                        'idrefs' => array_map(static fn (array $spineItem): string => (string) ($spineItem['idref'] ?? ''), $spineItems),
+                        'idrefs' => $spineIdrefs,
                     ];
                 }
                 $diagnostic = [
@@ -1855,8 +1865,13 @@ final class EpubPackageReader
                 'spineIndex' => $spineIndex,
                 'spineIndexes' => $spineIndexes,
                 'readingSpineIndexes' => $readingSpineIndexes,
+                'nonlinearSpineIndexes' => $nonlinearSpineIndexes,
                 'spineIdref' => is_array($firstSpineItem) && is_string($firstSpineItem['idref'] ?? null) ? $firstSpineItem['idref'] : null,
+                'spineIdrefs' => $spineIdrefs,
                 'linear' => $spineLinear,
+                'inSpineReadingOrder' => $readingSpineItems !== [],
+                'duplicatePageTarget' => is_array($duplicatePageTarget),
+                'duplicateSpineTarget' => count($spineItems) > 1,
             ];
 
             if ($href !== '') {
@@ -2027,6 +2042,19 @@ final class EpubPackageReader
             }
         }
 
+        $readingOrderByTarget = [];
+        $readingOrderBySpineIndex = [];
+        foreach ($readingOrder as $summary) {
+            $target = is_string($summary['target'] ?? null) ? $summary['target'] : '';
+            if ($target !== '') {
+                $readingOrderByTarget[$target][] = $summary;
+            }
+            foreach (is_array($summary['spineIndexes'] ?? null) ? $summary['spineIndexes'] : [] as $spineIndex) {
+                $readingOrderBySpineIndex[(int) $spineIndex][] = $summary;
+            }
+        }
+        ksort($readingOrderBySpineIndex);
+
         return [
             'present' => $pageListItems !== [],
             'itemCount' => count($pageListItems),
@@ -2051,6 +2079,8 @@ final class EpubPackageReader
             'repeatedFragmentTargetCount' => count($repeatedFragmentTargets),
             'repeatedFragmentTargets' => $repeatedFragmentTargets,
             'readingOrder' => $readingOrder,
+            'readingOrderByTarget' => $readingOrderByTarget,
+            'readingOrderBySpineIndex' => $readingOrderBySpineIndex,
             'items' => $pageListItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
@@ -2516,6 +2546,8 @@ final class EpubPackageReader
             'spineIndex' => $item['spineIndex'] ?? null,
             'spineIndexes' => $this->integerList($item['spineIndexes'] ?? []),
             'readingSpineIndexes' => $this->integerList($item['readingSpineIndexes'] ?? []),
+            'nonlinearSpineIndexes' => $this->integerList($item['nonlinearSpineIndexes'] ?? []),
+            'spineIdrefs' => $this->stringList($item['spineIdrefs'] ?? []),
             'inSpineReadingOrder' => ($item['inSpineReadingOrder'] ?? false) === true,
             'duplicatePageTarget' => ($item['duplicatePageTarget'] ?? false) === true,
             'duplicatePageTargetCount' => (int) ($item['duplicatePageTargetCount'] ?? 0),
@@ -2542,6 +2574,19 @@ final class EpubPackageReader
         }
 
         return array_values(array_map(static fn (mixed $item): int => (int) $item, $value));
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $item): string => (string) $item, $value));
     }
 
     /**

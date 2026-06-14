@@ -1586,9 +1586,26 @@ XML);
                 'EPUB/chapter.xhtml#p1',
                 'EPUB/missing.xhtml#pm',
             ], array_column($pageListReport['readingOrder'], 'target'));
+            $t->same([
+                'EPUB/chapter.xhtml#p1',
+                'EPUB/appendix.xhtml#pa',
+                'EPUB/missing.xhtml#pm',
+            ], array_keys($pageListReport['readingOrderByTarget']));
+            $t->same([0, 2], array_column($pageListReport['readingOrderByTarget']['EPUB/chapter.xhtml#p1'], 'index'));
+            $t->same([1], array_column($pageListReport['readingOrderByTarget']['EPUB/appendix.xhtml#pa'], 'index'));
+            $t->same([3], array_column($pageListReport['readingOrderByTarget']['EPUB/missing.xhtml#pm'], 'index'));
+            $t->same([0, 2], array_column($pageListReport['readingOrderBySpineIndex'][0], 'index'));
+            $t->same([1], array_column($pageListReport['readingOrderBySpineIndex'][1], 'index'));
+            $t->same([0, 2], array_column($pageListReport['readingOrderBySpineIndex'][2], 'index'));
+            $t->same(['chapter', 'chapter'], $pageListReport['readingOrder'][0]['spineIdrefs']);
+            $t->same([], $pageListReport['readingOrder'][0]['nonlinearSpineIndexes']);
+            $t->same(['appendix'], $pageListReport['readingOrder'][1]['spineIdrefs']);
+            $t->same([1], $pageListReport['readingOrder'][1]['nonlinearSpineIndexes']);
             $t->same(['toc'], array_column($items[0]['collisions'], 'type'));
             $t->same([0, 2], $items[0]['spineIndexes']);
             $t->same([0, 2], $items[0]['readingSpineIndexes']);
+            $t->same([], $items[0]['nonlinearSpineIndexes']);
+            $t->same(['chapter', 'chapter'], $items[0]['spineIdrefs']);
             $t->same(true, $items[0]['duplicatePageTarget']);
             $t->same(true, $items[0]['duplicateSpineTarget']);
             $t->same([
@@ -1604,6 +1621,8 @@ XML);
             $t->same('nonlinear-spine-item', $items[1]['diagnostics'][1]['reason']);
             $t->same([1], $items[1]['spineIndexes']);
             $t->same([], $items[1]['readingSpineIndexes']);
+            $t->same([1], $items[1]['nonlinearSpineIndexes']);
+            $t->same(['appendix'], $items[1]['spineIdrefs']);
             $t->same([
                 'page-list-target-nav-collision',
                 'duplicate-page-list-target',
@@ -1728,6 +1747,8 @@ XML);
             $t->same(0, $pageListCollision['pageListDuplicatePageTargetCount']);
             $t->same(2, $pageListCollision['pageListDuplicateSpineTargetCount']);
             $t->same([0, 1], $pageListCollision['pageListTargets'][0]['readingSpineIndexes']);
+            $t->same([], $pageListCollision['pageListTargets'][0]['nonlinearSpineIndexes']);
+            $t->same(['chapter', 'chapter'], $pageListCollision['pageListTargets'][0]['spineIdrefs']);
             $t->same(true, $pageListCollision['pageListTargets'][0]['duplicateSpineTarget']);
 
             $t->same(1, $navReport['crossSectionCollisionGroupCount']);
