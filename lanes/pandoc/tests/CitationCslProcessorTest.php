@@ -25740,6 +25740,86 @@ XML);
         $t->contains('<p>CSL style title aliases [Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume: Packet Appendix | Archive Part | 2 | 1] keep source divisions visible.</p>', $blocks);
         $t->contains('<dt>Diaz 2026</dt><dd>Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume: Packet Appendix :: Archive Part :: 2 :: 1</dd>', $blocks);
     },
+    'composes bounded biblatex part subtitle aliases into csl part titles' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{compact-part-subtitle,
+  author       = {Smith, Ada},
+  title        = {Compact Part Subtitle Packet},
+  parttitle    = {Archive Part},
+  partsubtitle = {Field Notes},
+  part         = {1},
+  date         = {2026}
+}
+
+@book{hyphen-part-subtitle,
+  author        = {Roe, Rae},
+  title         = {Hyphen Part Subtitle Packet},
+  part-title    = {Hyphen Part},
+  part-subtitle = {Review Leaf},
+  part          = {2},
+  date          = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Archive Part: Field Notes', $items[0]['part-title'] ?? null);
+        $t->same('Field Notes', $items[0]['rawBibtex']['fields']['partsubtitle'] ?? null);
+        $t->same('Hyphen Part: Review Leaf', $items[1]['part-title'] ?? null);
+        $t->same('Review Leaf', $items[1]['rawBibtex']['fields']['part-subtitle'] ?? null);
+
+        $defaultProcessor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $defaultProcessor->item('compact-part-subtitle');
+        $hyphen = $defaultProcessor->item('hyphen-part-subtitle');
+        $t->same('Archive Part: Field Notes', $compact['partTitle'] ?? null);
+        $t->same('Hyphen Part: Review Leaf', $hyphen['partTitle'] ?? null);
+        $t->same('Smith, Ada. Compact Part Subtitle Packet. Part title: Archive Part: Field Notes. Part 1. 2026.', $defaultProcessor->renderBibliographyEntry('compact-part-subtitle'));
+
+        $processor = $defaultProcessor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Part Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-part-subtitle-alias-review</id>
+    <updated>2026-06-14T08:15:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="part-title"/>
+        <text variable="part"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="part-title"/>
+      <text variable="part"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Part Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('part-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('part-title', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Smith | Archive Part: Field Notes | 1; Roe | Hyphen Part: Review Leaf | 2]', $processor->renderCitationCluster([
+            $citation('compact-part-subtitle', '[@compact-part-subtitle]'),
+            $citation('hyphen-part-subtitle', '[@hyphen-part-subtitle]'),
+        ]));
+        $t->same('Compact Part Subtitle Packet :: Archive Part: Field Notes :: 1', $processor->renderBibliographyEntry('compact-part-subtitle'));
+        $t->same('Hyphen Part Subtitle Packet :: Hyphen Part: Review Leaf :: 2', $processor->renderBibliographyEntry('hyphen-part-subtitle'));
+
+        $document = (new MarkdownReader())->read('Part subtitle aliases [@compact-part-subtitle; @hyphen-part-subtitle] stay composed for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Part subtitle aliases [Smith | Archive Part: Field Notes | 1; Roe | Hyphen Part: Review Leaf | 2] stay composed for review.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Compact Part Subtitle Packet :: Archive Part: Field Notes :: 1</dd>', $blocks);
+    },
     'sorts bounded csl numeric variables as integers for citation and bibliography keys' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
