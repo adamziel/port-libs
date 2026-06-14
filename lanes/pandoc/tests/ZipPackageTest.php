@@ -11102,6 +11102,102 @@ return [
         $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
     },
 
+    'preflights selected zip central directory fixed fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentName = 'word/document.xml';
+        $mediaName = 'word/media/review.bin';
+        $documentXml = '<w:document><w:body><w:p>selected central fixed header</w:p></w:body></w:document>';
+        $mediaBytes = "central fixed media bytes\n";
+        $documentExtra = pack('vva*', 0xd00d, strlen('central-fixed'), 'central-fixed');
+        $documentComment = 'central fixed comment';
+        $zip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 8,
+                'centralExtra' => $documentExtra,
+                'localExtra' => '',
+                'comment' => $documentComment,
+                'versionMadeBy' => 0x0314,
+                'internalAttributes' => 0x0001,
+                'externalAttributes' => 0x81a40020,
+            ],
+            [
+                'name' => $mediaName,
+                'data' => $mediaBytes,
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0x00000020,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->entryHandoffPreflight([
+            ['name' => $documentName, 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $mediaName, 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+        ], 2048);
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][1];
+        $documentFixed = $summary['selectedCentralDirectoryFixedFieldEntries'][0];
+        $mediaFixed = $summary['selectedCentralDirectoryFixedFieldEntries'][1];
+        $documentOffset = $documentEntry['centralDirectoryRecordOffset'];
+        $mediaOffset = $mediaEntry['centralDirectoryRecordOffset'];
+        $documentCompressed = gzdeflate($documentXml);
+        if ($documentCompressed === false) {
+            throw new RuntimeException('Unable to deflate document fixture');
+        }
+
+        $t->same(2, $summary['selectedCentralDirectoryFixedFieldEntryCount']);
+        $t->same(0, $summary['selectedCentralDirectoryFixedFieldIssueEntryCount']);
+        $t->same([], $summary['selectedCentralDirectoryFixedFieldIssueEntries']);
+        $t->same('word/document.xml', $documentFixed['name']);
+        $t->same($documentOffset, $documentFixed['centralDirectoryFixedHeaderOffset']);
+        $t->same(46, $documentFixed['centralDirectoryFixedHeaderLength']);
+        $t->same($documentOffset + 46, $documentFixed['centralDirectoryFixedHeaderEnd']);
+        $t->same($documentOffset, $documentFixed['centralDirectorySignatureOffset']);
+        $t->same(4, $documentFixed['centralDirectorySignatureLength']);
+        $t->same($documentOffset + 4, $documentFixed['centralDirectoryVersionMadeByOffset']);
+        $t->same($documentOffset + 42, $documentFixed['centralDirectoryLocalHeaderOffsetFieldOffset']);
+        $t->same(0x0314, $documentFixed['centralDirectoryVersionMadeBy']);
+        $t->same(3, $documentFixed['centralDirectoryCreatorHostSystem']);
+        $t->same(20, $documentFixed['centralDirectoryCreatorVersion']);
+        $t->same(20, $documentFixed['centralDirectoryVersionNeededToExtract']);
+        $t->same(0x0800, $documentFixed['centralDirectoryGeneralPurposeFlags']);
+        $t->same(8, $documentFixed['centralDirectoryCompressionMethod']);
+        $t->same($crc32($documentXml), $documentFixed['centralDirectoryCrc32']);
+        $t->same(sprintf('%08x', $crc32($documentXml)), $documentFixed['centralDirectoryCrc32Hex']);
+        $t->same(strlen($documentCompressed), $documentFixed['centralDirectoryCompressedSize']);
+        $t->same(strlen($documentXml), $documentFixed['centralDirectoryUncompressedSize']);
+        $t->same(strlen($documentName), $documentFixed['centralDirectoryRawNameLength']);
+        $t->same(strlen($documentExtra), $documentFixed['centralDirectoryExtraFieldLength']);
+        $t->same(strlen($documentComment), $documentFixed['centralDirectoryRawCommentLength']);
+        $t->same(0, $documentFixed['centralDirectoryDiskStart']);
+        $t->same(0x0001, $documentFixed['centralDirectoryInternalAttributes']);
+        $t->same(0x81a40020, $documentFixed['centralDirectoryExternalAttributes']);
+        $t->same($documentEntry['localHeaderOffset'], $documentFixed['centralDirectoryLocalHeaderOffset']);
+        $t->same(true, $documentFixed['centralDirectoryFixedFieldsMatchEntryMetadata']);
+        $t->same([], $documentFixed['centralDirectoryFixedFieldIssues']);
+
+        $t->same($documentFixed['centralDirectoryFixedHeaderOffset'], $documentEntry['centralDirectoryFixedHeaderOffset']);
+        $t->same($documentFixed['centralDirectoryVersionMadeBy'], $documentEntry['centralDirectoryVersionMadeBy']);
+        $t->same($documentFixed['centralDirectoryExternalAttributes'], $documentEntry['centralDirectoryExternalAttributes']);
+        $t->same($documentFixed['centralDirectoryFixedFieldsMatchEntryMetadata'], $documentEntry['centralDirectoryFixedFieldsMatchEntryMetadata']);
+
+        $t->same('word/media/review.bin', $mediaFixed['name']);
+        $t->same($mediaOffset, $mediaFixed['centralDirectoryFixedHeaderOffset']);
+        $t->same(0x0014, $mediaFixed['centralDirectoryVersionMadeBy']);
+        $t->same(0, $mediaFixed['centralDirectoryCreatorHostSystem']);
+        $t->same(0, $mediaFixed['centralDirectoryCompressionMethod']);
+        $t->same(strlen($mediaBytes), $mediaFixed['centralDirectoryCompressedSize']);
+        $t->same(strlen($mediaBytes), $mediaFixed['centralDirectoryUncompressedSize']);
+        $t->same(strlen($mediaName), $mediaFixed['centralDirectoryRawNameLength']);
+        $t->same(0, $mediaFixed['centralDirectoryExtraFieldLength']);
+        $t->same(0, $mediaFixed['centralDirectoryRawCommentLength']);
+        $t->same($mediaEntry['localHeaderOffset'], $mediaFixed['centralDirectoryLocalHeaderOffset']);
+        $t->same(true, $mediaFixed['centralDirectoryFixedFieldsMatchEntryMetadata']);
+        $t->same([], $mediaFixed['centralDirectoryFixedFieldIssues']);
+        $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip central directory variable fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected central directory fields</w:p></w:body></w:document>';
         $mediaBytes = "selected central directory media bytes\n";

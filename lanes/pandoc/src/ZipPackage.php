@@ -5019,6 +5019,8 @@ final class ZipPackage
      *     selectedWritablePermissionEntryCount:int,
      *     selectedPlatformAttributeIssueEntryCount:int,
      *     selectedPlatformAttributeIssues:list<string>,
+     *     selectedCentralDirectoryFixedFieldEntryCount:int,
+     *     selectedCentralDirectoryFixedFieldIssueEntryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -5033,6 +5035,8 @@ final class ZipPackage
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
+     *     selectedCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
+     *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5186,6 +5190,8 @@ final class ZipPackage
         $selectedPlatformAttributeIssues = [];
         $selectedLocalHeaderFixedFieldEntries = [];
         $selectedLocalHeaderFixedFieldIssueEntries = [];
+        $selectedCentralDirectoryFixedFieldEntries = [];
+        $selectedCentralDirectoryFixedFieldIssueEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
         $selectedDataDescriptorEntryCount = 0;
         $selectedSignedDataDescriptorEntryCount = 0;
@@ -5343,6 +5349,15 @@ final class ZipPackage
                 $selectedLocalHeaderFixedFieldIssueEntries[] = [
                     'name' => $entry->name,
                 ] + $localHeaderFixedFieldProvenance;
+            }
+            $centralDirectoryFixedFieldProvenance = $this->entryCentralDirectoryFixedFieldHandoffProvenance($entry);
+            $selectedCentralDirectoryFixedFieldEntries[] = [
+                'name' => $entry->name,
+            ] + $centralDirectoryFixedFieldProvenance;
+            if ($centralDirectoryFixedFieldProvenance['centralDirectoryFixedFieldIssues'] !== []) {
+                $selectedCentralDirectoryFixedFieldIssueEntries[] = [
+                    'name' => $entry->name,
+                ] + $centralDirectoryFixedFieldProvenance;
             }
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             if ($dataDescriptorProvenance['usesDataDescriptor']) {
@@ -5569,6 +5584,48 @@ final class ZipPackage
                 'compressedDataEnd' => null,
                 'centralDirectoryRecordOffset' => null,
                 'centralDirectoryRecordEnd' => null,
+                'centralDirectoryFixedHeaderOffset' => null,
+                'centralDirectoryFixedHeaderLength' => null,
+                'centralDirectoryFixedHeaderEnd' => null,
+                'centralDirectorySignatureOffset' => null,
+                'centralDirectorySignatureLength' => null,
+                'centralDirectoryVersionMadeByOffset' => null,
+                'centralDirectoryVersionNeededToExtractOffset' => null,
+                'centralDirectoryGeneralPurposeFlagsOffset' => null,
+                'centralDirectoryCompressionMethodOffset' => null,
+                'centralDirectoryModifiedDosTimeOffset' => null,
+                'centralDirectoryModifiedDosDateOffset' => null,
+                'centralDirectoryCrc32Offset' => null,
+                'centralDirectoryCompressedSizeOffset' => null,
+                'centralDirectoryUncompressedSizeOffset' => null,
+                'centralDirectoryNameLengthOffset' => null,
+                'centralDirectoryExtraFieldLengthOffset' => null,
+                'centralDirectoryCommentLengthOffset' => null,
+                'centralDirectoryDiskStartOffset' => null,
+                'centralDirectoryInternalAttributesOffset' => null,
+                'centralDirectoryExternalAttributesOffset' => null,
+                'centralDirectoryLocalHeaderOffsetFieldOffset' => null,
+                'centralDirectoryVersionMadeBy' => null,
+                'centralDirectoryCreatorHostSystem' => null,
+                'centralDirectoryCreatorVersion' => null,
+                'centralDirectoryVersionNeededToExtract' => null,
+                'centralDirectoryGeneralPurposeFlags' => null,
+                'centralDirectoryCompressionMethod' => null,
+                'centralDirectoryModifiedDosTime' => null,
+                'centralDirectoryModifiedDosDate' => null,
+                'centralDirectoryCrc32' => null,
+                'centralDirectoryCrc32Hex' => null,
+                'centralDirectoryCompressedSize' => null,
+                'centralDirectoryUncompressedSize' => null,
+                'centralDirectoryRawNameLength' => null,
+                'centralDirectoryExtraFieldLength' => null,
+                'centralDirectoryRawCommentLength' => null,
+                'centralDirectoryDiskStart' => null,
+                'centralDirectoryInternalAttributes' => null,
+                'centralDirectoryExternalAttributes' => null,
+                'centralDirectoryLocalHeaderOffset' => null,
+                'centralDirectoryFixedFieldsMatchEntryMetadata' => null,
+                'centralDirectoryFixedFieldIssues' => [],
                 'hasSourceByteSpanProvenance' => false,
                 'localRecordOffset' => null,
                 'localRecordBytes' => null,
@@ -5653,6 +5710,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryExtraFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, self::entryPlatformAttributeHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
+            $summary = array_merge($summary, $this->entryCentralDirectoryFixedFieldHandoffProvenance($entry));
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             $summary = array_merge($summary, $dataDescriptorProvenance);
             $summary = array_merge(
@@ -5786,6 +5844,8 @@ final class ZipPackage
             'selectedPlatformAttributeIssues' => $selectedPlatformAttributeIssues,
             'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
+            'selectedCentralDirectoryFixedFieldEntryCount' => count($selectedCentralDirectoryFixedFieldEntries),
+            'selectedCentralDirectoryFixedFieldIssueEntryCount' => count($selectedCentralDirectoryFixedFieldIssueEntries),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -5831,6 +5891,8 @@ final class ZipPackage
             'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
+            'selectedCentralDirectoryFixedFieldEntries' => $selectedCentralDirectoryFixedFieldEntries,
+            'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
@@ -6365,6 +6427,185 @@ final class ZipPackage
             'localHeaderFixedFieldsMatchCentralDirectory' => $issues === [],
             'localHeaderFixedFieldIssues' => $issues,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function entryCentralDirectoryFixedFieldHandoffProvenance(ZipPackageEntry $entry): array
+    {
+        $recordOffset = $entry->centralDirectoryRecordOffset;
+        $recordEnd = $entry->centralDirectoryRecordEnd;
+        $issues = [];
+        $summary = [
+            'centralDirectoryFixedHeaderOffset' => $recordOffset,
+            'centralDirectoryFixedHeaderLength' => null,
+            'centralDirectoryFixedHeaderEnd' => null,
+            'centralDirectorySignatureOffset' => $recordOffset,
+            'centralDirectorySignatureLength' => null,
+            'centralDirectoryVersionMadeByOffset' => null,
+            'centralDirectoryVersionNeededToExtractOffset' => null,
+            'centralDirectoryGeneralPurposeFlagsOffset' => null,
+            'centralDirectoryCompressionMethodOffset' => null,
+            'centralDirectoryModifiedDosTimeOffset' => null,
+            'centralDirectoryModifiedDosDateOffset' => null,
+            'centralDirectoryCrc32Offset' => null,
+            'centralDirectoryCompressedSizeOffset' => null,
+            'centralDirectoryUncompressedSizeOffset' => null,
+            'centralDirectoryNameLengthOffset' => null,
+            'centralDirectoryExtraFieldLengthOffset' => null,
+            'centralDirectoryCommentLengthOffset' => null,
+            'centralDirectoryDiskStartOffset' => null,
+            'centralDirectoryInternalAttributesOffset' => null,
+            'centralDirectoryExternalAttributesOffset' => null,
+            'centralDirectoryLocalHeaderOffsetFieldOffset' => null,
+            'centralDirectoryVersionMadeBy' => null,
+            'centralDirectoryCreatorHostSystem' => null,
+            'centralDirectoryCreatorVersion' => null,
+            'centralDirectoryVersionNeededToExtract' => null,
+            'centralDirectoryGeneralPurposeFlags' => null,
+            'centralDirectoryCompressionMethod' => null,
+            'centralDirectoryModifiedDosTime' => null,
+            'centralDirectoryModifiedDosDate' => null,
+            'centralDirectoryCrc32' => null,
+            'centralDirectoryCrc32Hex' => null,
+            'centralDirectoryCompressedSize' => null,
+            'centralDirectoryUncompressedSize' => null,
+            'centralDirectoryRawNameLength' => null,
+            'centralDirectoryExtraFieldLength' => null,
+            'centralDirectoryRawCommentLength' => null,
+            'centralDirectoryDiskStart' => null,
+            'centralDirectoryInternalAttributes' => null,
+            'centralDirectoryExternalAttributes' => null,
+            'centralDirectoryLocalHeaderOffset' => null,
+            'centralDirectoryFixedFieldsMatchEntryMetadata' => false,
+            'centralDirectoryFixedFieldIssues' => [],
+        ];
+
+        if ($recordOffset === null || $recordEnd === null) {
+            $summary['centralDirectoryFixedFieldIssues'] = ['central-directory-record-span-missing'];
+
+            return $summary;
+        }
+
+        if ($recordOffset < 0 || $recordOffset + 46 > strlen($this->bytes)) {
+            $summary['centralDirectoryFixedFieldIssues'] = ['central-directory-fixed-header-truncated'];
+
+            return $summary;
+        }
+
+        $versionMadeBy = self::readUInt16($this->bytes, $recordOffset + 4);
+        $versionNeededToExtract = self::readUInt16($this->bytes, $recordOffset + 6);
+        $flags = self::readUInt16($this->bytes, $recordOffset + 8);
+        $method = self::readUInt16($this->bytes, $recordOffset + 10);
+        $modifiedTime = self::readUInt16($this->bytes, $recordOffset + 12);
+        $modifiedDate = self::readUInt16($this->bytes, $recordOffset + 14);
+        $crc32 = self::readUInt32($this->bytes, $recordOffset + 16);
+        $compressedSize = self::readUInt32($this->bytes, $recordOffset + 20);
+        $uncompressedSize = self::readUInt32($this->bytes, $recordOffset + 24);
+        $rawNameLength = self::readUInt16($this->bytes, $recordOffset + 28);
+        $extraFieldLength = self::readUInt16($this->bytes, $recordOffset + 30);
+        $rawCommentLength = self::readUInt16($this->bytes, $recordOffset + 32);
+        $diskStart = self::readUInt16($this->bytes, $recordOffset + 34);
+        $internalAttributes = self::readUInt16($this->bytes, $recordOffset + 36);
+        $externalAttributes = self::readUInt32($this->bytes, $recordOffset + 38);
+        $localHeaderOffset = self::readUInt32($this->bytes, $recordOffset + 42);
+        $expectedRecordEnd = $recordOffset + 46 + $rawNameLength + $extraFieldLength + $rawCommentLength;
+
+        if (substr($this->bytes, $recordOffset, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+            $issues[] = 'central-directory-fixed-header-signature-mismatch';
+        }
+        if ($versionMadeBy !== $entry->versionMadeBy) {
+            $issues[] = 'central-directory-version-made-by-mismatch';
+        }
+        if ($versionNeededToExtract !== $entry->versionNeededToExtract) {
+            $issues[] = 'central-directory-version-needed-mismatch';
+        }
+        if ($flags !== $entry->generalPurposeFlags) {
+            $issues[] = 'central-directory-flags-mismatch';
+        }
+        if ($method !== $entry->compressionMethod) {
+            $issues[] = 'central-directory-compression-method-mismatch';
+        }
+        if ($modifiedTime !== $entry->lastModifiedTime || $modifiedDate !== $entry->lastModifiedDate) {
+            $issues[] = 'central-directory-modification-time-mismatch';
+        }
+        if ($crc32 !== $entry->crc32) {
+            $issues[] = 'central-directory-crc32-mismatch';
+        }
+        if ($compressedSize !== $entry->compressedSize) {
+            $issues[] = 'central-directory-compressed-size-mismatch';
+        }
+        if ($uncompressedSize !== $entry->uncompressedSize) {
+            $issues[] = 'central-directory-uncompressed-size-mismatch';
+        }
+        if ($rawNameLength !== strlen($entry->rawName)) {
+            $issues[] = 'central-directory-raw-name-length-mismatch';
+        }
+        if ($extraFieldLength !== strlen($entry->centralExtraFieldData)) {
+            $issues[] = 'central-directory-extra-field-length-mismatch';
+        }
+        if ($rawCommentLength !== strlen($entry->rawComment)) {
+            $issues[] = 'central-directory-raw-comment-length-mismatch';
+        }
+        if ($diskStart !== 0) {
+            $issues[] = 'central-directory-disk-start-nonzero';
+        }
+        if ($internalAttributes !== $entry->internalFileAttributes) {
+            $issues[] = 'central-directory-internal-attributes-mismatch';
+        }
+        if ($externalAttributes !== $entry->externalFileAttributes) {
+            $issues[] = 'central-directory-external-attributes-mismatch';
+        }
+        if ($localHeaderOffset !== $entry->localHeaderOffset) {
+            $issues[] = 'central-directory-local-header-offset-mismatch';
+        }
+        if ($recordEnd !== $expectedRecordEnd) {
+            $issues[] = 'central-directory-fixed-header-record-length-mismatch';
+        }
+
+        return array_merge($summary, [
+            'centralDirectoryFixedHeaderLength' => 46,
+            'centralDirectoryFixedHeaderEnd' => $recordOffset + 46,
+            'centralDirectorySignatureLength' => 4,
+            'centralDirectoryVersionMadeByOffset' => $recordOffset + 4,
+            'centralDirectoryVersionNeededToExtractOffset' => $recordOffset + 6,
+            'centralDirectoryGeneralPurposeFlagsOffset' => $recordOffset + 8,
+            'centralDirectoryCompressionMethodOffset' => $recordOffset + 10,
+            'centralDirectoryModifiedDosTimeOffset' => $recordOffset + 12,
+            'centralDirectoryModifiedDosDateOffset' => $recordOffset + 14,
+            'centralDirectoryCrc32Offset' => $recordOffset + 16,
+            'centralDirectoryCompressedSizeOffset' => $recordOffset + 20,
+            'centralDirectoryUncompressedSizeOffset' => $recordOffset + 24,
+            'centralDirectoryNameLengthOffset' => $recordOffset + 28,
+            'centralDirectoryExtraFieldLengthOffset' => $recordOffset + 30,
+            'centralDirectoryCommentLengthOffset' => $recordOffset + 32,
+            'centralDirectoryDiskStartOffset' => $recordOffset + 34,
+            'centralDirectoryInternalAttributesOffset' => $recordOffset + 36,
+            'centralDirectoryExternalAttributesOffset' => $recordOffset + 38,
+            'centralDirectoryLocalHeaderOffsetFieldOffset' => $recordOffset + 42,
+            'centralDirectoryVersionMadeBy' => $versionMadeBy,
+            'centralDirectoryCreatorHostSystem' => ($versionMadeBy >> 8) & 0xff,
+            'centralDirectoryCreatorVersion' => $versionMadeBy & 0xff,
+            'centralDirectoryVersionNeededToExtract' => $versionNeededToExtract,
+            'centralDirectoryGeneralPurposeFlags' => $flags,
+            'centralDirectoryCompressionMethod' => $method,
+            'centralDirectoryModifiedDosTime' => $modifiedTime,
+            'centralDirectoryModifiedDosDate' => $modifiedDate,
+            'centralDirectoryCrc32' => $crc32,
+            'centralDirectoryCrc32Hex' => sprintf('%08x', $crc32),
+            'centralDirectoryCompressedSize' => $compressedSize,
+            'centralDirectoryUncompressedSize' => $uncompressedSize,
+            'centralDirectoryRawNameLength' => $rawNameLength,
+            'centralDirectoryExtraFieldLength' => $extraFieldLength,
+            'centralDirectoryRawCommentLength' => $rawCommentLength,
+            'centralDirectoryDiskStart' => $diskStart,
+            'centralDirectoryInternalAttributes' => $internalAttributes,
+            'centralDirectoryExternalAttributes' => $externalAttributes,
+            'centralDirectoryLocalHeaderOffset' => $localHeaderOffset,
+            'centralDirectoryFixedFieldsMatchEntryMetadata' => $issues === [],
+            'centralDirectoryFixedFieldIssues' => $issues,
+        ]);
     }
 
     /**
