@@ -1272,6 +1272,94 @@ XML, 'JATS award source linkage XML', preserveWhiteSpace: false);
         $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedPacket, 'Blocked Award Source Citation Secret'), 'Expected citation payload text to stay blocked from award/source linkage diagnostics');
     },
+    'diagnoses jats bits funding conflict metadata with sanitized reference summaries' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group><article-title>Funding Conflict Review</article-title></title-group>
+      <funding-group id="fg-conflict">
+        <award-group id="ag-alpha">
+          <funding-source id="fs-alpha" source-type="agency">
+            <institution-id institution-id-type="ROR">https://ror.org/conflict</institution-id>
+            <source-id source-id-type="fundref">10.13039/alpha</source-id>
+            <institution>Alpha Foundation</institution>
+          </funding-source>
+          <award-id id="award-alpha">PL-42</award-id>
+          <xref id="funding-xref" ref-type="bibr" rid="fund-ref missing-ref">funding reference</xref>
+        </award-group>
+        <award-group id="ag-beta">
+          <funding-source id="fs-beta" source-type="agency">
+            <institution-id institution-id-type="ROR">https://ror.org/conflict</institution-id>
+            <institution>Beta Institute</institution>
+          </funding-source>
+          <award-id id="award-beta">PL-42</award-id>
+        </award-group>
+        <award-group id="ag-sibling">
+          <funding-source id="fs-sibling">Sibling Source</funding-source>
+          <institution-id institution-id-type="ROR">https://ror.org/sibling</institution-id>
+          <award-id id="award-sibling">SIBLING-1</award-id>
+        </award-group>
+        <award-group id="ag-nameless">
+          <funding-source id="fs-nameless"><institution-id institution-id-type="ROR">https://ror.org/no-name</institution-id></funding-source>
+          <award-id id="award-nameless">NONAME-1</award-id>
+        </award-group>
+        <award-group id="ag-missing-source">
+          <award-id id="award-orphan">ORPHAN-1</award-id>
+        </award-group>
+        <award-group id="ag-missing-award">
+          <funding-source id="fs-orphan">Source Without Award</funding-source>
+        </award-group>
+      </funding-group>
+    </article-meta>
+  </front>
+  <body><sec><title>Body</title><p>Body only.</p></sec></body>
+  <back>
+    <ref-list><ref id="fund-ref"><label>F1</label><mixed-citation>Blocked Conflict Citation Secret</mixed-citation></ref></ref-list>
+  </back>
+</article>
+XML, 'JATS funding conflict metadata XML', preserveWhiteSpace: false);
+        $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom);
+
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(6, $packet['awardGroupCount']);
+        $t->same(5, $packet['fundingSourceCount']);
+        $t->same(4, $packet['fundingSourceIdentifierCount']);
+        $t->same(1, $packet['duplicateFunderIdentifierCount']);
+        $t->same('https://ror.org/conflict', $packet['duplicateFunderIdentifiers'][0]['value'] ?? null);
+        $t->same(['fs-alpha', 'fs-beta'], $packet['duplicateFunderIdentifiers'][0]['fundingSourceIds'] ?? null);
+        $t->same(1, $packet['conflictingAwardSourcePairCount']);
+        $t->same('PL-42', $packet['conflictingAwardSourcePairs'][0]['awardId'] ?? null);
+        $t->same(['fs-alpha', 'fs-beta'], $packet['conflictingAwardSourcePairs'][0]['fundingSourceIds'] ?? null);
+        $t->same(['ag-alpha', 'ag-beta'], $packet['conflictingAwardSourcePairs'][0]['awardGroupIds'] ?? null);
+        $t->same(2, $packet['fundingInstitutionSourceMismatchCount']);
+        $t->same(['missing-institution-name', 'outside-funding-source'], array_map(
+            static fn (array $mismatch): string => (string) $mismatch['reason'],
+            $packet['fundingInstitutionSourceMismatches']
+        ));
+        $t->same('fs-nameless', $packet['fundingInstitutionSourceMismatches'][0]['fundingSourceId'] ?? null);
+        $t->same('ag-sibling', $packet['fundingInstitutionSourceMismatches'][1]['awardGroupId'] ?? null);
+        $t->same(1, $packet['fundingLinkedReferenceCount']);
+        $t->same(['fund-ref', 'missing-ref'], $packet['fundingLinkedReferences'][0]['targets'] ?? null);
+        $t->same(['fund-ref'], $packet['fundingLinkedReferences'][0]['linkedReferenceIds'] ?? null);
+        $t->same(['missing-ref'], $packet['fundingLinkedReferences'][0]['missingReferenceIds'] ?? null);
+        $t->same(true, $packet['fundingLinkedReferences'][0]['linkTextBlocked'] ?? null);
+        $t->same('F1', $packet['fundingLinkedReferences'][0]['references'][0]['label'] ?? null);
+        $t->same(true, $packet['fundingLinkedReferences'][0]['references'][0]['citationTextBlocked'] ?? null);
+        $t->same(false, $packet['fundingLinkedReferences'][0]['references'][1]['found'] ?? null);
+        $t->same([
+            'duplicate-award-id',
+            'duplicate-funder-identifier',
+            'conflicting-award-source-pair',
+            'institution-id-funding-source-mismatch',
+            'missing-award-id',
+            'missing-funding-source',
+        ], array_values(array_unique($packet['fundingDiagnosticCodes'])));
+        $t->same(7, $packet['fundingDiagnosticCount']);
+
+        $encodedPacket = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedPacket, 'Blocked Conflict Citation Secret'), 'Expected citation payload text to stay blocked from funding conflict diagnostics');
+    },
     'summarizes jats bits figure label caption and title metadata diagnostics' => static function (TestRunner $t): void {
         $jats = XmlHtmlDom::loadXmlDocument(<<<'XML'
 <article article-type="review">
