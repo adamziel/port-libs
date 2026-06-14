@@ -316,8 +316,22 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packagePath'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-path:' . $typstBoundaryProvenance['packagePath']['path'];
             }
+            if (($typstBoundaryProvenance['packagePathEnvironment'] ?? null) !== null) {
+                $packagePathEnvironment = $typstBoundaryProvenance['packagePathEnvironment'];
+                $diagnostics[] = 'typst-package-path-environment:' . ($packagePathEnvironment['path'] === '' ? 'invalid' : $packagePathEnvironment['path']);
+                if (in_array('package-path-environment-shadowed', $packagePathEnvironment['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-package-path-environment-shadowed';
+                }
+            }
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
+            }
+            if (($typstBoundaryProvenance['packageCacheEnvironment'] ?? null) !== null) {
+                $packageCacheEnvironment = $typstBoundaryProvenance['packageCacheEnvironment'];
+                $diagnostics[] = 'typst-package-cache-environment:' . ($packageCacheEnvironment['path'] === '' ? 'invalid' : $packageCacheEnvironment['path']);
+                if (in_array('package-cache-environment-shadowed', $packageCacheEnvironment['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-package-cache-environment-shadowed';
+                }
             }
             if (($typstBoundaryProvenance['packageStoragePolicy'] ?? []) !== []) {
                 $packageStoragePolicy = $typstBoundaryProvenance['packageStoragePolicy'];
@@ -6325,7 +6339,9 @@ final class PdfEngineHandoff
         $rootEnvironmentShadow = null;
         $fontPathEnvironmentVariable = null;
         $packagePathEnvironmentVariable = null;
+        $packagePathEnvironmentShadow = null;
         $packageCacheEnvironmentVariable = null;
+        $packageCacheEnvironmentShadow = null;
         $creationTimestampEnvironmentVariable = null;
         $creationTimestampEnvironmentShadow = null;
         $featureGateEnvironmentVariable = null;
@@ -6379,10 +6395,28 @@ final class PdfEngineHandoff
             $packagePathValues = [$engineEnvironment['TYPST_PACKAGE_PATH']];
             $packagePathEnvironmentVariable = 'TYPST_PACKAGE_PATH';
             $environmentVariables[] = 'TYPST_PACKAGE_PATH';
+        } elseif ($packagePathValues !== [] && array_key_exists('TYPST_PACKAGE_PATH', $engineEnvironment)) {
+            $packagePathEnvironmentShadow = $this->typstBoundaryPathEntryFromSource($engineEnvironment['TYPST_PACKAGE_PATH'], 'package-path', 'TYPST_PACKAGE_PATH');
+            $packagePathEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $packagePathEnvironmentShadow['selected'] = $packagePathValues[count($packagePathValues) - 1];
+            $packagePathEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $packagePathEnvironmentShadow['issues'],
+                ['package-path-environment-shadowed']
+            )));
+            $environmentVariables[] = 'TYPST_PACKAGE_PATH';
         }
         if ($packageCacheValues === [] && array_key_exists('TYPST_PACKAGE_CACHE_PATH', $engineEnvironment)) {
             $packageCacheValues = [$engineEnvironment['TYPST_PACKAGE_CACHE_PATH']];
             $packageCacheEnvironmentVariable = 'TYPST_PACKAGE_CACHE_PATH';
+            $environmentVariables[] = 'TYPST_PACKAGE_CACHE_PATH';
+        } elseif ($packageCacheValues !== [] && array_key_exists('TYPST_PACKAGE_CACHE_PATH', $engineEnvironment)) {
+            $packageCacheEnvironmentShadow = $this->typstBoundaryPathEntryFromSource($engineEnvironment['TYPST_PACKAGE_CACHE_PATH'], 'package-cache', 'TYPST_PACKAGE_CACHE_PATH');
+            $packageCacheEnvironmentShadow['shadowedBy'] = 'engine-option';
+            $packageCacheEnvironmentShadow['selected'] = $packageCacheValues[count($packageCacheValues) - 1];
+            $packageCacheEnvironmentShadow['issues'] = array_values(array_unique(array_merge(
+                $packageCacheEnvironmentShadow['issues'],
+                ['package-cache-environment-shadowed']
+            )));
             $environmentVariables[] = 'TYPST_PACKAGE_CACHE_PATH';
         }
         if ($creationTimestampValues === [] && array_key_exists('SOURCE_DATE_EPOCH', $engineEnvironment)) {
@@ -6423,7 +6457,7 @@ final class PdfEngineHandoff
             }
         }
 
-        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $rootEnvironmentShadow === null && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packagePathEnvironmentShadow === null && $packageCacheValues === [] && $packageCacheEnvironmentShadow === null && $inputVariableValues === [] && $creationTimestampValues === [] && $creationTimestampEnvironmentShadow === null && $pageSelectionValues === [] && $ppiValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $dependencyOutputValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $dependencyFormatValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && ($systemFontEnvironmentFlag['issues'] ?? []) === [] && ($embeddedFontEnvironmentFlag['issues'] ?? []) === [] && $noPdfTagsCount === 0 && $prettyOutputCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -6453,7 +6487,10 @@ final class PdfEngineHandoff
             $packageCacheValues
         );
         $packageCache = $packageCacheHistory === [] ? null : $packageCacheHistory[count($packageCacheHistory) - 1];
-        $packageStoragePolicy = $this->typstPackageStoragePolicy($packagePathHistory, $packageCacheHistory);
+        $packageStoragePolicy = $this->typstPackageStoragePolicy(
+            array_values(array_filter(array_merge($packagePathHistory, [$packagePathEnvironmentShadow]))),
+            array_values(array_filter(array_merge($packageCacheHistory, [$packageCacheEnvironmentShadow])))
+        );
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
@@ -6567,6 +6604,12 @@ final class PdfEngineHandoff
         foreach (($rootEnvironmentShadow['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
+        foreach (($packagePathEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
+        foreach (($packageCacheEnvironmentShadow['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
         foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
@@ -6615,6 +6658,12 @@ final class PdfEngineHandoff
         }
         if ($rootEnvironmentShadow !== null) {
             $provenance['rootEnvironment'] = $rootEnvironmentShadow;
+        }
+        if ($packagePathEnvironmentShadow !== null) {
+            $provenance['packagePathEnvironment'] = $packagePathEnvironmentShadow;
+        }
+        if ($packageCacheEnvironmentShadow !== null) {
+            $provenance['packageCacheEnvironment'] = $packageCacheEnvironmentShadow;
         }
         if ($pdfStandard !== null) {
             $provenance['pdfStandard'] = $pdfStandard;
@@ -6836,7 +6885,9 @@ final class PdfEngineHandoff
             }
         }
         $appendPathEntry($provenance['packagePath'] ?? null);
+        $appendPathEntry($provenance['packagePathEnvironment'] ?? null);
         $appendPathEntry($provenance['packageCache'] ?? null);
+        $appendPathEntry($provenance['packageCacheEnvironment'] ?? null);
         if (is_array($provenance['dependencyOutput'] ?? null)) {
             $appendPathEntry($provenance['dependencyOutput']['file'] ?? null);
         }

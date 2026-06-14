@@ -3530,6 +3530,132 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves shadowed typst package storage environment provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/package-storage-env-shadow.pdf',
+            'source' => '= Typst Package Storage Environment Shadow Packet',
+            'engineOptions' => [
+                '--package-path=vendor/typst',
+                '--package-cache=cache/typst',
+            ],
+            'engineEnvironment' => [
+                'TYPST_PACKAGE_PATH' => '/srv/typst-packages',
+                'TYPST_PACKAGE_CACHE_PATH' => 'https://cache.example.invalid/typst',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package storage environment shadow packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => [
+                'raw' => 'vendor/typst',
+                'path' => 'vendor/typst',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ],
+            'packageCache' => [
+                'raw' => 'cache/typst',
+                'path' => 'cache/typst',
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ],
+            'inputVariables' => [],
+            'issues' => [
+                'package-path-external-boundary',
+                'package-path-environment-shadowed',
+                'package-cache-external-boundary',
+                'package-cache-environment-shadowed',
+            ],
+            'environmentVariables' => [
+                'TYPST_PACKAGE_PATH',
+                'TYPST_PACKAGE_CACHE_PATH',
+            ],
+            'packageStoragePolicy' => [
+                'reviewStatus' => 'review',
+                'storageEntryCount' => 4,
+                'safeStorageEntryCount' => 2,
+                'unsafeStorageEntryCount' => 2,
+                'packagePathCount' => 2,
+                'packageCacheCount' => 2,
+                'relativeStorageEntryCount' => 2,
+                'workspaceStorageEntryCount' => 0,
+                'absoluteStorageEntryCount' => 1,
+                'uriStorageEntryCount' => 1,
+                'invalidStorageEntryCount' => 0,
+                'issues' => [
+                    'package-path-external-boundary',
+                    'package-path-environment-shadowed',
+                    'package-cache-external-boundary',
+                    'package-cache-environment-shadowed',
+                ],
+            ],
+            'packagePathEnvironment' => [
+                'raw' => '/srv/typst-packages',
+                'path' => '/srv/typst-packages',
+                'kind' => 'absolute',
+                'safe' => false,
+                'issues' => [
+                    'package-path-external-boundary',
+                    'package-path-environment-shadowed',
+                ],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_PACKAGE_PATH',
+                'shadowedBy' => 'engine-option',
+                'selected' => 'vendor/typst',
+            ],
+            'packageCacheEnvironment' => [
+                'raw' => 'https://cache.example.invalid/typst',
+                'path' => 'https://cache.example.invalid/typst',
+                'kind' => 'uri',
+                'safe' => false,
+                'issues' => [
+                    'package-cache-external-boundary',
+                    'package-cache-environment-shadowed',
+                ],
+                'source' => 'environment',
+                'environmentVariable' => 'TYPST_PACKAGE_CACHE_PATH',
+                'shadowedBy' => 'engine-option',
+                'selected' => 'cache/typst',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/package-storage-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/package-storage-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same(4, $plan['typstBoundarySummary']['pathEntryCount']);
+        $t->same(2, $plan['typstBoundarySummary']['unsafePathEntryCount']);
+        $t->same(4, $plan['typstBoundarySummary']['packageStorageEntryCount']);
+        $t->same(4, $plan['typstBoundarySummary']['issueCount']);
+        $t->contains('typst-boundary-environment:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path-environment:/srv/typst-packages', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache-environment:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-storage-unsafe:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
