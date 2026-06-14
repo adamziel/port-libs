@@ -164,7 +164,7 @@ final class NativeReader
         }
 
         try {
-            return $this->inlines($value['c'] ?? []);
+            return $this->inlines($this->metaConstructorListContent($value['c'] ?? [], 'Pandoc native JSON MetaInlines content'));
         } catch (\Throwable) {
             return null;
         }
@@ -179,8 +179,9 @@ final class NativeReader
             return null;
         }
 
-        $items = $value['c'] ?? null;
-        if (!is_array($items) || !array_is_list($items)) {
+        try {
+            $items = $this->metaConstructorListContent($value['c'] ?? null, 'Pandoc native JSON MetaList content');
+        } catch (\Throwable) {
             return null;
         }
 
@@ -217,6 +218,16 @@ final class NativeReader
      */
     private function metaMapContent(mixed $content): array
     {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
         if (!is_array($content) || ($content !== [] && array_is_list($content))) {
             throw new \InvalidArgumentException('Pandoc native JSON MetaMap content must be an object');
         }
@@ -231,6 +242,24 @@ final class NativeReader
         }
 
         return $content;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function metaConstructorListContent(mixed $content, string $context): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->listContent($content, $context);
     }
 
     /**
@@ -290,7 +319,7 @@ final class NativeReader
             $tree['items'] = $items;
         } elseif ($tag === 'MetaList') {
             $items = [];
-            foreach ($this->listContent($value['c'] ?? null, 'Pandoc native JSON MetaList content') as $index => $item) {
+            foreach ($this->metaConstructorListContent($value['c'] ?? null, 'Pandoc native JSON MetaList content') as $index => $item) {
                 $child = $this->metaConstructorTree($item);
                 if ($child !== null) {
                     $items[(int) $index] = $child;
@@ -371,7 +400,7 @@ final class NativeReader
                     $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
                 }
             } elseif ($constructor === 'MetaList') {
-                foreach ($this->listContent($value['c'] ?? [], 'Pandoc native JSON MetaList provenance') as $index => $item) {
+                foreach ($this->metaConstructorListContent($value['c'] ?? [], 'Pandoc native JSON MetaList provenance') as $index => $item) {
                     $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
                 }
             }

@@ -10,7 +10,7 @@ ODF/ODT is marked ship-ready: 53 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
 | Markdown / CommonMark / GFM | 452 | 1,096 |
-| JSON / native AST | 61 | 252 |
+| JSON / native AST | 62 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
 | Wiki / roff / text markup readers | 0 | 20 |

@@ -430,6 +430,82 @@ return [
         $t->same('review-packet', $roundTrip['sourcePacket']['items']['t']);
         $t->same('literal metadata payload', $roundTrip['nested']['items'][0]['items']['c']);
     },
+    'accepts single wrapped pandoc metadata constructor payloads' => static function (TestRunner $t): void {
+        $sourceMeta = [
+            'source' => ['t' => 'MetaString', 'c' => ['wrapped-source'], 'reviewQueue' => 'source-meta'],
+            'draft' => ['t' => 'MetaBool', 'c' => [true], 'reviewQueue' => 'draft-meta'],
+            'title' => ['t' => 'MetaInlines', 'c' => [[
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Emph', 'c' => [
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ]], 'reviewQueue' => 'title-meta'],
+            'summary' => ['t' => 'MetaBlocks', 'c' => [[
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'summary'],
+                ]],
+            ]], 'reviewQueue' => 'summary-meta'],
+            'tags' => ['t' => 'MetaList', 'c' => [[
+                ['t' => 'MetaString', 'c' => 'json'],
+                ['t' => 'MetaBool', 'c' => false],
+            ]], 'reviewQueue' => 'tags-meta'],
+            'review' => ['t' => 'MetaMap', 'c' => [[
+                'queue' => ['t' => 'MetaString', 'c' => 'wp-import'],
+                'ready' => ['t' => 'MetaBool', 'c' => true],
+            ]], 'reviewQueue' => 'review-meta'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => $sourceMeta,
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $titleInlines = $meta['titleInlines'] ?? null;
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(true, is_array($titleInlines), "{$source} exposes title helper inlines");
+            $t->same('Wrapped', trim((string) $titleInlines[0]->attr('text')), "{$source} title helper text");
+            $t->same('emph', $titleInlines[count($titleInlines) - 1]->type, "{$source} title helper formatting");
+            if ($source === 'json') {
+                $t->same('wrapped-source', $meta['source'], "{$source} unwraps MetaString payload");
+                $t->same(true, $meta['draft'], "{$source} unwraps MetaBool payload");
+                $t->same('blocks', $meta['summary']['type'], "{$source} unwraps MetaBlocks payload");
+                $t->same(['json', false], $meta['tags']['items'], "{$source} unwraps MetaList payload");
+                $t->same('wp-import', $meta['review']['items']['queue'], "{$source} unwraps MetaMap payload");
+            } else {
+                $t->same($sourceMeta['source'], $meta['source'], "{$source} preserves raw MetaString payload");
+                $t->same($sourceMeta['title'], $meta['title'], "{$source} preserves raw MetaInlines payload");
+            }
+
+            foreach ([
+                "{$source} json writer" => $jsonPacket,
+                "{$source} native writer" => $nativePacket,
+            ] as $writer => $encoded) {
+                $t->same($sourceMeta['source'], $encoded['meta']['source'], "{$writer} preserves wrapped MetaString payload");
+                $t->same($sourceMeta['draft'], $encoded['meta']['draft'], "{$writer} preserves wrapped MetaBool payload");
+                $t->same($sourceMeta['title'], $encoded['meta']['title'], "{$writer} preserves wrapped MetaInlines payload");
+                $t->same($sourceMeta['summary'], $encoded['meta']['summary'], "{$writer} preserves wrapped MetaBlocks payload");
+                $t->same($sourceMeta['tags'], $encoded['meta']['tags'], "{$writer} preserves wrapped MetaList payload");
+                $t->same($sourceMeta['review'], $encoded['meta']['review'], "{$writer} preserves wrapped MetaMap payload");
+            }
+        }
+    },
     'reads pandoc json metamap envelopes without confusing literal t c metadata records' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

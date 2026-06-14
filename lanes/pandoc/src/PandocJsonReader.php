@@ -280,7 +280,7 @@ final class PandocJsonReader
             $tree['items'] = $items;
         } elseif ($tag === 'MetaList') {
             $items = [];
-            foreach ($this->listContent($content, 'MetaList') as $index => $item) {
+            foreach ($this->metaConstructorListContent($content, 'MetaList') as $index => $item) {
                 $child = $this->metaConstructorTree($item);
                 if ($child !== null) {
                     $items[(int) $index] = $child;
@@ -374,11 +374,11 @@ final class PandocJsonReader
         [$tag, $content] = $this->tagged($value, 'meta value');
 
         return match ($tag) {
-            'MetaString' => is_string($content) ? $content : throw new \InvalidArgumentException('MetaString content must be a string'),
-            'MetaBool' => is_bool($content) ? $content : throw new \InvalidArgumentException('MetaBool content must be a boolean'),
-            'MetaInlines' => ['type' => 'inlines', 'children' => $this->readInlines($this->listContent($content, 'MetaInlines'))],
-            'MetaBlocks' => ['type' => 'blocks', 'children' => $this->readBlocks($this->listContent($content, 'MetaBlocks'))],
-            'MetaList' => ['type' => 'list', 'items' => array_map(fn (mixed $item): mixed => $this->readMetaValue($item), $this->listContent($content, 'MetaList'))],
+            'MetaString' => is_string($content = $this->singleWrappedMetaContent($content)) ? $content : throw new \InvalidArgumentException('MetaString content must be a string'),
+            'MetaBool' => is_bool($content = $this->singleWrappedMetaContent($content)) ? $content : throw new \InvalidArgumentException('MetaBool content must be a boolean'),
+            'MetaInlines' => ['type' => 'inlines', 'children' => $this->readInlines($this->metaConstructorListContent($content, 'MetaInlines'))],
+            'MetaBlocks' => ['type' => 'blocks', 'children' => $this->readBlocks($this->metaConstructorListContent($content, 'MetaBlocks'))],
+            'MetaList' => ['type' => 'list', 'items' => array_map(fn (mixed $item): mixed => $this->readMetaValue($item), $this->metaConstructorListContent($content, 'MetaList'))],
             'MetaMap' => ['type' => 'map', 'items' => $this->readMetaMap($this->metaMapContent($content))],
             default => throw new \InvalidArgumentException("Unsupported Pandoc meta constructor: {$tag}"),
         };
@@ -429,6 +429,16 @@ final class PandocJsonReader
      */
     private function metaMapContent(mixed $content): array
     {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
         $map = $this->objectContent($content, 'MetaMap');
         if (count($map) !== 1 || !array_key_exists('unMeta', $map) || $this->isTaggedObject($map['unMeta'])) {
             return $map;
@@ -440,6 +450,33 @@ final class PandocJsonReader
         }
 
         return $unMeta;
+    }
+
+    private function singleWrappedMetaContent(mixed $content): mixed
+    {
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            return $content[0];
+        }
+
+        return $content;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function metaConstructorListContent(mixed $content, string $context): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            $content = $content[0];
+        }
+
+        return $this->listContent($content, $context);
     }
 
     /**
@@ -502,7 +539,7 @@ final class PandocJsonReader
                     $this->collectMetaConstructorProvenance($item, [...$path, (string) $key], $provenance);
                 }
             } elseif ($constructor === 'MetaList') {
-                foreach ($this->listContent($value['c'] ?? [], 'MetaList provenance') as $index => $item) {
+                foreach ($this->metaConstructorListContent($value['c'] ?? [], 'MetaList provenance') as $index => $item) {
                     $this->collectMetaConstructorProvenance($item, [...$path, (string) $index], $provenance);
                 }
             }

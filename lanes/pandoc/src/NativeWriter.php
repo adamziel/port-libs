@@ -184,9 +184,90 @@ final class NativeWriter
 
         $currentValue = $this->metaComparisonValue($value);
 
-        return is_array($meta)
+        if (
+            is_array($meta)
             && array_key_exists('__value', $meta)
-            && $this->comparisonValue($currentValue) === $this->comparisonValue($meta['__value']);
+            && $this->comparisonValue($currentValue) === $this->comparisonValue($meta['__value'])
+        ) {
+            return true;
+        }
+
+        $sourceComparable = $this->comparableMetaNativeValue($sourceNative);
+        if ($sourceComparable === null) {
+            return false;
+        }
+
+        return $this->comparisonValue($this->metaValue($value)) === $this->comparisonValue($sourceComparable);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return array<string, mixed>|null
+     */
+    private function comparableMetaNativeValue(array $native): ?array
+    {
+        if (!$this->isTaggedMetaValue($native)) {
+            return null;
+        }
+
+        $comparable = ['t' => $native['t']];
+        if (array_key_exists('c', $native)) {
+            $comparable['c'] = $this->comparableMetaNativeContent($native['t'], $native['c']);
+        }
+
+        return $comparable;
+    }
+
+    private function comparableMetaNativeContent(string $constructor, mixed $content): mixed
+    {
+        if (in_array($constructor, ['MetaString', 'MetaBool'], true)) {
+            return $this->singleWrappedMetaContent($content);
+        }
+
+        if (in_array($constructor, ['MetaInlines', 'MetaBlocks', 'MetaList'], true)) {
+            return $this->singleWrappedMetaListContent($content);
+        }
+
+        if ($constructor === 'MetaMap') {
+            return $this->singleWrappedMetaMapContent($content);
+        }
+
+        return $content;
+    }
+
+    private function singleWrappedMetaContent(mixed $content): mixed
+    {
+        return is_array($content) && array_is_list($content) && count($content) === 1 ? $content[0] : $content;
+    }
+
+    private function singleWrappedMetaListContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            return $content[0];
+        }
+
+        return $content;
+    }
+
+    private function singleWrappedMetaMapContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            return $content[0];
+        }
+
+        return $content;
     }
 
     private function metaComparisonValue(mixed $value): mixed
