@@ -22,7 +22,7 @@
 
 - `php -l lanes/pandoc/src/ZipPackage.php`
 - `php -l lanes/pandoc/tests/ZipPackageTest.php`
-- `jq empty lanes/pandoc/lane-status.json`
+- `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
 - `git diff --check`
 - `php tools/run-tests.php lanes/pandoc/tests/ZipPackageTest.php` passed `1 test files, 4726 assertions, 0 failures`.
 - `php tools/run-tests.php lanes/pandoc/tests` passed `46 test files, 82714 assertions, 0 failures` after rebase verification.
