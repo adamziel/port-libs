@@ -452,6 +452,10 @@ final class OpenDocumentPackage
         $blockedCompressedByteLength = 0;
         $unsupportedCompressionByteLength = 0;
         $unsupportedCompressionCompressedByteLength = 0;
+        $byteExposurePolicyCounts = [];
+        $byteExposurePolicyByteLengths = [];
+        $byteExposurePolicyCompressedByteLengths = [];
+        $byteExposurePolicyItems = [];
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
         $unicodePathExtraEntryCount = 0;
@@ -468,6 +472,14 @@ final class OpenDocumentPackage
             }
 
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
+            $byteExposurePolicy = null;
+            if (is_array($manifestEntry)) {
+                $byteExposurePolicy = $manifestEntry['byteExposurePolicy'] ?? null;
+            } elseif ($isUndeclared) {
+                $byteExposurePolicy = 'undeclared-package-entry-no-bytes';
+            } elseif (is_array($embeddedObjectPackage)) {
+                $byteExposurePolicy = 'embedded-object-package-bytes-blocked';
+            }
             $item = [
                 'path' => $entry->name,
                 'roles' => $roles,
@@ -533,9 +545,7 @@ final class OpenDocumentPackage
                 'rdfMetadataPart' => self::isRdfMetadataPart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
-                'byteExposurePolicy' => is_array($manifestEntry)
-                    ? ($manifestEntry['byteExposurePolicy'] ?? null)
-                    : (is_array($embeddedObjectPackage) ? 'embedded-object-package-bytes-blocked' : null),
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
             ] + $rawNameProvenance;
 
@@ -563,6 +573,20 @@ final class OpenDocumentPackage
                 ++$blockedEntryCount;
                 $blockedByteLength += $entry->uncompressedSize;
                 $blockedCompressedByteLength += $entry->compressedSize;
+            }
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                $byteExposurePolicyByteLengths[$byteExposurePolicy] = ($byteExposurePolicyByteLengths[$byteExposurePolicy] ?? 0) + $entry->uncompressedSize;
+                $byteExposurePolicyCompressedByteLengths[$byteExposurePolicy] = ($byteExposurePolicyCompressedByteLengths[$byteExposurePolicy] ?? 0) + $entry->compressedSize;
+                $byteExposurePolicyItems[] = self::withoutEmptyValues([
+                    'path' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'roles' => $roles,
+                    'byteExposurePolicy' => $byteExposurePolicy,
+                    'declaredInManifest' => is_array($manifestEntry),
+                    'undeclared' => $isUndeclared,
+                    'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
+                ]);
             }
             if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
                 ++$corePackagePartCount;
@@ -623,6 +647,9 @@ final class OpenDocumentPackage
         ksort($roleByteLengths, SORT_STRING);
         ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($byteExposurePolicyByteLengths, SORT_STRING);
+        ksort($byteExposurePolicyCompressedByteLengths, SORT_STRING);
 
         return [
             'entryCount' => count($parts),
@@ -654,6 +681,11 @@ final class OpenDocumentPackage
             'blockedCompressedByteLength' => $blockedCompressedByteLength,
             'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
             'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'byteExposurePolicyItemCount' => count($byteExposurePolicyItems),
+            'byteExposurePolicyItems' => $byteExposurePolicyItems,
+            'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
+            'byteExposurePolicyCompressedByteLengths' => $byteExposurePolicyCompressedByteLengths,
             'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
             'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,

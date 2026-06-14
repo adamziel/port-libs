@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3476,
-        "latestSlice": "pandoc-docx-relationship-type-matrix maps eight DOCX/OpenXML relationship package matrix cases after rebase onto current main 24bc9024fb. DocxOpenXmlReader relationship type provenance now aggregates target directories, content-type sources, semantic package inventory roles, existing target byte totals, CRC32/SHA-256 digest rows, and largest target part metadata across comments, footnotes, endnotes, custom XML, glossary, ActiveX, VBA, and missing settings package relationships without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3468 -> 3476, mappedDocxOpenXmlRelationshipTypeMatrixCases is 8, and docxOpenXmlRelationshipTypeMatrixAssertions is 58. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2846 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83754 assertions, 0 failures. No Pandoc binary, Word, LibreOffice, office suite, zip/unzip, ZipArchive, external validator, online service, live provider test, or live-service provider test was invoked.",
+        "mapped": 3485,
+        "latestSlice": "pandoc-odf-compact-package-policy-matrix maps nine compact ODF/ODT package inventory byte-exposure cases after rebase onto current main 45de759a4f. OpenDocumentPackage now aggregates byteExposurePolicyCounts, byteExposurePolicyItems, and byte/compressed-byte policy buckets in compact packageInventory while preserving undeclared package entries as metadata-only policy rows across exposable media, encrypted media, unsupported compression, scripts/macros, Configurations2, fonts, RDF, object replacements, and undeclared sidecars without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3476 -> 3485, mappedOdfCompactPackagePolicyMatrixCases = 9, and odfCompactPackagePolicyMatrixAssertions = 82. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1364 assertions, 0 failures; combined focused OpenDocumentPackageTest.php and OdfReaderTest.php passed 2 files, 6133 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83836 assertions, 0 failures.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -433,7 +433,9 @@
         "mappedXmlHtmlDomJatsPublicationMetadataCases": 6,
         "xmlHtmlDomJatsPublicationMetadataAssertions": 60,
         "mappedDocxOpenXmlRelationshipTypeMatrixCases": 8,
-        "docxOpenXmlRelationshipTypeMatrixAssertions": 58
+        "docxOpenXmlRelationshipTypeMatrixAssertions": 58,
+        "mappedOdfCompactPackagePolicyMatrixCases": 9,
+        "odfCompactPackagePolicyMatrixAssertions": 82
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -1440,12 +1442,12 @@
         "mappedMediaBagRepairProvenanceCases": 1,
         "mediaBagRepairProvenanceAssertions": 38
     },
-    "wordpressScenario": "DOCX/OpenXML package review preserves relationship type target directory, content-type, role, byte, CRC32, and SHA-256 rollups without executing office tooling.",
+    "wordpressScenario": "ODF/ODT compact package inventory policy matrix provenance is available for WordPress import and review handoff.",
     "nextTask": "Continue bounded shared ZIP/OPC, DOCX/OpenXML, EPUB3, ODF/ODT, JSON/native-AST, CSL, XML/HTML, wiki/roff/text, or PDF/Typst blocker slices while keeping phpFail at zero.",
-    "status": "DOCX/OpenXML relationship type package matrix rollups are verified after rebase onto current main 24bc9024fb; phpFail remains 0.",
-    "mapping": "Adds eight bounded native PHP DocxOpenXmlReader relationship type package matrix mappings on top of the shared ZIP/OPC, DOCX/OpenXML, EPUB, ODF/ODT, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
-    "audit": "updated 2026-06-14: DOCX/OpenXML relationship type package matrix rollups are verified after rebase onto current main 24bc9024fb. DocxOpenXmlReader relationship type provenance aggregates target directories, content-type sources, semantic package inventory roles, existing target byte totals, CRC32/SHA-256 digest rows, and largest target part metadata across comments, footnotes, endnotes, custom XML, glossary, ActiveX, VBA, and missing settings package relationships. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2846 assertions, 0 failures; full lanes/pandoc/tests gate passed 46 files, 83754 assertions, 0 failures. No Pandoc binary, Word, LibreOffice, office suite, zip/unzip, ZipArchive, external validator, online service, live provider test, or live-service provider test was invoked.",
-    "latestSlice": "pandoc-docx-relationship-type-matrix maps eight DOCX/OpenXML relationship package matrix cases after rebase onto current main 24bc9024fb. DocxOpenXmlReader relationship type provenance now aggregates target directories, content-type sources, semantic package inventory roles, existing target byte totals, CRC32/SHA-256 digest rows, and largest target part metadata across comments, footnotes, endnotes, custom XML, glossary, ActiveX, VBA, and missing settings package relationships without invoking Pandoc, Word, LibreOffice, office suites, zip/unzip, ZipArchive, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3468 -> 3476, mappedDocxOpenXmlRelationshipTypeMatrixCases is 8, and docxOpenXmlRelationshipTypeMatrixAssertions is 58. Verification passed php -l for DocxOpenXmlReader.php and DocxOpenXmlReaderTest.php; focused DocxOpenXmlReaderTest.php passed 1 file, 2846 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83754 assertions, 0 failures. No Pandoc binary, Word, LibreOffice, office suite, zip/unzip, ZipArchive, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "status": "ODF/ODT compact package policy matrix coverage is verified after rebase onto current main 45de759a4f; phpFail remains 0.",
+    "mapping": "Adds nine bounded native PHP OpenDocumentPackage compact package inventory policy matrix rows while preserving prior ODF/ODT package contracts and current registry, ZIP/OPC, DOCX/OpenXML, EPUB, JSON/native-AST, CSL, XML/HTML, PDF/Typst, and text-format counters.",
+    "audit": "updated 2026-06-14: ODF/ODT compact package policy matrix is verified after rebase onto current main 45de759a4f; OpenDocumentPackage aggregates compact packageInventory byte-exposure policy counts/items/byte buckets and undeclared metadata-only policy rows. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1364 assertions, 0 failures; combined focused OpenDocumentPackageTest.php and OdfReaderTest.php passed 2 files, 6133 assertions, 0 failures. Full lanes/pandoc/tests passed 46 files, 83836 assertions, 0 failures. No Pandoc binary, office suite, zip/unzip, ZipArchive, browser renderer, external validator, online service, live provider test, or live-service provider test was invoked.",
+    "latestSlice": "pandoc-odf-compact-package-policy-matrix maps nine compact ODF/ODT package inventory byte-exposure cases after rebase onto current main 45de759a4f. OpenDocumentPackage now aggregates byteExposurePolicyCounts, byteExposurePolicyItems, and byte/compressed-byte policy buckets in compact packageInventory while preserving undeclared package entries as metadata-only policy rows across exposable media, encrypted media, unsupported compression, scripts/macros, Configurations2, fonts, RDF, object replacements, and undeclared sidecars without invoking Pandoc, office suites, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. Mapped denominator moves 3476 -> 3485, mappedOdfCompactPackagePolicyMatrixCases = 9, and odfCompactPackagePolicyMatrixAssertions = 82. Verification passed php -l for OpenDocumentPackage.php and OpenDocumentPackageTest.php; focused OpenDocumentPackageTest.php passed 1 file, 1364 assertions, 0 failures; combined focused OpenDocumentPackageTest.php and OdfReaderTest.php passed 2 files, 6133 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 83836 assertions, 0 failures.",
     "mappedXmlHtmlDomOutputForReferenceCases": 1,
     "xmlHtmlDomOutputForReferenceAssertions": 41,
     "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
@@ -1890,7 +1892,7 @@
     "xmlHtmlDomDocBookStructureReviewAssertions": 214,
     "mappedCsvTsvFormatInferenceCases": 2,
     "csvTsvFormatInferenceAssertions": 15,
-    "currentSlice": "XML/HTML/JATS/BITS DOM handoff preserves bounded JATS/BITS publication metadata packets for serial identifiers, publisher provenance, front-matter permissions, history dates, self/related links, and issue/page fields without invoking Pandoc or external validators.",
+    "currentSlice": "ODF/ODT compact package policy matrix covers byte-exposure policy counts, item buckets, byte and compressed-byte totals, and metadata-only undeclared sidecars without invoking office tooling.",
     "mappedPandocFormatReaderEvidenceBatchCases": 6,
     "pandocFormatReaderEvidenceBatchAssertions": 200,
     "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -2022,5 +2024,7 @@
     "mappedXmlHtmlDomJatsPublicationMetadataCases": 6,
     "xmlHtmlDomJatsPublicationMetadataAssertions": 60,
     "mappedDocxOpenXmlRelationshipTypeMatrixCases": 8,
-    "docxOpenXmlRelationshipTypeMatrixAssertions": 58
+    "docxOpenXmlRelationshipTypeMatrixAssertions": 58,
+    "mappedOdfCompactPackagePolicyMatrixCases": 9,
+    "odfCompactPackagePolicyMatrixAssertions": 82
 }

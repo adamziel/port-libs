@@ -1383,6 +1383,173 @@ XML;
         $t->same(['undeclared-package-entry'], $inventory['parts']['Notes/private.txt']['roles']);
         $t->same(['Pictures/hero.png', 'Media/theme.ogg'], array_column($summary['mediaParts'], 'path'));
     },
+    'maps compact ODT package inventory byte exposure policy matrix' => static function (TestRunner $t) use (
+        $buildZipPackageWithCentralDirectoryOrder,
+        $manifestXml,
+        $contentXml,
+        $stylesXml,
+        $metaXml
+    ): void {
+        $heroBytes = 'PNGDATA';
+        $secretBytes = 'SECRET-PNG-BYTES';
+        $audioBytes = 'AUDIO-REVIEW-BYTES';
+        $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Main' . "\n" . 'End Sub</script:module>';
+        $configurationXml = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="Review"/>';
+        $fontBytes = 'WOFF2-FONT-BYTES';
+        $rdfXml = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description rdf:about="content.xml"><dc:title>Review body</dc:title></rdf:Description></rdf:RDF>';
+        $replacementBytes = 'REPLACEMENT-PNG-BYTES';
+        $noteBytes = 'private review note';
+        $matrixEntries = <<<'XML'
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/secret.png" manifest:size="16">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="secret-checksum"/>
+  </manifest:file-entry>
+XML;
+        $matrixEntries .= '  <manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/theme.ogg" manifest:size="' . strlen($audioBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Module1.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($configurationXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="font/woff2" manifest:full-path="Fonts/ReviewSans.woff2" manifest:size="' . strlen($fontBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/preview.png" manifest:size="' . strlen($replacementBytes) . '"/>' . "\n";
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            rtrim($matrixEntries),
+            $manifestXml
+        );
+
+        $package = $buildZipPackageWithCentralDirectoryOrder([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => $heroBytes, 'compressionMethod' => 0],
+            ['name' => 'Pictures/secret.png', 'data' => $secretBytes, 'compressionMethod' => 0],
+            ['name' => 'Media/theme.ogg', 'data' => $audioBytes, 'compressionMethod' => 12],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configurationXml, 'compressionMethod' => 0],
+            ['name' => 'Fonts/ReviewSans.woff2', 'data' => $fontBytes, 'compressionMethod' => 0],
+            ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/preview.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+            ['name' => 'Notes/private.txt', 'data' => $noteBytes, 'compressionMethod' => 0],
+        ], [
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/secret.png',
+            'Media/theme.ogg',
+            'Basic/Standard/Module1.xml',
+            'Configurations2/accelerator/current.xml',
+            'Fonts/ReviewSans.woff2',
+            'manifest.rdf',
+            'ObjectReplacements/preview.png',
+            'Notes/private.txt',
+        ]);
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+        $policyItemsByPath = [];
+        foreach ($inventory['byteExposurePolicyItems'] as $item) {
+            $policyItemsByPath[$item['path']] = $item;
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $item) {
+            $mediaByPath[$item['path']] = $item;
+        }
+
+        $packageBytesExposableBytes = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen($heroBytes);
+        $packageBytesExposableCompressedBytes = strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen($metaXml) + strlen($heroBytes);
+        $expectedPolicyByteLengths = [
+            'configuration-package-bytes-blocked' => strlen($configurationXml),
+            'encrypted-resource-bytes-blocked' => strlen($secretBytes),
+            'font-package-bytes-blocked' => strlen($fontBytes),
+            'object-replacement-package-bytes-blocked' => strlen($replacementBytes),
+            'package-bytes-exposable' => $packageBytesExposableBytes,
+            'rdf-metadata-bytes-blocked' => strlen($rdfXml),
+            'script-package-bytes-blocked' => strlen($basicModuleXml),
+            'undeclared-package-entry-no-bytes' => strlen($noteBytes),
+            'unsupported-compression-bytes-blocked' => strlen($audioBytes),
+        ];
+        $expectedPolicyCompressedByteLengths = $expectedPolicyByteLengths;
+        $expectedPolicyCompressedByteLengths['package-bytes-exposable'] = $packageBytesExposableCompressedBytes;
+
+        $t->same([
+            'configuration-package-bytes-blocked' => 1,
+            'encrypted-resource-bytes-blocked' => 1,
+            'font-package-bytes-blocked' => 1,
+            'object-replacement-package-bytes-blocked' => 1,
+            'package-bytes-exposable' => 4,
+            'rdf-metadata-bytes-blocked' => 1,
+            'script-package-bytes-blocked' => 1,
+            'undeclared-package-entry-no-bytes' => 1,
+            'unsupported-compression-bytes-blocked' => 1,
+        ], $inventory['byteExposurePolicyCounts']);
+        $t->same(12, $inventory['byteExposurePolicyItemCount']);
+        $t->same($expectedPolicyByteLengths, $inventory['byteExposurePolicyByteLengths']);
+        $t->same($expectedPolicyCompressedByteLengths, $inventory['byteExposurePolicyCompressedByteLengths']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/secret.png',
+            'Media/theme.ogg',
+            'Basic/Standard/Module1.xml',
+            'Configurations2/accelerator/current.xml',
+            'Fonts/ReviewSans.woff2',
+            'manifest.rdf',
+            'ObjectReplacements/preview.png',
+            'Notes/private.txt',
+        ], array_column($inventory['byteExposurePolicyItems'], 'path'));
+        $t->same(1, $inventory['undeclaredEntryCount']);
+        $t->same(['Notes/private.txt'], array_column($inventory['undeclaredEntries'], 'path'));
+
+        $expectations = [
+            'Pictures/hero.png' => ['package-bytes-exposable', ['manifest-declared', 'media-resource'], true, true, false],
+            'Pictures/secret.png' => ['encrypted-resource-bytes-blocked', ['manifest-declared', 'media-resource'], false, true, false],
+            'Media/theme.ogg' => ['unsupported-compression-bytes-blocked', ['manifest-declared', 'media-resource'], false, true, false],
+            'Basic/Standard/Module1.xml' => ['script-package-bytes-blocked', ['script-package', 'manifest-declared'], false, true, false],
+            'Configurations2/accelerator/current.xml' => ['configuration-package-bytes-blocked', ['configuration-package', 'manifest-declared'], false, true, false],
+            'Fonts/ReviewSans.woff2' => ['font-package-bytes-blocked', ['font-package', 'manifest-declared'], false, true, false],
+            'manifest.rdf' => ['rdf-metadata-bytes-blocked', ['rdf-metadata', 'manifest-declared'], false, true, false],
+            'ObjectReplacements/preview.png' => ['object-replacement-package-bytes-blocked', ['object-replacement', 'manifest-declared'], false, true, false],
+            'Notes/private.txt' => ['undeclared-package-entry-no-bytes', ['undeclared-package-entry'], false, false, true],
+        ];
+        foreach ($expectations as $path => [$policy, $roles, $canExposeBytes, $declared, $undeclared]) {
+            $t->same($roles, $parts[$path]['roles'], $path . ' roles');
+            $t->same($policy, $parts[$path]['byteExposurePolicy'], $path . ' policy');
+            $t->same($canExposeBytes, $parts[$path]['canExposeBytes'], $path . ' byte exposure');
+            $t->same($declared, $parts[$path]['declaredInManifest'], $path . ' declaration state');
+            $t->same($undeclared, $parts[$path]['undeclared'], $path . ' undeclared state');
+            $t->same($policy, $policyItemsByPath[$path]['byteExposurePolicy'], $path . ' policy item');
+        }
+
+        $t->same(['Pictures/hero.png', 'Pictures/secret.png', 'Media/theme.ogg'], array_keys($mediaByPath));
+        $t->same('package-bytes-exposable', $mediaByPath['Pictures/hero.png']['byteExposurePolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $mediaByPath['Pictures/secret.png']['byteExposurePolicy']);
+        $t->same('unsupported-compression-bytes-blocked', $mediaByPath['Media/theme.ogg']['byteExposurePolicy']);
+        $t->same(hash('sha256', $heroBytes), $parts['Pictures/hero.png']['byteSha256']);
+        $t->same(null, $parts['Pictures/secret.png']['byteSha256']);
+        $t->same(null, $parts['Media/theme.ogg']['byteSha256']);
+        $t->same(sprintf('%08x', crc32($audioBytes)), $parts['Media/theme.ogg']['crc32']);
+        $t->same(sprintf('%08x', crc32($noteBytes)), $parts['Notes/private.txt']['crc32']);
+        $t->same(1, $inventory['roleCounts']['script-package']);
+        $t->same(1, $inventory['roleCounts']['configuration-package']);
+        $t->same(1, $inventory['roleCounts']['font-package']);
+        $t->same(1, $inventory['roleCounts']['rdf-metadata']);
+        $t->same(1, $inventory['roleCounts']['object-replacement']);
+        $t->same(1, $inventory['undeclaredRoleCounts']['undeclared-package-entry']);
+        $t->same(['Pictures/secret.png'], $summary['encryptedParts']);
+        $t->same(1, $summary['packageScripts']['count']);
+        $t->same(1, $summary['packageConfigurations']['count']);
+        $t->same(1, $summary['packageFonts']['count']);
+        $t->same(1, $summary['packageObjectReplacements']['count']);
+        $t->same(1, $summary['rdfMetadata']['parsedPartCount']);
+    },
     'preserves compact ODT exposable package SHA-256 provenance for review handoff' => static function (TestRunner $t) use (
         $buildZipPackageWithCentralDirectoryOrder,
         $manifestXml,
