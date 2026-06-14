@@ -4179,6 +4179,103 @@ return [
         $t->same([], $sequence['finalEngineBoundaryViolations']);
     },
 
+    'fake runner preserves typst zero dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'workspace/build/zero-deps.pdf',
+            'source' => "= Typst Zero Dependency Packet\n\n#image(\"assets/chart.svg\")\n",
+            'engineOptions' => [
+                '--root=workspace',
+                '--deps=workspace/build/zero-deps.d',
+                '--deps-format=zero',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst zero dependency sidecar packet\n%%EOF\n";
+        $depfile = implode("\0", [
+            'workspace/main.typ',
+            'workspace/assets/chart.svg',
+            '@preview/cetz:0.3.2',
+            '',
+        ]);
+        $expectedEdges = [
+            [
+                'outputFiles' => [],
+                'inputFiles' => ['workspace/assets/chart.svg', 'workspace/main.typ'],
+                'externalInputFiles' => ['typst-package:@preview/cetz:0.3.2'],
+                'artifact' => 'workspace/build/zero-deps.d',
+            ],
+        ];
+        $expectedOutputPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'workspace/build/zero-deps.pdf',
+            'dependencyOutputFiles' => [],
+            'declaredOutputPresent' => false,
+            'extraOutputFiles' => [],
+            'issues' => ['missing-output-targets', 'missing-declared-output'],
+        ];
+        $expectedReadPolicy = [
+            'reviewStatus' => 'ok',
+            'root' => 'workspace',
+            'sourceFile' => 'workspace/main.typ',
+            'inputFiles' => ['workspace/assets/chart.svg', 'workspace/main.typ'],
+            'insideRootFiles' => ['workspace/assets/chart.svg', 'workspace/main.typ'],
+            'outsideRootFiles' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'workspace/build/zero-deps.d' => $depfile,
+                'workspace/build/zero-deps.pdf' => $pdfBytes,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'workspace/build/zero-deps.d' => $depfile,
+                'workspace/build/zero-deps.pdf' => $pdfBytes,
+                'workspace/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]]);
+
+        $t->same('zero', $plan['typstBoundaryProvenance']['dependencyOutput']['format']['format']);
+        $t->same(false, $plan['typstBoundaryProvenance']['dependencyOutput']['format']['makeCompatible']);
+        $t->same(true, $plan['typstBoundaryProvenance']['dependencyOutput']['format']['machineReadable']);
+        $t->contains('typst-dependency-format:zero', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(['workspace/build/zero-deps.d' => hash('sha256', $depfile)], $result['engineDependencyArtifactsSha256']);
+        $t->same(['workspace/assets/chart.svg', 'workspace/main.typ'], $result['engineInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
+        $t->same([], $result['engineOutputFiles']);
+        $t->same($expectedEdges, $result['engineDependencyEdges']);
+        $t->same($expectedOutputPolicy, $result['typstDependencyOutputPolicy']);
+        $t->same($expectedReadPolicy, $result['typstReadBoundaryPolicy']);
+        $t->same($expectedEdges, $result['artifactProvenanceReview']['engineDependencyEdges']);
+        $t->same($expectedOutputPolicy, $result['artifactProvenanceReview']['typstDependencyOutputPolicy']);
+        $t->same($expectedReadPolicy, $result['artifactProvenanceReview']['typstReadBoundaryPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same(1, $result['typstPackageDependencyPolicy']['packageDependencyCount']);
+        $t->same(['preview-registry' => 1], $result['typstPackageDependencyPolicy']['sourceClassCounts']);
+        $t->same(['preview-registry-network-not-executed' => 1], $result['typstPackageDependencyPolicy']['unsupportedReasonCounts']);
+        $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-files:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-external-input-files:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-edges:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-missing-declared:workspace/build/zero-deps.pdf', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-policy:ok', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-dependency-source:preview-registry:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-package-unsupported-reason:preview-registry-network-not-executed:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
+        $t->same($expectedOutputPolicy, $sequence['finalTypstDependencyOutputPolicy']);
+        $t->same($expectedReadPolicy, $sequence['finalTypstReadBoundaryPolicy']);
+    },
+
     'fake runner rejects typst dependency inputs outside declared root boundary' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

@@ -885,6 +885,7 @@ final class PdfEngineHandoff
         $typstBoundaryProvenance = is_array($plan['typstBoundaryProvenance'] ?? null)
             ? $plan['typstBoundaryProvenance']
             : $this->typstBoundaryProvenanceFor($engine, $engine === 'typst' ? 'typst' : '', $planEngineOptions, $planEngineEnvironment);
+        $typstDependencyFormat = $this->typstDependencyFormatFromBoundaryProvenance($typstBoundaryProvenance);
         $typstBoundarySummary = is_array($plan['typstBoundarySummary'] ?? null)
             ? $plan['typstBoundarySummary']
             : $this->typstBoundarySummaryFor($typstBoundaryProvenance);
@@ -994,7 +995,11 @@ final class PdfEngineHandoff
             if ($this->isEngineDependencyArtifactPath($path)) {
                 $engineDependencyArtifactsSha256[$path] = hash('sha256', $bytes);
                 try {
-                    $dependencies = $this->extractEngineDependencyArtifact($path, $bytes);
+                    $dependencies = $this->extractEngineDependencyArtifact(
+                        $path,
+                        $bytes,
+                        $engine === 'typst' ? $typstDependencyFormat : null
+                    );
                 } catch (\RuntimeException $exception) {
                     if ($reason === null) {
                         $status = 'failed';
@@ -7385,6 +7390,16 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param array<string, mixed> $typstBoundaryProvenance
+     */
+    private function typstDependencyFormatFromBoundaryProvenance(array $typstBoundaryProvenance): ?string
+    {
+        $format = $typstBoundaryProvenance['dependencyOutput']['format']['format'] ?? null;
+
+        return is_string($format) && $format !== '' ? $format : null;
+    }
+
+    /**
      * @param list<string> $engineInputFiles
      * @return array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}
      */
@@ -7847,7 +7862,7 @@ final class PdfEngineHandoff
             'value' => $value,
             'format' => $format,
             'makeCompatible' => $format === 'make',
-            'machineReadable' => $format === 'json',
+            'machineReadable' => in_array($format, ['json', 'zero'], true),
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
@@ -8383,10 +8398,14 @@ final class PdfEngineHandoff
     /**
      * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
      */
-    private function extractEngineDependencyArtifact(string $path, string $bytes): array
+    private function extractEngineDependencyArtifact(string $path, string $bytes, ?string $dependencyFormat = null): array
     {
         if (strlen($bytes) > self::MAX_DEPENDENCY_FILE_BYTES) {
             throw new \RuntimeException('dependency file exceeds bounded byte limit');
+        }
+
+        if ($dependencyFormat === 'zero' || ($dependencyFormat === null && str_contains($bytes, "\0"))) {
+            return $this->extractZeroDependencyArtifact($path, $bytes);
         }
 
         $inputFiles = [];
@@ -8447,6 +8466,49 @@ final class PdfEngineHandoff
             'inputFiles' => $inputFileList,
             'externalInputFiles' => $externalInputFileList,
             'outputFiles' => $outputFileList,
+            'dependencyEdges' => $dependencyEdges,
+        ];
+    }
+
+    /**
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
+     */
+    private function extractZeroDependencyArtifact(string $path, string $bytes): array
+    {
+        $inputFiles = [];
+        $externalInputFiles = [];
+
+        foreach (explode("\0", $bytes) as $dependency) {
+            $dependency = trim($dependency);
+            if ($dependency === '') {
+                continue;
+            }
+
+            $classified = $this->normalizeEngineDependencyPath($dependency, $path);
+            if ($classified['local']) {
+                $inputFiles[$classified['path']] = true;
+            } else {
+                $externalInputFiles[$classified['path']] = true;
+            }
+        }
+
+        $inputFileList = array_keys($inputFiles);
+        sort($inputFileList);
+        $externalInputFileList = array_keys($externalInputFiles);
+        sort($externalInputFileList);
+        $dependencyEdges = [];
+        if ($inputFileList !== [] || $externalInputFileList !== []) {
+            $dependencyEdges[] = [
+                'outputFiles' => [],
+                'inputFiles' => $inputFileList,
+                'externalInputFiles' => $externalInputFileList,
+            ];
+        }
+
+        return [
+            'inputFiles' => $inputFileList,
+            'externalInputFiles' => $externalInputFileList,
+            'outputFiles' => [],
             'dependencyEdges' => $dependencyEdges,
         ];
     }

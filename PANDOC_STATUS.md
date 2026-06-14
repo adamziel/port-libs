@@ -23,9 +23,9 @@ ODF/ODT is marked ship-ready: 54 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | DocBook | 16 | 17 |
 | RTF | 4 | 27 |
 | Shared ZIP / OPC package | 107 | 578 |
-| PDF import (adjacent; not upstream Pandoc input) | 49 | N/A - Pandoc output/engine boundary only |
+| PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest ODF package evidence: `OdfReader` preserves manifest and local ZIP entry ordering across mimetype, `META-INF/manifest.xml`, core XML parts, declared media, missing package parts, unsupported-compression byte blocks, script sidecars, and RDF metadata-only sidecars while exposing bytes only for eligible document media.
+Latest PDF/Typst evidence: `PdfEngineHandoff` parses explicit Typst `--deps-format=zero` sidecars as NUL-delimited input-only dependency provenance, including local inputs, Typst package review metadata, root read-boundary policy, and dependency-output review when the sidecar carries no output target.
 
-Current Pandoc counters: 3,519 PHP passes / 0 failures and 3,438 mapped upstream cases. Verification passed `php -l lanes/pandoc/tests/OdfReaderTest.php`, focused `OdfReaderTest.php` (`1` file, `4,769` assertions, `0` failures), focused ODF/ODT gate (`5` files, `6,351` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,368` assertions, `0` failures), `jq empty`, and `git diff --check`.
+Current Pandoc counters: 3,528 PHP passes / 0 failures and 3,445 mapped upstream cases. Verification passed `php -l lanes/pandoc/src/PdfEngineHandoff.php`, `php -l lanes/pandoc/tests/PdfEngineHandoffTest.php`, focused `PdfEngineHandoffTest.php` (`1` file, `2,543` assertions, `0` failures), full `lanes/pandoc/tests` (`46` files, `83,483` assertions, `0` failures), `jq empty`, and `git diff --check`.
