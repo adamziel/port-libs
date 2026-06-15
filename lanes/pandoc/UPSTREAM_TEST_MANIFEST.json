@@ -8,8 +8,8 @@
         "commit": "f533906a11074e0868d7b7925e0513f7b73dbd25",
         "license": "GPL-2.0-or-later; COPYRIGHT also records GPL-compatible exceptions including BSD-3-Clause pandoc-types modules and dual-licensed templates",
         "architecture": "Haskell document conversion system with a Pandoc AST, Tasty/HUnit/QuickCheck/golden tests, command golden fixtures, readers, writers, Lua engine support, and data templates.",
-        "mapped": 3667,
-        "latestSlice": "pandoc-json-native-single-wrapped-constructor-list-payloads maps ten Pandoc block/inline constructor payload cases (Emph, Strong, Underline, Strikeout, Superscript, Subscript, SmallCaps, Span, Note, and BlockQuote) after rebase onto current main 2c2971fc56. PandocJsonReader and NativeReader accept single-wrapped block/inline constructor lists while JSON/native writers preserve unchanged source wrappers and regenerate edited inline payloads canonically without invoking Pandoc, JSON filters, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3628 -> 3629, phpFail remains 0, mapped upstream cases move 3657 -> 3667, mappedJsonNativeConstructorCompletenessCases moves 19 -> 29, and jsonNativeConstructorCompletenessAssertions moves 312 -> 438. Verification passed php -l for PandocJsonReader.php, NativeReader.php, and PandocJsonNativeAstTest.php; focused PandocJsonNativeAstTest.php passed 1 file, 4131 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85387 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
+        "mapped": 3668,
+        "latestSlice": "pandoc-epub-resource-property-zip-provenance maps one EPUB3 manifest resource-property package-ingestion case after rebase onto current main fa91986d61. EpubPackage resourceProperties rows now carry existence, external/encrypted state, byte-exposure policy, byte/compressed-byte lengths, compression method/support, and CRC32 for flagged manifest resources while unsupported-compression resources remain metadata-only without invoking Pandoc, EPUBCheck, zip/unzip, ZipArchive, browser renderers, external validators, online services, live provider tests, or live-service provider tests. phpPass moves 3629 -> 3630, phpFail remains 0, mapped upstream cases move 3667 -> 3668, mappedEpubResourcePropertyZipProvenanceCases = 1, and epubResourcePropertyZipProvenanceAssertions = 30. Verification passed php -l for EpubPackage.php and EpubPackageTest.php; focused EpubPackageTest.php passed 1 file, 2580 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85417 assertions, 0 failures; PHP JSON manifest/status validation; git diff --check; and conflict-marker scan.",
         "mappedOdfPackageFontFormatProvenanceCases": 6,
         "odfPackageFontFormatProvenanceAssertions": 56,
         "mappedOdfPackageHandoffOrderUnsupportedCompressionCases": 1,
@@ -58,8 +58,8 @@
         "opcRawZipCentralDirectoryManifestAssertions": 37,
         "mappedZipCentralDirectorySignaturePolicyCases": 2,
         "zipCentralDirectorySignaturePolicyAssertions": 30,
-        "status": "JSON/native single-wrapped constructor payload matrix is verified after rebase onto current main 2c2971fc56; phpFail remains 0.",
-        "latestFocusedSource": "2026-06-15 JSON/native single-wrapped constructor payload matrix verified after rebase onto current main 2c2971fc56; focused PandocJsonNativeAstTest.php passed 1 file, 4131 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85387 assertions, 0 failures.",
+        "status": "Pandoc EPUB3 manifest resource-property ZIP provenance is verified after rebase onto current main fa91986d61; phpFail remains 0.",
+        "latestFocusedSource": "2026-06-15 EPUB3 manifest resource-property ZIP provenance verified after rebase onto current main fa91986d61; focused EpubPackageTest.php passed 1 file, 2580 assertions, 0 failures; full lanes/pandoc/tests passed 46 files, 85417 assertions, 0 failures.",
         "mappedPandocFormatReaderEvidenceBatchCases": 6,
         "pandocFormatReaderEvidenceBatchAssertions": 200,
         "mappedPandocFormatRegistryWikiUnsupportedReasonMatrixCases": 1,
@@ -485,7 +485,9 @@
         "mappedJsonNativeLegacyTableWidthConstructorCases": 5,
         "jsonNativeLegacyTableWidthConstructorAssertions": 28,
         "mappedEpubReaderMetadataReportCases": 8,
-        "epubReaderMetadataReportAssertions": 46
+        "epubReaderMetadataReportAssertions": 46,
+        "mappedEpubResourcePropertyZipProvenanceCases": 1,
+        "epubResourcePropertyZipProvenanceAssertions": 30
     },
     "benchmarkDenominator": {
         "status": "EPUB package prefix validation is verified over current main 291e42a014.",
@@ -2124,5 +2126,7 @@
     "mappedJsonNativeLegacyTableWidthConstructorCases": 5,
     "jsonNativeLegacyTableWidthConstructorAssertions": 28,
     "mappedEpubReaderMetadataReportCases": 8,
-    "epubReaderMetadataReportAssertions": 46
+    "epubReaderMetadataReportAssertions": 46,
+    "mappedEpubResourcePropertyZipProvenanceCases": 1,
+    "epubResourcePropertyZipProvenanceAssertions": 30
 }

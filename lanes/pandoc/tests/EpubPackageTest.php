@@ -3964,7 +3964,10 @@ XML;
         $t->same($fallbacks['diagnostics'], $summary['wordpressImport']['manifestFallbackDiagnostics']);
     },
 
-    'summarizes OPF manifest resource properties for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+    'summarizes OPF manifest resource properties for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $chapter1Xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><math/><svg/></body></html>';
+        $chapter2Xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><script>review()</script></body></html>';
+        $reviewScriptBytes = 'SCRIPTED-REVIEW';
         $opfWithResourceProperties = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review#">',
@@ -3982,19 +3985,21 @@ XML;
         );
         $opfWithResourceProperties = str_replace(
             '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
-            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" properties="scripted switch"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" properties="scripted switch"/>
+    <item id="review-script" href="scripts/review.bin" media-type="application/octet-stream" properties="scripted"/>',
             $opfWithResourceProperties
         );
 
-        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
-            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
             ['name' => 'EPUB/package.opf', 'data' => $opfWithResourceProperties],
             ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
-            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><math/><svg/></body></html>'],
-            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><script>review()</script></body></html>'],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1Xhtml],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => $chapter2Xhtml],
             ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/scripts/review.bin', 'data' => $reviewScriptBytes, 'method' => 12],
         ]));
 
         $report = $epub->resourceProperties();
@@ -4005,23 +4010,56 @@ XML;
         $t->same(1, $report['summary']['mathmlCount']);
         $t->same(1, $report['summary']['svgCount']);
         $t->same(1, $report['summary']['remoteResourcesCount']);
-        $t->same(1, $report['summary']['scriptedCount']);
+        $t->same(2, $report['summary']['scriptedCount']);
         $t->same(1, $report['summary']['switchCount']);
-        $t->same(2, $report['summary']['reviewRequiredCount']);
+        $t->same(3, $report['summary']['reviewRequiredCount']);
+        $t->same(4, $report['summary']['exposableItemCount']);
+        $t->same(1, $report['summary']['blockedByteExposureCount']);
+        $t->same(0, $report['summary']['missingItemCount']);
+        $t->same(0, $report['summary']['externalItemCount']);
+        $t->same(0, $report['summary']['encryptedItemCount']);
+        $t->same(1, $report['summary']['unsupportedCompressionItemCount']);
+        $t->same([
+            'manifest-resource-bytes-exposable' => 4,
+            'unsupported-compression-metadata-only' => 1,
+        ], $report['summary']['byteExposurePolicyCounts']);
 
         $t->same('chapter1', $report['itemsByProperty']['mathml'][0]['id']);
         $t->same('chapter1', $report['itemsByProperty']['remote-resources'][0]['id']);
         $t->same('chapter2', $report['itemsByProperty']['scripted'][0]['id']);
+        $t->same('review-script', $report['itemsByProperty']['scripted'][1]['id']);
         $t->same('/EPUB/text/chapter1.xhtml', $report['itemsById']['chapter1']['partName']);
         $t->same(['mathml', 'svg', 'remote-resources'], $report['itemsById']['chapter1']['reviewFlags']);
         $t->same(['scripted', 'switch'], $report['itemsById']['chapter2']['reviewFlags']);
         $t->same(true, $report['itemsById']['chapter1']['reviewRequired']);
+        $t->same(true, $report['itemsById']['chapter1']['exists']);
+        $t->same(false, $report['itemsById']['chapter1']['external']);
+        $t->same(false, $report['itemsById']['chapter1']['encrypted']);
+        $t->same(true, $report['itemsById']['chapter1']['canExposeBytes']);
+        $t->same('manifest-resource-bytes-exposable', $report['itemsById']['chapter1']['byteExposurePolicy']);
+        $t->same(strlen($chapter1Xhtml), $report['itemsById']['chapter1']['byteLength']);
+        $t->same(strlen(gzdeflate($chapter1Xhtml)), $report['itemsById']['chapter1']['compressedByteLength']);
+        $t->same(8, $report['itemsById']['chapter1']['compressionMethod']);
+        $t->same('deflated', $report['itemsById']['chapter1']['compressionMethodName']);
+        $t->same(true, $report['itemsById']['chapter1']['compressionSupported']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $report['itemsById']['chapter1']['crc32']);
         $t->same('chapter2', $report['reviewItems'][1]['id']);
+        $t->same('review-script', $report['reviewItems'][2]['id']);
+        $t->same('review-script', $report['blockedByteExposureItems'][0]['id']);
+        $t->same('review-script', $report['unsupportedCompressionItems'][0]['id']);
+        $t->same(false, $report['itemsById']['review-script']['canExposeBytes']);
+        $t->same('unsupported-compression-metadata-only', $report['itemsById']['review-script']['byteExposurePolicy']);
+        $t->same(strlen($reviewScriptBytes), $report['itemsById']['review-script']['byteLength']);
+        $t->same(strlen($reviewScriptBytes), $report['itemsById']['review-script']['compressedByteLength']);
+        $t->same(12, $report['itemsById']['review-script']['compressionMethod']);
+        $t->same('unsupported', $report['itemsById']['review-script']['compressionMethodName']);
+        $t->same(false, $report['itemsById']['review-script']['compressionSupported']);
+        $t->same(hash('crc32b', $reviewScriptBytes), $report['itemsById']['review-script']['crc32']);
 
         $vocabulary = $report['propertyVocabulary'];
         $t->same(true, $vocabulary['present']);
-        $t->same(4, $vocabulary['itemCount']);
-        $t->same(11, $vocabulary['propertyTokenCount']);
+        $t->same(5, $vocabulary['itemCount']);
+        $t->same(12, $vocabulary['propertyTokenCount']);
         $t->same(4, $vocabulary['prefixedPropertyCount']);
         $t->same(3, $vocabulary['resolvedPropertyCount']);
         $t->same(1, $vocabulary['unresolvedPropertyCount']);

@@ -11376,8 +11376,17 @@ final class EpubPackage
             $itemsByProperty[$property] = [];
         }
         $reviewItems = [];
+        $exposableItems = [];
+        $blockedByteExposureItems = [];
+        $missingItems = [];
+        $externalItems = [];
+        $encryptedItems = [];
+        $unsupportedCompressionItems = [];
+        $byteExposurePolicyCounts = [];
+        $exposableByteLength = 0;
+        $exposableCompressedByteLength = 0;
 
-        foreach ($manifest as $item) {
+        foreach ($manifest as $index => $item) {
             $properties = array_values(array_filter(
                 is_array($item['properties'] ?? null) ? $item['properties'] : [],
                 static fn (mixed $property): bool => is_string($property) && $property !== '',
@@ -11392,13 +11401,42 @@ final class EpubPackage
 
             $flags = self::resourcePropertyFlags($properties);
             $reviewFlags = self::resourceReviewFlags($flags);
+            $exists = ($item['exists'] ?? false) === true;
+            $external = ($item['external'] ?? false) === true;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true;
+            $compressionSupported = is_bool($item['compressionSupported'] ?? null) ? $item['compressionSupported'] : null;
+            $byteLength = is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null;
+            $compressedByteLength = is_int($item['compressedByteLength'] ?? null) ? $item['compressedByteLength'] : null;
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $target = is_string($item['target'] ?? null) ? $item['target'] : $partName;
+            $byteExposurePolicy = self::resourcePropertyByteExposurePolicy(
+                $item,
+                $exists,
+                $external,
+                $encrypted,
+                $canExposeBytes,
+                $compressionSupported,
+            );
             $reportItem = [
+                'index' => (int) $index,
                 'id' => (string) ($item['id'] ?? ''),
                 'href' => (string) ($item['href'] ?? ''),
-                'target' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
-                'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                'target' => $target,
+                'partName' => $partName,
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
-                'exists' => true,
+                'exists' => $exists,
+                'external' => $external,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'compressionMethod' => is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null,
+                'compressionMethodName' => is_string($item['compressionMethodName'] ?? null) ? $item['compressionMethodName'] : null,
+                'compressionSupported' => $compressionSupported,
+                'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+                'encryption' => is_array($item['encryption'] ?? null) ? $item['encryption'] : null,
                 'properties' => $recognized,
                 'allProperties' => $properties,
                 'propertyVocabulary' => self::manifestItemPropertyVocabularyReport(
@@ -11423,7 +11461,29 @@ final class EpubPackage
             if ($reportItem['reviewRequired']) {
                 $reviewItems[] = $reportItem;
             }
+            if ($canExposeBytes) {
+                $exposableItems[] = $reportItem;
+                $exposableByteLength += $byteLength ?? 0;
+                $exposableCompressedByteLength += $compressedByteLength ?? 0;
+            } else {
+                $blockedByteExposureItems[] = $reportItem;
+            }
+            if (!$exists) {
+                $missingItems[] = $reportItem;
+            }
+            if ($external) {
+                $externalItems[] = $reportItem;
+            }
+            if ($encrypted) {
+                $encryptedItems[] = $reportItem;
+            }
+            if ($compressionSupported === false) {
+                $unsupportedCompressionItems[] = $reportItem;
+            }
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
         }
+
+        ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
             'summary' => [
@@ -11435,13 +11495,67 @@ final class EpubPackage
                 'scriptedCount' => count($itemsByProperty['scripted']),
                 'switchCount' => count($itemsByProperty['switch']),
                 'reviewRequiredCount' => count($reviewItems),
+                'exposableItemCount' => count($exposableItems),
+                'blockedByteExposureCount' => count($blockedByteExposureItems),
+                'missingItemCount' => count($missingItems),
+                'externalItemCount' => count($externalItems),
+                'encryptedItemCount' => count($encryptedItems),
+                'unsupportedCompressionItemCount' => count($unsupportedCompressionItems),
+                'exposableByteLength' => $exposableByteLength,
+                'exposableCompressedByteLength' => $exposableCompressedByteLength,
+                'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             ],
             'items' => $items,
             'itemsById' => $itemsById,
             'itemsByProperty' => $itemsByProperty,
             'reviewItems' => $reviewItems,
+            'exposableItems' => $exposableItems,
+            'blockedByteExposureItems' => $blockedByteExposureItems,
+            'missingItems' => $missingItems,
+            'externalItems' => $externalItems,
+            'encryptedItems' => $encryptedItems,
+            'unsupportedCompressionItems' => $unsupportedCompressionItems,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'propertyVocabulary' => $propertyVocabulary,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function resourcePropertyByteExposurePolicy(
+        array $item,
+        bool $exists,
+        bool $external,
+        bool $encrypted,
+        bool $canExposeBytes,
+        ?bool $compressionSupported
+    ): string {
+        if ($external) {
+            return 'external-resource-metadata-only';
+        }
+
+        if (!$exists) {
+            return 'missing-resource-metadata-only';
+        }
+
+        if ($encrypted) {
+            $encryption = is_array($item['encryption'] ?? null) ? $item['encryption'] : [];
+
+            return is_string($encryption['byteExposurePolicy'] ?? null)
+                ? $encryption['byteExposurePolicy']
+                : 'encrypted-resource-bytes-blocked';
+        }
+
+        if ($canExposeBytes) {
+            return 'manifest-resource-bytes-exposable';
+        }
+
+        if ($compressionSupported === false) {
+            return 'unsupported-compression-metadata-only';
+        }
+
+        return 'manifest-resource-metadata-only';
     }
 
     /**
