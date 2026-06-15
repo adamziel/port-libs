@@ -8286,6 +8286,28 @@ return [
                 'types' => ['figure'],
                 'tags' => ['Figure'],
             ],
+            'native fallback constructors' => [
+                'packet' => [
+                    'pandoc-api-version' => [1, 23, 1],
+                    'meta' => [],
+                    'blocks' => [
+                        ['t' => 'VendorBlock', 'c' => [
+                            'source' => 'constructor-matrix',
+                            'payload' => [['t' => 'Str', 'c' => 'opaque block']],
+                        ], 'reviewQueue' => 'vendor-block-source'],
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Before'],
+                            ['t' => 'Space'],
+                            ['t' => 'VendorInline', 'c' => [
+                                'name' => 'review-anchor',
+                                'value' => 42,
+                            ], 'reviewQueue' => 'vendor-inline-source'],
+                        ]],
+                    ],
+                ],
+                'types' => ['native_block', 'paragraph'],
+                'tags' => ['VendorBlock', 'Para'],
+            ],
         ];
 
         foreach ($cases as $caseName => $case) {
