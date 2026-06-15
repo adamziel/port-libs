@@ -5245,6 +5245,7 @@ final class DocxOpenXmlReader
         );
         $zipPackage = $this->zipPackageProvenance($sourcePackage, $parts);
         $partInventory = $this->packagePartInventoryWithZipProvenance($partInventory, $zipPackage);
+        $relationshipParts = $this->relationshipPartsWithSourceProvenance($relationshipParts, $partInventory);
         $summary = $this->packageProvenanceSummary($contentTypesPart, $relationshipParts, $partInventory);
         $summary['zipPackagePresent'] = $zipPackage['present'];
         $summary['zipEntryCount'] = $zipPackage['entryCount'];
@@ -5524,6 +5525,21 @@ final class DocxOpenXmlReader
         $relationshipRecordExplicitInternalTargetModeCount = 0;
         $relationshipRecordExplicitExternalTargetModeCount = 0;
         $relationshipRecordUnexpectedTargetModeCount = 0;
+        $relationshipSourceKindCounts = [];
+        $relationshipSourceDirectoryCounts = [];
+        $relationshipSourceContentTypeCounts = [];
+        $relationshipSourceContentTypeSourceCounts = [];
+        $relationshipSourceRoleCounts = [];
+        $relationshipPartsBySourceKind = [];
+        $relationshipSources = [];
+        $relationshipSourceCount = 0;
+        $relationshipSourcePackageRootCount = 0;
+        $relationshipSourcePackagePartCount = 0;
+        $relationshipSourceRelationshipPartCount = 0;
+        $relationshipSourceContentTypesItemCount = 0;
+        $relationshipSourceMissingCount = 0;
+        $relationshipSourceInvalidCount = 0;
+        $relationshipSourceExistingPartByteLength = 0;
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
@@ -5554,6 +5570,71 @@ final class DocxOpenXmlReader
         }
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            ++$relationshipSourceCount;
+            $relationshipSourceKind = is_string($relationshipPart['relationshipSourceKind'] ?? null)
+                ? $relationshipPart['relationshipSourceKind']
+                : 'invalid-source';
+            $relationshipSourceKindCounts[$relationshipSourceKind] = ($relationshipSourceKindCounts[$relationshipSourceKind] ?? 0) + 1;
+            $relationshipPartsBySourceKind[$relationshipSourceKind][] = (string) $relationshipsPart;
+
+            match ($relationshipSourceKind) {
+                'package-root' => ++$relationshipSourcePackageRootCount,
+                'package-part' => ++$relationshipSourcePackagePartCount,
+                'relationship-part' => ++$relationshipSourceRelationshipPartCount,
+                'content-types-item' => ++$relationshipSourceContentTypesItemCount,
+                'missing-source' => ++$relationshipSourceMissingCount,
+                'invalid-source' => ++$relationshipSourceInvalidCount,
+                default => null,
+            };
+
+            $sourceDirectory = is_string($relationshipPart['sourceDirectory'] ?? null)
+                ? $relationshipPart['sourceDirectory']
+                : '';
+            if ($sourceDirectory !== '') {
+                $relationshipSourceDirectoryCounts[$sourceDirectory] =
+                    ($relationshipSourceDirectoryCounts[$sourceDirectory] ?? 0) + 1;
+            }
+
+            $sourceContentTypeBase = is_string($relationshipPart['sourceContentTypeBase'] ?? null)
+                ? $relationshipPart['sourceContentTypeBase']
+                : '';
+            if ($sourceContentTypeBase !== '') {
+                $relationshipSourceContentTypeCounts[$sourceContentTypeBase] =
+                    ($relationshipSourceContentTypeCounts[$sourceContentTypeBase] ?? 0) + 1;
+            }
+
+            $sourceContentTypeSource = is_string($relationshipPart['sourceContentTypeSource'] ?? null)
+                ? $relationshipPart['sourceContentTypeSource']
+                : '';
+            if ($sourceContentTypeSource !== '') {
+                $relationshipSourceContentTypeSourceCounts[$sourceContentTypeSource] =
+                    ($relationshipSourceContentTypeSourceCounts[$sourceContentTypeSource] ?? 0) + 1;
+            }
+
+            foreach (($relationshipPart['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                $relationshipSourceRoleCounts[$role] = ($relationshipSourceRoleCounts[$role] ?? 0) + 1;
+            }
+
+            if (is_int($relationshipPart['sourceBytes'] ?? null)) {
+                $relationshipSourceExistingPartByteLength += (int) $relationshipPart['sourceBytes'];
+            }
+
+            $relationshipSources[] = [
+                'relationshipsPart' => (string) $relationshipsPart,
+                'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                'relationshipSourceKind' => $relationshipSourceKind,
+                'sourceExists' => (bool) ($relationshipPart['sourceExists'] ?? false),
+                'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
+                'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? 0),
+                'sourceDirectory' => $sourceDirectory,
+                'sourceContentType' => is_string($relationshipPart['sourceContentType'] ?? null) ? $relationshipPart['sourceContentType'] : null,
+                'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
+                'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                'sourceBytes' => is_int($relationshipPart['sourceBytes'] ?? null) ? $relationshipPart['sourceBytes'] : null,
+                'sourceRoles' => array_values(array_map('strval', $relationshipPart['sourceRoles'] ?? [])),
+            ];
+
             if (($relationshipPart['sourceExists'] ?? true) === false) {
                 ++$relationshipPartMissingSourceCount;
                 $relationshipPartsWithMissingSources[] = (string) $relationshipsPart;
@@ -5696,6 +5777,16 @@ final class DocxOpenXmlReader
         ksort($relationshipTypeCounts);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
+        ksort($relationshipSourceKindCounts);
+        ksort($relationshipSourceDirectoryCounts);
+        ksort($relationshipSourceContentTypeCounts);
+        ksort($relationshipSourceContentTypeSourceCounts);
+        ksort($relationshipSourceRoleCounts);
+        ksort($relationshipPartsBySourceKind);
+        foreach ($relationshipPartsBySourceKind as &$sourceRelationshipParts) {
+            sort($sourceRelationshipParts, SORT_STRING);
+        }
+        unset($sourceRelationshipParts);
 
         return [
             'partCount' => count($partInventory),
@@ -5725,6 +5816,21 @@ final class DocxOpenXmlReader
             'relationshipRecordExplicitInternalTargetModeCount' => $relationshipRecordExplicitInternalTargetModeCount,
             'relationshipRecordExplicitExternalTargetModeCount' => $relationshipRecordExplicitExternalTargetModeCount,
             'relationshipRecordUnexpectedTargetModeCount' => $relationshipRecordUnexpectedTargetModeCount,
+            'relationshipSourceCount' => $relationshipSourceCount,
+            'relationshipSourcePackageRootCount' => $relationshipSourcePackageRootCount,
+            'relationshipSourcePackagePartCount' => $relationshipSourcePackagePartCount,
+            'relationshipSourceRelationshipPartCount' => $relationshipSourceRelationshipPartCount,
+            'relationshipSourceContentTypesItemCount' => $relationshipSourceContentTypesItemCount,
+            'relationshipSourceMissingCount' => $relationshipSourceMissingCount,
+            'relationshipSourceInvalidCount' => $relationshipSourceInvalidCount,
+            'relationshipSourceExistingPartByteLength' => $relationshipSourceExistingPartByteLength,
+            'relationshipSourceKindCounts' => $relationshipSourceKindCounts,
+            'relationshipSourceDirectoryCounts' => $relationshipSourceDirectoryCounts,
+            'relationshipSourceContentTypeCounts' => $relationshipSourceContentTypeCounts,
+            'relationshipSourceContentTypeSourceCounts' => $relationshipSourceContentTypeSourceCounts,
+            'relationshipSourceRoleCounts' => $relationshipSourceRoleCounts,
+            'relationshipPartsBySourceKind' => $relationshipPartsBySourceKind,
+            'relationshipSources' => $relationshipSources,
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
@@ -7143,6 +7249,102 @@ final class DocxOpenXmlReader
      * @param array<string, array<string, mixed>> $partInventory
      * @return array<string, array<string, mixed>>
      */
+    private function relationshipPartsWithSourceProvenance(array $relationshipParts, array $partInventory): array
+    {
+        foreach ($relationshipParts as $partName => $relationshipPart) {
+            $sourcePart = is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '';
+            $source = $this->relationshipSourceProvenance($sourcePart, $partInventory);
+            $relationshipPart += $source;
+
+            foreach (['relationships', 'relationshipRecords'] as $collectionKey) {
+                if (!is_array($relationshipPart[$collectionKey] ?? null)) {
+                    continue;
+                }
+
+                foreach ($relationshipPart[$collectionKey] as $key => $relationship) {
+                    if (!is_array($relationship)) {
+                        continue;
+                    }
+                    $relationshipPart[$collectionKey][$key] = $relationship + $source;
+                }
+            }
+
+            $relationshipParts[$partName] = $relationshipPart;
+        }
+
+        return $relationshipParts;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function relationshipSourceProvenance(string $sourcePart, array $partInventory): array
+    {
+        $sourceInventory = $sourcePart !== '' && $sourcePart !== '/'
+            ? ($partInventory[$sourcePart] ?? null)
+            : null;
+        $sourceKind = $this->relationshipSourceKind($sourcePart, $sourceInventory);
+        $isPackageRoot = $sourcePart === '/';
+        $sourceExists = $isPackageRoot || is_array($sourceInventory);
+
+        return [
+            'relationshipSourceKind' => $sourceKind,
+            'sourceIsPackageRoot' => $isPackageRoot,
+            'sourceIsRelationshipPart' => $sourcePart !== '' && $this->isRelationshipPartName($sourcePart),
+            'sourceExists' => $sourceExists,
+            'sourceDirectory' => $isPackageRoot ? '/' : ($sourcePart === '' ? '' : $this->packagePartDirectory($sourcePart)),
+            'sourceBaseName' => $isPackageRoot ? '/' : ($sourcePart === '' ? '' : $this->packagePartBaseName($sourcePart)),
+            'sourcePartExtension' => $isPackageRoot || $sourcePart === '' ? null : $this->packagePartExtension($sourcePart),
+            'sourceBytes' => is_array($sourceInventory) ? (int) ($sourceInventory['bytes'] ?? 0) : null,
+            'sourceCrc32' => is_array($sourceInventory) && is_string($sourceInventory['crc32'] ?? null) ? $sourceInventory['crc32'] : null,
+            'sourceSha256' => is_array($sourceInventory) && is_string($sourceInventory['sha256'] ?? null) ? $sourceInventory['sha256'] : null,
+            'sourceContentType' => is_array($sourceInventory) && is_string($sourceInventory['contentType'] ?? null) ? $sourceInventory['contentType'] : null,
+            'sourceContentTypeBase' => is_array($sourceInventory) && is_string($sourceInventory['contentTypeBase'] ?? null) ? $sourceInventory['contentTypeBase'] : null,
+            'sourceContentTypeSource' => is_array($sourceInventory) && is_string($sourceInventory['contentTypeSource'] ?? null) ? $sourceInventory['contentTypeSource'] : null,
+            'sourceContentTypeHasParameters' => is_array($sourceInventory) ? (bool) ($sourceInventory['contentTypeHasParameters'] ?? false) : false,
+            'sourceContentTypeParameterCount' => is_array($sourceInventory) ? (int) ($sourceInventory['contentTypeParameterCount'] ?? 0) : 0,
+            'sourceContentTypeParameters' => is_array($sourceInventory) && is_array($sourceInventory['contentTypeParameters'] ?? null) ? $sourceInventory['contentTypeParameters'] : [],
+            'sourceContentTypeParameterMap' => is_array($sourceInventory) && is_array($sourceInventory['contentTypeParameterMap'] ?? null) ? $sourceInventory['contentTypeParameterMap'] : [],
+            'sourceRoles' => $isPackageRoot
+                ? ['package-root']
+                : (is_array($sourceInventory) ? array_values(array_map('strval', $sourceInventory['roles'] ?? [])) : []),
+        ];
+    }
+
+    /**
+     * @param ?array<string, mixed> $sourceInventory
+     */
+    private function relationshipSourceKind(string $sourcePart, ?array $sourceInventory): string
+    {
+        if ($sourcePart === '') {
+            return 'invalid-source';
+        }
+
+        if ($sourcePart === '/') {
+            return 'package-root';
+        }
+
+        if ($this->isRelationshipPartName($sourcePart)) {
+            return 'relationship-part';
+        }
+
+        if ($sourcePart === '[Content_Types].xml') {
+            return 'content-types-item';
+        }
+
+        if (!is_array($sourceInventory)) {
+            return 'missing-source';
+        }
+
+        return 'package-part';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, array<string, mixed>>
+     */
     private function relationshipTypeProvenance(array $relationshipParts, array $partInventory): array
     {
         $types = [];
@@ -8227,6 +8429,7 @@ final class DocxOpenXmlReader
     private function isRelationshipPartName(string $partName): bool
     {
         return $partName === '_rels/.rels'
+            || preg_match('~^_rels/[^/]+\.rels$~', $partName) === 1
             || (str_ends_with($partName, '.rels') && str_contains($partName, '/_rels/'));
     }
 
@@ -10952,6 +11155,10 @@ final class DocxOpenXmlReader
     {
         if ($relsPartName === '_rels/.rels') {
             return '';
+        }
+
+        if (preg_match('~^_rels/([^/]+)\.rels$~', $relsPartName, $match) === 1) {
+            return $match[1];
         }
 
         if (preg_match('~^(.*)/_rels/([^/]+)\.rels$~', $relsPartName, $match) === 1) {
