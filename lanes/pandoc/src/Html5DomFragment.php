@@ -7045,7 +7045,17 @@ final class Html5DomFragment
 
     private static function isHtmlEditingStateAttribute(string $name): bool
     {
-        return in_array(strtolower($name), ['contenteditable', 'draggable', 'spellcheck'], true);
+        return in_array(strtolower($name), [
+            'autocapitalize',
+            'autocorrect',
+            'contenteditable',
+            'draggable',
+            'enterkeyhint',
+            'inputmode',
+            'spellcheck',
+            'virtualkeyboardpolicy',
+            'writingsuggestions',
+        ], true);
     }
 
     /**
@@ -7061,14 +7071,28 @@ final class Html5DomFragment
     ): ?array {
         $attribute = strtolower($name);
         $state = strtolower(self::cleanHtmlMetadataAttribute($value));
-        if ($state === '') {
-            $state = 'true';
-        }
+        $state = match ($attribute) {
+            'autocapitalize' => match ($state) {
+                'off' => 'none',
+                'on' => 'sentences',
+                default => $state,
+            },
+            'autocorrect' => $state === '' ? 'on' : $state,
+            'contenteditable', 'draggable', 'spellcheck', 'writingsuggestions' => $state === '' ? 'true' : $state,
+            'virtualkeyboardpolicy' => $state === '' ? 'auto' : $state,
+            default => $state,
+        };
 
         $allowedStates = match ($attribute) {
+            'autocapitalize' => ['none', 'sentences', 'words', 'characters'],
+            'autocorrect' => ['on', 'off'],
             'contenteditable' => ['true', 'false', 'plaintext-only'],
             'draggable' => ['true', 'false', 'auto'],
+            'enterkeyhint' => ['enter', 'done', 'go', 'next', 'previous', 'search', 'send'],
+            'inputmode' => ['none', 'text', 'tel', 'email', 'url', 'numeric', 'decimal', 'search'],
             'spellcheck' => ['true', 'false', 'default'],
+            'virtualkeyboardpolicy' => ['auto', 'manual'],
+            'writingsuggestions' => ['true', 'false'],
             default => [],
         };
 

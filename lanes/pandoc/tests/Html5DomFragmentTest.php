@@ -1990,10 +1990,10 @@ return [
     },
     'converts live editing attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
-            '<article contenteditable="" data-pandoc-contenteditable-state="source-spoof">'
-            . '<p contenteditable="plaintext-only" spellcheck="false" draggable="true">Editable <a href="./note.html" draggable="maybe">note</a></p>'
-            . '<section contenteditable="false" spellcheck="default" draggable="auto">Locked</section>'
-            . '<aside contenteditable="inherit" spellcheck="maybe" draggable="bad">Invalid</aside>'
+            '<article contenteditable="" autocorrect="off" inputmode="search" enterkeyhint="send" autocapitalize="words" data-pandoc-contenteditable-state="source-spoof">'
+            . '<p contenteditable="plaintext-only" spellcheck="false" draggable="true" autocorrect writingsuggestions virtualkeyboardpolicy>Editable <a href="./note.html" draggable="maybe">note</a></p>'
+            . '<section contenteditable="false" spellcheck="default" draggable="auto" autocorrect="on" writingsuggestions="false" virtualkeyboardpolicy="manual">Locked</section>'
+            . '<aside contenteditable="inherit" spellcheck="maybe" draggable="bad" autocorrect="maybe" writingsuggestions="maybe" virtualkeyboardpolicy="onscreen" inputmode="latin" enterkeyhint="bad" autocapitalize="bad">Invalid</aside>'
             . '</article>',
             'https://source.example.test/import/posts/post.html'
         );
@@ -2005,51 +2005,52 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article data-pandoc-contenteditable-state="true">'
-            . '<p data-pandoc-contenteditable-state="plaintext-only" data-pandoc-spellcheck-state="false" data-pandoc-draggable-state="true">Editable <a href="https://source.example.test/import/posts/note.html">note</a></p>'
-            . '<section data-pandoc-contenteditable-state="false" data-pandoc-spellcheck-state="default" data-pandoc-draggable-state="auto">Locked</section>'
+        $expected = '<article data-pandoc-contenteditable-state="true" data-pandoc-autocorrect-state="off" data-pandoc-inputmode-state="search" data-pandoc-enterkeyhint-state="send" data-pandoc-autocapitalize-state="words">'
+            . '<p data-pandoc-contenteditable-state="plaintext-only" data-pandoc-spellcheck-state="false" data-pandoc-draggable-state="true" data-pandoc-autocorrect-state="on" data-pandoc-writingsuggestions-state="true" data-pandoc-virtualkeyboardpolicy-state="auto">Editable <a href="https://source.example.test/import/posts/note.html">note</a></p>'
+            . '<section data-pandoc-contenteditable-state="false" data-pandoc-spellcheck-state="default" data-pandoc-draggable-state="auto" data-pandoc-autocorrect-state="on" data-pandoc-writingsuggestions-state="false" data-pandoc-virtualkeyboardpolicy-state="manual">Locked</section>'
             . '<aside>Invalid</aside>'
             . '</article>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
         ));
+        $diagnosticCounts = array_count_values($policyDiagnostics);
 
         $t->same($expected, $html);
         $t->contains($expected, $blocks);
         $t->same('Editable noteLockedInvalid', $fragment->textContent());
         $t->same(['a', 'article', 'aside', 'p', 'section'], $summary['elementNames']);
-        $t->same(['contenteditable', 'data-pandoc-contenteditable-state', 'draggable', 'spellcheck'], $summary['filteredAttributes']);
+        $t->same(['autocapitalize', 'autocorrect', 'contenteditable', 'data-pandoc-contenteditable-state', 'draggable', 'enterkeyhint', 'inputmode', 'spellcheck', 'virtualkeyboardpolicy', 'writingsuggestions'], $summary['filteredAttributes']);
+        $t->same(17, $diagnosticCounts['editing-state-review'] ?? 0);
+        $t->same(11, $diagnosticCounts['unsafe-attribute'] ?? 0);
         $t->same([
-            'editing-state-review',
-            'unsafe-attribute',
-            'editing-state-review',
-            'editing-state-review',
-            'editing-state-review',
-            'unsafe-attribute',
-            'editing-state-review',
-            'editing-state-review',
-            'editing-state-review',
-            'unsafe-attribute',
-            'unsafe-attribute',
-            'unsafe-attribute',
-        ], $policyDiagnostics);
-        $t->same(['data-pandoc-contenteditable-state' => 'true'], $nodes[0]['attrs']);
+            'data-pandoc-contenteditable-state' => 'true',
+            'data-pandoc-autocorrect-state' => 'off',
+            'data-pandoc-inputmode-state' => 'search',
+            'data-pandoc-enterkeyhint-state' => 'send',
+            'data-pandoc-autocapitalize-state' => 'words',
+        ], $nodes[0]['attrs']);
         $t->same([
             'data-pandoc-contenteditable-state' => 'plaintext-only',
             'data-pandoc-spellcheck-state' => 'false',
             'data-pandoc-draggable-state' => 'true',
+            'data-pandoc-autocorrect-state' => 'on',
+            'data-pandoc-writingsuggestions-state' => 'true',
+            'data-pandoc-virtualkeyboardpolicy-state' => 'auto',
         ], $nodes[0]['children'][0]['attrs']);
         $t->same('https://source.example.test/import/posts/note.html', $nodes[0]['children'][0]['children'][1]['attrs']['href']);
         $t->same([
             'data-pandoc-contenteditable-state' => 'false',
             'data-pandoc-spellcheck-state' => 'default',
             'data-pandoc-draggable-state' => 'auto',
+            'data-pandoc-autocorrect-state' => 'on',
+            'data-pandoc-writingsuggestions-state' => 'false',
+            'data-pandoc-virtualkeyboardpolicy-state' => 'manual',
         ], $nodes[0]['children'][1]['attrs']);
         $t->same([], $nodes[0]['children'][2]['attrs']);
         $t->same('/migration/editing-state-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
-        foreach ([' contenteditable', ' spellcheck', ' draggable', 'source-spoof', 'maybe', 'inherit'] as $blocked) {
+        foreach ([' contenteditable', ' spellcheck', ' draggable', ' autocorrect', ' writingsuggestions', ' virtualkeyboardpolicy', ' inputmode', ' enterkeyhint', ' autocapitalize', 'source-spoof', 'maybe', 'inherit', 'onscreen', 'latin'] as $blocked) {
             $t->true(!str_contains($html, $blocked), 'Expected live editing state to be stripped or converted: ' . $blocked);
         }
     },
