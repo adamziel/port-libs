@@ -8146,13 +8146,23 @@ final class MarkdownReader
      */
     private function tryParseReferenceDefinitionStart(string $line): ?array
     {
-        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($indent[0]);
+        if (substr($line, $offset, 2) === '[^') {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, $offset);
+        if ($label === null || $label['text'] === '' || ($line[$label['next']] ?? '') !== ':') {
             return null;
         }
 
         return [
-            'label' => $m[1],
-            'content' => rtrim($m[2]),
+            'label' => $label['text'],
+            'content' => rtrim(substr($line, $label['next'] + 1)),
         ];
     }
 
