@@ -203,6 +203,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
+        $latentStyles = $this->readLatentStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
@@ -655,6 +656,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
         $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
+        if ($latentStyles !== []) {
+            $packageProvenance['summary']['latentStyleExceptionCount'] = $latentStyles['exceptionCount'];
+            $packageProvenance['summary']['latentStyleQuickFormatCount'] = $latentStyles['quickFormatCount'];
+            $packageProvenance['summary']['latentStyleSemiHiddenCount'] = $latentStyles['semiHiddenCount'];
+            $packageProvenance['summary']['latentStyleLockedCount'] = $latentStyles['lockedCount'];
+        }
 
         $attrs = [
             'docx' => [
@@ -666,6 +673,7 @@ final class DocxOpenXmlReader
                 'packageProvenance' => $packageProvenance,
                 'stylesPart' => $stylesPart['partName'],
                 'styles' => $styles,
+                'latentStyles' => $latentStyles,
                 'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
                 'settingsPart' => $settingsPart['partName'],
@@ -1042,6 +1050,84 @@ final class DocxOpenXmlReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readLatentStyles(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $latentStyles = $this->firstElement($xpath, '/w:styles/w:latentStyles', $dom);
+        if (!$latentStyles instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        $byName = [];
+        $quickFormatNames = [];
+        $semiHiddenNames = [];
+        $unhideWhenUsedNames = [];
+        $lockedNames = [];
+
+        foreach ($this->elements($xpath, 'w:lsdException', $latentStyles) as $exception) {
+            $name = trim($exception->getAttributeNS(self::NS_W, 'name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $item = [
+                'name' => $name,
+                'quickFormat' => $this->wordOptionalBooleanAttr($exception, 'qFormat'),
+                'uiPriority' => $this->wordOptionalIntAttr($exception, 'uiPriority'),
+                'semiHidden' => $this->wordOptionalBooleanAttr($exception, 'semiHidden'),
+                'unhideWhenUsed' => $this->wordOptionalBooleanAttr($exception, 'unhideWhenUsed'),
+                'locked' => $this->wordOptionalBooleanAttr($exception, 'locked'),
+            ];
+
+            if ($item['quickFormat'] === true) {
+                $quickFormatNames[] = $name;
+            }
+            if ($item['semiHidden'] === true) {
+                $semiHiddenNames[] = $name;
+            }
+            if ($item['unhideWhenUsed'] === true) {
+                $unhideWhenUsedNames[] = $name;
+            }
+            if ($item['locked'] === true) {
+                $lockedNames[] = $name;
+            }
+
+            $items[] = $item;
+            $byName[$name] = $item;
+        }
+
+        return [
+            'present' => true,
+            'partName' => $partName,
+            'declaredCount' => $this->wordOptionalIntAttr($latentStyles, 'count'),
+            'defaultLocked' => $this->wordOptionalBooleanAttr($latentStyles, 'defLockedState'),
+            'defaultUiPriority' => $this->wordOptionalIntAttr($latentStyles, 'defUIPriority'),
+            'defaultSemiHidden' => $this->wordOptionalBooleanAttr($latentStyles, 'defSemiHidden'),
+            'defaultUnhideWhenUsed' => $this->wordOptionalBooleanAttr($latentStyles, 'defUnhideWhenUsed'),
+            'defaultQuickFormat' => $this->wordOptionalBooleanAttr($latentStyles, 'defQFormat'),
+            'exceptionCount' => count($items),
+            'quickFormatCount' => count($quickFormatNames),
+            'semiHiddenCount' => count($semiHiddenNames),
+            'unhideWhenUsedCount' => count($unhideWhenUsedNames),
+            'lockedCount' => count($lockedNames),
+            'quickFormatNames' => $quickFormatNames,
+            'semiHiddenNames' => $semiHiddenNames,
+            'unhideWhenUsedNames' => $unhideWhenUsedNames,
+            'lockedNames' => $lockedNames,
+            'exceptions' => $items,
+            'byName' => $byName,
+        ];
     }
 
     /**

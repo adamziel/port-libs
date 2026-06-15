@@ -4297,6 +4297,57 @@ XML;
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
+    'summarizes docx latent style defaults for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/styles.xml'] = str_replace(
+            '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
+            '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' . "\n" .
+            '  <w:latentStyles w:defLockedState="0" w:defUIPriority="99" w:defSemiHidden="1" w:defUnhideWhenUsed="1" w:defQFormat="0" w:count="376">' . "\n" .
+            '    <w:lsdException w:name="Title" w:qFormat="1" w:uiPriority="10"/>' . "\n" .
+            '    <w:lsdException w:name="Quote" w:semiHidden="0" w:unhideWhenUsed="1" w:qFormat="1"/>' . "\n" .
+            '    <w:lsdException w:name="Placeholder Text" w:locked="1" w:semiHidden="1"/>' . "\n" .
+            '  </w:latentStyles>',
+            $parts['word/styles.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $latentStyles = $docx['latentStyles'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same('word/styles.xml', $latentStyles['partName']);
+        $t->same(true, $latentStyles['present']);
+        $t->same(376, $latentStyles['declaredCount']);
+        $t->same(false, $latentStyles['defaultLocked']);
+        $t->same(99, $latentStyles['defaultUiPriority']);
+        $t->same(true, $latentStyles['defaultSemiHidden']);
+        $t->same(true, $latentStyles['defaultUnhideWhenUsed']);
+        $t->same(false, $latentStyles['defaultQuickFormat']);
+        $t->same(3, $latentStyles['exceptionCount']);
+        $t->same(2, $latentStyles['quickFormatCount']);
+        $t->same(1, $latentStyles['semiHiddenCount']);
+        $t->same(1, $latentStyles['unhideWhenUsedCount']);
+        $t->same(1, $latentStyles['lockedCount']);
+        $t->same(['Title', 'Quote'], $latentStyles['quickFormatNames']);
+        $t->same(['Placeholder Text'], $latentStyles['semiHiddenNames']);
+        $t->same(['Quote'], $latentStyles['unhideWhenUsedNames']);
+        $t->same(['Placeholder Text'], $latentStyles['lockedNames']);
+
+        $title = $latentStyles['byName']['Title'];
+        $quote = $latentStyles['byName']['Quote'];
+        $placeholder = $latentStyles['byName']['Placeholder Text'];
+        $t->same(true, $title['quickFormat']);
+        $t->same(10, $title['uiPriority']);
+        $t->same(false, $quote['semiHidden']);
+        $t->same(true, $quote['unhideWhenUsed']);
+        $t->same(true, $placeholder['locked']);
+        $t->same(true, $placeholder['semiHidden']);
+        $t->same(3, $summary['latentStyleExceptionCount']);
+        $t->same(2, $summary['latentStyleQuickFormatCount']);
+        $t->same(1, $summary['latentStyleSemiHiddenCount']);
+        $t->same(1, $summary['latentStyleLockedCount']);
+        $t->same('heading', $document->children[0]->type);
+    },
     'reports docx extended and custom package properties from root relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
