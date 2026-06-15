@@ -15798,6 +15798,9 @@ final class MarkdownReader
             $attrs['start'] = $start ?? 1;
             $attrs['style'] = $style ?? 'decimal';
             $attrs['delimiter'] = $delimiter ?? 'period';
+            if ($this->allListItemsAreTasks($children)) {
+                $attrs['taskList'] = true;
+            }
         } elseif ($this->allListItemsAreTasks($children)) {
             $attrs['taskList'] = true;
         }

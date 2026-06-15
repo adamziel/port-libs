@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,047 | 1,096 |
+| Markdown / CommonMark / GFM | 2,102 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves leading and trailing `Figure:`, `Fig:`, and `Caption:` blocks around standalone inline, reference, and shortcut-reference images, including short captions and figure attributes through Markdown and WordPress image-figure handoff.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` marks all-task ordered lists with `taskList` metadata across decimal, parenthesized, Pandoc default/example, alpha, and roman markers; `WordPressBlockWriter` carries those ordered task lists into classed checkbox HTML.
 
-Current Pandoc counters: 5,748 PHP passes / 0 failures and 5,738 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php`, `MarkdownWriter.php`, `WordPressBlockWriter.php`, and `MarkdownReaderFigureCaptionSurgeTest.php`; focused `MarkdownReaderFigureCaptionSurgeTest.php` passed 1 file, 2377 assertions, 0 failures; full `lanes/pandoc/tests` passed 69 files, 102580 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 5,919 PHP passes / 0 failures and 5,909 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php`, `WordPressBlockWriter.php`, and `MarkdownReaderOrderedTaskListSurgeTest.php`; focused `MarkdownReaderOrderedTaskListSurgeTest.php` passed 1 file, 951 assertions, 0 failures; focused regression group passed 5 files, 10096 assertions, 0 failures; full `lanes/pandoc/tests` passed 71 files, 104068 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.

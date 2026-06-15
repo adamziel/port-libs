@@ -228,7 +228,7 @@ final class WordPressBlockWriter
         }
 
         $classes = [];
-        if (!$ordered && $node->attr('taskList') === true) {
+        if ($node->attr('taskList') === true) {
             $classes[] = 'task-list';
         }
         $class = $htmlAttributes['class'] ?? null;
