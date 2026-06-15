@@ -725,11 +725,19 @@ final class PandocJsonWriter
 
     /**
      * @param list<array<string, mixed>> $blocks
-     * @return list<array<string, mixed>>|null
+     * @return list<mixed>|null
      */
     private function reusableBlockListPayload(mixed $native, array $blocks): ?array
     {
-        return is_array($native) && array_is_list($native) && $native === $blocks ? $native : null;
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $blocks) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $blocks);
     }
 
     /**
@@ -743,11 +751,38 @@ final class PandocJsonWriter
 
     /**
      * @param list<array<string, mixed>> $inlines
-     * @return list<array<string, mixed>>|null
+     * @return list<mixed>|null
      */
     private function reusableInlineListPayload(mixed $native, array $inlines): ?array
     {
-        return is_array($native) && array_is_list($native) && $native === $inlines ? $native : null;
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $inlines) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $inlines);
+    }
+
+    /**
+     * @param list<mixed> $native
+     * @param list<mixed> $generated
+     * @return list<mixed>|null
+     */
+    private function singleWrappedReusableListPayload(array $native, array $generated): ?array
+    {
+        if (
+            count($native) !== 1
+            || !is_array($native[0])
+            || !array_is_list($native[0])
+            || $native[0] !== $generated
+        ) {
+            return null;
+        }
+
+        return $native;
     }
 
     /**

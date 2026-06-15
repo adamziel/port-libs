@@ -10622,6 +10622,110 @@ return [
             }
         }
     },
+    'preserves single wrapped list definition and line helper payloads when rebuilding wrappers' => static function (TestRunner $t): void {
+        $bulletBlocks = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'bullet'],
+            ]],
+        ];
+        $orderedBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'ordered'],
+            ]],
+        ];
+        $definitionTermInlines = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [['term-code', ['native'], [['data-kind', 'term']]], 'term']],
+        ];
+        $definitionBlocks = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Wrapped'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'definition'],
+            ]],
+        ];
+        $lineInlines = [
+            ['t' => 'Str', 'c' => 'Wrapped'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'line'],
+        ];
+        $bulletItem = [$bulletBlocks];
+        $orderedItem = [$orderedBlocks];
+        $definitionTerm = [$definitionTermInlines];
+        $definitionBody = [$definitionBlocks];
+        $line = [$lineInlines];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => [$bulletItem], 'reviewQueue' => 'bullet-wrapper-source'],
+                ['t' => 'OrderedList', 'c' => [
+                    [3, ['t' => 'LowerRoman'], ['t' => 'OneParen']],
+                    [$orderedItem],
+                ], 'reviewQueue' => 'ordered-wrapper-source'],
+                ['t' => 'DefinitionList', 'c' => [
+                    [$definitionTerm, [$definitionBody]],
+                ], 'reviewQueue' => 'definition-wrapper-source'],
+                ['t' => 'LineBlock', 'c' => [$line], 'reviewQueue' => 'line-wrapper-source'],
+            ],
+        ];
+        $withoutWrapperNative = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $bullet = $document->children[0];
+            $ordered = $document->children[1];
+            $definitionList = $document->children[2];
+            $lineBlock = $document->children[3];
+            $definitionItem = $definitionList->children[0];
+            $definitionTermNode = $definitionItem->children[0];
+            $definitionNode = $definitionItem->children[1];
+            $lineNode = $lineBlock->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('bullet_list', $withoutWrapperNative($bullet), $bullet->children),
+                new AstNode('ordered_list', $withoutWrapperNative($ordered), $ordered->children),
+                new AstNode('definition_list', $withoutWrapperNative($definitionList), $definitionList->children),
+                new AstNode('line_block', $withoutWrapperNative($lineBlock), $lineBlock->children),
+            ]);
+
+            $t->same($bulletItem, $bullet->children[0]->attr('listItemNative'), "{$source} records single wrapped bullet item payload");
+            $t->same($orderedItem, $ordered->children[0]->attr('listItemNative'), "{$source} records single wrapped ordered item payload");
+            $t->same($definitionTerm, $definitionTermNode->attr('definitionTermNative'), "{$source} records single wrapped definition term payload");
+            $t->same($definitionBody, $definitionNode->attr('definitionNative'), "{$source} records single wrapped definition body payload");
+            $t->same($line, $lineNode->attr('lineNative'), "{$source} records single wrapped line payload");
+            $t->same('Wrapped term', $definitionTermNode->attr('text'), "{$source} normalizes single wrapped definition term text");
+            $t->same('Wrapped line', $lineNode->attr('text'), "{$source} normalizes single wrapped line text");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($bulletItem, $encoded['blocks'][0]['c'][0], "{$source} {$writer} writer preserves single wrapped bullet item");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer regenerates bullet wrapper");
+                $t->same($orderedItem, $encoded['blocks'][1]['c'][1][0], "{$source} {$writer} writer preserves single wrapped ordered item");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][1]), "{$source} {$writer} writer regenerates ordered wrapper");
+                $t->same($definitionTerm, $encoded['blocks'][2]['c'][0][0], "{$source} {$writer} writer preserves single wrapped definition term");
+                $t->same($definitionBody, $encoded['blocks'][2]['c'][0][1][0], "{$source} {$writer} writer preserves single wrapped definition body");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][2]), "{$source} {$writer} writer regenerates definition wrapper");
+                $t->same($line, $encoded['blocks'][3]['c'][0], "{$source} {$writer} writer preserves single wrapped line");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][3]), "{$source} {$writer} writer regenerates line wrapper");
+            }
+        }
+    },
     'preserves task list checkbox sidecars through json and native list items' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
