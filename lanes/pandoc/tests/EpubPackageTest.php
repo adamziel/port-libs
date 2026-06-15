@@ -2386,8 +2386,8 @@ XML;
       <dc:title>Migration packets</dc:title>
       <meta property="group-position">2</meta>
     </metadata>
-    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json" properties="review"/>
-    <link id="start" rel="first" href="text/chapter1.xhtml#install" media-type="application/xhtml+xml"/>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json" properties="review" title="Series record" hreflang="en-GB" xml:lang="en" dir="ltr"/>
+    <link id="start" rel="first" href="text/chapter1.xhtml#install" media-type="application/xhtml+xml" hreflang="fr" xml:lang="fr" dir="rtl"/>
     <link id="remote-record" rel="record alternate" href="https://example.invalid/series.json" media-type="application/json"/>
     <link id="missing-review" rel="review" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
     <collection id="samples" role="preview">
@@ -2425,6 +2425,13 @@ XML;
         $t->same('ltr', $series['direction']);
         $t->same('Migration packets', $series['metadata']['title']);
         $t->same('2', $series['metadata']['properties']['group-position'][0]);
+        $t->same('Series record', $series['links'][0]['title']);
+        $t->same('en-GB', $series['links'][0]['hreflang']);
+        $t->same('en', $series['links'][0]['language']);
+        $t->same('ltr', $series['links'][0]['direction']);
+        $t->same('fr', $series['links'][1]['hreflang']);
+        $t->same('fr', $series['links'][1]['language']);
+        $t->same('rtl', $series['links'][1]['direction']);
         $t->same(4, $series['linkCount']);
         $t->same(3, $series['localLinkCount']);
         $t->same(1, $series['externalLinkCount']);
@@ -2452,6 +2459,60 @@ XML;
         $t->same(['Migration packets', 'Review samples'], $summary['wordpressImport']['collectionTitles']);
         $t->same(['/EPUB/meta/series.json', '/EPUB/text/chapter1.xhtml#install', 'https://example.invalid/series.json', '/EPUB/text/missing.xhtml', '/EPUB/text/chapter2.xhtml#checklist'], $summary['wordpressImport']['collectionLinkTargets']);
         $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
+    },
+
+    'preserves OPF collection link authoring language fields for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionLinkAuthoring = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="localized-series" role="series" xml:lang="en">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Localized series links</dc:title></metadata>
+    <link id="series-fr" rel="record" href="meta/series-fr.json" media-type="application/ld+json" title="Fiche de serie" hreflang="fr-CA" xml:lang="fr" dir="rtl"/>
+  </collection>',
+            $epub3OpfXml
+        );
+
+        $seriesRecord = '{"name":"fiche de serie"}';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionLinkAuthoring],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/series-fr.json', 'data' => $seriesRecord],
+        ]));
+
+        $summary = $epub->summary();
+        $collection = $epub->collections()[0];
+        $link = $collection['links'][0];
+        $policyItem = $summary['remoteResourcePolicy']['items'][0];
+
+        $t->same('localized-series', $collection['id']);
+        $t->same('en', $collection['language']);
+        $t->same('series-fr', $link['id']);
+        $t->same('/EPUB/meta/series-fr.json', $link['target']);
+        $t->same('/EPUB/meta/series-fr.json', $link['partName']);
+        $t->same(true, $link['exists']);
+        $t->same('Fiche de serie', $link['title']);
+        $t->same('fr-CA', $link['hreflang']);
+        $t->same('fr', $link['language']);
+        $t->same('rtl', $link['direction']);
+        $t->same(strlen($seriesRecord), $link['byteLength']);
+        $t->same(hash('crc32b', $seriesRecord), $link['crc32']);
+
+        $t->same($link, $summary['collections'][0]['links'][0]);
+        $t->same($link, $summary['wordpressImport']['collections'][0]['links'][0]);
+        $t->same(['/EPUB/meta/series-fr.json'], $summary['wordpressImport']['collectionLinkTargets']);
+        $t->same('collection-link', $policyItem['source']);
+        $t->same('series-fr', $policyItem['id']);
+        $t->same('Fiche de serie', $policyItem['title']);
+        $t->same('fr-CA', $policyItem['hreflang']);
+        $t->same('fr', $policyItem['language']);
+        $t->same('rtl', $policyItem['direction']);
+        $t->same('local-package', $policyItem['policy']);
     },
 
     'summarizes OPF collection hierarchy for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

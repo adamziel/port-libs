@@ -10041,6 +10041,9 @@ final class EpubPackage
             'relVocabulary' => self::collectionLinkTokenReport($rel, $prefixBindings, 'rel', $index),
             'propertyVocabulary' => self::collectionLinkTokenReport($properties, $prefixBindings, 'properties', $index),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
+            'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
+            'language' => self::metadataElementLanguage($linkElement),
+            'direction' => self::metadataElementDirection($linkElement),
             'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
             'hrefHasQuery' => $hrefSuffix['hasQuery'],
             'hrefQuery' => $hrefSuffix['query'],
@@ -11161,6 +11164,11 @@ final class EpubPackage
             'external' => $external,
             'exists' => $exists,
             'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+            'title' => is_string($link['title'] ?? null) ? $link['title'] : null,
+            'hreflang' => is_string($link['hreflang'] ?? null) ? $link['hreflang'] : null,
+            'language' => is_string($link['language'] ?? null) ? $link['language'] : null,
+            'direction' => is_string($link['direction'] ?? null) ? $link['direction'] : null,
+            'refines' => is_string($link['refines'] ?? null) ? $link['refines'] : null,
             'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
             'manifestMediaType' => is_string($link['manifestMediaType'] ?? null)
                 ? $link['manifestMediaType']
