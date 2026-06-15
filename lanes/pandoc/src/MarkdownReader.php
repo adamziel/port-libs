@@ -15844,26 +15844,16 @@ final class MarkdownReader
             return false;
         }
 
-        $previous = $this->lastNonBlankBlockQuoteContentLine($content);
-        if ($previous === null || !$this->canLineContinueBlockQuoteParagraphLazily($previous)) {
+        $previous = $content[array_key_last($content)] ?? null;
+        if (
+            $previous === null
+            || trim($previous) === ''
+            || !$this->canLineContinueBlockQuoteParagraphLazily($previous)
+        ) {
             return false;
         }
 
         return $this->canLineContinueBlockQuoteParagraphLazily($line);
-    }
-
-    /**
-     * @param list<string> $content
-     */
-    private function lastNonBlankBlockQuoteContentLine(array $content): ?string
-    {
-        for ($index = count($content) - 1; $index >= 0; $index--) {
-            if (trim($content[$index]) !== '') {
-                return $content[$index];
-            }
-        }
-
-        return null;
     }
 
     private function canLineContinueBlockQuoteParagraphLazily(string $line): bool

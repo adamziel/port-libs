@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 2,497 | 1,096 |
+| Markdown / CommonMark / GFM | 2,547 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence: `MarkdownReader` preserves attributed native HTML div blocks, URL control-byte normalization, explicit figure captions, and existing emoji alias coverage; `MarkdownWriter` preserves hardened inline/link/escape output, numbered-example references, and validated block/list/code marker output.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` terminates lazy block quote paragraph continuation at explicit quoted blank lines, leaving following unmarked paragraphs outside the quote while preserving current writer list/code, inline/link escape, figure-caption, native-div, URL-normalization, emoji alias, and table-caption coverage.
 
-Current Pandoc counters: 6,355 PHP passes / 0 failures and 6,345 mapped upstream cases. Markdown writer list style/code validation passed after rebase onto current main `ff183ef1a3`: `php -l` for `MarkdownWriter.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownWriterBlockListCodeSurgeTest.php` (`1` file, `425` assertions, `0` failures); focused Markdown writer/readback cluster (`6` files, `11,099` assertions, `0` failures); full `lanes/pandoc/tests` (`75` files, `106,245` assertions, `0` failures); `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Current Pandoc counters: 6,406 PHP passes / 0 failures and 6,395 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderBlockQuoteSurgeTest.php`; focused `MarkdownReaderBlockQuoteSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 7,270 assertions, 0 failures; full `lanes/pandoc/tests` passed 76 files, 106,496 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
