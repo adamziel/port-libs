@@ -1345,7 +1345,17 @@ final class PandocJsonWriter
             return null;
         }
 
-        return ($native['c'] ?? null) === $payload ? $native : null;
+        $content = $native['c'] ?? null;
+        if ($content === $payload) {
+            return $native;
+        }
+
+        return (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && $content[0] === $payload
+        ) ? $native : null;
     }
 
     /**

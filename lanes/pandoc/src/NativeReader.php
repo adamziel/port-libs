@@ -1214,7 +1214,7 @@ final class NativeReader
     private function tableSection(mixed $section, string $constructor, string $type): AstNode
     {
         $content = $this->constructorContent($section, $constructor, "Pandoc native JSON {$constructor}", false);
-        $tuple = $this->tuple($content, 2, "Pandoc native JSON {$constructor}");
+        $tuple = $this->singleWrappedTupleContent($content, 2, "Pandoc native JSON {$constructor}");
 
         return $this->withConstructorPayload(
             new AstNode($type, $this->attrsFromTuple($tuple[0]), $this->tableRows($tuple[1])),
@@ -1226,7 +1226,7 @@ final class NativeReader
     private function tableBody(mixed $body): AstNode
     {
         $content = $this->constructorContent($body, 'TableBody', 'Pandoc native JSON TableBody', false);
-        $tuple = $this->tuple($content, 4, 'Pandoc native JSON TableBody');
+        $tuple = $this->singleWrappedTupleContent($content, 4, 'Pandoc native JSON TableBody');
         $attrs = $this->attrsFromTuple($tuple[0]);
 
         $rowHeadColumns = $this->taggedInteger($tuple[1], 'RowHeadColumns', 'Pandoc native JSON RowHeadColumns');
@@ -1283,7 +1283,7 @@ final class NativeReader
         $nodes = [];
         foreach ($this->listContent($rows, 'Pandoc native JSON table rows') as $row) {
             $content = $this->constructorContent($row, 'Row', 'Pandoc native JSON Row', false);
-            $tuple = $this->tuple($content, 2, 'Pandoc native JSON Row');
+            $tuple = $this->singleWrappedTupleContent($content, 2, 'Pandoc native JSON Row');
             $nodes[] = $this->withConstructorPayload(
                 new AstNode('table_row', $this->attrsFromTuple($tuple[0]), $this->tableCells($tuple[1])),
                 'Row',
@@ -1310,7 +1310,7 @@ final class NativeReader
     private function tableCell(mixed $cell): AstNode
     {
         $content = $this->constructorContent($cell, 'Cell', 'Pandoc native JSON Cell', false);
-        $tuple = $this->tuple($content, 5, 'Pandoc native JSON Cell');
+        $tuple = $this->singleWrappedTupleContent($content, 5, 'Pandoc native JSON Cell');
         $attrs = $this->attrsFromTuple($tuple[0]);
 
         $alignmentConstructor = $this->constructorTag($tuple[1], 'Pandoc native JSON table alignment');
@@ -1946,16 +1946,23 @@ final class NativeReader
     /**
      * @return list<mixed>
      */
-    private function singleWrappedTupleContent(mixed $value, string $context): array
+    private function singleWrappedTupleContent(mixed $value, int|string $sizeOrContext, ?string $context = null): array
     {
+        $size = is_int($sizeOrContext) ? $sizeOrContext : null;
+        $context = $context ?? (string) $sizeOrContext;
         $tuple = $this->listContent($value, $context);
+
         if (
             count($tuple) === 1
             && is_array($tuple[0])
             && array_is_list($tuple[0])
-            && count($tuple[0]) > 1
+            && ($size === null ? count($tuple[0]) > 1 : count($tuple[0]) === $size)
         ) {
             return $tuple[0];
+        }
+
+        if ($size !== null && count($tuple) !== $size) {
+            throw new \InvalidArgumentException("{$context} must have {$size} entries");
         }
 
         return $tuple;

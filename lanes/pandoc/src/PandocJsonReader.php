@@ -1271,7 +1271,7 @@ final class PandocJsonReader
     private function readTableSection(mixed $section, string $constructor, string $type): AstNode
     {
         $content = $this->constructorContent($section, $constructor, $constructor, false);
-        $tuple = $this->tuple($content, 2, $constructor);
+        $tuple = $this->singleWrappedTupleContent($content, 2, $constructor);
 
         return $this->withConstructorPayload(
             new AstNode($type, $this->readAttrTuple($tuple[0]), $this->readTableRows($tuple[1])),
@@ -1283,7 +1283,7 @@ final class PandocJsonReader
     private function readTableBody(mixed $body): AstNode
     {
         $content = $this->constructorContent($body, 'TableBody', 'TableBody', false);
-        $tuple = $this->tuple($content, 4, 'TableBody');
+        $tuple = $this->singleWrappedTupleContent($content, 4, 'TableBody');
         $attrs = $this->readAttrTuple($tuple[0]);
 
         $rowHeadColumns = $this->readTaggedInteger($tuple[1], 'RowHeadColumns', 'TableBody rowHeadColumns');
@@ -1340,7 +1340,7 @@ final class PandocJsonReader
         $nodes = [];
         foreach ($this->listContent($rows, 'Table rows') as $row) {
             $content = $this->constructorContent($row, 'Row', 'Table row', false);
-            $tuple = $this->tuple($content, 2, 'Table row');
+            $tuple = $this->singleWrappedTupleContent($content, 2, 'Table row');
             $nodes[] = $this->withConstructorPayload(
                 new AstNode('table_row', $this->readAttrTuple($tuple[0]), $this->readTableCells($tuple[1])),
                 'Row',
@@ -1367,7 +1367,7 @@ final class PandocJsonReader
     private function readTableCell(mixed $cell): AstNode
     {
         $content = $this->constructorContent($cell, 'Cell', 'Table cell', false);
-        $tuple = $this->tuple($content, 5, 'Table cell');
+        $tuple = $this->singleWrappedTupleContent($content, 5, 'Table cell');
         $attrs = $this->readAttrTuple($tuple[0]);
 
         $alignmentConstructor = $this->enumTag($tuple[1], 'table alignment');
@@ -1938,16 +1938,23 @@ final class PandocJsonReader
     /**
      * @return list<mixed>
      */
-    private function singleWrappedTupleContent(mixed $value, string $context): array
+    private function singleWrappedTupleContent(mixed $value, int|string $sizeOrContext, ?string $context = null): array
     {
+        $size = is_int($sizeOrContext) ? $sizeOrContext : null;
+        $context = $context ?? (string) $sizeOrContext;
         $tuple = $this->listContent($value, $context);
+
         if (
             count($tuple) === 1
             && is_array($tuple[0])
             && array_is_list($tuple[0])
-            && count($tuple[0]) > 1
+            && ($size === null ? count($tuple[0]) > 1 : count($tuple[0]) === $size)
         ) {
             return $tuple[0];
+        }
+
+        if ($size !== null && count($tuple) !== $size) {
+            throw new \InvalidArgumentException("{$context} must have {$size} entries");
         }
 
         return $tuple;
