@@ -272,6 +272,7 @@ final class OpenDocumentPackage
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
      *     packageInventory:array<string, mixed>,
+     *     packageIdentity:array<string, mixed>,
      *     undeclaredPackageEntryCount:int,
      *     undeclaredPackageEntries:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
@@ -398,6 +399,7 @@ final class OpenDocumentPackage
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
             'packageInventory' => $packageInventory,
+            'packageIdentity' => $this->packageIdentity($packageInventory),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
@@ -769,6 +771,137 @@ final class OpenDocumentPackage
             'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'parts' => $parts,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageInventory
+     * @return array<string, mixed>
+     */
+    private function packageIdentity(array $packageInventory): array
+    {
+        $manifestEntries = [];
+        foreach ($this->manifestEntries as $entry) {
+            $manifestEntries[] = self::withoutEmptyValues([
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'path' => $entry['path'] ?? null,
+                'packagePath' => $entry['packagePath'] ?? null,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'mediaType' => $entry['mediaType'] ?? null,
+                'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
+                'version' => $entry['version'] ?? null,
+                'exists' => ($entry['exists'] ?? false) === true,
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                'storedByteLength' => $entry['storedByteLength'] ?? null,
+                'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+                'compressionMethod' => $entry['compressionMethod'] ?? null,
+                'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+                'storedCrc32' => $entry['storedCrc32'] ?? null,
+                'byteSha256' => $entry['byteSha256'] ?? null,
+                'declaredSize' => $entry['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'diagnostics' => $entry['diagnostics'] ?? [],
+            ]);
+        }
+
+        $packageEntries = [];
+        foreach ($packageInventory['parts'] ?? [] as $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $packageEntries[] = self::withoutEmptyValues([
+                'path' => $part['path'] ?? null,
+                'roles' => $part['roles'] ?? [],
+                'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
+                'compressionMethod' => $part['compressionMethod'] ?? null,
+                'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'byteLength' => $part['byteLength'] ?? null,
+                'compressedByteLength' => $part['compressedByteLength'] ?? null,
+                'crc32' => $part['crc32'] ?? null,
+                'byteSha256' => $part['byteSha256'] ?? null,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'manifestIndex' => $part['manifestIndex'] ?? null,
+                'manifestPath' => $part['manifestPath'] ?? null,
+                'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
+                'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
+                'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
+                'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+            ]);
+        }
+
+        $payload = [
+            'identityVersion' => 1,
+            'packageType' => 'opendocument-text',
+            'mimetype' => self::TEXT_MIMETYPE,
+            'manifestVersion' => $this->manifestVersion,
+            'manifestEntryCount' => count($manifestEntries),
+            'packageEntryCount' => count($packageEntries),
+            'manifestPaths' => array_column($manifestEntries, 'path'),
+            'packagePaths' => array_column($packageEntries, 'path'),
+            'manifestEntries' => $manifestEntries,
+            'packageEntries' => $packageEntries,
+            'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
+            'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
+            'roleCounts' => $packageInventory['roleCounts'] ?? [],
+            'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
+            'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
+            'encryptedCount' => count($this->encryptedManifestEntries()),
+            'totalByteLength' => $packageInventory['totalByteLength'] ?? 0,
+            'totalCompressedByteLength' => $packageInventory['totalCompressedByteLength'] ?? 0,
+            'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
+            'blockedByteLength' => $packageInventory['blockedByteLength'] ?? 0,
+        ];
+        $identityJson = json_encode(
+            self::canonicalIdentityValue($payload),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        $payload['identitySha256'] = hash('sha256', $identityJson);
+        $payload['identityPayloadByteLength'] = strlen($identityJson);
+        $payload['byteExposurePolicy'] = 'odf-package-identity-metadata-only';
+        $payload['canExposeBytes'] = false;
+
+        return $payload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function encryptedManifestEntries(): array
+    {
+        return array_values(array_filter(
+            $this->manifestEntries,
+            static fn (array $entry): bool => ($entry['encrypted'] ?? false) === true
+        ));
+    }
+
+    private static function canonicalIdentityValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalIdentityValue($item), $value);
+        }
+
+        $canonical = [];
+        foreach ($value as $key => $item) {
+            $canonical[(string) $key] = self::canonicalIdentityValue($item);
+        }
+        ksort($canonical, SORT_STRING);
+
+        return $canonical;
     }
 
     /**

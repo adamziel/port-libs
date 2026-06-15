@@ -2071,6 +2071,118 @@ XML;
         $t->same(null, $inventory['Media/theme.ogg']['byteSha256']);
         $t->same(null, $inventory['Notes/private.txt']['byteSha256']);
     },
+    'preflights deterministic compact ODT package identity metadata' => static function (TestRunner $t) use (
+        $buildZipPackageWithCentralDirectoryOrder,
+        $manifestXml,
+        $contentXml,
+        $stylesXml,
+        $metaXml
+    ): void {
+        $secretImage = 'SECRET-PNG-BYTES';
+        $privateNote = 'private note';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/secret.png" manifest:size="16">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="secret-checksum"/>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . $encryptedEntry
+            . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg" manifest:size="12"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/secret.png', 'data' => $secretImage, 'compressionMethod' => 0],
+            ['name' => 'Notes/private.txt', 'data' => $privateNote, 'compressionMethod' => 0],
+        ];
+
+        $package = $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'));
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $identity = $summary['packageIdentity'];
+        $repeatIdentity = OpenDocumentPackage::fromPackage($package)->summarize()['packageIdentity'];
+        $changedParts = $parts;
+        $changedParts[7]['data'] = 'private note changed';
+        $changedIdentity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($changedParts, array_column($changedParts, 'name'))
+        )->summarize()['packageIdentity'];
+
+        $t->same(1, $identity['identityVersion']);
+        $t->same('opendocument-text', $identity['packageType']);
+        $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $identity['mimetype']);
+        $t->same('1.3', $identity['manifestVersion']);
+        $t->same(7, $identity['manifestEntryCount']);
+        $t->same(8, $identity['packageEntryCount']);
+        $t->same(false, $identity['canExposeBytes']);
+        $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
+        $t->same(64, strlen($identity['identitySha256']));
+        $t->true($identity['identityPayloadByteLength'] > 0);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->same($identity['identityPayloadByteLength'], $repeatIdentity['identityPayloadByteLength']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+
+        $t->same([
+            '/',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/secret.png',
+            'Pictures/missing.jpg',
+        ], $identity['manifestPaths']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/secret.png',
+            'Notes/private.txt',
+        ], $identity['packagePaths']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'package-bytes-exposable' => 4,
+            'undeclared-package-entry-no-bytes' => 1,
+        ], $identity['byteExposurePolicyCounts']);
+        $t->same([
+            'image' => 2,
+            'xml' => 3,
+        ], $identity['manifestMediaFamilyCounts']);
+        $t->same(1, $identity['undeclaredEntryCount']);
+        $t->same(1, $identity['encryptedCount']);
+        $t->same(0, $identity['unsupportedCompressionMethodCount']);
+
+        $secretManifest = $identity['manifestEntries'][5];
+        $missingManifest = $identity['manifestEntries'][6];
+        $privatePackageEntry = $identity['packageEntries'][7];
+
+        $t->same('Pictures/secret.png', $secretManifest['path']);
+        $t->same(true, $secretManifest['encrypted']);
+        $t->same(false, $secretManifest['canExposeBytes']);
+        $t->same('encrypted-resource-bytes-blocked', $secretManifest['byteExposurePolicy']);
+        $t->same(null, $secretManifest['byteSha256'] ?? null);
+        $t->same(['odf-manifest-encrypted-package-part'], $secretManifest['diagnostics']);
+
+        $t->same('Pictures/missing.jpg', $missingManifest['path']);
+        $t->same(false, $missingManifest['exists']);
+        $t->same('missing-package-part', $missingManifest['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $missingManifest['diagnostics']);
+
+        $t->same('Notes/private.txt', $privatePackageEntry['path']);
+        $t->same(['undeclared-package-entry'], $privatePackageEntry['roles']);
+        $t->same(false, $privatePackageEntry['declaredInManifest']);
+        $t->same(true, $privatePackageEntry['undeclared']);
+        $t->same('undeclared-package-entry-no-bytes', $privatePackageEntry['byteExposurePolicy']);
+        $t->same(null, $privatePackageEntry['byteSha256'] ?? null);
+        $t->same(sprintf('%08x', crc32($privateNote)), $privatePackageEntry['crc32']);
+    },
     'blocks compact ODT configuration package sidecars from document media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $acceleratorXml = '<accel:acceleratorlist xmlns:accel="http://openoffice.org/2001/accel"/>';
         $configIconBytes = 'CONFIGPNG';
