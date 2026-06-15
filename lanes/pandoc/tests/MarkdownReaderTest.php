@@ -11470,6 +11470,26 @@ MD;
         $t->same('bullet_list', $definition->children[0]->type);
         $t->same('bar', $definition->children[0]->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown block quote on definition marker line' => static function (TestRunner $t): void {
+        $markdown = 'Review note' . "\n" . ':   > Quoted **source** immediately.';
+        $document = (new MarkdownReader())->read($markdown);
+        $definition = $document->children[0]->children[0]->children[1];
+        $quote = $definition->children[0];
+        $paragraph = $quote->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('definition_list', $document->children[0]->type);
+        $t->same('Review note', $document->children[0]->children[0]->attr('term'));
+        $t->same('definition', $definition->type);
+        $t->same('blockquote', $quote->type);
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('Quoted ', $paragraph->children[0]->attr('text'));
+        $t->same('source', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same(' immediately.', $paragraph->children[2]->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains('<dl><dt>Review note</dt><dd><blockquote><p>Quoted <strong>source</strong> immediately.</p></blockquote></dd></dl>', $blocks);
+    },
     'maps upstream markdown definition list inside html div' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("<div>foo\n:   - bar\n</div>");
         $div = $document->children[0];
