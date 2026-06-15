@@ -5279,14 +5279,14 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail)) {
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->startsWithParenthesizedOrderedListMarker($tail, $lineStartSpaces > 0)) {
                 $escaped .= '\\(';
                 $lineStart = false;
                 $definitionLineStart = false;
                 continue;
             }
 
-            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match)) {
+            if ($lineStart && $this->fancyOrderedMarkerEscapeSuppression === 0 && $this->matchFancyOrderedListMarker($tail, $match, $lineStartSpaces > 0)) {
                 $escaped .= $match[1] . '\\' . $match[2];
                 $i += strlen($match[1]);
                 $lineStart = false;
@@ -5479,18 +5479,21 @@ final class MarkdownWriter
     /**
      * @param array<int, string> $match
      */
-    private function matchFancyOrderedListMarker(string $text, array &$match): bool
+    private function matchFancyOrderedListMarker(string $text, array &$match, bool $allowIndentedSingleSpace = false): bool
     {
         if (preg_match('/^([A-Za-z]+)([.)])(?=[ \t]|$)/', $text, $match) !== 1) {
             return false;
         }
 
         $spacesAfterMarker = strspn($text, " \t", strlen($match[1]) + 1);
+        if ($allowIndentedSingleSpace && strlen($match[1]) === 1 && $spacesAfterMarker >= 1) {
+            return true;
+        }
 
         return $this->isFancyOrderedListMarkerToken($match[1], $match[2], $spacesAfterMarker);
     }
 
-    private function startsWithParenthesizedOrderedListMarker(string $text): bool
+    private function startsWithParenthesizedOrderedListMarker(string $text, bool $allowIndentedSingleSpace = false): bool
     {
         if (preg_match('/^\(@\)(?=[ \t]|$)/', $text) === 1) {
             return true;
@@ -5509,6 +5512,10 @@ final class MarkdownWriter
         }
 
         if (ctype_digit($match[1])) {
+            return true;
+        }
+
+        if ($allowIndentedSingleSpace && strlen($match[1]) === 1 && strlen($match[2]) >= 1) {
             return true;
         }
 
@@ -6487,6 +6494,28 @@ final class MarkdownWriter
         }
 
         $attributes[$name] = (string) $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedClassList(mixed $classes): array
+    {
+        $normalized = [];
+        $this->appendNormalizedClasses($normalized, $classes);
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function normalizedAttributePairs(mixed $attributes): array
+    {
+        $normalized = [];
+        $this->appendNormalizedAttributes($normalized, $attributes);
+
+        return array_filter($normalized, static fn (string $value): bool => $value !== '');
     }
 
     /**

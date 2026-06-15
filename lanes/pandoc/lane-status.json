@@ -1194,7 +1194,7 @@
   "mappedMarkdownCommonMarkBlockSurgeCases": 54,
   "markdownCommonMarkBlockSurgeAssertions": 137,
   "mappedMarkdownWriterBlockListCodeSurgeCases": 292,
-  "markdownWriterBlockListCodeSurgeAssertions": 868,
+  "markdownWriterBlockListCodeSurgeAssertions": 978,
   "mappedMarkdownReaderTableCaptionSurgeCases": 114,
   "markdownReaderTableCaptionSurgeAssertions": 1632,
   "mappedMarkdownEntityReferenceSurgeCases": 68,

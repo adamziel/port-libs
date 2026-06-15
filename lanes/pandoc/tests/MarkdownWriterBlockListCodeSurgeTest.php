@@ -1822,6 +1822,76 @@ foreach ($definitionCodeCases as $name => $case) {
         };
 }
 
+$paragraphDocument = static fn (string $value): AstNode => $document($paragraph($value));
+
+$leadingSpaceBlockMarkerCases = [
+    '01 one-space atx h1 stays paragraph' => ['source' => ' # literal heading', 'expected' => ' \# literal heading', 'plain' => '# literal heading'],
+    '02 two-space atx h2 stays paragraph' => ['source' => '  ## literal heading', 'expected' => '  \## literal heading', 'plain' => '## literal heading'],
+    '03 three-space atx h6 stays paragraph' => ['source' => '   ###### literal heading', 'expected' => '   \###### literal heading', 'plain' => '###### literal heading'],
+    '04 one-space compact atx marker stays paragraph' => ['source' => ' ###', 'expected' => ' \###', 'plain' => '###'],
+    '05 three-space compact atx marker stays paragraph' => ['source' => '   ###', 'expected' => '   \###', 'plain' => '###'],
+    '06 one-space dash marker stays paragraph' => ['source' => ' - literal bullet', 'expected' => ' \- literal bullet', 'plain' => '- literal bullet'],
+    '07 two-space plus marker stays paragraph' => ['source' => '  + literal bullet', 'expected' => '  \+ literal bullet', 'plain' => '+ literal bullet'],
+    '08 three-space star marker stays paragraph' => ['source' => '   * literal bullet', 'expected' => '   \* literal bullet', 'plain' => '* literal bullet'],
+    '09 one-space empty dash marker stays paragraph' => ['source' => ' -', 'expected' => ' \-', 'plain' => '-'],
+    '10 two-space empty plus marker stays paragraph' => ['source' => '  +', 'expected' => '  \+', 'plain' => '+'],
+    '11 three-space empty star marker stays paragraph' => ['source' => '   *', 'expected' => '   \*', 'plain' => '*'],
+    '12 one-space decimal period marker stays paragraph' => ['source' => ' 1. literal ordered', 'expected' => ' 1\. literal ordered', 'plain' => '1. literal ordered'],
+    '13 two-space decimal paren marker stays paragraph' => ['source' => '  2) literal ordered', 'expected' => '  2\) literal ordered', 'plain' => '2) literal ordered'],
+    '14 three-space zero-padded decimal marker stays paragraph' => ['source' => '   03. literal ordered', 'expected' => '   03\. literal ordered', 'plain' => '03. literal ordered'],
+    '15 one-space multi-digit decimal marker stays paragraph' => ['source' => ' 123. literal ordered', 'expected' => ' 123\. literal ordered', 'plain' => '123. literal ordered'],
+    '16 two-space zero decimal marker stays paragraph' => ['source' => '  0. literal ordered', 'expected' => '  0\. literal ordered', 'plain' => '0. literal ordered'],
+    '17 three-space default period marker stays paragraph' => ['source' => '   #. literal default', 'expected' => '   \#. literal default', 'plain' => '#. literal default'],
+    '18 one-space default paren marker stays paragraph' => ['source' => ' #) literal default', 'expected' => ' \#) literal default', 'plain' => '#) literal default'],
+    '19 two-space example marker stays paragraph' => ['source' => '  (@) literal example', 'expected' => '  \(@) literal example', 'plain' => '(@) literal example'],
+    '20 three-space labeled example marker stays paragraph' => ['source' => '   (@review) literal example', 'expected' => '   \(@review) literal example', 'plain' => '(@review) literal example'],
+    '21 one-space parenthesized numeric marker stays paragraph' => ['source' => ' (1) literal numeric', 'expected' => ' \(1) literal numeric', 'plain' => '(1) literal numeric'],
+    '22 two-space parenthesized numeric marker stays paragraph' => ['source' => '  (22) literal numeric', 'expected' => '  \(22) literal numeric', 'plain' => '(22) literal numeric'],
+    '23 three-space zero-padded parenthesized numeric marker stays paragraph' => ['source' => '   (003) literal numeric', 'expected' => '   \(003) literal numeric', 'plain' => '(003) literal numeric'],
+    '24 one-space parenthesized lower alpha marker stays paragraph' => ['source' => ' (a) literal alpha', 'expected' => ' \(a) literal alpha', 'plain' => '(a) literal alpha'],
+    '25 two-space parenthesized upper alpha marker stays paragraph' => ['source' => '  (A) literal alpha', 'expected' => '  \(A) literal alpha', 'plain' => '(A) literal alpha'],
+    '26 three-space parenthesized lower z marker stays paragraph' => ['source' => '   (z) literal alpha', 'expected' => '   \(z) literal alpha', 'plain' => '(z) literal alpha'],
+    '27 one-space lower alpha period marker stays paragraph' => ['source' => ' a. literal alpha', 'expected' => ' a\. literal alpha', 'plain' => 'a. literal alpha'],
+    '28 two-space lower alpha period marker stays paragraph' => ['source' => '  b. literal alpha', 'expected' => '  b\. literal alpha', 'plain' => 'b. literal alpha'],
+    '29 three-space lower alpha period marker stays paragraph' => ['source' => '   c. literal alpha', 'expected' => '   c\. literal alpha', 'plain' => 'c. literal alpha'],
+    '30 one-space upper alpha period marker stays paragraph' => ['source' => ' A. literal alpha', 'expected' => ' A\. literal alpha', 'plain' => 'A. literal alpha'],
+    '31 two-space upper alpha period marker stays paragraph' => ['source' => '  B. literal alpha', 'expected' => '  B\. literal alpha', 'plain' => 'B. literal alpha'],
+    '32 three-space upper alpha period marker stays paragraph' => ['source' => '   C. literal alpha', 'expected' => '   C\. literal alpha', 'plain' => 'C. literal alpha'],
+    '33 one-space lower alpha paren marker stays paragraph' => ['source' => ' a) literal alpha', 'expected' => ' a\) literal alpha', 'plain' => 'a) literal alpha'],
+    '34 two-space lower alpha paren marker stays paragraph' => ['source' => '  b) literal alpha', 'expected' => '  b\) literal alpha', 'plain' => 'b) literal alpha'],
+    '35 three-space lower alpha paren marker stays paragraph' => ['source' => '   c) literal alpha', 'expected' => '   c\) literal alpha', 'plain' => 'c) literal alpha'],
+    '36 one-space upper alpha paren marker stays paragraph' => ['source' => ' A) literal alpha', 'expected' => ' A\) literal alpha', 'plain' => 'A) literal alpha'],
+    '37 two-space upper alpha paren marker stays paragraph' => ['source' => '  B) literal alpha', 'expected' => '  B\) literal alpha', 'plain' => 'B) literal alpha'],
+    '38 three-space upper alpha paren marker stays paragraph' => ['source' => '   C) literal alpha', 'expected' => '   C\) literal alpha', 'plain' => 'C) literal alpha'],
+    '39 one-space lower roman period marker stays paragraph' => ['source' => ' iv. literal roman', 'expected' => ' iv\. literal roman', 'plain' => 'iv. literal roman'],
+    '40 two-space lower roman period marker stays paragraph' => ['source' => '  ix. literal roman', 'expected' => '  ix\. literal roman', 'plain' => 'ix. literal roman'],
+    '41 three-space lower roman period marker stays paragraph' => ['source' => '   xii. literal roman', 'expected' => '   xii\. literal roman', 'plain' => 'xii. literal roman'],
+    '42 one-space upper roman period marker stays paragraph' => ['source' => ' IV. literal roman', 'expected' => ' IV\. literal roman', 'plain' => 'IV. literal roman'],
+    '43 two-space upper roman period marker stays paragraph' => ['source' => '  IX. literal roman', 'expected' => '  IX\. literal roman', 'plain' => 'IX. literal roman'],
+    '44 three-space upper roman period marker stays paragraph' => ['source' => '   XII. literal roman', 'expected' => '   XII\. literal roman', 'plain' => 'XII. literal roman'],
+    '45 one-space lower roman paren marker stays paragraph' => ['source' => ' i) literal roman', 'expected' => ' i\) literal roman', 'plain' => 'i) literal roman'],
+    '46 two-space upper roman paren marker stays paragraph' => ['source' => '  I) literal roman', 'expected' => '  I\) literal roman', 'plain' => 'I) literal roman'],
+    '47 three-space lower roman paren marker stays paragraph' => ['source' => '   x) literal roman', 'expected' => '   x\) literal roman', 'plain' => 'x) literal roman'],
+    '48 softbreak leading atx marker stays paragraph' => ['source' => "Intro\n # nested literal heading", 'expected' => "Intro\n \\# nested literal heading", 'plain' => 'Intro # nested literal heading'],
+    '49 softbreak leading bullet marker stays paragraph' => ['source' => "Intro\n  - nested literal bullet", 'expected' => "Intro\n  \\- nested literal bullet", 'plain' => 'Intro - nested literal bullet'],
+    '50 softbreak leading alpha marker stays paragraph' => ['source' => "Intro\n   a. nested literal ordered", 'expected' => "Intro\n   a\\. nested literal ordered", 'plain' => 'Intro a. nested literal ordered'],
+];
+
+foreach ($leadingSpaceBlockMarkerCases as $name => $case) {
+    $tests['maps upstream markdown writer leading-space block marker escape surge ' . $name] =
+        static function (TestRunner $t) use ($case, $paragraphDocument, $inlineText): void {
+            $markdown = (new MarkdownWriter())->write($paragraphDocument($case['source']));
+            $t->same($case['expected'], $markdown);
+
+            $roundTrip = (new MarkdownReader())->read($markdown);
+            $block = $roundTrip->children[0] ?? null;
+            $t->same('paragraph', $block?->type);
+            if ($block instanceof AstNode) {
+                $t->same($case['plain'], $inlineText($block));
+            }
+        };
+}
+
 $definitionHeadingCases = [];
 for ($level = 1; $level <= 6; $level++) {
     $definitionHeadingCases['0' . $level . ' heading level ' . $level . ' starts definition body'] = [
