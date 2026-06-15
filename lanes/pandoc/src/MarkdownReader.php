@@ -18369,7 +18369,7 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G<([A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\s]*)>/u', $text, $m, 0, $offset) === 1) {
+        if (preg_match('/\G<([A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\x00-\x20\x7F]*)>/u', $text, $m, 0, $offset) === 1) {
             $url = $this->normalizeLinkDestination($m[1]);
             $next = $offset + strlen($m[0]);
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
@@ -18394,7 +18394,7 @@ final class MarkdownReader
 
         if (
             preg_match(
-                '/\G<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>/u',
+                '/\G<([^\x00-\x20\x7F<>@]+@[^\x00-\x20\x7F<>@]+\.[^\x00-\x20\x7F<>@]+)>/u',
                 $text,
                 $m,
                 0,
@@ -18734,7 +18734,7 @@ final class MarkdownReader
      */
     private function tryParseBareUriAutolink(string $text, int $offset): ?array
     {
-        if ($this->isEscapedInlinePosition($text, $offset)) {
+        if ($this->isEscapedInlinePosition($text, $offset) || $this->isInsideAngleAutolinkCandidate($text, $offset)) {
             return null;
         }
 
@@ -18824,6 +18824,33 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function isInsideAngleAutolinkCandidate(string $text, int $offset): bool
+    {
+        if ($offset <= 0) {
+            return false;
+        }
+
+        $before = substr($text, 0, $offset);
+        $open = strrpos($before, '<');
+        if ($open === false) {
+            return false;
+        }
+
+        $closeBefore = strrpos($before, '>');
+        if ($closeBefore !== false && $closeBefore > $open) {
+            return false;
+        }
+
+        $closeAfter = strpos($text, '>', $offset);
+        if ($closeAfter !== false) {
+            return true;
+        }
+
+        $candidatePrefix = substr($text, $open + 1, $offset - $open - 1);
+
+        return $candidatePrefix !== '' && preg_match('/\s/u', $candidatePrefix) !== 1;
     }
 
     private function trimBareUriAutolinkCandidate(string $candidate): string
