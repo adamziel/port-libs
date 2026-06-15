@@ -15758,7 +15758,9 @@ final class MarkdownReader
                     $continuesDefinitionList = $paragraph !== []
                         && $this->isDefinitionMarker($stripped)
                         && !$this->isListItemBlockStartLine($stripped);
-                    if ($paragraph !== [] && $continuesDefinitionList) {
+                    $continuesSetextHeading = $paragraph !== []
+                        && $this->canContinueListItemSetextHeadingBlock($paragraph, $stripped);
+                    if ($paragraph !== [] && ($continuesDefinitionList || $continuesSetextHeading)) {
                         $seedLines = $paragraph;
                         $paragraph = [];
                     } else {
@@ -15818,6 +15820,7 @@ final class MarkdownReader
         int $contentIndent
     ): bool {
         return $this->isListItemBlockStartLine($text)
+            || $this->canStartListItemSetextHeadingBlock($text, $lines, $cursor, $baseIndent, $contentIndent)
             || $this->canStartListItemDefinitionBlock($text, $lines, $cursor, $baseIndent, $contentIndent);
     }
 
@@ -15840,8 +15843,64 @@ final class MarkdownReader
             return true;
         }
 
+        if ($paragraph !== [] && $this->canContinueListItemSetextHeadingBlock($paragraph, $line)) {
+            return true;
+        }
+
+        if ($paragraph === [] && $this->canStartListItemSetextHeadingBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent)) {
+            return true;
+        }
+
         return ($paragraph !== [] && $this->isDefinitionMarker($line))
             || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
+    }
+
+    /**
+     * @param list<string> $paragraph
+     */
+    private function canContinueListItemSetextHeadingBlock(array $paragraph, string $line): bool
+    {
+        if (!$this->isListItemSetextHeadingUnderline($line)) {
+            return false;
+        }
+
+        foreach ($paragraph as $paragraphLine) {
+            if (!$this->canBeSetextHeadingContentLine($paragraphLine)) {
+                return false;
+            }
+        }
+
+        return $paragraph !== [];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function canStartListItemSetextHeadingBlock(
+        string $text,
+        array $lines,
+        int $cursor,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if (!$this->canBeSetextHeadingContentLine($text)) {
+            return false;
+        }
+
+        $next = $lines[$cursor] ?? null;
+        if ($next === null) {
+            return false;
+        }
+
+        $stripped = $this->stripListItemContentLine($next, $cursor, $baseIndent, $contentIndent);
+
+        return $stripped !== null
+            && $this->canContinueListItemSetextHeadingBlock([$text], $stripped);
+    }
+
+    private function isListItemSetextHeadingUnderline(string $line): bool
+    {
+        return preg_match('/^ {0,3}=+[ \t]*$/', $line) === 1;
     }
 
     private function isListItemBlockStartLine(string $line): bool

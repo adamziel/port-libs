@@ -9,7 +9,7 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
 | ODF / ODT / OpenDocument (`odt`) | 20 | 20 |
-| Markdown / CommonMark / GFM | 1,987 | 1,096 |
+| Markdown / CommonMark / GFM | 2,047 | 1,096 |
 | JSON / native AST | 87 | 252 |
 | Typst input | 0 | 17 |
 | PPTX / XLSX | 0 | 2 |
@@ -26,6 +26,4 @@ ODF/ODT is marked ship-ready: 85 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` preserves nested pipe tables, grid tables, simple tables, line blocks, definition lists, and raw TeX environments inside list items across bullet and ordered marker families.
-
-Current Pandoc counters: 5,688 PHP passes / 0 failures and 5,678 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php`, `MarkdownReaderBlocksSurgeTest.php`, and `MarkdownReaderTest.php`; focused `MarkdownReaderBlocksSurgeTest.php` plus `MarkdownReaderTest.php` passed 2 files, 10043 assertions, 0 failures; full `lanes/pandoc/tests` passed 69 files, 100048 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
+Latest Markdown/CommonMark/GFM evidence validated after rebase: `MarkdownReader` parses equals-style setext headings inside native list items across bullet and ordered marker families while preserving the current list-continuation table coverage. Current Pandoc counters: 5,748 PHP passes / 0 failures and 5,738 mapped upstream cases. Verification passed: `php -l` for `MarkdownReader.php` and `MarkdownReaderSetextListSurgeTest.php`; focused `MarkdownReaderSetextListSurgeTest.php` passed 1 file, 537 assertions, 0 failures; focused `MarkdownReaderSetextListSurgeTest.php` plus `MarkdownReaderBlocksSurgeTest.php` passed 2 files, 3561 assertions, 0 failures; full `lanes/pandoc/tests` passed 70 files, 100585 assertions, 0 failures; `jq empty`; `git diff --check`; and exact conflict-marker scan.
