@@ -213,6 +213,66 @@ return [
         ]);
         $t->same('literal-key', $modernUnMetaKey->attr('meta')['unMeta']);
     },
+    'reads legacy native object unMeta metadata envelopes into shared ast documents' => static function (TestRunner $t): void {
+        $reader = new NativeReader();
+        $packet = [
+            'pandoc-api-version' => [1, 17, 0, 4],
+            'meta' => [
+                'unMeta' => [
+                    'title' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Legacy'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'Native'],
+                    ]],
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-native-object'],
+                    'review' => ['t' => 'MetaMap', 'c' => [
+                        'queue' => ['t' => 'MetaString', 'c' => 'native-import'],
+                        'blocked' => ['t' => 'MetaBool', 'c' => false],
+                    ]],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'native'],
+                ]],
+            ],
+        ];
+
+        $document = $reader->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'];
+        $provenance = $document->attr('metaConstructorProvenance');
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $modernLiteral = $reader->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'unMeta' => ['t' => 'MetaString', 'c' => 'literal-key'],
+            ],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR))->attr('meta');
+
+        $t->same([1, 17, 0, 4], $document->attr('pandocApiVersion'));
+        $t->same('MetaInlines', $meta['title']['t']);
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Legacy Native', $titleInlines[0]->attr('text'));
+        $t->same($packet['meta']['unMeta']['title']['c'], $titleInlines[0]->attr('nativeInlineParts'));
+        $t->same('MetaString', $meta['source']['t']);
+        $t->same('legacy-native-object', $meta['source']['c']);
+        $t->same('MetaMap', $meta['review']['t']);
+        $t->same('MetaBool', $meta['review']['c']['blocked']['t']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Legacy native', $document->children[0]->children[0]->attr('text'));
+        $t->same('MetaString', $provenance['/source']['constructor']);
+        $t->same('MetaBool', $provenance['/review/blocked']['constructor']);
+        $t->same(false, array_key_exists('unMeta', $jsonPacket['meta']));
+        $t->same($jsonPacket['meta'], $nativePacket['meta']);
+        $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
+        $t->same('MetaString', $modernLiteral['unMeta']['t']);
+        $t->same('literal-key', $modernLiteral['unMeta']['c']);
+    },
     'reads top-level pandoc json MetaMap metadata envelopes without losing literal unMeta keys' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

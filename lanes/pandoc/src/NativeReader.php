@@ -23,8 +23,9 @@ final class NativeReader
         }
         $documentAttrs = $this->documentConstructorAttrs($native);
         $native = $this->normalizeDocument($native);
+        $apiVersion = isset($native['pandoc-api-version']) ? $this->apiVersion($native['pandoc-api-version']) : null;
         $rawMeta = $native['meta'] ?? [];
-        $normalizedMeta = $this->normalizeMetadataMap($rawMeta);
+        $normalizedMeta = $this->normalizeMetadataMap($rawMeta, $apiVersion);
 
         $attrs = array_replace($documentAttrs, [
             'meta' => $this->metadata($normalizedMeta),
@@ -32,13 +33,13 @@ final class NativeReader
         ]);
         $attrs = array_replace($attrs, $this->metadataConstructorAttrs($rawMeta, $normalizedMeta));
 
-        $metaConstructorProvenance = $this->metaConstructorProvenance($rawMeta);
+        $metaConstructorProvenance = $this->metaConstructorProvenance($rawMeta, $apiVersion);
         if ($metaConstructorProvenance !== []) {
             $attrs['metaConstructorProvenance'] = $metaConstructorProvenance;
         }
 
-        if (isset($native['pandoc-api-version'])) {
-            $attrs['pandocApiVersion'] = $this->apiVersion($native['pandoc-api-version']);
+        if ($apiVersion !== null) {
+            $attrs['pandocApiVersion'] = $apiVersion;
         }
 
         $children = [];
@@ -198,9 +199,10 @@ final class NativeReader
     }
 
     /**
+     * @param list<int>|null $apiVersion
      * @return array<string, mixed>
      */
-    private function normalizeMetadataMap(mixed $metadata): array
+    private function normalizeMetadataMap(mixed $metadata, ?array $apiVersion = null): array
     {
         if ($this->isTaggedConstructor($metadata, 'MetaMap')) {
             return $this->metaMapContent($metadata['c'] ?? null);
@@ -210,7 +212,50 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON meta must be an object');
         }
 
+        $legacyUnMeta = $this->legacyUnMetaMetadata($metadata, $apiVersion);
+        if ($legacyUnMeta !== null) {
+            return $legacyUnMeta;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * @param list<int>|null $apiVersion
+     * @return array<string, mixed>|null
+     */
+    private function legacyUnMetaMetadata(array $metadata, ?array $apiVersion): ?array
+    {
+        if (count($metadata) !== 1 || !array_key_exists('unMeta', $metadata)) {
+            return null;
+        }
+
+        $unMeta = $metadata['unMeta'];
+        if ($this->taggedMetaConstructor($unMeta) === 'MetaMap') {
+            return $this->metaMapContent($unMeta['c'] ?? null);
+        }
+
+        if ($this->isTaggedObject($unMeta) || !$this->shouldUnwrapLegacyMetaEnvelope($apiVersion)) {
+            return null;
+        }
+
+        if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+            throw new \InvalidArgumentException('Pandoc native JSON meta.unMeta must be an object');
+        }
+
+        return $unMeta;
+    }
+
+    /**
+     * @param list<int>|null $apiVersion
+     */
+    private function shouldUnwrapLegacyMetaEnvelope(?array $apiVersion): bool
+    {
+        if ($apiVersion === null) {
+            return true;
+        }
+
+        return ($apiVersion[0] ?? 0) === 1 && ($apiVersion[1] ?? 0) <= 17;
     }
 
     /**
@@ -360,9 +405,10 @@ final class NativeReader
     }
 
     /**
+     * @param list<int>|null $apiVersion
      * @return array<string, array{constructor:string, native:array<string, mixed>}>
      */
-    private function metaConstructorProvenance(mixed $metadata): array
+    private function metaConstructorProvenance(mixed $metadata, ?array $apiVersion = null): array
     {
         $provenance = [];
         if ($this->isMetaConstructor($metadata)) {
@@ -373,6 +419,11 @@ final class NativeReader
 
         if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
             return [];
+        }
+
+        $legacyUnMeta = $this->legacyUnMetaMetadata($metadata, $apiVersion);
+        if ($legacyUnMeta !== null) {
+            $metadata = $legacyUnMeta;
         }
 
         foreach ($metadata as $key => $value) {
