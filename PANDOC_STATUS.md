@@ -16,7 +16,7 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 0 | 20 |
 | HTML / XML / JATS / BITS DOM | 29 | 54 |
 | DOCX / OpenXML | 95 | 256 |
-| EPUB / EPUB3 | 22 | 15 |
+| EPUB / EPUB3 | 24 | 15 |
 | CSV / TSV | 2 | 4 |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 80 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
@@ -26,6 +26,6 @@ ODF/ODT is marked ship-ready: 78 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 51 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not upstream Pandoc input) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest CSL evidence: `CitationCslProcessor` renders imported BibLaTeX `eid` / `articlenumber` values through CSL `article-number` labels, number forms, numeric text forms, `is-numeric` conditionals, and sort keys.
+Latest EPUB3 evidence: `EpubPackageReader` reports OPF package-root authoring provenance, including id/version, unique-identifier binding, `xml:lang`, `dir`, `xml:base`, prefix diagnostics, custom attributes, base-resolution policy, package prefix reports, package/manifest/spine authoring reports, and package identity diagnostics.
 
-Current Pandoc counters: 3,633 PHP passes / 0 failures and 3,671 mapped upstream cases. Verification passed `php -l` for `CslStyle.php`, `CitationCslProcessor.php`, and `CitationCslProcessorTest.php`; focused `CitationCslProcessorTest.php` (`1` file, `5,813` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,500` assertions, `0` failures); `jq empty`; and `git diff --check`.
+Current Pandoc counters: 3,647 PHP passes / 0 failures and 3,684 mapped upstream cases. Verification passed after rebasing the EPUB package root authoring report slice onto current main `559492548e`: `php -l` for `EpubPackageReader.php` and `EpubPackageReaderTest.php`; focused `EpubPackageReaderTest.php` (`1` file, `1,138` assertions, `0` failures); focused `OdfOdtShipReadinessStatusTest.php` (`1` file, `24` assertions, `0` failures); full `lanes/pandoc/tests` (`46` files, `85,915` assertions, `0` failures); `jq empty`; conflict-marker scan; and `git diff --check`.

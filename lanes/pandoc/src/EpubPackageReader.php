@@ -401,6 +401,87 @@ final class EpubPackageReader
     }
 
     /**
+     * @return array{
+     *     raw:string,
+     *     declarationCount:int,
+     *     declarations:list<array{index:int, prefix:string, iri:string}>,
+     *     bindingCount:int,
+     *     bindings:list<array{index:int, prefix:string, iri:string}>,
+     *     bindingsByPrefix:array<string, string>,
+     *     duplicateCount:int,
+     *     invalidCount:int,
+     *     valid:bool,
+     *     diagnosticCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function packagePrefixReport(string $value): array
+    {
+        $declarations = [];
+        $bindingsByPrefix = [];
+        $diagnostics = [];
+        $invalidCount = 0;
+        $offset = 0;
+        $length = strlen($value);
+
+        while ($offset < $length) {
+            $offset += strspn($value, " \t\r\n", $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $segment = substr($value, $offset);
+            if (!preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match)) {
+                ++$invalidCount;
+                $diagnostics[] = [
+                    'type' => 'invalid-package-prefix-declaration',
+                    'offset' => $offset,
+                    'value' => $segment,
+                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
+                ];
+                break;
+            }
+
+            $prefix = $match[1];
+            $iri = $match[2];
+            if (isset($bindingsByPrefix[$prefix])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-package-prefix-declaration',
+                    'prefix' => $prefix,
+                    'previousIri' => $bindingsByPrefix[$prefix],
+                    'iri' => $iri,
+                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
+                ];
+            }
+
+            $bindingsByPrefix[$prefix] = $iri;
+            $declarations[] = [
+                'index' => count($declarations),
+                'prefix' => $prefix,
+                'iri' => $iri,
+            ];
+            $offset += strlen($match[0]);
+        }
+
+        return [
+            'raw' => $value,
+            'declarationCount' => count($declarations),
+            'declarations' => $declarations,
+            'bindingCount' => count($bindingsByPrefix),
+            'bindings' => $declarations,
+            'bindingsByPrefix' => $bindingsByPrefix,
+            'duplicateCount' => count(array_filter(
+                $diagnostics,
+                static fn (array $diagnostic): bool => ($diagnostic['type'] ?? '') === 'duplicate-package-prefix-declaration'
+            )),
+            'invalidCount' => $invalidCount,
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function metadataItem(\DOMElement $element, int $index, string $value): array
@@ -431,14 +512,32 @@ final class EpubPackageReader
      */
     private function packageReport(\DOMElement $packageElement, array $metadataItems, array $metadataProperties): array
     {
+        $attributes = $this->elementAttributes($packageElement);
+        $customAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (isset(self::OPF_PACKAGE_STRUCTURAL_ATTRIBUTES[$name])) {
+                continue;
+            }
+            $customAttributes[$name] = $value;
+        }
+
         $version = trim($packageElement->getAttribute('version'));
         $uniqueIdentifierId = trim($packageElement->getAttribute('unique-identifier'));
         $language = $this->elementLanguage($packageElement);
+        $base = $this->elementBase($packageElement);
         $xmlBase = trim($packageElement->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
         if ($xmlBase === '') {
             $xmlBase = trim($packageElement->getAttribute('xml:base'));
         }
-        $prefixReport = $this->packagePrefixReport($packageElement->hasAttribute('prefix') ? $packageElement->getAttribute('prefix') : '');
+        $prefix = trim($packageElement->getAttribute('prefix'));
+        $prefixReport = $this->packagePrefixReport($prefix);
+        $uniqueIdentifierItem = null;
+        foreach ($metadataItems as $item) {
+            if (($item['id'] ?? null) === $uniqueIdentifierId) {
+                $uniqueIdentifierItem = $item;
+                break;
+            }
+        }
 
         $identifierDetails = $this->metadataIdentifierDetails(
             $metadataItems,
@@ -448,23 +547,58 @@ final class EpubPackageReader
         $uniqueIdentifier = $this->metadataUniqueIdentifierReport($uniqueIdentifierId, $identifierDetails, true);
         $identifierSummary = $this->metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
         $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
-        $packageDiagnostics = array_merge($identifierDiagnostics, $prefixReport['diagnostics']);
+        $diagnostics = $prefixReport['diagnostics'];
+        if ($uniqueIdentifierId === '') {
+            $diagnostics[] = [
+                'type' => 'missing-package-unique-identifier',
+                'message' => 'EPUB OPF package root is missing unique-identifier',
+            ];
+        } elseif ($uniqueIdentifierItem === null) {
+            $diagnostics[] = [
+                'type' => 'unresolved-package-unique-identifier',
+                'uniqueIdentifierId' => $uniqueIdentifierId,
+                'message' => 'EPUB OPF package unique-identifier does not match a metadata item id',
+            ];
+        }
+        if ($version === '') {
+            $diagnostics[] = [
+                'type' => 'missing-package-version',
+                'message' => 'EPUB OPF package root is missing version',
+            ];
+        }
+        $packageDiagnostics = array_merge($diagnostics, $identifierDiagnostics);
+        $valid = $packageDiagnostics === [];
 
         return [
             'present' => true,
             'id' => $this->nullableAttribute($packageElement, 'id'),
             'version' => $version,
             'uniqueIdentifierId' => $uniqueIdentifierId === '' ? null : $uniqueIdentifierId,
+            'uniqueIdentifierMatched' => $uniqueIdentifierItem !== null,
+            'uniqueIdentifierValue' => is_array($uniqueIdentifierItem) ? (string) ($uniqueIdentifierItem['value'] ?? '') : null,
+            'uniqueIdentifierItem' => $uniqueIdentifierItem,
             'language' => $language === '' ? null : $language,
             'direction' => $this->nullableAttribute($packageElement, 'dir'),
+            'base' => $base,
+            'baseResolutionPolicy' => $base === null ? null : 'reported-not-applied-to-package-paths',
             'xmlBase' => $xmlBase === '' ? null : $xmlBase,
-            'prefix' => $this->nullableAttribute($packageElement, 'prefix'),
+            'prefix' => $prefix === '' ? null : $prefix,
             'prefixReport' => $prefixReport,
-            'prefixDeclarations' => $prefixReport['bindings'],
+            'prefixDeclarationCount' => count($prefixReport['declarations']),
+            'prefixCount' => count($prefixReport['bindingsByPrefix']),
+            'prefixDeclarations' => $prefixReport['declarations'],
             'prefixBindings' => $prefixReport['bindingsByPrefix'],
+            'duplicatePrefixCount' => $prefixReport['duplicateCount'],
+            'invalidPrefixDeclarationCount' => $prefixReport['invalidCount'],
             'prefixDiagnosticCount' => count($prefixReport['diagnostics']),
             'prefixDiagnostics' => $prefixReport['diagnostics'],
             'prefixValid' => $prefixReport['diagnostics'] === [],
+            'attributes' => $attributes,
+            'attributeCount' => count($attributes),
+            'customAttributes' => $customAttributes,
+            'customAttributeCount' => count($customAttributes),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
             'uniqueIdentifier' => $uniqueIdentifier,
             'identifierDetails' => $identifierDetails,
             'identifierSummary' => $identifierSummary,
@@ -472,91 +606,27 @@ final class EpubPackageReader
             'identifierDiagnostics' => $identifierDiagnostics,
             'packageDiagnosticCount' => count($packageDiagnostics),
             'packageDiagnostics' => $packageDiagnostics,
-            'valid' => $packageDiagnostics === [],
+            'valid' => $valid,
             'summary' => [
                 'version' => $version,
                 'uniqueIdentifierId' => $uniqueIdentifierId === '' ? null : $uniqueIdentifierId,
+                'uniqueIdentifierMatched' => $uniqueIdentifierItem !== null,
+                'language' => $language === '' ? null : $language,
+                'direction' => $this->nullableAttribute($packageElement, 'dir'),
+                'base' => $base,
+                'prefixCount' => count($prefixReport['bindingsByPrefix']),
+                'prefixDeclarationCount' => count($prefixReport['declarations']),
+                'prefixBindingCount' => count($prefixReport['bindingsByPrefix']),
+                'prefixDiagnosticCount' => count($prefixReport['diagnostics']),
+                'customAttributeCount' => count($customAttributes),
+                'diagnosticCount' => count($diagnostics),
+                'packageDiagnosticCount' => count($packageDiagnostics),
                 'identifierCount' => count($identifierDetails),
                 'selectedIdentifier' => $uniqueIdentifier['value'],
                 'selectedBy' => $uniqueIdentifier['selectedBy'],
                 'identifierDiagnosticCount' => count($identifierDiagnostics),
-                'prefixDeclarationCount' => count($prefixReport['bindings']),
-                'prefixBindingCount' => count($prefixReport['bindingsByPrefix']),
-                'prefixDiagnosticCount' => count($prefixReport['diagnostics']),
-                'packageDiagnosticCount' => count($packageDiagnostics),
-                'valid' => $packageDiagnostics === [],
+                'valid' => $valid,
             ],
-        ];
-    }
-
-    /**
-     * @return array{
-     *     raw:string,
-     *     declarationCount:int,
-     *     bindingCount:int,
-     *     bindings:list<array{index:int, prefix:string, iri:string}>,
-     *     bindingsByPrefix:array<string, string>,
-     *     valid:bool,
-     *     diagnosticCount:int,
-     *     diagnostics:list<array<string, mixed>>
-     * }
-     */
-    private function packagePrefixReport(string $raw): array
-    {
-        $value = trim($raw);
-        $bindings = [];
-        $bindingsByPrefix = [];
-        $diagnostics = [];
-
-        $offset = 0;
-        $length = strlen($value);
-        while ($offset < $length) {
-            $offset += strspn($value, " \t\r\n", $offset);
-            if ($offset >= $length) {
-                break;
-            }
-
-            $segment = substr($value, $offset);
-            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match) !== 1) {
-                $diagnostics[] = [
-                    'type' => 'invalid-package-prefix-declaration',
-                    'offset' => $offset,
-                    'value' => $segment,
-                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
-                ];
-                break;
-            }
-
-            $prefix = $match[1];
-            $iri = $match[2];
-            if (isset($bindingsByPrefix[$prefix])) {
-                $diagnostics[] = [
-                    'type' => 'duplicate-package-prefix-declaration',
-                    'prefix' => $prefix,
-                    'previousIri' => $bindingsByPrefix[$prefix],
-                    'iri' => $iri,
-                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
-                ];
-            }
-
-            $bindingsByPrefix[$prefix] = $iri;
-            $bindings[] = [
-                'index' => count($bindings),
-                'prefix' => $prefix,
-                'iri' => $iri,
-            ];
-            $offset += strlen($match[0]);
-        }
-
-        return [
-            'raw' => $value,
-            'declarationCount' => count($bindings),
-            'bindingCount' => count($bindingsByPrefix),
-            'bindings' => $bindings,
-            'bindingsByPrefix' => $bindingsByPrefix,
-            'valid' => $diagnostics === [],
-            'diagnosticCount' => count($diagnostics),
-            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -5670,6 +5740,16 @@ final class EpubPackageReader
         }
 
         return $language;
+    }
+
+    private function elementBase(\DOMElement $element): ?string
+    {
+        $base = trim($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'base'));
+        if ($base === '') {
+            $base = trim($element->getAttribute('xml:base'));
+        }
+
+        return $base === '' ? null : $base;
     }
 
     /**

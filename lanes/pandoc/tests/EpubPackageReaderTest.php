@@ -87,6 +87,104 @@ return [
         $t->same('EPUB/chapter2.xhtml', $spine[1]['path']);
         $t->same(true, $spine[1]['linear']);
     },
+    'reports epub opf package root authoring provenance for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+        $root = sys_get_temp_dir() . '/port-libs-epub-package-root-' . str_replace('.', '', uniqid('', true));
+        mkdir($root, 0777, true);
+        try {
+            $writePackageFile($root, 'META-INF/container.xml', <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML);
+            $writePackageFile($root, 'EPUB/package.opf', <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:review="https://example.invalid/epub-review" id="pkg-root" version="3.0" unique-identifier="bookid" xml:lang="ja" dir="rtl" xml:base="sections/" prefix="rendition: http://www.idpf.org/vocab/rendition/# review: https://example.invalid/epub-review# review: https://example.invalid/epub-review-override# broken" data-package="source" review:source="wp-import">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:package-root-report</dc:identifier>
+    <dc:title>Package Root Report</dc:title>
+    <dc:language>ja</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+            $writePackageFile($root, 'EPUB/nav.xhtml', <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML);
+            $writePackageFile($root, 'EPUB/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Readable package root report.</p></body></html>');
+
+            $document = (new EpubPackageReader())->readDirectory($root);
+            $epub = $document->attr('epub');
+            $package = $epub['packageReport'];
+
+            $t->same('pkg-root', $package['id']);
+            $t->same('3.0', $package['version']);
+            $t->same('bookid', $package['uniqueIdentifierId']);
+            $t->same(true, $package['uniqueIdentifierMatched']);
+            $t->same('urn:uuid:package-root-report', $package['uniqueIdentifierValue']);
+            $t->same('ja', $package['language']);
+            $t->same('rtl', $package['direction']);
+            $t->same('sections/', $package['base']);
+            $t->same('reported-not-applied-to-package-paths', $package['baseResolutionPolicy']);
+            $t->same(3, $package['prefixDeclarationCount']);
+            $t->same(2, $package['prefixCount']);
+            $t->same([
+                'rendition' => 'http://www.idpf.org/vocab/rendition/#',
+                'review' => 'https://example.invalid/epub-review-override#',
+            ], $package['prefixBindings']);
+            $t->same(1, $package['duplicatePrefixCount']);
+            $t->same(1, $package['invalidPrefixDeclarationCount']);
+            $t->same(9, $package['attributeCount']);
+            $t->same('sections/', $package['attributes']['xml:base']);
+            $t->same('wp-import', $package['attributes']['review:source']);
+            $t->same([
+                'data-package' => 'source',
+                'review:source' => 'wp-import',
+            ], $package['customAttributes']);
+            $t->same(2, $package['customAttributeCount']);
+            $t->same(2, $package['diagnosticCount']);
+            $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_column($package['diagnostics'], 'type'));
+            $t->same('review', $package['diagnostics'][0]['prefix']);
+            $t->same('broken', $package['diagnostics'][1]['value']);
+            $t->same([
+                'version' => '3.0',
+                'uniqueIdentifierId' => 'bookid',
+                'uniqueIdentifierMatched' => true,
+                'language' => 'ja',
+                'direction' => 'rtl',
+                'base' => 'sections/',
+                'prefixCount' => 2,
+                'prefixDeclarationCount' => 3,
+                'prefixBindingCount' => 2,
+                'prefixDiagnosticCount' => 2,
+                'customAttributeCount' => 2,
+                'diagnosticCount' => 2,
+                'packageDiagnosticCount' => 2,
+                'identifierCount' => 1,
+                'selectedIdentifier' => 'urn:uuid:package-root-report',
+                'selectedBy' => 'unique-identifier',
+                'identifierDiagnosticCount' => 0,
+                'valid' => false,
+            ], $package['summary']);
+            $t->same('EPUB/chapter.xhtml', $epub['manifestById']['chapter']['path']);
+        } finally {
+            $removeDirectory($root);
+        }
+    },
     'reports epub opf metadata item matrix for package review' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-reader-metadata-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
