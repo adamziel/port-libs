@@ -1756,7 +1756,12 @@ final class ZipPackage
      *     centralDirectoryToEocdGapPreviewByteCount:int,
      *     isCentralDirectoryToEocdGapExplainedBySignature:bool,
      *     eocdFixedHeaderBytes:int,
+     *     packageCommentOffset:int,
      *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     hasPackageComment:bool,
      *     endOfCentralDirectoryBytes:int,
      *     declaredArchiveEndOffset:int,
      *     trailingByteCount:int,
@@ -1862,6 +1867,11 @@ final class ZipPackage
             && $centralDirectorySignature['endOffset'] === $archive['eocdOffset'];
         $eocdFixedHeaderBytes = 22;
         $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentOffset = $archive['eocdOffset'] + $eocdFixedHeaderBytes;
+        $packageCommentPreviewByteCount = min($packageCommentBytes, 16);
+        $packageCommentPreviewHex = $packageCommentBytes > 0
+            ? bin2hex(substr($bytes, $packageCommentOffset, $packageCommentPreviewByteCount))
+            : '';
         $endOfCentralDirectoryBytes = $eocdFixedHeaderBytes + $packageCommentBytes;
         $declaredArchiveEndOffset = $archive['eocdOffset'] + $endOfCentralDirectoryBytes;
         $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
@@ -1920,7 +1930,12 @@ final class ZipPackage
             'centralDirectoryToEocdGapPreviewByteCount' => $centralDirectoryToEocdGapPreviewByteCount,
             'isCentralDirectoryToEocdGapExplainedBySignature' => $isCentralDirectoryToEocdGapExplainedBySignature,
             'eocdFixedHeaderBytes' => $eocdFixedHeaderBytes,
+            'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentOffset + $packageCommentBytes,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'hasPackageComment' => $packageCommentBytes > 0,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
             'trailingByteCount' => $trailingByteCount,

@@ -1014,7 +1014,7 @@ return [
         $documentXml = '<w:document><w:body><w:p>' . str_repeat('layout accounting ', 10) . '</w:p></w:body></w:document>';
         $mediaBytes = "stored layout media bytes\n";
         $gapBytes = 'layout-gap-review';
-        $packageComment = 'layout-comment';
+        $packageComment = "layout-comment PK\x05\x06 marker";
         $zip = $buildZipPackage([
             [
                 'name' => $documentName,
@@ -1068,7 +1068,12 @@ return [
         $t->same(0, $summary['centralDirectoryToEocdGapPreviewByteCount']);
         $t->same(false, $summary['isCentralDirectoryToEocdGapExplainedBySignature']);
         $t->same(22, $summary['eocdFixedHeaderBytes']);
+        $t->same($summary['eocdOffset'] + 22, $summary['packageCommentOffset']);
         $t->same(strlen($packageComment), $summary['packageCommentBytes']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same(bin2hex(substr($packageComment, 0, 16)), $summary['packageCommentPreviewHex']);
+        $t->same(16, $summary['packageCommentPreviewByteCount']);
+        $t->same(true, $summary['hasPackageComment']);
         $t->same(22 + strlen($packageComment), $summary['endOfCentralDirectoryBytes']);
         $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
         $t->same(0, $summary['trailingByteCount']);
@@ -1115,11 +1120,57 @@ return [
         $t->same(true, $safeSummary['isSupportedByBoundedReader']);
         $t->same(true, $safeSummary['isArchiveLayoutContiguous']);
         $t->same(0, $safeSummary['unclaimedLocalBytes']);
+        $t->same($safeSummary['eocdOffset'] + 22, $safeSummary['packageCommentOffset']);
+        $t->same($safeSummary['packageCommentOffset'], $safeSummary['packageCommentEnd']);
+        $t->same('', $safeSummary['packageCommentPreviewHex']);
+        $t->same(0, $safeSummary['packageCommentPreviewByteCount']);
+        $t->same(false, $safeSummary['hasPackageComment']);
         $t->same([], $safeSummary['issues']);
         $t->same($safeSummary, $safeRaw['packageByteLayout']);
         $t->same($safeSummary, $safeRaw['strictImport']['packageByteLayout']);
         $t->same(true, $safeRaw['isValid']);
         $t->same(true, $safeRaw['canInstantiate']);
+    },
+
+    'preflights zip package byte layout package comment provenance before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $packageComment = "package byte layout comment PK\x05\x06 reviewer";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>package comment byte layout provenance</w:p></w:document>',
+                'method' => 0,
+            ],
+        ], $packageComment);
+        $expectedEocdOffset = strlen($zip) - strlen($packageComment) - 22;
+        $commentSignatureOffset = strpos($zip, "PK\x05\x06", $expectedEocdOffset + 22);
+        if ($commentSignatureOffset === false) {
+            throw new RuntimeException('Fixture package comment EOCD-like signature not found');
+        }
+
+        $package = ZipPackage::fromString($zip);
+        $summary = ZipPackage::packageByteLayoutPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same($expectedEocdOffset, $summary['eocdOffset']);
+        $t->same($expectedEocdOffset + 22, $summary['packageCommentOffset']);
+        $t->same(strlen($packageComment), $summary['packageCommentBytes']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same(bin2hex(substr($packageComment, 0, 16)), $summary['packageCommentPreviewHex']);
+        $t->same(16, $summary['packageCommentPreviewByteCount']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same(22 + strlen($packageComment), $summary['endOfCentralDirectoryBytes']);
+        $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
+        $t->same(0, $summary['trailingByteCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same($summary['packageCommentOffset'] + strlen('package byte layout comment '), $commentSignatureOffset);
+        $t->same(true, $summary['eocdOffset'] < $commentSignatureOffset);
+        $t->same($packageComment, $package->packageComment());
+        $t->same($summary, $rawPreflight['packageByteLayout']);
+        $t->same($summary, $rawPreflight['strictImport']['packageByteLayout']);
+        $t->same($summary, $strict['packageByteLayout']);
+        $t->same(true, $rawPreflight['canInstantiate']);
     },
 
     'preflights hidden zip local span record signatures before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
