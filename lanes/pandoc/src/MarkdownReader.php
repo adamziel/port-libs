@@ -16129,14 +16129,14 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $stripped = rtrim($this->stripIndentColumns($line, $contentIndent));
-                if ($paragraph !== [] && $this->isListItemEqualsSetextHeadingUnderline($stripped)) {
+                if ($paragraph !== [] && $this->isListItemSetextHeadingUnderline($stripped)) {
                     array_push($parts, ...$this->readListItemSetextHeadingBlocks($paragraph, $stripped));
                     $paragraph = [];
                     $cursor++;
                     continue;
                 }
 
-                if ($paragraph !== [] && $this->isListItemEqualsSetextHeadingContinuationAt($lines, $cursor, $contentIndent)) {
+                if ($paragraph !== [] && $this->isListItemSetextHeadingContinuationAt($lines, $cursor, $contentIndent)) {
                     $paragraph[] = $stripped;
                     $cursor++;
                     continue;
@@ -16330,22 +16330,22 @@ final class MarkdownReader
             || ($paragraph === [] && $this->canStartListItemDefinitionBlock($line, $lines, $cursor + 1, $baseIndent, $contentIndent));
     }
 
-    private function isListItemEqualsSetextHeadingUnderline(string $line): bool
+    private function isListItemSetextHeadingUnderline(string $line): bool
     {
-        return preg_match('/^ {0,3}=+[ \t]*$/', $this->expandTabsToSpaces($line)) === 1;
+        return preg_match('/^ {0,3}(=+|-+)[ \t]*$/', $this->expandTabsToSpaces($line)) === 1;
     }
 
     /**
      * @param list<string> $lines
      */
-    private function isListItemEqualsSetextHeadingContinuationAt(array $lines, int $cursor, int $contentIndent): bool
+    private function isListItemSetextHeadingContinuationAt(array $lines, int $cursor, int $contentIndent): bool
     {
         $heading = $this->tryParseSetextMarkdownHeading(
             $this->listItemContinuationProbeLines($lines, $cursor, $contentIndent),
             0
         );
 
-        return $heading !== null && $heading['level'] === 1;
+        return $heading !== null;
     }
 
     /**
