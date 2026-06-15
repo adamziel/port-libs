@@ -11071,32 +11071,32 @@ MD;
 
         $t->same(implode("\n\n", [
             implode("\n", [
-                '````{.bash}',
+                '````bash',
                 "wp eval '`tick` fixture'",
                 '``` nested backtick fence',
                 '````',
             ]),
             implode("\n", [
-                '```{.text}',
+                '```text',
                 'plain fixture with ~~~ existing tilde run',
                 '```',
             ]),
         ]), $defaultMarkdown);
         $t->same(implode("\n\n", [
             implode("\n", [
-                '~~~{.bash}',
+                '~~~bash',
                 "wp eval '`tick` fixture'",
                 '``` nested backtick fence',
                 '~~~',
             ]),
             implode("\n", [
-                '~~~~{.text}',
+                '~~~~text',
                 'plain fixture with ~~~ existing tilde run',
                 '~~~~',
             ]),
         ]), $tildeMarkdown);
         $t->contains('``` nested backtick fence', $tildeMarkdown);
-        $t->true(!str_contains($tildeMarkdown, '````{.bash}'), 'Tilde fence mode should not lengthen backtick fences for backtick-only code text');
+        $t->true(!str_contains($tildeMarkdown, '````bash'), 'Tilde fence mode should not lengthen backtick fences for backtick-only code text');
     },
     'maps upstream markdown writer code span backtick delimiters' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [

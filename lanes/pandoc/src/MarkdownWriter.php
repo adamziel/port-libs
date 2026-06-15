@@ -1733,7 +1733,7 @@ final class MarkdownWriter
      */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
-        $attrs = $this->renderLinkAttributes($node);
+        $attrs = $this->renderCodeBlockAttributes($node);
         if ($attrs !== '') {
             return $this->renderFencedCodeBlock($node, $attrs, $indent);
         }
@@ -1745,6 +1745,26 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    private function renderCodeBlockAttributes(AstNode $node): string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if (
+            $attrs['id'] === ''
+            && $attrs['attributes'] === []
+            && count($attrs['classes']) === 1
+            && $this->isCodeBlockInfoString($attrs['classes'][0])
+        ) {
+            return $attrs['classes'][0];
+        }
+
+        return $this->renderAttributesTuple($attrs);
+    }
+
+    private function isCodeBlockInfoString(string $class): bool
+    {
+        return preg_match('/\A[A-Za-z0-9][A-Za-z0-9_+.#-]*\z/u', $class) === 1;
     }
 
     /**
