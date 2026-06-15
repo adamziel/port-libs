@@ -16092,11 +16092,17 @@ final class MarkdownReader
             return [];
         }
 
-        if (preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.)\s+/', $content) === 1) {
+        if ($this->definitionMarkerContentStartsBlock($content)) {
             return $this->read($content)->children;
         }
 
         return [new AstNode('paragraph', ['text' => $content], $this->parseInlines($content))];
+    }
+
+    private function definitionMarkerContentStartsBlock(string $content): bool
+    {
+        return preg_match('/^(?:[-*+]|\d{1,9}[.)]|#\.)\s+/', $content) === 1
+            || $this->isBlockQuoteLine($content);
     }
 
     /**
